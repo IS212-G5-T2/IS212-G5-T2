@@ -4,10 +4,20 @@ This repository uses root-level GitHub Actions workflows to orchestrate CI/CD fo
 
 ## Workflow Files
 
+- `.github/workflows/branch-flow.yml`: promotion-source checks for pull requests into `staging` and `main`.
 - `.github/workflows/security.yml`: security scanning for application, service, and Terraform code.
 - `.github/workflows/tests.yml`: unit-test orchestration for implemented apps and services.
 - `.github/workflows/terraform.yml`: Terraform format, validation, plan, apply, and destroy.
 - `.github/workflows/deployment.yml`: deployment workflow placeholder until real deployment commands are added.
+
+## Promotion Source Checks
+
+The branch-flow workflow enforces these promotion paths:
+
+- Pull requests targeting `staging` must come from `integration`.
+- Pull requests targeting `main` must come from `staging`.
+
+Any other source branch for those targets fails the `Validate Promotion Source` check.
 
 ## Component Test Entrypoints
 

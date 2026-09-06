@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-07 - Codex - Branch promotion CI guard
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/workflows/branch-flow.yml`, `AGENTS.md`, `docs/ci-cd-process.md`, `AI_USAGE.md`
+- Summary: Added a GitHub Actions check that requires pull requests into `main` to come from `staging`, and pull requests into `staging` to come from `integration`. Documented the rule in the agent guidance and CI/CD process notes.
+- AI contribution: CI workflow and documentation updates.
+- Assumptions: GitHub branch protection will be configured to require the `Validate Promotion Source` check where enforcement is needed.
+- Checks run: Parsed all GitHub Actions workflow YAML files with Ruby YAML.
+- Follow-up/conflict notes: None.
+
 ## 2026-09-07 - Codex - Jira and GitHub authority rules
 
 - Issue/PR: Unknown

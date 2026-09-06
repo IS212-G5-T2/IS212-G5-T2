@@ -121,6 +121,7 @@ Before final delivery or pull request handoff:
 
 Root GitHub Actions workflows orchestrate CI/CD for the monorepo:
 
+- `.github/workflows/branch-flow.yml` verifies promotion pull requests use the correct source branch.
 - `.github/workflows/security.yml` runs security scanning.
 - `.github/workflows/tests.yml` discovers and runs implemented component unit-test entrypoints.
 - `.github/workflows/terraform.yml` owns Terraform validation, planning, apply, and destroy.
@@ -156,6 +157,11 @@ Choose the branch flow from the Jira card intent:
 | Release preparation, QA hardening, or "move integration to staging/release" | `release/<issue>-<short-name>` from `integration`, or direct promotion PR from `integration` | `staging` by default; `release/*` only if the team creates an explicit release branch | Promote integrated work for staging validation and release preparation. |
 | Deployment, production release, or "move staging to deployment/production/main" | `deploy/<issue>-<short-name>` from `staging`, or direct promotion PR from `staging` | `main` | Promote staged work for production deployment. |
 | Hotfix for production | `hotfix/<issue>-<short-name>` from `main` | `main`, then back-merge/cherry-pick to `integration` and `staging` if needed | Repair production while keeping lower branches aligned. |
+
+The branch-flow CI check must pass for promotion pull requests:
+
+- Pull requests targeting `main` must use `staging` as the source branch.
+- Pull requests targeting `staging` must use `integration` as the source branch.
 
 Do not guess promotion intent. If the Jira card is ambiguous, infer from wording such as "ready for staging", "release preparation", "deploy", "production", or "go live"; otherwise ask one focused question. Do not implement a Jira card whose status is not `To Do` or `In Progress`; report the status mismatch instead.
 
