@@ -1,62 +1,139 @@
-# AI agent working instructions
+# AI agent instructions
 
-## Sources of truth and intake
+This file defines how AI agents should understand and change this repository. Read it before editing, then read `AI_USAGE.md` and every scoped `AGENTS.md` from the repo root down to the folder being changed.
 
-- Jira owns tasks, requirements, acceptance criteria, backlog, priority, workflow status, and sprint planning. GitHub owns source code, branches, commits, pull requests, CI/CD, and review.
-- Before modifying a component, read this file, all applicable scoped `AGENTS.md` files from parent to child, and the relevant Jira issue and acceptance criteria. Then inspect its README, contributor guidance, implementation, tests, and configuration.
-- If Jira is inaccessible, use a user-provided issue summary, key, acceptance criteria, and relevant context. Do not invent requirements or ticket keys. Directly requested documentation or maintenance work may use the user's stated scope and validation criteria.
-- Treat acceptance criteria as required behavior. Map each to implementation, tests, documentation, or an explicit non-code decision. Identify affected workflows, non-functional requirements, expected evidence, and deployment or migration impact. Ask one focused question if missing or conflicting requirements prevent safe implementation; record safe assumptions in the pull request.
+## Repository Shape
 
-## Repository layout
+This is one GitHub repository. Run Git commands, branch creation, commits, pushes, and pull requests from the repository root unless a tool explicitly requires a narrower working directory.
 
-This checkout is a single GitHub repository containing the project workspace. Run Git operations, checks, commits, and pull requests from the repository root unless a tool explicitly requires a narrower working directory.
+| Path | Owns | Does Not Own |
+| --- | --- | --- |
+| `apps/` | Frontend and client-facing applications. | Backend service logic, cloud infrastructure, Kubernetes runtime manifests. |
+| `services/` | Backend services, service contracts, persistence logic, service-level tests, and the service template. | Frontend UI, shared cloud provisioning, shared Kubernetes platform resources. |
+| `platform/terraform/` | Google Cloud provisioning, IAM, networking, managed services, API Gateway, GKE cluster creation, and Terraform outputs. | Application runtime code, service business logic, Kubernetes workload rollout. |
+| `platform/kubernetes/` | Kubernetes namespaces, service accounts, workload manifests, Gateway API routing, network policy, autoscaling, and overlays. | Terraform provisioning, application source code, service business logic. |
+| `development/local-dev/` | Docker Compose local integration stack, local gateway, emulator setup, and local database initialization. | Production infrastructure, production deployment, application feature ownership. |
+| `.github/workflows/` | Repository-level GitHub Actions orchestration for security, tests, Terraform, and deployment. | Component-specific test commands or application implementation details. |
+| `docs/` | Durable workflow and process documentation. | Dynamic task tracking, implementation source, environment secrets. |
 
-| Location | Purpose and entry point |
-| --- | --- |
-| `apps/` | Front-facing applications; currently the [frontend scaffold](apps/frontend/README.md). App deployments do not use Kubernetes. See [app guidance](apps/AGENTS.md) and [frontend guidance](apps/frontend/AGENTS.md). |
-| `services/` | Backend-facing microservices and the project template. Services are deployed through Kubernetes. See [service guidance](services/AGENTS.md) and [template guidance](services/template/AGENTS.md). |
-| `platform/` | Deployment strategy and configuration for the whole system: Terraform provisioning, Kubernetes runtime structure, and reusable GitHub Actions guidance. See [platform guidance](platform/AGENTS.md). |
-| `platform/terraform/` | Google Cloud infrastructure, IAM, networking, identity, and managed services. Start with its [README](platform/terraform/README.md). |
-| `platform/kubernetes/` | Runtime workloads, service accounts, Gateway API routing, and environment overlays. Start with its [README](platform/kubernetes/README.md). |
-| `development/local-dev/` | Shared local integration stack with Compose, gateway configuration, database initialization, and storage/messaging emulators. See its [README](development/local-dev/README.md) and [development guidance](development/AGENTS.md). |
+## Component Boundaries
 
-## Architecture and ownership
+Treat every direct child under `apps/` and `services/` as a component or project once it contains real implementation code. Each component must have a clear owner boundary.
 
-Platform configuration describes the deployment strategy for the whole system: app hosting outside Kubernetes, Google Cloud API Gateway for JWT verification, GKE for private backend services, and Cloud SQL, Pub/Sub, and Cloud Storage. This is the infrastructure design, not proof that all applications, services, or integrations exist.
+When adding a new project, such as `services/events-service`, create an `AGENTS.md` inside that project before or alongside implementation work. That file must state:
 
-Terraform owns cloud provisioning. Kubernetes owns backend service runtime manifests and Gateway/HTTPRoute routing. App deployments are front-facing and outside Kubernetes. GitHub Actions workflows in `.github/workflows/` define repository CI behavior. There is no verified workspace-wide build, lint, or test command, and services do not all share a runtime or pipeline.
+- What the project owns.
+- What the project explicitly does not own.
+- Its runtime, framework, and package manager once chosen.
+- Its public API, events, queues, database tables, or external integrations if any.
+- Its local setup, test, build, and CI entrypoints.
+- Which other folders it is allowed to coordinate with, such as `apps/`, `platform/kubernetes/`, or `development/local-dev/`.
 
-## Implementation and verification
+Example for a new backend service:
 
-- Inspect existing patterns before adding files, frameworks, dependencies, or abstractions. Match the component's stack, naming, layout, error handling, logging, and test style; prefer existing helpers.
-- Keep changes focused, small, and reviewable. Avoid unrelated rewrites or formatting and preserve other contributors' work.
-- Add or update relevant tests for changed behavior: unit tests for isolated logic, integration tests at external boundaries, workflow tests for UI changes, and regression tests for bug fixes. Use documentation checks for documentation-only changes.
-- Root GitHub Actions workflows orchestrate CI/CD for the monorepo. Implemented apps and services own their local unit-test command in `<component>/scripts/ci/unit-test.sh`; see [docs/ci-cd-process.md](docs/ci-cd-process.md).
-- Never commit secrets, credentials, tokens, certificates, private keys, or production data. Use clearly fake placeholders in examples and review available CI security findings.
-- Update human-facing documentation when behavior, setup, configuration, or operational steps change. Keep lasting technical context in project-level `HANDOVER.md` files and track notable changes in project-level `CHANGELOG.md` files.
+```text
+services/events-service/
+|-- AGENTS.md
+|-- README.md
+|-- HANDOVER.md
+|-- CHANGELOG.md
+|-- scripts/ci/unit-test.sh
+`-- ...
+```
 
-## Automation resource lifecycle
+The service-level `AGENTS.md` should make the boundary explicit. For example, an events service may own event ingestion, event validation, event persistence, and event publishing, but not user authentication, frontend rendering, Terraform project provisioning, or unrelated service schemas.
 
-- Pair creation of disposable automation/test resources with teardown. Record the pre-run state and track resources created by the run: processes, Docker containers, temporary images, volumes, networks, databases, test data, and temporary files. Preserve intended deliverables and pre-existing or shared resources.
-- Register cleanup before starting resource creation, using the script's existing exit/finally/test-teardown mechanism. Cover success, failure, and interruption where supported, including partial setup. Cleanup must be safe to repeat and must not hide the original test failure.
-- For disposable Docker runs, stopping a container is insufficient: remove the run-owned container and any run-owned temporary volumes, networks, and images. Scope cleanup to recorded resource identities; never use blanket Docker pruning to clean up a task.
-- Treat `development/local-dev` as a shared integration environment. Reuse its services and preserve its persistent data and pre-existing running state. Clean up test-owned records and temporary resources, but do not automatically destroy the stack or its volumes after an integration test. Stop or reset the shared environment only when explicitly requested; disclose any services started and left running for integration use.
-- Verify teardown after the run and report any remaining resources, why they remain, and any failed cleanup. Do not assume test success proves cleanup or that a CI runner removed externally created resources. If execution is forcibly killed and cleanup cannot run, report or reconcile the recorded resources on recovery.
+## Cross-Boundary Changes
 
-## Delivery
+Do not silently mix ownership areas. If a change crosses boundaries, name the affected areas and inspect each area's scoped `AGENTS.md` before editing.
 
-- Never push directly to `main` or protected branches. Use the Jira key in branch names, commits, and pull request titles where appropriate and available.
-- For GitHub issue work, follow [docs/codex-issue-workflow.md](docs/codex-issue-workflow.md): read the ticket, inspect current work, create a branch, implement, test, push, and open a pull request.
-- Prefer several logical commits over one large catch-all commit when the work naturally separates into components, such as implementation, tests, documentation, or CI changes. Keep each commit reviewable and avoid splitting changes so finely that the history becomes noisy.
-- Use clear commit prefixes where the repository has no stricter convention: `feat:`, `fix:`, `refactor:`, `chore:`, `perf:`, `ci:`, `ops:`, `build:`, `docs:`, `style:`, `revert:`, and `test:`.
-- Open a pull request for reviewable repository changes and stop for human review. Use `.github/pull_request_template.md` or a component-level pull request template when present. Never merge automatically unless explicitly instructed by an authorized human.
-- Report what changed, acceptance criteria coverage, commands/checks run and results, checks not run and why, and known security, deployment, migration, rollback, or configuration risks. Disclose any publishing or review steps that could not be completed.
+Common boundary crossings:
 
-## Documentation continuity
+- Frontend calling a backend API: read `apps/AGENTS.md`, the app's `AGENTS.md`, `services/AGENTS.md`, and the target service's `AGENTS.md`.
+- Service deployment change: read the service's `AGENTS.md`, `platform/kubernetes/AGENTS.md` if present, and `platform/AGENTS.md`.
+- Cloud resource change: read `platform/AGENTS.md` and `platform/terraform/README.md`.
+- Local integration change: read `development/AGENTS.md` and `development/local-dev/README.md`.
+- CI/CD change: read `docs/ci-cd-process.md` and the relevant workflow under `.github/workflows/`.
 
-- Use scoped `AGENTS.md` files for agent-specific rules. Use `HANDOVER.md` for lasting technical context, known limitations, architecture decisions, migrations, environment requirements, operations, test/setup constraints, and unresolved technical risks.
-- Keep `HANDOVER.md` and `CHANGELOG.md` at project or component level only, not shared group or subgroup folders. Create or update them when a project-level change adds useful continuity or should be visible in durable history.
-- Keep dynamic work tracking in Jira. Do not copy Jira backlog, sprint information, assignees, ticket status, daily progress logs, ticket-completion history, or facts already obvious from Git history into repository guidance.
-- Treat local guidance as potentially stale if it conflicts with code, tests, configuration, Jira acceptance criteria, or parent agent rules. Verify the discrepancy against those sources; do not silently convert stale context into a requirement.
-- READMEs cover overview/setup/usage/operations, and contributor guides cover human workflow. Link to authoritative guidance rather than copying it.
-- Keep project changelogs focused on durable change history. Do not use handovers or changelogs as live Jira status mirrors or daily progress logs.
+## AI Usage Tracking
+
+Use `AI_USAGE.md` as the shared ledger for AI-assisted work. This helps Codex, Claude, other AI tools, and human teammates understand what was changed, which assumptions were made, and where conflicts may exist.
+
+Before starting meaningful work:
+
+- Read the latest relevant entries in `AI_USAGE.md`.
+- Check whether another AI or teammate recently touched the same files or ownership area.
+- Preserve existing work unless the user explicitly asks to replace it.
+
+Before final delivery or pull request handoff:
+
+- Add or update one concise `AI_USAGE.md` entry for the work.
+- Include the AI tool/model if known, issue or PR link if available, areas touched, summary, assumptions, checks run, and follow-up/conflict notes.
+- Do not include secrets, credentials, private prompts, long chat transcripts, personal data beyond needed attribution, or production data.
+
+## CI/CD Contract
+
+Root GitHub Actions workflows orchestrate CI/CD for the monorepo:
+
+- `.github/workflows/security.yml` runs security scanning.
+- `.github/workflows/tests.yml` discovers and runs implemented component unit-test entrypoints.
+- `.github/workflows/terraform.yml` owns Terraform validation, planning, apply, and destroy.
+- `.github/workflows/deployment.yml` owns application and service deployment steps.
+
+Implemented apps and services own their local unit-test command in:
+
+```text
+<component>/scripts/ci/unit-test.sh
+```
+
+The root tests workflow should stay generic. Do not hard-code a component's runtime-specific test command into `.github/workflows/tests.yml`; put that command in the component's script.
+
+## Issue Workflow
+
+For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):
+
+```text
+read ticket -> inspect current work and AI_USAGE -> create branch -> implement -> test -> update AI_USAGE -> push -> open pull request -> report done
+```
+
+Jira remains the source of truth for Scrum planning and acceptance criteria when linked or provided. GitHub owns branches, commits, pull requests, CI/CD, and code review.
+
+## Branch Progression
+
+GitHub uses pull requests. If a Jira card, teammate, or older doc says "merge request", create a GitHub pull request.
+
+Choose the branch flow from the Jira card intent:
+
+| Jira card intent | Work branch | Pull request target | Purpose |
+| --- | --- | --- | --- |
+| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<issue>-<short-name>`, `fix/<issue>-<short-name>`, `docs/<issue>-<short-name>`, or `chore/<issue>-<short-name>` from `integration` | `integration` | Add normal development work into the integration branch. |
+| Release preparation, QA hardening, or "move integration to staging/release" | `release/<issue>-<short-name>` from `integration`, or direct promotion PR from `integration` | `staging` by default; `release/*` only if the team creates an explicit release branch | Promote integrated work for staging validation and release preparation. |
+| Deployment, production release, or "move staging to deployment/production/main" | `deploy/<issue>-<short-name>` from `staging`, or direct promotion PR from `staging` | `main` | Promote staged work for production deployment. |
+| Hotfix for production | `hotfix/<issue>-<short-name>` from `main` | `main`, then back-merge/cherry-pick to `integration` and `staging` if needed | Repair production while keeping lower branches aligned. |
+
+Do not guess promotion intent. If the Jira card is ambiguous, infer from wording such as "ready for staging", "release preparation", "deploy", "production", or "go live"; otherwise ask one focused question.
+
+For normal implementation cards, do not target `main` directly. Open the pull request into `integration`.
+
+For release-preparation cards, do not add unrelated feature work. The expected change is usually a promotion pull request from `integration` to `staging`, plus release notes or small stabilization fixes if the card asks for them. If the team later introduces a dedicated `release/*` branch, use that branch only when the Jira card or human requester explicitly names it.
+
+For deployment cards, inspect staging status, deployment notes, CI results, and environment risks before opening a pull request from `staging` to `main`. Treat `main` as the production/deployment branch for this repo unless a human explicitly defines a separate deployment branch. Deployment workflow changes belong in `.github/workflows/deployment.yml`; Terraform environment changes belong in `.github/workflows/terraform.yml` and `platform/terraform/`.
+
+## Implementation Rules
+
+- Inspect existing code and scoped guidance before adding files, frameworks, dependencies, or abstractions.
+- Keep changes focused and reviewable.
+- Preserve user and teammate changes already present in the working tree.
+- Add or update tests for changed behavior where meaningful.
+- Update README, HANDOVER, CHANGELOG, and scoped AGENTS files when behavior, ownership, setup, CI, deployment, or operational assumptions change.
+- Never commit secrets, credentials, tokens, private keys, certificates, real production data, Terraform state, or real `.tfvars` files.
+
+## Documentation Rules
+
+- Use `AGENTS.md` for AI agent instructions and ownership boundaries.
+- Use `AI_USAGE.md` for AI work traceability, assumptions, checks, and conflict notes across Codex, Claude, and other tools.
+- Use `README.md` for human setup, usage, and overview.
+- Use `HANDOVER.md` for durable technical context, constraints, risks, and next steps.
+- Use `CHANGELOG.md` for notable durable changes.
+- Use `docs/` for repo-level process documentation such as AI issue workflow and CI/CD process.
+- Do not put dynamic task status, sprint logs, or facts already obvious from Git history into durable docs.

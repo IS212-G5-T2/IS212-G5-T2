@@ -21,6 +21,20 @@ Link the Jira story or paste the relevant acceptance criteria.
 - [ ] Refactor
 - [ ] Test
 - [ ] Chore
+- [ ] Release preparation
+- [ ] Deployment
+- [ ] Hotfix
+
+## Branch Progression
+
+- Source branch:
+- Target branch:
+- Flow:
+  - [ ] Normal work into `integration`
+  - [ ] Release preparation from `integration` to `staging`
+  - [ ] Release preparation from `integration` to explicit `release/*` branch
+  - [ ] Deployment or production release from `staging` to `main`
+  - [ ] Production hotfix into `main`, with back-merge/cherry-pick noted if needed
 
 ## Test Evidence
 

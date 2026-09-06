@@ -15,6 +15,7 @@ This repository now contains the project code, infrastructure configuration, loc
 |-- platform/             # Terraform and Kubernetes platform configuration
 |-- services/             # Backend-facing services and service template
 |-- AGENTS.md             # Agent working instructions
+|-- AI_USAGE.md           # AI-assisted work log
 `-- opencode.json
 ```
 
@@ -39,6 +40,6 @@ GitHub Actions workflows live in `.github/workflows`:
 
 Use Jira for Scrum tracking and GitHub for source control, pull requests, code review, and CI evidence. Create feature branches from `main`, run relevant checks locally, and open a pull request for human review.
 
-For Codex-specific issue work, see [docs/codex-issue-workflow.md](docs/codex-issue-workflow.md).
+For AI-assisted issue work, see [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md).
 
 For the repository CI/CD structure, see [docs/ci-cd-process.md](docs/ci-cd-process.md).
