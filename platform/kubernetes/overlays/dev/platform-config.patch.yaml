@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: spm
+data:
+  PROJECT_ID: your-gcp-project-id
+  REGION: asia-southeast1
+  ENVIRONMENT: dev
+  CLOUD_SQL_CONNECTION_NAME: replace-with-terraform-output-cloud-sql-connection-name
+  CLOUD_SQL_DATABASE: spm
+  STORAGE_BUCKET: replace-with-storage-bucket-name
+  PUBSUB_TOPIC: spm-events

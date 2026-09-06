@@ -1,0 +1,68 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - integration
+      - staging
+      - main
+    paths:
+      - "apps/**"
+      - "services/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    branches:
+      - integration
+      - staging
+      - main
+    paths:
+      - "apps/**"
+      - "services/**"
+      - ".github/workflows/tests.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  component-unit-tests:
+    name: Component Unit Tests
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'integration' || github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run component unit test entrypoints
+        shell: bash
+        run: |
+          set -eu
+
+          entrypoints="$(
+            find apps services \
+              -path "services/template" -prune -o \
+              -path "*/scripts/ci/unit-test.sh" -type f -print | sort
+          )"
+
+          if [ -z "$entrypoints" ]; then
+            echo "No component unit-test entrypoints found."
+            echo "Add scripts/ci/unit-test.sh under an implemented app or service when tests exist."
+            exit 0
+          fi
+
+          for entrypoint in $entrypoints; do
+            component_dir="$(dirname "$(dirname "$(dirname "$entrypoint")")")"
+
+            if [ ! -x "$entrypoint" ]; then
+              echo "CI unit test entrypoint is not executable: $entrypoint"
+              echo "Run: chmod +x $entrypoint"
+              exit 1
+            fi
+
+            echo "Running unit tests for $component_dir"
+            (
+              cd "$component_dir"
+              ./scripts/ci/unit-test.sh
+            )
+          done

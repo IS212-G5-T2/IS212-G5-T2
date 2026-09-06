@@ -1,0 +1,25 @@
+apiVersion: networking.gke.io/v1
+kind: HealthCheckPolicy
+metadata:
+  name: sample-service
+  namespace: spm
+  labels:
+    app.kubernetes.io/name: sample-service
+    app.kubernetes.io/part-of: spm
+spec:
+  targetRef:
+    group: ""
+    kind: Service
+    name: sample-service
+  default:
+    checkIntervalSec: 15
+    timeoutSec: 5
+    healthyThreshold: 1
+    unhealthyThreshold: 3
+    logConfig:
+      enabled: true
+    config:
+      type: HTTP
+      httpHealthCheck:
+        port: 8080
+        requestPath: /healthz

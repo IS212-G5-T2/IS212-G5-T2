@@ -1,0 +1,138 @@
+name: Terraform
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+    paths:
+      - "platform/terraform/**"
+      - ".github/workflows/terraform.yml"
+  pull_request:
+    branches:
+      - staging
+      - main
+    paths:
+      - "platform/terraform/**"
+      - ".github/workflows/terraform.yml"
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Manual Terraform action"
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirm_destroy:
+        description: "Type destroy to confirm the destroy action"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  TF_IN_AUTOMATION: "true"
+  TF_INPUT: "false"
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'staging' || github.event_name == 'pull_request'
+    defaults:
+      run:
+        working-directory: platform/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.0"
+
+      - name: Terraform version
+        run: terraform version
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform format
+        run: terraform fmt -check -recursive
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        if: github.ref_name == 'staging' || github.event_name == 'pull_request' || inputs.action == 'plan'
+        run: terraform plan -out=tfplan
+
+      - name: Upload plan
+        if: github.ref_name == 'staging' || github.event_name == 'pull_request' || inputs.action == 'plan'
+        uses: actions/upload-artifact@v4
+        with:
+          name: terraform-plan
+          path: platform/terraform/tfplan
+          retention-days: 1
+
+  apply:
+    name: Apply Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && inputs.action == 'apply'
+    environment: production
+    defaults:
+      run:
+        working-directory: platform/terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.0"
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform apply
+        run: terraform apply -auto-approve
+
+  destroy:
+    name: Destroy Production
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'main' && inputs.action == 'destroy'
+    environment: production
+    defaults:
+      run:
+        working-directory: platform/terraform
+
+    steps:
+      - name: Check destroy confirmation
+        if: inputs.confirm_destroy != 'destroy'
+        run: |
+          echo "Set confirm_destroy to destroy before running this workflow."
+          exit 1
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.0"
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform destroy plan
+        run: terraform plan -destroy -out=tfdestroy
+
+      - name: Terraform destroy apply
+        run: terraform apply -auto-approve tfdestroy

@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - gateway.yaml
+  - limit-range.yaml
+  - resource-quota.yaml
+  - network-policy.yaml
+
+configMapGenerator:
+  - name: platform-config
+    namespace: spm
+    literals:
+      - PROJECT_ID=replace-with-gcp-project-id
+      - REGION=asia-southeast1
+      - ENVIRONMENT=dev
+      - CLOUD_SQL_CONNECTION_NAME=replace-with-cloud-sql-connection-name
+      - CLOUD_SQL_DATABASE=spm
+      - STORAGE_BUCKET=replace-with-storage-bucket-name
+      - PUBSUB_TOPIC=spm-events
+
+generatorOptions:
+  disableNameSuffixHash: true

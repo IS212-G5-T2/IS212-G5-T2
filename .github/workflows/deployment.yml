@@ -1,0 +1,30 @@
+name: Deployment
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "platform/kubernetes/**"
+      - ".github/workflows/deployment.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  production-placeholder:
+    name: Production Deployment Placeholder
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Placeholder
+        run: |
+          set -eu
+          echo "Production deployment placeholder."
+          echo "Target architecture: Vercel frontend, Google Cloud API Gateway, GKE private microservices, Artifact Registry, Secret Manager, Cloud SQL, Pub/Sub, and Cloud Storage."
+          echo "Terraform, Kubernetes manifests, container build, Artifact Registry push, and GKE rollout commands are not configured yet."
+          echo "Replace this placeholder when infrastructure configuration is ready."

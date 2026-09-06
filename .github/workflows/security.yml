@@ -1,0 +1,105 @@
+name: Security
+
+on:
+  push:
+    branches:
+      - integration
+      - staging
+      - main
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "platform/terraform/**"
+      - ".github/workflows/security.yml"
+  pull_request:
+    branches:
+      - integration
+      - staging
+      - main
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "platform/terraform/**"
+      - ".github/workflows/security.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write
+
+jobs:
+  frontend-codeql:
+    name: Frontend CodeQL
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'integration' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          source-root: apps/frontend
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  service-template-codeql:
+    name: Service Template CodeQL
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'integration' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript-typescript
+          source-root: services/template
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  terraform-iac:
+    name: Terraform IaC Scan
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Trivy IaC scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          scan-type: fs
+          scan-ref: platform/terraform
+          scanners: misconfig,secret
+          format: sarif
+          output: trivy-results.sarif
+
+      - name: Upload Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-results.sarif
+
+  secret-scan:
+    name: Secret Scan
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'integration' || github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,6 @@
+.env
+.env.local
+postgres-data/
+gcs-data/
+node_modules/
+.DS_Store

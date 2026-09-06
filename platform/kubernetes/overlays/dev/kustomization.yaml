@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - ../../apps/sample-service
+
+labels:
+  - pairs:
+      environment: dev
+
+images:
+  - name: asia-southeast1-docker.pkg.dev/replace-with-gcp-project-id/spm-services/sample-service
+    newName: asia-southeast1-docker.pkg.dev/your-gcp-project-id/spm-services/sample-service
+    newTag: dev
+
+patches:
+  - path: service-account.patch.yaml
+  - path: platform-config.patch.yaml
+  - path: gateway-route.patch.yaml
