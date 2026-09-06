@@ -6,12 +6,17 @@ Describe what changed and why.
 
 Link the Jira ticket.
 
+Jira status at implementation start:
+
+Existing branch or PR reused:
+
 ## User Story And Acceptance Criteria
 
 Link the Jira story or paste the relevant acceptance criteria.
 
 - [ ] Acceptance criteria are implemented.
 - [ ] Acceptance criteria are covered by tests or justified where not testable.
+- [ ] Implementation was compared against every acceptance criterion before marking ready for review.
 
 ## Type Of Change
 
@@ -39,6 +44,10 @@ Link the Jira story or paste the relevant acceptance criteria.
 ## Test Evidence
 
 Describe the checks you ran.
+
+## Implementation Summary
+
+Summarize how the implementation satisfies the Jira acceptance criteria.
 
 ## Security Evidence
 

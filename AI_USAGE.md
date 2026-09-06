@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-07 - Codex - Jira and GitHub authority rules
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
+- Summary: Updated AI workflow guidance so Jira is the authoritative requirements source and GitHub is the authoritative development artifact source. Added status gating, existing branch/PR reuse, Jira-key branch/commit/PR requirements, acceptance-criteria recheck, and Jira automation ownership rules.
+- AI contribution: Documentation and process guidance updates.
+- Assumptions: Jira statuses `To Do` and `In Progress` are the only statuses where implementation should proceed; Jira automation handles status transitions for branch creation, pull request creation, and pull request merge.
+- Checks run: Reviewed updated Markdown content.
+- Follow-up/conflict notes: Future AI agents should not duplicate Jira stories into GitHub Issues or manually mark Jira work items `Done`.
+
 ## 2026-09-07 - Codex - AI workflow and branch progression guidance
 
 - Issue/PR: Unknown
