@@ -13,9 +13,11 @@ Use this workflow when asking any AI agent to solve a GitHub issue, for example:
 7. Implement all acceptance criteria.
 8. Add or modify tests appropriate to each acceptance criterion.
 9. Update `AI_USAGE.md`.
-10. Commit with the Jira key, push, and create a GitHub pull request whose title contains the Jira key.
-11. Re-check the implementation against every acceptance criterion.
-12. Report completion.
+10. Stage completed changes for human review.
+11. Wait for explicit human approval to proceed with the commit.
+12. After explicit commit approval, commit with the Jira key, push, and create a GitHub pull request whose title contains the Jira key.
+13. Re-check the implementation against every acceptance criterion.
+14. Report completion.
 
 GitHub calls this final review step a pull request. If the task says "merge request", create a pull request. Do not duplicate the Jira story into a GitHub Issue.
 
@@ -104,13 +106,20 @@ Branch and pull request targets:
 - Add or update one concise entry in `AI_USAGE.md`.
 - Record the AI tool/model if known, issue or PR, areas touched, summary, assumptions, checks run, and follow-up/conflict notes.
 
-### 8. Commit And Push
+### 8. Stage For Human Review
 
-- Review the diff before pushing.
+- Review the diff before staging.
+- Stage completed changes so the human can review exactly what would be committed.
+- Report the staged files, tests/checks run, checks not run and why, and any known risks.
+- Do not commit, push, or create a pull request until the human explicitly says to proceed with the commit.
+
+### 9. Commit And Push
+
+- Proceed only after explicit human approval to commit.
 - Commit with the Jira key and a clear prefix such as `feat:`, `fix:`, `docs:`, `test:`, `ci:`, `ops:`, or `chore:`.
 - Push the branch to GitHub.
 
-### 9. Create The GitHub Pull Request
+### 10. Create The GitHub Pull Request
 
 - Use `.github/pull_request_template.md`.
 - Put the Jira key in the pull request title.
@@ -119,10 +128,11 @@ Branch and pull request targets:
 - Include an implementation summary, acceptance-criteria checklist, and testing notes.
 - Set the pull request base branch according to the branch progression table.
 - Stop for human review unless explicitly told to merge.
+- Do not auto-merge or accept the pull request.
 - If review requests changes, continue work on the existing branch and pull request.
 - Treat Jira automation as responsible for moving branch-created work to `In Progress`, pull-request-created work to `In Review`, and merged pull requests to `Testing`.
 
-### 10. Done
+### 11. Done
 
 Report:
 

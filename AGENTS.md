@@ -25,14 +25,16 @@ When given a Jira key, the coding agent must follow this progression:
 7. When starting new work, create a branch containing the Jira key.
 8. Implement all acceptance criteria.
 9. Add or modify tests appropriate to each acceptance criterion.
-10. Reference the Jira key in commits.
-11. Create a pull request whose title contains the Jira key.
-12. Include an implementation summary, acceptance-criteria checklist, and testing notes in the pull request.
-13. Do not duplicate the Jira story into a GitHub Issue.
-14. Do not mark the Jira work item `Done`.
-15. Treat Jira automation as responsible for branch, pull request, and merge status transitions.
-16. If review requests changes, continue work on the existing branch and pull request.
-17. Before declaring work ready, compare the implementation against every Jira acceptance criterion again.
+10. Stage completed changes for human review.
+11. Do not commit, push, or create a pull request until the human explicitly says to proceed with the commit.
+12. After explicit commit approval, reference the Jira key in commits.
+13. After explicit commit approval, push and create a pull request whose title contains the Jira key.
+14. Include an implementation summary, acceptance-criteria checklist, and testing notes in the pull request.
+15. Do not duplicate the Jira story into a GitHub Issue.
+16. Do not mark the Jira work item `Done`.
+17. Treat Jira automation as responsible for branch, pull request, and merge status transitions.
+18. If review requests changes, continue work on the existing branch and pull request.
+19. Before declaring work ready, compare the implementation against every Jira acceptance criterion again.
 
 GitHub owns:
 
@@ -140,7 +142,7 @@ The root tests workflow should stay generic. Do not hard-code a component's runt
 For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):
 
 ```text
-fetch Jira ticket -> read story and AC -> inspect GitHub work -> reuse or create branch -> implement AC -> test AC -> update AI_USAGE -> commit and push -> open PR -> re-check AC -> report done
+fetch Jira ticket -> read story and AC -> inspect GitHub work -> reuse or create branch -> implement AC -> test AC -> update AI_USAGE -> stage for review -> wait for explicit commit approval -> commit and push -> open PR -> re-check AC -> report done
 ```
 
 Jira remains the source of truth for Scrum planning and acceptance criteria when linked or provided. GitHub owns branches, commits, pull requests, CI/CD, and code review.

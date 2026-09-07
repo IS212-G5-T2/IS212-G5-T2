@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-07 - Codex - Human-reviewed commit gate
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `AI_USAGE.md`
+- Summary: Updated AI workflow guidance so agents stage completed changes for human review and wait for explicit approval before committing, pushing, or creating a pull request. Added an explicit no-auto-merge rule.
+- AI contribution: Documentation and process guidance updates.
+- Assumptions: Staging changes is acceptable for review, but committing and pull request creation require explicit human approval to proceed with the commit.
+- Checks run: Reviewed updated Markdown content.
+- Follow-up/conflict notes: Pending human review before commit.
+
 ## 2026-09-07 - Codex - Resolve security workflow annotations
 
 - Issue/PR: Unknown
