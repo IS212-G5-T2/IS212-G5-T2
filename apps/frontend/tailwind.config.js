@@ -1,0 +1,72 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  darkMode: "class",
+  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50: "#eff9fa",
+          100: "#d7f0f2",
+          200: "#b3e2e7",
+          300: "#82ccd5",
+          400: "#4aabb8",
+          500: "#2c8d9c",
+          600: "#237183",
+          700: "#205c6b",
+          800: "#1f4b58",
+          900: "#1c3f4b",
+        },
+        success: {
+          50: "#eefbf2",
+          100: "#d5f5df",
+          200: "#aee9c1",
+          300: "#79d69d",
+          400: "#47bb7b",
+          500: "#279e61",
+          600: "#1c7e4e",
+          700: "#1a6441",
+          800: "#194f37",
+          900: "#164130",
+        },
+        warning: {
+          50: "#fffaeb",
+          100: "#fff0c6",
+          200: "#ffdf88",
+          300: "#ffc84a",
+          400: "#ffb020",
+          500: "#f99007",
+          600: "#dd6c02",
+          700: "#b74b06",
+          800: "#943a0c",
+          900: "#7a300d",
+        },
+        danger: {
+          50: "#fef2f2",
+          100: "#fde2e2",
+          200: "#fbcaca",
+          300: "#f7a5a5",
+          400: "#f07272",
+          500: "#e34848",
+          600: "#cf2f2f",
+          700: "#ad2424",
+          800: "#8f2222",
+          900: "#772222",
+        },
+      },
+      fontFamily: {
+        sans: [
+          "Inter",
+          "-apple-system",
+          "BlinkMacSystemFont",
+          "Segoe UI",
+          "sans-serif",
+        ],
+      },
+      spacing: {
+        18: "4.5rem",
+      },
+    },
+  },
+  plugins: [],
+};
