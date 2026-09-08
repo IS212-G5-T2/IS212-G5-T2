@@ -2,6 +2,54 @@
 
 This file defines how AI agents should understand and change this repository. Read it before editing, then read `AI_USAGE.md` and every scoped `AGENTS.md` from the repo root down to the folder being changed.
 
+## Operating Flow
+
+Jira is the source of truth for:
+
+- User stories.
+- Acceptance criteria.
+- Priority.
+- Sprint.
+- Status.
+
+When Jira context is needed, use the available Atlassian/Jira MCP or connector if one is available. If Jira cannot be accessed, use the issue details supplied by the user and record the limitation in `AI_USAGE.md` and the pull request.
+
+When given a Jira key, the coding agent must follow this progression:
+
+1. Fetch the Jira work item.
+2. Read the complete summary, description, user story, acceptance criteria, relevant comments, priority, and status.
+3. Do not implement work unless the Jira status is `To Do` or `In Progress`.
+4. Inspect the GitHub repository before making changes, including `AI_USAGE.md` and the relevant scoped `AGENTS.md` files.
+5. Check for an existing branch or pull request associated with the Jira key.
+6. Reuse existing development work when present.
+7. When starting new work, create a branch containing the Jira key.
+8. Implement all acceptance criteria.
+9. Add or modify tests appropriate to each acceptance criterion.
+10. Stage completed changes for human review.
+11. Do not commit, push, or create a pull request until the human explicitly says to proceed with the commit.
+12. After explicit commit approval, reference the Jira key in commits.
+13. After explicit commit approval, push and create a pull request whose title contains the Jira key.
+14. Include an implementation summary, acceptance-criteria checklist, and testing notes in the pull request.
+15. Do not duplicate the Jira story into a GitHub Issue.
+16. Do not mark the Jira work item `Done`.
+17. Treat Jira automation as responsible for branch, pull request, and merge status transitions.
+18. If review requests changes, continue work on the existing branch and pull request.
+19. Before declaring work ready, compare the implementation against every Jira acceptance criterion again.
+
+GitHub owns:
+
+- Branches.
+- Code.
+- Commits.
+- Pull requests.
+- CI/tests.
+
+Jira automation owns these status transitions:
+
+- Branch created -> `In Progress`.
+- Pull request created -> `In Review`.
+- Pull request merged -> `Testing`.
+
 ## Repository Shape
 
 This is one GitHub repository. Run Git commands, branch creation, commits, pushes, and pull requests from the repository root unless a tool explicitly requires a narrower working directory.
@@ -75,6 +123,7 @@ Before final delivery or pull request handoff:
 
 Root GitHub Actions workflows orchestrate CI/CD for the monorepo:
 
+- `.github/workflows/branch-flow.yml` verifies promotion pull requests use the correct source branch.
 - `.github/workflows/security.yml` runs security scanning.
 - `.github/workflows/tests.yml` discovers and runs implemented component unit-test entrypoints.
 - `.github/workflows/terraform.yml` owns Terraform validation, planning, apply, and destroy.
@@ -93,7 +142,7 @@ The root tests workflow should stay generic. Do not hard-code a component's runt
 For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):
 
 ```text
-read ticket -> inspect current work and AI_USAGE -> create branch -> implement -> test -> update AI_USAGE -> push -> open pull request -> report done
+fetch Jira ticket -> read story and AC -> inspect GitHub work -> reuse or create branch -> implement AC -> test AC -> update AI_USAGE -> stage for review -> wait for explicit commit approval -> commit and push -> open PR -> re-check AC -> report done
 ```
 
 Jira remains the source of truth for Scrum planning and acceptance criteria when linked or provided. GitHub owns branches, commits, pull requests, CI/CD, and code review.
@@ -111,7 +160,12 @@ Choose the branch flow from the Jira card intent:
 | Deployment, production release, or "move staging to deployment/production/main" | `deploy/<issue>-<short-name>` from `staging`, or direct promotion PR from `staging` | `main` | Promote staged work for production deployment. |
 | Hotfix for production | `hotfix/<issue>-<short-name>` from `main` | `main`, then back-merge/cherry-pick to `integration` and `staging` if needed | Repair production while keeping lower branches aligned. |
 
-Do not guess promotion intent. If the Jira card is ambiguous, infer from wording such as "ready for staging", "release preparation", "deploy", "production", or "go live"; otherwise ask one focused question.
+The branch-flow CI check must pass for promotion pull requests:
+
+- Pull requests targeting `main` must use `staging` as the source branch.
+- Pull requests targeting `staging` must use `integration` as the source branch.
+
+Do not guess promotion intent. If the Jira card is ambiguous, infer from wording such as "ready for staging", "release preparation", "deploy", "production", or "go live"; otherwise ask one focused question. Do not implement a Jira card whose status is not `To Do` or `In Progress`; report the status mismatch instead.
 
 For normal implementation cards, do not target `main` directly. Open the pull request into `integration`.
 
