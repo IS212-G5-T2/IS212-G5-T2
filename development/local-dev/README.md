@@ -1,24 +1,23 @@
 # SPM Local Development
 
-This folder provides a Docker Compose setup that mirrors the platform stack closely enough for local development before pull requests.
+This folder provides a Docker Compose setup for local integration before pull requests.
 
-Production/dev infrastructure is defined in [../../platform](../../platform/):
+The stack is local-only; this repository no longer contains deployment, Terraform, or Kubernetes configuration.
 
-| Cloud or Kubernetes resource | Local equivalent |
+| Local concern | Local implementation |
 | --- | --- |
-| GKE namespace `spm` | Compose network `spm` |
-| GKE Gateway and HTTPRoute | `gateway` reverse proxy on `localhost:8080` |
-| Microservice Deployment | `sample-service` container |
-| Cloud SQL for PostgreSQL 16 | `postgres` on `localhost:5432` |
-| Cloud SQL Auth Proxy sidecar | Direct Compose DNS name `postgres` |
-| Cloud Storage bucket | `fake-gcs-server` on `localhost:4443` |
-| Pub/Sub topic and subscription | Pub/Sub emulator on `localhost:8085` |
-| Secret Manager and ConfigMap | `.env` file |
-| Kubernetes readiness/liveness probes | Compose health checks |
+| Compose network | `spm` |
+| Local gateway | `gateway` reverse proxy on `localhost:8080` |
+| Service container | `backend` |
+| PostgreSQL | `postgres` on `localhost:5432` |
+| Object storage emulator | `fake-gcs-server` on `localhost:4443` |
+| Pub/Sub emulator | Pub/Sub emulator on `localhost:8085` |
+| Runtime configuration | `.env` file |
+| Service readiness | Compose health checks |
 
 ## Current setup limitation
 
-The Compose build context expects `../../services/sample-service`, which is absent from this checkout. The stack cannot build that service as checked out. See the [local agent rules](AGENTS.md) and [service rules](../../services/AGENTS.md) for the current integration boundaries; the commands below require that build context to be supplied or configured for an implemented service.
+The Compose build context expects `../../services/backend`, the NestJS backend service in this repository.
 
 ## First Run
 
@@ -47,7 +46,7 @@ The response should show `status: ok` once Postgres is ready and the sample serv
 | Service | URL |
 | --- | --- |
 | Local gateway | `http://localhost:8080` |
-| Sample service through gateway | `http://localhost:8080/healthz` |
+| Backend through gateway | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
 | Pub/Sub emulator | `localhost:8085` |
 | Storage emulator | `http://localhost:4443` |
@@ -69,11 +68,11 @@ Use these Adminer values:
 | Password | `spm_dev_password` |
 | Database | `spm` |
 
-## How This Maps To Kubernetes
+## Local Configuration
 
-The Kubernetes sample service connects to Cloud SQL through a sidecar on `127.0.0.1:5432`. Locally, the same service connects to the Compose service name `postgres:5432`. Keep application code driven by `DATABASE_URL`, `DB_HOST`, and `DB_PORT` so no code changes are needed between local and cloud.
+Local services connect to PostgreSQL through the Compose service name `postgres:5432`. Keep application code driven by `DATABASE_URL`, `DB_HOST`, and `DB_PORT` so local configuration stays outside source code.
 
-The Kubernetes `platform-config` ConfigMap is represented by `.env`. The names intentionally match the deployed environment:
+The `.env` file configures local service defaults:
 
 - `PROJECT_ID`
 - `REGION`
@@ -83,15 +82,15 @@ The Kubernetes `platform-config` ConfigMap is represented by `.env`. The names i
 - `STORAGE_BUCKET`
 - `PUBSUB_TOPIC`
 
-Secrets from Secret Manager are represented by local-only values in `.env`. Do not commit real credentials.
+Use local-only values in `.env`. Do not commit real credentials.
 
-## Replacing The Sample Service
+## Replacing The Backend Service
 
-The Compose configuration targets a sample service, but its source is not present in this checkout. To integrate a real service:
+The Compose configuration targets `services/backend`. To integrate a different service:
 
 1. Put the service code under `services/<service-name>` or point the Compose build context to the existing local path.
-2. Keep `/healthz` or `/readyz`, matching the Kubernetes probes.
-3. Keep the internal container port as `8080`, unless the Kubernetes manifest changes too.
+2. Keep `/healthz` or `/readyz` for local health checks.
+3. Keep the internal container port as `8080`, unless the Compose gateway changes too.
 4. Add a new route in `gateway/nginx.conf` when there is more than one service.
 5. Add matching topic, subscription, database, or storage config to `.env.example` and this README.
 
@@ -108,7 +107,7 @@ Use `docker compose down -v` only for an explicitly requested data reset: it als
 ```sh
 docker compose up --build
 docker compose down
-docker compose logs -f sample-service
+docker compose logs -f backend
 docker compose ps
 ```
 

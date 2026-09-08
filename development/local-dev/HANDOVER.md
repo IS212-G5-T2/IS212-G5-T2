@@ -4,7 +4,7 @@
 
 `development/local-dev` defines the shared Docker Compose integration environment with gateway configuration, PostgreSQL initialization, and storage/messaging emulators.
 
-The Compose build context currently expects `../../services/sample-service`, which is absent from this checkout. The stack cannot build that service until the context is supplied or changed for an implemented service.
+The Compose build context currently expects `../../services/backend`, the NestJS backend service in this checkout.
 
 ## Lifecycle notes
 

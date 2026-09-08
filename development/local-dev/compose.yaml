@@ -4,7 +4,7 @@ services:
   gateway:
     image: nginx:1.27-alpine
     depends_on:
-      sample-service:
+      backend:
         condition: service_healthy
     ports:
       - "8080:80"
@@ -15,11 +15,13 @@ services:
       - spm
     restart: unless-stopped
 
-  sample-service:
+  backend:
     build:
-      context: ../../services/sample-service
+      context: ../../services/backend
     env_file:
-      - .env
+      - .env.example
+      - path: .env
+        required: false
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,7 +42,9 @@ services:
   postgres:
     image: postgres:16-alpine
     env_file:
-      - .env
+      - .env.example
+      - path: .env
+        required: false
     ports:
       - "5432:5432"
     volumes:
@@ -58,7 +62,9 @@ services:
   pubsub-emulator:
     image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
     env_file:
-      - .env
+      - .env.example
+      - path: .env
+        required: false
     command:
       - sh
       - -c
@@ -72,7 +78,9 @@ services:
   pubsub-init:
     image: curlimages/curl:8.11.1
     env_file:
-      - .env
+      - .env.example
+      - path: .env
+        required: false
     depends_on:
       - pubsub-emulator
     command:
@@ -108,7 +116,9 @@ services:
   gcs-init:
     image: curlimages/curl:8.11.1
     env_file:
-      - .env
+      - .env.example
+      - path: .env
+        required: false
     depends_on:
       - gcs
     command:

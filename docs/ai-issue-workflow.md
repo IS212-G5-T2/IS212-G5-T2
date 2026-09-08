@@ -51,43 +51,38 @@ GitHub calls this final review step a pull request. If the task says "merge requ
 ### 4. Plan The Implementation
 
 - Identify affected ownership boundaries before editing.
-- Name cross-boundary changes explicitly, such as frontend plus service, service plus Kubernetes, or Terraform plus deployment workflow.
+- Name cross-boundary changes explicitly, such as frontend plus service or service plus local integration tooling.
 - Keep the plan focused on the ticket.
 
 ### 5. Create Or Reuse The Correct Branch
 
-Choose the flow from the GitHub issue or linked Jira card:
+Use `staging` as the latest shared branch:
 
-- Normal feature, bug fix, refactor, test, or documentation cards go into `integration`.
-- Release preparation or "move integration to staging/release" cards promote `integration` into `staging` by default.
-- Deployment, production release, or "move staging to deployment/production/main" cards promote `staging` into `main`.
-- Production hotfix cards branch from `main`, then back-merge or cherry-pick to lower branches if needed.
-
-- Start from the latest appropriate base branch.
-- Use the issue number in the branch name.
-- Include the Jira key in the branch name when a Jira key is available.
+- Normal feature, bug fix, refactor, test, or documentation cards start from `staging`.
+- Pull requests target `staging`.
+- Start from the latest `staging`.
+- Use the Jira ticket id and ticket name in the branch name.
+- Format the branch as `<type>/<ticket_id>-<ticket_name>`, where `<ticket_name>` is a hyphenated slug of the Jira ticket name.
+- Do not replace the Jira ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
 - If the card is unclear, ask one focused question before creating the branch or pull request.
 
 Examples:
 
 ```text
-feature/SPM-155-short-description
-fix/SPM-155-short-description
-docs/SPM-155-short-description
-chore/SPM-155-short-description
-release/SPM-155-short-description
-deploy/SPM-155-short-description
-hotfix/SPM-155-short-description
+feature/SPM-155-add-event-approval-workflow
+fix/SPM-155-add-event-approval-workflow
+docs/SPM-155-add-event-approval-workflow
+chore/SPM-155-add-event-approval-workflow
+hotfix/SPM-155-add-event-approval-workflow
 ```
 
 Branch and pull request targets:
 
 | Card intent | Start from | Pull request target |
 | --- | --- | --- |
-| Normal implementation | `integration` | `integration` |
-| Release preparation | `integration` | `staging` by default; `release/*` only if explicitly requested |
-| Deployment or production release | `staging` | `main` |
-| Production hotfix | `main` | `main` |
+| Normal implementation | `staging` | `staging` |
+| Documentation, test, chore, or refactor | `staging` | `staging` |
+| Urgent fix | `staging` | `staging` |
 
 ### 6. Implement And Test
 
@@ -98,7 +93,7 @@ Branch and pull request targets:
 - Implement every acceptance criterion.
 - Run the smallest meaningful checks first.
 - Add or modify tests appropriate to each acceptance criterion.
-- Expand checks when the change touches shared behavior, CI, infrastructure, deployment, or user-facing workflows.
+- Expand checks when the change touches shared behavior, CI, local integration tooling, or user-facing workflows.
 - Record any check that cannot be run and why.
 
 ### 7. Update AI_USAGE
@@ -126,7 +121,7 @@ Branch and pull request targets:
 - Link the Jira ticket.
 - Include what changed, test evidence, acceptance criteria coverage, and known risks.
 - Include an implementation summary, acceptance-criteria checklist, and testing notes.
-- Set the pull request base branch according to the branch progression table.
+- Set the pull request base branch to `staging`.
 - Stop for human review unless explicitly told to merge.
 - Do not auto-merge or accept the pull request.
 - If review requests changes, continue work on the existing branch and pull request.

@@ -1,13 +1,32 @@
 # Frontend
 
-This repository is the client application scaffold for the workspace. It currently contains documentation and GitLab security pipeline configuration; application source and setup/test/build commands have not been added.
+This directory contains the React/Vite frontend for the workspace.
 
 ## Development
 
-Start with the [workspace operating guide](../../INSTRUCTIONS.md) for repository layout and the Jira/GitLab workflow. Use a feature branch and submit a merge request for human review.
+Start from the latest `staging`, create a focused feature/fix/docs/chore branch, and open a GitHub pull request back into `staging`.
 
-Coding agents follow the [global policy](../../AGENTS.md), [app rules](../AGENTS.md), and [frontend-specific rules](AGENTS.md). Parent and sibling links require the shared workspace layout and do not resolve in an isolated clone or GitLab file view; see the workspace guide for the shared-document distribution limitation.
+Coding agents follow the [global policy](../../AGENTS.md), [app rules](../AGENTS.md), and [frontend-specific rules](AGENTS.md).
+
+Install dependencies:
+
+```sh
+npm ci
+```
+
+Run the development server:
+
+```sh
+npm run dev
+```
 
 ## Checks
 
-[.gitlab-ci.yml](.gitlab-ci.yml) includes GitLab SAST and Secret Detection templates. No application test, lint, build, or deployment command is configured. Add actual setup and usage instructions here when the application implementation establishes them.
+Run the configured frontend checks from this directory:
+
+```sh
+npm run lint
+npm run build
+```
+
+No deployment command is configured for this repository.

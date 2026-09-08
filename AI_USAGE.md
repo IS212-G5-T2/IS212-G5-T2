@@ -21,6 +21,39 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-09 - Codex - Update Jira branch naming convention
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `README.md`, `docs/ai-issue-workflow.md`, `AI_USAGE.md`
+- Summary: Updated branch naming guidance to use `<type>/<ticket_id>-<ticket_name>` instead of `<issue>-<short-name>` so connected Jira and GitHub work displays the ticket id and Jira ticket name.
+- AI contribution: Documentation and workflow guidance updates.
+- Assumptions: The ticket name should be slugged with hyphens for branch compatibility while preserving the Jira ticket id exactly.
+- Checks run: Searched repository docs for stale branch-name examples.
+- Follow-up/conflict notes: None.
+
+## 2026-09-09 - Codex - Scaffold NestJS backend
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/`, `development/local-dev/`, `.github/workflows/`, `README.md`, `AI_USAGE.md`
+- Summary: Removed the generic service template and scaffolded a real NestJS backend at `services/backend` with npm, strict TypeScript, Vitest, oxlint, Dockerfile support, service docs, and a monorepo CI unit-test entrypoint. Updated local Docker Compose and the gateway to build and route to the backend service.
+- AI contribution: Official-docs lookup, Nest CLI scaffold, backend wiring, tests, and documentation updates.
+- Assumptions: The backend service should be named `backend`; NestJS is the default backend framework; deployment-related Nest/Mau scripts should be removed to match the no-deployment repository direction.
+- Checks run: `npm ci`; `npm test`; `npm run lint`; `npm run build`; `npm run test:e2e` outside the sandbox after the sandbox blocked local server binding; `services/backend/scripts/ci/unit-test.sh`; `docker compose -f development/local-dev/compose.yaml config --quiet`; searched for stale `services/template`, `sample-service`, and deployment references.
+- Follow-up/conflict notes: The Nest CLI generated current NestJS 12 ESM/Vitest/oxlint defaults.
+
+## 2026-09-09 - Codex - Remove deployment workflow assumptions
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: repo-wide, `.github/`, `apps/`, `services/`, `development/`, `docs/`
+- Summary: Removed the remaining deployment, Terraform, Kubernetes, and branch-promotion assumptions after `platform/` was removed. Updated workflows and documentation so `staging` is the latest shared branch and new work branches start from and target `staging`.
+- AI contribution: Repository scan, workflow cleanup, documentation updates, and AI usage logging.
+- Assumptions: The repository no longer needs deployment automation or promotion branches; local Docker Compose emulators remain useful for development and are not deployment infrastructure.
+- Checks run: Parsed GitHub Actions YAML with Ruby YAML; searched the repo for deployment/platform/branch-flow references and deployment-related filenames.
+- Follow-up/conflict notes: Existing `platform/` deletions were already present before this work and were preserved.
+
 ## 2026-09-07 - Codex - Human-reviewed commit gate
 
 - Issue/PR: Unknown

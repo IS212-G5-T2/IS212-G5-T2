@@ -3,18 +3,14 @@ name: Tests
 on:
   push:
     branches:
-      - integration
       - staging
-      - main
     paths:
       - "apps/**"
       - "services/**"
       - ".github/workflows/tests.yml"
   pull_request:
     branches:
-      - integration
       - staging
-      - main
     paths:
       - "apps/**"
       - "services/**"
@@ -28,7 +24,7 @@ jobs:
   component-unit-tests:
     name: Component Unit Tests
     runs-on: ubuntu-latest
-    if: github.ref_name == 'integration' || github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -41,7 +37,6 @@ jobs:
 
           entrypoints="$(
             find apps services \
-              -path "services/template" -prune -o \
               -path "*/scripts/ci/unit-test.sh" -type f -print | sort
           )"
 

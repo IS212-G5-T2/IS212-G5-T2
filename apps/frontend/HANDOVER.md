@@ -2,12 +2,11 @@
 
 ## Current state
 
-This directory is a front-facing application scaffold. It contains documentation and is covered by the repository-level security workflow, but no application source, package manifest, lockfile, local test command, lint command, build command, or deployment job.
+This directory is a front-facing application under `apps/`. It is covered by the repository-level security workflow.
 
-No frontend framework, routing approach, package manager, design system, accessibility standard, browser support matrix, or hosting configuration has been adopted yet.
+The app uses React, Vite, TypeScript, Tailwind CSS, React Router, and Zustand. The package manager is npm.
 
 ## Continuity notes
 
-- Add setup, development, test, build, environment, and deployment instructions to `README.md` when implementation begins.
+- Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
 - Add a real unit-test entrypoint if CI is expanded to run application tests.
-- Keep hosting outside Kubernetes unless an authorized architecture change says otherwise.
