@@ -21,6 +21,50 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-07 - Codex - Human-reviewed commit gate
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `AI_USAGE.md`
+- Summary: Updated AI workflow guidance so agents stage completed changes for human review and wait for explicit approval before committing, pushing, or creating a pull request. Added an explicit no-auto-merge rule.
+- AI contribution: Documentation and process guidance updates.
+- Assumptions: Staging changes is acceptable for review, but committing and pull request creation require explicit human approval to proceed with the commit.
+- Checks run: Reviewed updated Markdown content.
+- Follow-up/conflict notes: Pending human review before commit.
+
+## 2026-09-07 - Codex - Resolve security workflow annotations
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/workflows/security.yml`, `.github/workflows/tests.yml`, `.github/workflows/terraform.yml`, `AI_USAGE.md`
+- Summary: Fixed security workflow annotations by updating GitHub workflow checkout steps to `actions/checkout@v7`, correcting the Trivy action pin to `aquasecurity/trivy-action@v0.36.0`, and replacing the licensed Gitleaks Action wrapper with the pinned Gitleaks CLI Docker image `ghcr.io/gitleaks/gitleaks:v8.30.1`.
+- AI contribution: CI workflow repair and validation.
+- Assumptions: The repository should keep a free secret scan that works for an organization-owned GitHub repository without requiring `GITLEAKS_LICENSE`.
+- Checks run: Verified available Trivy, checkout, and Gitleaks tags with `git ls-remote`; parsed all GitHub Actions workflow YAML files with Ruby YAML.
+- Follow-up/conflict notes: None.
+
+## 2026-09-07 - Codex - Branch promotion CI guard
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/workflows/branch-flow.yml`, `AGENTS.md`, `docs/ci-cd-process.md`, `AI_USAGE.md`
+- Summary: Added a GitHub Actions check that requires pull requests into `main` to come from `staging`, and pull requests into `staging` to come from `integration`. Documented the rule in the agent guidance and CI/CD process notes.
+- AI contribution: CI workflow and documentation updates.
+- Assumptions: GitHub branch protection will be configured to require the `Validate Promotion Source` check where enforcement is needed.
+- Checks run: Parsed all GitHub Actions workflow YAML files with Ruby YAML.
+- Follow-up/conflict notes: None.
+
+## 2026-09-07 - Codex - Jira and GitHub authority rules
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
+- Summary: Updated AI workflow guidance so Jira is the authoritative requirements source and GitHub is the authoritative development artifact source. Added status gating, existing branch/PR reuse, Jira-key branch/commit/PR requirements, acceptance-criteria recheck, and Jira automation ownership rules.
+- AI contribution: Documentation and process guidance updates.
+- Assumptions: Jira statuses `To Do` and `In Progress` are the only statuses where implementation should proceed; Jira automation handles status transitions for branch creation, pull request creation, and pull request merge.
+- Checks run: Reviewed updated Markdown content.
+- Follow-up/conflict notes: Future AI agents should not duplicate Jira stories into GitHub Issues or manually mark Jira work items `Done`.
+
 ## 2026-09-07 - Codex - AI workflow and branch progression guidance
 
 - Issue/PR: Unknown
