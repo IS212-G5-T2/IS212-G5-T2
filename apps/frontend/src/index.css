@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    @apply text-gray-900 dark:text-gray-100;
+  }
+  body {
+    @apply bg-gray-50 antialiased transition-colors dark:bg-gray-900;
+  }
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-primary-500;
+  }
+}
+
+@layer utilities {
+  .sr-only-focusable:not(:focus) {
+    @apply sr-only;
+  }
+}
