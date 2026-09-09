@@ -6,6 +6,8 @@ This directory is a front-facing application under `apps/`. It is covered by the
 
 The app uses React, Vite, TypeScript, Tailwind CSS, React Router, and Zustand. The package manager is npm.
 
+The shared local Docker Compose stack builds this app with `apps/frontend/Dockerfile` and exposes Vite on `localhost:5173`.
+
 ## Continuity notes
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.

@@ -20,6 +20,13 @@ Run the development server:
 npm run dev
 ```
 
+The shared Docker Compose stack can also run the frontend from `development/local-dev`:
+
+```sh
+cd ../../development/local-dev
+docker compose up --build frontend
+```
+
 ## Checks
 
 Run the configured frontend checks from this directory:
