@@ -58,7 +58,8 @@ This is one GitHub repository. Run Git commands, branch creation, commits, pushe
 | --- | --- | --- |
 | `apps/` | Frontend and client-facing applications. | Backend service logic or shared local integration tooling. |
 | `services/` | Backend services, service contracts, persistence logic, and service-level tests. | Frontend UI or shared local integration tooling. |
-| `development/local-dev/` | Docker Compose local integration stack, local gateway, emulator setup, and local database initialization. | Application feature ownership or production infrastructure. |
+| `development/local-dev/` | Docker Compose local integration stack, local gateway, and emulator setup. | Application feature ownership, database asset ownership, or production infrastructure. |
+| `development/database/` | Local database initialization assets for the shared local development stack. | Backend persistence code, application migrations, or production database infrastructure. |
 | `.github/workflows/` | Repository-level GitHub Actions orchestration for security and tests. | Component-specific test commands or release automation. |
 | `docs/` | Durable workflow and process documentation. | Dynamic task tracking, implementation source, environment secrets. |
 

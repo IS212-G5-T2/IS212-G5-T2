@@ -15,6 +15,27 @@ services:
       - spm
     restart: unless-stopped
 
+  frontend:
+    build:
+      context: ../../apps/frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8080}
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../../apps/frontend:/app
+      - frontend-node-modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - public
+      - spm
+    restart: unless-stopped
+
   backend:
     build:
       context: ../../services/backend
@@ -40,7 +61,8 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: postgres:16-alpine
+    build:
+      context: ../database/postgresql
     env_file:
       - .env.example
       - path: .env
@@ -49,7 +71,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
@@ -149,5 +170,6 @@ networks:
     internal: false
 
 volumes:
+  frontend-node-modules:
   postgres-data:
   gcs-data:

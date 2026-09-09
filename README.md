@@ -9,7 +9,7 @@ This repository contains the project code, local development setup, and GitHub A
 |-- .github/              # GitHub metadata, pull request template, and workflows
 |-- apps/                 # Front-facing applications
 |-- assets/               # README and documentation images
-|-- development/          # Local development and integration tooling
+|-- development/          # Local Compose tooling and database init assets
 |-- docs/                 # Project workflow documentation
 |-- services/             # Backend-facing services
 |-- AGENTS.md             # Agent working instructions
@@ -26,6 +26,7 @@ At a high level:
 - `apps/frontend` is the React/Vite frontend application area.
 - `services/backend` is the NestJS backend service.
 - `development/local-dev` owns the Docker Compose environment for local integration testing.
+- `development/database` owns the local PostgreSQL image and initialization assets used by Compose.
 - `.github/workflows` owns the GitHub Actions security and test workflows.
 - `docs` owns project workflow documentation.
 
@@ -42,9 +43,10 @@ The system is organized around clear ownership boundaries:
 | Layer | Repository | Responsibility |
 | --- | --- | --- |
 | Project coordination | Repository root and `docs` | README, AI usage notes, agent instructions, project workflow documentation |
-| Frontend | `apps/frontend` | User-facing client application scaffold and frontend CI security checks |
-| Backend services | `services/*` | Microservice code, service-specific tests, service Dockerfiles, service CI |
-| Local integration | `development/local-dev` | Docker Compose gateway, backend runtime target, PostgreSQL, Pub/Sub emulator, fake GCS, Adminer |
+| Frontend | `apps/frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
+| Backend services | `services/backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
+| Database assets | `development/database` | Local PostgreSQL image and initialization assets used by Docker Compose |
+| Local integration | `development/local-dev` | Docker Compose gateway, frontend/backend runtime targets, PostgreSQL, Pub/Sub emulator, fake GCS, Adminer |
 | CI | `.github/workflows` | GitHub Actions workflows for security and tests |
 
 The local development stack supports integration work without deployment infrastructure:
@@ -53,7 +55,8 @@ The local development stack supports integration work without deployment infrast
 | --- | --- |
 | Compose network | `spm` |
 | Local gateway | Nginx gateway at `http://localhost:8080` |
-| Service container | `backend` container |
+| Frontend container | `frontend` container at `http://localhost:5173` |
+| Backend container | `backend` container through the gateway at `http://localhost:8080` |
 | PostgreSQL | PostgreSQL at `localhost:5432` |
 | Object storage emulator | Fake GCS server at `http://localhost:4443` |
 | Pub/Sub emulator | Pub/Sub emulator at `localhost:8085` |
@@ -95,6 +98,7 @@ C4Container
 
     Person(dev, "Developer", "Runs the full local stack.")
     System_Boundary(local, "development/local-dev") {
+        Container(frontendLocal, "frontend", "React / Vite dev container", "Frontend development server on localhost:5173.")
         Container(gateway, "gateway", "Nginx", "Local reverse proxy on localhost:8080.")
         Container(service, "backend", "NestJS backend container", "Service target expected by the Compose stack.")
         ContainerDb(postgres, "postgres", "PostgreSQL 16", "Local relational database on localhost:5432.")
@@ -103,7 +107,9 @@ C4Container
         Container(adminer, "db-admin", "Adminer", "Optional database UI on localhost:8081.")
     }
 
-    Rel(dev, gateway, "Sends API requests")
+    Rel(dev, frontendLocal, "Opens UI")
+    Rel(frontendLocal, gateway, "Calls backend API through localhost:8080")
+    Rel(dev, gateway, "Sends direct API requests")
     Rel(gateway, service, "Routes /healthz and service traffic")
     Rel(service, postgres, "Uses DATABASE_URL / DB_HOST / DB_PORT")
     Rel(service, pubsub, "Uses emulator config")
@@ -201,6 +207,7 @@ Common local URLs:
 
 | Service | URL |
 | --- | --- |
+| Frontend | `http://localhost:5173` |
 | Local gateway | `http://localhost:8080` |
 | Backend through gateway | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
@@ -236,7 +243,7 @@ Reset local database and storage volumes only when a full data reset is intended
 docker compose down -v
 ```
 
-The local Compose stack builds `../../services/backend` for the backend container.
+The local Compose stack builds `../../apps/frontend` for the frontend container, `../../services/backend` for the backend container, and `development/database/postgresql` for the local PostgreSQL image.
 
 ## Developers
 
@@ -274,7 +281,7 @@ A typical Scrum flow:
 6. CI evidence, review feedback, and acceptance criteria are checked before merging.
 7. Jira is updated as the work moves from in progress to review, staging validation, and done.
 
-### Branch Flow: Branch To Integration To Staging To Main
+### Branch Flow: Work Branch To Staging
 
 The team uses `staging` as the latest shared branch:
 

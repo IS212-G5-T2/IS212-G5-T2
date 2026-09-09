@@ -4,8 +4,8 @@ Scope: shared tooling under `development/`, within the [global agent instruction
 
 ## Current state
 
-- This directory defines the shared local integration stack with Docker Compose, gateway configuration, PostgreSQL initialization, and storage/messaging emulators.
-- The Compose build context currently expects `../../services/backend`, the NestJS backend service in this checkout.
+- This directory defines shared local development assets, including the Docker Compose integration stack, gateway configuration, local database initialization, and storage/messaging emulators.
+- The Compose build contexts currently expect `../../apps/frontend`, the React/Vite frontend, and `../../services/backend`, the NestJS backend service in this checkout.
 - The stack is an integration environment, not a disposable unit-test fixture. Treat its containers, networks, and named volumes as shared state unless the user explicitly asks to stop or reset them.
 
 ## Lifecycle rules
@@ -18,4 +18,5 @@ Scope: shared tooling under `development/`, within the [global agent instruction
 ## Change guidance
 
 - Keep environment variable names aligned with the local integration conventions documented in [local-dev/README.md](local-dev/README.md).
-- Update Compose, gateway routes, `.env.example`, and README instructions together when replacing the sample service or adding an implemented service.
+- Keep database images and initialization assets under `development/database`; keep Compose orchestration under `development/local-dev`.
+- Update Compose, gateway routes, `.env.example`, and README instructions together when replacing services or adding implemented services.

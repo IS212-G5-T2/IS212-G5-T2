@@ -8,16 +8,17 @@ The stack is local-only; this repository no longer contains deployment, Terrafor
 | --- | --- |
 | Compose network | `spm` |
 | Local gateway | `gateway` reverse proxy on `localhost:8080` |
-| Service container | `backend` |
+| Frontend container | `frontend` on `localhost:5173` |
+| Backend container | `backend` |
 | PostgreSQL | `postgres` on `localhost:5432` |
 | Object storage emulator | `fake-gcs-server` on `localhost:4443` |
 | Pub/Sub emulator | Pub/Sub emulator on `localhost:8085` |
 | Runtime configuration | `.env` file |
 | Service readiness | Compose health checks |
 
-## Current setup limitation
+## Current setup
 
-The Compose build context expects `../../services/backend`, the NestJS backend service in this repository.
+The Compose build contexts expect `../../apps/frontend` for the React/Vite frontend, `../../services/backend` for the NestJS backend service, and `../database/postgresql` for the local PostgreSQL image. Database assets are owned separately from the Compose orchestration.
 
 ## First Run
 
@@ -39,12 +40,19 @@ The Compose build context expects `../../services/backend`, the NestJS backend s
    curl http://localhost:8080/healthz
    ```
 
-The response should show `status: ok` once Postgres is ready and the sample service has started.
+The response should show `status: ok` once Postgres is ready and the backend service has started.
+
+4. Open the frontend:
+
+   ```text
+   http://localhost:5173
+   ```
 
 ## Common URLs
 
 | Service | URL |
 | --- | --- |
+| Frontend | `http://localhost:5173` |
 | Local gateway | `http://localhost:8080` |
 | Backend through gateway | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
@@ -81,8 +89,24 @@ The `.env` file configures local service defaults:
 - `CLOUD_SQL_DATABASE`
 - `STORAGE_BUCKET`
 - `PUBSUB_TOPIC`
+- `VITE_API_BASE_URL`
 
 Use local-only values in `.env`. Do not commit real credentials.
+
+Only `VITE_API_BASE_URL` is passed into the frontend container. Backend, database, storage, and Pub/Sub settings stay on the backend and infrastructure containers.
+
+## Frontend, Backend, And Database Layout
+
+Local orchestration is intentionally split by responsibility:
+
+| Path | Responsibility |
+| --- | --- |
+| `apps/frontend` | React/Vite frontend source and frontend container image |
+| `services/backend` | NestJS backend source and backend container image |
+| `development/database/postgresql` | Local PostgreSQL image and initialization assets |
+| `development/local-dev` | Docker Compose, gateway, emulator setup, and local stack docs |
+
+The frontend is exposed directly on `localhost:5173` for Vite development. Backend API traffic remains available through the local gateway on `localhost:8080`.
 
 ## Replacing The Backend Service
 
@@ -93,6 +117,19 @@ The Compose configuration targets `services/backend`. To integrate a different s
 3. Keep the internal container port as `8080`, unless the Compose gateway changes too.
 4. Add a new route in `gateway/nginx.conf` when there is more than one service.
 5. Add matching topic, subscription, database, or storage config to `.env.example` and this README.
+
+## Updating Database Initialization
+
+PostgreSQL init scripts are built into the local image from `development/database/postgresql/init`. These scripts run only when Docker creates a fresh `postgres-data` volume. For already-initialized local databases, apply changes manually or explicitly reset data with `docker compose down -v` from this directory when it is safe to discard local state.
+
+To build and run only the database without the rest of Docker Compose:
+
+```sh
+docker build -t spm-postgresql ../database/postgresql
+docker run --name spm-postgresql -p 5432:5432 spm-postgresql
+```
+
+The standalone database image includes local-only defaults for `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. Compose can still override them through `.env.example` or `.env`.
 
 ## Integration environment lifecycle
 
@@ -108,6 +145,7 @@ Use `docker compose down -v` only for an explicitly requested data reset: it als
 docker compose up --build
 docker compose down
 docker compose logs -f backend
+docker compose logs -f frontend
 docker compose ps
 ```
 
