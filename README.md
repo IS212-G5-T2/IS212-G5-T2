@@ -30,7 +30,7 @@ At a high level:
 - `.github/workflows` owns the GitHub Actions security and test workflows.
 - `docs` owns project workflow documentation.
 
-No deployment target is defined in this repository. `staging` is the latest shared branch; create new work branches from the latest `staging` and open pull requests back into `staging`.
+No deployment target is defined in this repository. `dev` is the latest shared branch; create new work branches from the latest `dev` and open pull requests back into `dev`.
 
 ![Secure Architecture with Centralized Logging](assets/Secure%20Architecture%20with%20Centralized%20Logging.png)
 
@@ -279,17 +279,17 @@ A typical Scrum flow:
 4. A developer creates a branch using the Jira key.
 5. The developer implements the work, updates tests and documentation, and opens a GitHub pull request.
 6. CI evidence, review feedback, and acceptance criteria are checked before merging.
-7. Jira is updated as the work moves from in progress to review, staging validation, and done.
+7. Jira is updated as the work moves from in progress to review, dev validation, and done.
 
-### Branch Flow: Work Branch To Staging
+### Branch Flow: Work Branch To dev
 
-The team uses `staging` as the latest shared branch:
+The team uses `dev` as the latest shared branch:
 
 ```text
 feature/fix/docs branch
         |
         v
-staging
+dev
 ```
 
 Recommended branch names:
@@ -307,21 +307,21 @@ Use the Jira ticket id, such as `SPM-155`, followed by a hyphenated slug of the 
 
 This is where individual development happens.
 
-- Created from the latest `staging`.
+- Created from the latest `dev`.
 - Named with the Jira key whenever available.
 - Contains focused commits for one Jira issue or one tightly related change.
 - Developer runs relevant local checks before opening a pull request.
 - Pull request explains the change, links the Jira issue, lists tests, and calls out risks or follow-up work.
 
-#### 2. Staging
+#### 2. dev
 
-`staging` is the latest shared branch for the project.
+`dev` is the latest shared branch for the project.
 
 - Feature branches merge here after review.
-- GitHub Actions should run unit tests on `staging`.
-- GitHub Actions should catch security, unit-test, and integration problems on `staging`.
+- GitHub Actions should run unit tests on `dev`.
+- GitHub Actions should catch security, unit-test, and integration problems on `dev`.
 - The team resolves merge conflicts and cross-service incompatibilities here.
-- Bugs found on `staging` should be fixed from a new branch based on the latest `staging`.
+- Bugs found on `dev` should be fixed from a new branch based on the latest `dev`.
 - Jira issues should only be marked done when the implementation, review, CI, and acceptance criteria are complete.
 
-The goal of this workflow is to keep Scrum planning, code review, and CI evidence connected. Jira explains why the work exists; GitHub proves what changed; CI shows whether the change is safe to merge into `staging`.
+The goal of this workflow is to keep Scrum planning, code review, and CI evidence connected. Jira explains why the work exists; GitHub proves what changed; CI shows whether the change is safe to merge into `dev`.
