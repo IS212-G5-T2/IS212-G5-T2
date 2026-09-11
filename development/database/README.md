@@ -12,15 +12,51 @@ Build the database image from the repository root:
 docker build -t spm-postgresql development/database/postgresql
 ```
 
-Run only the local database:
+Or build it from the PostgreSQL image folder:
 
 ```sh
-docker run --name spm-postgresql -p 5432:5432 spm-postgresql
+cd development/database/postgresql
+docker build -t spm-postgresql .
 ```
 
-The image includes local-only defaults for `POSTGRES_USER`, `POSTGRES_PASSWORD`, and `POSTGRES_DB`. Override them with `-e` flags only when you intentionally need different local credentials.
+Run only the local database from either location:
 
-PostgreSQL only runs these files when the `postgres-data` volume is first created. If the database already exists, update it manually or explicitly reset local data with:
+```sh
+docker run --rm --name spm-postgresql \
+  -e POSTGRES_USER=spm \
+  -e POSTGRES_PASSWORD=spm_dev_password \
+  -e POSTGRES_DB=spm \
+  -p 5432:5432 \
+  spm-postgresql
+```
+
+Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `development/local-dev/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
+
+The PostgreSQL entrypoint runs every SQL file in `postgresql/init/` by filename order when it creates a fresh database. `001_schema.sql` contains base local schema, and `002_rbac.sql` creates and seeds the local RBAC tables:
+
+| Table | Purpose |
+| --- | --- |
+| `roles` | Supported user roles for authorization checks. |
+| `resources` | Protected event-management resources. |
+| `role_permissions` | CRUD permissions for each role/resource pair. |
+
+To check a standalone database after it starts, connect with the local defaults:
+
+```sh
+psql postgresql://spm:spm_dev_password@localhost:5432/spm
+```
+
+Example RBAC smoke checks:
+
+```sql
+SELECT count(*) FROM roles;
+SELECT count(*) FROM resources;
+SELECT count(*) FROM role_permissions;
+```
+
+The expected counts are 5 roles, 10 resources, and 27 role permission rows.
+
+PostgreSQL only runs these files when a fresh database directory is created. A standalone `docker run --rm ...` without a mounted volume starts clean each time. The Compose stack uses the persistent `postgres-data` volume; if that database already exists, update it manually or explicitly reset local data with:
 
 ```sh
 docker compose -f development/local-dev/compose.yaml down -v
