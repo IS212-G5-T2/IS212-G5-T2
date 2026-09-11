@@ -21,16 +21,16 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
-## 2026-09-11 - Codex - Refresh GitHub Actions branch flow
+## 2026-09-11 - Codex - Set up RBAC database seed
 
-- Issue/PR: Unknown
+- Issue/PR: SPM-103
 - Human requester/operator: swr
-- Areas touched: `.github/workflows`, `docs/`, `README.md`, `AI_USAGE.md`
-- Summary: Updated GitHub Actions triggers and workflow documentation for the current `work branch -> dev -> main` flow, removing stale staging/integration assumptions.
-- AI contribution: CI workflow configuration and documentation.
-- Assumptions: Security checks should run for all PRs/pushes targeting `dev` or `main`; component unit tests should also run when local development assets or CI process docs change.
-- Checks run: `ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "OK #{f}" }' .github/workflows/security.yml .github/workflows/tests.yml`; `git diff --check`; searched `.github`, `docs`, `README.md`, and `AGENTS.md` for stale staging/integration branch wording.
-- Follow-up/conflict notes: Moved from the SPM-103 feature branch onto `dev` at the human request.
+- Areas touched: `development/database`, `development/local-dev`, `AI_USAGE.md`
+- Summary: Added local PostgreSQL RBAC tables and seed data in a separate init SQL file, documented standalone PostgreSQL build/run/smoke-check usage, and removed baked PostgreSQL credentials from the database image.
+- AI contribution: Jira review, database SQL, local development documentation, and validation.
+- Assumptions: RBAC belongs in a separate local database init file from base/user-auth schema; backend relationship-level authorization will be implemented separately from this seed data.
+- Checks run: `docker compose -f development/local-dev/compose.yaml config --quiet`; `git diff --check`; `rg -n "POSTGRES_PASSWORD|POSTGRES_USER|POSTGRES_DB" -g 'Dockerfile' development services apps`; `rg -n "can_create|can_read|can_update|can_delete" development/database`; Ruby validation that `002_rbac.sql` matches Jira's 5 roles, 10 resources, 27 permission rows, and plain quoted permission columns. Docker SQL execution was not run because the local Docker daemon socket was unavailable and no local PostgreSQL server binary was present.
+- Follow-up/conflict notes: No existing local or remote branch/PR for SPM-103 was found before starting `feature/SPM-103-set-up-database-for-rbac`.
 
 ## 2026-09-11 - Codex - Switch shared branch guidance to dev
 

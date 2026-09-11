@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-11
+
+- Added local PostgreSQL RBAC schema and seed data in a separate init file for roles, resources, and role permissions.
+- Removed baked PostgreSQL credentials from the local database image; pass local credentials through Compose or standalone `docker run` environment variables.
+
 ## 2026-09-09
 
 - Added the frontend service to the local Docker Compose stack.
