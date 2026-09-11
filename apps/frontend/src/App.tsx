@@ -1,5 +1,7 @@
 import { Route, Routes } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
+import { RequireAuth } from "@/components/auth/RequireAuth";
+import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
@@ -17,7 +19,15 @@ import { SettingsPage } from "@/pages/SettingsPage";
 export default function App() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
         <Route path="/" element={<EventListPage />} />
 
         <Route path="/events" element={<EventListPage />} />

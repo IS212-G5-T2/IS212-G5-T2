@@ -15,8 +15,9 @@ import type {
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
-// Placeholder identity until real authentication is wired up. Not swappable —
-// the old multi-user role switcher was removed along with the mock user list.
+// Placeholder identity shown before sign-in and restored on sign-out. Not
+// swappable — the old multi-user role switcher was removed along with the
+// mock user list.
 const PLACEHOLDER_USER: User = {
   id: "current-user",
   name: "Current User",
@@ -26,6 +27,7 @@ const PLACEHOLDER_USER: User = {
 
 interface AppState {
   currentUser: User;
+  isAuthenticated: boolean;
   events: EventRecord[];
   venues: Venue[];
   bookings: Booking[];
@@ -52,6 +54,9 @@ interface AppState {
   registerForEvent: (eventId: string) => void;
   withdrawRegistration: (eventId: string) => void;
 
+  login: (username: string, password: string) => boolean;
+  logout: () => void;
+
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   pushNotification: (n: Omit<Notification, "id" | "read" | "createdAt">) => void;
@@ -59,6 +64,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentUser: PLACEHOLDER_USER,
+  isAuthenticated: false,
   events: [],
   venues: [],
   bookings: [],
@@ -398,6 +404,30 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  // TODO(SPM-30): replace with a real call to the external identity provider
+  // once a backend authentication endpoint exists. Until then, any non-empty
+  // username/password pair succeeds so the sign-in UI can be built and
+  // reviewed ahead of the API. Signed-in users are treated as attendees; role
+  // selection is out of scope for this starting login page.
+  login: (username, password) => {
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername || !password) return false;
+    set({
+      isAuthenticated: true,
+      currentUser: {
+        id: `user-${trimmedUsername.toLowerCase()}`,
+        name: trimmedUsername,
+        email: "",
+        role: "attendee",
+      },
+    });
+    return true;
+  },
+
+  logout: () => {
+    set({ isAuthenticated: false, currentUser: PLACEHOLDER_USER });
   },
 
   markNotificationRead: (id) => {
