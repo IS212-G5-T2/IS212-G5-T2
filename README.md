@@ -279,7 +279,7 @@ A typical Scrum flow:
 4. A developer creates a branch using the Jira key.
 5. The developer implements the work, updates tests and documentation, and opens a GitHub pull request.
 6. CI evidence, review feedback, and acceptance criteria are checked before merging.
-7. Jira is updated as the work moves from in progress to review, dev validation, and done.
+7. Jira automation reflects branch creation, pull request review, and post-merge testing status.
 
 ### Branch Flow: Work Branch To dev
 
@@ -319,7 +319,7 @@ This is where individual development happens.
 
 - Feature branches merge here after review.
 - GitHub Actions should run unit tests on `dev`.
-- GitHub Actions should catch security, unit-test, and integration problems on `dev`.
+- GitHub Actions should catch security and unit-test problems on `dev`.
 - The team resolves merge conflicts and cross-service incompatibilities here.
 - Bugs found on `dev` should be fixed from a new branch based on the latest `dev`.
 - Jira issues should only be marked done when the implementation, review, CI, and acceptance criteria are complete.

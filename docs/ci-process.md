@@ -57,5 +57,6 @@ python -m pytest
 
 - Pull requests: run relevant security and test workflows.
 - `dev`: run security and tests for the latest shared branch.
+- `main`: run security and tests after promotion from `dev`.
 
 Do not commit credentials, tokens, private keys, or secret payloads.
