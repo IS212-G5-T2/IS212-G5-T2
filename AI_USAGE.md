@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-11 - Codex - Switch shared branch guidance to dev
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `docs/`, `.github/`, `apps/frontend/README.md`, `services/backend/README.md`, `AI_USAGE.md`
+- Summary: Updated branch workflow guidance and GitHub Actions filters so normal work starts from and targets `dev`, with branch flow `work branch -> dev -> main`.
+- AI contribution: Documentation, workflow configuration, and AI usage logging.
+- Assumptions: There should be no active dependency on any intermediate shared branch between work branches and `dev`.
+- Checks run: `ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "OK #{f}" }' .github/workflows/security.yml .github/workflows/tests.yml`; searched repo docs and workflows for stale branch references.
+- Follow-up/conflict notes: Supersedes earlier AI usage entries that documented previous branch-flow assumptions.
+
 ## 2026-09-09 - Codex - Add frontend and database local-dev layout
 
 - Issue/PR: Unknown
@@ -59,7 +70,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Issue/PR: Unknown
 - Human requester/operator: swr
 - Areas touched: repo-wide, `.github/`, `apps/`, `services/`, `development/`, `docs/`
-- Summary: Removed the remaining deployment, Terraform, Kubernetes, and branch-promotion assumptions after `platform/` was removed. Updated workflows and documentation so `staging` is the latest shared branch and new work branches start from and target `staging`.
+- Summary: Removed the remaining deployment, Terraform, Kubernetes, and previous multi-branch workflow assumptions after `platform/` was removed. This entry recorded the then-current shared branch guidance, which was superseded on 2026-09-11 by the `dev` branch flow.
 - AI contribution: Repository scan, workflow cleanup, documentation updates, and AI usage logging.
 - Assumptions: The repository no longer needs deployment automation or promotion branches; local Docker Compose emulators remain useful for development and are not deployment infrastructure.
 - Checks run: Parsed GitHub Actions YAML with Ruby YAML; searched the repo for deployment/platform/branch-flow references and deployment-related filenames.
@@ -92,7 +103,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Issue/PR: Unknown
 - Human requester/operator: swr
 - Areas touched: `.github/workflows/branch-flow.yml`, `AGENTS.md`, `docs/ci-cd-process.md`, `AI_USAGE.md`
-- Summary: Added a GitHub Actions check that requires pull requests into `main` to come from `staging`, and pull requests into `staging` to come from `integration`. Documented the rule in the agent guidance and CI/CD process notes.
+- Summary: Added a GitHub Actions check for the earlier multi-branch promotion model. This entry is historical only; the promotion workflow was later removed, and current branch guidance is `work branch -> dev -> main`.
 - AI contribution: CI workflow and documentation updates.
 - Assumptions: GitHub branch protection will be configured to require the `Validate Promotion Source` check where enforcement is needed.
 - Checks run: Parsed all GitHub Actions workflow YAML files with Ruby YAML.
@@ -116,7 +127,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
 - Summary: Added explicit AI usage tracking and branch progression rules for normal implementation, release preparation, deployment, and hotfix work in the GitHub monorepo. Renamed the issue workflow guidance from Codex-specific wording to AI-neutral wording so all AI agents follow the same process.
 - AI contribution: Documentation structure, branch-flow guidance, pull request template updates, and coordination rules for multiple AI agents.
-- Assumptions: `integration` is the default target for normal work, `staging` is the default release-preparation branch, and `main` is the production/deployment branch unless a human explicitly defines a release or deployment branch.
+- Assumptions: Earlier multi-branch assumptions were recorded here for historical context only. Current branch guidance is `work branch -> dev -> main`.
 - Checks run: Reviewed updated Markdown sections and searched relevant workflow terminology.
 - Follow-up/conflict notes: Future Codex, Claude, or other AI work should add a new entry here before pull request handoff.
 

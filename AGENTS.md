@@ -145,12 +145,12 @@ Jira remains the source of truth for Scrum planning and acceptance criteria when
 
 GitHub uses pull requests. If a Jira card, teammate, or older doc says "merge request", create a GitHub pull request.
 
-`staging` is the latest shared branch and the default base for all new work. When starting new implementation, documentation, test, chore, or refactor work, create a focused branch from the latest `staging` and open the pull request back into `staging`.
+`dev` is the latest shared branch and the default base for all new work. The branch flow is `work branch -> dev -> main`. When starting new implementation, documentation, test, chore, or refactor work, create a focused branch from the latest `dev` and open the pull request back into `dev`.
 
 | Jira card intent | Work branch | Pull request target | Purpose |
 | --- | --- | --- | --- |
-| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `staging` | `staging` | Add normal development work to the latest shared branch. |
-| Urgent fix | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `staging` | `staging` | Repair the latest shared branch without a separate production branch. |
+| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `dev` | `dev` | Add normal development work to the latest shared branch. |
+| Urgent fix | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `dev` | `dev` | Repair the latest shared branch before promotion to `main`. |
 
 Use the exact Jira ticket id, such as `SPM-155`, and a hyphenated slug of the Jira ticket name so Jira and GitHub can display the connected work clearly. Do not replace the ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
 

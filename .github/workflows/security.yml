@@ -3,14 +3,14 @@ name: Security
 on:
   push:
     branches:
-      - staging
+      - dev
     paths:
       - "apps/**"
       - "services/**"
       - ".github/workflows/security.yml"
   pull_request:
     branches:
-      - staging
+      - dev
     paths:
       - "apps/**"
       - "services/**"
@@ -26,7 +26,7 @@ jobs:
   frontend-codeql:
     name: Frontend CodeQL
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -44,7 +44,7 @@ jobs:
   backend-codeql:
     name: Backend CodeQL
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -62,7 +62,7 @@ jobs:
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout

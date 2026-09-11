@@ -35,6 +35,6 @@ The monorepo test workflow runs `scripts/ci/unit-test.sh`, which currently deleg
 
 ## Branch Flow
 
-Start new work from the latest `staging`, create a focused feature/fix/docs/chore branch, and open a GitHub pull request back into `staging`.
+Start new work from the latest `dev`, create a focused feature/fix/docs/chore branch, and open a GitHub pull request back into `dev`.
 
 No deployment command is configured for this repository.

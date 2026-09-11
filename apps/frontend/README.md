@@ -4,7 +4,7 @@ This directory contains the React/Vite frontend for the workspace.
 
 ## Development
 
-Start from the latest `staging`, create a focused feature/fix/docs/chore branch, and open a GitHub pull request back into `staging`.
+Start from the latest `dev`, create a focused feature/fix/docs/chore branch, and open a GitHub pull request back into `dev`.
 
 Coding agents follow the [global policy](../../AGENTS.md), [app rules](../AGENTS.md), and [frontend-specific rules](AGENTS.md).
 
