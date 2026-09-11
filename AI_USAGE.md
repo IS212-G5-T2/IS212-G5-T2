@@ -21,17 +21,6 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
-## 2026-09-12 - Claude (Sonnet) - Starting attendee login page
-
-- Issue/PR: SPM-30 (inferred from the checked-out branch name `feature/spm-30-attendee-login`; Jira itself was not accessible in this session, so status/acceptance criteria could not be confirmed against the ticket)
-- Human requester/operator: Unknown (chat user; name not provided)
-- Areas touched: `apps/frontend`, `AI_USAGE.md`
-- Summary: Added a starting `/login` page (username + password, matching the existing Tailwind/Card/Button/TextInput design system), an `isAuthenticated` flag plus `login`/`logout` actions in `useAppStore`, a `RequireAuth` route guard applied to all existing routes, and a "Log out" control in `TopNav`.
-- AI contribution: Repository/design-system review, frontend code (component, store, routing), documentation updates, and local build/serve verification.
-- Assumptions: No backend authentication endpoint or identity provider exists yet, so `login()` is a mock that accepts any non-empty username/password and signs the user in with role `attendee` (chosen to match the branch's "attendee login" scope). No role-selection UI was added. Since Jira could not be reached, acceptance criteria were not verified against the actual ticket — implementation was scoped from the user's direct request ("a starting login page frontend that lets user input username and password to login") plus repo context (branch name, README C4 diagram referencing an external identity provider, HANDOVER note that auth was previously unimplemented).
-- Checks run: `npm run build` (tsc + vite build) in `apps/frontend` — passed. `npm run dev` started locally and `/` and `/login` both served 200. `npm run lint` was attempted but fails repo-wide with a pre-existing "no ESLint configuration file" error unrelated to this change (noted in `apps/frontend/HANDOVER.md`). No commit, push, or pull request was created — staged for human review pending explicit approval per the branch/commit workflow in this file's governing `AGENTS.md`.
-- Follow-up/conflict notes: This is UI-only; wiring `login()` to a real backend/identity provider, deciding how role is derived from a real identity, and adding session persistence are left as follow-up work (see `apps/frontend/HANDOVER.md`). No existing frontend login implementation was found to conflict with.
-
 ## 2026-09-11 - Codex - Set up RBAC database seed
 
 - Issue/PR: SPM-103
