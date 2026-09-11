@@ -4,17 +4,11 @@ on:
   push:
     branches:
       - dev
-    paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/security.yml"
+      - main
   pull_request:
     branches:
       - dev
-    paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/security.yml"
+      - main
   workflow_dispatch:
 
 permissions:
@@ -26,7 +20,6 @@ jobs:
   frontend-codeql:
     name: Frontend CodeQL
     runs-on: ubuntu-latest
-    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -44,7 +37,6 @@ jobs:
   backend-codeql:
     name: Backend CodeQL
     runs-on: ubuntu-latest
-    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -62,7 +54,6 @@ jobs:
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
-    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
