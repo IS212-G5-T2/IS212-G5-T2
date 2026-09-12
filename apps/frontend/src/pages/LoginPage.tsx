@@ -78,7 +78,7 @@ export function LoginPage() {
 
         <Card>
           <CardBody>
-            <form noValidate onSubmit={handleSubmit}>
+            <form noValidate autoComplete='off' onSubmit={handleSubmit}>
               {formError && (
                 <div
                   role="alert"
@@ -92,24 +92,22 @@ export function LoginPage() {
                 label="Email"
                 name="email"
                 type="email"
-                autoComplete="email"
+                autoComplete="off"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 error={fieldErrors.email}
-                placeholder="e.g. jane.doe@example.com"
               />
 
               <TextInput
                 label="Password"
                 name="password"
                 type="password"
-                autoComplete="current-password"
+                autoComplete="new-password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 error={fieldErrors.password}
-                placeholder="••••••••"
               />
 
               <Button type="submit" className="mt-2 w-full" disabled={submitting}>
