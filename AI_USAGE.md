@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-13 - Codex - Fix PR #6 CI dependency installation
+
+- Issue/PR: PR #6
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Removed `vite-tsconfig-paths`, which required a TypeScript 5.x peer and caused `npm ci` to request 5.9.3 despite the backend using TypeScript 7; enabled Vite's native tsconfig path resolution and removed temporary CI diagnostics.
+- AI contribution: Dependency/configuration fix, CI cleanup, lockfile regeneration, tests, commit, and push.
+- Assumptions: The current Vite version's native `resolve.tsconfigPaths` support is the intended replacement.
+- Checks run: `npm install --package-lock-only`; `npm ci --ignore-scripts`; `npm test`; workflow YAML validation; `git diff --check`.
+- Follow-up/conflict notes: No secret files were included or modified.
+
 ## 2026-09-11 - Codex - Set up RBAC database seed
 
 - Issue/PR: SPM-103
