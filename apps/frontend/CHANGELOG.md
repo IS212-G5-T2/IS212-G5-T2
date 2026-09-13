@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-13
+
+- Added a Vitest + React Testing Library unit-test setup (`vite.config.ts` `test` block, `src/test/setup.ts`) and `npm test` / `npm run test:watch` / `npm run test:coverage` scripts.
+- Added unit tests for `LoginPage` (`src/pages/__tests__/LoginPage.test.tsx`): field validation, successful sign-in for each seeded Firebase account, redirect-to-original-page behaviour, submit-button loading/disabled state, and every mapped Firebase Auth error message (wrong password, invalid credential, user not found, invalid email, disabled account, too many requests, network failure, unrecognized code, non-Firebase error).
+- Added `src/test/fixtures/authUsers.ts` documenting the seeded Firebase Authentication test accounts, and `src/pages/__tests__/testUtils.tsx` with a shared `renderLoginPage()` helper.
+- Documented the test setup and seeded accounts in `README.md` and `HANDOVER.md`.
+
 ## 2026-09-09
 
 - Added Dockerfile support for the shared local Docker Compose frontend service.

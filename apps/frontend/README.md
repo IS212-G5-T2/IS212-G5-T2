@@ -34,9 +34,34 @@ Run the configured frontend checks from this directory:
 ```sh
 npm run lint
 npm run build
+npm test
 ```
 
 No deployment command is configured for this repository.
+
+## Testing
+
+Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
+
+```sh
+npm test              # run the suite once
+npm run test:watch    # re-run on file changes while developing
+npm run test:coverage # run once with a coverage report
+```
+
+Test files live alongside the code they cover, under `__tests__` directories (e.g. `src/pages/__tests__/LoginPage.test.tsx`). Shared test helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup, `src/test/fixtures/` for reusable test data).
+
+`LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The seeded accounts used to parameterize the "correct credentials" cases (all sharing the password `P@55w0rd`) are documented in `src/test/fixtures/authUsers.ts`:
+
+| Email | Role |
+| --- | --- |
+| attendee@connectsphere.sg | attendee |
+| organiser@connectsphere.sg | organiser |
+| coordinator@connectsphere.sg | coordinator |
+| venue_staff@connectsphere.sg | venue_staff |
+| technical_support@connectsphere.sg | technical_support |
+
+These accounts also need to exist under Authentication -> Users in the actual Firebase project for manual/browser testing of `/login`; the automated suite does not depend on them being present.
 
 ## Authentication (Firebase)
 
