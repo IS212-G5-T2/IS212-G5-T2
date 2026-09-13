@@ -2,7 +2,43 @@
 
 NestJS backend service for the IS212 G5 T2 workspace.
 
-This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It currently exposes the generated starter endpoint and should be extended around Jira acceptance criteria.
+This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes the starter endpoint, a health check, and shared Firebase JWT middleware/RBAC services for protected endpoints.
+
+## Authorization
+
+Route-owning modules should apply `FirebaseAuthenticationMiddleware` to protected controllers. The app module applies it to the current app controller, and future feature modules can apply the same middleware to their own controllers. The middleware:
+
+- Leaves public `GET /` and `GET /healthz` requests alone.
+- Requires `Authorization: Bearer <Firebase ID token>` for other routes.
+- Verifies the token with Firebase Admin before trusting any claims.
+- Extracts the authenticated Firebase `uid` and normalized `roles` claim.
+- Attaches the verified user to `request.currentUser`.
+
+`RbacRepository` reads PostgreSQL `roles`, `resources`, and `role_permissions` rows and builds composable permission predicates for resource queries. Protected resource repositories should include the predicate and ownership condition in the same `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement.
+
+Auth code is organized by responsibility:
+
+| Path | Purpose |
+| --- | --- |
+| `src/auth/authentication/` | Firebase ID token verification and request authentication middleware. |
+| `src/auth/authorization/` | RBAC permission and ownership checks. |
+| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+
+## Database Access
+
+`DatabaseModule` owns the shared PostgreSQL pool through `DatabaseService`. Repositories should inject `DatabaseService` instead of creating their own `pg.Pool` instances. The shared pool sets connection, idle, and query timeouts and is closed through Nest module shutdown hooks.
+
+Use `DatabaseService.query()` for single SQL statements and `DatabaseService.transaction()` for multi-step insert/update/upsert/delete flows that must commit or roll back together. Keep table-specific SQL, joins, and domain rules inside repositories rather than adding generic CRUD methods to `DatabaseService`.
+
+Required runtime configuration:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string used for RBAC lookups. |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | Optional path to a Firebase service account JSON file for local development. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional raw Firebase service account JSON fallback for CI/emergency use. |
+
+If both Firebase service account variables are omitted, Firebase Admin uses application default credentials.
 
 ## Setup
 
