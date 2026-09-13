@@ -21,6 +21,68 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-13 - Antigravity (Gemini 3.7 Flash) - Finalize SPM-36 event request and prepare PR
+
+- Issue/PR: SPM-36 (https://is212-g5-t2.atlassian.net/browse/SPM-36)
+- Human requester/operator: Ei Chaw Zin
+- Areas touched: `apps/frontend`, `services/backend`, `development/database`, `AI_USAGE.md`.
+- Summary: Reverified all 7 Acceptance Criteria for SPM-36, cleaned and consolidated test files into component directories (`apps/frontend/src/` and `services/backend/src/`), removed the legacy root `tests/` directory, verified all 36 backend tests and 12 frontend tests pass cleanly, and prepared the branch and commit for pull request into `dev`.
+- AI contribution: Code review, test consolidation, build/lint verification, Jira MCP integration, AI_USAGE tracking.
+- Assumptions: Local demo organiser is used pending auth module merge.
+- Checks run: `npm test -- --run` in `services/backend` (36 tests passed); `npm test -- --run` in `apps/frontend` (12 tests passed); frontend/backend build and lint passed with 0 errors.
+- Follow-up/conflict notes: Prepared `feature/SPM-36-create-and-submit-an-event-request` branch for PR into `dev`.
+
+- Issue/PR: Second user story key not supplied.
+- Human requester/operator: Unknown.
+- Areas touched: `apps/frontend`, `services/backend/src/events`, `development/database/postgresql/init/002_events.sql`, `AI_USAGE.md`.
+- Summary: Added optional supporting-file upload on EventCreatePage step 2, persisted attachment metadata/data URLs through the backend event contract, displayed attached files with view/download links on EventDetailPage, and added a top-right mock profile switcher for Coordinator, Organiser, Venue Staff, Tech Support, and Admin roles.
+- AI contribution: Frontend/backend implementation, local schema update, unit/component tests, build/lint verification.
+- Assumptions: This is preparatory work for a second Jira story and should remain separate from the first story's eventual push. The mock profile switcher is temporary local RBAC support until real authentication is merged.
+- Checks run: Backend focused tests passed: `npm test -- --run src/events/event-input.spec.ts src/events/events.service.spec.ts`; frontend focused tests passed: `npm test -- --run src/pages/EventCreatePage.test.tsx src/pages/EventListPage.test.tsx src/pages/EventDetailPage.test.tsx src/components/layout/TopNav.test.tsx`; frontend/backend build and lint passed.
+- Follow-up/conflict notes: No Jira key was supplied for the second story. Coordinator assignment log and cross-coordinator access restrictions are not completed in this prep pass.
+
+## 2026-09-13 - Codex (GPT-5) - Rebuild SPM-36 tests one file at a time
+
+- Issue/PR: SPM-36.
+- Human requester/operator: Unknown.
+- Areas touched: `apps/frontend/src/pages/EventCreatePage.test.tsx`, `apps/frontend/src/pages/EventListPage.test.tsx`, `services/backend/src/events/event-input.spec.ts`, `services/backend/src/events/events.service.spec.ts`, `services/backend/src/events/event-input.ts`, `tests/backend/SPM-36`, `AI_USAGE.md`.
+- Summary: Rebuilt the backend validation/service tests beside their source files and cleaned the EventCreatePage/EventListPage page tests beside their React pages, using `SPM-36 Test Case ...` comments directly above each test case or grouped test case.
+- AI contribution: Test restructuring, frontend test cleanup, backend validation fix, beginner-oriented explanation.
+- Assumptions: User wants each SPM-36 test file reviewed and explained before moving to the next file.
+- Checks run: `cd services/backend && npm test -- --run src/events/event-input.spec.ts` passed; `cd services/backend && npm test -- --run src/events/events.service.spec.ts` passed; `cd apps/frontend && npm test -- --run src/pages/EventCreatePage.test.tsx` passed; `cd apps/frontend && npm test -- --run src/pages/EventListPage.test.tsx` passed. Frontend tests emitted React Router non-failing future-flag warnings.
+- Follow-up/conflict notes: Existing broader AI_USAGE entry and remaining database SPM-36 test were preserved for later cleanup/review.
+
+## 2026-09-13 - Codex (GPT-5) - Complete SPM-36 automated test coverage
+
+- Issue/PR: SPM-36 — Jira verified as In Progress, Medium priority, with no comments; no PR.
+- Human requester/operator: Unknown.
+- Areas touched: `apps/frontend`, `services/backend/src/events`, `tests/backend/SPM-36`, `tests/database/SPM-36`, `AI_USAGE.md`.
+- Summary: Added page-level React tests beside Event Create/List, expanded backend validation/service and database integration coverage for every supplied SPM-36 test case, and fixed defects exposed by the tests: description/layout were not required and same-day past start times were accepted.
+- AI contribution: Repository/test-framework review, Jira verification through Atlassian Rovo, React interaction tests, NestJS TestingModule service tests, integration assertions, narrow validation fixes, documentation, and verification.
+- Assumptions: The existing fixed local demo organiser is the authenticated-organiser precondition until login is merged. The requester explicitly made preferred room layout, accessibility needs, and required facilities the option terminology source of truth.
+- Checks run: Frontend `npm test` (2 files, 8 tests), lint, and build passed; backend `npm test` (3 files, 34 tests), lint, and build passed; rebuilt the local backend and ran the database/API SPM-36 integration test successfully.
+- Follow-up/conflict notes: No Cypress configuration or local login flow exists, so no browser E2E/login test was added. React Router emitted non-failing v7 future-flag warnings. Docker production pruning reported 3 existing high-severity dependency findings, outside this test scope. Existing unrelated staged/unstaged work on `fix/backend-dependency-lock` was preserved; no commit, push, or PR was performed.
+
+## 2026-09-12 - Codex (GPT-6) - SPM-36 event request submission
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-36 — fetched full story, six AC, comments (none), Medium priority, Sprint 1, In Progress.
+- Areas touched: `apps/frontend`, `services/backend`, `development/database`, `development/local-dev`.
+- Summary: Added a light-mode three-step form, required/invalid field errors, calendar validation that blocks past start dates and non-logical date ranges, PostgreSQL Submitted persistence with duplicate retry protection, confirmation, and API-backed My Events/detail reloads. Added idempotent schema and fictional seed; removed the sign-in display.
+- AI contribution: UI/API/SQL implementation, component and integration tests, ticket-based test reorganization under `tests/<technical-layer>/SPM-36`, setup and ownership documentation.
+- Assumptions: User explicitly deferred branches, Save Draft, email delivery, and user accounts. Uses a fixed local demo organiser behind an explicit local configuration switch; no account implementation or real email. AC6 confirmation is implemented; its email requirement remains deferred by user instruction.
+- Checks run: Frontend build/lint and 7 component interaction tests passed from `tests/frontend/SPM-36`; backend build/lint, 29 unit tests from `services/backend/src` and `tests/backend/SPM-36`, and 2 HTTP tests passed (HTTP tests required local port permission). Docker backend build passed. Live API/PostgreSQL integration passed required-field/invalid-value rejection, Submitted persistence, complete details/list retrieval, retry deduplication, and server-owned status/organiser checks; run-owned records removed. Schema and fictional seed applied to existing local database without reset. Browser-facing gateway returned the saved sample through /api/events. Browser tool reported no available browser, so visual browser QA remains unverified.
+- Follow-up/conflict notes: Latest origin/dev and origin/main inspected: neither has working login. No matching local/remote-tracking SPM-36 branch; PR lookup unavailable (no gh/GitHub connector). No branch/commit/push/PR actions for this ticket; existing staged dependency repair preserved, including nested TypeScript entry required by Docker npm 10. Backend rebuilt/restarted; shared stack left running. Docker npm audit reported 4 high findings during install and 3 after production pruning; not addressed in this scope. Integrate teammate's server-authenticated organiser identity later; local demo is not multi-user access control.
+
+## 2026-09-11 - Codex (GPT-6) - Repair backend Docker dependency install
+
+- Issue/PR: Unknown; no Jira key supplied.
+- Areas touched: `services/backend/package-lock.json`, `AI_USAGE.md`.
+- Summary: Added the missing nested TypeScript 5.9.3 peer dependency required by tsconfck under vite-tsconfig-paths, preserving the backend TypeScript 6 dependency and existing lock metadata.
+- AI contribution: Diagnosis, lock-file repair, Docker build verification.
+- Assumptions: Fix the reported npm ci failure without upgrading dependencies.
+- Checks run: Regenerated using node:22-alpine/npm 10.9.8; backend Compose image build passed, including npm ci, Nest build, and production pruning; final formatting preserves the verified JSON data.
+- Follow-up/conflict notes: npm reported four high-severity audit findings during install and three after production pruning; not addressed in this focused fix. Stack not started. Changes staged on fix/backend-dependency-lock; no commit or push.
+
 ## 2026-09-11 - Codex - Switch shared branch guidance to dev
 
 - Issue/PR: Unknown
@@ -141,3 +203,12 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: The GitHub repository should be the single source repo; `services/template` is a scaffold rather than an implemented service; GitHub pull requests replace GitLab merge requests.
 - Checks run: Verified only one `.git` directory exists; validated GitHub Actions YAML with Ruby YAML parsing; searched for stale GitLab/project-info references; checked for copied `.DS_Store`, `.terraform`, `.env`, and empty-directory leftovers.
 - Follow-up/conflict notes: All migrated files are still untracked until committed. Coordinate future AI work through this log to avoid conflicting changes across Codex, Claude, or other tools.
+
+## 2026-09-12 - Codex (GPT-6) - Restore local app connectivity
+
+- Issue/PR: None supplied.
+- Areas touched: Local Docker runtime; `AI_USAGE.md`.
+- Summary: Refreshed frontend dependencies in its existing Docker volume with `npm ci` after Vite failed to resolve `@testing-library/react`; restarted frontend and gateway.
+- Assumptions: Gateway timeout after backend recreation indicated a stale upstream address; restarting restored connectivity.
+- Checks run: Frontend `/planning` HTTP 200, gateway `/healthz` returned status ok, `/api/events` HTTP 200.
+- Follow-up/conflict notes: Existing repository changes preserved; services left running and database retained. Dependency install reported 5 moderate and 1 high audit findings; dependency upgrades were outside this runtime repair.

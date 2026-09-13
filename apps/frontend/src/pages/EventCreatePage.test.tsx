@@ -1,0 +1,275 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { EventCreatePage } from "@/pages/EventCreatePage";
+import { EventDetailPage } from "@/pages/EventDetailPage";
+import { api } from "@/utils/api";
+import { useAppStore } from "@/store/useAppStore";
+import type { EventRecord } from "@/types";
+
+vi.mock("@/utils/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  api: vi.fn(),
+}));
+
+const apiMock = vi.mocked(api);
+
+function inputDate(daysFromNow: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function eventRecord(): EventRecord {
+  const start = new Date();
+  start.setDate(start.getDate() + 7);
+  start.setHours(18, 0, 0, 0);
+  const end = new Date(start);
+  end.setHours(21, 0, 0, 0);
+  return {
+    id: "00000000-0000-4000-8000-000000000036",
+    name: "Welcome Evening",
+    purpose: "Community building",
+    description: "A welcome event for new members.",
+    organiserId: "current-user",
+    organiserName: "Demo Organiser",
+    status: "submitted",
+    startDateTime: start.toISOString(),
+    endDateTime: end.toISOString(),
+    expectedAttendance: 80,
+    venueRequirements: {
+      minCapacity: 80,
+      layout: "Banquet",
+      facilities: ["Catering"],
+      accessibility: ["Wheelchair ramps"],
+    },
+    attachments: [],
+    equipmentNeeds: "Two microphones",
+    registrationEnabled: false,
+    changeRequests: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+function renderCreate(initialEntry = "/events/create") {
+  render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+        <Routes>
+          <Route path="/events/create" element={<EventCreatePage />} />
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+  );
+}
+
+async function enterBasicInformation(
+  user: ReturnType<typeof userEvent.setup>,
+  name = "Welcome Evening",
+) {
+  await user.type(screen.getByRole("textbox", { name: /event name/i }), name);
+  await user.type(screen.getByRole("textbox", { name: /purpose/i }), "Community building");
+  await user.type(
+    screen.getByRole("textbox", { name: /description/i }),
+    "A welcome event for new members.",
+  );
+  await user.click(screen.getByRole("button", { name: /continue/i }));
+}
+
+async function enterSchedule(user: ReturnType<typeof userEvent.setup>) {
+  fireEvent.change(screen.getByLabelText(/start date/i), {
+    target: { value: inputDate(7) },
+  });
+  fireEvent.change(screen.getByLabelText(/start time/i), {
+    target: { value: "18:00" },
+  });
+  fireEvent.change(screen.getByLabelText(/end date/i), {
+    target: { value: inputDate(7) },
+  });
+  fireEvent.change(screen.getByLabelText(/end time/i), {
+    target: { value: "21:00" },
+  });
+  await user.type(screen.getByLabelText(/expected attendance/i), "80");
+  await user.selectOptions(screen.getByLabelText(/preferred room layout/i), "Banquet");
+}
+
+afterEach(cleanup);
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  useAppStore.setState({ events: [] });
+});
+
+describe("EventCreatePage", () => {
+  // SPM-36 Test Case EVE-CRE-02-A
+  it("EVE-CRE-02-A exposes every Event Request field with an accessible label", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+
+    expect(screen.getByRole("textbox", { name: /event name/i })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /purpose/i })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /description/i })).toBeTruthy();
+
+    await enterBasicInformation(user);
+
+    for (const label of [
+      /start date/i,
+      /start time/i,
+      /end date/i,
+      /end time/i,
+      /expected attendance/i,
+      /preferred room layout/i,
+    ]) {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    }
+    expect(screen.getByRole("group", { name: /accessibility needs/i })).toBeTruthy();
+    expect(screen.getByRole("group", { name: /required facilities/i })).toBeTruthy();
+  });
+
+  // SPM-36 Test Cases EVE-CRE-04-A and EVE-CRE-05-A
+  it("EVE-CRE-04-A EVE-CRE-05-A blocks blank basic fields with field errors and retains valid input", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+
+    await user.type(screen.getByRole("textbox", { name: /event name/i }), "   ");
+    await user.type(screen.getByRole("textbox", { name: /purpose/i }), "Community building");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByText("Enter an event name.")).toBeTruthy();
+    expect(screen.getByText("Enter a description of your event.")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /purpose/i })).toHaveProperty(
+      "value",
+      "Community building",
+    );
+    expect(screen.getByRole("heading", { name: /create new event request/i })).toBeTruthy();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-36 Test Cases EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
+  it("blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getAllByText("This field is required.")).toHaveLength(4);
+    expect(screen.getByText("Enter a positive whole number of attendees.")).toBeTruthy();
+    expect(screen.getByText("Choose a preferred room layout.")).toBeTruthy();
+    expect(screen.getByLabelText(/start date/i)).toBeTruthy();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-36 Test Cases EVE-CRE-05-B, EVE-CRE-05-C, and EVE-CRE-05-D
+  it.each([
+    ["EVE-CRE-05-B", "attendance", "1.5", "21:00", /positive whole number/i],
+    ["EVE-CRE-05-C", "past start", "80", "21:00", /must be in the future/i],
+    ["EVE-CRE-05-D", "end before start", "80", "17:00", /end must be after start/i],
+  ])("%s rejects %s and keeps the schedule step open", async (_id, kind, attendance, endTime, error) => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    fireEvent.change(screen.getByLabelText(/start date/i), {
+      target: { value: inputDate(kind === "past start" ? -1 : 7) },
+    });
+    fireEvent.change(screen.getByLabelText(/start time/i), { target: { value: "18:00" } });
+    fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: inputDate(7) } });
+    fireEvent.change(screen.getByLabelText(/end time/i), { target: { value: endTime } });
+    await user.type(screen.getByLabelText(/expected attendance/i), attendance);
+    await user.selectOptions(screen.getByLabelText(/preferred room layout/i), "Banquet");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByText(error)).toBeTruthy();
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveProperty("value", attendance);
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A
+  it("submits a valid request and shows the submission confirmation", async () => {
+    const user = userEvent.setup();
+    const saved = eventRecord();
+    apiMock.mockImplementation(async (_path, init) => {
+      if (init?.method === "POST") return { event: saved, message: "Submitted" };
+      if (_path === `/events/${saved.id}`) return saved;
+      throw new Error(`Unexpected API call: ${String(_path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByLabelText("Catering"));
+    await user.click(screen.getByLabelText("Wheelchair ramps"));
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByRole("textbox", { name: /equipment needs/i }), "Two microphones");
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    await screen.findByText("Your event request was submitted successfully.");
+    const submittedBody = JSON.parse(
+      apiMock.mock.calls.find(([, init]) => init?.method === "POST")![1]!.body as string,
+    );
+    expect(submittedBody).toMatchObject({
+      name: saved.name,
+      purpose: saved.purpose,
+      description: saved.description,
+      expectedAttendance: 80,
+      layout: "Banquet",
+      facilities: ["Catering"],
+      accessibility: ["Wheelchair ramps"],
+      attachments: [],
+    });
+    expect(submittedBody).not.toHaveProperty("status");
+    expect(submittedBody).not.toHaveProperty("organiserId");
+  });
+
+  // Second story attachment prep
+  it("uploads optional supporting files on the venue-needs step", async () => {
+    const user = userEvent.setup();
+    const saved = {
+      ...eventRecord(),
+      attachments: [
+        {
+          id: "attachment-1",
+          name: "proposal.txt",
+          type: "text/plain",
+          size: 12,
+          dataUrl: "data:text/plain;base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation(async (_path, init) => {
+      if (init?.method === "POST") return { event: saved, message: "Submitted" };
+      if (_path === `/events/${saved.id}`) return saved;
+      throw new Error(`Unexpected API call: ${String(_path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+
+    await user.upload(
+      screen.getByLabelText(/supporting files/i),
+      new File(["proposal"], "proposal.txt", { type: "text/plain" }),
+    );
+    expect(await screen.findByText("proposal.txt")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getByText("proposal.txt")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    await screen.findByText("Your event request was submitted successfully.");
+    const submittedBody = JSON.parse(
+      apiMock.mock.calls.find(([, init]) => init?.method === "POST")![1]!
+        .body as string,
+    );
+    expect(submittedBody.attachments[0]).toMatchObject({
+      name: "proposal.txt",
+      type: "text/plain",
+      size: 8,
+    });
+    expect(submittedBody.attachments[0].dataUrl).toMatch(/^data:text\/plain/);
+  });
+});

@@ -3,7 +3,8 @@ export type UserRole =
   | "coordinator"
   | "venue_staff"
   | "tech_support"
-  | "attendee";
+  | "attendee"
+  | "admin";
 
 export interface User {
   id: string;
@@ -28,6 +29,14 @@ export interface VenueRequirements {
   accessibility: string[];
   facilities: string[];
   layout: string;
+}
+
+export interface EventAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
 }
 
 export interface ChangeRequest {
@@ -59,6 +68,7 @@ export interface EventRecord {
   coordinatorName?: string;
   venueId?: string;
   venueName?: string;
+  attachments?: EventAttachment[];
   clarificationNote?: string;
   rejectionReason?: string;
   changeRequests: ChangeRequest[];
