@@ -3,7 +3,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
-import { EventEditPage } from "@/pages/EventEditPage";
 import { EventChangeRequestsPage } from "@/pages/EventChangeRequestsPage";
 import { VenuesPage } from "@/pages/VenuesPage";
 import { VenueDetailPage } from "@/pages/VenueDetailPage";
@@ -13,6 +12,7 @@ import { EquipmentPage } from "@/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { DraftRequestPage } from '@/pages/DraftRequestPage';
 
 export default function App() {
   return (
@@ -22,8 +22,9 @@ export default function App() {
 
         <Route path="/events" element={<EventListPage />} />
         <Route path="/events/create" element={<EventCreatePage />} />
+        <Route path="/requests/:id" element={<DraftRequestPage />} />
         <Route path="/events/:id" element={<EventDetailPage />} />
-        <Route path="/events/:id/edit" element={<EventEditPage />} />
+        <Route path="/events/:id/edit" element={<DraftRequestPage />} />
         <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
 
         <Route path="/venues" element={<VenuesPage />} />

@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
 import { EventCard } from "@/components/domain/EventCard";
 import type { EventStatus } from "@/types";
+import { MyRequestsPage } from './MyRequestsPage';
 
 const statusOptions: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -47,6 +46,8 @@ export function EventListPage() {
       ? "Browse Events"
       : "All Events";
 
+  if (currentUser.role === 'organiser') return <MyRequestsPage />;
+
   return (
     <div>
       <PageHeader
@@ -55,13 +56,6 @@ export function EventListPage() {
           currentUser.role === "coordinator"
             ? "Review submissions, track statuses, and manage every event in the pipeline."
             : undefined
-        }
-        actions={
-          currentUser.role === "organiser" ? (
-            <Link to="/events/create">
-              <Button>+ Create Event</Button>
-            </Link>
-          ) : undefined
         }
       />
 

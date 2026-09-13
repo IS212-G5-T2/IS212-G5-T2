@@ -131,6 +131,26 @@ Implemented apps and services own their local unit-test command in:
 
 The root tests workflow should stay generic. Do not hard-code a component's runtime-specific test command into `.github/workflows/tests.yml`; put that command in the component's script.
 
+## Test Organization and Naming
+
+- Keep tests beside the component or module they cover; do not create a root tests tree or Jira-key directories.
+- Place frontend component tests beside their component or page as descriptive .test.tsx files. Place backend unit tests beside their module as descriptive .spec.ts files.
+- Maintain one behavior-focused suite as later Jira stories change the same module. Keep Jira keys and acceptance-criterion wording inside suites and test names for traceability, rather than duplicating files by story.
+- Vitest discovers matching test/spec filenames within the component. Exclude Playwright browser specs from Vitest.
+- Place browser acceptance tests beside their frontend page as .playwright.spec.ts, discovered by Playwright.
+- Place database/API integration tests beside the backend module as .e2e-spec.ts, discovered only by the dedicated integration configuration. Shared application smoke tests may remain in the backend test directory.
+- Keep fixtures within the owning component, outside production entrypoints. Backend browser harnesses belong in scripts/testing/.
+- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections.
+- Use Playwright for real browser workflows; use backend/database runners for validation, authorization, persistence, and concurrency.
+- Keep test configuration and CI entrypoints with the owning component. New tests should be discovered without adding Jira-specific patterns.
+- Run affected suites before reporting testing complete; identify skipped checks and environment limitations.
+
+## Conflict Resolution
+
+- When syncing dev into a feature branch, use dev's version of files with merge conflicts.
+- Replace only the conflicted files. Preserve unrelated local files and folders.
+- Report any local scripts or dependencies lost through this resolution; do not silently reintroduce them.
+
 ## Issue Workflow
 
 For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):

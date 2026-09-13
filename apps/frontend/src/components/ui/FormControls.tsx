@@ -15,12 +15,12 @@ function FieldWrapper({ label, htmlFor, required, error, hint, children }: Field
     <div className="mb-4">
       <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {label}
-        {required && <span className="text-danger-600 dark:text-danger-400"> *</span>}
+        {required && <span aria-hidden="true" className="text-danger-600 dark:text-danger-400"> *</span>}
       </label>
       {children}
       {hint && !error && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
       {error && (
-        <p className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">
+        <p id={`${htmlFor}-error`} className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">
           {error}
         </p>
       )}
@@ -46,6 +46,7 @@ export function TextInput({ label, error, hint, id, className, ...rest }: TextIn
           className
         )}
         aria-invalid={!!error}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
         {...rest}
       />
     </FieldWrapper>
@@ -71,6 +72,7 @@ export function TextArea({ label, error, hint, id, className, ...rest }: TextAre
           className
         )}
         aria-invalid={!!error}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
         {...rest}
       />
     </FieldWrapper>
@@ -101,6 +103,7 @@ export function Select({ label, options, error, hint, id, className, ...rest }: 
           className
         )}
         aria-invalid={!!error}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
         {...rest}
       >
         <option value="">Select…</option>

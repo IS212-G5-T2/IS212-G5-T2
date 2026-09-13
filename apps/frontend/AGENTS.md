@@ -13,3 +13,7 @@ Scope: `apps/frontend`, within the [global policy](../../AGENTS.md) and [app rul
 - When changing the client implementation, update [README.md](README.md) with setup, development, test, build, and environment commands.
 - Add frontend checks that match the chosen stack before reporting the application as verified. Backend validation alone is not evidence that a browser workflow works.
 - Coordinate API contracts with affected service code. Do not make claims about end-to-end connectivity from local or infrastructure intent alone.
+
+## Test layout
+
+Keep tests beside their owning source module; use descriptive filenames instead of Jira-key folders. Follow the root test-discovery and conflict-resolution rules.
