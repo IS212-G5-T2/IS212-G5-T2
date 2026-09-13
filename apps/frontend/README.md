@@ -49,7 +49,7 @@ npm run test:watch    # re-run on file changes while developing
 npm run test:coverage # run once with a coverage report
 ```
 
-Test files live alongside the code they cover, under `__tests__` directories (e.g. `src/pages/__tests__/LoginPage.test.tsx`). Shared test helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup, `src/test/fixtures/` for reusable test data).
+ Test files live alongside the code they cover (e.g. `src/pages/LoginPage.test.tsx` next to `src/pages/LoginPage.tsx`). Shared test helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup, `src/test/fixtures/` for reusable test data).
 
 `LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The seeded accounts used to parameterize the "correct credentials" cases (all sharing the password `P@55w0rd`) are documented in `src/test/fixtures/authUsers.ts`:
 
