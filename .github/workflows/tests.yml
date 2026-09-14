@@ -34,6 +34,8 @@ jobs:
 
       - name: Run component unit test entrypoints
         shell: bash
+        env:
+          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
           set -eu
 
