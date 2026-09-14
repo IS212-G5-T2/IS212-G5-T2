@@ -61,9 +61,15 @@ jobs:
 
           print_npm_debug_logs() {
             local npm_log_dir="${NPM_CONFIG_CACHE:-$HOME/.npm}/_logs"
+            local component_dir="$1"
+            local artifact_dir="$GITHUB_WORKSPACE/ci-diagnostics/$component_dir"
 
             echo "npm debug logs in $npm_log_dir:"
-            if ! find "$npm_log_dir" -type f -name '*-debug-*.log' -print -exec sh -c 'echo "--- $1"; cat "$1"' _ {} \;; then
+            mkdir -p "$artifact_dir"
+
+            if [ -d "$npm_log_dir" ]; then
+              find "$npm_log_dir" -type f -name '*-debug-*.log' -print -exec sh -c 'echo "--- $1"; cat "$1"; cp "$1" "$2/"' _ {} "$artifact_dir" \;
+            else
               echo "No npm debug logs found."
             fi
           }
@@ -100,7 +106,16 @@ jobs:
             if [ "$status" -ne 0 ]; then
               echo "Unit tests failed for $component_dir with exit code $status"
               print_node_diagnostics "$component_dir"
-              print_npm_debug_logs
+              print_npm_debug_logs "$component_dir"
               exit "$status"
             fi
           done
+
+      - name: Upload npm diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-debug-logs-${{ github.run_id }}
+          path: ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7
