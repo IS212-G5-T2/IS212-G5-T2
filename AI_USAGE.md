@@ -21,6 +21,28 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-15 - Codex (GPT-5) - Document Firebase role assignment script
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/scripts/set-firebase-roles.mjs`, `AI_USAGE.md`
+- Summary: Added JSDoc for role-assignment data, validation inputs and failures, and the Firebase custom-claim update operation.
+- AI contribution: Script documentation and syntax verification.
+- Assumptions: The existing email-to-role mappings and Firebase update behavior must remain unchanged.
+- Checks run: `node --check services/backend/scripts/set-firebase-roles.mjs`; `git diff --check` (an unrelated existing trailing-whitespace warning remains in `apps/frontend/package.json`).
+- Follow-up/conflict notes: The role-assignment script was already staged; no Firebase users were modified, and no commit or pull request was created.
+
+## 2026-09-15 - Codex (GPT-5) - Load local backend environment configuration
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/config`, `services/backend/src/main.ts`, `AI_USAGE.md`
+- Summary: Load `services/backend/.env` before creating Nest providers so Firebase Admin uses the configured local service account instead of unrelated application-default credentials.
+- AI contribution: Root-cause analysis, implementation, and regression test.
+- Assumptions: The backend is launched with `services/backend` as its working directory, as its npm scripts do.
+- Checks run: Targeted Vitest tests (19 passed); `npm run build`; `npm run lint`; `git diff --check`; isolated configuration check confirmed the configured service account targets `spm-is212-g5-t2-ecd8b`.
+- Follow-up/conflict notes: Existing unrelated working-tree changes were preserved; no commit or pull request created.
+
 ## 2026-09-13 - Codex - Add Firebase emulator E2E workflow
 
 - Issue/PR: Unknown
@@ -405,3 +427,56 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Signed-in Firebase users are mapped to app role `attendee` since there is no backend role lookup yet. `.env` is expected to hold a real Firebase project's config; no live Firebase project was reachable from this session to test end-to-end.
 - Checks run: `npm run build` (tsc + vite build) in `apps/frontend` — passed. `npm install firebase` completed cleanly. Not run: end-to-end sign-in against a real Firebase project; `npm run lint` (pre-existing missing ESLint config, unrelated to this change).
 - Follow-up/conflict notes: Role-aware sign-in (vs. hardcoded `attendee`), password reset/self-registration flows, and reconciling any doc staleness elsewhere in this directory are left as follow-up work.
+
+## 2026-09-14 - Codex (GPT-5) - Local frontend-to-backend RBAC integration check
+
+- Issue/PR: None supplied
+- Human requester/operator: swr
+- Areas touched: `apps/frontend`, `services/backend`, `AI_USAGE.md`
+- Summary: Added the authenticated `/integration-check` frontend page and protected `GET /integration/permissions` backend endpoint to verify a Firebase ID token and test its custom roles claim against the seeded RBAC permissions. Added local browser CORS support and frontend API URL documentation.
+- Assumptions: This diagnostic route is useful for local integration verification before merging to `dev`; Firebase users being tested have a supported uppercase custom roles claim such as `roles: ["ATTENDEE"]`.
+- Checks run: `services/backend`: `npm test` (93 passed), `npm run lint` (passed). `apps/frontend`: TypeScript project check passed before the pre-existing Tailwind/PostCSS build failure. Full frontend tests are blocked by a missing `@testing-library/jest-dom` installation; its production build is blocked by the existing Tailwind 4/PostCSS adapter mismatch. Backend Nest build is blocked by the existing TypeScript 7.0/Nest CLI incompatibility.
+- Follow-up/conflict notes: A live check still requires a Firebase user with a supported custom roles claim and Firebase Admin credentials in the backend. The existing frontend application role remains hardcoded to `attendee`; the integration endpoint reports the role(s) actually present in the verified Firebase token.
+
+## 2026-09-15 - Codex (GPT-5) - Firebase test-role assignment helper
+
+- Issue/PR: None supplied
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Added a manually run Firebase Admin script for assigning the five supported backend RBAC roles to local test users by email.
+- Assumptions: The operator will replace placeholder emails, supply their own local service-account JSON path, and run the script intentionally against the selected Firebase project.
+- Checks run: Script reviewed for supported role values, preserved non-role claims, and no embedded credentials.
+- Follow-up/conflict notes: The script performs external account mutations when executed; users must refresh their Firebase session afterwards.
+
+## 2026-09-14 - Codex (GPT-5) - Restore Tailwind CSS 3 PostCSS compatibility
+
+- Issue/PR: None supplied
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/package.json`, `apps/frontend/package-lock.json`, `AI_USAGE.md`
+- Summary: Pinned Tailwind CSS to 3.4.19, restoring compatibility with the frontend's existing Tailwind 3 PostCSS configuration and CSS directives.
+- AI contribution: Dependency downgrade, lockfile refresh, and verification.
+- Assumptions: The existing `tailwind.config.js`, `postcss.config.js`, and `src/index.css` are intentionally Tailwind 3 configuration and should not be migrated to Tailwind 4.
+- Checks run: `npm ls tailwindcss --depth=0` (3.4.19); `npm run build` reached TypeScript compilation but is blocked by the existing TypeScript 7 removal of `baseUrl`; `git diff --check` found pre-existing trailing whitespace in `apps/frontend/package.json`.
+- Follow-up/conflict notes: The separate pending TypeScript 7 update conflicts with the ESLint TypeScript peer range and prevents a clean build until it is reconciled; it was not changed in this scoped dependency fix.
+
+## 2026-09-15 - Codex (GPT-5) - Simplify local Compose to three tiers
+
+- Issue/PR: None supplied
+- Human requester/operator: swr
+- Areas touched: `development/AGENTS.md`, `development/local-dev`, `AI_USAGE.md`
+- Summary: Reduced the local stack to frontend, backend, and PostgreSQL; removed the gateway, GCS, Pub/Sub, initialization, and Adminer services. The backend now runs and is published directly on `localhost:3000`, which is the frontend's default API URL.
+- AI contribution: Compose/environment/documentation update and configuration validation.
+- Assumptions: GCS, Pub/Sub, and the reverse proxy are not required by currently implemented local application behavior and should not be started by default. Keeping the backend on port 3000 inside and outside Compose is clearer for local development.
+- Checks run: `docker compose -f development/local-dev/compose.yaml config --no-interpolate`; searched local-dev configuration and documentation for stale emulator/gateway references; `git diff --check` on changed local-dev files.
+- Follow-up/conflict notes: The requester deleted the now-unneeded `gateway/` and emulator `scripts/` folders after the Compose simplification; documentation was reconciled with the resulting layout.
+
+## 2026-09-15 - Codex (GPT-5) - Restore frontend clean-install compatibility
+
+- Issue/PR: None supplied
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/package.json`, `apps/frontend/package-lock.json`, `AI_USAGE.md`
+- Summary: Pinned frontend TypeScript to 6.0.3 so the ESLint TypeScript packages can satisfy their supported peer range and Docker's `npm ci` can install dependencies cleanly.
+- AI contribution: Dependency diagnosis, manifest/lockfile update, and clean-install verification.
+- Assumptions: The existing ESLint TypeScript packages remain the intended toolchain; TypeScript 6 is the compatible interim version.
+- Checks run: `npm ci --ignore-scripts --no-audit --no-fund` (passed); `npm ls typescript --depth=0` (6.0.3); `npm run build` reached TypeScript compilation but is blocked by the existing `baseUrl` deprecation requiring either migration or `ignoreDeprecations: "6.0"`.
+- Follow-up/conflict notes: No Docker image was built; the Dockerfile's dependency-install command was verified directly.

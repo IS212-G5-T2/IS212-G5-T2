@@ -16,6 +16,17 @@ Route-owning modules should apply `FirebaseAuthenticationMiddleware` to protecte
 
 `RbacRepository` reads PostgreSQL `roles`, `resources`, and `role_permissions` rows and builds composable permission predicates for resource queries. Protected resource repositories should include the predicate and ownership condition in the same `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement.
 
+### Assigning local Firebase test roles
+
+For the five manual integration-test users, update the email placeholders in `scripts/set-firebase-roles.mjs`, then run it from this directory:
+
+```sh
+FIREBASE_SERVICE_ACCOUNT_PATH="/absolute/path/to/service-account.json" \
+  node scripts/set-firebase-roles.mjs
+```
+
+Generate the service-account JSON in Firebase Console → Project settings → Service accounts. Keep it outside the repository and do not commit it. The script preserves other custom claims while setting `roles` to an array of supported values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`. Users can have more than one role, for example `roles: ['ORGANISER', 'ATTENDEE']`. Users must sign out and back in after the script completes.
+
 Auth code is organized by responsibility:
 
 | Path | Purpose |
