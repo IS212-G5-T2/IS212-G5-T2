@@ -37,40 +37,24 @@ jobs:
         run: |
           set -eu
 
-          print_node_diagnostics() {
+          collect_failure_diagnostics() {
             local component_dir="$1"
-
-            if [ ! -f "$component_dir/package.json" ]; then
-              return 0
-            fi
-
-            echo "Node version: $(node --version)"
-            echo "npm version: $(npm --version)"
-            echo "Declared TypeScript version: $(node -e "console.log(require('./$component_dir/package.json').devDependencies?.typescript ?? require('./$component_dir/package.json').dependencies?.typescript ?? 'not declared')")"
-
-            if [ -f "$component_dir/package-lock.json" ]; then
-              node -e "const lock = require('./$component_dir/package-lock.json'); console.log('Lockfile TypeScript version:', lock.packages?.['node_modules/typescript']?.version ?? lock.dependencies?.typescript?.version ?? 'not present')"
-            fi
-
-            if [ -x "$component_dir/node_modules/.bin/tsc" ]; then
-              echo "Installed TypeScript version: $(cd "$component_dir" && ./node_modules/.bin/tsc --version)"
-            else
-              echo "Installed TypeScript version: not available (dependency installation did not complete)"
-            fi
-          }
-
-          print_npm_debug_logs() {
             local npm_log_dir="${NPM_CONFIG_CACHE:-$HOME/.npm}/_logs"
-            local component_dir="$1"
             local artifact_dir="$GITHUB_WORKSPACE/ci-diagnostics/$component_dir"
 
-            echo "npm debug logs in $npm_log_dir:"
             mkdir -p "$artifact_dir"
+            {
+              echo "Git commit: $(git rev-parse HEAD)"
+              echo "Node version: $(node --version)"
+              echo "npm version: $(npm --version)"
+              echo "legacy-peer-deps: $(npm config get legacy-peer-deps)"
+              echo "strict-peer-deps: $(npm config get strict-peer-deps)"
+              echo "Dependency files:"
+              sha256sum "$component_dir/package.json" "$component_dir/package-lock.json"
+            } > "$artifact_dir/dependency-state.txt"
 
             if [ -d "$npm_log_dir" ]; then
-              find "$npm_log_dir" -type f -name '*-debug-*.log' -print -exec sh -c 'echo "--- $1"; cat "$1"; cp "$1" "$2/"' _ {} "$artifact_dir" \;
-            else
-              echo "No npm debug logs found."
+              find "$npm_log_dir" -type f -name '*-debug-*.log' -exec cp {} "$artifact_dir/" \;
             fi
           }
 
@@ -105,8 +89,7 @@ jobs:
 
             if [ "$status" -ne 0 ]; then
               echo "Unit tests failed for $component_dir with exit code $status"
-              print_node_diagnostics "$component_dir"
-              print_npm_debug_logs "$component_dir"
+              collect_failure_diagnostics "$component_dir"
               exit "$status"
             fi
           done
