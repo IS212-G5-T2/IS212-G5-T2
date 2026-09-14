@@ -2,18 +2,21 @@ name: Tests
 
 on:
   push:
-    branches:
-      - dev
     paths:
       - "apps/**"
       - "services/**"
+      - "development/**"
+      - "docs/ci-process.md"
       - ".github/workflows/tests.yml"
   pull_request:
     branches:
       - dev
+      - main
     paths:
       - "apps/**"
       - "services/**"
+      - "development/**"
+      - "docs/ci-process.md"
       - ".github/workflows/tests.yml"
   workflow_dispatch:
 
@@ -24,7 +27,6 @@ jobs:
   component-unit-tests:
     name: Component Unit Tests
     runs-on: ubuntu-latest
-    if: github.ref_name == 'dev' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout

@@ -82,6 +82,16 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Fix the reported npm ci failure without upgrading dependencies.
 - Checks run: Regenerated using node:22-alpine/npm 10.9.8; backend Compose image build passed, including npm ci, Nest build, and production pruning; final formatting preserves the verified JSON data.
 - Follow-up/conflict notes: npm reported four high-severity audit findings during install and three after production pruning; not addressed in this focused fix. Stack not started. Changes staged on fix/backend-dependency-lock; no commit or push.
+## 2026-09-11 - Codex - Refresh GitHub Actions branch flow
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/workflows`, `docs/`, `README.md`, `AI_USAGE.md`
+- Summary: Updated GitHub Actions triggers and workflow documentation for the current `work branch -> dev -> main` flow, removing stale staging/integration assumptions.
+- AI contribution: CI workflow configuration and documentation.
+- Assumptions: Security checks should run for all PRs/pushes targeting `dev` or `main`; component unit tests should also run when local development assets or CI process docs change.
+- Checks run: `ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "OK #{f}" }' .github/workflows/security.yml .github/workflows/tests.yml`; `git diff --check`; searched `.github`, `docs`, `README.md`, and `AGENTS.md` for stale staging/integration branch wording.
+- Follow-up/conflict notes: Moved from the SPM-103 feature branch onto `dev` at the human request.
 
 ## 2026-09-11 - Codex - Switch shared branch guidance to dev
 
