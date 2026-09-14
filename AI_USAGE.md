@@ -21,6 +21,39 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-14 - Codex (GPT-5) - Remove hard-coded authentication test password
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/test/fixtures/authUsers.ts`, `apps/frontend/README.md`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Replaced the literal shared mock-account password with `process.env.SEED_PASSWORD`, removed it from documentation, and injected the GitHub Actions secret into the test step.
+- AI contribution: Secret-handling remediation and CI configuration.
+- Assumptions: The repository’s GitHub secret is named `SEED_PASSWORD`; local test runs must export the variable themselves.
+- Checks run: Source search for the removed literal and `git diff --check`; frontend tests require `SEED_PASSWORD` and dependencies to be available.
+- Follow-up/conflict notes: The exposed password should be rotated; existing untracked Firebase service-account material was preserved and not staged.
+
+## 2026-09-14 - Codex (GPT-5) - Use fake credentials for mocked login tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/test/fixtures/authUsers.ts`, `apps/frontend/README.md`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Replaced the real-looking test password with an explicitly fake password and removed unnecessary environment-secret wiring because Firebase authentication is mocked.
+- AI contribution: Test-fixture security remediation and documentation.
+- Assumptions: Login unit tests should validate UI behavior with deterministic mock data, not real Firebase accounts.
+- Checks run: Source search for the removed credential and `git diff --check`; frontend tests remain unavailable locally because Vitest is not installed.
+- Follow-up/conflict notes: Existing untracked Firebase service-account material was preserved and not staged.
+
+## 2026-09-13 - Codex - Fix PR #6 CI dependency installation
+
+- Issue/PR: PR #6
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Removed `vite-tsconfig-paths`, which required a TypeScript 5.x peer and caused `npm ci` to request 5.9.3 despite the backend using TypeScript 7; enabled Vite's native tsconfig path resolution and removed temporary CI diagnostics.
+- AI contribution: Dependency/configuration fix, CI cleanup, lockfile regeneration, tests, commit, and push.
+- Assumptions: The current Vite version's native `resolve.tsconfigPaths` support is the intended replacement.
+- Checks run: `npm install --package-lock-only`; `npm ci --ignore-scripts`; `npm test`; workflow YAML validation; `git diff --check`.
+- Follow-up/conflict notes: No secret files were included or modified.
+
 ## 2026-09-11 - Codex - Set up RBAC database seed
 
 - Issue/PR: SPM-103
@@ -152,3 +185,14 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: The GitHub repository should be the single source repo; `services/template` is a scaffold rather than an implemented service; GitHub pull requests replace GitLab merge requests.
 - Checks run: Verified only one `.git` directory exists; validated GitHub Actions YAML with Ruby YAML parsing; searched for stale GitLab/project-info references; checked for copied `.DS_Store`, `.terraform`, `.env`, and empty-directory leftovers.
 - Follow-up/conflict notes: All migrated files are still untracked until committed. Coordinate future AI work through this log to avoid conflicting changes across Codex, Claude, or other tools.
+
+## 2026-09-12 - Claude (Sonnet) - Login page with Firebase Authentication
+
+- Issue/PR: SPM-104 (inferred from branch name `feature/spm-104-set-up-frontend-login-page`; Jira itself was not accessible in this session)
+- Human requester/operator: Unknown (chat user; name not provided)
+- Areas touched: `apps/frontend`, `AI_USAGE.md`
+- Summary: Added a `/login` page (`src/pages/LoginPage.tsx`) using Firebase Authentication (Email/Password provider) via the `firebase` JS SDK: `src/lib/firebase.ts` (SDK init + error-message mapping), `.env.example` for `VITE_FIREBASE_*` config, `src/vite-env.d.ts` typings, an `onAuthStateChanged` subscription in `App.tsx` for session persistence, `authLoading`/`isAuthenticated` state plus a shared `AuthLoadingScreen`, a `RequireAuth` route guard applied to all other routes, and a "Log out" control in `TopNav`. Updated `README.md`/`HANDOVER.md`/`CHANGELOG.md`.
+- AI contribution: Dependency addition, frontend code (Firebase integration, store, routing, UI), documentation updates, local build verification.
+- Assumptions: Signed-in Firebase users are mapped to app role `attendee` since there is no backend role lookup yet. `.env` is expected to hold a real Firebase project's config; no live Firebase project was reachable from this session to test end-to-end.
+- Checks run: `npm run build` (tsc + vite build) in `apps/frontend` — passed. `npm install firebase` completed cleanly. Not run: end-to-end sign-in against a real Firebase project; `npm run lint` (pre-existing missing ESLint config, unrelated to this change).
+- Follow-up/conflict notes: Role-aware sign-in (vs. hardcoded `attendee`), password reset/self-registration flows, and reconciling any doc staleness elsewhere in this directory are left as follow-up work.

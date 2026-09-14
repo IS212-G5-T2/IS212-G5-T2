@@ -1,4 +1,7 @@
 import { create } from "zustand";
+import type { User as FirebaseUser } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, getAuthErrorMessage } from "@/lib/firebase";
 import type {
   Booking,
   ChangeRequest,
@@ -15,8 +18,9 @@ import type {
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
-// Placeholder identity until real authentication is wired up. Not swappable —
-// the old multi-user role switcher was removed along with the mock user list.
+// Placeholder identity shown before sign-in and restored on sign-out. Not
+// swappable — the old multi-user role switcher was removed along with the
+// mock user list.
 const PLACEHOLDER_USER: User = {
   id: "current-user",
   name: "Current User",
@@ -26,6 +30,11 @@ const PLACEHOLDER_USER: User = {
 
 interface AppState {
   currentUser: User;
+  isAuthenticated: boolean;
+  // True until Firebase's initial auth state (e.g. a persisted session from a
+  // previous visit) has resolved. Route guards and the login page use this to
+  // avoid flashing the wrong screen while Firebase starts up.
+  authLoading: boolean;
   events: EventRecord[];
   venues: Venue[];
   bookings: Booking[];
@@ -52,6 +61,11 @@ interface AppState {
   registerForEvent: (eventId: string) => void;
   withdrawRegistration: (eventId: string) => void;
 
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  /** Called by the Firebase onAuthStateChanged listener wired up in App.tsx. */
+  setAuthUser: (firebaseUser: FirebaseUser | null) => void;
+
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   pushNotification: (n: Omit<Notification, "id" | "read" | "createdAt">) => void;
@@ -59,6 +73,8 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set, get) => ({
   currentUser: PLACEHOLDER_USER,
+  isAuthenticated: false,
+  authLoading: true,
   events: [],
   venues: [],
   bookings: [],
@@ -398,6 +414,42 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  // Firebase Authentication (Email/Password provider). A user must exist in
+  // the Firebase project and the provider must be enabled in the console —
+  // see apps/frontend/README.md for setup.
+  login: async (email, password) => {
+    try {
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getAuthErrorMessage(error) };
+    }
+  },
+
+  logout: async () => {
+    await signOut(auth);
+  },
+
+  // Firebase doesn't know about our app-level roles, so a signed-in Firebase
+  // user is mapped to role "attendee" for now (matching the
+  // feature/spm-30-attendee-login scope). Role-aware sign-in is follow-up work.
+  setAuthUser: (firebaseUser) => {
+    if (firebaseUser) {
+      set({
+        isAuthenticated: true,
+        authLoading: false,
+        currentUser: {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName ?? firebaseUser.email ?? "Signed-in user",
+          email: firebaseUser.email ?? "",
+          role: "attendee",
+        },
+      });
+    } else {
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+    }
   },
 
   markNotificationRead: (id) => {

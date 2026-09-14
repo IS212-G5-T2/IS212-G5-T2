@@ -1,5 +1,11 @@
+import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useAppStore } from "@/store/useAppStore";
 import { AppShell } from "@/components/layout/AppShell";
+import { RequireAuth } from "@/components/auth/RequireAuth";
+import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
@@ -15,9 +21,29 @@ import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
 export default function App() {
+  const setAuthUser = useAppStore((s) => s.setAuthUser);
+
+  useEffect(() => {
+    // Subscribes once for the lifetime of the app; keeps currentUser/
+    // isAuthenticated in sync with Firebase, including restoring a session
+    // that was already active when the page loads.
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setAuthUser(firebaseUser);
+    });
+    return unsubscribe;
+  }, [setAuthUser]);
+
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route
+        element={
+          <RequireAuth>
+            <AppShell />
+          </RequireAuth>
+        }
+      >
         <Route path="/" element={<EventListPage />} />
 
         <Route path="/events" element={<EventListPage />} />
