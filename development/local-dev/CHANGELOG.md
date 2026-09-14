@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-15
+
+- Simplified the local Compose stack to frontend, backend, and PostgreSQL.
+- Removed gateway, GCS, Pub/Sub, initialization, and Adminer services; the backend is now exposed directly on `localhost:3000`.
+
 ## 2026-09-11
 
 - Added local PostgreSQL RBAC schema and seed data in a separate init file for roles, resources, and role permissions.

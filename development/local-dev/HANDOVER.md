@@ -2,7 +2,7 @@
 
 ## Current state
 
-`development/local-dev` defines the shared Docker Compose integration environment with frontend, backend, gateway configuration, PostgreSQL, and storage/messaging emulators.
+`development/local-dev` defines the shared three-tier Docker Compose integration environment: frontend, backend, and PostgreSQL. The backend is published directly on `localhost:3000`; no gateway or storage/messaging emulators are part of this stack.
 
 The Compose build contexts currently expect `../../apps/frontend` for the React/Vite frontend, `../../services/backend` for the NestJS backend service, and `../database/postgresql` for the local PostgreSQL image in this checkout. PostgreSQL initialization assets are built into that image from `development/database/postgresql/init`.
 

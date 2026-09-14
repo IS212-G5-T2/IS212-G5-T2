@@ -7,12 +7,9 @@ The stack is local-only; this repository no longer contains deployment, Terrafor
 | Local concern | Local implementation |
 | --- | --- |
 | Compose network | `spm` |
-| Local gateway | `gateway` reverse proxy on `localhost:8080` |
 | Frontend container | `frontend` on `localhost:5173` |
-| Backend container | `backend` |
+| Backend container | `backend` on `localhost:3000` |
 | PostgreSQL | `postgres` on `localhost:5432` |
-| Object storage emulator | `fake-gcs-server` on `localhost:4443` |
-| Pub/Sub emulator | Pub/Sub emulator on `localhost:8085` |
 | Runtime configuration | `.env` file |
 | Service readiness | Compose health checks |
 
@@ -34,10 +31,10 @@ The Compose build contexts expect `../../apps/frontend` for the React/Vite front
    docker compose up --build
    ```
 
-3. Check the local gateway:
+3. Check the backend:
 
    ```sh
-   curl http://localhost:8080/healthz
+   curl http://localhost:3000/healthz
    ```
 
 The response should show `status: ok` once Postgres is ready and the backend service has started.
@@ -53,47 +50,18 @@ The response should show `status: ok` once Postgres is ready and the backend ser
 | Service | URL |
 | --- | --- |
 | Frontend | `http://localhost:5173` |
-| Local gateway | `http://localhost:8080` |
-| Backend through gateway | `http://localhost:8080/healthz` |
+| Backend | `http://localhost:3000/healthz` |
 | PostgreSQL | `localhost:5432` |
-| Pub/Sub emulator | `localhost:8085` |
-| Storage emulator | `http://localhost:4443` |
-| Adminer, optional | `http://localhost:8081` |
-
-Start Adminer only when needed:
-
-```sh
-docker compose --profile tools up db-admin
-```
-
-Use these Adminer values:
-
-| Field | Value |
-| --- | --- |
-| System | `PostgreSQL` |
-| Server | `postgres` |
-| Username | `spm` |
-| Password | `spm_dev_password` |
-| Database | `spm` |
 
 ## Local Configuration
 
 Local services connect to PostgreSQL through the Compose service name `postgres:5432`. Keep application code driven by `DATABASE_URL`, `DB_HOST`, and `DB_PORT` so local configuration stays outside source code.
 
-The `.env` file configures local service defaults:
-
-- `PROJECT_ID`
-- `REGION`
-- `ENVIRONMENT`
-- `CLOUD_SQL_CONNECTION_NAME`
-- `CLOUD_SQL_DATABASE`
-- `STORAGE_BUCKET`
-- `PUBSUB_TOPIC`
-- `VITE_API_BASE_URL`
+The `.env` file configures PostgreSQL, backend, and frontend defaults, including `DATABASE_URL`, `PORT`, `FRONTEND_ORIGIN`, and `VITE_API_BASE_URL`.
 
 Use local-only values in `.env`. Do not commit real credentials.
 
-Only `VITE_API_BASE_URL` is passed into the frontend container. Backend, database, storage, and Pub/Sub settings stay on the backend and infrastructure containers.
+`VITE_API_BASE_URL` is passed into the frontend container. PostgreSQL and backend settings stay on their respective containers.
 
 ## Frontend, Backend, And Database Layout
 
@@ -104,9 +72,9 @@ Local orchestration is intentionally split by responsibility:
 | `apps/frontend` | React/Vite frontend source and frontend container image |
 | `services/backend` | NestJS backend source and backend container image |
 | `development/database/postgresql` | Local PostgreSQL image and initialization assets |
-| `development/local-dev` | Docker Compose, gateway, emulator setup, and local stack docs |
+| `development/local-dev` | Three-tier Docker Compose orchestration and local stack docs |
 
-The frontend is exposed directly on `localhost:5173` for Vite development. Backend API traffic remains available through the local gateway on `localhost:8080`.
+The frontend is exposed on `localhost:5173`; the backend is exposed directly on `localhost:3000` and PostgreSQL on `localhost:5432`.
 
 ## Replacing The Backend Service
 
@@ -114,9 +82,8 @@ The Compose configuration targets `services/backend`. To integrate a different s
 
 1. Put the service code under `services/<service-name>` or point the Compose build context to the existing local path.
 2. Keep `/healthz` or `/readyz` for local health checks.
-3. Keep the internal container port as `8080`, unless the Compose gateway changes too.
-4. Add a new route in `gateway/nginx.conf` when there is more than one service.
-5. Add matching topic, subscription, database, or storage config to `.env.example` and this README.
+3. Keep the backend port consistent with its Compose port mapping and local API URL.
+4. Add matching database and frontend API configuration to `.env.example` and this README.
 
 ## Updating Database Initialization
 
@@ -133,11 +100,11 @@ The standalone database image includes local-only defaults for `POSTGRES_USER`, 
 
 ## Integration environment lifecycle
 
-This is the shared integration environment, with persistent `postgres-data` and `gcs-data` volumes. Automated integration tests should preserve the environment and existing data, remove their own test records and temporary resources, and report any services they started and left running. The [global automation policy](../../AGENTS.md#automation-resource-lifecycle) and [local agent rules](AGENTS.md) define resource ownership and the exception to disposable-test teardown.
+This is the shared three-tier integration environment, with a persistent `postgres-data` volume. Automated integration tests should preserve the environment and existing data, remove their own test records and temporary resources, and report any services they started and left running. The [global automation policy](../../AGENTS.md#automation-resource-lifecycle) and [local agent rules](AGENTS.md) define resource ownership and the exception to disposable-test teardown.
 
-When explicitly stopping the whole stack, run `docker compose down` from this directory. It removes the stack's containers and networks while retaining the named database and storage volumes. Stopping the stack also loses Pub/Sub emulator state because this Compose configuration gives that emulator no persistent volume.
+When explicitly stopping the whole stack, run `docker compose down` from this directory. It removes the stack's containers and network while retaining the named database volume.
 
-Use `docker compose down -v` only for an explicitly requested data reset: it also deletes the named database and storage volumes. Neither command is an automatic integration-test cleanup step. Disposable tests outside this shared environment must remove their own containers and associated temporary resources after the run.
+Use `docker compose down -v` only for an explicitly requested data reset: it also deletes the named database volume. Neither command is an automatic integration-test cleanup step. Disposable tests outside this shared environment must remove their own containers and associated temporary resources after the run.
 
 ## Daily Commands
 
