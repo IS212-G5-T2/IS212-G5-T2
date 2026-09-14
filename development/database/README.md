@@ -30,7 +30,7 @@ Use reset only when local data can be discarded.
 
 ## Events sample database
 
-The local `spm` PostgreSQL database stores requests in `events`. `002_events.sql` defines the schema; `003_sample_events.sql` adds one fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display.
+The local `spm` PostgreSQL database stores requests in `events`. `002_events.sql` defines the schema and adds one fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display.
 
 For an existing local volume, apply these additive scripts from the repository root (no reset needed):
 
