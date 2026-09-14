@@ -11,4 +11,8 @@ The shared local Docker Compose stack builds this app with `apps/frontend/Docker
 ## Continuity notes
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
-- Add a real unit-test entrypoint if CI is expanded to run application tests.
+- `scripts/ci/unit-test.sh` installs dependencies and runs the Vitest component interaction tests.
+
+## Event requests
+
+The create/list/detail pages call the real local API; other existing store actions remain prototype behavior. Account integration belongs to a separate ticket. The app starts in light mode, and the sign-in label has been removed. Email and Save Draft are deferred. The API maps stored Submitted status to the existing lowercase frontend status type.

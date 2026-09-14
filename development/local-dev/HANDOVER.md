@@ -11,3 +11,7 @@ The Compose build contexts currently expect `../../apps/frontend` for the React/
 - Treat local-dev as a shared integration environment, not a disposable unit-test fixture.
 - Preserve existing stack state and named volumes unless the user explicitly asks to stop or reset them.
 - Automated integration tests should clean up their own test records and temporary resources while leaving shared services available for reuse.
+
+## Event requests
+
+The backend now uses DATABASE_URL for event persistence and DEMO_ORGANISER_ENABLED for the account-free local sample. Apply the additive events SQL scripts using README instructions for existing volumes. Email delivery is deferred. Preserve existing database data when testing.

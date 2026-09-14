@@ -20,6 +20,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<EventListPage />} />
 
+        <Route path="/planning" element={<EventListPage />} />
         <Route path="/events" element={<EventListPage />} />
         <Route path="/events/create" element={<EventCreatePage />} />
         <Route path="/events/:id" element={<EventDetailPage />} />

@@ -1,5 +1,7 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { api } from "@/utils/api";
+import type { EventRecord } from "@/types";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -21,8 +23,21 @@ const statusOptions: { value: string; label: string }[] = [
 ];
 
 export function EventListPage() {
+  const isPlanning = useLocation().pathname === "/planning";
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setError("");
+    api<EventRecord[]>("/events")
+      .then(events => { if (active) useAppStore.setState({ events }); })
+      .catch(e => { if (active) setError(e.message); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [retry]);
   const [statusFilter, setStatusFilter] = useState("");
 
   const scoped = useMemo(() => {
@@ -50,7 +65,7 @@ export function EventListPage() {
   return (
     <div>
       <PageHeader
-        title={title}
+        title={isPlanning ? "Event Planning" : title}
         description={
           currentUser.role === "coordinator"
             ? "Review submissions, track statuses, and manage every event in the pipeline."
@@ -74,7 +89,7 @@ export function EventListPage() {
         />
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? <p role="status">Loading events…</p> : error ? <div role="alert">{error} <Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button></div> : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
           No events match this filter.
         </div>

@@ -36,3 +36,10 @@ npm run build
 ```
 
 The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh).
+
+## Events boundary
+
+- `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table.
+- Coordinate local schema assets with `development/database` and API consumers with `apps/frontend`.
+- Local demo identity is not authentication; account integration, email, drafts, and review transitions are outside this implementation.
+- Run `tests/database/SPM-36/event-request-persistence.e2e-spec.mjs` inside the running backend container as documented in README for shared-stack checks; it cleans up only its own event.

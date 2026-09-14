@@ -9,6 +9,7 @@ export interface NavItem {
 
 export const navByRole: Record<UserRole, NavItem[]> = {
   organiser: [
+    { label: "Event Planning", to: "/planning", icon: "🗓️", feature: "Feature 1" },
     { label: "My Events", to: "/events", icon: "📅", feature: "Feature 5, 6" },
     { label: "Create Event", to: "/events/create", icon: "➕", feature: "Feature 1, 2" },
   ],
@@ -32,6 +33,12 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   attendee: [
     { label: "Browse Events", to: "/events", icon: "📅", feature: "Feature 6" },
   ],
+  admin: [
+    { label: "All Events", to: "/events", icon: "📅", feature: "Feature 3, 4, 5, 6" },
+    { label: "Venues", to: "/venues", icon: "🏛️", feature: "Feature 7, 8" },
+    { label: "Bookings", to: "/bookings", icon: "📝", feature: "Feature 9, 10, 11" },
+    { label: "Equipment Requests", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },
+  ],
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -40,4 +47,5 @@ export const roleLabels: Record<UserRole, string> = {
   venue_staff: "Venue Staff",
   tech_support: "Technical Support Staff",
   attendee: "Attendee",
+  admin: "Admin",
 };

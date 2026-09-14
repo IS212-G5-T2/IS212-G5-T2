@@ -1,5 +1,7 @@
-import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { api } from "@/utils/api";
+import type { EventRecord } from "@/types";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -22,6 +24,17 @@ const STATUS_FLOW = [
 export function EventDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  useEffect(() => {
+    let active = true;
+    setLoading(true); setLoadError("");
+    api<EventRecord>(`/events/${id}`).then(event => {
+      if (active) useAppStore.setState(s => ({ events: [event, ...s.events.filter(e => e.id !== event.id)] }));
+    }).catch(e => { if (active) setLoadError(e.message); }).finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [id]);
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
@@ -36,6 +49,9 @@ export function EventDetailPage() {
   const [note, setNote] = useState("");
 
   const event = events.find((e) => e.id === id);
+
+  if (loading) return <p role="status">Loading event…</p>;
+  if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
 
   if (!event) {
     return (
@@ -66,6 +82,7 @@ export function EventDetailPage() {
 
   return (
     <div>
+      {location.state?.submitted && <div role="status" className="mb-6 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900"><strong>Your event request was submitted successfully.</strong><p className="mt-1">You can find it in My Events.</p><Link className="mt-2 inline-block underline" to="/events">View My Events</Link></div>}
       <PageHeader
         title={event.name}
         description={event.purpose}
@@ -181,6 +198,40 @@ export function EventDetailPage() {
                 <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">
                   {event.venueRequirements.accessibility.join(", ") || "None specified"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
+                <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
+                  {event.attachments?.length ? (
+                    event.attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+                      >
+                        <span>{attachment.name}</span>
+                        <span className="flex items-center gap-3 text-xs">
+                          <a
+                            href={attachment.dataUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-primary-700 underline dark:text-primary-300"
+                          >
+                            View
+                          </a>
+                          <a
+                            href={attachment.dataUrl}
+                            download={attachment.name}
+                            className="text-primary-700 underline dark:text-primary-300"
+                          >
+                            Download
+                          </a>
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    "None specified"
+                  )}
                 </dd>
               </div>
               <div className="sm:col-span-2">

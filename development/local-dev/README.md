@@ -150,3 +150,18 @@ docker compose ps
 ```
 
 Choose shutdown or data reset according to the lifecycle guidance above.
+
+## Events sample database
+
+The local `spm` PostgreSQL database stores requests in `events`. `002_events.sql` defines the schema; `003_sample_events.sql` adds one fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display.
+
+For an existing local volume, apply these additive scripts from the repository root (no reset needed):
+
+```sh
+docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_events.sql
+docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/003_sample_events.sql
+```
+
+The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
+
+`DEMO_ORGANISER_ENABLED=true` in `.env.example` enables the fixed local organiser; user-account functionality and email delivery are deferred. After backend changes, rebuild and start it with `docker compose up -d --build backend`. The frontend code is bind-mounted and refreshed by Vite. Visit http://localhost:5173/planning to create an event, then inspect it under My Events.

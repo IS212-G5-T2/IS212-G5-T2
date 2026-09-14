@@ -13,3 +13,7 @@ Scope: `apps/frontend`, within the [global policy](../../AGENTS.md) and [app rul
 - When changing the client implementation, update [README.md](README.md) with setup, development, test, build, and environment commands.
 - Add frontend checks that match the chosen stack before reporting the application as verified. Backend validation alone is not evidence that a browser workflow works.
 - Coordinate API contracts with affected service code. Do not make claims about end-to-end connectivity from local or infrastructure intent alone.
+
+## Event workflow checks
+
+Use `npm test` for Vitest/jsdom component interaction checks, `npm run lint`, and `npm run build`. CI entrypoint: `scripts/ci/unit-test.sh`. Event create/list/detail pages use `/api/events`; keep that contract aligned with `services/backend`. Account integration, drafts, and email delivery are separate work.

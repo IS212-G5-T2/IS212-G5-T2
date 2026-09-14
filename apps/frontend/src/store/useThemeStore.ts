@@ -4,12 +4,8 @@ export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "connectsphere-theme";
 
-function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "light";
-  const stored = window.localStorage.getItem(STORAGE_KEY);
-  if (stored === "light" || stored === "dark") return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
+// This local event workflow starts in light mode, including previously dark browsers.
+function getInitialTheme(): Theme { return "light"; }
 
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark");

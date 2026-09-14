@@ -15,14 +15,38 @@ import type {
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
-// Placeholder identity until real authentication is wired up. Not swappable —
-// the old multi-user role switcher was removed along with the mock user list.
-const PLACEHOLDER_USER: User = {
-  id: "current-user",
-  name: "Current User",
-  email: "",
-  role: "organiser",
-};
+export const MOCK_USERS: User[] = [
+  {
+    id: "coordinator-1",
+    name: "Demo Coordinator",
+    email: "coordinator@example.test",
+    role: "coordinator",
+  },
+  {
+    id: "current-user",
+    name: "Demo Organiser",
+    email: "organiser@example.test",
+    role: "organiser",
+  },
+  {
+    id: "venue-staff-1",
+    name: "Demo Venue Staff",
+    email: "venue@example.test",
+    role: "venue_staff",
+  },
+  {
+    id: "tech-support-1",
+    name: "Demo Tech Support",
+    email: "tech@example.test",
+    role: "tech_support",
+  },
+  {
+    id: "admin-1",
+    name: "Demo Admin",
+    email: "admin@example.test",
+    role: "admin",
+  },
+];
 
 interface AppState {
   currentUser: User;
@@ -34,6 +58,7 @@ interface AppState {
   registrations: Registration[];
   notifications: Notification[];
 
+  setCurrentUser: (user: User) => void;
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
@@ -58,7 +83,7 @@ interface AppState {
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentUser: PLACEHOLDER_USER,
+  currentUser: MOCK_USERS[1],
   events: [],
   venues: [],
   bookings: [],
@@ -66,6 +91,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   equipmentRequests: [],
   registrations: [],
   notifications: [],
+
+  setCurrentUser: (user) => set({ currentUser: user }),
 
   createDraftEvent: (data) => {
     const user = get().currentUser;
@@ -87,6 +114,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         layout: "",
       },
       equipmentNeeds: data.equipmentNeeds ?? "",
+      attachments: data.attachments ?? [],
       registrationEnabled: data.registrationEnabled ?? false,
       changeRequests: [],
       createdAt: new Date().toISOString(),
