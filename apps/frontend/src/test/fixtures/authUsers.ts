@@ -1,14 +1,13 @@
 /**
- * Known Email/Password users provisioned in the project's Firebase
- * Authentication instance (Authentication -> Users in the Firebase console).
+ * Mock Email/Password users used by the login tests.
  *
  * These are used to parameterize the "correct credentials" login tests so
  * every provisioned account is exercised, not just one happy path. The
  * password is shared across all seed accounts.
  *
  * Tests never hit real Firebase — `signInWithEmailAndPassword` is mocked in
- * every test file that imports this fixture, so these values only need to
- * match what the mock is told to accept.
+ * every test file that imports this fixture. These are deliberately fake
+ * credentials and must not match any real Firebase account.
  */
 export interface SeedUser {
   role: string;
@@ -16,7 +15,7 @@ export interface SeedUser {
   password: string;
 }
 
-export const SEED_PASSWORD = "P@55w0rd";
+export const SEED_PASSWORD = "mock-only-password";
 
 export const SEED_USERS: SeedUser[] = [
   { role: "attendee", email: "attendee@connectsphere.sg", password: SEED_PASSWORD },

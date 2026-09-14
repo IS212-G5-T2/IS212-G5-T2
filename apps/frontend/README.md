@@ -51,7 +51,7 @@ npm run test:coverage # run once with a coverage report
 
  Test files live alongside the code they cover (e.g. `src/pages/LoginPage.test.tsx` next to `src/pages/LoginPage.tsx`). Shared test helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup, `src/test/fixtures/` for reusable test data).
 
-`LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The seeded accounts used to parameterize the "correct credentials" cases (all sharing the password `P@55w0rd`) are documented in `src/test/fixtures/authUsers.ts`:
+`LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The mock accounts used to parameterize the "correct credentials" cases are documented in `src/test/fixtures/authUsers.ts`; their password is deliberately fake and test-only:
 
 | Email | Role |
 | --- | --- |
@@ -61,7 +61,7 @@ npm run test:coverage # run once with a coverage report
 | venue_staff@connectsphere.sg | venue_staff |
 | technical_support@connectsphere.sg | technical_support |
 
-These accounts also need to exist under Authentication -> Users in the actual Firebase project for manual/browser testing of `/login`; the automated suite does not depend on them being present.
+These fixtures do not need to exist under Authentication -> Users in any Firebase project; the automated suite never contacts Firebase.
 
 ## Authentication (Firebase)
 

@@ -21,6 +21,28 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-14 - Codex (GPT-5) - Remove hard-coded authentication test password
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/test/fixtures/authUsers.ts`, `apps/frontend/README.md`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Replaced the literal shared mock-account password with `process.env.SEED_PASSWORD`, removed it from documentation, and injected the GitHub Actions secret into the test step.
+- AI contribution: Secret-handling remediation and CI configuration.
+- Assumptions: The repository’s GitHub secret is named `SEED_PASSWORD`; local test runs must export the variable themselves.
+- Checks run: Source search for the removed literal and `git diff --check`; frontend tests require `SEED_PASSWORD` and dependencies to be available.
+- Follow-up/conflict notes: The exposed password should be rotated; existing untracked Firebase service-account material was preserved and not staged.
+
+## 2026-09-14 - Codex (GPT-5) - Use fake credentials for mocked login tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/test/fixtures/authUsers.ts`, `apps/frontend/README.md`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Replaced the real-looking test password with an explicitly fake password and removed unnecessary environment-secret wiring because Firebase authentication is mocked.
+- AI contribution: Test-fixture security remediation and documentation.
+- Assumptions: Login unit tests should validate UI behavior with deterministic mock data, not real Firebase accounts.
+- Checks run: Source search for the removed credential and `git diff --check`; frontend tests remain unavailable locally because Vitest is not installed.
+- Follow-up/conflict notes: Existing untracked Firebase service-account material was preserved and not staged.
+
 ## 2026-09-13 - Codex - Fix PR #6 CI dependency installation
 
 - Issue/PR: PR #6
