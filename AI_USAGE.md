@@ -21,6 +21,215 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-13 - Codex - Add Firebase emulator E2E workflow
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/test/auth.e2e-spec.ts`, `firebase.json`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Replaced the mocked authentication E2E flow with Firebase Auth Emulator user creation/sign-in, and added CI orchestration for the emulator and PostgreSQL image.
+- AI contribution: E2E implementation, CI workflow, and emulator integration.
+- Assumptions: `demo-is212` is used as a safe emulator-only project ID; PostgreSQL can be started from `development/database/postgresql` in GitHub Actions.
+- Checks run: `npm run lint`; `npm run build`; Ruby YAML/JSON config validation; `git diff --check`. Emulator-backed E2E execution was not run because the local Auth Emulator was unavailable.
+- Follow-up/conflict notes: Local Docker/emulator execution was not run in this environment; no commit or pull request created.
+
+## 2026-09-13 - Codex - Recheck authentication E2E coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/test/auth.e2e-spec.ts`, `AI_USAGE.md`
+- Summary: Rechecked the authentication E2E test against the current AuthModule and middleware wiring after removing AuthorizationService; no test changes were required.
+- AI contribution: Test review and execution.
+- Assumptions: The file is intended to cover Firebase authentication middleware, not resource-level RBAC enforcement.
+- Checks run: `npm run test:e2e -- test/auth.e2e-spec.ts` outside the sandbox (3 tests passed); the full E2E command was sandbox-blocked because local server binding is restricted.
+- Follow-up/conflict notes: No commit or pull request created.
+
+## 2026-09-13 - Codex - Organize database service tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/database/database.service.spec.ts`, `AI_USAGE.md`
+- Summary: Grouped successful database and transaction behavior separately from configuration and failure behavior, matching the RBAC test organization.
+- AI contribution: Test organization and verification.
+- Assumptions: Missing configuration, connection failures, rollbacks, and unconfigured shutdown are unintended behavior cases.
+- Checks run: `npm test -- src/database/database.service.spec.ts` (8 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: Existing database service tests were preserved; no commit or pull request created.
+
+## 2026-09-13 - Codex - Document RBAC predicate return value
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.ts`, `AI_USAGE.md`
+- Summary: Expanded the `buildPermissionPredicate()` comment with its SQL return value and execution behavior.
+- AI contribution: Documentation update.
+- Assumptions: None.
+- Checks run: `git diff --check`.
+- Follow-up/conflict notes: No commit or pull request created.
+
+## 2026-09-13 - Codex - Remove redundant authorization service
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth`, `services/backend/README.md`, `services/backend/HANDOVER.md`, `services/backend/CHANGELOG.md`, `AI_USAGE.md`
+- Summary: Removed the separate `AuthorizationService` and its tests; updated auth wiring and backend documentation to use composable RBAC predicates inside resource queries.
+- AI contribution: Architecture refactor, cleanup, and verification.
+- Assumptions: Resource repositories will enforce RBAC and ownership in the same SQL operation and will not perform a preceding authorization query.
+- Checks run: `npm test` (90 tests passed); `npm run lint`; `npm run build`; `git diff --check`; searched for remaining `AuthorizationService` references.
+- Follow-up/conflict notes: Existing Firebase authentication and `RbacRepository` work was preserved; no commit or pull request created.
+
+## 2026-09-13 - Codex - Organize RBAC predicate behavior tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Grouped valid predicate generation under intended behavior and arbitrary/injected actions under unintended behavior.
+- AI contribution: Test organization and type-safe test correction.
+- Assumptions: Runtime-invalid actions must be rejected even though the method accepts the `PermissionAction` TypeScript union.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (58 tests passed); `npm run lint`; `npm run build`; `git diff --check`.
+- Follow-up/conflict notes: No commit or pull request created.
+
+## 2026-09-13 - Codex - Add RBAC predicate injection denial test
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Added unintended-behavior coverage proving arbitrary or injected permission column names are rejected.
+- AI contribution: Security-focused unit-test design and verification.
+- Assumptions: Runtime action values must be limited to the four supported CRUD actions even when TypeScript typing is bypassed.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (58 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: No commit or pull request created.
+
+## 2026-09-13 - Codex - Make RBAC SQL placeholders explicit
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.ts`, `AI_USAGE.md`
+- Summary: Replaced internal placeholder variables with explicit `$1` and `$2` positions in the composable RBAC predicate.
+- AI contribution: Code clarity improvement and verification.
+- Assumptions: Calling repositories reserve `$1` for roles and `$2` for the resource name.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (57 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: No commit or pull request created.
+
+## 2026-09-13 - Codex - Harden RBAC SQL predicate construction
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.ts`, `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Standardized the composable RBAC predicate on fixed `$1` and `$2` placeholders, eliminating interpolated placeholder text.
+- AI contribution: Security review, implementation, and unit tests.
+- Assumptions: Calling repositories reserve `$1` for roles and `$2` for the resource name, with operation-specific parameters beginning at `$3`.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (57 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: Permission columns remain selected only from the fixed `PermissionAction` mapping; no commit or pull request created.
+
+## 2026-09-13 - Codex - Add composable RBAC permission predicate
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.ts`, `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Added a composable SQL `EXISTS` predicate that resource repositories can embed in their data operation to enforce RBAC without a separate network request.
+- AI contribution: Repository API design, unit tests, and verification.
+- Assumptions: Calling repositories will pass a PostgreSQL text-array parameter containing the authenticated user's roles and a parameter containing the resource name.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (57 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: `hasPermission()` remains available for standalone checks; no commit or pull request created.
+
+## 2026-09-13 - Codex - Add RBAC denial edge cases
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Added focused negative tests for missing permission rows, explicit denials, and truthy non-boolean database values.
+- AI contribution: Unit-test design and verification.
+- Assumptions: Only an explicit boolean `true` should grant permission; missing or malformed rows should deny access.
+- Checks run: `npm test -- src/auth/authorization/rbac.repository.spec.ts` (53 tests passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: No commit or pull request created; existing working-tree changes were preserved.
+
+## 2026-09-13 - Codex - Expand database service coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/database/database.service.spec.ts`, `AI_USAGE.md`
+- Summary: Added deterministic coverage for unreachable database URLs, query delegation, successful and failed transactions, client release, and pool shutdown.
+- AI contribution: Unit-test design and coverage expansion.
+- Assumptions: A configured URL can still be invalid or unreachable; connection failures should be propagated by the database service for callers to handle.
+- Checks run: Targeted Vitest coverage (8 tests passed; 100% statements, branches, functions, and lines); `npm --prefix services/backend run lint`; `git diff --check`.
+- Follow-up/conflict notes: Existing working-tree changes were preserved; no commit or pull request created.
+
+## 2026-09-12 - Codex - Expand RBAC permission matrix coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Simplified RBAC tests to one readable case per role/resource pair using CRUD bit strings such as `1110`, and expanded coverage from Event-only checks to all 10 seeded resources.
+- AI contribution: Parameterized unit-test design and coverage verification.
+- Assumptions: CRUD bit strings represent `create`, `read`, `update`, and `delete` in that order; absent seeded role/resource rows are represented as `0000`.
+- Checks run: Targeted Vitest coverage (50 role/resource cases and 200 permission checks passed; 100% statements/functions/lines, 50% branches); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: No separate unintended-behavior section remains; the uncovered branch is framework-generated NestJS decorator metadata.
+
+## 2026-09-12 - Codex - Add explicit RBAC denial coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Added a negative test for permission rows that explicitly deny an action.
+- AI contribution: Unit-test addition and coverage verification.
+- Assumptions: The repository should return `false` for an existing permission row with `allowed: false`.
+- Checks run: Targeted coverage (3 tests passed; 100% statements/functions/lines, 50% branches); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: The remaining branch is emitted for NestJS decorator metadata rather than repository authorization logic.
+
+## 2026-09-12 - Codex - Organize RBAC repository tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authorization/rbac.repository.spec.ts`, `AI_USAGE.md`
+- Summary: Organized RBAC repository tests into intended and unintended behavior sections consistent with the Firebase authentication specs, preserving the existing parameterized permission query.
+- AI contribution: Test-structure refactor and verification.
+- Assumptions: The current `CASE`-based `hasPermission()` implementation is existing work and should remain unchanged.
+- Checks run: Targeted RBAC repository tests (2 passed); `npm run lint`; `git diff --check`.
+- Follow-up/conflict notes: None.
+
+## 2026-09-12 - Codex - Fix authentication middleware assertion
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authentication/firebase-authentication.middleware.spec.ts`, `AI_USAGE.md`
+- Summary: Updated the middleware test expectation to include the verified user's email field and added coverage for Firebase verification failures.
+- AI contribution: Test correction, negative-path test, and targeted coverage verification.
+- Assumptions: The middleware should attach the complete verified Firebase user object to the request.
+- Checks run: Targeted Vitest coverage and `git diff --check`; 5 tests passed; 100% statements/functions/lines and 90% branches.
+- Follow-up/conflict notes: The remaining branch gap is reported on the injectable decorator line and does not represent an untested middleware behavior.
+
+## 2026-09-12 - Codex - Review Firebase token service test coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authentication`, `AI_USAGE.md`
+- Summary: Reviewed Firebase token service tests against implementation behavior and verified targeted Vitest coverage.
+- AI contribution: Test coverage and negative-case review; no production code changes.
+- Assumptions: The question concerns unit-test completeness, including behavioral edge cases beyond line coverage.
+- Checks run: `npm --prefix services/backend run test -- src/auth/authentication/firebase-token.service.spec.ts --coverage.enabled true --coverage.include src/auth/authentication/firebase-token.service.ts --coverage.reporter text` (17 passed; 100% statements/branches/functions/lines).
+- Follow-up/conflict notes: Coverage is complete at the instrumentation level, but additional edge-case assertions are recommended for stronger behavioral confidence.
+
+## 2026-09-12 - Codex - Harden Firebase bearer-token parsing
+
+- Issue/PR: SPM-106
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authentication`, `AI_USAGE.md`
+- Summary: Replaced delimiter-based Authorization header parsing with a strict Bearer-token regular expression and added malformed-header coverage.
+- AI contribution: Middleware implementation and unit test update.
+- Assumptions: Bearer schemes are case-insensitive and Firebase ID tokens contain no whitespace.
+- Checks run: `npx vitest run src/auth/authentication/firebase-authentication.middleware.spec.ts`; `npm run lint`.
+- Follow-up/conflict notes: Middleware files already contained other staged/comment changes; those changes were preserved.
+
+## 2026-09-12 - Codex - Set up JWT verification and authorization
+
+- Issue/PR: SPM-106
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Added a NestJS auth module with Firebase ID-token middleware that attaches verified uid/roles claims to requests, centralized PostgreSQL access through `DatabaseService`, and RBAC services that check role permissions against the existing PostgreSQL tables and support ownership checks.
+- AI contribution: Jira review, backend auth/RBAC code, unit/e2e tests, dependency updates, and backend documentation.
+- Assumptions: Firebase custom `roles` claims will use the existing RBAC seed role names (`ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, `ATTENDEE`); product endpoints or future route-specific middleware will call `AuthorizationService` when resource/action context exists.
+- Checks run: `npx vitest run src/auth/authentication/firebase-token.service.spec.ts --coverage.enabled true --coverage.include src/auth/authentication/firebase-token.service.ts --coverage.reporter text` (100% statements/branches/functions/lines for `firebase-token.service.ts`); `npm test`; `npm run lint`; `npm run build`; `npm run test:e2e` outside the sandbox because Supertest needs to bind a local test server.
+- Follow-up/conflict notes: Work was created on `feature/SPM-106-set-up-jwt-verification-and-authorization` from `feature/spm-30-attendee-login`; npm reported 6 vulnerabilities after adding Firebase Admin/PostgreSQL dependencies and they were not auto-fixed to avoid unrequested dependency churn.
+
 ## 2026-09-14 - Codex (GPT-5) - Remove hard-coded authentication test password
 
 - Issue/PR: Unknown
@@ -84,7 +293,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Summary: Added a frontend service to the local Docker Compose stack, separated PostgreSQL into a buildable local image under `development/database/postgresql`, baked local-only PostgreSQL defaults into that image, and updated repository/local development documentation for the frontend/backend/database layout.
 - AI contribution: Local integration configuration, Dockerfile support, README updates, documentation, and AI usage logging.
 - Assumptions: The existing NestJS backend remains the backend service, the existing React/Vite app should run as the frontend service, and database ownership should be separated under `development/database/postgresql` while Compose orchestration remains under `development/local-dev`.
-- Checks run: `docker compose -f development/local-dev/compose.yaml config --quiet`; `npm ci`; `npm run build`; searched README and scoped docs for stale local-dev/frontend/backend/database wording; `docker compose -f development/local-dev/compose.yaml build frontend` and `docker build -t spm-postgresql development/database/postgresql` could not complete because the local Docker daemon socket was unavailable.
+- Checks run: `docker compose -f development/local-dev/compose.yaml config --quiet`; `npm ci`; `npm run build`; searched README and scoped docs for stale local-dev/frontend/backend/database wording; `docker compose -f development/local-dev/compose.yaml build frontend` and `docker build -t spm-postgresql development/database/postgresql` could not complete because the local Docker daemon was unavailable.
 - Follow-up/conflict notes: None.
 
 ## 2026-09-09 - Codex - Update Jira branch naming convention
@@ -159,10 +368,10 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Human requester/operator: swr
 - Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
 - Summary: Updated AI workflow guidance so Jira is the authoritative requirements source and GitHub is the authoritative development artifact source. Added status gating, existing branch/PR reuse, Jira-key branch/commit/PR requirements, acceptance-criteria recheck, and Jira automation ownership rules.
-- AI contribution: Documentation and process guidance updates.
+- AI contribution: Documentation and workflow guidance updates.
 - Assumptions: Jira statuses `To Do` and `In Progress` are the only statuses where implementation should proceed; Jira automation handles status transitions for branch creation, pull request creation, and pull request merge.
-- Checks run: Reviewed updated Markdown content.
-- Follow-up/conflict notes: Future AI agents should not duplicate Jira stories into GitHub Issues or manually mark Jira work items `Done`.
+- Checks run: Reviewed updated Markdown sections and searched relevant workflow terminology.
+- Follow-up/conflict notes: Future AI agents should not duplicate the Jira story into GitHub Issues or manually mark Jira work items `Done`.
 
 ## 2026-09-07 - Codex - AI workflow and branch progression guidance
 
@@ -170,7 +379,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Human requester/operator: swr
 - Areas touched: `AGENTS.md`, `docs/ai-issue-workflow.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
 - Summary: Added explicit AI usage tracking and branch progression rules for normal implementation, release preparation, deployment, and hotfix work in the GitHub monorepo. Renamed the issue workflow guidance from Codex-specific wording to AI-neutral wording so all AI agents follow the same process.
-- AI contribution: Documentation structure, branch-flow guidance, pull request template updates, and coordination rules for multiple AI agents.
+- AI contribution: Documentation structure, workflow guidance updates, and coordination rules for multiple AI agents.
 - Assumptions: Earlier multi-branch assumptions were recorded here for historical context only. Current branch guidance is `work branch -> dev -> main`.
 - Checks run: Reviewed updated Markdown sections and searched relevant workflow terminology.
 - Follow-up/conflict notes: Future Codex, Claude, or other AI work should add a new entry here before pull request handoff.
@@ -184,7 +393,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - AI contribution: Migration cleanup, workflow restructuring, documentation updates, repo boundary guidance, and local verification sweeps.
 - Assumptions: The GitHub repository should be the single source repo; `services/template` is a scaffold rather than an implemented service; GitHub pull requests replace GitLab merge requests.
 - Checks run: Verified only one `.git` directory exists; validated GitHub Actions YAML with Ruby YAML parsing; searched for stale GitLab/project-info references; checked for copied `.DS_Store`, `.terraform`, `.env`, and empty-directory leftovers.
-- Follow-up/conflict notes: All migrated files are still untracked until committed. Coordinate future AI work through this log to avoid conflicting changes across Codex, Claude, or other tools.
+- Follow-up/conflict notes: All migrated files are still untracked until committed. Coordinate future AI work through this log to avoid conflicting changes across Codex, Claude, and other tools.
 
 ## 2026-09-12 - Claude (Sonnet) - Login page with Firebase Authentication
 
