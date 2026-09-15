@@ -45,6 +45,17 @@ export class FirebaseTokenService {
     }
 
     /*
+     * The Auth Emulator verifies locally issued tokens and does not require a
+     * service account. A matching project ID keeps its tokens and the browser
+     * SDK on the same emulator project.
+     */
+    if (process.env.FIREBASE_AUTH_EMULATOR_HOST) {
+      return initializeApp({
+        projectId: process.env.GCLOUD_PROJECT ?? 'demo-is212',
+      });
+    }
+
+    /*
      * Prefer a local JSON file path so developers do not need to paste a large
      * service account blob into `.env`.
      */

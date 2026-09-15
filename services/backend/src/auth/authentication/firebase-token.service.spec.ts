@@ -26,10 +26,14 @@ vi.mock('node:fs', () => ({
 describe('FirebaseTokenService', () => {
   const originalServiceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
   const originalServiceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+  const originalAuthEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+  const originalGoogleCloudProject = process.env.GCLOUD_PROJECT;
 
   beforeEach(() => {
     delete process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
     delete process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+    delete process.env.FIREBASE_AUTH_EMULATOR_HOST;
+    delete process.env.GCLOUD_PROJECT;
     vi.mocked(getApps).mockReturnValue([]);
     vi.mocked(getAuth).mockReturnValue({
       verifyIdToken: vi.fn(),
@@ -39,6 +43,8 @@ describe('FirebaseTokenService', () => {
   afterEach(() => {
     process.env.FIREBASE_SERVICE_ACCOUNT_JSON = originalServiceAccountJson;
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH = originalServiceAccountPath;
+    process.env.FIREBASE_AUTH_EMULATOR_HOST = originalAuthEmulatorHost;
+    process.env.GCLOUD_PROJECT = originalGoogleCloudProject;
     vi.clearAllMocks();
   });
 
@@ -184,6 +190,35 @@ describe('FirebaseTokenService', () => {
       expect(initializeApp).toHaveBeenCalledWith({
         credential: 'application-default-credential',
       });
+    });
+
+    it('uses the Auth Emulator project without service-account credentials', async () => {
+      process.env.FIREBASE_AUTH_EMULATOR_HOST = 'firebase-auth:9099';
+      process.env.GCLOUD_PROJECT = 'demo-is212';
+      mockVerifiedClaims({
+        uid: 'firebase-user-1',
+        roles: ['ATTENDEE'],
+      });
+      const service = new FirebaseTokenService();
+
+      await service.verifyIdToken('emulator-token');
+
+      expect(initializeApp).toHaveBeenCalledWith({ projectId: 'demo-is212' });
+      expect(applicationDefault).not.toHaveBeenCalled();
+    });
+
+    it('uses the default emulator project when GCLOUD_PROJECT is not configured', async () => {
+      process.env.FIREBASE_AUTH_EMULATOR_HOST = 'firebase-auth:9099';
+      mockVerifiedClaims({
+        uid: 'firebase-user-1',
+        roles: ['ATTENDEE'],
+      });
+      const service = new FirebaseTokenService();
+
+      await service.verifyIdToken('emulator-token');
+
+      expect(initializeApp).toHaveBeenCalledWith({ projectId: 'demo-is212' });
+      expect(applicationDefault).not.toHaveBeenCalled();
     });
   });
 
