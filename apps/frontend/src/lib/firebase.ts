@@ -2,29 +2,48 @@ import { initializeApp } from "firebase/app";
 import { FirebaseError } from "firebase/app";
 import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-};
+type FirebaseEnvironment = Pick<
+  ImportMetaEnv,
+  | "VITE_FIREBASE_API_KEY"
+  | "VITE_FIREBASE_AUTH_DOMAIN"
+  | "VITE_FIREBASE_PROJECT_ID"
+  | "VITE_FIREBASE_STORAGE_BUCKET"
+  | "VITE_FIREBASE_MESSAGING_SENDER_ID"
+  | "VITE_FIREBASE_APP_ID"
+>;
 
-const missingKeys = Object.entries(firebaseConfig)
-  .filter(([, value]) => !value)
-  .map(([key]) => key);
-
-if (missingKeys.length > 0 && import.meta.env.DEV) {
-  // Surfaced only in dev so a missing/misconfigured .env is obvious locally
-  // instead of failing silently at sign-in time.
-  // eslint-disable-next-line no-console
-  console.warn(
-    `[firebase] Missing config value(s): ${missingKeys.join(", ")}. ` +
-      "Copy apps/frontend/.env.example to .env and fill in your Firebase project's web app config."
-  );
+export function getFirebaseConfig(
+  environment: FirebaseEnvironment = import.meta.env,
+) {
+  return {
+    apiKey: environment.VITE_FIREBASE_API_KEY,
+    authDomain: environment.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: environment.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: environment.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: environment.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: environment.VITE_FIREBASE_APP_ID,
+  };
 }
 
+export function warnForMissingFirebaseConfig(
+  config: ReturnType<typeof getFirebaseConfig>,
+  isDevelopment = import.meta.env.DEV,
+  warn: (message: string) => void = console.warn,
+): void {
+  const missingKeys = Object.entries(config)
+    .filter(([, value]) => !value)
+    .map(([key]) => key);
+
+  if (missingKeys.length > 0 && isDevelopment) {
+    warn(
+      `[firebase] Missing config value(s): ${missingKeys.join(", ")}. ` +
+        "Copy apps/frontend/.env.example to .env and fill in your Firebase project's web app config.",
+    );
+  }
+}
+
+const firebaseConfig = getFirebaseConfig();
+warnForMissingFirebaseConfig(firebaseConfig);
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 
