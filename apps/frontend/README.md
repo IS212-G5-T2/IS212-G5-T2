@@ -73,3 +73,21 @@ These fixtures do not need to exist under Authentication -> Users in any Firebas
 4. `cp .env.example .env` in this directory and fill in the `VITE_FIREBASE_*` values from that web app's SDK config.
 
 Without a valid `.env`, the app still starts, but sign-in fails — the browser console names the missing config values.
+
+### Local Auth Emulator
+
+The shared Compose stack starts a Firebase Auth Emulator and enables it for the
+frontend automatically. It uses the safe emulator-only project ID `demo-is212`;
+the browser reaches it at `http://localhost:9099`.
+
+When running the frontend outside Compose, set these values in `.env` to use
+the local emulator:
+
+```dotenv
+VITE_FIREBASE_PROJECT_ID=demo-is212
+VITE_USE_FIREBASE_AUTH_EMULATOR=true
+VITE_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
+```
+
+Leave `VITE_USE_FIREBASE_AUTH_EMULATOR` unset or `false` to use a real Firebase
+project. Use a dedicated non-production project for real-Firebase smoke tests.

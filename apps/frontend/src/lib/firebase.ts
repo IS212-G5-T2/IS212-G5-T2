@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { FirebaseError } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { connectAuthEmulator, getAuth, type Auth } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -27,6 +27,34 @@ if (missingKeys.length > 0 && import.meta.env.DEV) {
 
 export const firebaseApp = initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
+
+/**
+ * Connects the browser SDK to the local Auth Emulator only when explicitly
+ * enabled. Real Firebase remains the default for staging and production.
+ */
+export function connectToAuthEmulatorIfEnabled(
+  authInstance: Auth,
+  environment: Pick<
+    ImportMetaEnv,
+    "VITE_USE_FIREBASE_AUTH_EMULATOR" | "VITE_FIREBASE_AUTH_EMULATOR_URL"
+  > = import.meta.env,
+): void {
+  if (environment.VITE_USE_FIREBASE_AUTH_EMULATOR !== "true") {
+    return;
+  }
+
+  const emulatorUrl = environment.VITE_FIREBASE_AUTH_EMULATOR_URL;
+
+  if (!emulatorUrl) {
+    throw new Error(
+      "VITE_FIREBASE_AUTH_EMULATOR_URL is required when the Firebase Auth Emulator is enabled.",
+    );
+  }
+
+  connectAuthEmulator(authInstance, emulatorUrl);
+}
+
+connectToAuthEmulatorIfEnabled(auth);
 
 const AUTH_ERROR_MESSAGES: Record<string, string> = {
   "auth/invalid-email": "That email address doesn't look right.",

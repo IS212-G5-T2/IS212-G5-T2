@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added opt-in Firebase Auth Emulator support for local development. The shared
+  Compose stack now supplies the emulator connection and a safe `demo-is212`
+  project ID.
+
 ## 2026-09-13
 
 - Added a Vitest + React Testing Library unit-test setup (`vite.config.ts` `test` block, `src/test/setup.ts`) and `npm test` / `npm run test:watch` / `npm run test:coverage` scripts.
