@@ -51,6 +51,7 @@ The response should show `status: ok` once Postgres is ready and the backend ser
 | --- | --- |
 | Frontend | `http://localhost:5173` |
 | Backend | `http://localhost:3000/healthz` |
+| Firebase Auth Emulator | `http://localhost:9099` |
 | PostgreSQL | `localhost:5432` |
 
 ## Local Configuration
@@ -62,6 +63,20 @@ The `.env` file configures PostgreSQL, backend, and frontend defaults, including
 Use local-only values in `.env`. Do not commit real credentials.
 
 `VITE_API_BASE_URL` is passed into the frontend container. PostgreSQL and backend settings stay on their respective containers.
+
+## Firebase Authentication
+
+The Compose stack starts the Firebase Auth Emulator using the repository's
+`firebase.json` configuration and the emulator-only `demo-is212` project ID.
+The browser connects to `http://localhost:9099`; the backend connects to the
+same emulator through the Compose service hostname. This gives local login and
+API requests one shared Firebase project without requiring a real service
+account or Firebase user records.
+
+For a real-Firebase smoke test, run the frontend and backend outside this
+emulator configuration with a dedicated non-production Firebase project's web
+configuration and service account. Do not point the local emulator stack at a
+production Firebase project.
 
 ## Frontend, Backend, And Database Layout
 
