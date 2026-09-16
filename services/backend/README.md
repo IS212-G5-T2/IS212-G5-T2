@@ -4,9 +4,15 @@ NestJS backend service for the IS212 G5 T2 workspace.
 
 This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes the starter endpoint, a health check, and shared Firebase JWT middleware/RBAC services for protected endpoints.
 
+## Authentication endpoint
+
+`GET /auth/me` requires `Authorization: Bearer <Firebase ID token>`. It returns
+the verified Firebase UID, optional email, and normalized application roles.
+Missing, malformed, or invalid tokens receive `401 Unauthorized`.
+
 ## Authorization
 
-Route-owning modules should apply `FirebaseAuthenticationMiddleware` to protected controllers. The app module applies it to the current app controller, and future feature modules can apply the same middleware to their own controllers. The middleware:
+Route-owning modules should apply `FirebaseAuthenticationMiddleware` to protected controllers. The app module applies it to `AuthController`, and future feature modules can apply the same middleware to their own controllers. The middleware:
 
 - Leaves public `GET /` and `GET /healthz` requests alone.
 - Requires `Authorization: Bearer <Firebase ID token>` for other routes.

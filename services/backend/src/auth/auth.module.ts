@@ -1,15 +1,17 @@
 /*
- * Wires authentication middleware, Firebase token verification, and RBAC
- * database helpers without exposing any auth routes of its own.
+ * Wires the authenticated-user route, Firebase token verification, and RBAC
+ * database helpers.
  */
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
+import { AuthController } from './auth.controller.js';
 import { FirebaseAuthenticationMiddleware } from './authentication/firebase-authentication.middleware.js';
 import { FirebaseTokenService } from './authentication/firebase-token.service.js';
 import { RbacRepository } from './authorization/rbac.repository.js';
 
 @Module({
   imports: [DatabaseModule],
+  controllers: [AuthController],
   providers: [
     FirebaseTokenService,
     FirebaseAuthenticationMiddleware,
@@ -22,7 +24,6 @@ import { RbacRepository } from './authorization/rbac.repository.js';
   ],
 })
 /**
- * Provides authentication and authorization building blocks for route-owning
- * modules without registering controllers or URL paths.
+ * Provides authentication and authorization building blocks to the backend.
  */
 export class AuthModule {}
