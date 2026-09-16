@@ -9,4 +9,8 @@
 - Added Firebase JWT authentication middleware and database-backed RBAC query helpers for single-request permission and ownership checks.
 - Added local Firebase Auth Emulator initialization that uses the shared
   emulator project without requiring application-default or service-account credentials.
+- Added validated PostgreSQL event submission and list/detail APIs with
+  duplicate retry protection. These endpoints currently use a local demo
+  identity and are not Firebase-protected.
+
 - Added NestJS backend scaffold under `services/backend`.

@@ -66,9 +66,10 @@ Use local-only values in `.env`. Do not commit real credentials.
 ## Firebase Authentication
 
 The Compose stack uses the real Firebase project configured in this folder's
-untracked `.env` file. Fill the `VITE_FIREBASE_*` values with the Firebase Web
-app configuration, enable Email/Password sign-in, and use dedicated
-non-production Firebase users for local testing.
+untracked `.env` file for frontend sign-in and the backend `/auth/me` endpoint.
+Fill the `VITE_FIREBASE_*` values with the Firebase Web app configuration,
+enable Email/Password sign-in, and use dedicated non-production Firebase users
+for local testing.
 
 Set `FIREBASE_SERVICE_ACCOUNT_JSON` to the complete service-account JSON for
 the same Firebase project. The backend needs it to verify real Firebase ID
@@ -115,7 +116,12 @@ The standalone database image includes local-only defaults for `POSTGRES_USER`, 
 
 ## Integration environment lifecycle
 
-This is the shared three-tier integration environment, with a persistent `postgres-data` volume. Automated integration tests should preserve the environment and existing data, remove their own test records and temporary resources, and report any services they started and left running. The [global automation policy](../../AGENTS.md#automation-resource-lifecycle) and [local agent rules](AGENTS.md) define resource ownership and the exception to disposable-test teardown.
+This is the shared three-tier integration environment, with a persistent
+`postgres-data` volume. Automated integration tests should preserve the
+environment and existing data, remove their own test records and temporary
+resources, and report any services they started and left running. The
+[development lifecycle rules](../AGENTS.md#lifecycle-rules) define resource
+ownership and the exception to disposable-test teardown.
 
 When explicitly stopping the whole stack, run `docker compose down` from this directory. It removes the stack's containers and network while retaining the named database volume.
 
@@ -132,3 +138,25 @@ docker compose ps
 ```
 
 Choose shutdown or data reset according to the lifecycle guidance above.
+
+## Events sample database
+
+The local `spm` PostgreSQL database stores requests in `events`. `002_events.sql` defines the schema; `003_sample_events.sql` adds one fictional Submitted event. Records persist in Docker's `postgres-data` volume. Dates/times use `timestamptz`; the API/browser handles local-time display.
+
+For an existing local volume, apply these additive scripts from the repository root (no reset needed):
+
+```sh
+docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_events.sql
+docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/003_sample_events.sql
+```
+
+The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
+
+`DEMO_ORGANISER_ENABLED=true` in `.env.example` enables the fixed local
+organiser used by the current event endpoints. This is independent of Firebase
+sign-in: `/api/events` neither requires a Firebase token nor derives its event
+identity from one. Do not treat this mode as end-to-end authorization. After
+backend changes, rebuild and start it with `docker compose up -d --build
+backend`. The frontend code is bind-mounted and refreshed by Vite. Visit
+http://localhost:5173/planning to create an event, then inspect it under My
+Events.

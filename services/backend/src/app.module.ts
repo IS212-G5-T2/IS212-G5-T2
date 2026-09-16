@@ -1,4 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { EventsController } from './events/events.controller.js';
+import { EventsService } from './events/events.service.js';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -7,8 +9,8 @@ import { FirebaseAuthenticationMiddleware } from './auth/authentication/firebase
 
 @Module({
   imports: [AuthModule],
-  controllers: [AppController],
-  providers: [AppService],
+  controllers: [AppController, EventsController],
+  providers: [AppService, EventsService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

@@ -103,6 +103,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         layout: "",
       },
       equipmentNeeds: data.equipmentNeeds ?? "",
+      attachments: data.attachments ?? [],
       registrationEnabled: data.registrationEnabled ?? false,
       changeRequests: [],
       createdAt: new Date().toISOString(),

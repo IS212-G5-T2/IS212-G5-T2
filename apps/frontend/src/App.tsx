@@ -49,6 +49,7 @@ export default function App() {
       >
         <Route path="/" element={<EventListPage />} />
 
+        <Route path="/planning" element={<EventListPage />} />
         <Route path="/events" element={<EventListPage />} />
         <Route element={<RequireRole allowedRoles={["organiser"]} />}>
           <Route path="/events/create" element={<EventCreatePage />} />

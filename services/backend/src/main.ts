@@ -9,6 +9,7 @@ async function bootstrap() {
     origin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
     allowedHeaders: ['Authorization', 'Content-Type'],
   });
+  app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
 }
 await bootstrap();

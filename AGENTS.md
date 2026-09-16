@@ -54,14 +54,14 @@ Jira automation owns these status transitions:
 
 This is one GitHub repository. Run Git commands, branch creation, commits, pushes, and pull requests from the repository root unless a tool explicitly requires a narrower working directory.
 
-| Path | Owns | Does Not Own |
-| --- | --- | --- |
-| `apps/` | Frontend and client-facing applications. | Backend service logic or shared local integration tooling. |
-| `services/` | Backend services, service contracts, persistence logic, and service-level tests. | Frontend UI or shared local integration tooling. |
-| `development/local-dev/` | Docker Compose local integration stack, local gateway, and emulator setup. | Application feature ownership, database asset ownership, or production infrastructure. |
-| `development/database/` | Local database initialization assets for the shared local development stack. | Backend persistence code, application migrations, or production database infrastructure. |
-| `.github/workflows/` | Repository-level GitHub Actions orchestration for security and tests. | Component-specific test commands or release automation. |
-| `docs/` | Durable workflow and process documentation. | Dynamic task tracking, implementation source, environment secrets. |
+| Path                     | Owns                                                                             | Does Not Own                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `apps/`                  | Frontend and client-facing applications.                                         | Backend service logic or shared local integration tooling.                               |
+| `services/`              | Backend services, service contracts, persistence logic, and service-level tests. | Frontend UI or shared local integration tooling.                                         |
+| `development/local-dev/` | Docker Compose local integration stack, local gateway, and emulator setup.       | Application feature ownership, database asset ownership, or production infrastructure.   |
+| `development/database/`  | Local database initialization assets for the shared local development stack.     | Backend persistence code, application migrations, or production database infrastructure. |
+| `.github/workflows/`     | Repository-level GitHub Actions orchestration for security and tests.            | Component-specific test commands or release automation.                                  |
+| `docs/`                  | Durable workflow and process documentation.                                      | Dynamic task tracking, implementation source, environment secrets.                       |
 
 ## Component Boundaries
 
@@ -147,10 +147,10 @@ GitHub uses pull requests. If a Jira card, teammate, or older doc says "merge re
 
 `dev` is the latest shared branch and the default base for all new work. The branch flow is `work branch -> dev -> main`. When starting new implementation, documentation, test, chore, or refactor work, create a focused branch from the latest `dev` and open the pull request back into `dev`.
 
-| Jira card intent | Work branch | Pull request target | Purpose |
-| --- | --- | --- | --- |
-| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `dev` | `dev` | Add normal development work to the latest shared branch. |
-| Urgent fix | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `dev` | `dev` | Repair the latest shared branch before promotion to `main`. |
+| Jira card intent                                                     | Work branch                                                                                                                                             | Pull request target | Purpose                                                     |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------- |
+| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `dev` | `dev`               | Add normal development work to the latest shared branch.    |
+| Urgent fix                                                           | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `dev`                                                                        | `dev`               | Repair the latest shared branch before promotion to `main`. |
 
 Use the exact Jira ticket id, such as `SPM-155`, and a hyphenated slug of the Jira ticket name so Jira and GitHub can display the connected work clearly. Do not replace the ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
 
@@ -162,6 +162,10 @@ Do not implement a Jira card whose status is not `To Do` or `In Progress`; repor
 - Keep changes focused and reviewable.
 - Preserve user and teammate changes already present in the working tree.
 - Add or update tests for changed behavior where meaningful.
+- Place ticket-specific tests in the component's established test layout and
+  identify the Jira key in the test name or nearby test-case comments. Do not
+  introduce a parallel root `tests/` tree unless the repository explicitly
+  adopts one.
 - Update README, HANDOVER, CHANGELOG, and scoped AGENTS files when behavior, ownership, setup, CI, or operational assumptions change.
 - Never commit secrets, credentials, tokens, private keys, certificates, or real production data.
 

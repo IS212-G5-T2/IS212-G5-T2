@@ -1,9 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "./EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
+import { api } from "@/utils/api";
 import type { EventRecord, User } from "@/types";
 
 const attendee: User = {
@@ -32,6 +33,13 @@ const event: EventRecord = {
   updatedAt: "2026-09-15T00:00:00.000Z",
 };
 
+vi.mock("@/utils/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  api: vi.fn(),
+}));
+
+const apiMock = vi.mocked(api);
+
 /** Renders an event detail route with the current Zustand test state. */
 function renderEventDetail() {
   return render(
@@ -44,6 +52,7 @@ function renderEventDetail() {
 }
 
 beforeEach(() => {
+  apiMock.mockResolvedValue(event);
   useAppStore.setState({
     authLoading: false,
     isAuthenticated: true,
@@ -58,7 +67,7 @@ describe("EventDetailPage attendee registration", () => {
     const user = userEvent.setup();
     renderEventDetail();
 
-    await user.click(screen.getByRole("button", { name: "Register" }));
+    await user.click(await screen.findByRole("button", { name: "Register" }));
     expect(useAppStore.getState().registrations).toMatchObject([
       { eventId: event.id, attendeeId: attendee.id, status: "registered" },
     ]);
@@ -71,10 +80,11 @@ describe("EventDetailPage attendee registration", () => {
     });
   });
 
-  it("does not offer registration controls to a different role", () => {
+  it("does not offer registration controls to a different role", async () => {
     useAppStore.setState({ currentUser: { ...attendee, id: "organiser-1", role: "organiser" } });
     renderEventDetail();
 
+    await screen.findByRole("heading", { name: event.name });
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
     expect(screen.queryByText("Registration")).not.toBeInTheDocument();
   });

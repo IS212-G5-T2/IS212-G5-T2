@@ -30,6 +30,14 @@ export interface VenueRequirements {
   layout: string;
 }
 
+export interface EventAttachment {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
+
 export interface ChangeRequest {
   id: string;
   eventId: string;
@@ -59,6 +67,7 @@ export interface EventRecord {
   coordinatorName?: string;
   venueId?: string;
   venueName?: string;
+  attachments?: EventAttachment[];
   clarificationNote?: string;
   rejectionReason?: string;
   changeRequests: ChangeRequest[];
