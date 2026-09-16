@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-16 - Codex (GPT-5) - Close SPM-30 acceptance-path test gaps
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `apps/frontend`, `services/backend/test`, `AI_USAGE.md`
+- Summary: Corrected login fixtures so every account receives its matching Firebase role claim, added the assigned-coordinator success case, added the frontend CI test entrypoint, and expanded CI E2E checks for organiser claims and seeded PostgreSQL RBAC permissions.
+- AI contribution: Acceptance-criteria test-gap analysis and focused test/CI implementation.
+- Assumptions: The current in-memory frontend event model is the implemented event-management surface for SPM-30; real event API ownership checks belong to the future resource API.
+- Checks run: Frontend Vitest coverage (62 tests passed; 100% statements, branches, functions, and lines for the SPM-30 login, Firebase-role mapping, and access-guard files); backend lint, build, and unit tests (95 passed). Emulator/PostgreSQL E2E remains CI-only by requester preference.
+- Follow-up/conflict notes: Jira could not be re-read because the Atlassian OAuth refresh token is invalid; no Jira data was changed.
+
 ## 2026-09-16 - Codex (GPT-5) - Remove superseded local Firebase verification helper
 
 - Issue/PR: SPM-30

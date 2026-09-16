@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
+import { RbacRepository } from '../src/auth/authorization/rbac.repository.js';
 
 describe('FirebaseAuthenticationMiddleware (e2e)', () => {
   let app: INestApplication<App>;
@@ -36,6 +37,31 @@ describe('FirebaseAuthenticationMiddleware (e2e)', () => {
         roles: ['ATTENDEE'],
         email: testUser.email,
       });
+  });
+
+  it('returns an organiser role from the production auth endpoint', async () => {
+    const organiser = await createEmulatorUser('ORGANISER');
+
+    try {
+      await request(app.getHttpServer())
+        .get('/auth/me')
+        .set('Authorization', `Bearer ${organiser.idToken}`)
+        .expect(200)
+        .expect({
+          uid: organiser.uid,
+          roles: ['ORGANISER'],
+          email: organiser.email,
+        });
+    } finally {
+      await getAuth(getFirebaseEmulatorApp()).deleteUser(organiser.uid);
+    }
+  });
+
+  it('reads the seeded PostgreSQL RBAC permissions used by protected resources', async () => {
+    const rbacRepository = app.get(RbacRepository);
+
+    await expect(rbacRepository.hasPermission('ORGANISER', 'Event', 'create')).resolves.toBe(true);
+    await expect(rbacRepository.hasPermission('ATTENDEE', 'Event', 'create')).resolves.toBe(false);
   });
 
   it('returns 401 when authentication is invalid', () => {
