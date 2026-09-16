@@ -1,29 +1,13 @@
 name: spm-local
 
 services:
-  firebase-auth:
-    build:
-      context: ../..
-      dockerfile: development/local-dev/firebase/Dockerfile
-    ports:
-      - "9099:9099"
-    networks:
-      - spm
-    restart: unless-stopped
-
   frontend:
     build:
       context: ../../apps/frontend
-    environment:
-      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:3000}
-      VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-fake-api-key}
-      VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-demo-is212.firebaseapp.com}
-      VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-demo-is212}
-      VITE_FIREBASE_STORAGE_BUCKET: ${VITE_FIREBASE_STORAGE_BUCKET:-demo-is212.appspot.com}
-      VITE_FIREBASE_MESSAGING_SENDER_ID: ${VITE_FIREBASE_MESSAGING_SENDER_ID:-000000000000}
-      VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-1:000000000000:web:local}
-      VITE_USE_FIREBASE_AUTH_EMULATOR: "true"
-      VITE_FIREBASE_AUTH_EMULATOR_URL: http://localhost:9099
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
     ports:
       - "5173:5173"
     volumes:
@@ -49,11 +33,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      firebase-auth:
-        condition: service_started
-    environment:
-      FIREBASE_AUTH_EMULATOR_HOST: firebase-auth:9099
-      GCLOUD_PROJECT: demo-is212
     ports:
       - "3000:3000"
     healthcheck:

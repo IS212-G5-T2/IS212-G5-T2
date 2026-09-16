@@ -111,7 +111,7 @@ jobs:
           exit 1
 
       - name: Run E2E tests with Firebase Auth Emulator
-        run: npx firebase-tools@latest emulators:exec --config ../../firebase.json --only auth --project demo-is212 "npm run test:e2e"
+        run: npx firebase-tools@latest emulators:exec --config ../../development/local-dev/firebase/firebase.json --only auth --project demo-is212 "npm run test:e2e"
         working-directory: services/backend
 
       - name: Remove PostgreSQL test container

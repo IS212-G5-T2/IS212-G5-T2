@@ -21,6 +21,83 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-16 - Codex (GPT-5) - Remove superseded local Firebase verification helper
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `development/local-dev`, `AI_USAGE.md`
+- Summary: Removed the interactive real-Firebase curl helper and its README/changelog references at the requester's direction. CI Firebase Auth Emulator E2E coverage and the protected backend auth endpoint remain.
+- AI contribution: Local helper removal and documentation cleanup.
+- Assumptions: GitHub Actions E2E coverage is the desired automated authentication verification path.
+- Checks run: `git diff --check`.
+- Follow-up/conflict notes: No local Compose services were started or stopped.
+
+## 2026-09-16 - Codex (GPT-5) - Verify Firebase authentication through the production route
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `development/local-dev`, `AI_USAGE.md`
+- Summary: Added authenticated `GET /auth/me`, corrected the local curl helper to call it, and changed the Firebase emulator E2E test to exercise the production route rather than a test-only controller. The E2E suite also checks Firebase rejects an incorrect password before issuing a token.
+- AI contribution: Backend API, test refactor, test helper correction, and documentation.
+- Assumptions: The route is a small client-facing session-introspection contract; a verified token may disclose only its UID, optional email, and normalized application roles to that same token holder.
+- Checks run: `npm run lint`, `npm run build`, and `npm test` in `services/backend` (95 tests passed); shell syntax check for the local helper; `git diff --check`. Emulator E2E remains CI-only by requester preference.
+- Follow-up/conflict notes: No event/request backend API exists yet, so server-side resource ownership enforcement remains future domain work; existing frontend guards cover the current in-memory UI routes.
+
+## 2026-09-16 - Codex (GPT-5) - Add local real-Firebase backend verification helper
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `development/local-dev`, `AI_USAGE.md`
+- Summary: Added an interactive curl-based helper that signs a prompted non-production Firebase user in through the real Firebase REST API and sends its ID token to the local backend's protected root route.
+- AI contribution: Local integration test helper and setup documentation.
+- Assumptions: The caller has started the local Compose stack and configured a non-production Firebase Web API key in `development/local-dev/.env`; the backend service account is configured for that same Firebase project.
+- Checks run: Shell syntax check and static script inspection; no real Firebase credentials, user accounts, token, or local stack were used.
+- Follow-up/conflict notes: The helper verifies authentication only. Resource-specific backend role and ownership enforcement awaits corresponding resource endpoints.
+
+## 2026-09-16 - Codex (GPT-5) - Use real Firebase in local Compose
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `development/local-dev`, `apps/frontend/README.md`, `.github/workflows/tests.yml`, `AI_USAGE.md`
+- Summary: Removed the local Firebase Auth Emulator service and fake Firebase settings from Compose. Local Compose now receives real non-production Firebase settings from its untracked `.env`; the emulator remains confined to CI E2E tests.
+- AI contribution: Compose and documentation reconfiguration, plus CI emulator-config path correction after the Firebase config moved under `development/local-dev/firebase`.
+- Assumptions: Local developers supply Web SDK configuration and a same-project Firebase Admin service account in `development/local-dev/.env`, and do not use production Firebase credentials.
+- Checks run: Docker Compose configuration validation with `.env.example`; Firebase emulator JSON parsing; `git diff --check`.
+- Follow-up/conflict notes: The shared local Compose stack was not started or stopped. No commit or pull request created.
+
+## 2026-09-16 - Codex (GPT-5) - Correct Firebase emulator Docker build source path
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `development/local-dev/firebase`, `AI_USAGE.md`
+- Summary: Updated the Firebase emulator image to copy its configuration from the path within Compose's repository-root build context.
+- AI contribution: Docker build-context diagnosis and targeted configuration correction.
+- Assumptions: The Firebase service will continue using the repository root as its Compose build context.
+- Checks run: `docker compose -f development/local-dev/compose.yaml config --quiet`; `git diff --check`.
+- Follow-up/conflict notes: Existing unrelated frontend and ledger changes were preserved; no commit or pull request created.
+
+## 2026-09-15 - Codex (GPT-5) - Enforce role-aware organiser routes for SPM-30
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `apps/frontend`, `AI_USAGE.md`
+- Summary: Read Firebase custom role claims after sign-in, restrict organiser event creation and ownership-bound edits, restrict event-change reviews to the assigned coordinator, organise guarded routes with nested React Router `Outlet`s, and document the new guard and test-helper contracts.
+- AI contribution: Acceptance-criteria review, frontend authorization implementation, JSDoc, and happy-path/negative direct-navigation tests guided by Week 4 slides 26–33.
+- Assumptions: Jira's current explicit acceptance criterion naming an Event Organiser governs the conflicting attendee story title; Firebase custom claims use the existing uppercase RBAC role names.
+- Checks run: `npm --prefix apps/frontend test` (5 files, 50 tests passed); `git diff --check`.
+- Follow-up/conflict notes: The frontend's in-memory data store has no backend resource API yet, so server-side RBAC and ownership enforcement remains a required future security boundary. No commit or pull request created.
+
+## 2026-09-15 - Codex (GPT-5) - Share local Firebase Auth Emulator between frontend and backend
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `apps/frontend`, `services/backend`, `development/local-dev`, `AI_USAGE.md`
+- Summary: Added opt-in frontend Auth Emulator connection, a shared Compose Auth Emulator service, and backend emulator initialization using the same `demo-is212` project without service-account credentials.
+- AI contribution: Cross-service configuration, focused frontend/backend tests, and local setup documentation.
+- Assumptions: `demo-is212` is emulator-only; real Firebase remains the default whenever `VITE_USE_FIREBASE_AUTH_EMULATOR` is not `true`.
+- Checks run: Frontend Vitest (32 passed); targeted frontend Firebase-module coverage (8 passed; 100% statements, branches, functions, and lines); backend Vitest (93 passed); targeted Firebase token-service coverage (19 passed; 100% statements, branches, functions, and lines); backend build and lint; Docker Compose configuration validation; `git diff --check`. Frontend build is blocked by the pre-existing TypeScript 6 `baseUrl` deprecation, and frontend lint is blocked because ESLint 10 has no `eslint.config.*` file.
+- Follow-up/conflict notes: The shared Compose stack was not started, preserving any existing local integration environment. No commit or pull request created.
+
 ## 2026-09-15 - Codex (GPT-5) - Document Firebase role assignment script
 
 - Issue/PR: Unknown

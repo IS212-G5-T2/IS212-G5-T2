@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-16
+
+- Removed the Firebase Auth Emulator from local Docker Compose. Local Compose
+  now uses real Firebase configuration supplied through its untracked `.env`;
+  the emulator remains CI-only for backend E2E tests.
+
 ## 2026-09-15
 
 - Simplified the local Compose stack to frontend, backend, and PostgreSQL.

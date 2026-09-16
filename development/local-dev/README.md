@@ -51,7 +51,6 @@ The response should show `status: ok` once Postgres is ready and the backend ser
 | --- | --- |
 | Frontend | `http://localhost:5173` |
 | Backend | `http://localhost:3000/healthz` |
-| Firebase Auth Emulator | `http://localhost:9099` |
 | PostgreSQL | `localhost:5432` |
 
 ## Local Configuration
@@ -66,17 +65,18 @@ Use local-only values in `.env`. Do not commit real credentials.
 
 ## Firebase Authentication
 
-The Compose stack starts the Firebase Auth Emulator using the repository's
-`firebase.json` configuration and the emulator-only `demo-is212` project ID.
-The browser connects to `http://localhost:9099`; the backend connects to the
-same emulator through the Compose service hostname. This gives local login and
-API requests one shared Firebase project without requiring a real service
-account or Firebase user records.
+The Compose stack uses the real Firebase project configured in this folder's
+untracked `.env` file. Fill the `VITE_FIREBASE_*` values with the Firebase Web
+app configuration, enable Email/Password sign-in, and use dedicated
+non-production Firebase users for local testing.
 
-For a real-Firebase smoke test, run the frontend and backend outside this
-emulator configuration with a dedicated non-production Firebase project's web
-configuration and service account. Do not point the local emulator stack at a
-production Firebase project.
+Set `FIREBASE_SERVICE_ACCOUNT_JSON` to the complete service-account JSON for
+the same Firebase project. The backend needs it to verify real Firebase ID
+tokens. Never commit that JSON or use a production Firebase project for local
+testing.
+
+The Firebase Auth Emulator is reserved for the GitHub Actions E2E test; it is
+not started by local Docker Compose.
 
 ## Frontend, Backend, And Database Layout
 
