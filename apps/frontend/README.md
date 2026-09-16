@@ -42,6 +42,10 @@ No deployment command is configured for this repository.
 ## Testing
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
+GitHub Actions runs the suite with coverage through `scripts/ci/unit-test.sh`.
+The SPM-30 login page, Firebase-role mapper, and access guards are enforced at
+100% statements, branches, functions, and lines; unrelated in-memory domain
+features retain their own coverage backlog.
 
 ```sh
 npm test              # run the suite once
@@ -59,7 +63,7 @@ npm run test:coverage # run once with a coverage report
 | organiser@connectsphere.sg | organiser |
 | coordinator@connectsphere.sg | coordinator |
 | venue_staff@connectsphere.sg | venue_staff |
-| technical_support@connectsphere.sg | technical_support |
+| technical_support@connectsphere.sg | tech_support |
 
 These fixtures do not need to exist under Authentication -> Users in any Firebase project; the automated suite never contacts Firebase.
 

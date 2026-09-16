@@ -18,5 +18,12 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     css: true,
+    coverage: {
+      thresholds: {
+        "src/pages/LoginPage.tsx": { 100: true },
+        "src/components/auth/Require*.tsx": { 100: true },
+        "src/lib/firebaseRoles.ts": { 100: true },
+      },
+    },
   },
 });

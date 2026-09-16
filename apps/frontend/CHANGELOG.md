@@ -7,6 +7,10 @@
   project ID.
 - Read Firebase custom role claims after sign-in and added role and ownership
   route guards for direct event-management navigation.
+- Added the frontend CI unit-test entrypoint and acceptance-path coverage for
+  organiser sign-in and assigned coordinator change-request review.
+- Enforced 100% coverage for the SPM-30 login, Firebase-role mapping, and
+  access-control guard paths in the frontend CI entrypoint.
 
 ## 2026-09-13
 

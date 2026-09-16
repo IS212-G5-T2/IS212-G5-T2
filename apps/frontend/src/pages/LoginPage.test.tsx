@@ -5,6 +5,7 @@ import { FirebaseError } from "firebase/app";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { useAppStore } from "@/store/useAppStore";
 import { SEED_PASSWORD, SEED_USERS } from "@/test/fixtures/authUsers";
+import type { User } from "@/types";
 import { renderLoginPage } from "./testUtils";
 
 // The store's `login` action calls Firebase directly, so we mock the SDK
@@ -22,18 +23,42 @@ vi.mock("firebase/auth", async () => {
 });
 
 const mockSignIn = vi.mocked(signInWithEmailAndPassword);
+const storeLogin = useAppStore.getState().login;
 
 function firebaseError(code: string) {
   return new FirebaseError(code, `Firebase: Error (${code}).`);
 }
 
-function successfulCredential() {
+const firebaseRoleByUiRole: Record<User["role"], string> = {
+  organiser: "ORGANISER",
+  coordinator: "COORDINATOR",
+  venue_staff: "VENUE_STAFF",
+  tech_support: "TECH_SUPPORT",
+  attendee: "ATTENDEE",
+};
+
+/**
+ * Creates a successful Firebase credential with the role expected for the
+ * account under test. The real store reads this claim before marking a user
+ * authenticated, so a login test must not reuse an attendee claim for every
+ * account.
+ *
+ * @param role - Frontend role represented by the Firebase custom claim.
+ * @param email - Email address returned by the Firebase user.
+ * @returns Firebase sign-in credential test double.
+ */
+function successfulCredential(
+  role: User["role"] = "attendee",
+  email = "attendee@connectsphere.sg"
+) {
   return {
     user: {
-      uid: "attendee-1",
-      email: "attendee@connectsphere.sg",
-      displayName: "Attendee",
-      getIdTokenResult: vi.fn().mockResolvedValue({ claims: { roles: ["ATTENDEE"] } }),
+      uid: `${role}-1`,
+      email,
+      displayName: role,
+      getIdTokenResult: vi.fn().mockResolvedValue({
+        claims: { roles: [firebaseRoleByUiRole[role]] },
+      }),
     },
   } as never;
 }
@@ -51,7 +76,7 @@ beforeEach(() => {
   // The store is a singleton, so each test starts from a known,
   // unauthenticated, "auth check finished" state instead of leaking
   // whatever the previous test left behind.
-  useAppStore.setState({ isAuthenticated: false, authLoading: false });
+  useAppStore.setState({ isAuthenticated: false, authLoading: false, login: storeLogin });
 });
 
 describe("LoginPage — rendering", () => {
@@ -146,8 +171,8 @@ describe("LoginPage — client-side field validation", () => {
 describe("LoginPage — correct credentials", () => {
   it.each(SEED_USERS)(
     "signs in the $role account ($email) and redirects to /",
-    async ({ email, password }) => {
-      mockSignIn.mockResolvedValueOnce(successfulCredential());
+    async ({ email, password, role }) => {
+      mockSignIn.mockResolvedValueOnce(successfulCredential(role as User["role"], email));
       renderLoginPage();
 
       await fillAndSubmit(email, password);
@@ -155,6 +180,7 @@ describe("LoginPage — correct credentials", () => {
       await waitFor(() => expect(mockSignIn).toHaveBeenCalledTimes(1));
       expect(mockSignIn).toHaveBeenCalledWith(expect.anything(), email, password);
       await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
+      expect(useAppStore.getState().currentUser.role).toBe(role);
     }
   );
 
@@ -228,6 +254,15 @@ describe("LoginPage — incorrect credentials", () => {
     renderLoginPage();
 
     await fillAndSubmit("attendee@connectsphere.sg", "irrelevant");
+
+    expect(await screen.findByText(/couldn't sign you in\. please try again/i)).toBeInTheDocument();
+  });
+
+  it("uses a generic message when a failed login provides no error detail", async () => {
+    useAppStore.setState({ login: vi.fn().mockResolvedValue({ success: false }) });
+    renderLoginPage();
+
+    await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
 
     expect(await screen.findByText(/couldn't sign you in\. please try again/i)).toBeInTheDocument();
   });

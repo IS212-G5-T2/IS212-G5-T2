@@ -22,5 +22,5 @@ export const SEED_USERS: SeedUser[] = [
   { role: "organiser", email: "organiser@connectsphere.sg", password: SEED_PASSWORD },
   { role: "coordinator", email: "coordinator@connectsphere.sg", password: SEED_PASSWORD },
   { role: "venue_staff", email: "venue_staff@connectsphere.sg", password: SEED_PASSWORD },
-  { role: "technical_support", email: "technical_support@connectsphere.sg", password: SEED_PASSWORD },
+  { role: "tech_support", email: "technical_support@connectsphere.sg", password: SEED_PASSWORD },
 ];
