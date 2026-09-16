@@ -162,7 +162,10 @@ Do not implement a Jira card whose status is not `To Do` or `In Progress`; repor
 - Keep changes focused and reviewable.
 - Preserve user and teammate changes already present in the working tree.
 - Add or update tests for changed behavior where meaningful.
-- Place ticket-specific tests under `tests/<technical-layer>/<JIRA-KEY>/<descriptive-test-name>`, for example `tests/frontend/SPM-36/event-request-page.test.tsx`, `tests/backend/SPM-36/event-request-validation.spec.ts`, or `tests/database/SPM-36/event-request-persistence.e2e-spec.mjs`.
+- Place ticket-specific tests in the component's established test layout and
+  identify the Jira key in the test name or nearby test-case comments. Do not
+  introduce a parallel root `tests/` tree unless the repository explicitly
+  adopts one.
 - Update README, HANDOVER, CHANGELOG, and scoped AGENTS files when behavior, ownership, setup, CI, or operational assumptions change.
 - Never commit secrets, credentials, tokens, private keys, certificates, or real production data.
 

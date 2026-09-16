@@ -2,7 +2,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/EventDetailPage";
-import { MOCK_USERS, useAppStore } from "@/store/useAppStore";
+import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
 import type { EventRecord } from "@/types";
 
@@ -61,7 +61,12 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   useAppStore.setState({
-    currentUser: MOCK_USERS[0],
+    currentUser: {
+      id: "coordinator-1",
+      name: "Demo Coordinator",
+      email: "coordinator@example.test",
+      role: "coordinator",
+    },
     events: [],
   });
 });

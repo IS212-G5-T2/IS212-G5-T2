@@ -1,5 +1,12 @@
 #!/bin/sh
+# Executes the frontend's deterministic Vitest suite for the repository-level
+# GitHub Actions test-discovery contract.
 set -eu
-cd "$(dirname "$0")/../.."
+
+script_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+component_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
+
+cd "$component_dir"
+
 npm ci
-npm test
+npm run test:coverage

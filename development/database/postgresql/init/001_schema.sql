@@ -5,5 +5,9 @@ CREATE TABLE IF NOT EXISTS app_health_checks (
 );
 
 INSERT INTO app_health_checks (source)
-VALUES ('compose-init')
-ON CONFLICT DO NOTHING;
+SELECT 'compose-init'
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM app_health_checks
+    WHERE source = 'compose-init'
+);

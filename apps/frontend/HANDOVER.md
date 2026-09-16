@@ -11,8 +11,36 @@ The shared local Docker Compose stack builds this app with `apps/frontend/Docker
 ## Continuity notes
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
+- The repository test workflow discovers `scripts/ci/unit-test.sh`; this
+  frontend entrypoint installs dependencies and runs `npm run test:coverage`.
+  Keep the command and the CI workflow aligned.
+
+## Testing
+
+- Test runner: Vitest. `vite.config.ts` defines the jsdom environment and
+  global setup at `src/test/setup.ts`; `vitest.config.ts` currently narrows
+  standard discovery to `.test.tsx` files.
+- `src/pages/LoginPage.test.tsx` covers `/login`: empty/whitespace-only field validation, successful sign-in for every seeded account in `src/test/fixtures/authUsers.ts`, redirect-back-to-original-page behaviour, the pending/disabled submit state, and every mapped Firebase error code in `getAuthErrorMessage` (wrong password, invalid credential, user not found, invalid email, disabled account, too many requests, network failure, unrecognized code, and non-Firebase errors).
+- The Firebase Auth SDK (`signInWithEmailAndPassword`/`signOut` from `firebase/auth`) is mocked in that test file so the suite never makes a real network call; `@/lib/firebase`'s `getAuthErrorMessage` mapping runs unmocked so the tests catch regressions in the actual message copy.
+- `src/pages/testUtils.tsx` provides a `renderLoginPage()` helper that wraps `LoginPage` in a `MemoryRouter` with dummy `/` and `/events` destinations, so redirects after sign-in can be asserted against rendered screens instead of router internals.
+
+## Authentication (Firebase)
+
+- `/login` (`src/pages/LoginPage.tsx`) is backed by Firebase Authentication (Email/Password provider) via `src/lib/firebase.ts`, `login`/`logout`/`setAuthUser` actions in `useAppStore`, and `isAuthenticated`/`authLoading` driven by Firebase's `onAuthStateChanged` (subscribed once in `App.tsx`).
+- All other routes are gated by `src/components/auth/RequireAuth.tsx`.
+- Requires `apps/frontend/.env` with `VITE_FIREBASE_*` values — see `.env.example` and the Firebase Authentication section in `README.md`.
+- Signed-in Firebase users are mapped from their Firebase custom `roles` claim
+  to supported application roles. The merged mock-profile switcher in `TopNav`
+  is not compatible with real Firebase authorization and must not be treated as
+  an authorization mechanism.
 - `scripts/ci/unit-test.sh` installs dependencies and runs the Vitest component interaction tests.
 
 ## Event requests
 
-The create/list/detail pages call the real local API; other existing store actions remain prototype behavior. Account integration belongs to a separate ticket. The app starts in light mode, and the sign-in label has been removed. Email and Save Draft are deferred. The API maps stored Submitted status to the existing lowercase frontend status type.
+The create/list/detail pages call the real local API and forward the current
+Firebase ID token as a Bearer credential; other existing store actions remain
+prototype behavior. The current event API does not verify that token or use the
+Firebase user as its event identity, so client guards are not server-side
+enforcement. The app starts in light mode. Email and Save Draft are deferred.
+The API maps stored Submitted status to the existing lowercase frontend status
+type.
