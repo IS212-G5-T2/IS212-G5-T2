@@ -27,6 +27,17 @@ function firebaseError(code: string) {
   return new FirebaseError(code, `Firebase: Error (${code}).`);
 }
 
+function successfulCredential() {
+  return {
+    user: {
+      uid: "attendee-1",
+      email: "attendee@connectsphere.sg",
+      displayName: "Attendee",
+      getIdTokenResult: vi.fn().mockResolvedValue({ claims: { roles: ["ATTENDEE"] } }),
+    },
+  } as never;
+}
+
 async function fillAndSubmit(email: string, password: string) {
   const user = userEvent.setup();
   if (email) await user.type(screen.getByLabelText(/email/i), email);
@@ -117,7 +128,7 @@ describe("LoginPage — client-side field validation", () => {
   });
 
   it("clears a field error on the next successful submission", async () => {
-    mockSignIn.mockResolvedValueOnce({} as never);
+    mockSignIn.mockResolvedValueOnce(successfulCredential());
     renderLoginPage();
 
     // First submit: no password yet.
@@ -136,7 +147,7 @@ describe("LoginPage — correct credentials", () => {
   it.each(SEED_USERS)(
     "signs in the $role account ($email) and redirects to /",
     async ({ email, password }) => {
-      mockSignIn.mockResolvedValueOnce({} as never);
+      mockSignIn.mockResolvedValueOnce(successfulCredential());
       renderLoginPage();
 
       await fillAndSubmit(email, password);
@@ -148,7 +159,7 @@ describe("LoginPage — correct credentials", () => {
   );
 
   it("trims surrounding whitespace from the email before signing in", async () => {
-    mockSignIn.mockResolvedValueOnce({} as never);
+    mockSignIn.mockResolvedValueOnce(successfulCredential());
     renderLoginPage();
 
     await fillAndSubmit("  attendee@connectsphere.sg  ", SEED_PASSWORD);
@@ -159,7 +170,7 @@ describe("LoginPage — correct credentials", () => {
   });
 
   it("redirects back to the page the user originally tried to visit", async () => {
-    mockSignIn.mockResolvedValueOnce({} as never);
+    mockSignIn.mockResolvedValueOnce(successfulCredential());
     renderLoginPage({ from: "/events" });
 
     await fillAndSubmit("organiser@connectsphere.sg", SEED_PASSWORD);
@@ -171,7 +182,7 @@ describe("LoginPage — correct credentials", () => {
     let resolveSignIn!: () => void;
     mockSignIn.mockReturnValueOnce(
       new Promise((resolve) => {
-        resolveSignIn = () => resolve({} as never);
+        resolveSignIn = () => resolve(successfulCredential());
       })
     );
     renderLoginPage();
@@ -234,7 +245,7 @@ describe("LoginPage — incorrect credentials", () => {
 
   it("clears the previous error banner as soon as a new attempt is submitted", async () => {
     mockSignIn.mockRejectedValueOnce(firebaseError("auth/wrong-password"));
-    mockSignIn.mockResolvedValueOnce({} as never);
+    mockSignIn.mockResolvedValueOnce(successfulCredential());
     renderLoginPage();
 
     await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
@@ -253,7 +264,7 @@ describe("LoginPage — incorrect credentials", () => {
     let resolveSignIn!: () => void;
     mockSignIn.mockReturnValueOnce(
       new Promise((resolve) => {
-        resolveSignIn = () => resolve({} as never);
+        resolveSignIn = () => resolve(successfulCredential());
       })
     );
     renderLoginPage();

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { User as FirebaseUser } from "firebase/auth";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "@/lib/firebase";
+import { getRoleFromFirebaseClaims } from "@/lib/firebaseRoles";
 import type {
   Booking,
   ChangeRequest,
@@ -18,14 +19,13 @@ import type {
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
-// Placeholder identity shown before sign-in and restored on sign-out. Not
-// swappable — the old multi-user role switcher was removed along with the
-// mock user list.
+// Placeholder identity shown before sign-in and restored on sign-out. It is
+// never used for authorization because unauthenticated routes are guarded.
 const PLACEHOLDER_USER: User = {
   id: "current-user",
   name: "Current User",
   email: "",
-  role: "organiser",
+  role: "attendee",
 };
 
 interface AppState {
@@ -64,7 +64,7 @@ interface AppState {
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   /** Called by the Firebase onAuthStateChanged listener wired up in App.tsx. */
-  setAuthUser: (firebaseUser: FirebaseUser | null) => void;
+  setAuthUser: (firebaseUser: FirebaseUser | null) => Promise<void>;
 
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -421,7 +421,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   // see apps/frontend/README.md for setup.
   login: async (email, password) => {
     try {
-      await signInWithEmailAndPassword(auth, email.trim(), password);
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await get().setAuthUser(credential.user);
+
+      if (!get().isAuthenticated) {
+        return {
+          success: false,
+          error: "Your account does not have a supported ConnectSphere role.",
+        };
+      }
+
       return { success: true };
     } catch (error) {
       return { success: false, error: getAuthErrorMessage(error) };
@@ -432,11 +441,23 @@ export const useAppStore = create<AppState>((set, get) => ({
     await signOut(auth);
   },
 
-  // Firebase doesn't know about our app-level roles, so a signed-in Firebase
-  // user is mapped to role "attendee" for now (matching the
-  // feature/spm-30-attendee-login scope). Role-aware sign-in is follow-up work.
-  setAuthUser: (firebaseUser) => {
-    if (firebaseUser) {
+  setAuthUser: async (firebaseUser) => {
+    if (!firebaseUser) {
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      return;
+    }
+
+    set({ authLoading: true });
+
+    try {
+      const tokenResult = await firebaseUser.getIdTokenResult();
+      const role = getRoleFromFirebaseClaims(tokenResult.claims.roles);
+
+      if (!role) {
+        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+        return;
+      }
+
       set({
         isAuthenticated: true,
         authLoading: false,
@@ -444,10 +465,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: firebaseUser.uid,
           name: firebaseUser.displayName ?? firebaseUser.email ?? "Signed-in user",
           email: firebaseUser.email ?? "",
-          role: "attendee",
+          role,
         },
       });
-    } else {
+    } catch {
       set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
     }
   },

@@ -5,6 +5,8 @@
 - Added opt-in Firebase Auth Emulator support for local development. The shared
   Compose stack now supplies the emulator connection and a safe `demo-is212`
   project ID.
+- Read Firebase custom role claims after sign-in and added role and ownership
+  route guards for direct event-management navigation.
 
 ## 2026-09-13
 

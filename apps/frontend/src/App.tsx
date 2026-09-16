@@ -5,6 +5,9 @@ import { auth } from "@/lib/firebase";
 import { useAppStore } from "@/store/useAppStore";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/auth/RequireAuth";
+import { RequireAssignedCoordinator } from "@/components/auth/RequireAssignedCoordinator";
+import { RequireEventOwner } from "@/components/auth/RequireEventOwner";
+import { RequireRole } from "@/components/auth/RequireRole";
 import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
@@ -47,10 +50,16 @@ export default function App() {
         <Route path="/" element={<EventListPage />} />
 
         <Route path="/events" element={<EventListPage />} />
-        <Route path="/events/create" element={<EventCreatePage />} />
+        <Route element={<RequireRole allowedRoles={["organiser"]} />}>
+          <Route path="/events/create" element={<EventCreatePage />} />
+          <Route element={<RequireEventOwner />}>
+            <Route path="/events/:id/edit" element={<EventEditPage />} />
+          </Route>
+        </Route>
         <Route path="/events/:id" element={<EventDetailPage />} />
-        <Route path="/events/:id/edit" element={<EventEditPage />} />
-        <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+        <Route element={<RequireAssignedCoordinator />}>
+          <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+        </Route>
 
         <Route path="/venues" element={<VenuesPage />} />
         <Route path="/venues/availability" element={<VenueAvailabilityPage />} />

@@ -74,20 +74,18 @@ These fixtures do not need to exist under Authentication -> Users in any Firebas
 
 Without a valid `.env`, the app still starts, but sign-in fails — the browser console names the missing config values.
 
-### Local Auth Emulator
+Firebase users must also have a supported custom `roles` claim (`ORGANISER`,
+`COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`). The frontend maps
+that verified Firebase claim to its UI role; it does not assume a role from a
+successful sign-in alone. Organiser event creation and event edit routes are
+restricted to the organiser responsible for that event. Event-change reviews
+are restricted to the coordinator assigned to the event.
 
-The shared Compose stack starts a Firebase Auth Emulator and enables it for the
-frontend automatically. It uses the safe emulator-only project ID `demo-is212`;
-the browser reaches it at `http://localhost:9099`.
+### Local Compose Firebase
 
-When running the frontend outside Compose, set these values in `.env` to use
-the local emulator:
+The shared Docker Compose stack uses the real Firebase Web app configuration
+from `development/local-dev/.env`; it does not start a Firebase emulator. Use a
+dedicated non-production Firebase project and test accounts. Keep
+`VITE_USE_FIREBASE_AUTH_EMULATOR` unset or `false` for this mode.
 
-```dotenv
-VITE_FIREBASE_PROJECT_ID=demo-is212
-VITE_USE_FIREBASE_AUTH_EMULATOR=true
-VITE_FIREBASE_AUTH_EMULATOR_URL=http://localhost:9099
-```
-
-Leave `VITE_USE_FIREBASE_AUTH_EMULATOR` unset or `false` to use a real Firebase
-project. Use a dedicated non-production project for real-Firebase smoke tests.
+The Firebase Auth Emulator is used only by the GitHub Actions backend E2E test.
