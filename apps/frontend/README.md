@@ -84,6 +84,9 @@ that verified Firebase claim to its UI role; it does not assume a role from a
 successful sign-in alone. Organiser event creation and event edit routes are
 restricted to the organiser responsible for that event. Event-change reviews
 are restricted to the coordinator assigned to the event.
+Attendees can browse registration-enabled events and create or withdraw only
+their own registrations. Direct navigation to operational venue, booking, and
+equipment routes is denied to attendees.
 
 ### Local Compose Firebase
 

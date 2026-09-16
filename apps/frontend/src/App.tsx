@@ -61,15 +61,18 @@ export default function App() {
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
 
-        <Route path="/venues" element={<VenuesPage />} />
-        <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
-        <Route path="/venues/:id" element={<VenueDetailPage />} />
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venues" element={<VenuesPage />} />
+          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
+          <Route path="/bookings" element={<BookingsPage />} />
+        </Route>
 
-        <Route path="/bookings" element={<BookingsPage />} />
-
-        <Route path="/equipment" element={<EquipmentPage />} />
-        <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
-        <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment" element={<EquipmentPage />} />
+          <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
+          <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+        </Route>
 
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

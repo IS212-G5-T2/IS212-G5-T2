@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-16 - Codex (GPT-5) - Complete SPM-30 attendee route and registration controls
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `apps/frontend`, `AI_USAGE.md`
+- Summary: Refreshed Jira and aligned the implementation to its current Attendee story: denied attendee direct navigation to venue, booking, and equipment operations; confined registration and withdrawal mutations to the authenticated attendee; added direct-route and registration behavior tests.
+- AI contribution: Jira acceptance-criteria refresh, frontend access-control implementation, and tests.
+- Assumptions: `/events` and event details are intentionally attendee-accessible for browsing, while operational management routes belong only to their assigned staff roles.
+- Checks run: `npm run test:coverage` in `apps/frontend` (72 tests passed; scoped SPM-30 coverage gate passed); shell syntax check for the frontend CI entrypoint; `git diff --check`. Frontend build remains blocked by the pre-existing TypeScript 6 `baseUrl` deprecation configuration.
+- Follow-up/conflict notes: The frontend currently uses an in-memory event/registration model. Server-side enforcement awaits the future event and registration API.
+
 ## 2026-09-16 - Codex (GPT-5) - Close SPM-30 acceptance-path test gaps
 
 - Issue/PR: SPM-30

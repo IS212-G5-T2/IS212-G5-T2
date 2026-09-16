@@ -374,6 +374,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   registerForEvent: (eventId) => {
     const user = get().currentUser;
+    const event = get().events.find((candidate) => candidate.id === eventId);
+
+    // Registration is an attendee-only action. Keep the policy beside the
+    // mutation so a caller cannot register on behalf of another user merely by
+    // bypassing the EventDetailPage button.
+    if (!get().isAuthenticated || user.role !== "attendee" || !event?.registrationEnabled) {
+      return;
+    }
+
     const existing = get().registrations.find(
       (r) => r.eventId === eventId && r.attendeeId === user.id
     );
@@ -394,7 +403,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
       set((s) => ({ registrations: [record, ...s.registrations] }));
     }
-    const event = get().events.find((e) => e.id === eventId);
     if (event) {
       get().pushNotification({
         audienceRole: "coordinator",
@@ -407,6 +415,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   withdrawRegistration: (eventId) => {
     const user = get().currentUser;
+
+    // Only the authenticated attendee who owns a registration may withdraw it.
+    if (!get().isAuthenticated || user.role !== "attendee") {
+      return;
+    }
+
     set((s) => ({
       registrations: s.registrations.map((r) =>
         r.eventId === eventId && r.attendeeId === user.id

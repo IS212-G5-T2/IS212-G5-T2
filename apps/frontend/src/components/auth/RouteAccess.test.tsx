@@ -80,6 +80,17 @@ function renderRoutes(initialEntry: string) {
         <Route element={<RequireAssignedCoordinator />}>
           <Route path="/events/:id/change-requests" element={<p>Review change requests</p>} />
         </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venues" element={<p>Venue catalogue</p>} />
+          <Route path="/venues/availability" element={<p>Venue availability</p>} />
+          <Route path="/venues/:id" element={<p>Venue detail</p>} />
+          <Route path="/bookings" element={<p>Bookings</p>} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment" element={<p>Equipment</p>} />
+          <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
+          <Route path="/equipment/availability" element={<p>Equipment availability</p>} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );
@@ -159,6 +170,21 @@ describe("restricted organiser routes", () => {
 
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
     expect(screen.queryByText("Create event")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    "/venues",
+    "/venues/availability",
+    "/venues/venue-1",
+    "/bookings",
+    "/equipment",
+    "/equipment/requests",
+    "/equipment/availability",
+  ])("redirects an attendee who directly opens restricted operational route %s", (path) => {
+    useAppStore.setState({ currentUser: attendee });
+    renderRoutes(path);
+
+    expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 
   it("redirects an organiser who directly opens another organiser's event", () => {

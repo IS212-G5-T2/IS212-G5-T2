@@ -11,6 +11,8 @@
   organiser sign-in and assigned coordinator change-request review.
 - Enforced 100% coverage for the SPM-30 login, Firebase-role mapping, and
   access-control guard paths in the frontend CI entrypoint.
+- Restricted operational venue, booking, and equipment routes by role, and
+  limited attendee registration mutations to the authenticated attendee.
 
 ## 2026-09-13
 
