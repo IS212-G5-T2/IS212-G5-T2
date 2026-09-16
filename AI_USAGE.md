@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-16 - Codex (GPT-5) - Configure Firebase defaults for frontend tests
+
+- Issue/PR: SPM-30 / PR #15
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/test`, `AI_USAGE.md`
+- Summary: Added inert Firebase Web SDK environment values to the global Vitest setup so store imports cannot initialize Firebase Auth with an empty CI API key.
+- AI contribution: CI failure diagnosis and test-environment configuration.
+- Assumptions: Tests mock Firebase network operations; the test-only configuration is never used by the browser build or local Compose runtime.
+- Checks run: `npm run test:coverage` in `apps/frontend` (72 tests passed); `git diff --check`.
+- Follow-up/conflict notes: Existing PR #15 is currently conflicted with overlapping dev event-feature work.
+
 ## 2026-09-16 - Codex (GPT-5) - Complete SPM-30 attendee route and registration controls
 
 - Issue/PR: SPM-30
