@@ -1,4 +1,8 @@
 import { create } from "zustand";
+import type { User as FirebaseUser } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { auth, getAuthErrorMessage } from "@/lib/firebase";
+import { getRoleFromFirebaseClaims } from "@/lib/firebaseRoles";
 import type {
   Booking,
   ChangeRequest,
@@ -15,41 +19,22 @@ import type {
 let idCounter = 1000;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
-export const MOCK_USERS: User[] = [
-  {
-    id: "coordinator-1",
-    name: "Demo Coordinator",
-    email: "coordinator@example.test",
-    role: "coordinator",
-  },
-  {
-    id: "current-user",
-    name: "Demo Organiser",
-    email: "organiser@example.test",
-    role: "organiser",
-  },
-  {
-    id: "venue-staff-1",
-    name: "Demo Venue Staff",
-    email: "venue@example.test",
-    role: "venue_staff",
-  },
-  {
-    id: "tech-support-1",
-    name: "Demo Tech Support",
-    email: "tech@example.test",
-    role: "tech_support",
-  },
-  {
-    id: "admin-1",
-    name: "Demo Admin",
-    email: "admin@example.test",
-    role: "admin",
-  },
-];
+// Placeholder identity shown before sign-in and restored on sign-out. It is
+// never used for authorization because unauthenticated routes are guarded.
+const PLACEHOLDER_USER: User = {
+  id: "current-user",
+  name: "Current User",
+  email: "",
+  role: "attendee",
+};
 
 interface AppState {
   currentUser: User;
+  isAuthenticated: boolean;
+  // True until Firebase's initial auth state (e.g. a persisted session from a
+  // previous visit) has resolved. Route guards and the login page use this to
+  // avoid flashing the wrong screen while Firebase starts up.
+  authLoading: boolean;
   events: EventRecord[];
   venues: Venue[];
   bookings: Booking[];
@@ -58,7 +43,6 @@ interface AppState {
   registrations: Registration[];
   notifications: Notification[];
 
-  setCurrentUser: (user: User) => void;
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
@@ -77,13 +61,20 @@ interface AppState {
   registerForEvent: (eventId: string) => void;
   withdrawRegistration: (eventId: string) => void;
 
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  /** Called by the Firebase onAuthStateChanged listener wired up in App.tsx. */
+  setAuthUser: (firebaseUser: FirebaseUser | null) => Promise<void>;
+
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
   pushNotification: (n: Omit<Notification, "id" | "read" | "createdAt">) => void;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
-  currentUser: MOCK_USERS[1],
+  currentUser: PLACEHOLDER_USER,
+  isAuthenticated: false,
+  authLoading: true,
   events: [],
   venues: [],
   bookings: [],
@@ -91,8 +82,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   equipmentRequests: [],
   registrations: [],
   notifications: [],
-
-  setCurrentUser: (user) => set({ currentUser: user }),
 
   createDraftEvent: (data) => {
     const user = get().currentUser;
@@ -386,6 +375,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   registerForEvent: (eventId) => {
     const user = get().currentUser;
+    const event = get().events.find((candidate) => candidate.id === eventId);
+
+    // Registration is an attendee-only action. Keep the policy beside the
+    // mutation so a caller cannot register on behalf of another user merely by
+    // bypassing the EventDetailPage button.
+    if (!get().isAuthenticated || user.role !== "attendee" || !event?.registrationEnabled) {
+      return;
+    }
+
     const existing = get().registrations.find(
       (r) => r.eventId === eventId && r.attendeeId === user.id
     );
@@ -406,7 +404,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
       set((s) => ({ registrations: [record, ...s.registrations] }));
     }
-    const event = get().events.find((e) => e.id === eventId);
     if (event) {
       get().pushNotification({
         audienceRole: "coordinator",
@@ -419,6 +416,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   withdrawRegistration: (eventId) => {
     const user = get().currentUser;
+
+    // Only the authenticated attendee who owns a registration may withdraw it.
+    if (!get().isAuthenticated || user.role !== "attendee") {
+      return;
+    }
+
     set((s) => ({
       registrations: s.registrations.map((r) =>
         r.eventId === eventId && r.attendeeId === user.id
@@ -426,6 +429,63 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  // Firebase Authentication (Email/Password provider). A user must exist in
+  // the Firebase project and the provider must be enabled in the console —
+  // see apps/frontend/README.md for setup.
+  login: async (email, password) => {
+    try {
+      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+      await get().setAuthUser(credential.user);
+
+      if (!get().isAuthenticated) {
+        return {
+          success: false,
+          error: "Your account does not have a supported ConnectSphere role.",
+        };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: getAuthErrorMessage(error) };
+    }
+  },
+
+  logout: async () => {
+    await signOut(auth);
+  },
+
+  setAuthUser: async (firebaseUser) => {
+    if (!firebaseUser) {
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      return;
+    }
+
+    set({ authLoading: true });
+
+    try {
+      const tokenResult = await firebaseUser.getIdTokenResult();
+      const role = getRoleFromFirebaseClaims(tokenResult.claims.roles);
+
+      if (!role) {
+        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+        return;
+      }
+
+      set({
+        isAuthenticated: true,
+        authLoading: false,
+        currentUser: {
+          id: firebaseUser.uid,
+          name: firebaseUser.displayName ?? firebaseUser.email ?? "Signed-in user",
+          email: firebaseUser.email ?? "",
+          role,
+        },
+      });
+    } catch {
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+    }
   },
 
   markNotificationRead: (id) => {

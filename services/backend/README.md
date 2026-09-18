@@ -2,6 +2,69 @@
 
 NestJS backend service for the IS212 G5 T2 workspace.
 
+This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes the starter endpoint, a health check, and shared Firebase JWT middleware/RBAC services for protected endpoints.
+
+## Authentication endpoint
+
+`GET /auth/me` requires `Authorization: Bearer <Firebase ID token>`. It returns
+the verified Firebase UID, optional email, and normalized application roles.
+Missing, malformed, or invalid tokens receive `401 Unauthorized`.
+
+## Authorization
+
+Route-owning modules must apply `FirebaseAuthenticationMiddleware` to protected
+controllers. The app module currently applies it only to `AuthController`.
+The current events controller is therefore not Firebase-protected. When the
+middleware is applied to a controller, it:
+
+- Leaves public `GET /` and `GET /healthz` requests alone.
+- Requires `Authorization: Bearer <Firebase ID token>` for that protected
+  controller's non-public routes.
+- Verifies the token with Firebase Admin before trusting any claims.
+- Extracts the authenticated Firebase `uid` and normalized `roles` claim.
+- Attaches the verified user to `request.currentUser`.
+
+`RbacRepository` reads PostgreSQL `roles`, `resources`, and `role_permissions` rows and builds composable permission predicates for resource queries. Protected resource repositories should include the predicate and ownership condition in the same `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement.
+
+### Assigning local Firebase test roles
+
+For the five manual integration-test users, update the email placeholders in `scripts/set-firebase-roles.mjs`, then run it from this directory:
+
+```sh
+FIREBASE_SERVICE_ACCOUNT_PATH="/absolute/path/to/service-account.json" \
+  node scripts/set-firebase-roles.mjs
+```
+
+Generate the service-account JSON in Firebase Console → Project settings → Service accounts. Keep it outside the repository and do not commit it. The script preserves other custom claims while setting `roles` to an array of supported values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`. Users can have more than one role, for example `roles: ['ORGANISER', 'ATTENDEE']`. Users must sign out and back in after the script completes.
+
+Auth code is organized by responsibility:
+
+| Path | Purpose |
+| --- | --- |
+| `src/auth/authentication/` | Firebase ID token verification and request authentication middleware. |
+| `src/auth/authorization/` | RBAC permission and ownership checks. |
+| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+
+## Database Access
+
+`DatabaseModule` owns the shared PostgreSQL pool through `DatabaseService`.
+Repositories should inject `DatabaseService` instead of creating their own
+`pg.Pool` instances. The current `EventsService` is an exception: it creates
+its own pool and should be brought into this shared-pool pattern before it is
+treated as production-ready. The shared pool sets connection, idle, and query
+timeouts and is closed through Nest module shutdown hooks.
+
+Use `DatabaseService.query()` for single SQL statements and `DatabaseService.transaction()` for multi-step insert/update/upsert/delete flows that must commit or roll back together. Keep table-specific SQL, joins, and domain rules inside repositories rather than adding generic CRUD methods to `DatabaseService`.
+
+Required runtime configuration:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string used for RBAC lookups. |
+| `FIREBASE_SERVICE_ACCOUNT_PATH` | Optional path to a Firebase service account JSON file for local development. |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional raw Firebase service account JSON fallback for CI/emergency use. |
+
+If both Firebase service account variables are omitted, Firebase Admin uses application default credentials.
 This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes event submission and retrieval endpoints alongside the starter health checks.
 
 ## Setup
@@ -41,7 +104,11 @@ No deployment command is configured for this repository.
 
 ## Local event requests
 
-Set `DATABASE_URL` to the local PostgreSQL connection and `DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173` for CORS. The events schema and optional fictional seed live in `development/database/postgresql/init/002_events.sql` and `003_sample_events.sql`.
+Set `DATABASE_URL` to the local PostgreSQL connection and
+`DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both
+through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
+for CORS. The events schema and optional fictional seed live in
+`development/database/postgresql/init/002_events.sql` and `003_sample_events.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
 - `GET /api/events`: lists the fixed local demo organiser's events, newest first.
@@ -49,45 +116,13 @@ Set `DATABASE_URL` to the local PostgreSQL connection and `DEMO_ORGANISER_ENABLE
 
 Name, purpose, start/end times and positive integer attendance are required. Times are ISO UTC strings; end must follow start. Requests receive field-specific 400 errors. The server owns the organiser and status; SQL stores `Submitted`, mapped to `submitted` in the frontend contract. A unique organiser/submission key prevents duplicate retries. Optional text and selection fields have size/value limits.
 
-There is no user-account implementation in this ticket. The demo identity is explicitly enabled only for local development; integrate the teammate's authenticated identity before shared/production use. Email delivery is deferred. Draft saving is described below.
+Firebase handles user accounts for `/auth/me`, but the event API does not yet
+use the authenticated Firebase user. Its demo identity is explicitly local-only;
+integrate server-side Firebase identity and RBAC before shared or production
+use. Email delivery and Save Draft are deferred.
 
-Run the colocated integration suites from this directory with `TEST_DATABASE_URL` pointing at a dedicated test database:
-
-```sh
-npm run test:e2e
-```
-
-The suites remove only their own records during cleanup. Database tests are skipped when `TEST_DATABASE_URL` is unset.
-
-SPM-36 unit tests are in `src/events/event-input.spec.ts` (pure input validation) and `src/events/events.service.spec.ts` (NestJS service persistence, rollback, retry, retrieval, and local-demo guard). Run them with `npm test`.
-
-## Draft requests (SPM-37)
-
-Apply `migrations/001_event_drafts.sql` after the events schema. With `DATABASE_URL` set, run from this directory:
-
-```sh
-node scripts/migrate-drafts.mjs
-```
-
-The migration is additive and safe to repeat. It does not reset existing events or old draft tables. Fresh Compose volumes mount this migration automatically; existing databases require the command above.
-
-- `GET /api/requests`: the current demo organiser's draft and previously submitted requests.
-- `GET /api/requests/:id`: persisted fields, status, version, eventId and updatedAt; 404 for unavailable IDs.
-- `PUT /api/requests/:id`: `{ fields, version, operationId }`; client-generated UUID v4 ID, version 0 for a new draft, otherwise latest saved version. Required submission fields may be empty. Saves retain incomplete date/time and attendance text, choices and attachments. Status is always server-owned.
-- `POST /api/requests/:id/submit`: `{ version, startDateTime, endDateTime }`, with UTC ISO timestamps converted from the form's local dates/times. Other event values come from the saved draft. Normal event validation still applies. Creation and draft locking share one PostgreSQL transaction. The submitted event retains the draft's ID; repeated submission returns that event. Later PUTs return 409.
-
-Concurrent saves use row locks plus versions. Retrying the last operation with identical fields returns its existing result without incrementing version; changed payloads cannot reuse the same operationId. Stale saves get 409, and the user must reopen before trying again. Attachments are limited to five files of 1 MB each; JSON requests accept up to 8 MB.
-
-Real organisation isolation is deferred by the requester; current AC7 covers submitted-draft lockout. Demo visitors share the same server-configured organiser; client-supplied identities are ignored. This is not authentication. Integrate the real account/organisation boundary before shared production use.
-
-Use Node 24 LTS for the Nest CLI (Node 23 can fail with ERR_REQUIRE_CYCLE_MODULE). Run `npm test` for unit suites. Set `TEST_DATABASE_URL` to a dedicated PostgreSQL database, then run `npm run test:e2e`; the draft integration suite creates its schema and removes only its own records. Without that variable the database suite is skipped.
-
-For real browser checks, run a backend pointing to the test database and a frontend with VITE_API_BASE_URL pointing at that backend. Set TEST_DATABASE_URL, PLAYWRIGHT_BASE_URL and PLAYWRIGHT_API_URL to those matching endpoints, then run:
-
-```sh
-node scripts/testing/run-browser.mjs
-```
-
-The harness runs the frontend Playwright suite and cleans its uniquely named records in a finally block. Do not point tests at a different database from the browser backend.
-
-Use Node 24.15 or newer in the Node 24 line. TypeScript is pinned to 6.0.3 because the current Nest CLI requires the compiler API absent from TypeScript 7.0.
+Event unit tests live beside their implementation:
+`src/events/event-input.spec.ts` covers validation and
+`src/events/events.service.spec.ts` covers persistence behavior with mocked
+database calls. They run through `npm test`. There is no committed
+database-container E2E test for the event endpoints.

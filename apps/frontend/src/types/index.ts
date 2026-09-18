@@ -3,8 +3,7 @@ export type UserRole =
   | "coordinator"
   | "venue_staff"
   | "tech_support"
-  | "attendee"
-  | "admin";
+  | "attendee";
 
 export interface User {
   id: string;

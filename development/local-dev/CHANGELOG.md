@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-16
+
+- Removed the Firebase Auth Emulator from local Docker Compose. Local Compose
+  now uses real Firebase configuration supplied through its untracked `.env`;
+  the emulator remains CI-only for backend E2E tests.
+
+## 2026-09-15
+
+- Simplified the local Compose stack to frontend, backend, and PostgreSQL.
+- Removed gateway, GCS, Pub/Sub, initialization, and Adminer services; the backend is now exposed directly on `localhost:3000`.
+
+## 2026-09-11
+
+- Added local PostgreSQL RBAC schema and seed data in a separate init file for roles, resources, and role permissions.
+- Removed baked PostgreSQL credentials from the local database image; pass local credentials through Compose or standalone `docker run` environment variables.
+
 ## 2026-09-09
 
 - Added the frontend service to the local Docker Compose stack.
@@ -14,8 +30,5 @@
 
 ## Event request sample
 
-- Documented additive events schema/seed setup for existing volumes and the local demo organiser configuration.
-
-- Fresh database volumes mount the backend draft migration after the events schema. Existing volumes require the additive migration command in README; no volume reset is needed.
-
-- Aligned the gateway request body limit with the backend 8 MB draft-attachment limit.
+- Documented additive events schema/seed setup for existing volumes and the
+  demo-only event identity limitation.

@@ -10,4 +10,6 @@ Scope: backend-facing service code under `services/`, within the [global agent p
 
 ## Shared integration
 
-- The local [Compose configuration](../development/local-dev/compose.yaml) builds from `services/backend` and routes the local gateway to that NestJS service.
+- The local [Compose configuration](../development/local-dev/compose.yaml)
+  builds from `services/backend` and exposes that NestJS service directly on
+  local port `3000`.

@@ -53,7 +53,17 @@ afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   apiMock.mockResolvedValue([]);
-  useAppStore.setState({ events: [] });
+  useAppStore.setState({
+    authLoading: false,
+    isAuthenticated: true,
+    currentUser: {
+      id: "current-user",
+      name: "Demo Organiser",
+      email: "organiser@example.test",
+      role: "organiser",
+    },
+    events: [],
+  });
 });
 
 describe("EventListPage", () => {
