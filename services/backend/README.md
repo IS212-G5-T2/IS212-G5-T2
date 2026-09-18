@@ -51,13 +51,13 @@ Name, purpose, start/end times and positive integer attendance are required. Tim
 
 There is no user-account implementation in this ticket. The demo identity is explicitly enabled only for local development; integrate the teammate's authenticated identity before shared/production use. Email delivery is deferred. Draft saving is described below.
 
-After starting the local stack, run the integration test from the repository root:
+Run the colocated integration suites from this directory with `TEST_DATABASE_URL` pointing at a dedicated test database:
 
 ```sh
-docker compose -f development/local-dev/compose.yaml exec -T backend node --input-type=module - < tests/database/SPM-36/event-request-persistence.e2e-spec.mjs
+npm run test:e2e
 ```
 
-It creates a uniquely identified test event and removes only that record in cleanup.
+The suites remove only their own records during cleanup. Database tests are skipped when `TEST_DATABASE_URL` is unset.
 
 SPM-36 unit tests are in `src/events/event-input.spec.ts` (pure input validation) and `src/events/events.service.spec.ts` (NestJS service persistence, rollback, retry, retrieval, and local-demo guard). Run them with `npm test`.
 
@@ -78,7 +78,7 @@ The migration is additive and safe to repeat. It does not reset existing events 
 
 Concurrent saves use row locks plus versions. Retrying the last operation with identical fields returns its existing result without incrementing version; changed payloads cannot reuse the same operationId. Stale saves get 409, and the user must reopen before trying again. Attachments are limited to five files of 1 MB each; JSON requests accept up to 8 MB.
 
-AC7 organisation isolation is deferred by the requester. Demo visitors share the same server-configured organiser; client-supplied identities are ignored. This is not authentication. Integrate the real account/organisation boundary before shared production use.
+Real organisation isolation is deferred by the requester; current AC7 covers submitted-draft lockout. Demo visitors share the same server-configured organiser; client-supplied identities are ignored. This is not authentication. Integrate the real account/organisation boundary before shared production use.
 
 Use Node 24 LTS for the Nest CLI (Node 23 can fail with ERR_REQUIRE_CYCLE_MODULE). Run `npm test` for unit suites. Set `TEST_DATABASE_URL` to a dedicated PostgreSQL database, then run `npm run test:e2e`; the draft integration suite creates its schema and removes only its own records. Without that variable the database suite is skipped.
 
@@ -89,3 +89,5 @@ node scripts/testing/run-browser.mjs
 ```
 
 The harness runs the frontend Playwright suite and cleans its uniquely named records in a finally block. Do not point tests at a different database from the browser backend.
+
+Use Node 24.15 or newer in the Node 24 line. TypeScript is pinned to 6.0.3 because the current Nest CLI requires the compiler API absent from TypeScript 7.0.

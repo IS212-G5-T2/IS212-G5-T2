@@ -103,6 +103,60 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: There should be no active dependency on any intermediate shared branch between work branches and `dev`.
 - Checks run: `ruby -e 'require "yaml"; ARGV.each { |f| YAML.load_file(f); puts "OK #{f}" }' .github/workflows/security.yml .github/workflows/tests.yml`; searched repo docs and workflows for stale branch references.
 - Follow-up/conflict notes: Supersedes earlier AI usage entries that documented previous branch-flow assumptions.
+## 2026-09-11 - Codex (GPT-6) - SPM-37 implementation and testing checkpoint
+
+- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37
+- Human requester/operator: Kirubakaran Kishore.
+- Areas touched: `apps/frontend`, `services/backend`, `AI_USAGE.md`; shared local PostgreSQL started for integration tests.
+- Summary: Implemented PostgreSQL-backed draft create/read/list/update, incomplete fields, repeated saves with retry identity and version conflict handling, My Requests and editable form, save feedback, organisation isolation, and server-side rejection of non-draft writes. Same-organisation draft access follows SPM-94. Week 4's 20 core functions remain release scope.
+- Assumptions: Authentication must populate a verified `request.user` containing userId, organisationId, and roles. Default app denies unauthenticated calls; no production auth bypass added. Frontend token-provider hook is an integration seam. Firebase/login/RBAC and submission/change-request workflows remain separate dependencies; request requirement fields are draft text pending catalogue integration.
+- Checks run: Node 24 backend build, 13 unit tests, 10 e2e tests including 8 real-PostgreSQL draft tests; frontend TypeScript/Vite build, 8 component tests, frontend ESLint and backend oxlint. Chromium browser checks covered all eight AC scenarios with test-only sessions, loss/retry, blank draft, all-field reopening, organisation isolation, legacy edit URL, and desktop/mobile screenshots. No page runtime errors; expected failure responses were exercised. Real Firebase sign-in/sign-out remains unverified.
+- Follow-up/conflict notes: User requires a testing report and explicit 'ok' before preparing review. Nothing staged/committed/pushed; review documentation and handoff deferred. Existing AI_USAGE edits preserved. Test fixture stopped and its five remaining records removed; shared PostgreSQL and normal frontend/backend left running (frontend 127.0.0.1:5174, backend 3000). Default Node 23 fails existing Nest tooling; Node 24 passes. Existing frontend Vite/router dependency audit findings remain; newly added Vitest upgraded to 4.1.11. CI still targets staging and frontend shell executable mode must be set when staging is authorised. Browser plugin skill absent; bundled Playwright used for browser checks.
+
+## 2026-09-11 - Codex (GPT-6) - Prepare SPM-37 feature branch
+
+- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37
+- Human requester/operator: Kirubakaran Kishore.
+- Areas touched: Local Git branch; `AI_USAGE.md`; read-only frontend, backend, and database inspection.
+- Summary: Pulled dev with fast-forward-only; local dev and origin/dev match df9a0b1ecff768865526ba723755574ea68be0be. Created feature/SPM-37-save-event-request-as-a-draft after finding no matching local/remote branch or PR. Read ticket description, all four acceptance criteria, status, priority, sprint, and comments (none), plus scoped agent guidance.
+- AI contribution: Branch preparation and implementation planning; no feature code changed.
+- Planning refresh: Re-read all seven repository AGENTS.md files and local integration/CI guidance; confirmed Jira now contains all eight discussed criteria and remains To Do. Week 4's 20 core functions define release scope. Plan covers persistent drafts, form/list integration, server-enforced ownership and draft status, failure feedback, and AC-traceable tests. Authentication is still absent; coordinate its contract before security/sign-in acceptance testing. Existing tests workflow targets staging, so dev PR automation needs alignment or a manual run.
+- Assumptions: User-requested dev base overrides stale staging references in docs/ai-issue-workflow.md. Draft persistence requires backend work; current frontend identity is a placeholder and authentication integration needs coordination.
+- Checks run: git pull --ff-only origin dev; HEAD/origin-dev comparison; branch searches; gh pr list (successful, empty); source and ownership review.
+- Follow-up/conflict notes: Preserved pre-existing AI_USAGE.md edits. Frontend creation is a placeholder, edits use memory-only state, and backend/database have no event model. GitHub PR lookup succeeded on this attempt, superseding the earlier API lookup failure for this operation. No commit or push.
+
+## 2026-09-11 - Codex (GPT-6) - Verify connections and retrieve assigned stories
+
+- Issue/PR: SPM Project assignment lookup; no implementation requested.
+- Human requester/operator: Kirubakaran Kishore.
+- Areas touched: `AI_USAGE.md`; read-only GitHub and Jira inspection.
+- Summary: Confirmed origin points to IS212-G5-T2/IS212-G5-T2 and remote dev is reachable through Git. Retrieved all assigned Jira issues through the legacy connector authenticated as the requester; all three are stories.
+- AI contribution: Connection verification and assignment retrieval.
+- Assumptions: Used the legacy connector identity matching the requester; the other Atlassian connector uses a different account.
+- Checks run: Git remote/status, gh auth status, gh repo view, git ls-remote, Jira identity and paginated JQL search (last page confirmed).
+- Follow-up/conflict notes: GitHub CLI account kishorek2024-bot cannot resolve the repository through the API; write access was not tested. Preserved existing AI_USAGE.md changes. No implementation, commit, push, or Jira mutation.
+
+## 2026-09-09 - Codex (GPT-6) - Inspect live Jira automation
+
+- Issue/PR: SPM project automation; no implementation ticket.
+- Human requester/operator: Kirubakaran Kishore.
+- Areas touched: `AI_USAGE.md`; read-only Jira browser inspection.
+- Summary: Verified four enabled SPM rules: Branch created with status To Do -> In Progress; Pull request created with status In Progress -> In Review; Pull request merged with status In Review -> Done; Pull request declined with status In Review -> In Review.
+- AI contribution: Jira automation inspection, workflow analysis, and AI usage logging.
+- Assumptions: Configuration inspection establishes rule intent, not evidence of successful executions. No Jira settings were changed.
+- Checks run: Read all four rule canvases and the branch trigger condition in the authenticated Jira UI. Connector discovery did not expose automation rules.
+- Follow-up/conflict notes: The decline rule, named 'Copy of Transition to In Review', does not implement the user's desired return to In Progress. This live inspection supersedes the earlier unverified automation assumptions below.
+
+## 2026-09-09 - Codex (GPT-6) - Verify dev checkout and review repository flow
+
+- Issue/PR: None; repository review requested directly.
+- Human requester/operator: Kirubakaran Kishore.
+- Areas touched: Local Git checkout; `AI_USAGE.md`.
+- Summary: Fast-forwarded local `dev` only to `origin/dev` at `e4a9450` and reviewed repository guidance, application structure, local integration configuration, and CI. No other branch was merged, and no commit, push, or PR was created.
+- AI contribution: Repository inspection and workflow analysis.
+- Assumptions: The user's current instruction overrides older guidance: always create new work branches from latest `dev`, name them `<type>/<ticket_id>-<ticket_name>`, merge work into `dev`, then promote `dev` into `main` (source of truth). User-described Jira transitions are branch created -> In Progress, PR created -> In Review, PR merged -> Done, PR rejected -> In Progress; live automation settings and the exact rejection trigger were not verified.
+- Checks run: Git fetch, fast-forward-only update, HEAD/origin-dev equality, clean diff against origin/dev before this ledger entry, and source/configuration searches. Application tests were not run for this inspection.
+- Follow-up/conflict notes: AGENTS, workflow docs, component READMEs, PR template, and CI retain staging-based guidance; documented merge transition remains Testing. Root README partially reflects dev but omits promotion to main. These files and remote settings were not changed as part of the review.
 
 ## 2026-09-09 - Codex - Add frontend and database local-dev layout
 
@@ -263,3 +317,22 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: The staged local `events/drafts` rebuild is the intended SPM-37 implementation and supersedes the different `event-requests` implementation on the remote branch (`dfc7e64`); replacing the remote requires a `force-with-lease` push and the user's explicit confirmation.
 - Checks run: `npm run test:cov:spm37` - backend 260/260 and frontend 68/68, 100% statements/branches/functions/lines for the eight configured source files; backend API/database integration 13/13 against a scratch `spm_test` PostgreSQL; real-browser Playwright `Q2-021` passed headed. Backend `nest build` (Node 24) and oxlint passed.
 - Follow-up/conflict notes: No commit or push made this session (user commits manually). Remote `origin/feature/SPM-37-save-event-request-as-a-draft` still holds the older `event-requests`-module implementation; the local rebuild replaces it. `tmp/` holds session scratch (Codex handoff + PDF renders) and must not be committed. Current AC7 is the submitted-draft lockout (older eight-AC / org-isolation wording is superseded).
+
+## 2026-09-19 - Codex (GPT-6) - Inspect SPM-37 merge conflicts for user decisions
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; fetched current seven AC and In Progress status.
+- Areas touched: `AI_USAGE.md` only. Inspected merge metadata, index stages and frontend/backend conflicts.
+- Summary: Current merge joins local HEAD 75e03df (rebuild feature commit 61bab0d) with older remote dfc7e64 (original feature 69c5986). Found 18 unresolved files and four original conflicts already staged as resolved. Prepared per-file old-remote versus new-local comparisons for the user's choices.
+- Checks run: Git status, divergent history, merge message, index-stage contents and diffs. No tests run because merge remains unresolved. Working Playwright config is empty; App routes are partially resolved; staged older implementation additions require consistency review after choices.
+- Assumptions/follow-up: User explicitly reserves resolution choices. No conflicts resolved, files staged, commits or pushes by this review. Existing partial resolutions preserved. This is a remote feature merge, not a dev merge; the dev-wins rule does not select a side here.
+
+## 2026-09-19 - Codex (GPT-6) - Resolve and validate SPM-37 feature merge
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; In Progress, current seven acceptance criteria rechecked against the implementation and tests.
+- Authorization: User directed use of the newer local implementation, correction of issues, and push to the SPM-37 feature branch.
+- Areas: frontend/backend merge resolution, component tooling/docs, local gateway, existing root guidance and ledger. Retained HEAD 75e03df/feature commit 61bab0d for application behavior, routes, draft API, migration and Playwright configuration. Removed only incoming older implementation additions; retained the user's recent frontend Node types dependency, merged historical ledger, root guidance and ignore rules.
+- Backup: Pre-resolution changed files and index copied to C:/Users/kirub/AppData/Local/Temp/SPM37-merge-backup-20260919-005932. Removed incoming scripts migrate.mjs and browser-fixture.mjs belong to the superseded event-requests implementation; migrate-drafts.mjs and run-browser.mjs remain. No application database reset or migration of old draft data was performed.
+- Issues fixed: TypeScript frontend aliases no longer use deprecated baseUrl; ESLint 10 flat configuration; Tailwind pinned to 3.4.19 for the existing theme/PostCSS setup; backend TypeScript pinned to 6.0.3 because Nest cannot use TypeScript 7.0 compiler API. Corrected stale AC7/Save Draft and nonexistent integration-test documentation. Gateway body limit now matches backend 8 MB attachments.
+- Checks: frontend 68 tests and backend 260 tests passed with all eight configured files at 100% coverage; backend rerun after npm ci with locked Vitest 5 passed. API/PostgreSQL integration 13 passed, including rerun with locked backend dependencies. Real Chromium save/reopen/refresh/retry/submit/lock flow passed after restarting Vite with compatible Tailwind. Frontend and backend production builds passed after toolchain fixes. Backend lint passed; frontend lint exits successfully with three existing API-loader state-reset warnings (retained as warnings in flat config). Both dependency lockfile dry-run checks passed; Compose config and git whitespace checks passed; no unmerged index entries remain.
+- Limits: Node 24.14 locally emits engine warnings; docs require Node 24.15+ for current packages. Docker daemon unavailable, so gateway was inspected but not exercised in Docker. Reused persistent embedded PostgreSQL; spm_test suites clean only their own records. Temporary browser servers stopped after checks; PostgreSQL left running with data preserved.
+- Handoff: Complete the existing merge with both parents and push normally, preserving remote history. Git transport can access origin; gh and GitHub connector cannot read PR metadata, so do not create a duplicate PR. No Jira status changes or PR merge requested.

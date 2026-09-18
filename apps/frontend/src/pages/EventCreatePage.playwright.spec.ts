@@ -17,7 +17,7 @@ const fields = {
   equipmentNeeds: "",
 };
 
-// AC1-6/8: this test uses the actual API/database; mocks only one failed network response.
+// AC1-7: this test uses the actual API/database; mocks only one failed network response.
 test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI", async ({
   page,
   request,

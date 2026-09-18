@@ -4,7 +4,7 @@
 
 `services/backend` is a NestJS backend scaffold generated with the official Nest CLI. It uses Node.js, TypeScript, ESM, npm, Vitest, oxlint, and Prettier.
 
-The generated starter endpoint currently returns `Hello World!`. The events controller/service validates and persists submitted requests in PostgreSQL. User accounts, email delivery, and Save Draft are intentionally deferred.
+The generated starter endpoint currently returns `Hello World!`. The events controller/service validates and persists submitted requests in PostgreSQL. User accounts and email delivery are deferred. Draft saving and submission are implemented below.
 
 ## Continuity Notes
 
@@ -20,4 +20,6 @@ The generated starter endpoint currently returns `Hello World!`. The events cont
 
 ## Draft continuity
 
-`event_drafts` holds partial JSON fields separately from strictly validated `events`. DraftsService calls EventsService.create with its existing transaction connection on submission; preserve that shared transaction and row lock. Do not expose the internal transaction/event-ID arguments as client input. Apply migrations/001_event_drafts.sql to existing databases; Compose mounts it for new volumes. AC7 remains deferred: shared demo identity cannot isolate organisations. Event Change Requests remain the workflow for post-submit changes. `fields.formStep` is an optional integer (0-2, matching the frontend's three wizard steps) validated in `validateDraft`; it is opaque server-side and only round-trips for the client to resume on save.
+`event_drafts` holds partial JSON fields separately from strictly validated `events`. DraftsService calls EventsService.create with its existing transaction connection on submission; preserve that shared transaction and row lock. Do not expose the internal transaction/event-ID arguments as client input. Apply migrations/001_event_drafts.sql to existing databases; Compose mounts it for new volumes. Real organisation isolation remains deferred: shared demo identity cannot isolate organisations. Current AC7 is submitted-draft lockout. Event Change Requests remain the workflow for post-submit changes. `fields.formStep` is an optional integer (0-2, matching the frontend's three wizard steps) validated in `validateDraft`; it is opaque server-side and only round-trips for the client to resume on save.
+
+Keep TypeScript on 6.0.3 until the Nest CLI supports the installed compiler API; the previous TypeScript 7.0 declaration prevented clean-install builds.

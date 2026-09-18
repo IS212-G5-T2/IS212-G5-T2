@@ -17,3 +17,5 @@ The Compose build contexts currently expect `../../apps/frontend` for the React/
 The backend now uses DATABASE_URL for event persistence and DEMO_ORGANISER_ENABLED for the account-free local sample. Apply the additive events SQL scripts using README instructions for existing volumes. Email delivery is deferred. Preserve existing database data when testing.
 
 Draft storage is backend-owned. Compose mounts its migration into PostgreSQL initialization for new volumes; apply it manually to existing volumes as documented in README. Preserve both the shared volume and existing records during upgrades.
+
+The gateway `client_max_body_size` is 8 MB to match the backend JSON parser; keep these limits aligned when attachment limits change.

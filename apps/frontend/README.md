@@ -50,8 +50,12 @@ Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this director
 
 The current three-step event form supports **Save draft** at every step. Required fields apply to submission only. A successful save shows a confirmation dialog; OK opens **My Requests**. Drafts can be reopened, edited, saved repeatedly, and refreshed without losing successfully saved values. Files (up to five, 1 MB each) and partially entered dates/times are retained. Failed saves keep the form available for retry. An old tab cannot overwrite a newer version.
 
-`/requests` lists saved requests; `/requests/:id` reuses the current event form. Submitting a draft creates the submitted event atomically and permanently closes draft editing. Further changes use the Event Change Requests workflow. Real organisation isolation (AC7) is deferred; the existing local demo organiser is shared.
+`/requests` lists saved requests; `/requests/:id` reuses the current event form. Submitting a draft creates the submitted event atomically and permanently closes draft editing. Further changes use the Event Change Requests workflow. Real organisation isolation is deferred; the existing local demo organiser is shared.
 
 Start with `npm run dev`, then open http://localhost:5173. The API defaults to http://localhost:8080; set `VITE_API_BASE_URL` before starting Vite to use another endpoint. Apply the backend draft migration before saving. Use Node 24 LTS for the toolchain.
 
 Run `npm test`, `npm run lint`, and `npm run build`. Browser acceptance tests live beside the page as `EventCreatePage.playwright.spec.ts`; install Chromium with `npx playwright install chromium`. Run the backend browser harness described in the backend README against a test database; it removes only its own records. Browser specs are excluded from Vitest and the production TypeScript build.
+
+## Toolchain compatibility
+
+Use Node 24.15 or newer in the Node 24 line (jsdom 30 requires it). Tailwind is pinned to 3.4.19 to match the existing PostCSS plugin, JavaScript theme and stylesheet directives. ESLint uses flat configuration in `.eslintrc.cjs`; existing API-loader state resets are reported as warnings. TypeScript path aliases are relative to the config without the removed `baseUrl` option.

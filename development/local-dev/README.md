@@ -175,3 +175,5 @@ Get-Content services/backend/migrations/001_event_drafts.sql -Raw | docker compo
 ```
 
 Use the database's configured user/name if different from the local defaults. The migration requires the existing events schema and preserves existing records.
+
+The gateway accepts JSON request bodies up to 8 MB, matching the backend limit for draft attachments. Recreate the gateway after changing its configuration.

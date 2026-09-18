@@ -16,3 +16,5 @@
 
 - Added draft saving and My Requests to the current three-step event UI, including retry feedback, reopening, repeated saves, attachment persistence and submitted-request locking (SPM-37).
 - Drafts now resume on the wizard step they were saved on, instead of always reopening at step one (SPM-37).
+
+- Resolved the SPM-37 merge using the rebuilt event/draft workflow; aligned TypeScript and ESLint configuration and pinned Tailwind 3.4.19 to preserve the existing styling.
