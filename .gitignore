@@ -146,3 +146,6 @@ vite.config.ts.timestamp-*
 .vite/
 test-results/
 playwright-report/
+
+# Local scratch / temporary working files
+tmp/
