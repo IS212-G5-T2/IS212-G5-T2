@@ -18,6 +18,7 @@ export interface AuthenticatedUser {
   uid: string;
   roles: UserRole[];
   email?: string;
+  name?: string;
 }
 
 /**

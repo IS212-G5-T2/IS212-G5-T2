@@ -126,3 +126,32 @@ Event unit tests live beside their implementation:
 `src/events/events.service.spec.ts` covers persistence behavior with mocked
 database calls. They run through `npm test`. There is no committed
 database-container E2E test for the event endpoints.
+
+## Clarification/amendment requests (SPM-39)
+
+Coordinators can open a clarification/amendment thread with the event's
+Organiser. Unlike the events endpoints above, these routes are protected by
+`FirebaseAuthenticationMiddleware` and use the real authenticated Firebase
+`uid`/`roles` for ownership checks.
+
+- `POST /api/events/:id/clarifications`: Coordinator opens a clarification.
+  Requires `Authorization: Bearer <Firebase ID token>` for a user with the
+  `COORDINATOR` role whose uid matches the event's `coordinator_id`. Body:
+  `{ "message": string }` (rejected with 400 if blank/whitespace-only).
+  Forces the event to `Under_Review` and notifies the Organiser.
+- `GET /api/events/:id/comments`: full chronological clarification/reply
+  thread. Restricted to the event's Organiser or its assigned Coordinator.
+- `POST /api/events/:id/clarifications/:clarificationId/reply`: Organiser
+  replies, clearing that clarification's `awaitingReply` flag. Restricted to
+  a user with the `ORGANISER` role whose uid matches the event's
+  `organiser_id`.
+
+See `HANDOVER.md` for known gaps: no endpoint yet assigns `coordinator_id`,
+and `EventsService`'s hardcoded demo-organiser identity means the reply
+endpoint's ownership check only matches events whose `organiser_id` is a real
+Firebase uid.
+
+Unit tests: `src/clarifications/clarification-input.spec.ts` and
+`src/clarifications/clarifications.service.spec.ts`. E2E test:
+`test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
+real PostgreSQL database and the Firebase Auth Emulator.

@@ -6,14 +6,18 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthController } from './auth/auth.controller.js';
 import { FirebaseAuthenticationMiddleware } from './auth/authentication/firebase-authentication.middleware.js';
+import { ClarificationsModule } from './clarifications/clarifications.module.js';
+import { ClarificationsController } from './clarifications/clarifications.controller.js';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, ClarificationsModule],
   controllers: [AppController, EventsController],
   providers: [AppService, EventsService],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(FirebaseAuthenticationMiddleware).forRoutes(AuthController);
+    consumer
+      .apply(FirebaseAuthenticationMiddleware)
+      .forRoutes(AuthController, ClarificationsController);
   }
 }

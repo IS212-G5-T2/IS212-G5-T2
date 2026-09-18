@@ -47,3 +47,42 @@ ticket. The `DEMO_ORGANISER_ENABLED` switch must be replaced by authenticated
 server identity integration before multi-user use. Never trust an organiser ID
 or status supplied by the client. Keep the nested TypeScript 5 lock entry when
 using local npm 11; Docker npm 10 requires it.
+
+## Coordinator clarification/amendment requests (SPM-39)
+
+`src/clarifications` implements the Coordinator-to-Organiser clarification
+thread on an event request, using real Firebase-authenticated identity
+(`FirebaseAuthenticationMiddleware` is applied to `ClarificationsController`
+in `AppModule.configure()`), unlike `EventsController`. `004_clarifications.sql`
+adds `events.coordinator_id`/`coordinator_name`, widens the `status` CHECK
+constraint to allow `Under_Review`/`Approved`, and creates `event_comments`
+(the clarification/reply thread) and a minimal `notifications` table.
+
+Known gaps to close before this is fully production-ready:
+
+- **No endpoint sets `coordinator_id`.** Assigning a coordinator to an event
+  is a separate, unticketed feature (today it's mock-only in the frontend
+  Zustand store — see `apps/frontend/src/store/useAppStore.ts`'s
+  `assignCoordinator`). Until a real assignment endpoint exists,
+  `coordinator_id` must be populated directly (e.g., seed data or a manual
+  `UPDATE`) for the coordinator-side clarification flow to work against real
+  data.
+- **`EventsService.identity()` still returns a single hardcoded demo
+  organiser** (`DEMO_ORGANISER_ENABLED`) for every caller regardless of the
+  real authenticated Firebase user, and every event created today has
+  `organiser_id = 'current-user'`. The clarification reply endpoint's
+  ownership check (`events.organiser_id === currentUser.uid`) is real and
+  correct, but it will only match a real Firebase-authenticated organiser
+  once `EventsService` is migrated off that demo identity — see the
+  "Event persistence" note above. Until then, only rows seeded/updated with a
+  real uid as `organiser_id` can exercise the reply endpoint end-to-end.
+- The `notifications` table is new and intentionally minimal (insert +
+  per-recipient read), scoped to clarification/clarification-reply events
+  only. It does not replace the frontend's broader mock notification system
+  in `useAppStore.ts` (approvals, rejections, venue bookings, etc.), which
+  remains client-only.
+- RBAC's `002_rbac.sql` seed grants `ORGANISER` only `read` on the "Event
+  Review" resource (not `update`), so the Organiser-reply endpoint is
+  authorized by a direct `organiser_id` ownership check rather than
+  `RbacRepository`'s predicate builder. See the comment in
+  `clarifications.service.ts`.

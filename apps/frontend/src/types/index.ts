@@ -68,11 +68,26 @@ export interface EventRecord {
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];
-  clarificationNote?: string;
   rejectionReason?: string;
   changeRequests: ChangeRequest[];
   createdAt: string;
   updatedAt: string;
+}
+
+export type CommentType = "clarification" | "reply";
+export type CommentAuthorRole = "coordinator" | "organiser";
+
+export interface EventComment {
+  id: string;
+  eventId: string;
+  parentId: string | null;
+  type: CommentType;
+  authorId: string;
+  authorName: string;
+  authorRole: CommentAuthorRole;
+  message: string;
+  awaitingReply: boolean;
+  createdAt: string;
 }
 
 export interface Venue {

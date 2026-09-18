@@ -1,6 +1,6 @@
 import { api } from "@/utils/api";
-import type { EventRecord } from "@/types";
-import { useEffect, useState } from "react";
+import type { EventComment, EventRecord } from "@/types";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,7 +9,10 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
+import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateRange, formatDateTime } from "@/utils/format";
+
+const CLARIFIABLE_STATUSES = ["submitted", "under_review", "approved"];
 
 const STATUS_FLOW = [
   "draft",
@@ -45,10 +48,34 @@ export function EventDetailPage() {
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
 
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [decision, setDecision] = useState<"approve" | "reject" | "clarify" | "">("");
+  const [decision, setDecision] = useState<"approve" | "reject" | "">("");
   const [note, setNote] = useState("");
 
+  const [comments, setComments] = useState<EventComment[]>([]);
+  const [commentsError, setCommentsError] = useState("");
+
   const event = events.find((e) => e.id === id);
+
+  const refreshComments = useCallback(async () => {
+    try {
+      const data = await api<EventComment[]>(`/events/${id}/comments`);
+      setComments(data);
+      setCommentsError("");
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : "Could not load comments.");
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (loading || loadError || !event) return;
+    const canView =
+      (currentUser.role === "organiser" && event.organiserId === currentUser.id) ||
+      (currentUser.role === "coordinator" && event.coordinatorId === currentUser.id);
+    if (canView) refreshComments();
+    // Only re-run when the values that decide *whether* we can view change;
+    // refreshComments itself is called explicitly after posting/replying.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadError, event?.organiserId, event?.coordinatorId, currentUser.role, currentUser.id]);
 
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
@@ -76,6 +103,31 @@ export function EventDetailPage() {
     setReviewOpen(false);
     setDecision("");
     setNote("");
+  };
+
+  const canRequestClarification =
+    isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
+
+  const submitClarification = async (message: string) => {
+    await api(`/events/${event.id}/clarifications`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    const [refreshedEvent] = await Promise.all([
+      api<EventRecord>(`/events/${event.id}`),
+      refreshComments(),
+    ]);
+    useAppStore.setState((s) => ({
+      events: [refreshedEvent, ...s.events.filter((e) => e.id !== refreshedEvent.id)],
+    }));
+  };
+
+  const submitClarificationReply = async (clarificationId: string, message: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    await refreshComments();
   };
 
   const currentStepIndex = STATUS_FLOW.indexOf(event.status as (typeof STATUS_FLOW)[number]);
@@ -151,9 +203,9 @@ export function EventDetailPage() {
         </ol>
       )}
 
-      {event.clarificationNote && event.status === "under_review" && (
-        <div className="mb-4 rounded-lg border border-warning-300 dark:border-warning-700 bg-warning-50 dark:bg-warning-900/20 px-4 py-3 text-sm text-warning-900 dark:text-warning-300">
-          <strong>Clarification requested:</strong> {event.clarificationNote}
+      {commentsError && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {commentsError}
         </div>
       )}
       {event.rejectionReason && event.status === "rejected" && (
@@ -284,6 +336,18 @@ export function EventDetailPage() {
             </CardBody>
           </Card>
         )}
+
+        {(isOwner || isAssignedCoordinator) && (
+          <div className="lg:col-span-3">
+            <ClarificationThread
+              comments={comments}
+              canRequestClarification={canRequestClarification}
+              onSubmitClarification={submitClarification}
+              canReply={isOwner}
+              onSubmitReply={submitClarificationReply}
+            />
+          </div>
+        )}
       </div>
 
       <Modal
@@ -312,13 +376,12 @@ export function EventDetailPage() {
           onChange={(v) => setDecision(v as typeof decision)}
           options={[
             { value: "approve", label: "Approve — move to planning" },
-            { value: "clarify", label: "Request clarification from organiser" },
             { value: "reject", label: "Reject" },
           ]}
         />
-        {(decision === "reject" || decision === "clarify") && (
+        {decision === "reject" && (
           <TextArea
-            label={decision === "reject" ? "Rejection reason" : "What needs clarifying?"}
+            label="Rejection reason"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />

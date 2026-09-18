@@ -47,7 +47,7 @@ interface AppState {
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
-  reviewEvent: (id: string, decision: "approve" | "reject" | "clarify", note?: string) => void;
+  reviewEvent: (id: string, decision: "approve" | "reject", note?: string) => void;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
   reviewChangeRequest: (eventId: string, crId: string, decision: "approved" | "rejected") => void;
@@ -183,22 +183,13 @@ export const useAppStore = create<AppState>((set, get) => ({
           e.id === id ? { ...e, status: "planning" as EventStatus } : e
         ),
       }));
-    } else if (decision === "reject") {
+    } else {
       get().updateEvent(id, { status: "rejected", rejectionReason: note });
       get().pushNotification({
         audienceRole: "organiser",
         audienceUserId: event.organiserId,
         type: "rejection",
         message: `"${event.name}" was rejected. Reason: ${note ?? "No reason provided."}`,
-        relatedEventId: id,
-      });
-    } else {
-      get().updateEvent(id, { status: "under_review", clarificationNote: note });
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "clarification",
-        message: `Clarification requested for "${event.name}": ${note ?? ""}`,
         relatedEventId: id,
       });
     }

@@ -108,6 +108,7 @@ export class FirebaseTokenService {
       uid: claims.uid,
       roles,
       email: claims.email,
+      name: claims.name,
     };
   }
 
@@ -150,5 +151,6 @@ export class FirebaseTokenService {
 interface FirebaseClaims {
   uid: string;
   email?: string;
+  name?: string;
   roles?: unknown;
 }

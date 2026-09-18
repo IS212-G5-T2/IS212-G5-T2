@@ -96,6 +96,23 @@ describe('FirebaseTokenService', () => {
       });
     });
 
+    it('includes name when the optional Firebase name claim is present', async () => {
+      mockVerifiedClaims({
+        uid: 'firebase-user-1',
+        email: 'coordinator@example.com',
+        name: 'Marcus Lee',
+        roles: ['COORDINATOR'],
+      });
+      const service = new FirebaseTokenService();
+
+      await expect(service.verifyIdToken('valid-token')).resolves.toEqual({
+        uid: 'firebase-user-1',
+        email: 'coordinator@example.com',
+        name: 'Marcus Lee',
+        roles: ['COORDINATOR'],
+      });
+    });
+
     it('omits email when the optional Firebase email claim is missing', async () => {
       mockVerifiedClaims({
         uid: 'firebase-user-1',

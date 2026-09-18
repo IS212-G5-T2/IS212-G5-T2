@@ -52,7 +52,9 @@ function renderEventDetail() {
 }
 
 beforeEach(() => {
-  apiMock.mockResolvedValue(event);
+  apiMock.mockImplementation((path: string) =>
+    path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+  );
   useAppStore.setState({
     authLoading: false,
     isAuthenticated: true,
