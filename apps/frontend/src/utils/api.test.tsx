@@ -24,7 +24,12 @@ it("Q1-035 API success sends JSON, custom headers and timeout", async () => {
     "http://test.local/api/requests",
     expect.objectContaining({
       method: "PUT",
-      headers: { "Content-Type": "application/json", "X-Test": "yes" },
+      // The Headers API normalises custom header names to lowercase.
+      // Content-Type is set directly as a plain-object key so its case is preserved.
+      headers: expect.objectContaining({
+        "Content-Type": "application/json",
+        "x-test": "yes",
+      }),
       signal: expect.any(AbortSignal),
     }),
   );
