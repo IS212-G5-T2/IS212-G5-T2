@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
+import { formatDateTime } from "@/utils/format";
 import type { EventComment, EventRecord } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -70,7 +71,7 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage clarification thread", () => {
-  it("lets the assigned coordinator submit a clarification and reflects the resulting Under Review status", async () => {
+  it("REQ-CLAR-01-A: Event Coordinator can submit a clarification request and status changes to Under Review", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
     const updatedEvent = baseEvent({ status: "under_review" });
@@ -110,7 +111,7 @@ describe("EventDetailPage clarification thread", () => {
     });
   });
 
-  it("shows a client-side error and does not call the API for a blank clarification", async () => {
+  it("REQ-CLAR-01-B: Event Coordinator will see an error message if they try to submit a blank clarification message", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
     apiMock.mockImplementation((path: string) =>
@@ -134,7 +135,33 @@ describe("EventDetailPage clarification thread", () => {
     );
   });
 
-  it("does not show the clarification control to a coordinator not assigned to the event", async () => {
+  // REQ-CLAR-01-C
+  it("REQ-CLAR-01-C: Event Coordinator will see an error message if they try to submit a whitespace-only clarification message", async () => {
+    const user = userEvent.setup();
+    const event = baseEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Marcus Lee", email: "marcus@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    renderPage();
+
+    const input = await screen.findByLabelText("Request clarification or amendment");
+    await user.type(input, "   \n\t  ");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(await screen.findByText("Clarification message cannot be blank.")).toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalledWith(
+      "/events/event-1/clarifications",
+      expect.anything(),
+    );
+  });
+
+  it("REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator", async () => {
     const event = baseEvent();
     apiMock.mockImplementation((path: string) =>
       path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
@@ -153,7 +180,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/comments");
   });
 
-  it("lets the organiser reply and clears the awaiting-reply indicator", async () => {
+  it("REQ-CLAR-02-B: Event Coordinator can see a clear indicator when a clarification request is awaiting Organiser's reply", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
     const openClarification = comment();
@@ -199,5 +226,61 @@ describe("EventDetailPage clarification thread", () => {
       );
     });
     expect(screen.queryByText("⏳ Awaiting Organiser’s reply")).not.toBeInTheDocument();
+  });
+
+  // REQ-CLAR-02-A
+  it("REQ-CLAR-02-A: Event Coordinator can see the full chronological history of comments and clarifications", async () => {
+    const event = baseEvent();
+    const answeredClarification = comment({
+      id: "comment-1",
+      message: "What is the expected room layout?",
+      createdAt: "2026-09-18T09:15:00.000Z",
+      awaitingReply: false,
+    });
+    const organiserReply = comment({
+      id: "comment-2",
+      parentId: "comment-1",
+      type: "reply",
+      authorId: "organiser-1",
+      authorName: "Priya Nair",
+      authorRole: "organiser",
+      message: "Room layout will be Banquet.",
+      awaitingReply: false,
+      createdAt: "2026-09-18T10:30:00.000Z",
+    });
+    const openClarification = comment({
+      id: "comment-3",
+      message: "Please confirm expected attendance.",
+      createdAt: "2026-09-18T11:00:00.000Z",
+      awaitingReply: true,
+    });
+
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments")
+        ? Promise.resolve([answeredClarification, organiserReply, openClarification])
+        : Promise.resolve(event),
+    );
+
+    useAppStore.setState({
+      currentUser: { id: "organiser-1", name: "Priya Nair", email: "priya@example.test", role: "organiser" },
+      events: [],
+    });
+
+    renderPage();
+
+    const entries = await screen.findAllByText(/^“.*”$/);
+    expect(entries.map((entry) => entry.textContent)).toEqual([
+      "“What is the expected room layout?”",
+      "“Room layout will be Banquet.”",
+      "“Please confirm expected attendance.”",
+    ]);
+
+    expect(screen.getByText(formatDateTime(answeredClarification.createdAt), { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(formatDateTime(organiserReply.createdAt), { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(formatDateTime(openClarification.createdAt), { exact: false })).toBeInTheDocument();
+
+    // Only the still-open clarification is marked as awaiting reply; the
+    // answered one and the reply itself are not.
+    expect(screen.getAllByText("⏳ Awaiting Organiser’s reply")).toHaveLength(1);
   });
 });

@@ -49,7 +49,8 @@ describe('Clarifications (e2e)', () => {
     );
   });
 
-  it('runs the full create -> view -> reply cycle', async () => {
+  // REQ-CLAR-01-A
+  it('REQ-CLAR-01-A: Event Coordinator can send a clarification request, status changes to Under Review, and Organiser is notified', async () => {
     const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({
@@ -81,6 +82,22 @@ describe('Clarifications (e2e)', () => {
     );
     expect(statusResult.rows[0].status).toBe('Under_Review');
 
+    // CLAR-01-A / AC6: organiser is notified in-app when the clarification is opened.
+    const notificationsAfterCreate = await pool.query<{
+      recipient_id: string;
+      type: string;
+      related_event_id: string;
+    }>('SELECT recipient_id, type, related_event_id FROM notifications WHERE related_event_id = $1', [
+      eventId,
+    ]);
+    expect(notificationsAfterCreate.rows).toEqual([
+      expect.objectContaining({
+        recipient_id: organiser.uid,
+        type: 'clarification',
+        related_event_id: eventId,
+      }),
+    ]);
+
     // AC7/AC8
     const threadBeforeReply = await request(app.getHttpServer())
       .get(`/api/events/${eventId}/comments`)
@@ -111,10 +128,21 @@ describe('Clarifications (e2e)', () => {
       authorRole: 'organiser',
       authorName: 'Priya Nair',
     });
+
+    // CLAR-02-B / AC6: coordinator is notified in-app once the organiser replies.
+    const notificationsAfterReply = await pool.query<{ recipient_id: string; type: string }>(
+      'SELECT recipient_id, type FROM notifications WHERE related_event_id = $1 ORDER BY created_at ASC',
+      [eventId],
+    );
+    expect(notificationsAfterReply.rows).toEqual([
+      expect.objectContaining({ recipient_id: organiser.uid, type: 'clarification' }),
+      expect.objectContaining({ recipient_id: coordinator.uid, type: 'clarification_reply' }),
+    ]);
   });
 
   // AC2/AC3
-  it('returns 400 for a blank clarification message and does not mutate status', async () => {
+  // REQ-CLAR-01-B
+  it('REQ-CLAR-01-B: Event Coordinator cannot submit a blank clarification message', async () => {
     const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({
@@ -125,7 +153,7 @@ describe('Clarifications (e2e)', () => {
     await request(app.getHttpServer())
       .post(`/api/events/${eventId}/clarifications`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ message: '   ' })
+      .send({ message: '' })
       .expect(400);
 
     const statusResult = await pool.query<{ status: string }>(
@@ -133,10 +161,114 @@ describe('Clarifications (e2e)', () => {
       [eventId],
     );
     expect(statusResult.rows[0].status).toBe('Submitted');
+
+    const commentCount = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM event_comments WHERE event_id = $1',
+      [eventId],
+    );
+    expect(commentCount.rows[0].count).toBe('0');
+
+    const notificationCount = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM notifications WHERE related_event_id = $1',
+      [eventId],
+    );
+    expect(notificationCount.rows[0].count).toBe('0');
   });
 
-  // AC9
-  it('returns 403 for a coordinator not assigned to the event', async () => {
+  // REQ-CLAR-01-C
+  it('REQ-CLAR-01-C: Event Coordinator cannot submit a whitespace-only clarification message', async () => {
+    const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
+    const eventId = await seedEvent({
+      organiserId: organiser.uid,
+      coordinatorId: coordinator.uid,
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ message: '   \n\t  ' })
+      .expect(400);
+
+    const statusResult = await pool.query<{ status: string }>(
+      'SELECT status FROM events WHERE id = $1',
+      [eventId],
+    );
+    expect(statusResult.rows[0].status).toBe('Submitted');
+
+    const commentCount = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM event_comments WHERE event_id = $1',
+      [eventId],
+    );
+    expect(commentCount.rows[0].count).toBe('0');
+  });
+
+  // REQ-CLAR-02-A
+  it('REQ-CLAR-02-A: Event Coordinator can see full chronological history with attribution and distinguishable types', async () => {
+    const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
+    const eventId = await seedEvent({
+      organiserId: organiser.uid,
+      coordinatorId: coordinator.uid,
+    });
+
+    const first = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ message: 'What is the expected room layout?' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${first.body.id}/reply`)
+      .set('Authorization', `Bearer ${organiser.idToken}`)
+      .send({ message: 'Room layout will be Banquet.' })
+      .expect(201);
+
+    const second = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ message: 'Please confirm expected attendance.' })
+      .expect(201);
+
+    const thread = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${organiser.idToken}`)
+      .expect(200);
+
+    expect(thread.body).toHaveLength(3);
+    // Chronological order, oldest first.
+    const timestamps = thread.body.map((entry: { createdAt: string }) =>
+      new Date(entry.createdAt).getTime(),
+    );
+    expect(timestamps).toEqual([...timestamps].sort((a, b) => a - b));
+
+    expect(thread.body[0]).toMatchObject({
+      id: first.body.id,
+      type: 'clarification',
+      authorName: 'Marcus Lee',
+      authorRole: 'coordinator',
+      awaitingReply: false,
+    });
+    expect(thread.body[1]).toMatchObject({
+      parentId: first.body.id,
+      type: 'reply',
+      authorName: 'Priya Nair',
+      authorRole: 'organiser',
+    });
+    expect(thread.body[2]).toMatchObject({
+      id: second.body.id,
+      type: 'clarification',
+      authorName: 'Marcus Lee',
+      authorRole: 'coordinator',
+      awaitingReply: true,
+    });
+    thread.body.forEach((entry: { createdAt: string }) => {
+      expect(Number.isNaN(new Date(entry.createdAt).getTime())).toBe(false);
+    });
+  });
+
+  // REQ-CLAR-03
+  it('REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator', async () => {
     const assignedCoordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
     const otherCoordinator = await createEmulatorUser('COORDINATOR', 'Someone Else');
     const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');

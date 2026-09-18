@@ -110,7 +110,7 @@ The Firebase Auth Emulator is used only by the GitHub Actions backend E2E test.
 
 Open `/planning` or `/events` and choose Create Event. The light-mode three-step form collects basic information, schedule/venue needs, and equipment needs. Successful submission opens the saved details and shows a confirmation. My Events reloads records from PostgreSQL through the backend API. Dates use the browser's local time zone and are sent as UTC.
 
-In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:3000`.
+In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
 variable is absent. Sign-in is implemented through Firebase. The event API,
 however, currently uses a fixed local demo organiser and is not tied to the
