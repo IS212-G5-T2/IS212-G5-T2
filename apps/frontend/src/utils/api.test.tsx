@@ -1,4 +1,11 @@
 import { afterEach, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/firebase", () => ({
+  auth: {
+    currentUser: null,
+  },
+}));
+
 import { api, ApiError } from "./api";
 afterEach(() => {
   vi.unstubAllGlobals();
