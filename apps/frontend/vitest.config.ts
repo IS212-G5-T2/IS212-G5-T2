@@ -6,6 +6,7 @@ export default mergeConfig(
     test: {
       environment: "jsdom",
       include: ["src/**/*.test.tsx"],
+      exclude: ["**/*.playwright.spec.ts"],
     },
   }),
 );

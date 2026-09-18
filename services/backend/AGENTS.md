@@ -41,5 +41,7 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 - `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table.
 - Coordinate local schema assets with `development/database` and API consumers with `apps/frontend`.
-- Local demo identity is not authentication; account integration, email, drafts, and review transitions are outside this implementation.
+- `src/events/drafts.*` owns draft persistence, versioned saves, and atomic submission into `events`. Its additive schema is `migrations/001_event_drafts.sql`; `scripts/migrate-drafts.mjs` applies it to existing databases.
+- Local demo identity is not authentication; account/organisation integration, email and review transitions are outside this implementation. All demo visitors share one organiser; do not claim organisation isolation.
+- Unit tests stay beside their modules as `.spec.ts`; database/API tests use `.e2e-spec.ts` and run only through the integration configuration with `TEST_DATABASE_URL` set. Browser harnesses belong in `scripts/testing/`.
 - Run `tests/database/SPM-36/event-request-persistence.e2e-spec.mjs` inside the running backend container as documented in README for shared-stack checks; it cleans up only its own event.

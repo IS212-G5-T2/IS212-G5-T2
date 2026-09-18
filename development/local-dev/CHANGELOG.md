@@ -15,3 +15,5 @@
 ## Event request sample
 
 - Documented additive events schema/seed setup for existing volumes and the local demo organiser configuration.
+
+- Fresh database volumes mount the backend draft migration after the events schema. Existing volumes require the additive migration command in README; no volume reset is needed.

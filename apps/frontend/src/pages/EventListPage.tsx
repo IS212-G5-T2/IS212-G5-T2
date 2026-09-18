@@ -11,7 +11,6 @@ import type { EventStatus } from "@/types";
 
 const statusOptions: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
-  { value: "draft", label: "Draft" },
   { value: "submitted", label: "Submitted" },
   { value: "under_review", label: "Under Review" },
   { value: "approved", label: "Approved" },

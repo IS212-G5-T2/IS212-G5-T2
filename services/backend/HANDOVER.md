@@ -17,3 +17,7 @@ The generated starter endpoint currently returns `Hello World!`. The events cont
 ## Event persistence
 
 `src/events` owns submission validation and the API. Local schema initialization belongs to `development/database`; production migrations remain outside this ticket. The `DEMO_ORGANISER_ENABLED` switch must be replaced by authenticated server identity integration before multi-user use. Never trust an organiser ID or status supplied by the client. Keep the nested TypeScript 5 lock entry when using local npm 11; Docker npm 10 requires it.
+
+## Draft continuity
+
+`event_drafts` holds partial JSON fields separately from strictly validated `events`. DraftsService calls EventsService.create with its existing transaction connection on submission; preserve that shared transaction and row lock. Do not expose the internal transaction/event-ID arguments as client input. Apply migrations/001_event_drafts.sql to existing databases; Compose mounts it for new volumes. AC7 remains deferred: shared demo identity cannot isolate organisations. Event Change Requests remain the workflow for post-submit changes. `fields.formStep` is an optional integer (0-2, matching the frontend's three wizard steps) validated in `validateDraft`; it is opaque server-side and only round-trips for the client to resume on save.

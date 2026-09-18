@@ -104,6 +104,36 @@ afterEach(() => {
 });
 
 describe('EventsService', () => {
+  it('Q1-042 loads the submitted draft event and defaults legacy attachments', async () => {
+    const row = { ...savedEventRow(), attachments: null };
+    db.query.mockResolvedValue({ rows: [row] });
+    expect(await service.get(row.id)).toMatchObject({
+      id: row.id,
+      attachments: [],
+    });
+    await service.onModuleDestroy();
+    expect(db.end).toHaveBeenCalledOnce();
+  });
+  it('Q1-043 draft submission shares transaction ownership on success and failure', async () => {
+    const row = savedEventRow();
+    const client = { query: db.transaction, release: db.release };
+    db.transaction.mockResolvedValueOnce({ rows: [row] });
+    expect(
+      await service.create(validEventRequest(), client as never, row.id),
+    ).toMatchObject({ event: { id: row.id } });
+    expect(db.connect).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalledWith('BEGIN');
+    expect(db.transaction).not.toHaveBeenCalledWith('COMMIT');
+    expect(db.release).not.toHaveBeenCalled();
+    db.transaction.mockRejectedValueOnce(
+      new Error('shared transaction failed'),
+    );
+    await expect(
+      service.create(validEventRequest(), client as never, row.id),
+    ).rejects.toThrow('shared transaction failed');
+    expect(db.transaction).not.toHaveBeenCalledWith('ROLLBACK');
+    expect(db.release).not.toHaveBeenCalled();
+  });
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
   it('rejects invalid requests before opening a database transaction', async () => {
     await expect(
@@ -240,9 +270,9 @@ describe('EventsService', () => {
   it('returns not found for malformed and unknown event IDs', async () => {
     const row = savedEventRow();
 
-    await expect(
-      service.get('not-a-valid-event-id'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.get('not-a-valid-event-id')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(db.query).not.toHaveBeenCalled();
 
     db.query.mockResolvedValue({ rows: [] });

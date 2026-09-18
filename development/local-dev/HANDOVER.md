@@ -15,3 +15,5 @@ The Compose build contexts currently expect `../../apps/frontend` for the React/
 ## Event requests
 
 The backend now uses DATABASE_URL for event persistence and DEMO_ORGANISER_ENABLED for the account-free local sample. Apply the additive events SQL scripts using README instructions for existing volumes. Email delivery is deferred. Preserve existing database data when testing.
+
+Draft storage is backend-owned. Compose mounts its migration into PostgreSQL initialization for new volumes; apply it manually to existing volumes as documented in README. Preserve both the shared volume and existing records during upgrades.
