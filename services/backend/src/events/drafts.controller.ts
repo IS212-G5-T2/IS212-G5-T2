@@ -1,17 +1,11 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Inject,
-  Param,
-  Post,
-  Put,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { DraftsService } from './drafts.service.js';
 
+/* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Controller('api/requests')
 export class DraftsController {
-  constructor(@Inject(DraftsService) private readonly drafts: DraftsService) {}
+  /* v8 ignore stop */
+  constructor(private readonly drafts: DraftsService) {}
   @Get() list() {
     return this.drafts.list();
   }

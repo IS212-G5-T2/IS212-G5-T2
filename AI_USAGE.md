@@ -355,3 +355,14 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Findings: Requested unit-test discovery revert is not applied (`src/**/*.spec.ts` remains). Original event-requests service was removed, but explicit @Inject remains in replacement draft service/controller; reviewer clarification is still needed. Old migrate.mjs and browser-fixture.mjs were replaced, but no evidence establishes compliance with the reviewer's unspecified migration schedule/destination.
 - Checks: Current files, tracked script inventory, clean initial status and remote branch hash. Tests not rerun for this read-only comparison.
 - Follow-up: Outdated review locations do not prove the underlying comments are resolved. Ledger entry left unstaged; no commit or push.
+
+## 2026-09-19 - Claude Opus 4.8 - Remove redundant @Inject in draft service/controller
+
+- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37 (open PR; reviewer JacobSoh asked why `@Inject` was used).
+- Human requester/operator: Kishore kirubakaran.
+- Areas touched: `services/backend/src/events/drafts.service.ts`, `services/backend/src/events/drafts.controller.ts`, `AI_USAGE.md`.
+- Summary: Removed the redundant `@Inject(EventsService)` / `@Inject(DraftsService)` decorators (Nest resolves these by type since `emitDecoratorMetadata` is enabled), per review. This reverses the earlier "retain @Inject" decision. Removing the decorators exposed an unreachable branch in TypeScript's emitted `design:paramtypes` guard (`typeof X === "undefined" ? Object : X`) that v8 counted as half-covered; wrapped only the class-declaration line in a scoped `/* v8 ignore start/stop */` (method bodies still fully counted) so per-file coverage stays a genuine 100%.
+- AI contribution: Refactor, coverage-artifact diagnosis, scoped v8 ignore, verification, documentation.
+- Assumptions: `@Inject(Class)` was purely redundant here; the excluded branch is compiler-generated and unreachable, so ignoring it does not hide any real code path. `events.controller.ts` (SPM-36 scope) still uses `@Inject` and was left unchanged.
+- Checks run: Backend `npm test` 260/260; `npm run test:cov:spm37` 100% statements/branches/functions/lines for the eight configured files; `npm run lint` and `nest build` (Node 24) passed.
+- Follow-up/conflict notes: Supersedes the earlier ledger note that retained `@Inject` to preserve the coverage gate. No behavioural change; DI resolves identically by type.

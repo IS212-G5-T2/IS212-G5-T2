@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  Inject,
   Injectable,
   NotFoundException,
   type OnModuleDestroy,
@@ -11,13 +10,15 @@ import pg from 'pg';
 import { EventsService } from './events.service.js';
 import { uuid, validateDraft } from './draft-input.js';
 
+/* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Injectable()
 export class DraftsService implements OnModuleDestroy {
+  /* v8 ignore stop */
   private readonly pool = new pg.Pool({
     connectionString: process.env.DATABASE_URL,
     connectionTimeoutMillis: 5000,
   });
-  constructor(@Inject(EventsService) private readonly events: EventsService) {}
+  constructor(private readonly events: EventsService) {}
   async onModuleDestroy() {
     await this.pool.end();
   }
