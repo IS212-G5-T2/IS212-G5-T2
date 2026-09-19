@@ -3,7 +3,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { loadEnvironment } from './config/load-environment.js';
 import { AppModule } from './app.module.js';
 
-const MAX_BODY_SIZE = '15mb';
+const MAX_BODY_SIZE = '50mb';
 
 async function bootstrap() {
   loadEnvironment();

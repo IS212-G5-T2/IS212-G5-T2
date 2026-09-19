@@ -143,7 +143,7 @@ describe('EventsService', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
 
-  // SPM-36 Test Case EVE-CRE-06-A
+  // SPM-36 Test Case EVE-CRE-06-A (its attachment assertion below also incidentally covers EVE-CRE-08-A persistence)
   it('saves a valid request under the authenticated organiser with Submitted status', async () => {
     const request = validEventRequest();
     const row = savedEventRow();
