@@ -12,6 +12,7 @@ import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
+import { MyRequestsPage } from "@/pages/MyRequestsPage";
 import { EventEditPage } from "@/pages/EventEditPage";
 import { EventChangeRequestsPage } from "@/pages/EventChangeRequestsPage";
 import { VenuesPage } from "@/pages/VenuesPage";
@@ -53,6 +54,8 @@ export default function App() {
         <Route path="/events" element={<EventListPage />} />
         <Route element={<RequireRole allowedRoles={["organiser"]} />}>
           <Route path="/events/create" element={<EventCreatePage />} />
+          <Route path="/requests" element={<MyRequestsPage />} />
+          <Route path="/requests/:id" element={<EventCreatePage />} />
           <Route element={<RequireEventOwner />}>
             <Route path="/events/:id/edit" element={<EventEditPage />} />
           </Route>

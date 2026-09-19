@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody } from "@/components/ui/Card";
 import {
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { api, ApiError } from "@/utils/api";
 import type { EventAttachment, EventRecord } from "@/types";
 import { useAppStore } from "@/store/useAppStore";
+import type { DraftFields, DraftRecord } from "@/types/draft";
 
 const steps = [
   "Basic Information",
@@ -44,6 +45,11 @@ function readAttachment(file: File): Promise<EventAttachment> {
 }
 
 export function EventCreatePage() {
+  const { id } = useParams();
+  return <EventRequestForm key={id ?? "new"} draftId={id} />;
+}
+
+function EventRequestForm({ draftId }: { draftId?: string }) {
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -51,6 +57,20 @@ export function EventCreatePage() {
   const [uploadFailure, setUploadFailure] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submissionKey] = useState(() => crypto.randomUUID());
+  const [requestId] = useState(() => draftId ?? crypto.randomUUID());
+  const version = useRef(0);
+  const inFlight = useRef(false);
+  const pending = useRef<{
+    fields: DraftFields;
+    version: number;
+    operationId: string;
+  } | null>(null);
+  const [loading, setLoading] = useState(Boolean(draftId));
+  const [loadFailure, setLoadFailure] = useState("");
+  const [locked, setLocked] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [readingFiles, setReadingFiles] = useState(false);
   const [minimumStartDate] = useState(todayInputValue);
   const [form, setForm] = useState({
     name: "",
@@ -67,6 +87,96 @@ export function EventCreatePage() {
     attachments: [] as EventAttachment[],
     equipmentNeeds: "",
   });
+  useEffect(() => {
+    if (!draftId) return;
+    let active = true;
+    api<DraftRecord>(`/requests/${draftId}`)
+      .then((result) => {
+        if (!active) return;
+        version.current = result.version;
+        if (result.status !== "Draft") setLocked(true);
+        else {
+          const { formStep, ...values } = result.fields;
+          setForm(values);
+          setStep(
+            Number.isInteger(formStep) &&
+              formStep! >= 0 &&
+              formStep! < steps.length
+              ? formStep!
+              : 0,
+          );
+        }
+      })
+      .catch((error) => {
+        if (active)
+          setLoadFailure(
+            error instanceof Error
+              ? error.message
+              : "Unable to load this request.",
+          );
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [draftId]);
+
+  async function persistDraft() {
+    const snapshot = { ...form, formStep: step };
+    // Retry the exact uncertain operation before saving any edits made after a failure.
+    let last: DraftRecord | undefined;
+    if (pending.current) {
+      last = await api<DraftRecord>(`/requests/${requestId}`, {
+        method: "PUT",
+        body: JSON.stringify(pending.current),
+      });
+      version.current = last.version;
+      const unchanged =
+        JSON.stringify(pending.current.fields) === JSON.stringify(snapshot);
+      pending.current = null;
+      if (unchanged) return last;
+    }
+    pending.current = {
+      fields: snapshot,
+      version: version.current,
+      operationId: crypto.randomUUID(),
+    };
+    last = await api<DraftRecord>(`/requests/${requestId}`, {
+      method: "PUT",
+      body: JSON.stringify(pending.current),
+    });
+    version.current = last.version;
+    pending.current = null;
+    return last;
+  }
+  async function saveDraft() {
+    if (inFlight.current || readingFiles || locked) return;
+    inFlight.current = true;
+    setBusy(true);
+    setSaving(true);
+    setFailure("");
+    try {
+      await persistDraft();
+      setErrors({});
+      setSaved(true);
+    } catch (error) {
+      setFailure(
+        error instanceof Error
+          ? error.message
+          : "Unable to save draft. Please try again.",
+      );
+      if (error instanceof ApiError && error.errors) {
+        setErrors(error.errors);
+        pending.current = null;
+      }
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
+      setSaving(false);
+    }
+  }
   const change = <K extends keyof typeof form>(
     key: K,
     value: (typeof form)[K],
@@ -109,7 +219,7 @@ export function EventCreatePage() {
     }
     setErrors(next);
     if (Object.keys(next).length) {
-      if (next.name || next.purpose) setStep(0);
+      if (next.name || next.purpose || next.description) setStep(0);
       else setStep(1);
       return false;
     }
@@ -118,14 +228,26 @@ export function EventCreatePage() {
   async function addFiles(files: FileList | null) {
     if (!files?.length) return;
     setUploadFailure("");
+    if (
+      form.attachments.length + files.length > 5 ||
+      Array.from(files).some((file) => file.size > 1024 * 1024)
+    ) {
+      setUploadFailure("Use up to five files, each no larger than 1 MB.");
+      return;
+    }
+    setReadingFiles(true);
     try {
-      const attachments = await Promise.all(Array.from(files).map(readAttachment));
+      const attachments = await Promise.all(
+        Array.from(files).map(readAttachment),
+      );
       setForm((f) => ({
         ...f,
         attachments: [...f.attachments, ...attachments],
       }));
     } catch {
       setUploadFailure("Unable to read the selected file. Please try again.");
+    } finally {
+      setReadingFiles(false);
     }
   }
   function removeFile(id: string) {
@@ -136,19 +258,24 @@ export function EventCreatePage() {
   }
   async function advance(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || !validate()) return;
+    if (inFlight.current || readingFiles || locked || !validate()) return;
     if (step < 2) {
       setStep(step + 1);
       return;
     }
     setBusy(true);
+    inFlight.current = true;
     setFailure("");
     try {
+      const isDraft =
+        Boolean(draftId) || version.current > 0 || Boolean(pending.current);
+      if (isDraft) await persistDraft();
       const result = await api<{ event: EventRecord; message: string }>(
-        "/events",
+        isDraft ? `/requests/${requestId}/submit` : "/events",
         {
           method: "POST",
           body: JSON.stringify({
+            version: version.current,
             name: form.name,
             purpose: form.purpose,
             description: form.description,
@@ -184,12 +311,29 @@ export function EventCreatePage() {
       if (error instanceof ApiError && error.errors) setErrors(error.errors);
     } finally {
       setBusy(false);
+      inFlight.current = false;
     }
   }
+  if (loading) return <p role="status">Loading draft…</p>;
+  if (loadFailure || locked)
+    return (
+      <div className="mx-auto max-w-2xl">
+        <PageHeader
+          title={locked ? "Request submitted" : "Unable to open request"}
+        />
+        <p role="alert">
+          {loadFailure ||
+            "This request has been submitted. Further changes must follow the Event Change Requests workflow."}
+        </p>
+        <Link className="mt-4 inline-block text-primary-700" to="/requests">
+          Back to My Requests
+        </Link>
+      </div>
+    );
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader
-        title="Create New Event Request"
+        title={draftId ? "Edit Draft Request" : "Create New Event Request"}
         description="Share your event plans for review and approval."
       />
       <ol className="mb-7 grid grid-cols-3 gap-3" aria-label="Request progress">
@@ -209,11 +353,12 @@ export function EventCreatePage() {
         ))}
       </ol>
       <form noValidate onSubmit={advance}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || readingFiles}>
           <Card>
             <CardBody>
               <p className="mb-5 text-xs text-gray-500">
-                Fields marked * are required.
+                Fields marked * are required to submit. You can save an
+                incomplete draft at any step.
               </p>
               {step === 0 && (
                 <>
@@ -353,11 +498,12 @@ export function EventCreatePage() {
                       className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary-700 dark:text-gray-300"
                     />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Optional. Upload supporting files for the coordinator to review.
+                      Optional. Upload supporting files for the coordinator to
+                      review.
                     </p>
-                    {uploadFailure && (
+                    {(uploadFailure || errors.attachments) && (
                       <p className="mt-1 text-xs text-danger-600" role="alert">
-                        {uploadFailure}
+                        {uploadFailure || errors.attachments}
                       </p>
                     )}
                     {form.attachments.length > 0 && (
@@ -367,9 +513,7 @@ export function EventCreatePage() {
                             key={attachment.id}
                             className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
                           >
-                            <span className="truncate">
-                              {attachment.name}
-                            </span>
+                            <span className="truncate">{attachment.name}</span>
                             <Button
                               type="button"
                               variant="ghost"
@@ -409,7 +553,9 @@ export function EventCreatePage() {
                         Layout: form.layout,
                         Facilities: form.facilities.join(", "),
                         Accessibility: form.accessibility.join(", "),
-                        Files: form.attachments.map((file) => file.name).join(", "),
+                        Files: form.attachments
+                          .map((file) => file.name)
+                          .join(", "),
                         Equipment: form.equipmentNeeds,
                       }).map(([label, value]) => (
                         <div
@@ -440,7 +586,7 @@ export function EventCreatePage() {
               {failure}
             </p>
           )}
-          <div className="mt-5 flex items-center justify-between">
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
             {step > 0 ? (
               <Button
                 type="button"
@@ -450,20 +596,56 @@ export function EventCreatePage() {
                 ← Back
               </Button>
             ) : (
-              <Link className="text-sm text-gray-500" to="/events">
-                ← My Events
+              <Link className="text-sm text-gray-500" to="/requests">
+                ← My Requests
               </Link>
             )}
-            <Button type="submit" disabled={busy}>
-              {busy
-                ? "Submitting…"
-                : step === 2
-                  ? "Submit for Review"
-                  : "Continue ▸"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={busy || readingFiles}
+                onClick={() => void saveDraft()}
+              >
+                {saving ? "Saving…" : "Save draft"}
+              </Button>
+              <Button type="submit" disabled={busy || readingFiles}>
+                {busy
+                  ? saving
+                    ? "Continue ▸"
+                    : "Submitting…"
+                  : step === 2
+                    ? "Submit for Review"
+                    : "Continue ▸"}
+              </Button>
+            </div>
           </div>
         </fieldset>
       </form>
+      {saved && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="draft-saved-title"
+            onKeyDown={(event) => {
+              if (event.key === "Tab") event.preventDefault();
+            }}
+            className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800"
+          >
+            <h2 id="draft-saved-title" className="text-lg font-semibold">
+              Draft saved
+            </h2>
+            <p className="my-4 text-sm">
+              Your request is saved as Draft and has not been submitted. Reopen
+              it from My Requests to continue.
+            </p>
+            <Button autoFocus onClick={() => navigate("/requests")}>
+              OK
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
