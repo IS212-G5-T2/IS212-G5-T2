@@ -158,8 +158,8 @@ export function ClarificationThread({
                     <span
                       className={`ml-2 px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0 ${
                         status === "pending"
-                          ? "bg-amber-900/30 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400"
-                          : "bg-emerald-900/30 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400"
+                          ? "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300"
+                          : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
                       }`}
                     >
                       <span>{status === "pending" ? "⏳" : "✓"}</span>
