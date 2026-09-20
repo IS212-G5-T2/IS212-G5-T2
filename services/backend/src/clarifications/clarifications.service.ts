@@ -273,13 +273,13 @@ export class ClarificationsService {
   ): 'organiser' | 'coordinator' {
     const demo = process.env.DEMO_ORGANISER_ENABLED === 'true';
 
-    const isOrganiser =
-      user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
-    if (isOrganiser) return 'organiser';
-
     const isAssignedCoordinator =
       user.roles.includes('COORDINATOR') && (demo || event.coordinator_id === user.uid);
     if (isAssignedCoordinator) return 'coordinator';
+
+    const isOrganiser =
+      user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
+    if (isOrganiser) return 'organiser';
 
     throw new ForbiddenException(
       "Only this event's organiser or assigned coordinator can do this.",
