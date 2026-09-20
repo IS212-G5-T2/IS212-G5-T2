@@ -273,12 +273,18 @@ export class ClarificationsService {
   ): 'organiser' | 'coordinator' {
     const demo = process.env.DEMO_ORGANISER_ENABLED === 'true';
 
-    const isAssignedCoordinator =
-      user.roles.includes('COORDINATOR') && (demo || event.coordinator_id === user.uid);
-    if (isAssignedCoordinator) return 'coordinator';
-
+    // Check organiser: must either be in demo mode or match the event's organiser_id
     const isOrganiser =
       user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
+
+    // Check coordinator: must either be in demo mode, match assigned coordinator_id,
+    // or have the COORDINATOR role when no coordinator is assigned yet
+    const isCoordinator =
+      user.roles.includes('COORDINATOR') &&
+      (demo || event.coordinator_id === user.uid || !event.coordinator_id);
+
+    // If both checks pass, prioritize coordinator (since they initiiate clarifications)
+    if (isCoordinator) return 'coordinator';
     if (isOrganiser) return 'organiser';
 
     throw new ForbiddenException(
