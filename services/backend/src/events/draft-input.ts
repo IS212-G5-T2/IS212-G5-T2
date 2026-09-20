@@ -91,13 +91,11 @@ export function validateDraft(body: unknown) {
         a.type.length > 100 ||
         !Number.isInteger(a.size) ||
         a.size < 0 ||
-        a.size > 1024 * 1024 ||
         typeof a.dataUrl !== 'string' ||
-        !a.dataUrl.startsWith('data:') ||
-        a.dataUrl.length > 1400000,
+        !a.dataUrl.startsWith('data:'),
     )
   )
-    errors.attachments = 'Use up to five files, each no larger than 1 MB.';
+    errors.attachments = 'Use up to five valid files.';
   const result: DraftFields = {
     ...(fields.formStep !== undefined
       ? { formStep: fields.formStep as number }

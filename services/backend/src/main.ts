@@ -3,7 +3,13 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { loadEnvironment } from './config/load-environment.js';
 import { AppModule } from './app.module.js';
 
-const MAX_BODY_SIZE = '50mb';
+// The frontend caps attachments at 50MB of raw file bytes, but files reach
+// this service base64-encoded inside JSON `data:` URLs, which inflates them by
+// ~33% (plus the surrounding event fields). The body cap must clear that
+// encoded size so a valid 50MB upload isn't rejected with a 413:
+// 50MB * 4/3 ≈ 66.7MB, and 80MB leaves comfortable headroom for the JSON
+// envelope on top of the encoded payload.
+const MAX_BODY_SIZE = '80mb';
 
 async function bootstrap() {
   loadEnvironment();

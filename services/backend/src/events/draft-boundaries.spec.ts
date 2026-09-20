@@ -143,7 +143,7 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
     'Q1-017 rejects attachment container %j',
     (attachments) => rejects(payload({ attachments }), 'attachments'),
   );
-  it.each([0, 1, 1048575, 1048576])(
+  it.each([0, 1, 1048576, 52428800])(
     'Q1-018 accepts attachment byte size %s',
     (size) =>
       expect(
@@ -151,7 +151,7 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
           .fields.attachments[0].size,
       ).toBe(size),
   );
-  it.each([-1, 1048577, 0.5, '2'])(
+  it.each([-1, 0.5, '2'])(
     'Q1-019 rejects attachment byte size %j',
     (size) =>
       rejects(
@@ -159,11 +159,17 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
         'attachments',
       ),
   );
+  it('Q1-020b accepts a large data URL beyond the old 1.4MB cap', () => {
+    const dataUrl = 'data:text/plain;base64,' + 'a'.repeat(2_000_000);
+    expect(
+      validateDraft(payload({ attachments: [{ ...attachment, dataUrl }] }))
+        .fields.attachments[0],
+    ).toHaveProperty('dataUrl', dataUrl);
+  });
   for (const [field, limit] of Object.entries({
     id: 100,
     name: 255,
     type: 100,
-    dataUrl: 1400000,
   })) {
     it.each([limit - 1, limit])(
       `Q1-020 attachment ${field} accepts length %s`,

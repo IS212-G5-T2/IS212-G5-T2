@@ -225,14 +225,23 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     }
     return true;
   }
-  async function addFiles(files: FileList | null) {
+  async function addFiles(files: File[] | null) {
     if (!files?.length) return;
     setUploadFailure("");
-    if (
-      form.attachments.length + files.length > 5 ||
-      Array.from(files).some((file) => file.size > 1024 * 1024)
-    ) {
-      setUploadFailure("Use up to five files, each no larger than 1 MB.");
+    if (form.attachments.length + files.length > 5) {
+      setUploadFailure("Use up to five files.");
+      return;
+    }
+    const existingBytes = form.attachments.reduce(
+      (total, attachment) => total + attachment.size,
+      0,
+    );
+    const incomingBytes = Array.from(files).reduce(
+      (total, file) => total + file.size,
+      0,
+    );
+    if (existingBytes + incomingBytes > 50 * 1024 * 1024) {
+      setUploadFailure("Use up to five files, 50 MB total.");
       return;
     }
     setReadingFiles(true);
@@ -494,12 +503,25 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                       id="supporting-files"
                       type="file"
                       multiple
-                      onChange={(event) => void addFiles(event.target.files)}
+                      onChange={(event) => {
+                        const input = event.target;
+                        // Snapshot the File objects before clearing the input:
+                        // resetting value empties input.files, but the captured
+                        // File refs stay valid. Clearing it means a rejected
+                        // (or removed-then-reselected) file doesn't linger next
+                        // to the button, and re-picking the same file re-fires
+                        // onChange.
+                        const selected = input.files
+                          ? Array.from(input.files)
+                          : [];
+                        input.value = "";
+                        void addFiles(selected);
+                      }}
                       className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary-700 dark:text-gray-300"
                     />
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Optional. Upload supporting files for the coordinator to
-                      review.
+                      Optional. Upload up to five supporting files (50 MB
+                      total) for the coordinator to review.
                     </p>
                     {(uploadFailure || errors.attachments) && (
                       <p className="mt-1 text-xs text-danger-600" role="alert">
