@@ -34,16 +34,15 @@ export function RequireRole({
   }
 
   if (!allowedRoles.includes(role)) {
-    return <Navigate to="/events" replace />;
     const fallback =
       role === "venue_staff"
         ? "/venues"
         : role === "tech_support"
           ? "/equipment/requests"
           : "/events";
+
     return <Navigate to={fallback} replace />;
   }
 
   return children ?? <Outlet />;
 }
-// SPM-37 role guard

@@ -187,6 +187,27 @@ describe("restricted organiser routes", () => {
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 
+  // SPM-37: cover every branch of RequireRole's role-specific fallback redirect.
+  it("redirects unauthorized venue_staff to /venues", () => {
+    useAppStore.setState({
+      currentUser: { ...organiser, id: "vs-1", role: "venue_staff" as const },
+    });
+
+    renderRoutes("/events/create");
+
+    expect(screen.queryByText("Create event")).not.toBeInTheDocument();
+  });
+
+  it("redirects unauthorized tech_support to /equipment/requests", () => {
+    useAppStore.setState({
+      currentUser: { ...organiser, id: "ts-1", role: "tech_support" as const },
+    });
+
+    renderRoutes("/events/create");
+
+    expect(screen.queryByText("Create event")).not.toBeInTheDocument();
+  });
+
   it("redirects an organiser who directly opens another organiser's event", () => {
     useAppStore.setState({ currentUser: { ...organiser, id: "organiser-2" } });
     renderRoutes("/events/event-1/edit");
