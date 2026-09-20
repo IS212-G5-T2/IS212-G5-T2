@@ -55,3 +55,23 @@ it.each([
   await expect(api("/requests")).rejects.toMatchObject({ message });
   await expect(api("/requests")).rejects.toBeInstanceOf(ApiError);
 });
+// SPM-36: a 413 from the body-size limit may not have a JSON body at all
+// (e.g. a bare body-parser rejection); the oversized-file message must still
+// surface even when response.json() itself throws.
+it("SPM-36 API status 413 with a non-JSON body still gives the oversized-file message", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: false,
+      status: 413,
+      json: async () => {
+        throw new Error("not JSON");
+      },
+    }),
+  );
+  await expect(api("/requests")).rejects.toMatchObject({
+    message:
+      "The files you attached are too large. Please attach smaller files and try again.",
+  });
+  await expect(api("/requests")).rejects.toBeInstanceOf(ApiError);
+});
