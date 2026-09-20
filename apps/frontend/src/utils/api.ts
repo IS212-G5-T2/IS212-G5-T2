@@ -21,14 +21,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
     if (idToken) {
       headers.Authorization = `Bearer ${idToken}`;
-    } else {
-      // In demo mode without a token, send the current user's role
-      const currentUser = useAppStore.getState().currentUser;
-      if (currentUser.role === "organiser") {
-        headers["X-Demo-Role"] = "ORGANISER";
-      } else if (currentUser.role === "coordinator") {
-        headers["X-Demo-Role"] = "COORDINATOR";
-      }
+    }
+
+    // Always send the current user's role for demo mode and clarifications endpoints
+    const currentUser = useAppStore.getState().currentUser;
+    if (currentUser.role === "organiser") {
+      headers["X-Demo-Role"] = "ORGANISER";
+    } else if (currentUser.role === "coordinator") {
+      headers["X-Demo-Role"] = "COORDINATOR";
     }
 
     response = await fetch(

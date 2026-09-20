@@ -56,7 +56,8 @@ export class ClarificationsController {
 
     // Demo mode fallback: return a stub user with a role inferred from X-Demo-Role header
     if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
-      const demoRole = request.header('X-Demo-Role') || 'ORGANISER';
+      const headerRole = request.header('X-Demo-Role') || 'ORGANISER';
+      const demoRole = headerRole.toUpperCase();
       return {
         uid: `demo-${demoRole.toLowerCase()}`,
         roles: [demoRole],
