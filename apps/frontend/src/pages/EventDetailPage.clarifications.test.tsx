@@ -50,6 +50,7 @@ function comment(overrides: Partial<EventComment> = {}): EventComment {
     authorRole: "coordinator",
     message: "Please confirm whether livestream needs a second camera angle.",
     awaitingReply: true,
+    resolved: false,
     createdAt: "2026-09-18T13:05:00.000Z",
     ...overrides,
   };
@@ -198,7 +199,7 @@ describe("EventDetailPage clarification thread", () => {
     let repliedYet = false;
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
       if (path === "/events/event-1/comments") {
-        return Promise.resolve(repliedYet ? [{ ...openClarification, awaitingReply: false }, reply] : [openClarification]);
+        return Promise.resolve(repliedYet ? [openClarification, reply] : [openClarification]);
       }
       if (path === "/events/event-1/clarifications/comment-1/reply" && init?.method === "POST") {
         repliedYet = true;
@@ -229,11 +230,59 @@ describe("EventDetailPage clarification thread", () => {
       );
     });
 
-    // After reply, status should change to "Answered" (or be filtered out)
+    // A reply alone doesn't close the thread — it's still pending until
+    // someone explicitly resolves it, so the organiser and coordinator can
+    // keep exchanging messages.
     await waitFor(() => {
-      const pendingElements = screen.queryAllByText("Pending");
-      expect(pendingElements.length).toBe(0);
+      expect(screen.getByText("Yes, please add a second angle on the main stage.")).toBeInTheDocument();
     });
+    expect(screen.getByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
+  });
+
+  it("both organiser and coordinator can resolve a clarification, which hides the reply button and marks it Answered", async () => {
+    const user = userEvent.setup();
+    const event = baseEvent();
+    const openClarification = comment();
+    const resolvedClarification = comment({ resolved: true, awaitingReply: false });
+
+    let resolvedYet = false;
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/events/event-1/comments") {
+        return Promise.resolve([resolvedYet ? resolvedClarification : openClarification]);
+      }
+      if (path === "/events/event-1/clarifications/comment-1/resolve" && init?.method === "POST") {
+        resolvedYet = true;
+        return Promise.resolve(resolvedClarification);
+      }
+      return Promise.resolve(event);
+    });
+
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Marcus Lee", email: "marcus@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Pending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Resolve" }));
+
+    await waitFor(() => {
+      expect(apiMock).toHaveBeenCalledWith(
+        "/events/event-1/clarifications/comment-1/resolve",
+        expect.objectContaining({ method: "POST" }),
+      );
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Answered")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Pending")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
   });
 
   // REQ-CLAR-02-A
@@ -244,6 +293,7 @@ describe("EventDetailPage clarification thread", () => {
       message: "What is the expected room layout?",
       createdAt: "2026-09-18T09:15:00.000Z",
       awaitingReply: false,
+      resolved: true,
     });
     const organiserReply = comment({
       id: "comment-2",
@@ -261,6 +311,7 @@ describe("EventDetailPage clarification thread", () => {
       message: "Please confirm expected attendance.",
       createdAt: "2026-09-18T11:00:00.000Z",
       awaitingReply: true,
+      resolved: false,
     });
 
     apiMock.mockImplementation((path: string) =>

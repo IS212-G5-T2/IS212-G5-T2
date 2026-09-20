@@ -122,7 +122,13 @@ describe('Clarifications (e2e)', () => {
       .set('Authorization', `Bearer ${coordinator.idToken}`)
       .expect(200);
     expect(threadAfterReply.body).toHaveLength(2);
-    expect(threadAfterReply.body[0]).toMatchObject({ id: clarificationId, awaitingReply: false });
+    // A reply no longer auto-closes the thread — it stays pending until
+    // someone explicitly resolves it, so the exchange can continue.
+    expect(threadAfterReply.body[0]).toMatchObject({
+      id: clarificationId,
+      awaitingReply: true,
+      resolved: false,
+    });
     expect(threadAfterReply.body[1]).toMatchObject({
       parentId: clarificationId,
       authorRole: 'organiser',
@@ -138,6 +144,51 @@ describe('Clarifications (e2e)', () => {
       expect.objectContaining({ recipient_id: organiser.uid, type: 'clarification' }),
       expect.objectContaining({ recipient_id: coordinator.uid, type: 'clarification_reply' }),
     ]);
+
+    // The coordinator can keep replying — the thread isn't closed by the
+    // organiser's first reply.
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/reply`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .send({ message: 'Great, thanks for confirming.' })
+      .expect(201)
+      .expect((response) => {
+        if (response.body.authorRole !== 'coordinator') {
+          throw new Error('Reply did not record the coordinator as author');
+        }
+      });
+
+    // Only an explicit resolve closes the thread.
+    const resolveResponse = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/resolve`)
+      .set('Authorization', `Bearer ${coordinator.idToken}`)
+      .expect(201);
+    expect(resolveResponse.body).toMatchObject({
+      id: clarificationId,
+      resolved: true,
+      awaitingReply: false,
+    });
+
+    const threadAfterResolve = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Authorization', `Bearer ${organiser.idToken}`)
+      .expect(200);
+    expect(threadAfterResolve.body[0]).toMatchObject({ id: clarificationId, resolved: true });
+
+    // Replying to a resolved clarification is rejected.
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/reply`)
+      .set('Authorization', `Bearer ${organiser.idToken}`)
+      .send({ message: 'Too late.' })
+      .expect(400);
+
+    const notificationsAfterResolve = await pool.query<{ recipient_id: string; type: string }>(
+      'SELECT recipient_id, type FROM notifications WHERE related_event_id = $1 ORDER BY created_at ASC',
+      [eventId],
+    );
+    expect(notificationsAfterResolve.rows).toContainEqual(
+      expect.objectContaining({ recipient_id: organiser.uid, type: 'clarification_resolved' }),
+    );
   });
 
   // AC2/AC3
@@ -247,7 +298,10 @@ describe('Clarifications (e2e)', () => {
       type: 'clarification',
       authorName: 'Marcus Lee',
       authorRole: 'coordinator',
-      awaitingReply: false,
+      // A reply no longer auto-closes the thread; it stays pending until
+      // explicitly resolved.
+      awaitingReply: true,
+      resolved: false,
     });
     expect(thread.body[1]).toMatchObject({
       parentId: first.body.id,
@@ -290,9 +344,10 @@ describe('Clarifications (e2e)', () => {
     expect(statusResult.rows[0].status).toBe('Submitted');
   });
 
-  it('returns 403 when someone other than the organiser replies', async () => {
+  it('returns 403 when someone unrelated to the event replies', async () => {
     const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
+    const outsider = await createEmulatorUser('ORGANISER', 'Someone Else');
     const eventId = await seedEvent({
       organiserId: organiser.uid,
       coordinatorId: coordinator.uid,
@@ -305,8 +360,28 @@ describe('Clarifications (e2e)', () => {
 
     await request(app.getHttpServer())
       .post(`/api/events/${eventId}/clarifications/${createResponse.body.id}/reply`)
+      .set('Authorization', `Bearer ${outsider.idToken}`)
+      .send({ message: 'Replying to someone else\'s event.' })
+      .expect(403);
+  });
+
+  it('returns 403 when someone unrelated to the event resolves a clarification', async () => {
+    const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
+    const outsiderCoordinator = await createEmulatorUser('COORDINATOR', 'Someone Else');
+    const eventId = await seedEvent({
+      organiserId: organiser.uid,
+      coordinatorId: coordinator.uid,
+    });
+    const createResponse = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
       .set('Authorization', `Bearer ${coordinator.idToken}`)
-      .send({ message: 'Replying to my own request.' })
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${createResponse.body.id}/resolve`)
+      .set('Authorization', `Bearer ${outsiderCoordinator.idToken}`)
       .expect(403);
   });
 

@@ -26,6 +26,7 @@ export interface CommentRow {
   author_role: 'coordinator' | 'organiser';
   message: string;
   awaiting_reply: boolean;
+  resolved: boolean;
   created_at: Date;
 }
 
@@ -78,9 +79,9 @@ export class ClarificationsRepository {
     client: Queryable,
     eventId: string,
     clarificationId: string,
-  ): Promise<Pick<CommentRow, 'id'> | undefined> {
-    const result = await client.query<Pick<CommentRow, 'id'>>(
-      `SELECT id FROM event_comments
+  ): Promise<Pick<CommentRow, 'id' | 'resolved'> | undefined> {
+    const result = await client.query<Pick<CommentRow, 'id' | 'resolved'>>(
+      `SELECT id, resolved FROM event_comments
        WHERE id = $1 AND event_id = $2 AND type = 'clarification' FOR UPDATE`,
       [clarificationId, eventId],
     );
@@ -122,10 +123,16 @@ export class ClarificationsRepository {
     ]);
   }
 
-  async clearAwaitingReply(client: Queryable, clarificationId: string): Promise<void> {
-    await client.query('UPDATE event_comments SET awaiting_reply = false WHERE id = $1', [
-      clarificationId,
-    ]);
+  async resolveClarification(
+    client: Queryable,
+    clarificationId: string,
+  ): Promise<CommentRow> {
+    const result = await client.query<CommentRow>(
+      `UPDATE event_comments SET resolved = true, awaiting_reply = false
+       WHERE id = $1 RETURNING *`,
+      [clarificationId],
+    );
+    return result.rows[0];
   }
 
   async insertNotification(

@@ -41,17 +41,27 @@ export class ClarificationsController {
     return this.clarifications.reply(id, clarificationId, this.getDemoOrAuthedUser(request), body);
   }
 
+  @Post('events/:id/clarifications/:clarificationId/resolve')
+  resolve(
+    @Param('id') id: string,
+    @Param('clarificationId') clarificationId: string,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.clarifications.resolve(id, clarificationId, this.getDemoOrAuthedUser(request));
+  }
+
   private getDemoOrAuthedUser(request: AuthenticatedRequest): AuthenticatedUser {
     const authed = request[CURRENT_USER_REQUEST_KEY];
     if (authed) return authed;
 
-    // Demo mode fallback: return a stub coordinator or organiser based on the operation
+    // Demo mode fallback: return a stub user with a role inferred from X-Demo-Role header
     if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
+      const demoRole = request.header('X-Demo-Role') || 'ORGANISER';
       return {
-        uid: 'current-user',
-        roles: ['COORDINATOR', 'ORGANISER'],
-        name: 'Demo User',
-        email: 'demo@example.test',
+        uid: `demo-${demoRole.toLowerCase()}`,
+        roles: [demoRole],
+        name: `Demo User ${demoRole === 'ORGANISER' ? 'Organiser' : 'Coordinator'}`,
+        email: `demo-${demoRole.toLowerCase()}@example.test`,
       };
     }
 

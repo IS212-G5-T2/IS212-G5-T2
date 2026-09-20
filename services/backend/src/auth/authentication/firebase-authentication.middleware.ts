@@ -91,7 +91,8 @@ export class FirebaseAuthenticationMiddleware implements NestMiddleware {
       const method = request.method;
       return (
         (method === 'GET' && /^\/api\/events\/[^/]+\/comments$/.test(path)) ||
-        (method === 'POST' && /^\/api\/events\/[^/]+\/clarifications(\/[^/]+\/reply)?$/.test(path))
+        (method === 'POST' &&
+          /^\/api\/events\/[^/]+\/clarifications(\/[^/]+\/(reply|resolve))?$/.test(path))
       );
     }
 

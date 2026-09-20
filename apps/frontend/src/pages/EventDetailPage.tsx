@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { RadioGroup, TextArea } from "@/components/ui/FormControls";
+import { RadioGroup, TextArea, TextInput } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateRange, formatDateTime } from "@/utils/format";
 
@@ -46,6 +46,7 @@ export function EventDetailPage() {
   const reviewEvent = useAppStore((s) => s.reviewEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
+  const updateEvent = useAppStore((s) => s.updateEvent);
 
   const [reviewOpen, setReviewOpen] = useState(false);
   const [decision, setDecision] = useState<"approve" | "reject" | "">("");
@@ -54,7 +55,25 @@ export function EventDetailPage() {
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
 
+  const [editMode, setEditMode] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editFacilities, setEditFacilities] = useState<string[]>([]);
+  const [editAccessibility, setEditAccessibility] = useState<string[]>([]);
+
+  const AVAILABLE_FACILITIES = ["Catering", "AV System", "Stage", "Projector"];
+  const AVAILABLE_ACCESSIBILITY = ["Accessible restrooms", "Elevator access"];
+
   const event = events.find((e) => e.id === id);
+
+  useEffect(() => {
+    if (event) {
+      setEditName(event.name);
+      setEditDescription(event.description);
+      setEditFacilities(event.venueRequirements.facilities || []);
+      setEditAccessibility(event.venueRequirements.accessibility || []);
+    }
+  }, [event?.id]);
 
   const refreshComments = useCallback(async () => {
     try {
@@ -133,6 +152,13 @@ export function EventDetailPage() {
     await refreshComments();
   };
 
+  const submitClarificationResolve = async (clarificationId: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/resolve`, {
+      method: "POST",
+    });
+    await refreshComments();
+  };
+
   const currentStepIndex = STATUS_FLOW.indexOf(event.status as (typeof STATUS_FLOW)[number]);
 
   return (
@@ -151,10 +177,16 @@ export function EventDetailPage() {
                 <Button onClick={() => submitEvent(event.id)}>Submit for Review</Button>
               </>
             )}
-            {isOwner && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && (
-              <Link to={`/events/${event.id}/edit`}>
-                <Button variant="secondary">Request Change</Button>
-              </Link>
+            {isAssignedCoordinator && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && !editMode && (
+              <Button variant="secondary" onClick={() => {
+                setEditMode(true);
+                setEditName(event.name);
+                setEditDescription(event.description);
+                setEditFacilities(event.venueRequirements.facilities || []);
+                setEditAccessibility(event.venueRequirements.accessibility || []);
+              }}>
+                Edit
+              </Button>
             )}
             {isUnassignedForCoordinator && (
               <Button onClick={() => assignCoordinator(event.id, currentUser.id, currentUser.name)}>
@@ -163,18 +195,6 @@ export function EventDetailPage() {
             )}
             {isAssignedCoordinator && ["submitted", "under_review"].includes(event.status) && (
               <Button onClick={() => setReviewOpen(true)}>Review Event</Button>
-            )}
-            {isAssignedCoordinator && (
-              <Link to={`/events/${event.id}/change-requests`}>
-                <Button variant="secondary">
-                  Change Requests
-                  {event.changeRequests.filter((c) => c.status === "pending").length > 0 && (
-                    <span className="ml-1 rounded-full bg-warning-500 px-1.5 text-xs text-white">
-                      {event.changeRequests.filter((c) => c.status === "pending").length}
-                    </span>
-                  )}
-                </Button>
-              </Link>
             )}
             {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
               <Link to={`/venues?eventId=${event.id}`}>
@@ -223,7 +243,74 @@ export function EventDetailPage() {
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Event Details</h2>
           </CardHeader>
           <CardBody>
-            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+            {editMode ? (
+              <div className="space-y-4 mb-4">
+                <TextInput
+                  label="Event name"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                />
+                <TextArea
+                  label="Description"
+                  value={editDescription}
+                  onChange={(e) => setEditDescription(e.target.value)}
+                />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Required facilities</label>
+                  <div className="flex flex-wrap gap-2">
+                    {AVAILABLE_FACILITIES.map((facility) => (
+                      <label key={facility} className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border-1.5 cursor-pointer transition-all ${
+                        editFacilities.includes(facility)
+                          ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400"
+                          : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={editFacilities.includes(facility)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditFacilities([...editFacilities, facility]);
+                            } else {
+                              setEditFacilities(editFacilities.filter(f => f !== facility));
+                            }
+                          }}
+                          className="w-4 h-4 accent-blue-600 dark:accent-blue-400 cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{facility}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Accessibility requirements</label>
+                  <div className="flex flex-wrap gap-2">
+                    {AVAILABLE_ACCESSIBILITY.map((accessibility) => (
+                      <label key={accessibility} className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border-1.5 cursor-pointer transition-all ${
+                        editAccessibility.includes(accessibility)
+                          ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400"
+                          : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
+                      }`}>
+                        <input
+                          type="checkbox"
+                          checked={editAccessibility.includes(accessibility)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditAccessibility([...editAccessibility, accessibility]);
+                            } else {
+                              setEditAccessibility(editAccessibility.filter(a => a !== accessibility));
+                            }
+                          }}
+                          className="w-4 h-4 accent-blue-600 dark:accent-blue-400 cursor-pointer"
+                        />
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{accessibility}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+            )}
             <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
               <div>
                 <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
@@ -297,25 +384,62 @@ export function EventDetailPage() {
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
-          </CardHeader>
-          <CardBody className="space-y-3 text-sm">
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
-            </div>
-          </CardBody>
-        </Card>
+        {!editMode && (
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
+            </CardHeader>
+            <CardBody className="space-y-3 text-sm">
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
+        {editMode && (
+          <Card className="lg:col-span-3">
+            <CardBody className="flex justify-end gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setEditMode(false);
+                  setEditName(event.name);
+                  setEditDescription(event.description);
+                  setEditFacilities(event.venueRequirements.facilities || []);
+                  setEditAccessibility(event.venueRequirements.accessibility || []);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  updateEvent(event.id, {
+                    name: editName,
+                    description: editDescription,
+                    venueRequirements: {
+                      ...event.venueRequirements,
+                      facilities: editFacilities,
+                      accessibility: editAccessibility,
+                    },
+                  });
+                  setEditMode(false);
+                }}
+              >
+                Save
+              </Button>
+            </CardBody>
+          </Card>
+        )}
 
         {currentUser.role === "attendee" && event.registrationEnabled && (
           <Card className="lg:col-span-3">
@@ -346,8 +470,10 @@ export function EventDetailPage() {
               comments={comments}
               canRequestClarification={canRequestClarification}
               onSubmitClarification={submitClarification}
-              canReply={isOwner}
+              canReply={isOwner || isAssignedCoordinator}
               onSubmitReply={submitClarificationReply}
+              canResolve={isOwner || isAssignedCoordinator}
+              onResolve={submitClarificationResolve}
             />
           </div>
         )}

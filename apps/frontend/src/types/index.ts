@@ -87,6 +87,7 @@ export interface EventComment {
   authorRole: CommentAuthorRole;
   message: string;
   awaitingReply: boolean;
+  resolved: boolean;
   createdAt: string;
 }
 

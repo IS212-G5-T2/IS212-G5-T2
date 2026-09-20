@@ -38,6 +38,7 @@ function commentRow(overrides: Partial<CommentRow> = {}): CommentRow {
     author_role: 'coordinator',
     message: 'Please confirm the layout.',
     awaiting_reply: true,
+    resolved: false,
     created_at: new Date('2026-09-18T13:05:00.000Z'),
     ...overrides,
   };
@@ -50,7 +51,7 @@ function buildService() {
     findClarificationForUpdate: vi.fn(),
     insertComment: vi.fn(),
     updateEventStatus: vi.fn(),
-    clearAwaitingReply: vi.fn(),
+    resolveClarification: vi.fn(),
     insertNotification: vi.fn(),
     listComments: vi.fn(),
   } as unknown as ClarificationsRepository;
@@ -196,11 +197,12 @@ describe('ClarificationsService.reply', () => {
   });
 
   // AC7/AC8 (inferred addition)
-  it('clears awaiting_reply and notifies the assigned coordinator', async () => {
+  it('notifies the assigned coordinator when the organiser replies', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
       id: CLARIFICATION_ID,
+      resolved: false,
     });
     vi.mocked(repository.insertComment).mockResolvedValue(
       commentRow({
@@ -219,7 +221,6 @@ describe('ClarificationsService.reply', () => {
       message: 'Yes, please add a second angle.',
     });
 
-    expect(repository.clearAwaitingReply).toHaveBeenCalledWith({}, CLARIFICATION_ID);
     expect(repository.insertComment).toHaveBeenCalledWith(
       {},
       expect.objectContaining({
@@ -236,7 +237,41 @@ describe('ClarificationsService.reply', () => {
     expect(result.awaitingReply).toBe(false);
   });
 
-  it('rejects a reply from someone other than the event organiser', async () => {
+  it('allows the assigned coordinator to reply and notifies the organiser', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: false,
+    });
+    vi.mocked(repository.insertComment).mockResolvedValue(
+      commentRow({
+        id: 'reply-2',
+        parent_id: CLARIFICATION_ID,
+        type: 'reply',
+        author_id: 'coordinator-1',
+        author_name: 'Marcus Lee',
+        author_role: 'coordinator',
+        message: 'Following up on this.',
+        awaiting_reply: false,
+      }),
+    );
+
+    await service.reply(EVENT_ID, CLARIFICATION_ID, coordinator(), {
+      message: 'Following up on this.',
+    });
+
+    expect(repository.insertComment).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ authorRole: 'coordinator' }),
+    );
+    expect(repository.insertNotification).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ recipientId: 'organiser-1', type: 'clarification_reply' }),
+    );
+  });
+
+  it('rejects a reply from someone who is neither the organiser nor the assigned coordinator', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
 
@@ -257,6 +292,101 @@ describe('ClarificationsService.reply', () => {
       service.reply(EVENT_ID, CLARIFICATION_ID, organiser(), { message: 'Hi' }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  it('rejects a reply to an already-resolved clarification', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: true,
+    });
+
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, organiser(), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+});
+
+describe('ClarificationsService.resolve', () => {
+  it('marks the clarification resolved and notifies the organiser when the coordinator resolves it', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: false,
+    });
+    vi.mocked(repository.resolveClarification).mockResolvedValue(
+      commentRow({ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }),
+    );
+
+    const result = await service.resolve(EVENT_ID, CLARIFICATION_ID, coordinator());
+
+    expect(repository.resolveClarification).toHaveBeenCalledWith({}, CLARIFICATION_ID);
+    expect(repository.insertNotification).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ recipientId: 'organiser-1', type: 'clarification_resolved' }),
+    );
+    expect(result.resolved).toBe(true);
+  });
+
+  it('allows the organiser to resolve and notifies the assigned coordinator', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: false,
+    });
+    vi.mocked(repository.resolveClarification).mockResolvedValue(
+      commentRow({ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }),
+    );
+
+    await service.resolve(EVENT_ID, CLARIFICATION_ID, organiser());
+
+    expect(repository.insertNotification).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ recipientId: 'coordinator-1', type: 'clarification_resolved' }),
+    );
+  });
+
+  it('rejects a resolve from someone who is neither the organiser nor the assigned coordinator', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+
+    await expect(
+      service.resolve(EVENT_ID, CLARIFICATION_ID, coordinator({ uid: 'someone-else' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('rejects resolving a clarification that does not exist on this event', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue(undefined);
+
+    await expect(
+      service.resolve(EVENT_ID, CLARIFICATION_ID, organiser()),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('is idempotent when the clarification is already resolved', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: true,
+    });
+    vi.mocked(repository.listComments).mockResolvedValue([
+      commentRow({ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }),
+    ]);
+
+    const result = await service.resolve(EVENT_ID, CLARIFICATION_ID, organiser());
+
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+    expect(repository.insertNotification).not.toHaveBeenCalled();
+    expect(result.resolved).toBe(true);
   });
 });
 

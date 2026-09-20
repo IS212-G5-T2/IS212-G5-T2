@@ -12,12 +12,16 @@ export function ClarificationThread({
   onSubmitClarification,
   canReply,
   onSubmitReply,
+  canResolve,
+  onResolve,
 }: {
   comments: EventComment[];
   canRequestClarification: boolean;
   onSubmitClarification: (message: string) => Promise<void>;
   canReply: boolean;
   onSubmitReply: (clarificationId: string, message: string) => Promise<void>;
+  canResolve: boolean;
+  onResolve: (clarificationId: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState("");
   const [draftError, setDraftError] = useState("");
@@ -28,6 +32,9 @@ export function ClarificationThread({
   const [replyError, setReplyError] = useState("");
   const [replying, setReplying] = useState(false);
 
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveError, setResolveError] = useState("");
+
   const [filterMode, setFilterMode] = useState<"all" | "pending">("all");
 
   if (!canRequestClarification && !canReply && comments.length === 0) {
@@ -35,7 +42,7 @@ export function ClarificationThread({
   }
 
   const clarifications = comments.filter((c) => c.type === "clarification");
-  const pendingCount = clarifications.filter((c) => c.awaitingReply).length;
+  const pendingCount = clarifications.filter((c) => !c.resolved).length;
 
   const getThreadReplies = (clarificationId: string) => {
     return comments.filter((c) => c.parentId === clarificationId);
@@ -43,7 +50,7 @@ export function ClarificationThread({
 
   const getVisibleClarifications = () => {
     if (filterMode === "pending") {
-      return clarifications.filter((c) => c.awaitingReply);
+      return clarifications.filter((c) => !c.resolved);
     }
     return clarifications;
   };
@@ -94,12 +101,24 @@ export function ClarificationThread({
     }
   };
 
+  const resolveClarification = async (clarificationId: string) => {
+    setResolveError("");
+    setResolvingId(clarificationId);
+    try {
+      await onResolve(clarificationId);
+    } catch (error) {
+      setResolveError(error instanceof ApiError ? error.message : "Could not resolve clarification.");
+    } finally {
+      setResolvingId(null);
+    }
+  };
+
   const visibleThreads = getVisibleClarifications();
 
   return (
     <Card>
       <CardHeader className="flex items-center justify-between">
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Comments &amp; Clarifications</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Clarification &amp; Amendments</h2>
         <div className="flex gap-2">
           <button
             onClick={() => setFilterMode("all")}
@@ -124,6 +143,9 @@ export function ClarificationThread({
         </div>
       </CardHeader>
       <CardBody className="space-y-4">
+        {resolveError && (
+          <p className="text-xs text-red-600 dark:text-red-400">{resolveError}</p>
+        )}
         {visibleThreads.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {filterMode === "pending" ? "No pending clarifications." : "No clarifications yet."}
@@ -133,7 +155,7 @@ export function ClarificationThread({
             {visibleThreads.map((clarification) => {
               const replies = getThreadReplies(clarification.id);
               const hasReplies = replies.length > 0;
-              const status = clarification.awaitingReply ? "pending" : "answered";
+              const status = clarification.resolved ? "answered" : "pending";
 
               return (
                 <div
@@ -155,16 +177,28 @@ export function ClarificationThread({
                         </p>
                       </div>
                     </div>
-                    <span
-                      className={`ml-2 px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 flex-shrink-0 ${
-                        status === "pending"
-                          ? "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300"
-                          : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
-                      }`}
-                    >
-                      <span>{status === "pending" ? "⏳" : "✓"}</span>
-                      {status === "pending" ? "Pending" : "Answered"}
-                    </span>
+                    <div className="ml-2 flex items-center gap-2 flex-shrink-0">
+                      <span
+                        className={`px-2.5 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+                          status === "pending"
+                            ? "bg-amber-100 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300"
+                            : "bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300"
+                        }`}
+                      >
+                        <span>{status === "pending" ? "⏳" : "✓"}</span>
+                        {status === "pending" ? "Pending" : "Answered"}
+                      </span>
+                      {canResolve && status === "pending" && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          disabled={resolvingId === clarification.id}
+                          onClick={() => resolveClarification(clarification.id)}
+                        >
+                          {resolvingId === clarification.id ? "Resolving…" : "Resolve"}
+                        </Button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Thread Messages */}
@@ -237,7 +271,7 @@ export function ClarificationThread({
                     ))}
 
                     {/* Reply input */}
-                    {canReply && clarification.awaitingReply && (
+                    {canReply && !clarification.resolved && (
                       <div className="px-4 py-3 bg-gray-50/50 dark:bg-gray-700/20">
                         {replyTargetId === clarification.id ? (
                           <div className="space-y-2">

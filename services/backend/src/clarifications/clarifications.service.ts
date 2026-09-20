@@ -38,6 +38,7 @@ export interface CommentDto {
   authorRole: 'coordinator' | 'organiser';
   message: string;
   awaitingReply: boolean;
+  resolved: boolean;
   createdAt: string;
 }
 
@@ -109,7 +110,64 @@ export class ClarificationsService {
       const event = await this.repository.findEventForUpdate(client, eventId);
       if (!event) throw new NotFoundException('Event not found.');
 
-      this.requireOrganiser(event, user);
+      const authorRole = this.requireOrganiserOrAssignedCoordinator(event, user);
+
+      const clarification = await this.repository.findClarificationForUpdate(
+        client,
+        eventId,
+        clarificationId,
+      );
+      if (!clarification) {
+        throw new NotFoundException('Clarification request not found.');
+      }
+      if (clarification.resolved) {
+        throw new BadRequestException(
+          'This clarification has already been resolved.',
+        );
+      }
+
+      const reply = await this.repository.insertComment(client, {
+        eventId,
+        parentId: clarificationId,
+        type: 'reply',
+        authorId: user.uid,
+        authorName: this.displayName(user),
+        authorRole,
+        message,
+        awaitingReply: false,
+      });
+
+      const recipientId =
+        authorRole === 'organiser' ? event.coordinator_id : event.organiser_id;
+      if (recipientId) {
+        const authorLabel = authorRole === 'organiser' ? 'organiser' : 'coordinator';
+        await this.repository.insertNotification(client, {
+          recipientId,
+          type: 'clarification_reply',
+          message: `The ${authorLabel} replied on "${event.event_name}".`,
+          relatedEventId: eventId,
+        });
+      }
+
+      return this.toDto(reply);
+    });
+  }
+
+  async resolve(
+    eventId: string,
+    clarificationId: string,
+    user: AuthenticatedUser,
+  ): Promise<CommentDto> {
+    this.requireValidEventId(eventId);
+    if (!UUID_PATTERN.test(clarificationId)) {
+      throw new NotFoundException('Clarification request not found.');
+    }
+
+    return this.database.transaction(async (client) => {
+      const event = await this.repository.findEventForUpdate(client, eventId);
+      if (!event) throw new NotFoundException('Event not found.');
+
+      const resolverRole = this.requireOrganiserOrAssignedCoordinator(event, user);
 
       const clarification = await this.repository.findClarificationForUpdate(
         client,
@@ -120,29 +178,28 @@ export class ClarificationsService {
         throw new NotFoundException('Clarification request not found.');
       }
 
-      const reply = await this.repository.insertComment(client, {
-        eventId,
-        parentId: clarificationId,
-        type: 'reply',
-        authorId: user.uid,
-        authorName: this.displayName(user),
-        authorRole: 'organiser',
-        message,
-        awaitingReply: false,
-      });
+      if (clarification.resolved) {
+        const rows = await this.repository.listComments(eventId);
+        const current = rows.find((row) => row.id === clarificationId);
+        if (!current) throw new NotFoundException('Clarification request not found.');
+        return this.toDto(current);
+      }
 
-      await this.repository.clearAwaitingReply(client, clarificationId);
+      const resolved = await this.repository.resolveClarification(client, clarificationId);
 
-      if (event.coordinator_id) {
+      const recipientId =
+        resolverRole === 'organiser' ? event.coordinator_id : event.organiser_id;
+      if (recipientId) {
+        const resolverLabel = resolverRole === 'organiser' ? 'organiser' : 'coordinator';
         await this.repository.insertNotification(client, {
-          recipientId: event.coordinator_id,
-          type: 'clarification_reply',
-          message: `The organiser replied on "${event.event_name}".`,
+          recipientId,
+          type: 'clarification_resolved',
+          message: `The ${resolverLabel} marked a clarification on "${event.event_name}" as resolved.`,
           relatedEventId: eventId,
         });
       }
 
-      return this.toDto(reply);
+      return this.toDto(resolved);
     });
   }
 
@@ -203,25 +260,30 @@ export class ClarificationsService {
     }
   }
 
-  // The RBAC seed only grants ORGANISER "read" on the Event Review resource,
-  // not "update" (that action is COORDINATOR-only) - see 002_rbac.sql. A
-  // reply is authored by the organiser, not a coordinator-side review
-  // action, so it's authorized directly against events.organiser_id instead
-  // of going through RbacRepository's predicate, per the fallback documented
-  // in RbacRepository's usage notes.
-  private requireOrganiser(event: EventForReview, user: AuthenticatedUser): void {
-    if (!user.roles.includes('ORGANISER')) {
-      throw new ForbiddenException(
-        "Only this event's organiser can reply to a clarification request.",
-      );
-    }
+  // Replying and resolving are both open to either side of the thread: the
+  // event's organiser, or the coordinator assigned to it. The RBAC seed only
+  // grants ORGANISER "read" on the Event Review resource, not "update" (that
+  // action is COORDINATOR-only) - see 002_rbac.sql - so this is authorized
+  // directly against events.organiser_id/coordinator_id instead of going
+  // through RbacRepository's predicate, per the fallback documented in
+  // RbacRepository's usage notes.
+  private requireOrganiserOrAssignedCoordinator(
+    event: EventForReview,
+    user: AuthenticatedUser,
+  ): 'organiser' | 'coordinator' {
+    const demo = process.env.DEMO_ORGANISER_ENABLED === 'true';
 
-    // In demo mode, allow any organiser; strict uid matching doesn't work with mixed identities
-    if (process.env.DEMO_ORGANISER_ENABLED !== 'true' && event.organiser_id !== user.uid) {
-      throw new ForbiddenException(
-        "Only this event's organiser can reply to a clarification request.",
-      );
-    }
+    const isOrganiser =
+      user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
+    if (isOrganiser) return 'organiser';
+
+    const isAssignedCoordinator =
+      user.roles.includes('COORDINATOR') && (demo || event.coordinator_id === user.uid);
+    if (isAssignedCoordinator) return 'coordinator';
+
+    throw new ForbiddenException(
+      "Only this event's organiser or assigned coordinator can do this.",
+    );
   }
 
   private displayName(user: AuthenticatedUser): string {
@@ -239,6 +301,7 @@ export class ClarificationsService {
       authorRole: row.author_role,
       message: row.message,
       awaitingReply: row.awaiting_reply,
+      resolved: row.resolved,
       createdAt: row.created_at.toISOString(),
     };
   }
