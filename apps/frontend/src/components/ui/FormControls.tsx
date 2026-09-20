@@ -41,7 +41,7 @@ export function TextInput({ label, error, hint, id, className, ...rest }: TextIn
       <input
         id={fieldId}
         className={clsx(
-          "w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border-1.5 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
@@ -66,7 +66,7 @@ export function TextArea({ label, error, hint, id, className, ...rest }: TextAre
         id={fieldId}
         rows={4}
         className={clsx(
-          "w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border-1.5 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
@@ -96,7 +96,7 @@ export function Select({ label, options, error, hint, id, className, ...rest }: 
       <select
         id={fieldId}
         className={clsx(
-          "w-full rounded-lg border bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border-1.5 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
@@ -164,22 +164,30 @@ export function CheckboxGroup({
   };
   return (
     <fieldset className="mb-4">
-      <legend className="mb-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{label}</legend>
+      {label && <legend className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">{label}</legend>}
       <div className="flex flex-wrap gap-2">
-        {options.map((opt) => (
-          <label
-            key={opt}
-            className="flex cursor-pointer items-center gap-1.5 rounded-full border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50 dark:has-[:checked]:bg-primary-900/30 has-[:checked]:text-primary-800 dark:has-[:checked]:text-primary-300"
-          >
-            <input
-              type="checkbox"
-              checked={values.includes(opt)}
-              onChange={() => toggle(opt)}
-              className="h-3.5 w-3.5 text-primary-600 focus:ring-primary-500"
-            />
-            {opt}
-          </label>
-        ))}
+        {options.map((opt) => {
+          const isChecked = values.includes(opt);
+          return (
+            <label
+              key={opt}
+              className={clsx(
+                "flex cursor-pointer items-center gap-2 rounded-full border-2 px-3.5 py-2 text-sm font-medium transition-all",
+                isChecked
+                  ? "border-primary-500 bg-blue-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-200"
+                  : "border-gray-300 text-gray-700 hover:border-gray-400 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500"
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={isChecked}
+                onChange={() => toggle(opt)}
+                className="h-4 w-4 text-primary-600 focus:ring-primary-500"
+              />
+              <span>{opt}</span>
+            </label>
+          );
+        })}
       </div>
     </fieldset>
   );
