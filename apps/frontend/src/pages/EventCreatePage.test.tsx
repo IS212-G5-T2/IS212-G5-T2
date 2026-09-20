@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventCreatePage } from "@/pages/EventCreatePage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
+import { MyRequestsPage } from "./MyRequestsPage";
 import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord } from "@/types";
@@ -62,6 +63,8 @@ function renderCreate(initialEntry = "/events/create") {
         <Routes>
           <Route path="/events/create" element={<EventCreatePage />} />
           <Route path="/events/:id" element={<EventDetailPage />} />
+          <Route path="/requests" element={<MyRequestsPage />} />
+          <Route path="/requests/:id" element={<EventCreatePage />} />
         </Routes>
       </MemoryRouter>,
   );
@@ -226,7 +229,7 @@ describe("EventCreatePage", () => {
     expect(submittedBody).not.toHaveProperty("organiserId");
   });
 
-  // Second story attachment prep
+  // SPM-36 Test Case EVE-CRE-08-A
   it("uploads optional supporting files on the venue-needs step", async () => {
     const user = userEvent.setup();
     const saved = {
@@ -271,5 +274,124 @@ describe("EventCreatePage", () => {
       size: 8,
     });
     expect(submittedBody.attachments[0].dataUrl).toMatch(/^data:text\/plain/);
+  });
+});
+
+describe("SPM-37 drafts in the current event form", () => {
+  const emptyFields = {
+    name: "",
+    purpose: "",
+    description: "",
+    startDate: "",
+    startTime: "",
+    endDate: "",
+    endTime: "",
+    expectedAttendance: "",
+    layout: "",
+    facilities: [],
+    accessibility: [],
+    attachments: [],
+    equipmentNeeds: "",
+  };
+  const draft = {
+    id: "00000000-0000-4000-8000-000000000037",
+    fields: { ...emptyFields, name: "Saved name" },
+    version: 1,
+    status: "Draft",
+    eventId: null,
+    updatedAt: "2026-09-16T00:00:00Z",
+  };
+  // AC1/2/6: saving is separate from submission and accepts incomplete fields.
+  it("saves an incomplete request and confirms without submitting", async () => {
+    apiMock.mockResolvedValue(draft);
+    renderCreate();
+    // Save without completing any required fields.
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(
+      await screen.findByRole("dialog", { name: "Draft saved" }),
+    ).toBeTruthy();
+    expect(apiMock.mock.calls[0][1]?.method).toBe("PUT");
+    expect(apiMock.mock.calls.some(([path]) => path === "/events")).toBe(false);
+  });
+  // AC3/4: reopens the saved form and updates the same ID/version.
+  it("prefills an existing draft and saves updates to the same request", async () => {
+    apiMock.mockResolvedValue(draft);
+    renderCreate(`/requests/${draft.id}`);
+    const name = await screen.findByRole("textbox", { name: /event name/i });
+    expect((name as HTMLInputElement).value).toBe("Saved name");
+    // Change one field without filling remaining required fields.
+    fireEvent.change(name, { target: { value: "Updated name" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("dialog");
+    const [path, init] = apiMock.mock.calls.find(
+      ([, init]) => init?.method === "PUT",
+    )!;
+    expect(path).toBe(`/requests/${draft.id}`);
+    expect(JSON.parse(init!.body as string)).toMatchObject({
+      version: 1,
+      fields: { name: "Updated name" },
+    });
+  });
+  // AC6: failures retain text and retry the exact save operation.
+  it("keeps entered values after failure and retries without a duplicate operation", async () => {
+    apiMock
+      .mockRejectedValueOnce(new Error("Network unavailable"))
+      .mockResolvedValue(draft);
+    renderCreate();
+    fireEvent.change(screen.getByRole("textbox", { name: /event name/i }), {
+      target: { value: "Do not lose this" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      "Network unavailable",
+    );
+    expect(
+      (screen.getByRole("textbox", { name: /event name/i }) as HTMLInputElement)
+        .value,
+    ).toBe("Do not lose this");
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("dialog");
+    expect(apiMock.mock.calls[1]).toEqual(apiMock.mock.calls[0]);
+  });
+  // AC8: direct draft URLs cannot expose editable controls after submission.
+  it("blocks the editor when the server returns Submitted", async () => {
+    apiMock.mockResolvedValue({ ...draft, status: "Submitted" });
+    renderCreate(`/requests/${draft.id}`);
+    await screen.findByText(/Further changes must follow/);
+    expect(screen.queryByRole("button", { name: "Save draft" })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+  });
+  // AC3: the list shows the persisted Draft status and links back to the editor.
+  it("lists drafts in My Requests with their status and reopen link", async () => {
+    apiMock.mockResolvedValue([draft]);
+    renderCreate("/requests");
+    const link = await screen.findByRole("link", { name: "Saved name" });
+    expect(link.getAttribute("href")).toBe(`/requests/${draft.id}`);
+    expect(screen.getByText("Draft")).toBeTruthy();
+  });
+  // Continuity: saving persists the current wizard step alongside the fields.
+  it("saves the current step with the draft fields", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(draft);
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByRole("dialog", { name: "Draft saved" });
+    const [, init] = apiMock.mock.calls.find(
+      ([, init]) => init?.method === "PUT",
+    )!;
+    expect(JSON.parse(init!.body as string).fields.formStep).toBe(1);
+  });
+  // Continuity: reopening a draft resumes the step it was saved on.
+  it("resumes a draft on the step where it was saved", async () => {
+    apiMock.mockResolvedValue({
+      ...draft,
+      fields: { ...emptyFields, name: "Saved name", formStep: 1 },
+    });
+    renderCreate(`/requests/${draft.id}`);
+    expect(await screen.findByLabelText(/start date/i)).toBeTruthy();
+    expect(screen.queryByRole("textbox", { name: /event name/i })).toBeNull();
   });
 });

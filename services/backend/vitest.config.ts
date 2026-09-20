@@ -9,6 +9,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['src/**/*.spec.ts'],
+    include: ['**/*.spec.ts'],
+    exclude: ['**/*.e2e-spec.ts'],
   },
 });

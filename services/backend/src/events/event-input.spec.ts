@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { validateEvent } from './event-input.js';
 
 function futureIso(daysFromNow: number, hour: number): string {
@@ -47,6 +47,73 @@ function expectFieldError(input: unknown, field: string) {
 }
 
 describe('validateEvent', () => {
+  it.each([null, [], 'invalid'])(
+    'Q1-044 malformed submitted envelope %j is rejected',
+    (input) => expect(() => validateEvent(input)).toThrow(BadRequestException),
+  );
+  it.each([123, 'x'.repeat(201)])(
+    'Q1-045 submission rejects invalid name %j',
+    (name) => expectFieldError({ ...validEventRequest(), name }, 'name'),
+  );
+  it('Q1-046 omitted choices default to empty arrays', () => {
+    const request = {
+      ...validEventRequest(),
+      facilities: undefined,
+      accessibility: undefined,
+    };
+    expect(validateEvent(request)).toMatchObject({
+      facilities: [],
+      accessibility: [],
+    });
+  });
+  it.each(['invalid', Array(6).fill({})])(
+    'Q1-047 invalid submitted attachment collection %j',
+    (attachments) =>
+      expectFieldError({ ...validEventRequest(), attachments }, 'attachments'),
+  );
+  it.each([null, [], 'file', { id: 1, name: 1, type: 1, dataUrl: 1 }])(
+    'Q1-048 invalid submitted attachment shape %j',
+    (attachment) =>
+      expectFieldError(
+        { ...validEventRequest(), attachments: [attachment] },
+        'attachments',
+      ),
+  );
+  it.each(['wrong-id', '', '00000000-0000-1000-8000-000000000036'])(
+    'Q1-049 rejects invalid submission UUID %s',
+    (submissionKey) =>
+      expectFieldError(
+        { ...validEventRequest(), submissionKey },
+        'submissionKey',
+      ),
+  );
+  it.each([1, 2, 2147483646, 2147483647])(
+    'Q1-050 valid attendance boundary %s',
+    (expectedAttendance) =>
+      expect(
+        validateEvent({ ...validEventRequest(), expectedAttendance })
+          .expectedAttendance,
+      ).toBe(expectedAttendance),
+  );
+  it('Q1-051 start time just before, at and after now', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2030-01-01T10:00:00Z'));
+    try {
+      for (const delta of [-1, 0, 1]) {
+        const request = {
+          ...validEventRequest(),
+          startDateTime: new Date(Date.now() + delta).toISOString(),
+        };
+        if (delta <= 0) expectFieldError(request, 'startDateTime');
+        else
+          expect(validateEvent(request).startDateTime).toBe(
+            request.startDateTime,
+          );
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   // SPM-36 Test Case EVE-CRE-03-A
   it('EVE-CRE-03-A accepts a valid complete Event Request', () => {
     const request = validEventRequest();
@@ -142,7 +209,10 @@ describe('validateEvent', () => {
       { ...request, endDateTime: request.startDateTime },
       'endDateTime',
     );
-    expectFieldError({ ...request, endDateTime: futureIso(9, 13) }, 'endDateTime');
+    expectFieldError(
+      { ...request, endDateTime: futureIso(9, 13) },
+      'endDateTime',
+    );
   });
 
   // SPM-36 Test Case EVE-CRE-05-E
@@ -157,7 +227,7 @@ describe('validateEvent', () => {
     },
   );
 
-  // Second story attachment prep
+  // SPM-36 Test Cases EVE-CRE-08-A and EVE-CRE-08-B
   it('accepts optional supporting files and defaults to none when omitted', () => {
     const withoutFiles = validEventRequest() as Record<string, unknown>;
     delete withoutFiles.attachments;
@@ -174,7 +244,7 @@ describe('validateEvent', () => {
     ]);
   });
 
-  // Second story attachment prep
+  // SPM-36 Test Case EVE-CRE-08-C
   it('rejects unsupported attachment payloads', () => {
     expectFieldError(
       {

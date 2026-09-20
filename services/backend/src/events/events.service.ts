@@ -81,54 +81,68 @@ export class EventsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
   }
-  async create(body: unknown) {
+  async create(body: unknown, transaction?: pg.PoolClient, eventId?: string) {
     const user = this.identity();
     const data = validateEvent(body);
+    // When the caller supplies a transaction (e.g. draft submission), it owns
+    // BEGIN/COMMIT/ROLLBACK and the connection lifecycle; we just run the insert.
+    if (transaction) {
+      return this.insert(data, user, transaction, eventId);
+    }
     const client = await this.pool.connect();
-    let row: pg.QueryResultRow;
     try {
       await client.query('BEGIN');
-      const inserted = await client.query(
-        `INSERT INTO events
-        (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
-        start_date_time, end_date_time, expected_attendance, preferred_room_layout,
-        required_facilities, accessibility_needs, attachments, equipment_needs, submission_key)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-        ON CONFLICT (organiser_id, submission_key) DO NOTHING RETURNING *`,
-        [
-          randomUUID(),
-          user.id,
-          user.name,
-          user.email,
-          data.name,
-          data.purpose,
-          data.description,
-          data.startDateTime,
-          data.endDateTime,
-          data.expectedAttendance,
-          data.layout,
-          data.facilities,
-          data.accessibility,
-          JSON.stringify(data.attachments),
-          data.equipmentNeeds,
-          data.submissionKey,
-        ],
-      );
-      row =
-        inserted.rows[0] ??
-        (
-          await client.query(
-            'SELECT * FROM events WHERE organiser_id=$1 AND submission_key=$2',
-            [user.id, data.submissionKey],
-          )
-        ).rows[0];
+      const result = await this.insert(data, user, client, eventId);
       await client.query('COMMIT');
+      return result;
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
     } finally {
       client.release();
     }
+  }
+
+  private async insert(
+    data: ReturnType<typeof validateEvent>,
+    user: ReturnType<EventsService['identity']>,
+    client: pg.PoolClient,
+    eventId?: string,
+  ) {
+    const inserted = await client.query(
+      `INSERT INTO events
+        (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
+        start_date_time, end_date_time, expected_attendance, preferred_room_layout,
+        required_facilities, accessibility_needs, attachments, equipment_needs, submission_key)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        ON CONFLICT (organiser_id, submission_key) DO NOTHING RETURNING *`,
+      [
+        eventId ?? randomUUID(),
+        user.id,
+        user.name,
+        user.email,
+        data.name,
+        data.purpose,
+        data.description,
+        data.startDateTime,
+        data.endDateTime,
+        data.expectedAttendance,
+        data.layout,
+        data.facilities,
+        data.accessibility,
+        JSON.stringify(data.attachments),
+        data.equipmentNeeds,
+        data.submissionKey,
+      ],
+    );
+    const row =
+      inserted.rows[0] ??
+      (
+        await client.query(
+          'SELECT * FROM events WHERE organiser_id=$1 AND submission_key=$2',
+          [user.id, data.submissionKey],
+        )
+      ).rows[0];
     return {
       event: this.record(row),
       message: 'Your event request was submitted successfully.',
