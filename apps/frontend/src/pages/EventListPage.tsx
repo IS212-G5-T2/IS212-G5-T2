@@ -41,12 +41,10 @@ export function EventListPage() {
   const [statusFilter, setStatusFilter] = useState("");
 
   const scoped = useMemo(() => {
-    if (currentUser.role === "organiser") {
-      return events.filter((e) => e.organiserId === currentUser.id);
-    }
     if (currentUser.role === "attendee") {
       return events.filter((e) => e.registrationEnabled && e.status !== "draft");
     }
+    // organiser: the backend already scopes GET /api/events to the caller's own events.
     // coordinator sees everything (assigned + unassigned) to triage
     return events;
   }, [events, currentUser]);

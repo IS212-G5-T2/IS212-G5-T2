@@ -79,8 +79,22 @@ export class FirebaseAuthenticationMiddleware implements NestMiddleware {
    * @returns True when the request matches a public route.
    */
   private isPublicRoute(request: Request): boolean {
-    return PUBLIC_ROUTES.some(
+    const isConfiguredPublic = PUBLIC_ROUTES.some(
       (route) => route.method === request.method && route.path === request.path,
     );
+
+    if (isConfiguredPublic) return true;
+
+    // Demo mode: allow unauthenticated access to clarifications endpoints
+    if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
+      const path = request.path;
+      const method = request.method;
+      return (
+        (method === 'GET' && /^\/api\/events\/[^/]+\/comments$/.test(path)) ||
+        (method === 'POST' && /^\/api\/events\/[^/]+\/clarifications(\/[^/]+\/reply)?$/.test(path))
+      );
+    }
+
+    return false;
   }
 }

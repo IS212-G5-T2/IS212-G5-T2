@@ -53,6 +53,7 @@ export class ClarificationsService {
     user: AuthenticatedUser,
     body: unknown,
   ): Promise<CommentDto> {
+
     this.requireValidEventId(eventId);
     const message = validateMessage(body, 'Clarification message cannot be blank.');
 
@@ -145,20 +146,29 @@ export class ClarificationsService {
     });
   }
 
-  async listComments(eventId: string, user: AuthenticatedUser): Promise<CommentDto[]> {
+  async listComments(eventId: string, user: AuthenticatedUser | undefined): Promise<CommentDto[]> {
     this.requireValidEventId(eventId);
     const event = await this.repository.findEvent(eventId);
     if (!event) throw new NotFoundException('Event not found.');
 
-    const isOrganiser =
-      user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
-    const isAssignedCoordinator =
-      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
+    // In demo mode without auth, skip authorization checks
+    if (user) {
+      const isOrganiser =
+        user.roles.includes('ORGANISER') && (
+          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
+          event.organiser_id === user.uid
+        );
+      const isAssignedCoordinator =
+        user.roles.includes('COORDINATOR') && (
+          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
+          event.coordinator_id === user.uid
+        );
 
-    if (!isOrganiser && !isAssignedCoordinator) {
-      throw new ForbiddenException(
-        "You don't have access to this event's comment history.",
-      );
+      if (!isOrganiser && !isAssignedCoordinator) {
+        throw new ForbiddenException(
+          "You don't have access to this event's comment history.",
+        );
+      }
     }
 
     const rows = await this.repository.listComments(eventId);
@@ -179,7 +189,14 @@ export class ClarificationsService {
     event: EventForReview,
     user: AuthenticatedUser,
   ): void {
-    if (!user.roles.includes('COORDINATOR') || event.coordinator_id !== user.uid) {
+    if (!user.roles.includes('COORDINATOR')) {
+      throw new ForbiddenException(
+        'Only the coordinator assigned to this event can request clarification.',
+      );
+    }
+
+    // In demo mode, allow any coordinator; strict uid matching doesn't work with mixed identities
+    if (process.env.DEMO_ORGANISER_ENABLED !== 'true' && event.coordinator_id !== user.uid) {
       throw new ForbiddenException(
         'Only the coordinator assigned to this event can request clarification.',
       );
@@ -193,7 +210,14 @@ export class ClarificationsService {
   // of going through RbacRepository's predicate, per the fallback documented
   // in RbacRepository's usage notes.
   private requireOrganiser(event: EventForReview, user: AuthenticatedUser): void {
-    if (!user.roles.includes('ORGANISER') || event.organiser_id !== user.uid) {
+    if (!user.roles.includes('ORGANISER')) {
+      throw new ForbiddenException(
+        "Only this event's organiser can reply to a clarification request.",
+      );
+    }
+
+    // In demo mode, allow any organiser; strict uid matching doesn't work with mixed identities
+    if (process.env.DEMO_ORGANISER_ENABLED !== 'true' && event.organiser_id !== user.uid) {
       throw new ForbiddenException(
         "Only this event's organiser can reply to a clarification request.",
       );

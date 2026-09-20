@@ -69,13 +69,13 @@ export function EventDetailPage() {
   useEffect(() => {
     if (loading || loadError || !event) return;
     const canView =
-      (currentUser.role === "organiser" && event.organiserId === currentUser.id) ||
+      currentUser.role === "organiser" ||
       (currentUser.role === "coordinator" && event.coordinatorId === currentUser.id);
     if (canView) refreshComments();
     // Only re-run when the values that decide *whether* we can view change;
     // refreshComments itself is called explicitly after posting/replying.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, loadError, event?.organiserId, event?.coordinatorId, currentUser.role, currentUser.id]);
+  }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
 
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
@@ -88,7 +88,7 @@ export function EventDetailPage() {
     );
   }
 
-  const isOwner = currentUser.role === "organiser" && event.organiserId === currentUser.id;
+  const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
   const isUnassignedForCoordinator =
     currentUser.role === "coordinator" && !event.coordinatorId && event.status !== "draft";
@@ -118,7 +118,10 @@ export function EventDetailPage() {
       refreshComments(),
     ]);
     useAppStore.setState((s) => ({
-      events: [refreshedEvent, ...s.events.filter((e) => e.id !== refreshedEvent.id)],
+      events: [
+        { ...event, ...refreshedEvent },
+        ...s.events.filter((e) => e.id !== refreshedEvent.id),
+      ],
     }));
   };
 

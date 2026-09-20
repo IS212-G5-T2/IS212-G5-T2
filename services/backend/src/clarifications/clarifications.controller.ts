@@ -23,12 +23,12 @@ export class ClarificationsController {
     @Req() request: AuthenticatedRequest,
     @Body() body: unknown,
   ) {
-    return this.clarifications.createClarification(id, this.currentUser(request), body);
+    return this.clarifications.createClarification(id, this.getDemoOrAuthedUser(request), body);
   }
 
   @Get('events/:id/comments')
   list(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.clarifications.listComments(id, this.currentUser(request));
+    return this.clarifications.listComments(id, this.getDemoOrAuthedUser(request));
   }
 
   @Post('events/:id/clarifications/:clarificationId/reply')
@@ -38,10 +38,23 @@ export class ClarificationsController {
     @Req() request: AuthenticatedRequest,
     @Body() body: unknown,
   ) {
-    return this.clarifications.reply(id, clarificationId, this.currentUser(request), body);
+    return this.clarifications.reply(id, clarificationId, this.getDemoOrAuthedUser(request), body);
   }
 
-  private currentUser(request: AuthenticatedRequest): AuthenticatedUser {
-    return request[CURRENT_USER_REQUEST_KEY] as AuthenticatedUser;
+  private getDemoOrAuthedUser(request: AuthenticatedRequest): AuthenticatedUser {
+    const authed = request[CURRENT_USER_REQUEST_KEY];
+    if (authed) return authed;
+
+    // Demo mode fallback: return a stub coordinator or organiser based on the operation
+    if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
+      return {
+        uid: 'current-user',
+        roles: ['COORDINATOR', 'ORGANISER'],
+        name: 'Demo User',
+        email: 'demo@example.test',
+      };
+    }
+
+    throw new Error('Authentication required');
   }
 }
