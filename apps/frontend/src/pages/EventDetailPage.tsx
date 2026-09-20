@@ -8,8 +8,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
-import { RadioGroup, TextArea, TextInput } from "@/components/ui/FormControls";
+import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
+import { EventEditForm } from "@/components/EventEditForm";
 import { formatDateRange, formatDateTime } from "@/utils/format";
 
 const CLARIFIABLE_STATUSES = ["submitted", "under_review", "approved"];
@@ -56,24 +57,11 @@ export function EventDetailPage() {
   const [commentsError, setCommentsError] = useState("");
 
   const [editMode, setEditMode] = useState(false);
-  const [editName, setEditName] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editFacilities, setEditFacilities] = useState<string[]>([]);
-  const [editAccessibility, setEditAccessibility] = useState<string[]>([]);
 
   const AVAILABLE_FACILITIES = ["Catering", "AV System", "Stage", "Projector"];
   const AVAILABLE_ACCESSIBILITY = ["Accessible restrooms", "Elevator access"];
 
   const event = events.find((e) => e.id === id);
-
-  useEffect(() => {
-    if (event) {
-      setEditName(event.name);
-      setEditDescription(event.description);
-      setEditFacilities(event.venueRequirements.facilities || []);
-      setEditAccessibility(event.venueRequirements.accessibility || []);
-    }
-  }, [event?.id]);
 
   const refreshComments = useCallback(async () => {
     try {
@@ -178,13 +166,7 @@ export function EventDetailPage() {
               </>
             )}
             {isAssignedCoordinator && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && !editMode && (
-              <Button variant="secondary" onClick={() => {
-                setEditMode(true);
-                setEditName(event.name);
-                setEditDescription(event.description);
-                setEditFacilities(event.venueRequirements.facilities || []);
-                setEditAccessibility(event.venueRequirements.accessibility || []);
-              }}>
+              <Button variant="secondary" onClick={() => setEditMode(true)}>
                 Edit
               </Button>
             )}
@@ -244,70 +226,14 @@ export function EventDetailPage() {
           </CardHeader>
           <CardBody>
             {editMode ? (
-              <div className="space-y-4 mb-4">
-                <TextInput
-                  label="Event name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-                <TextArea
-                  label="Description"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                />
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Required facilities</label>
-                  <div className="flex flex-wrap gap-2">
-                    {AVAILABLE_FACILITIES.map((facility) => (
-                      <label key={facility} className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border-1.5 cursor-pointer transition-all ${
-                        editFacilities.includes(facility)
-                          ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400"
-                          : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={editFacilities.includes(facility)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditFacilities([...editFacilities, facility]);
-                            } else {
-                              setEditFacilities(editFacilities.filter(f => f !== facility));
-                            }
-                          }}
-                          className="w-4 h-4 accent-blue-600 dark:accent-blue-400 cursor-pointer"
-                        />
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{facility}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Accessibility requirements</label>
-                  <div className="flex flex-wrap gap-2">
-                    {AVAILABLE_ACCESSIBILITY.map((accessibility) => (
-                      <label key={accessibility} className={`inline-flex items-center gap-2 px-3 py-2 rounded-full border-1.5 cursor-pointer transition-all ${
-                        editAccessibility.includes(accessibility)
-                          ? "bg-blue-50 dark:bg-blue-900/30 border-blue-500 dark:border-blue-400"
-                          : "bg-white dark:bg-gray-900 border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500"
-                      }`}>
-                        <input
-                          type="checkbox"
-                          checked={editAccessibility.includes(accessibility)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditAccessibility([...editAccessibility, accessibility]);
-                            } else {
-                              setEditAccessibility(editAccessibility.filter(a => a !== accessibility));
-                            }
-                          }}
-                          className="w-4 h-4 accent-blue-600 dark:accent-blue-400 cursor-pointer"
-                        />
-                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{accessibility}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <EventEditForm
+                event={event}
+                onSave={(updates) => {
+                  updateEvent(event.id, updates);
+                  setEditMode(false);
+                }}
+                onCancel={() => setEditMode(false)}
+              />
             ) : (
               <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
             )}
@@ -406,40 +332,6 @@ export function EventDetailPage() {
           </Card>
         )}
 
-        {editMode && (
-          <Card className="lg:col-span-3">
-            <CardBody className="flex justify-end gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setEditMode(false);
-                  setEditName(event.name);
-                  setEditDescription(event.description);
-                  setEditFacilities(event.venueRequirements.facilities || []);
-                  setEditAccessibility(event.venueRequirements.accessibility || []);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  updateEvent(event.id, {
-                    name: editName,
-                    description: editDescription,
-                    venueRequirements: {
-                      ...event.venueRequirements,
-                      facilities: editFacilities,
-                      accessibility: editAccessibility,
-                    },
-                  });
-                  setEditMode(false);
-                }}
-              >
-                Save
-              </Button>
-            </CardBody>
-          </Card>
-        )}
 
         {currentUser.role === "attendee" && event.registrationEnabled && (
           <Card className="lg:col-span-3">
