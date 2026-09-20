@@ -383,16 +383,21 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     },
   );
-  it.each([1048575, 1048576, 1048577])(
+  it.each([52428799, 52428800, 52428801])(
     "Q2-018 file size boundary %s bytes",
     async (size) => {
       mocked.mockResolvedValue(draft({ formStep: 1 }));
       open();
       const input = await screen.findByLabelText("Supporting files");
+      // Override size instead of allocating ~50MB of real bytes: the total
+      // check runs off file.size, and oversized files are rejected before the
+      // file is ever read.
+      const file = new File([new Uint8Array(1)], "size.txt");
+      Object.defineProperty(file, "size", { value: size });
       fireEvent.change(input, {
-        target: { files: [new File([new Uint8Array(size)], "size.txt")] },
+        target: { files: [file] },
       });
-      if (size > 1048576) expect(await screen.findByRole("alert")).toBeTruthy();
+      if (size > 52428800) expect(await screen.findByRole("alert")).toBeTruthy();
       else {
         await screen.findByText("size.txt");
         save();

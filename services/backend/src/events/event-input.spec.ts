@@ -227,7 +227,7 @@ describe('validateEvent', () => {
     },
   );
 
-  // Second story attachment prep
+  // SPM-36 Test Cases EVE-CRE-08-A and EVE-CRE-08-B
   it('accepts optional supporting files and defaults to none when omitted', () => {
     const withoutFiles = validEventRequest() as Record<string, unknown>;
     delete withoutFiles.attachments;
@@ -244,7 +244,7 @@ describe('validateEvent', () => {
     ]);
   });
 
-  // Second story attachment prep
+  // SPM-36 Test Case EVE-CRE-08-C
   it('rejects unsupported attachment payloads', () => {
     expectFieldError(
       {

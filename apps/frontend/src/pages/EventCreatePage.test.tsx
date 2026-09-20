@@ -229,7 +229,7 @@ describe("EventCreatePage", () => {
     expect(submittedBody).not.toHaveProperty("organiserId");
   });
 
-  // Second story attachment prep
+  // SPM-36 Test Case EVE-CRE-08-A
   it("uploads optional supporting files on the venue-needs step", async () => {
     const user = userEvent.setup();
     const saved = {
