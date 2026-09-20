@@ -54,15 +54,13 @@ export class ClarificationsController {
     const authed = request[CURRENT_USER_REQUEST_KEY];
     if (authed) return authed;
 
-    // Demo mode fallback: return a stub user with a role inferred from X-Demo-Role header
+    // Demo mode fallback: return a stub coordinator or organiser based on the operation
     if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
-      const headerRole = request.header('X-Demo-Role') || 'ORGANISER';
-      const demoRole = headerRole.toUpperCase();
       return {
-        uid: `demo-${demoRole.toLowerCase()}`,
-        roles: [demoRole],
-        name: `Demo User ${demoRole === 'ORGANISER' ? 'Organiser' : 'Coordinator'}`,
-        email: `demo-${demoRole.toLowerCase()}@example.test`,
+        uid: 'current-user',
+        roles: ['COORDINATOR', 'ORGANISER'],
+        name: 'Demo User',
+        email: 'demo@example.test',
       };
     }
 

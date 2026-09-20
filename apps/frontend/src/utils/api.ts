@@ -1,5 +1,4 @@
 import { auth } from "@/lib/firebase";
-import { useAppStore } from "@/store/useAppStore";
 
 export class ApiError extends Error {
   constructor(
@@ -21,14 +20,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 
     if (idToken) {
       headers.Authorization = `Bearer ${idToken}`;
-    }
-
-    // Always send the current user's role for demo mode and clarifications endpoints
-    const currentUser = useAppStore.getState().currentUser;
-    if (currentUser.role === "organiser") {
-      headers["X-Demo-Role"] = "ORGANISER";
-    } else if (currentUser.role === "coordinator") {
-      headers["X-Demo-Role"] = "COORDINATOR";
     }
 
     response = await fetch(
