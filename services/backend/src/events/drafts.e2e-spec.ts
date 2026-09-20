@@ -309,7 +309,8 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       await apiAs('attendee-test')[method](path).expect(403);
     }
   });
-  // Two verified accounts cannot list, read, overwrite or submit one another's drafts.
+  // Each verified account sees only its own drafts, and cannot list, read,
+  // overwrite or submit another account's drafts.
   it('isolates two users including forged ownership, direct URLs and submission', async () => {
     const first = newId(),
       second = newId();
