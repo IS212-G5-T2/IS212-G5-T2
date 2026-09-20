@@ -6,7 +6,7 @@ import {
   CheckboxGroup,
 } from "@/components/ui/FormControls";
 import { Button } from "@/components/ui/Button";
-import type { EventRecord } from "@/types";
+import type { EventRecord, EventAttachment } from "@/types";
 
 interface EventEditFormProps {
   event: EventRecord;
@@ -18,12 +18,16 @@ interface EventEditFormProps {
 const FACILITY_OPTIONS = [
   "Catering",
   "AV System",
+  "Parking",
   "Stage",
   "Projector",
+  "Whiteboard",
 ];
 
 const ACCESSIBILITY_OPTIONS = [
+  "Wheelchair ramps",
   "Accessible restrooms",
+  "Hearing loop",
   "Elevator access",
 ];
 
@@ -50,6 +54,23 @@ function fromDateTimeLocal(value: string): string {
   return date.toISOString();
 }
 
+function readAttachment(file: File): Promise<EventAttachment> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: crypto.randomUUID(),
+        name: file.name,
+        type: file.type || "application/octet-stream",
+        size: file.size,
+        dataUrl: String(reader.result),
+      });
+    };
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditFormProps) {
   const [name, setName] = useState(event.name || "");
   const [description, setDescription] = useState(event.description || "");
@@ -61,6 +82,33 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
   const [venue, setVenue] = useState(event.venueName || "");
   const [layout, setLayout] = useState(event.venueRequirements?.layout || "");
   const [equipmentNeeds, setEquipmentNeeds] = useState(event.equipmentNeeds || "");
+  const [attachments, setAttachments] = useState<EventAttachment[]>(event.attachments || []);
+  const [uploadFailure, setUploadFailure] = useState("");
+
+  const addFiles = async (files: File[] | null) => {
+    if (!files?.length) return;
+    setUploadFailure("");
+    if (attachments.length + files.length > 5) {
+      setUploadFailure("Use up to five files.");
+      return;
+    }
+    const existingBytes = attachments.reduce((total, attachment) => total + attachment.size, 0);
+    const incomingBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
+    if (existingBytes + incomingBytes > 50 * 1024 * 1024) {
+      setUploadFailure("Use up to five files, 50 MB total.");
+      return;
+    }
+    try {
+      const newAttachments = await Promise.all(Array.from(files).map(readAttachment));
+      setAttachments((prev) => [...prev, ...newAttachments]);
+    } catch {
+      setUploadFailure("Unable to read the selected file. Please try again.");
+    }
+  };
+
+  const removeFile = (id: string) => {
+    setAttachments((prev) => prev.filter((attachment) => attachment.id !== id));
+  };
 
   const handleSave = () => {
     onSave({
@@ -76,6 +124,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
       endDateTime: fromDateTimeLocal(endDateTime),
       expectedAttendance: expectedAttendance ? parseInt(expectedAttendance) : 0,
       equipmentNeeds,
+      attachments,
     });
   };
 
@@ -193,12 +242,79 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
               value={layout}
               onChange={(e) => setLayout(e.target.value)}
             />
-            <TextInput
-              label="Equipment needs"
-              value={equipmentNeeds}
-              onChange={(e) => setEquipmentNeeds(e.target.value)}
-              placeholder="e.g., Microphone, stands"
+          </div>
+        </div>
+
+        {/* Section 5: Equipment Needs */}
+        <div className="mb-8">
+          <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
+            <span className="text-lg">🔧</span>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+              Equipment needs
+            </h2>
+          </div>
+          <TextArea
+            label="Equipment needs"
+            value={equipmentNeeds}
+            onChange={(e) => setEquipmentNeeds(e.target.value)}
+            placeholder="e.g., Two wireless microphones and a portable speaker"
+          />
+        </div>
+
+        {/* Section 6: Attached Files */}
+        <div className="mb-8">
+          <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
+            <span className="text-lg">📎</span>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
+              Supporting files
+            </h2>
+          </div>
+          <div className="mb-4">
+            <label
+              htmlFor="supporting-files"
+              className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              Supporting files
+            </label>
+            <input
+              id="supporting-files"
+              type="file"
+              multiple
+              onChange={(event) => {
+                const input = event.target;
+                const selected = input.files ? Array.from(input.files) : [];
+                input.value = "";
+                void addFiles(selected);
+              }}
+              className="block w-full text-sm text-gray-700 file:mr-4 file:rounded-md file:border-0 file:bg-primary-600 file:px-3 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-primary-700 dark:text-gray-300"
             />
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Optional. Upload up to five supporting files (50 MB total) for the coordinator to review.
+            </p>
+            {uploadFailure && (
+              <p className="mt-1 text-xs text-danger-600" role="alert">
+                {uploadFailure}
+              </p>
+            )}
+            {attachments.length > 0 && (
+              <ul className="mt-3 space-y-2 text-sm">
+                {attachments.map((attachment) => (
+                  <li
+                    key={attachment.id}
+                    className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+                  >
+                    <span className="truncate">{attachment.name}</span>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => removeFile(attachment.id)}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 
