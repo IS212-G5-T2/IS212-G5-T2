@@ -235,78 +235,80 @@ export function EventDetailPage() {
                 onCancel={() => setEditMode(false)}
               />
             ) : (
-              <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+              <>
+                <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {formatDateRange(event.startDateTime, event.endDateTime)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {event.venueRequirements.facilities.join(", ") || "None specified"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {event.venueRequirements.accessibility.join(", ") || "None specified"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
+                    <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
+                      {event.attachments?.length ? (
+                        event.attachments.map((attachment) => (
+                          <div
+                            key={attachment.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+                          >
+                            <span>{attachment.name}</span>
+                            <span className="flex items-center gap-3 text-xs">
+                              <a
+                                href={attachment.dataUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary-700 underline dark:text-primary-300"
+                              >
+                                View
+                              </a>
+                              <a
+                                href={attachment.dataUrl}
+                                download={attachment.name}
+                                className="text-primary-700 underline dark:text-primary-300"
+                              >
+                                Download
+                              </a>
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        "None specified"
+                      )}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
+                  </div>
+                </dl>
+              </>
             )}
-            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {formatDateRange(event.startDateTime, event.endDateTime)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {event.venueRequirements.facilities.join(", ") || "None specified"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {event.venueRequirements.accessibility.join(", ") || "None specified"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
-                <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
-                  {event.attachments?.length ? (
-                    event.attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
-                      >
-                        <span>{attachment.name}</span>
-                        <span className="flex items-center gap-3 text-xs">
-                          <a
-                            href={attachment.dataUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary-700 underline dark:text-primary-300"
-                          >
-                            View
-                          </a>
-                          <a
-                            href={attachment.dataUrl}
-                            download={attachment.name}
-                            className="text-primary-700 underline dark:text-primary-300"
-                          >
-                            Download
-                          </a>
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    "None specified"
-                  )}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
-              </div>
-            </dl>
           </CardBody>
         </Card>
 

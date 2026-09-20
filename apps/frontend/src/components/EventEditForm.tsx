@@ -28,20 +28,35 @@ const ACCESSIBILITY_OPTIONS = [
 ];
 
 const ROOM_LAYOUT_OPTIONS = [
-  { value: "banquet", label: "Banquet" },
-  { value: "theater", label: "Theater" },
-  { value: "classroom", label: "Classroom" },
-  { value: "u-shape", label: "U-Shape" },
-  { value: "boardroom", label: "Boardroom" },
+  { value: "Banquet", label: "Banquet" },
+  { value: "Theater", label: "Theater" },
+  { value: "Classroom", label: "Classroom" },
+  { value: "U-Shape", label: "U-Shape" },
+  { value: "Boardroom", label: "Boardroom" },
 ];
+
+function toDateTimeLocal(isoString: string): string {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function fromDateTimeLocal(value: string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString();
+}
 
 export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditFormProps) {
   const [name, setName] = useState(event.name || "");
   const [description, setDescription] = useState(event.description || "");
   const [facilities, setFacilities] = useState<string[]>(event.venueRequirements?.facilities || []);
   const [accessibility, setAccessibility] = useState<string[]>(event.venueRequirements?.accessibility || []);
-  const [startDateTime, setStartDateTime] = useState(event.startDateTime || "");
-  const [endDateTime, setEndDateTime] = useState(event.endDateTime || "");
+  const [startDateTime, setStartDateTime] = useState(toDateTimeLocal(event.startDateTime));
+  const [endDateTime, setEndDateTime] = useState(toDateTimeLocal(event.endDateTime));
   const [expectedAttendance, setExpectedAttendance] = useState(String(event.expectedAttendance || ""));
   const [venue, setVenue] = useState(event.venueName || "");
   const [layout, setLayout] = useState(event.venueRequirements?.layout || "");
@@ -57,8 +72,8 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
         accessibility,
         layout,
       },
-      startDateTime,
-      endDateTime,
+      startDateTime: fromDateTimeLocal(startDateTime),
+      endDateTime: fromDateTimeLocal(endDateTime),
       expectedAttendance: expectedAttendance ? parseInt(expectedAttendance) : 0,
       equipmentNeeds,
     });
@@ -68,24 +83,6 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
 
   return (
     <div className="mx-auto max-w-4xl">
-      {/* Status Bar */}
-      <div className="mb-6 flex gap-2 overflow-x-auto border-b border-gray-200 pb-4 dark:border-gray-700">
-        {["Draft", "Submitted", "Under review", "Approved", "Planning", "Confirmed", "Completed"].map(
-          (status) => (
-            <button
-              key={status}
-              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-xs font-medium transition-colors ${
-                event.status === status.toLowerCase().replace(" ", "-")
-                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
-                  : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-              }`}
-              disabled
-            >
-              {status}
-            </button>
-          )
-        )}
-      </div>
 
       {/* Main Form Card */}
       <div className="rounded-lg border border-gray-200 bg-white p-10 shadow-sm dark:border-gray-700 dark:bg-gray-800">
