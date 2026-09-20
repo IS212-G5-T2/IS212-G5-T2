@@ -35,6 +35,7 @@ export interface EventInput {
   attachments: EventAttachment[];
   equipmentNeeds: string;
   submissionKey: string;
+  registrationEnabled: boolean;
 }
 
 export interface EventAttachment {
@@ -147,6 +148,14 @@ export function validateEvent(input: unknown): EventInput {
     )
   )
     errors.submissionKey = 'Invalid submission identifier. Reload the form.';
+  let registrationEnabled = false;
+  if (data.registrationEnabled !== undefined) {
+    if (typeof data.registrationEnabled !== 'boolean') {
+      errors.registrationEnabled = 'Registration enabled must be a boolean.';
+    } else {
+      registrationEnabled = data.registrationEnabled;
+    }
+  }
   if (Object.keys(errors).length)
     throw new BadRequestException({
       message: 'Please correct the highlighted fields.',
@@ -165,5 +174,6 @@ export function validateEvent(input: unknown): EventInput {
     attachments: attachedFiles,
     equipmentNeeds,
     submissionKey,
+    registrationEnabled,
   };
 }

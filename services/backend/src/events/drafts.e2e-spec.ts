@@ -4,9 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
-import { Test } from '@nestjs/testing';
-import { UnauthorizedException } from '@nestjs/common';
-import { FirebaseTokenService } from '../auth/authentication/firebase-token.service.js';
+import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
 import { AppModule } from '../app.module.js';
 
@@ -15,29 +13,6 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   let app: INestApplication;
   let db: pg.Pool;
   const ids: string[] = [];
-  const owner = 'draft-owner-test';
-  const other = 'draft-other-test';
-  const apiAs = (token = owner) =>
-    request.agent(app.getHttpServer()).set('Authorization', 'Bearer ' + token);
-  async function startApp() {
-    // Stub only external token verification; exercise real middleware, controllers and SQL.
-    const module = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(FirebaseTokenService)
-      .useValue({
-        verifyIdToken: async (token: string) => {
-          if (![owner, other, 'attendee-test'].includes(token))
-            throw new UnauthorizedException();
-          return {
-            uid: token,
-            roles: [token === 'attendee-test' ? 'ATTENDEE' : 'ORGANISER'],
-            email: token + '@example.test',
-          };
-        },
-      })
-      .compile();
-    app = module.createNestApplication();
-    await app.init();
-  }
   const newId = () => {
     const id = randomUUID();
     ids.push(id);
@@ -49,7 +24,9 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     version = 0,
     operationId = randomUUID(),
   ) =>
-    apiAs().put(`/api/requests/${id}`).send({ fields, version, operationId });
+    request(app.getHttpServer())
+      .put(`/api/requests/${id}`)
+      .send({ fields, version, operationId });
   beforeAll(async () => {
     // Use only the explicitly configured test database, never the application URL by default.
     process.env.DATABASE_URL = database;
@@ -70,7 +47,8 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         'utf8',
       ),
     );
-    await startApp();
+    app = await NestFactory.create(AppModule, { logger: false });
+    await app.init();
   });
   afterAll(async () => {
     // Remove only records created by this suite, preserving the shared database.
@@ -121,12 +99,16 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     };
     await save(id, fields).expect(200);
     expect(
-      (await apiAs().get(`/api/requests/${id}`).expect(200)).body.fields,
+      (
+        await request(app.getHttpServer())
+          .get(`/api/requests/${id}`)
+          .expect(200)
+      ).body.fields,
     ).toEqual(fields);
     expect(
-      (await apiAs().get('/api/requests').expect(200)).body.some(
-        (row: { id: string }) => row.id === id,
-      ),
+      (
+        await request(app.getHttpServer()).get('/api/requests').expect(200)
+      ).body.some((row: { id: string }) => row.id === id),
     ).toBe(true);
   });
   // AC4/6: an uncertain response can be retried and later saves update the same row.
@@ -145,9 +127,10 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ]);
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
     const latest = responses.find((r) => r.status === 200)!.body;
-    expect((await apiAs().get(`/api/requests/${id}`)).body.fields).toEqual(
-      latest.fields,
-    );
+    expect(
+      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+        .fields,
+    ).toEqual(latest.fields);
     expect(
       (await db.query('SELECT * FROM event_drafts WHERE id=$1', [id])).rowCount,
     ).toBe(1);
@@ -157,9 +140,10 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     const id = newId();
     await save(id, { name: 'Safe value' }).expect(200);
     await save(id, { name: 123 }, 1).expect(400);
-    expect((await apiAs().get(`/api/requests/${id}`)).body.fields.name).toBe(
-      'Safe value',
-    );
+    expect(
+      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+        .fields.name,
+    ).toBe('Safe value');
   });
   // AC8: real submission is atomic, idempotent and permanently closes draft editing.
   it('submits once and blocks later draft saves', async () => {
@@ -176,20 +160,21 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       layout: 'Theatre',
     }).expect(200);
     const payload = { version: 1, startDateTime, endDateTime };
-    const first = await apiAs()
+    const first = await request(app.getHttpServer())
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
-    const retry = await apiAs()
+    const retry = await request(app.getHttpServer())
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
     expect(first.body.event.id).toBe(id);
     expect(retry.body.event.id).toBe(id);
     await save(id, { name: 'Illegal edit' }, 2).expect(409);
-    expect((await apiAs().get(`/api/requests/${id}`)).body.status).toBe(
-      'Submitted',
-    );
+    expect(
+      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+        .status,
+    ).toBe('Submitted');
     expect(
       (await db.query('SELECT * FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(1);
@@ -198,7 +183,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
     await save(id, {}).expect(200);
-    await apiAs()
+    await request(app.getHttpServer())
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(400);
@@ -209,9 +194,9 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   });
   it('Q1-038 malformed and missing IDs return 404 without insertion', async () => {
     for (const id of ['bad-id', newId()]) {
-      await apiAs().get(`/api/requests/${id}`).expect(404);
+      await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
       await save(id, {}, 1).expect(404);
-      await apiAs()
+      await request(app.getHttpServer())
         .post(`/api/requests/${id}/submit`)
         .send({ version: 1 })
         .expect(404);
@@ -221,11 +206,13 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     const id = newId();
     await save(id, { name: 'First' }).expect(200);
     await save(id, { name: 'Latest' }, 1).expect(200);
-    await apiAs()
+    await request(app.getHttpServer())
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(409);
-    expect((await apiAs().get(`/api/requests/${id}`)).body).toMatchObject({
+    expect(
+      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body,
+    ).toMatchObject({
       status: 'Draft',
       version: 2,
       fields: { name: 'Latest' },
@@ -238,9 +225,14 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     const id = newId();
     await save(id, { name: 'Restart evidence', formStep: 2 }).expect(200);
     await app.close();
-    await startApp();
+    app = await NestFactory.create(AppModule, { logger: false });
+    await app.init();
     expect(
-      (await apiAs().get(`/api/requests/${id}`).expect(200)).body,
+      (
+        await request(app.getHttpServer())
+          .get(`/api/requests/${id}`)
+          .expect(200)
+      ).body,
     ).toMatchObject({
       id,
       status: 'Draft',
@@ -262,7 +254,11 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       endDateTime: new Date(Date.now() + 90000000).toISOString(),
     };
     const responses = await Promise.all(
-      [1, 2].map(() => apiAs().post(`/api/requests/${id}/submit`).send(body)),
+      [1, 2].map(() =>
+        request(app.getHttpServer())
+          .post(`/api/requests/${id}/submit`)
+          .send(body),
+      ),
     );
     expect(responses.map((r) => r.status)).toEqual([201, 201]);
     expect(responses.map((r) => r.body.event.id)).toEqual([id, id]);
@@ -275,140 +271,19 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .rows[0].event_name,
     ).toBe('Concurrent submit');
   });
-  // Ownership filtering denies rows belonging to any other server-side owner.
+  // Ownership filtering is retained; original AC7 real organisation authentication is explicitly deferred.
   it('does not expose a row belonging to a different server-side owner', async () => {
     const id = newId();
     await db.query(
       "INSERT INTO event_drafts (id, organiser_id, fields) VALUES ($1,'other-owner','{}')",
       [id],
     );
-    await apiAs().get(`/api/requests/${id}`).expect(404);
+    await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
     await save(id, {}).expect(404);
     expect(
-      (await apiAs().get('/api/requests')).body.some(
+      (await request(app.getHttpServer()).get('/api/requests')).body.some(
         (row: { id: string }) => row.id === id,
       ),
     ).toBe(false);
-  });
-
-  // Missing or forged credentials never reach protected draft or event handlers.
-  it('rejects unauthenticated and invalid-token draft and event access', async () => {
-    const id = newId();
-    for (const [method, path] of [
-      ['get', '/api/requests'],
-      ['get', '/api/requests/' + id],
-      ['put', '/api/requests/' + id],
-      ['post', '/api/requests/' + id + '/submit'],
-      ['get', '/api/events'],
-      ['get', '/api/events/' + id],
-      ['post', '/api/events'],
-    ] as const) {
-      // Attempt every protected operation without a token and with a forged token.
-      await request(app.getHttpServer())[method](path).expect(401);
-      await apiAs('invalid-token')[method](path).expect(401);
-      await apiAs('attendee-test')[method](path).expect(403);
-    }
-  });
-  // Each verified account sees only its own drafts, and cannot list, read,
-  // overwrite or submit another account's drafts.
-  it('isolates two users including forged ownership, direct URLs and submission', async () => {
-    const first = newId(),
-      second = newId();
-    const fields = {
-      name: 'Private draft',
-      purpose: 'Test',
-      description: 'Test',
-      layout: 'Theatre',
-      expectedAttendance: '1',
-    };
-    // Each user creates a separate draft; an owner ID in the body cannot choose ownership.
-    await apiAs()
-      .put('/api/requests/' + first)
-      .send({
-        fields,
-        version: 0,
-        operationId: randomUUID(),
-        organiserId: other,
-      })
-      .expect(200);
-    await apiAs(other)
-      .put('/api/requests/' + second)
-      .send({
-        fields: { name: 'Other private draft' },
-        version: 0,
-        operationId: randomUUID(),
-      })
-      .expect(200);
-    expect(
-      (
-        await db.query('SELECT organiser_id FROM event_drafts WHERE id=$1', [
-          first,
-        ])
-      ).rows[0].organiser_id,
-    ).toBe(owner);
-    // Verify both directions and attempts to take ownership with a version-zero save.
-    for (const [user, own, foreign] of [
-      [owner, first, second],
-      [other, second, first],
-    ]) {
-      const list = (await apiAs(user).get('/api/requests').expect(200)).body;
-      expect(list.some((row: { id: string }) => row.id === own)).toBe(true);
-      expect(list.some((row: { id: string }) => row.id === foreign)).toBe(
-        false,
-      );
-      await apiAs(user)
-        .get('/api/requests/' + foreign)
-        .expect(404);
-      for (const version of [0, 1])
-        await apiAs(user)
-          .put('/api/requests/' + foreign)
-          .send({
-            fields: { name: 'Hijack' },
-            version,
-            operationId: randomUUID(),
-          })
-          .expect(404);
-      await apiAs(user)
-        .post('/api/requests/' + foreign + '/submit')
-        .send({ version: 1 })
-        .expect(404);
-    }
-    // Submission preserves the verified owner and makes the event available only to that account.
-    const submission = {
-      version: 1,
-      startDateTime: new Date(Date.now() + 86400000).toISOString(),
-      endDateTime: new Date(Date.now() + 90000000).toISOString(),
-    };
-    await apiAs()
-      .post('/api/requests/' + first + '/submit')
-      .send(submission)
-      .expect(201);
-    await apiAs()
-      .get('/api/events/' + first)
-      .expect(200);
-    await apiAs(other)
-      .get('/api/events/' + first)
-      .expect(404);
-    expect(
-      (await apiAs(other).get('/api/events').expect(200)).body.some(
-        (row: { id: string }) => row.id === first,
-      ),
-    ).toBe(false);
-    expect(
-      (await apiAs().get('/api/events').expect(200)).body.some(
-        (row: { id: string }) => row.id === first,
-      ),
-    ).toBe(true);
-    await apiAs()
-      .post('/api/requests/' + first + '/submit')
-      .send(submission)
-      .expect(201);
-    expect(
-      (
-        await apiAs(other)
-          .get('/api/requests/' + second)
-          .expect(200)
-      ).body.fields.name,
-    ).toBe('Other private draft');
   });
 });

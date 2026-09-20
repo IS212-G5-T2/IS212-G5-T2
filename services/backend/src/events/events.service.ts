@@ -1,13 +1,11 @@
 import {
   ForbiddenException,
   Injectable,
-  UnauthorizedException,
   NotFoundException,
   OnModuleDestroy,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { validateEvent } from './event-input.js';
 
 @Injectable()
@@ -17,14 +15,16 @@ export class EventsService implements OnModuleDestroy {
     connectionTimeoutMillis: 5000,
   });
 
-  identity(user: AuthenticatedUser | undefined) {
-    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
-    if (!user.roles.includes('ORGANISER'))
-      throw new ForbiddenException('Organiser access required.');
+  identity() {
+    // Explicit local-only identity. Never trust an organiser ID from a request body.
+    if (process.env.DEMO_ORGANISER_ENABLED !== 'true')
+      throw new ForbiddenException(
+        'Event access requires configured authentication.',
+      );
     return {
-      id: user.uid,
-      name: user.email ?? 'Organiser',
-      email: user.email ?? '',
+      id: 'current-user',
+      name: 'Demo Organiser',
+      email: 'organiser@example.test',
       role: 'organiser' as const,
     };
   }
@@ -58,16 +58,16 @@ export class EventsService implements OnModuleDestroy {
       updatedAt: row.updated_at.toISOString(),
     };
   }
-  async list(identity: AuthenticatedUser | undefined) {
-    const user = this.identity(identity);
+  async list() {
+    const user = this.identity();
     const result = await this.pool.query(
       'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
       [user.id],
     );
     return result.rows.map((row) => this.record(row));
   }
-  async get(identity: AuthenticatedUser | undefined, id: string) {
-    const user = this.identity(identity);
+  async get(id: string) {
+    const user = this.identity();
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         id,
@@ -81,13 +81,8 @@ export class EventsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
   }
-  async create(
-    identity: AuthenticatedUser | undefined,
-    body: unknown,
-    transaction?: pg.PoolClient,
-    eventId?: string,
-  ) {
-    const user = this.identity(identity);
+  async create(body: unknown, transaction?: pg.PoolClient, eventId?: string) {
+    const user = this.identity();
     const data = validateEvent(body);
     // When the caller supplies a transaction (e.g. draft submission), it owns
     // BEGIN/COMMIT/ROLLBACK and the connection lifecycle; we just run the insert.

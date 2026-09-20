@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS events (
     accessibility_needs text[] NOT NULL DEFAULT '{}',
     attachments jsonb NOT NULL DEFAULT '[]'::jsonb,
     equipment_needs text NOT NULL DEFAULT '',
+    registration_enabled boolean NOT NULL DEFAULT false,
     status text NOT NULL DEFAULT 'Submitted' CHECK (status = 'Submitted'),
     submission_key uuid NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -26,3 +27,6 @@ CREATE INDEX IF NOT EXISTS events_organiser_created_idx ON events (organiser_id,
 
 ALTER TABLE events
     ADD COLUMN IF NOT EXISTS attachments jsonb NOT NULL DEFAULT '[]'::jsonb;
+
+ALTER TABLE events
+    ADD COLUMN IF NOT EXISTS registration_enabled boolean NOT NULL DEFAULT false;

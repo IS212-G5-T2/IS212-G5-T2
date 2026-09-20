@@ -31,6 +31,7 @@ function validEventRequest() {
     ],
     equipmentNeeds: 'Two microphones',
     submissionKey: '00000000-0000-4000-8000-000000000036',
+    registrationEnabled: false,
   };
 }
 
@@ -265,5 +266,24 @@ describe('validateEvent', () => {
 
     expect(result).not.toHaveProperty('organiserId');
     expect(result).not.toHaveProperty('status');
+  });
+
+  it('accepts valid registrationEnabled boolean flag', () => {
+    expect(
+      validateEvent({ ...validEventRequest(), registrationEnabled: true }),
+    ).toMatchObject({ registrationEnabled: true });
+    expect(
+      validateEvent({ ...validEventRequest(), registrationEnabled: false }),
+    ).toMatchObject({ registrationEnabled: false });
+    expect(
+      validateEvent({ ...validEventRequest(), registrationEnabled: undefined }),
+    ).toMatchObject({ registrationEnabled: false });
+  });
+
+  it('rejects non-boolean registrationEnabled values', () => {
+    expectFieldError(
+      { ...validEventRequest(), registrationEnabled: 'true' },
+      'registrationEnabled',
+    );
   });
 });

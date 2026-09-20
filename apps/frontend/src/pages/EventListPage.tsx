@@ -1,7 +1,7 @@
 import { api } from "@/utils/api";
 import type { EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
@@ -22,6 +22,7 @@ const statusOptions: { value: string; label: string }[] = [
 ];
 
 export function EventListPage() {
+  const isPlanning = useLocation().pathname === "/planning";
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
   const [loading, setLoading] = useState(true);
@@ -61,7 +62,7 @@ export function EventListPage() {
   return (
     <div>
       <PageHeader
-        title={title}
+        title={isPlanning ? "Event Planning" : title}
         description={
           currentUser.role === "coordinator"
             ? "Review submissions, track statuses, and manage every event in the pipeline."

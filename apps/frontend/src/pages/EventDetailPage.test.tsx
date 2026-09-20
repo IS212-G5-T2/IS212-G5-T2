@@ -99,4 +99,75 @@ describe("EventDetailPage", () => {
       "proposal.txt",
     );
   });
+
+  it("does not render 'Assign Myself as Coordinator' button", async () => {
+    const event = { ...assignedEvent(), coordinatorId: undefined, coordinatorName: undefined };
+    apiMock.mockResolvedValue(event);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  it("shows pop-up error message and restricts review actions for non-assigned coordinators without read-only badge", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-other",
+        name: "Other Coordinator",
+        email: "other@example.test",
+        role: "coordinator",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByText(/Read-Only/i)).toBeNull();
+    expect(screen.getAllByText("This event has not been assigned to you.").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+  });
+
+  it("allows assigned coordinator to access review actions", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-1",
+        name: "Demo Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review Event" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Change Requests/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
 });
+

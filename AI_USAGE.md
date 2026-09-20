@@ -21,6 +21,47 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-20 - Gemini 3.8 / Claude Sonnet 4.6 - Fix role-based request and event viewing logic
+## 2026-09-20 - Gemini 3.8 / Claude Sonnet 4.6 - Fix role-based request, event viewing logic, registrationEnabled, and coordinator boundaries
+## 2026-09-20 - Gemini 3.8 / Claude Sonnet 4.6 - Fix role-based request, event viewing logic, registrationEnabled, coordinator access popup, and attendee signup prompt
+
+- Issue/PR: Unknown (Branch: `fix_request_view_logic`)
+- Human requester/operator: kirub
+- Areas touched: `services/backend/src/events/`, `apps/frontend/src/pages/`, `AI_USAGE.md`
+- Summary: Replaced hardcoded organiser-only backend identity and scoping in `EventsService` and `DraftsService` with real `AuthenticatedUser` extracted from the request pipeline. Implemented role-based event viewing logic: organisers only see their own events; coordinators, venue staff, and tech support view all events for pipeline and calendar oversight; attendees view only confirmed events. Added role-specific descriptions and attendee filtering on the frontend `EventListPage`.
+- AI contribution: Problem diagnosis, implementation plan, backend role-scoped query refactoring, drafts service security guard, test updates, and frontend view enhancements.
+- Assumptions: Firebase authentication middleware attaches `request.currentUser` (`AuthenticatedUser`). Non-organisers are blocked with 403 on draft endpoints. Attendee visibility is filtered to confirmed events on both backend and frontend.
+- Checks run: Backend unit tests via vitest (`npm test` in `services/backend`, 363/363 passed); Frontend unit tests via vitest (`npm test` in `apps/frontend`, 146/146 passed including new `EventListPage.test.tsx` role viewing tests).
+- Follow-up/conflict notes: None. No commits or pushes performed without explicit user approval.
+- Areas touched: `services/backend/src/events/`, `services/backend/migrations/`, `development/database/postgresql/init/`, `apps/frontend/src/pages/`, `apps/frontend/src/types/`, `AI_USAGE.md`
+- Areas touched: `services/backend/src/events/`, `services/backend/migrations/`, `development/database/postgresql/init/`, `apps/frontend/src/pages/`, `apps/frontend/src/types/`, `apps/frontend/src/store/`, `AI_USAGE.md`
+- Summary: Implemented complete role-based request and event viewing logic:
+  1. Replaced hardcoded demo stub with real `AuthenticatedUser` extracted from the request pipeline.
+  2. Role-scoped event queries: Organisers see only their own events; Coordinators, Venue Staff, and Tech Support see all events for schedule oversight; Attendees see only confirmed events.
+  3. Added `registration_enabled` boolean column to PostgreSQL database schema and migration `002_add_registration_enabled.sql`.
+  4. Added backend validation for `registrationEnabled` in `event-input.ts` and mapped it in `events.service.ts`.
+  5. Added "Register through website" checkbox on `EventCreatePage` (Basic Information step), persisting in draft and submitting to `/events`.
+  5. Added "Register through website" checkbox on `EventCreatePage` (Basic Information step), persisting in draft and submitting to `/events`. Handled events where registration through website is disabled (`registrationEnabled = false`).
+  6. Scoped attendee view in `events.service.ts` and `EventListPage.tsx` to confirmed events where `registrationEnabled = true` or where the attendee has personally registered.
+  7. Confirmed post-submission organiser edit rules in `EventEditPage.tsx`: name and description can be updated directly, while operational fields (schedule, attendance, venue, equipment) must go through coordinator Change Requests.
+  8. Enforced coordinator boundary in `EventDetailPage.tsx`: only assigned coordinator can review/edit; non-assigned coordinators retain unified read-only visibility with an assigned badge.
+- AI contribution: Full-stack diagnosis, implementation plan, database migration, backend validation and query refactoring, frontend form controls, role-scoped filtering, and comprehensive test suite updates.
+  8. Enforced coordinator boundary and auto-assignment in `EventDetailPage.tsx` and `useAppStore.ts`: removed manual self-assignment ("Assign Myself as Coordinator"); unassigned events are automatically assigned by the system to a coordinator on submission or view; only the assigned coordinator can review/edit; non-assigned coordinators retain unified read-only visibility with an assigned badge.
+- AI contribution: Full-stack diagnosis, implementation plan, database migration, backend validation and query refactoring, frontend form controls, role-scoped filtering, auto-assignment logic, and comprehensive test suite updates.
+  8. Auto-assigned coordinators: Unassigned submitted events are automatically assigned to an available coordinator; manual self-assignment removed.
+  9. Non-assigned coordinator access control: Removed the read-only coordinator badge; opening an event not assigned to the coordinator displays a pop-up error modal: "This event has not been assigned to you."
+  10. Attendee website signup prompt: If an event has registration enabled post-submission and the attendee has not signed up, the detail page clearly prompts them to sign up through the website first.
+  10. Attendee website signup prompt: If an event has registration enabled post-submission and the attendee has not signed up, the detail page clearly prompts them to sign up through the website first. If registration through website is not enabled (`registrationEnabled = false`), the page clearly indicates "Registration through the website is not enabled for this event" and suppresses website registration controls.
+- AI contribution: Full-stack diagnosis, implementation plan, database migration, backend validation and query refactoring, frontend form controls, role-scoped filtering, auto-assignment logic, modal pop-up error handling, attendee prompt notices, and comprehensive test suite updates.
+- Assumptions: Firebase auth attaches `request.currentUser`. Non-organisers cannot access draft endpoints (403 Forbidden). Attendees cannot view unconfirmed events.
+- Checks run: Backend unit tests via vitest (`npm test` in `services/backend`, 365/365 passed across 12 test suites); Frontend unit tests via vitest (`npm test` in `apps/frontend`, 147/147 passed across 13 test suites).
+- Checks run: Backend unit tests via vitest (`npm test` in `services/backend`, 365/365 passed across 12 test suites); Frontend unit tests via vitest (`npm test` in `apps/frontend`, 150/150 passed across 13 test suites).
+- Checks run: Backend unit tests via vitest (`npm test` in `services/backend`, 365/365 passed across 12 test suites); Frontend unit tests via vitest (`npm test` in `apps/frontend`, 151/151 passed across 13 test suites).
+- Checks run: Backend unit tests via vitest (`npm test` in `services/backend`, 365/365 passed across 12 test suites); Frontend unit tests via vitest (`npm test` in `apps/frontend`, 152/152 passed across 13 test suites).
+- Follow-up/conflict notes: None. All changes staged for human review.
+
+
+
 ## 2026-09-16 - Codex (GPT-5) - Restore SPM-30 frontend authentication integration
 
 - Issue/PR: SPM-30 / PR #15

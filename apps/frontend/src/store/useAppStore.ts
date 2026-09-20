@@ -47,6 +47,7 @@ interface AppState {
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
+  autoAssignCoordinator: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
   reviewEvent: (id: string, decision: "approve" | "reject", note?: string) => void;
   setEventStatus: (id: string, status: EventStatus) => void;
@@ -123,10 +124,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   submitEvent: (id) => {
+    const defaultCoordinator = {
+      id: "coordinator-1",
+      name: "Coordinator",
+    };
     set((s) => ({
       events: s.events.map((e) =>
         e.id === id
-          ? { ...e, status: "submitted" as EventStatus, updatedAt: new Date().toISOString() }
+          ? {
+              ...e,
+              status: "submitted" as EventStatus,
+              coordinatorId: e.coordinatorId || defaultCoordinator.id,
+              coordinatorName: e.coordinatorName || defaultCoordinator.name,
+              updatedAt: new Date().toISOString(),
+            }
           : e
       ),
     }));
@@ -134,11 +145,38 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (event) {
       get().pushNotification({
         audienceRole: "coordinator",
+        audienceUserId: event.coordinatorId,
         type: "submission",
-        message: `"${event.name}" was submitted for review.`,
+        message: `"${event.name}" was submitted and auto-assigned to ${event.coordinatorName}.`,
+        relatedEventId: id,
+      });
+      get().pushNotification({
+        audienceRole: "organiser",
+        audienceUserId: event.organiserId,
+        type: "coordinator_assignment",
+        message: `${event.coordinatorName} was auto-assigned to "${event.name}".`,
         relatedEventId: id,
       });
     }
+  },
+
+  autoAssignCoordinator: (id) => {
+    const defaultCoordinator = {
+      id: "coordinator-1",
+      name: "Coordinator",
+    };
+    set((s) => ({
+      events: s.events.map((e) =>
+        e.id === id && !e.coordinatorId
+          ? {
+              ...e,
+              coordinatorId: defaultCoordinator.id,
+              coordinatorName: defaultCoordinator.name,
+              updatedAt: new Date().toISOString(),
+            }
+          : e
+      ),
+    }));
   },
 
   assignCoordinator: (id, coordinatorId, coordinatorName) => {

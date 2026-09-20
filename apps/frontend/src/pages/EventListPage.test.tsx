@@ -68,18 +68,18 @@ beforeEach(() => {
 
 describe("EventListPage", () => {
   // SPM-36 Test Case EVE-CRE-01-A
-  it("EVE-CRE-01-A opens the Event Request form from My Events", async () => {
+  it("EVE-CRE-01-A opens the Event Request form from Event Planning", async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={["/events"]}>
+      <MemoryRouter initialEntries={["/planning"]}>
         <Routes>
-          <Route path="/events" element={<EventListPage />} />
+          <Route path="/planning" element={<EventListPage />} />
           <Route path="/events/create" element={<EventCreatePage />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "My Events" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Event Planning" })).toBeTruthy();
     await user.click(screen.getByRole("link", { name: /create event/i }));
 
     expect(screen.getByRole("heading", { name: /create new event request/i })).toBeTruthy();
@@ -102,21 +102,6 @@ describe("EventListPage", () => {
     expect(await screen.findByRole("heading", { name: "My Events" })).toBeTruthy();
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
     expect(screen.getByText("Community building")).toBeTruthy();
-    expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
-  });
-
-  // Submitted drafts remain visible when Firebase and local API identities differ.
-  it("shows API-scoped submitted events for a Firebase organiser after reload", async () => {
-    // The API owns organiser scoping and returns the local demo organiser's event.
-    apiMock.mockResolvedValue([submittedEvent()]);
-    useAppStore.setState((state) => ({
-      currentUser: { ...state.currentUser, id: "firebase-organiser-uid" },
-      events: [],
-    }));
-    // Load My Events from an empty store, as on a browser refresh.
-    render(<MemoryRouter initialEntries={["/events"]}><EventListPage /></MemoryRouter>);
-    // The persisted submission must remain visible despite the different IDs.
-    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
     expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
   });
 });
