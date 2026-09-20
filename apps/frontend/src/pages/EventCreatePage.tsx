@@ -98,7 +98,6 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
         if (result.status !== "Draft") setLocked(true);
         else {
           const { formStep, ...values } = result.fields;
-          setForm(values);
           setForm({
             ...values,
             registrationEnabled: values.registrationEnabled ?? false,

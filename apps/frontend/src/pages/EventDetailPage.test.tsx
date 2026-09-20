@@ -169,5 +169,59 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: /Change Requests/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
+
+  it("restricts venue staff from accessing unapproved submitted requests", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "venue-1",
+        name: "Venue Staff",
+        email: "venue@example.test",
+        role: "venue_staff",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/Access restricted: Venue and technical support staff cannot access unapproved submitted requests/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
+
+  it("restricts tech support staff from accessing unapproved submitted requests", async () => {
+    const event = assignedEvent();
+    apiMock.mockResolvedValue(event);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "tech-1",
+        name: "Tech Support",
+        email: "tech@example.test",
+        role: "tech_support",
+      },
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(/Access restricted: Venue and technical support staff cannot access unapproved submitted requests/i),
+    ).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
 });
 
