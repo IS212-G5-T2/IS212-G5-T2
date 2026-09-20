@@ -156,7 +156,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
       expect(
         screen
-          .getByRole("link", { name: "Back to My drafts" })
+          .getByRole("link", { name: "Back to My Requests" })
           .getAttribute("href"),
       ).toBe("/requests");
     },
@@ -236,7 +236,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "Unable to save draft",
     );
   });
-  it("Q2-008 confirmation supports keyboard and returns to My drafts", async () => {
+  it("Q2-008 confirmation supports keyboard and returns to My Requests", async () => {
     mocked.mockResolvedValueOnce(draft()).mockResolvedValueOnce([]);
     open("/events/create");
     save();
@@ -244,7 +244,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(fireEvent.keyDown(dialog, { key: "Tab" })).toBe(false);
     expect(fireEvent.keyDown(dialog, { key: "Escape" })).toBe(true);
     click("OK");
-    expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
+    expect(await screen.findByText(/No saved requests yet/)).toBeTruthy();
   });
   it("Q2-009 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
@@ -337,7 +337,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
-  it("Q2-015 list keeps unnamed drafts and excludes submitted requests", async () => {
+  it("Q2-015 list handles loading, empty state, unnamed draft and submitted links", async () => {
     const pending = deferred<DraftRecord[]>();
     mocked.mockReturnValue(pending.promise);
     open("/requests");
@@ -354,9 +354,9 @@ describe("SPM-37 Q2 functional cases", () => {
         .getAttribute("href"),
     ).toBe(`/requests/${id}`);
     expect(
-      screen.queryByRole("link", { name: "Workshop" }),
-    ).toBeNull();
-    expect(screen.queryByText("Submitted")).toBeNull();
+      screen.getByRole("link", { name: "Workshop" }).getAttribute("href"),
+    ).toBe(`/events/${id}`);
+    expect(screen.getByText("Submitted")).toBeTruthy();
   });
   it.each([new Error("List unavailable"), "unknown"])(
     "Q2-016 failed list retry recovers %j",
@@ -365,7 +365,7 @@ describe("SPM-37 Q2 functional cases", () => {
       open("/requests");
       await screen.findByRole("alert");
       click("Retry");
-      expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
+      expect(await screen.findByText(/No saved requests yet/)).toBeTruthy();
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );

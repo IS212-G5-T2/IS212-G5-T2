@@ -68,18 +68,18 @@ beforeEach(() => {
 
 describe("EventListPage", () => {
   // SPM-36 Test Case EVE-CRE-01-A
-  it("EVE-CRE-01-A opens the Event Request form from Event Planning", async () => {
+  it("EVE-CRE-01-A opens the Event Request form from My Events", async () => {
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={["/planning"]}>
+      <MemoryRouter initialEntries={["/events"]}>
         <Routes>
-          <Route path="/planning" element={<EventListPage />} />
+          <Route path="/events" element={<EventListPage />} />
           <Route path="/events/create" element={<EventCreatePage />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Event Planning" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "My Events" })).toBeTruthy();
     await user.click(screen.getByRole("link", { name: /create event/i }));
 
     expect(screen.getByRole("heading", { name: /create new event request/i })).toBeTruthy();
