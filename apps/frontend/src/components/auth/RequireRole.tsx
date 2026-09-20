@@ -46,3 +46,4 @@ export function RequireRole({
 
   return children ?? <Outlet />;
 }
+// SPM-37 role guard
