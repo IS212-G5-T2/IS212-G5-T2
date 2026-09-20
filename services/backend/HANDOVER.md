@@ -21,16 +21,17 @@ and shutdown behavior stay consistent. Use `query()` for single statements and
 The current `EventsService` does not yet follow this guidance: it creates a
 separate pool. The generated starter endpoint currently returns `Hello World!`.
 The events controller/service validates and persists submitted requests in
-PostgreSQL. Email delivery and Save Draft are intentionally deferred.
+PostgreSQL. Drafts and events use Firebase UID ownership; submission retains the owner. Email delivery is deferred.
 
 ## Continuity Notes
+
+Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
 - Start backend feature work from Jira acceptance criteria.
 - Keep API contract changes coordinated with the frontend under `apps/`.
 - Reuse `FirebaseAuthenticationMiddleware` for token verification and
   `RbacRepository` for composable resource-query permission checks instead of
-  duplicating RBAC SQL in controllers. The current event controller has not
-  yet been wired to this middleware.
+  duplicating RBAC SQL in controllers. Draft and event controllers apply this middleware and require the ORGANISER role.
 - Use `DatabaseService` for new PostgreSQL queries; do not instantiate
   `pg.Pool` inside feature repositories. Migrate the current event pool as part
   of hardening that endpoint.

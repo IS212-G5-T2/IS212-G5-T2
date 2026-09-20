@@ -827,3 +827,25 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: `@Inject(Class)` was purely redundant here; the excluded branch is compiler-generated and unreachable, so ignoring it does not hide any real code path. `events.controller.ts` (SPM-36 scope) still uses `@Inject` and was left unchanged.
 - Checks run: Backend `npm test` 260/260; `npm run test:cov:spm37` 100% statements/branches/functions/lines for the eight configured files; `npm run lint` and `nest build` (Node 24) passed.
 - Follow-up/conflict notes: Supersedes the earlier ledger note that retained `@Inject` to preserve the coverage gate. No behavioural change; DI resolves identically by type.
+
+## 2026-09-20 - Codex (GPT-6) - Diagnose blank frontend and login setup
+
+- Issue/PR: None supplied; runtime diagnosis requested by user.
+- Areas touched: AI_USAGE.md only; inspected frontend, backend and local Compose runtime.
+- Findings: Chromium reproduced an empty page and Firebase auth/invalid-api-key during module initialization. All six VITE_FIREBASE configuration values are empty in the frontend container; local development/local-dev/.env has no matching Firebase entries. Backend FIREBASE_SERVICE_ACCOUNT_JSON is also empty. Required team Firebase configuration must be supplied locally before real sign-in can be verified.
+- Checks: Compose frontend/backend/PostgreSQL healthy; backend /healthz returned status ok; frontend source HTTP 200; Playwright captured missing-config warning and uncaught Firebase error. In-app browser timed out, so used installed Playwright for diagnosis. No application tests rerun because no implementation changed.
+- Follow-up/conflicts: Existing services and data preserved; no credentials printed, configuration invented, commits or pushes. Await team local Firebase configuration, then recreate frontend/backend and verify sign-in.
+
+- Runtime follow-up: User supplied Firebase values and requested stack restart. Recreated Compose services preserving volumes. Browser now renders /login without page errors. Corrected local untracked .env PORT and VITE_API_BASE_URL from 8080 to Compose's published 3000; restarted services. Real account sign-in remains untested.
+
+## 2026-09-20 - Codex (GPT-6) - Remove My Requests creation link
+
+- Issue/PR: No new Jira key supplied; user requested a small follow-up to the existing My Requests UI on the current feature branch.
+- Areas: apps/frontend/src/pages/MyRequestsPage.tsx, frontend README, AI_USAGE.md.
+- Summary: Removed the + Create event request link above the request list. Existing request links and creation routes remain available.
+- Checks: EventCreatePage and DraftWorkflow component suites passed (59 tests); git diff --check passed. Signed-in browser view not re-tested.
+- Follow-up/conflicts: Preserved earlier runtime ledger entries; staged for human review, no commit or push.
+- Runtime verification follow-up: Vite was serving stale transformed MyRequestsPage code despite the updated bind-mounted source. Restarted only the frontend container; HTTP verification now confirms the served module retains My Requests and no longer contains the removed creation link. Database and backend left untouched.
+- Label follow-up: Renamed My Requests to My drafts in page heading, navigation, form links/help, related tests and frontend README. Kept existing list behavior and routes. Both affected suites passed (59 tests); restarted frontend and verified served heading/navigation contain My drafts; whitespace check passed. Staged without commit.
+- Submission visibility follow-up: My drafts now filters the requests response to Draft status only, with updated description/loading/empty-state wording. Existing submission creates an event and My Events loads /events; its submitted-event test passes. Updated mixed-status regression and added submitted-only empty-state test. Three frontend suites passed (62 tests); whitespace check passed; restarted frontend and verified served filter. API records retained; no backend changes, commit or push.
+- Missing submitted events follow-up: Backend /api/events returns two persisted submitted events under its local demo organiser. My Events incorrectly filtered this organiser ID against the Firebase UID. Removed redundant client organiser filtering, relying on existing backend organiser scoping; documented local identity limitation. Added Firebase-UID mismatch/reload regression. All three affected suites passed (63 tests); whitespace check passed; restarted frontend and confirmed old filter absent from served module. No data changes or backend authentication changes; signed-in browser verification remains with user.

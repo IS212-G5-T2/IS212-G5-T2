@@ -17,6 +17,7 @@ import type {
 } from "@/types";
 
 let idCounter = 1000;
+let authRevision = 0;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
 // Placeholder identity shown before sign-in and restored on sign-out. It is
@@ -448,6 +449,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setAuthUser: async (firebaseUser) => {
+    const revision = ++authRevision;
+    // Remove account-owned event data before resolving a new session or sign-out.
+    set({ events: [] });
     if (!firebaseUser) {
       set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
       return;
@@ -457,6 +461,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       const tokenResult = await firebaseUser.getIdTokenResult();
+      if (revision !== authRevision) return;
       const role = getRoleFromFirebaseClaims(tokenResult.claims.roles);
 
       if (!role) {
@@ -475,6 +480,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       });
     } catch {
+      if (revision !== authRevision) return;
       set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
     }
   },

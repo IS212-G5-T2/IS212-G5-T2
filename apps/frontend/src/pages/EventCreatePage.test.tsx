@@ -363,12 +363,22 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
   // AC3: the list shows the persisted Draft status and links back to the editor.
-  it("lists drafts in My Requests with their status and reopen link", async () => {
+  it("lists drafts in My drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
     renderCreate("/requests");
     const link = await screen.findByRole("link", { name: "Saved name" });
     expect(link.getAttribute("href")).toBe(`/requests/${draft.id}`);
     expect(screen.getByText("Draft")).toBeTruthy();
+  });
+  // Submitted requests belong in My Events even when no drafts remain.
+  it("shows an empty draft list when every request is submitted", async () => {
+    // Set up an API response containing only a submitted draft.
+    apiMock.mockResolvedValue([{ ...draft, status: "Submitted" }]);
+    // Open the draft list after submission.
+    renderCreate("/requests");
+    // Show the draft empty state without the submitted request.
+    expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Saved name" })).toBeNull();
   });
   // Continuity: saving persists the current wizard step alongside the fields.
   it("saves the current step with the draft fields", async () => {

@@ -335,7 +335,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
             "This request has been submitted. Further changes must follow the Event Change Requests workflow."}
         </p>
         <Link className="mt-4 inline-block text-primary-700" to="/requests">
-          Back to My Requests
+          Back to My drafts
         </Link>
       </div>
     );
@@ -619,7 +619,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
               </Button>
             ) : (
               <Link className="text-sm text-gray-500" to="/requests">
-                ← My Requests
+                ← My drafts
               </Link>
             )}
             <div className="flex flex-wrap gap-2">
@@ -660,7 +660,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
             </h2>
             <p className="my-4 text-sm">
               Your request is saved as Draft and has not been submitted. Reopen
-              it from My Requests to continue.
+              it from My drafts to continue.
             </p>
             <Button autoFocus onClick={() => navigate("/requests")}>
               OK

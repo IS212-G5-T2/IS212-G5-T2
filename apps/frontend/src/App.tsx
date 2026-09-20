@@ -26,6 +26,7 @@ import { SettingsPage } from "@/pages/SettingsPage";
 
 export default function App() {
   const setAuthUser = useAppStore((s) => s.setAuthUser);
+  const currentUserId = useAppStore((s) => s.currentUser.id);
 
   useEffect(() => {
     // Subscribes once for the lifetime of the app; keeps currentUser/
@@ -44,7 +45,7 @@ export default function App() {
       <Route
         element={
           <RequireAuth>
-            <AppShell />
+            <AppShell key={currentUserId} />
           </RequireAuth>
         }
       >

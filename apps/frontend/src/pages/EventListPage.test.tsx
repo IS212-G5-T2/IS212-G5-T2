@@ -104,4 +104,19 @@ describe("EventListPage", () => {
     expect(screen.getByText("Community building")).toBeTruthy();
     expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
   });
+
+  // Submitted drafts remain visible when Firebase and local API identities differ.
+  it("shows API-scoped submitted events for a Firebase organiser after reload", async () => {
+    // The API owns organiser scoping and returns the local demo organiser's event.
+    apiMock.mockResolvedValue([submittedEvent()]);
+    useAppStore.setState((state) => ({
+      currentUser: { ...state.currentUser, id: "firebase-organiser-uid" },
+      events: [],
+    }));
+    // Load My Events from an empty store, as on a browser refresh.
+    render(<MemoryRouter initialEntries={["/events"]}><EventListPage /></MemoryRouter>);
+    // The persisted submission must remain visible despite the different IDs.
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
+  });
 });

@@ -1,3 +1,9 @@
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+const user: AuthenticatedUser = {
+  uid: 'current-user',
+  roles: ['ORGANISER'],
+  email: 'organiser@example.test',
+};
 import {
   BadRequestException,
   ForbiddenException,
@@ -61,7 +67,7 @@ function savedEventRow() {
   return {
     id: request.submissionKey,
     organiser_id: 'current-user',
-    organiser_name: 'Demo Organiser',
+    organiser_name: 'organiser@example.test',
     event_name: request.name,
     purpose: request.purpose,
     description: request.description,
@@ -104,10 +110,26 @@ afterEach(() => {
 });
 
 describe('EventsService', () => {
+  // Authentication is mandatory even if obsolete local-demo configuration remains.
+  it('rejects missing identity without querying storage', async () => {
+    vi.stubEnv('DEMO_ORGANISER_ENABLED', 'true');
+    // Try an anonymous request against the service boundary.
+    await expect(service.list(undefined)).rejects.toMatchObject({
+      status: 401,
+    });
+    // No fallback to the shared demo organiser is allowed.
+    expect(db.query).not.toHaveBeenCalled();
+  });
+  // Email is optional; only the verified UID determines ownership.
+  it('uses verified UID when the Firebase token has no email', () => {
+    expect(
+      service.identity({ uid: 'private-owner', roles: ['ORGANISER'] }),
+    ).toMatchObject({ id: 'private-owner', name: 'Organiser', email: '' });
+  });
   it('Q1-042 loads the submitted draft event and defaults legacy attachments', async () => {
     const row = { ...savedEventRow(), attachments: null };
     db.query.mockResolvedValue({ rows: [row] });
-    expect(await service.get(row.id)).toMatchObject({
+    expect(await service.get(user, row.id)).toMatchObject({
       id: row.id,
       attachments: [],
     });
@@ -119,7 +141,7 @@ describe('EventsService', () => {
     const client = { query: db.transaction, release: db.release };
     db.transaction.mockResolvedValueOnce({ rows: [row] });
     expect(
-      await service.create(validEventRequest(), client as never, row.id),
+      await service.create(user, validEventRequest(), client as never, row.id),
     ).toMatchObject({ event: { id: row.id } });
     expect(db.connect).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalledWith('BEGIN');
@@ -129,7 +151,7 @@ describe('EventsService', () => {
       new Error('shared transaction failed'),
     );
     await expect(
-      service.create(validEventRequest(), client as never, row.id),
+      service.create(user, validEventRequest(), client as never, row.id),
     ).rejects.toThrow('shared transaction failed');
     expect(db.transaction).not.toHaveBeenCalledWith('ROLLBACK');
     expect(db.release).not.toHaveBeenCalled();
@@ -137,7 +159,7 @@ describe('EventsService', () => {
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
   it('rejects invalid requests before opening a database transaction', async () => {
     await expect(
-      service.create({ ...validEventRequest(), name: '' }),
+      service.create(user, { ...validEventRequest(), name: '' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(db.connect).not.toHaveBeenCalled();
@@ -151,7 +173,7 @@ describe('EventsService', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] });
 
-    const result = await service.create({
+    const result = await service.create(user, {
       ...request,
       organiserId: 'someone-else',
       status: 'approved',
@@ -160,7 +182,7 @@ describe('EventsService', () => {
     expect(result.event).toMatchObject({
       id: row.id,
       organiserId: 'current-user',
-      organiserName: 'Demo Organiser',
+      organiserName: 'organiser@example.test',
       status: 'submitted',
       name: 'Welcome Evening',
       expectedAttendance: 80,
@@ -185,7 +207,7 @@ describe('EventsService', () => {
       expect.stringContaining('INSERT INTO events'),
       expect.arrayContaining([
         'current-user',
-        'Demo Organiser',
+        'organiser@example.test',
         'organiser@example.test',
         'Welcome Evening',
         'Community building',
@@ -212,7 +234,7 @@ describe('EventsService', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] });
 
-    const result = await service.create(request);
+    const result = await service.create(user, request);
 
     expect(result.event.id).toBe(row.id);
     expect(db.transaction).toHaveBeenNthCalledWith(
@@ -228,7 +250,7 @@ describe('EventsService', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockRejectedValueOnce(new Error('database unavailable'));
 
-    await expect(service.create(validEventRequest())).rejects.toThrow(
+    await expect(service.create(user, validEventRequest())).rejects.toThrow(
       'database unavailable',
     );
 
@@ -242,7 +264,7 @@ describe('EventsService', () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
 
-    const events = await service.list();
+    const events = await service.list(user);
 
     expect(events[0]).toMatchObject({
       id: row.id,
@@ -258,10 +280,12 @@ describe('EventsService', () => {
   });
 
   // SPM-36 authenticated-organiser precondition
-  it('requires explicit local-demo organiser configuration', async () => {
+  it('rejects an authenticated non-organiser', async () => {
     vi.stubEnv('DEMO_ORGANISER_ENABLED', 'false');
 
-    await expect(service.list()).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.list({ ...user, roles: ['ATTENDEE'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(db.query).not.toHaveBeenCalled();
   });
@@ -270,13 +294,15 @@ describe('EventsService', () => {
   it('returns not found for malformed and unknown event IDs', async () => {
     const row = savedEventRow();
 
-    await expect(service.get('not-a-valid-event-id')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.get(user, 'not-a-valid-event-id'),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(db.query).not.toHaveBeenCalled();
 
     db.query.mockResolvedValue({ rows: [] });
 
-    await expect(service.get(row.id)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.get(user, row.id)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });

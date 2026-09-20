@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Keep drafts and submitted events private to their verified Firebase owner. Clear cached events and remount account pages when the signed-in user changes.
+
+- Keep submitted events visible in My Events when the local API organiser ID differs from the signed-in Firebase UID. My drafts shows only Draft records.
+
 - The Web SDK retains opt-in Auth Emulator support, but the shared Compose
   stack does not start an emulator; it uses real non-production Firebase
   configuration and CI owns emulator execution.

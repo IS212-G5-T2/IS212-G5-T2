@@ -41,9 +41,5 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 - `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table.
 - Coordinate local schema assets with `development/database` and API consumers with `apps/frontend`.
-- Local demo identity is not authentication. Event endpoints currently do not
-  use Firebase identity, and account integration, email, drafts, and review
-  transitions remain outside this implementation.
-- Event tests currently live at `src/events/event-input.spec.ts` and
-  `src/events/events.service.spec.ts`. There is no committed database-container
-  E2E script for this feature.
+- Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass request.currentUser explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
+- Unit tests live beside the events module. `src/events/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
