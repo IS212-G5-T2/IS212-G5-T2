@@ -41,7 +41,7 @@ export function TextInput({ label, error, hint, id, className, ...rest }: TextIn
       <input
         id={fieldId}
         className={clsx(
-          "w-full rounded-lg border-1.5 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
@@ -66,7 +66,7 @@ export function TextArea({ label, error, hint, id, className, ...rest }: TextAre
         id={fieldId}
         rows={4}
         className={clsx(
-          "w-full rounded-lg border-1.5 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
@@ -96,7 +96,7 @@ export function Select({ label, options, error, hint, id, className, ...rest }: 
       <select
         id={fieldId}
         className={clsx(
-          "w-full rounded-lg border-1.5 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
+          "w-full rounded-lg border bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:border-primary-500 focus:ring-1 focus:ring-primary-500",
           error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600",
           className
         )}
