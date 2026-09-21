@@ -5,7 +5,6 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
-import { formatDateTime } from "@/utils/format";
 import type { EventComment, EventRecord } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -72,17 +71,17 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage clarification thread", () => {
-  it("REQ-CLAR-01-A: Event Coordinator can submit a clarification request and status changes to Under Review", async () => {
+  // "Under Review" was retired as a distinct status (SPM-38 follow-up): a
+  // clarification request no longer changes the event's status.
+  it("REQ-CLAR-01-A: Event Coordinator can submit a clarification request without changing the event's status", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
-    const updatedEvent = baseEvent({ status: "under_review" });
 
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
       if (path === "/events/event-1/comments") return Promise.resolve([]);
       if (path === "/events/event-1/clarifications" && init?.method === "POST") {
         return Promise.resolve(comment());
       }
-      if (path === "/events/event-1") return Promise.resolve(updatedEvent);
       return Promise.resolve(event);
     });
 
@@ -108,7 +107,7 @@ describe("EventDetailPage clarification thread", () => {
     });
 
     await waitFor(() => {
-      expect(useAppStore.getState().events.find((e) => e.id === "event-1")?.status).toBe("under_review");
+      expect(useAppStore.getState().events.find((e) => e.id === "event-1")?.status).toBe("submitted");
     });
   });
 

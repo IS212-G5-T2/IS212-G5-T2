@@ -112,17 +112,6 @@ export class ClarificationsRepository {
     return result.rows[0];
   }
 
-  async updateEventStatus(
-    client: Queryable,
-    eventId: string,
-    status: string,
-  ): Promise<void> {
-    await client.query('UPDATE events SET status = $2, updated_at = now() WHERE id = $1', [
-      eventId,
-      status,
-    ]);
-  }
-
   async resolveClarification(
     client: Queryable,
     clarificationId: string,

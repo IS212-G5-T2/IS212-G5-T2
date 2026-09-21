@@ -152,11 +152,18 @@ docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U sp
 
 The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
 
-`DEMO_ORGANISER_ENABLED=true` in `.env.example` enables the fixed local
-organiser used by the current event endpoints. This is independent of Firebase
-sign-in: `/api/events` neither requires a Firebase token nor derives its event
-identity from one. Do not treat this mode as end-to-end authorization. After
-backend changes, rebuild and start it with `docker compose up -d --build
-backend`. The frontend code is bind-mounted and refreshed by Vite. Visit
-http://localhost:5173/planning to create an event, then inspect it under My
-Events.
+As of SPM-38, `/api/events` and `/api/requests` (drafts) require a verified
+Firebase Bearer token; `DEMO_ORGANISER_ENABLED` no longer applies to these
+routes (`request.currentUser`, set by `FirebaseAuthenticationMiddleware`, is
+the only source of identity). An Organiser sees only their own requests; a
+Coordinator sees only requests round-robin has assigned to them
+(`services/backend/src/events/coordinator-roster.ts` holds the local
+coordinator roster). A request is assigned a coordinator automatically at
+submission time — there is no manual "claim this request" step. Pre-SPM-38
+event rows created under the old fixed demo identity (`current-user`, no
+coordinator) are legacy-owned and stay invisible under real-identity scoping;
+they are not automatically migrated (see `services/backend/AGENTS.md`'s
+events-boundary policy). After backend changes, rebuild and start it with
+`docker compose up -d --build backend`. The frontend code is bind-mounted and
+refreshed by Vite. Visit http://localhost:5173/planning to create an event,
+then inspect it under My Events.

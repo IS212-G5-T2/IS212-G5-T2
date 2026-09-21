@@ -55,9 +55,13 @@ using local npm 11; Docker npm 10 requires it.
 thread on an event request, using real Firebase-authenticated identity
 (`FirebaseAuthenticationMiddleware` is applied to `ClarificationsController`
 in `AppModule.configure()`), unlike `EventsController`. `004_clarifications.sql`
-adds `events.coordinator_id`/`coordinator_name`, widens the `status` CHECK
-constraint to allow `Under_Review`/`Approved`, and creates `event_comments`
+adds `events.coordinator_id`/`coordinator_name` and creates `event_comments`
 (the clarification/reply thread) and a minimal `notifications` table.
+`006_remove_under_review_status.sql` (SPM-38 follow-up) later tightens the
+`status` CHECK constraint back down to `Submitted`/`Approved` only —
+"Under Review" was retired as a distinct status, since neither coordinator
+assignment nor a clarification request is a meaningful "review started"
+signal on its own.
 
 Known gaps to close before this is fully production-ready:
 

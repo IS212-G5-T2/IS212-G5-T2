@@ -39,13 +39,13 @@ beforeEach(() => {
 });
 
 describe("assignCoordinator", () => {
-  it("optimistically assigns the coordinator and advances a submitted event to under_review", () => {
+  it("optimistically assigns the coordinator without changing a submitted event's status", () => {
     useAppStore.getState().assignCoordinator("event-1", "coord-9", "Coord Nine");
 
     expect(useAppStore.getState().events[0]).toMatchObject({
       coordinatorId: "coord-9",
       coordinatorName: "Coord Nine",
-      status: "under_review",
+      status: "submitted",
     });
   });
 
@@ -93,7 +93,7 @@ describe("assignCoordinator", () => {
 
     expect(useAppStore.getState().events[0]).toMatchObject({
       coordinatorId: "coord-9",
-      status: "under_review",
+      status: "submitted",
     });
   });
 });

@@ -1,12 +1,15 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
   type OnModuleDestroy,
 } from '@nestjs/common';
 import { isDeepStrictEqual } from 'node:util';
 import pg from 'pg';
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { EventsService } from './events.service.js';
 import { uuid, validateDraft } from './draft-input.js';
 
@@ -25,6 +28,14 @@ export class DraftsService implements OnModuleDestroy {
   private id(id: string) {
     if (!uuid.test(id)) throw new NotFoundException('Request not found.');
   }
+  // Drafts are organiser-only, matching AGENTS.md's events-boundary policy:
+  // never a shared demo identity, always the verified caller's own UID.
+  private requireOrganiser(identity: AuthenticatedUser | undefined) {
+    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('ORGANISER'))
+      throw new ForbiddenException('Organiser access required.');
+    return { id: identity.uid };
+  }
   private record(row: pg.QueryResultRow) {
     return {
       id: row.id,
@@ -35,16 +46,16 @@ export class DraftsService implements OnModuleDestroy {
       updatedAt: row.updated_at.toISOString(),
     };
   }
-  async list() {
-    const owner = this.events.identity();
+  async list(identity: AuthenticatedUser | undefined) {
+    const owner = this.requireOrganiser(identity);
     const result = await this.pool.query(
       'SELECT * FROM event_drafts WHERE organiser_id=$1 ORDER BY updated_at DESC',
       [owner.id],
     );
     return result.rows.map((row) => this.record(row));
   }
-  async get(id: string) {
-    const owner = this.events.identity();
+  async get(identity: AuthenticatedUser | undefined, id: string) {
+    const owner = this.requireOrganiser(identity);
     this.id(id);
     const result = await this.pool.query(
       'SELECT * FROM event_drafts WHERE id=$1 AND organiser_id=$2',
@@ -53,8 +64,8 @@ export class DraftsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Request not found.');
     return this.record(result.rows[0]);
   }
-  async save(id: string, body: unknown) {
-    const owner = this.events.identity();
+  async save(identity: AuthenticatedUser | undefined, id: string, body: unknown) {
+    const owner = this.requireOrganiser(identity);
     this.id(id);
     const data = validateDraft(body);
     const client = await this.pool.connect();
@@ -101,8 +112,8 @@ export class DraftsService implements OnModuleDestroy {
       client.release();
     }
   }
-  async submit(id: string, body: unknown) {
-    const owner = this.events.identity();
+  async submit(identity: AuthenticatedUser | undefined, id: string, body: unknown) {
+    const owner = this.requireOrganiser(identity);
     this.id(id);
     const data = body as Record<string, unknown> | null;
     if (
@@ -124,7 +135,7 @@ export class DraftsService implements OnModuleDestroy {
       if (row.status === 'Submitted') {
         await client.query('COMMIT');
         return {
-          event: await this.events.get(row.event_id),
+          event: await this.events.get(identity, row.event_id),
           message: 'Your event request was submitted successfully.',
         };
       }
@@ -135,6 +146,7 @@ export class DraftsService implements OnModuleDestroy {
       // The submitted snapshot must match the saved draft; the server owns status and identity.
       const fields = row.fields;
       const result = await this.events.create(
+        identity,
         {
           ...fields,
           startDateTime: data.startDateTime,

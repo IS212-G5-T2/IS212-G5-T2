@@ -50,7 +50,6 @@ function buildService() {
     findEventForUpdate: vi.fn(),
     findClarificationForUpdate: vi.fn(),
     insertComment: vi.fn(),
-    updateEventStatus: vi.fn(),
     resolveClarification: vi.fn(),
     insertNotification: vi.fn(),
     listComments: vi.fn(),
@@ -84,8 +83,9 @@ describe('ClarificationsService.createClarification', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // AC4/AC5
-  it('accepts a valid message, moves the event to Under_Review, and flags it awaiting reply', async () => {
+  // AC4/AC5. "Under Review" was retired as a distinct status (see SPM-38
+  // follow-up): a clarification request no longer changes the event's status.
+  it('accepts a valid message and flags it awaiting reply, without changing event status', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
     vi.mocked(repository.insertComment).mockResolvedValue(commentRow());
@@ -107,7 +107,6 @@ describe('ClarificationsService.createClarification', () => {
         awaitingReply: true,
       }),
     );
-    expect(repository.updateEventStatus).toHaveBeenCalledWith({}, EVENT_ID, 'Under_Review');
     expect(repository.insertNotification).toHaveBeenCalledWith(
       {},
       expect.objectContaining({ recipientId: 'organiser-1', type: 'clarification' }),
@@ -115,7 +114,7 @@ describe('ClarificationsService.createClarification', () => {
     expect(result).toMatchObject({ awaitingReply: true, authorRole: 'coordinator' });
   });
 
-  it.each(['Submitted', 'Under_Review', 'Approved'])(
+  it.each(['Submitted', 'Approved'])(
     'allows opening a clarification from %s status',
     async (status) => {
       const { service, repository } = buildService();
@@ -151,7 +150,6 @@ describe('ClarificationsService.createClarification', () => {
       service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repository.insertComment).not.toHaveBeenCalled();
-    expect(repository.updateEventStatus).not.toHaveBeenCalled();
   });
 
   it('rejects a caller without the COORDINATOR role even if uid matches', async () => {

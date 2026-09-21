@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DraftsService } from './drafts.service.js';
 import { DraftsController } from './drafts.controller.js';
 import type { EventsService } from './events.service.js';
@@ -24,6 +26,12 @@ vi.mock('pg', () => ({
 const id = '00000000-0000-4000-8000-000000000037';
 const operationId = randomUUID();
 const fields = { name: 'Original', expectedAttendance: '25' };
+const identity: AuthenticatedUser = {
+  uid: 'current-user',
+  roles: ['ORGANISER'],
+  email: 'organiser@example.test',
+  name: 'Current User',
+};
 const row = () => ({
   id,
   organiser_id: 'current-user',
@@ -34,12 +42,11 @@ const row = () => ({
   event_id: null,
   updated_at: new Date('2030-01-01Z'),
 });
-const events = { identity: vi.fn(), create: vi.fn(), get: vi.fn() };
+const events = { create: vi.fn(), get: vi.fn() };
 let service: DraftsService;
 const client = { query: db.transaction, release: db.release };
 beforeEach(() => {
   vi.resetAllMocks();
-  events.identity.mockReturnValue({ id: 'current-user' });
   events.create.mockResolvedValue({ event: { id }, message: 'Submitted' });
   db.connect.mockResolvedValue(client);
   db.transaction.mockResolvedValue({ rows: [] });
@@ -56,7 +63,7 @@ function selected(value: object | null) {
   }));
 }
 const submit = () =>
-  service.submit(id, {
+  service.submit(identity, id, {
     version: 1,
     startDateTime: '2030-01-02T10:00:00Z',
     endDateTime: '2030-01-02T11:00:00Z',
@@ -65,7 +72,7 @@ const submit = () =>
 describe('SPM-37 Q1 service contract and failures', () => {
   it('Q1-023 lists, retrieves and serializes saved records', async () => {
     db.query.mockResolvedValue({ rows: [row()] });
-    expect(await service.list()).toEqual([
+    expect(await service.list(identity)).toEqual([
       expect.objectContaining({
         id,
         status: 'Draft',
@@ -75,28 +82,65 @@ describe('SPM-37 Q1 service contract and failures', () => {
         updatedAt: '2030-01-01T00:00:00.000Z',
       }),
     ]);
-    expect(await service.get(id)).toMatchObject({ id, fields });
+    expect(await service.get(identity, id)).toMatchObject({ id, fields });
     db.query.mockResolvedValue({ rows: [] });
-    expect(await service.list()).toEqual([]);
-    await expect(service.get(id)).rejects.toMatchObject({ status: 404 });
+    expect(await service.list(identity)).toEqual([]);
+    await expect(service.get(identity, id)).rejects.toMatchObject({
+      status: 404,
+    });
     await service.onModuleDestroy();
     expect(db.end).toHaveBeenCalledOnce();
   });
   it('Q1-024 rejects malformed IDs before database access', async () => {
-    await expect(service.get('bad')).rejects.toMatchObject({ status: 404 });
-    await expect(service.save('bad', {})).rejects.toMatchObject({
+    await expect(service.get(identity, 'bad')).rejects.toMatchObject({
       status: 404,
     });
-    await expect(service.submit('bad', {})).rejects.toMatchObject({
+    await expect(service.save(identity, 'bad', {})).rejects.toMatchObject({
+      status: 404,
+    });
+    await expect(service.submit(identity, 'bad', {})).rejects.toMatchObject({
       status: 404,
     });
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
+  // Drafts are organiser-only, matching AGENTS.md's events-boundary policy.
+  it('rejects all draft operations without an authenticated identity', async () => {
+    await expect(service.list(undefined)).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(service.get(undefined, id)).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(service.save(undefined, id, {})).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(service.submit(undefined, id, {})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(db.query).not.toHaveBeenCalled();
+    expect(db.connect).not.toHaveBeenCalled();
+  });
+  it('rejects draft operations from a caller without the organiser role', async () => {
+    const coordinator: AuthenticatedUser = {
+      uid: 'coord-9',
+      roles: ['COORDINATOR'],
+    };
+    await expect(service.list(coordinator)).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(service.get(coordinator, id)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(db.query).not.toHaveBeenCalled();
+  });
   it('Q1-025 saves new and existing drafts and releases connections', async () => {
     selected({ ...row(), version: 0 });
     const body = { fields, version: 0, operationId };
-    expect(await service.save(id, body)).toMatchObject({ id, version: 1 });
+    expect(await service.save(identity, id, body)).toMatchObject({
+      id,
+      version: 1,
+    });
     expect(db.transaction).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO event_drafts'),
       expect.any(Array),
@@ -105,7 +149,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.release).toHaveBeenCalledOnce();
     db.transaction.mockClear();
     selected(row());
-    await service.save(id, { ...body, version: 1 });
+    await service.save(identity, id, { ...body, version: 1 });
     expect(
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('INSERT')),
     ).toBe(false);
@@ -118,7 +162,10 @@ describe('SPM-37 Q1 service contract and failures', () => {
       fields: validateDraft(body).fields,
       last_operation: operationId,
     });
-    expect(await service.save(id, body)).toMatchObject({ id, version: 1 });
+    expect(await service.save(identity, id, body)).toMatchObject({
+      id,
+      version: 1,
+    });
     expect(
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('UPDATE')),
     ).toBe(false);
@@ -131,7 +178,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
   ])('Q1-027 rolls back %s save', async (_label, record, status) => {
     selected(record);
     await expect(
-      service.save(id, { fields, version: 1, operationId }),
+      service.save(identity, id, { fields, version: 1, operationId }),
     ).rejects.toMatchObject({ status });
     expect(db.transaction).toHaveBeenLastCalledWith('ROLLBACK');
     expect(
@@ -148,7 +195,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     { version: '1' },
     { version: Number.MAX_SAFE_INTEGER + 1 },
   ])('Q1-028 rejects submit version %j before connection', async (body) => {
-    await expect(service.submit(id, body)).rejects.toMatchObject({
+    await expect(service.submit(identity, id, body)).rejects.toMatchObject({
       status: 400,
     });
     expect(db.connect).not.toHaveBeenCalled();
@@ -172,6 +219,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       });
       expect(await submit()).toMatchObject({ event: { id } });
       expect(events.create).toHaveBeenCalledWith(
+        identity,
         expect.objectContaining({
           name: 'Original',
           expectedAttendance: attendance === '' ? null : 25,
@@ -191,7 +239,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     selected({ ...row(), status: 'Submitted', event_id: id });
     events.get.mockResolvedValue({ id });
     expect(await submit()).toMatchObject({ event: { id } });
-    expect(events.get).toHaveBeenCalledWith(id);
+    expect(events.get).toHaveBeenCalledWith(identity, id);
     expect(events.create).not.toHaveBeenCalled();
   });
   it.each(['save', 'submit'] as const)(
@@ -202,7 +250,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
         .mockRejectedValueOnce(new Error('storage failure'));
       await expect(
         action === 'save'
-          ? service.save(id, { fields, version: 1, operationId })
+          ? service.save(identity, id, { fields, version: 1, operationId })
           : submit(),
       ).rejects.toThrow('storage failure');
       expect(db.transaction).toHaveBeenLastCalledWith('ROLLBACK');
@@ -229,12 +277,18 @@ describe('SPM-37 Q1 service contract and failures', () => {
     };
     const controller = new DraftsController(mock as unknown as DraftsService);
     const body = { version: 1 };
-    expect(await controller.list()).toEqual([]);
-    expect(await controller.get(id)).toEqual(row());
-    expect(await controller.save(id, body)).toEqual(row());
-    expect(await controller.submit(id, body)).toEqual({ event: { id } });
-    expect(mock.get).toHaveBeenCalledWith(id);
-    expect(mock.save).toHaveBeenCalledWith(id, body);
-    expect(mock.submit).toHaveBeenCalledWith(id, body);
+    const request = {
+      [CURRENT_USER_REQUEST_KEY]: identity,
+    } as Parameters<DraftsController['list']>[0];
+    expect(await controller.list(request)).toEqual([]);
+    expect(await controller.get(id, request)).toEqual(row());
+    expect(await controller.save(id, body, request)).toEqual(row());
+    expect(await controller.submit(id, body, request)).toEqual({
+      event: { id },
+    });
+    expect(mock.list).toHaveBeenCalledWith(identity);
+    expect(mock.get).toHaveBeenCalledWith(identity, id);
+    expect(mock.save).toHaveBeenCalledWith(identity, id, body);
+    expect(mock.submit).toHaveBeenCalledWith(identity, id, body);
   });
 });

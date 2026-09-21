@@ -6,7 +6,6 @@ type AnyStatus = EventStatus | BookingStatus | EquipmentRequestStatus | Registra
 const styles: Record<AnyStatus, string> = {
   draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
   submitted: "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300",
-  under_review: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",
   approved: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
   planning: "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300",
   confirmed: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
@@ -25,7 +24,6 @@ const styles: Record<AnyStatus, string> = {
 const labels: Record<AnyStatus, string> = {
   draft: "Draft",
   submitted: "Submitted",
-  under_review: "Under Review",
   approved: "Approved",
   planning: "Planning",
   confirmed: "Confirmed",

@@ -24,9 +24,11 @@ import {
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Statuses a clarification request may be opened from; submitting one always
-// force-sets the event to Under_Review regardless of which of these it came from.
-const CLARIFIABLE_STATUSES = ['Submitted', 'Under_Review', 'Approved'];
+// Statuses a clarification request may be opened from. Submitting one no
+// longer changes the event's status — "Under Review" was retired as a
+// distinct stage since coordinator assignment (its only other trigger) is
+// now automatic and never a meaningful "review started" signal.
+const CLARIFIABLE_STATUSES = ['Submitted', 'Approved'];
 
 export interface CommentDto {
   id: string;
@@ -80,8 +82,6 @@ export class ClarificationsService {
         message,
         awaitingReply: true,
       });
-
-      await this.repository.updateEventStatus(client, eventId, 'Under_Review');
 
       await this.repository.insertNotification(client, {
         recipientId: event.organiser_id,

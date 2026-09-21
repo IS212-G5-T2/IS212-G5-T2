@@ -143,6 +143,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   assignCoordinator: (id, coordinatorId, coordinatorName) => {
     // Optimistically reflect the claim so the UI updates immediately.
+    // Assignment alone no longer advances status — only a clarification
+    // request does that — so status is left untouched here.
     set((s) => ({
       events: s.events.map((e) =>
         e.id === id
@@ -150,7 +152,6 @@ export const useAppStore = create<AppState>((set, get) => ({
               ...e,
               coordinatorId,
               coordinatorName,
-              status: e.status === "submitted" ? "under_review" : e.status,
               updatedAt: new Date().toISOString(),
             }
           : e
@@ -159,7 +160,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Persist the assignment so it survives a reload: the detail page refetches
     // GET /events/:id on mount, which now returns the stored coordinator. Fire
     // and forget — the optimistic state above already matches what the server
-    // writes (submitted -> under_review), so no reconciliation is needed here.
+    // writes, so no reconciliation is needed here.
     api(`/events/${id}/assign`, {
       method: "POST",
       body: JSON.stringify({ coordinatorId, coordinatorName }),
