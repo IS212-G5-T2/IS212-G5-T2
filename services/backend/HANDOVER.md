@@ -87,3 +87,11 @@ Known gaps to close before this is fully production-ready:
   authorized by a direct `organiser_id` ownership check rather than
   `RbacRepository`'s predicate builder. See the comment in
   `clarifications.service.ts`.
+
+## Rejection integration (SPM-83)
+
+`EventRejectionsController` alone is protected by Firebase middleware. It adds rejection and rejection-notification endpoints without changing the existing event, draft, or coordinator-assignment contracts. Only a verified Coordinator can reject a Submitted request; only a verified Organiser can retrieve or mark rejection notifications as read.
+
+Apply migration 003_event_rejection.sql after the clarification schema before starting this version. The equivalent fresh-volume asset is 006_event_rejection.sql. Status, rejection reason and recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
+
+Existing event/draft ownership and assignment behavior remain unchanged. Local demo events continue to use `current-user`, so rejection notifications use that same recipient while `DEMO_ORGANISER_ENABLED=true`. Production ownership migration remains separate work.

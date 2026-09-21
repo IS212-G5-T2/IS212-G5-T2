@@ -37,14 +37,14 @@ export function EventListPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [retry]);
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(currentUser.role === "coordinator" ? "submitted" : "");
 
   const scoped = useMemo(() => {
     if (currentUser.role === "attendee") {
       return events.filter((e) => e.registrationEnabled && e.status !== "draft");
     }
     // organiser: the backend already scopes GET /api/events to the caller's own events.
-    // coordinator sees everything (assigned + unassigned) to triage
+    // coordinator sees everything (assigned + unassigned), including rejected, to triage
     return events;
   }, [events, currentUser]);
 
@@ -57,7 +57,7 @@ export function EventListPage() {
       ? "My Events"
       : currentUser.role === "attendee"
       ? "Browse Events"
-      : "All Events";
+      : statusFilter === "submitted" ? "Pending Requests" : "All Events";
 
   return (
     <div>

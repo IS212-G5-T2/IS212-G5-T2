@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -7,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
 
 @Injectable()
@@ -29,6 +31,13 @@ export class EventsService implements OnModuleDestroy {
       role: 'organiser' as const,
     };
   }
+  private requireRole(
+    user: AuthenticatedUser | undefined,
+    role: 'ORGANISER' | 'COORDINATOR',
+  ) {
+    if (!user?.uid || !user.roles.includes(role))
+      throw new ForbiddenException('Access denied.');
+  }
   async onModuleDestroy() {
     await this.pool.end();
   }
@@ -44,6 +53,7 @@ export class EventsService implements OnModuleDestroy {
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
       status: row.status.toLowerCase(),
+      rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
       expectedAttendance: row.expected_attendance,
@@ -103,14 +113,18 @@ export class EventsService implements OnModuleDestroy {
   // routes carry no authenticated identity in local/demo mode.
   async assignCoordinator(id: string, body: unknown) {
     if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
     )
       throw new NotFoundException('Event not found.');
     const data = body as Record<string, unknown> | null;
     const coordinatorId =
       typeof data?.coordinatorId === 'string' ? data.coordinatorId.trim() : '';
     const coordinatorName =
-      typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
+      typeof data?.coordinatorName === 'string'
+        ? data.coordinatorName.trim()
+        : '';
     if (!coordinatorId || !coordinatorName)
       throw new BadRequestException('A coordinator id and name are required.');
     const result = await this.pool.query(
@@ -125,6 +139,126 @@ export class EventsService implements OnModuleDestroy {
     );
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
+  }
+
+  private eventId(id: string) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    )
+      throw new NotFoundException('Event not found.');
+  }
+
+  static validateRejectionReason(reason: string): string {
+    const raw = typeof reason === 'string' ? reason : '';
+    const trimmed = raw.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    const hasLetters = /[a-zA-Z]/.test(trimmed);
+    if (
+      !trimmed ||
+      raw.length > 500 ||
+      trimmed.length < 10 ||
+      trimmed.length > 500 ||
+      words.length < 3 ||
+      !hasLetters
+    ) {
+      throw new BadRequestException(
+        'Please provide a reason that: is between 10 and 500 characters; ' +
+          'contains at least 3 words; and includes real words, not just numbers or symbols.',
+      );
+    }
+    return trimmed;
+  }
+
+  async reject(id: string, body: unknown, currentUser?: AuthenticatedUser) {
+    this.requireRole(currentUser, 'COORDINATOR');
+    this.eventId(id);
+    const data = body as Record<string, unknown> | null;
+    const reason = EventsService.validateRejectionReason(
+      typeof data?.reason === 'string' ? data.reason : '',
+    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted' && event.status !== 'Under_Review')
+        throw new ConflictException(
+          'Only Submitted or Under_Review requests can be rejected. Refresh the pending list.',
+        );
+      if (event.coordinator_id && event.coordinator_id !== currentUser!.uid)
+        throw new ForbiddenException(
+          'This request is assigned to another coordinator.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+            SET status = CASE WHEN status IN ('Submitted', 'Under_Review') THEN 'Rejected' ELSE status END,
+                rejection_reason = CASE WHEN status IN ('Submitted', 'Under_Review') THEN $2 ELSE rejection_reason END,
+                updated_at = now()
+          WHERE id = $1
+          RETURNING *`,
+        [id, reason],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'rejection', $3, $4)`,
+        [
+          randomUUID(),
+          event.organiser_id,
+          `Your event request "${event.event_name}" was rejected: ${reason}`,
+          id,
+        ],
+      );
+      await client.query('COMMIT');
+      return this.record(updated.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async notifications(currentUser?: AuthenticatedUser) {
+    this.requireRole(currentUser, 'ORGANISER');
+    const recipientId =
+      process.env.DEMO_ORGANISER_ENABLED === 'true'
+        ? this.identity().id
+        : currentUser!.uid;
+    const result = await this.pool.query(
+      "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
+      [recipientId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      audienceRole: 'organiser',
+      audienceUserId: row.recipient_id,
+      type: row.type,
+      message: row.message,
+      relatedEventId: row.related_event_id,
+      read: row.read,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  async readNotification(id: string, currentUser?: AuthenticatedUser) {
+    this.requireRole(currentUser, 'ORGANISER');
+    this.eventId(id);
+    const recipientId =
+      process.env.DEMO_ORGANISER_ENABLED === 'true'
+        ? this.identity().id
+        : currentUser!.uid;
+    const result = await this.pool.query(
+      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
+      [id, recipientId],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Notification not found.');
+    return { success: true };
   }
   async create(body: unknown, transaction?: pg.PoolClient, eventId?: string) {
     const user = this.identity();

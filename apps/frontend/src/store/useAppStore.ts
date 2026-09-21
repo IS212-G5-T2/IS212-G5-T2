@@ -49,6 +49,7 @@ interface AppState {
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
+  rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
   reviewChangeRequest: (eventId: string, crId: string, decision: "approved" | "rejected") => void;
@@ -176,6 +177,39 @@ export const useAppStore = create<AppState>((set, get) => ({
         relatedEventId: id,
       });
     }
+  },
+
+  rejectEvent: async (id, reason) => {
+    const trimmedReason = reason.trim();
+    const event = get().events.find((e) => e.id === id);
+
+    set((s) => ({
+      events: s.events.map((e) =>
+        e.id === id
+          ? { ...e, status: "rejected" as const, rejectionReason: trimmedReason }
+          : e
+      ),
+      notifications: event
+        ? [
+            {
+              id: "notif-" + Date.now(),
+              audienceRole: "organiser" as const,
+              audienceUserId: event.organiserId,
+              type: "rejection" as const,
+              message: `Your event request "${event.name}" was rejected: ${trimmedReason}`,
+              relatedEventId: id,
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+            ...s.notifications,
+          ]
+        : s.notifications,
+    }));
+
+    await api<EventRecord>(`/events/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason: trimmedReason }),
+    });
   },
 
   setEventStatus: (id, status) => {

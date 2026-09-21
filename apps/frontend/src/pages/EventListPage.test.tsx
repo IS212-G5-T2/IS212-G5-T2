@@ -104,4 +104,48 @@ describe("EventListPage", () => {
     expect(screen.getByText("Community building")).toBeTruthy();
     expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
   });
+
+  // Coordinators can view rejected requests via the "Rejected" status filter.
+  it("lets coordinators view rejected requests through the Rejected status filter", async () => {
+    const user = userEvent.setup();
+    const rejected: EventRecord = {
+      ...submittedEvent(),
+      id: "00000000-0000-4000-8000-0000000000ff",
+      name: "Rejected Gala",
+      status: "rejected",
+      rejectionReason: "Venue unavailable for the requested date.",
+    };
+    apiMock.mockResolvedValue([submittedEvent(), rejected]);
+
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-1",
+        name: "Coordinator One",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      events: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The Rejected option is available in the coordinator's status filter.
+    expect(await screen.findByRole("option", { name: "Rejected" })).toBeTruthy();
+
+    // Default is the Submitted (Pending Requests) view; switching to Rejected
+    // surfaces the rejected request.
+    expect(screen.getByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByText("Rejected Gala")).toBeNull();
+
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
+
+    expect(screen.getByText("Rejected Gala")).toBeTruthy();
+    expect(screen.queryByText("Welcome Evening")).toBeNull();
+  });
 });
