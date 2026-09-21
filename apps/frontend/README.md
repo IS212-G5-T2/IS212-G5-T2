@@ -122,3 +122,9 @@ The API helper falls back to `http://localhost:8080` only when that environment
 variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
+
+## Rejecting requests (SPM-83)
+
+Coordinators land on Pending Requests with the Submitted filter selected. Open a request and choose Reject Request. The dialog requires a reason (1–2000 characters); blank or whitespace-only input blocks confirmation. Cancel leaves the request unchanged. Server failures keep the dialog and reason available for retry. The saved request displays Rejected and the recorded reason, and disappears from the Submitted filter.
+
+Organisers receive persistent rejection notifications above their main content, with the reason and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Backend migration 003_event_rejection.sql is required for existing databases.

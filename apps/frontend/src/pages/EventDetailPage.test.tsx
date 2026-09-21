@@ -288,9 +288,10 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  // SPM-37 shows a Review Event entrypoint that surfaces a not-available notice,
-  // with no approval/rejection workflow behind it.
-  it("shows a Review Event button that surfaces a not-available notice and no decision controls", async () => {
+  // SPM-83 builds the approve/reject decision controls behind the Review Event
+  // entrypoint, replacing the SPM-37 "not available yet" placeholder. Full
+  // coverage of the reject workflow lives in EventDetailPage.reject.test.tsx.
+  it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
     // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -316,14 +317,15 @@ describe("EventDetailPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    // The review entrypoint is present and enabled, but clicking it only surfaces
-    // a not-available notice — there are no decision controls.
+    // The review entrypoint is present and enabled; clicking it now reveals the
+    // approve/reject decision controls (no more "not available yet" placeholder).
     const reviewButton = screen.getByRole("button", { name: "Review Event" });
     expect(reviewButton).toHaveProperty("disabled", false);
     fireEvent.click(reviewButton);
-    expect(screen.getByText("Event review is not available yet.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
-    expect(screen.queryByRole("radio", { name: /Approve|Reject/i })).toBeNull();
+    expect(screen.queryByText("Event review is not available yet.")).toBeNull();
+    expect(screen.getByRole("radio", { name: "Approve" })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Reject" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 

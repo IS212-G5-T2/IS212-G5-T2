@@ -157,3 +157,12 @@ Unit tests: `src/clarifications/clarification-input.spec.ts` and
 `src/clarifications/clarifications.service.spec.ts`. E2E test:
 `test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
 real PostgreSQL database and the Firebase Auth Emulator.
+
+## Request rejection (SPM-83)
+
+Apply `migrations/003_event_rejection.sql` after the existing events and clarification schema (including its notifications table). Fresh local databases use `development/database/postgresql/init/006_event_rejection.sql`. For an existing database, run `psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_event_rejection.sql` from this directory. This preserves existing rows; do not reset volumes.
+
+- `POST /api/events/:id/reject` accepts `{ "reason": "..." }`. Requires a verified COORDINATOR, a Submitted event, and either no assigned coordinator or the caller's assignment. The trimmed reason must contain 1–2000 characters. Returns the updated event, including `rejectionReason`.
+- Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.
+- `GET /api/notifications` returns only the verified ORGANISER's rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
+Notifications are persistent in-app messages, not email. The frontend checks for them on sign-in, focus and every 30 seconds. In local demo mode they are addressed to the existing fixed demo organiser. Build with `npm run build`; use configured Firebase coordinator and organiser accounts to verify the live workflow.
