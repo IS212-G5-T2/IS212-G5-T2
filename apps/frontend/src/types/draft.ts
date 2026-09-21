@@ -15,6 +15,7 @@ export interface DraftFields {
   accessibility: string[];
   attachments: EventAttachment[];
   equipmentNeeds: string;
+  registrationEnabled?: boolean;
 }
 export interface DraftRecord {
   id: string;

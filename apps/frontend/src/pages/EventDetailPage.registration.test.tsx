@@ -109,4 +109,32 @@ describe("EventDetailPage attendee registration", () => {
 
     expect(useAppStore.getState().registrations[0].status).toBe("registered");
   });
+
+  it("prompts attendee to sign up through website first when registration is enabled and not yet registered", async () => {
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: event.name });
+    expect(
+      screen.getAllByText("Please sign up through the website first to attend this event.").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("informs attendee that registration through website is not enabled when registrationEnabled is false", async () => {
+    const disabledEvent = { ...event, registrationEnabled: false };
+    apiMock.mockResolvedValue(disabledEvent);
+    useAppStore.setState({ events: [disabledEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: disabledEvent.name });
+    expect(
+      screen.getByText("Registration through the website is not enabled for this event."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Please sign up through the website first to attend this event."),
+    ).not.toBeInTheDocument();
+  });
 });
+
+

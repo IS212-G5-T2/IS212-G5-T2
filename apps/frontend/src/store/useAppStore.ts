@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { User as FirebaseUser } from "firebase/auth";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "@/lib/firebase";
+import { api } from "@/utils/api";
 import { getRoleFromFirebaseClaims } from "@/lib/firebaseRoles";
 import type {
   Booking,
@@ -17,6 +18,7 @@ import type {
 } from "@/types";
 
 let idCounter = 1000;
+let authRevision = 0;
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
 // Placeholder identity shown before sign-in and restored on sign-out. It is
@@ -47,7 +49,6 @@ interface AppState {
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
-  reviewEvent: (id: string, decision: "approve" | "reject", note?: string) => void;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
   reviewChangeRequest: (eventId: string, crId: string, decision: "approved" | "rejected") => void;
@@ -141,6 +142,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   assignCoordinator: (id, coordinatorId, coordinatorName) => {
+    // Optimistically reflect the claim so the UI updates immediately.
     set((s) => ({
       events: s.events.map((e) =>
         e.id === id
@@ -154,6 +156,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           : e
       ),
     }));
+    // Persist the assignment so it survives a reload: the detail page refetches
+    // GET /events/:id on mount, which now returns the stored coordinator. Fire
+    // and forget — the optimistic state above already matches what the server
+    // writes (submitted -> under_review), so no reconciliation is needed here.
+    api(`/events/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ coordinatorId, coordinatorName }),
+    }).catch(() => {
+      /* Optimistic state stands; a later refetch will resurface any drift. */
+    });
     const event = get().events.find((e) => e.id === id);
     if (event) {
       get().pushNotification({
@@ -161,35 +173,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         audienceUserId: event.organiserId,
         type: "coordinator_assignment",
         message: `${coordinatorName} was assigned to "${event.name}".`,
-        relatedEventId: id,
-      });
-    }
-  },
-
-  reviewEvent: (id, decision, note) => {
-    const event = get().events.find((e) => e.id === id);
-    if (!event) return;
-    if (decision === "approve") {
-      get().setEventStatus(id, "approved");
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "approval",
-        message: `"${event.name}" was approved and is moving to planning.`,
-        relatedEventId: id,
-      });
-      set((s) => ({
-        events: s.events.map((e) =>
-          e.id === id ? { ...e, status: "planning" as EventStatus } : e
-        ),
-      }));
-    } else {
-      get().updateEvent(id, { status: "rejected", rejectionReason: note });
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "rejection",
-        message: `"${event.name}" was rejected. Reason: ${note ?? "No reason provided."}`,
         relatedEventId: id,
       });
     }
@@ -448,6 +431,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   setAuthUser: async (firebaseUser) => {
+    const revision = ++authRevision;
+    // Remove account-owned event data before resolving a new session or sign-out.
+    set({ events: [] });
     if (!firebaseUser) {
       set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
       return;
@@ -457,6 +443,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     try {
       const tokenResult = await firebaseUser.getIdTokenResult();
+      if (revision !== authRevision) return;
       const role = getRoleFromFirebaseClaims(tokenResult.claims.roles);
 
       if (!role) {
@@ -475,6 +462,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       });
     } catch {
+      if (revision !== authRevision) return;
       set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
     }
   },

@@ -35,17 +35,11 @@ export function MyRequestsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="My Requests"
-        description="Continue a saved draft or view a submitted request."
+        title="My requests"
+        description="Continue a saved draft or open a submitted request."
       />
-      <Link
-        to="/events/create"
-        className="mb-5 inline-block text-sm font-medium text-primary-700"
-      >
-        + Create event request
-      </Link>
       {loading ? (
-        <p role="status">Loading requests…</p>
+        <p role="status">Loading drafts…</p>
       ) : failure ? (
         <div role="alert">
           <p>{failure}</p>

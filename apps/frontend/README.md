@@ -93,10 +93,13 @@ successful sign-in alone. The route guards restrict organiser event creation,
 organiser-owned edits, and coordinator change-request reviews in the client.
 The in-memory registration actions are also limited to the signed-in attendee.
 
-These are frontend controls. The API client forwards the signed-in Firebase ID
-token as a Bearer credential, but the current event API does not yet verify it
-or use Firebase identity for event access. The event-management flow is
-therefore not an end-to-end Firebase authorization implementation.
+Coordinator assignment is manual: submitting a request leaves it unassigned.
+Coordinators use **Assign Myself as Coordinator** on an unassigned event to
+claim it. Approval/rejection controls are not part of the SPM-37 draft workflow.
+As in the earlier client workflow, this assignment is held
+in browser memory and is not persisted by an assignment API.
+
+The API client forwards the signed-in Firebase ID token. Draft/event endpoints verify that token, require the ORGANISER role, and scope data to its UID.
 
 ### Local Compose Firebase
 
@@ -108,12 +111,14 @@ dedicated non-production Firebase project and test accounts. Keep
 The Firebase Auth Emulator is used only by the GitHub Actions backend E2E test.
 ## Event request workflow
 
+My drafts lists only unsubmitted drafts. Once submitted, requests appear under My Events. Create new events from the Create Event action on the planning or events page.
+
+My Events uses the API response scoped to the verified Firebase UID. Drafts and submitted events are private to their owner; old shared demo records are retained but not automatically assigned to an account.
+
 Open `/planning` or `/events` and choose Create Event. The light-mode three-step form collects basic information, schedule/venue needs, and equipment needs. Successful submission opens the saved details and shows a confirmation. My Events reloads records from PostgreSQL through the backend API. Dates use the browser's local time zone and are sent as UTC.
 
 In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
-variable is absent. Sign-in is implemented through Firebase. The event API,
-however, currently uses a fixed local demo organiser and is not tied to the
-signed-in Firebase user. Save Draft and email delivery are deferred.
+variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Enforce Firebase UID ownership on draft and event APIs, including list, direct reads, saves and submission. Reject unauthenticated access and cross-user requests; remove the shared demo identity fallback.
+
 - Added protected `GET /auth/me`, which returns the identity and roles from a
   verified Firebase ID token without exposing credentials or raw claims.
 - Updated Firebase Auth Emulator E2E coverage to test the production auth

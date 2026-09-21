@@ -86,6 +86,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     accessibility: [] as string[],
     attachments: [] as EventAttachment[],
     equipmentNeeds: "",
+    registrationEnabled: false,
   });
   useEffect(() => {
     if (!draftId) return;
@@ -97,7 +98,10 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
         if (result.status !== "Draft") setLocked(true);
         else {
           const { formStep, ...values } = result.fields;
-          setForm(values);
+          setForm({
+            ...values,
+            registrationEnabled: values.registrationEnabled ?? false,
+          });
           setStep(
             Number.isInteger(formStep) &&
               formStep! >= 0 &&
@@ -301,6 +305,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
             attachments: form.attachments,
             equipmentNeeds: form.equipmentNeeds,
             submissionKey,
+            registrationEnabled: form.registrationEnabled,
           }),
         },
       );
@@ -397,6 +402,20 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     onChange={(e) => change("description", e.target.value)}
                     error={errors.description}
                   />
+                  <div className="mb-4">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={form.registrationEnabled}
+                        onChange={(e) => change("registrationEnabled", e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                      />
+                      Register through website
+                    </label>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                      Open attendee registration through the website once this event is confirmed.
+                    </p>
+                  </div>
                 </>
               )}
               {step === 1 && (

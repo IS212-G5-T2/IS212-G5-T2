@@ -7,13 +7,15 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { EventEditForm } from "@/components/EventEditForm";
-import { formatDateRange, formatDateTime } from "@/utils/format";
+import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 
 const CLARIFIABLE_STATUSES = ["submitted", "under_review", "approved"];
+
+// Venue and technical support staff only get involved once a request is
+// approved; anything earlier in the workflow is off-limits to them.
+const STAFF_ACCESSIBLE_STATUSES = ["approved", "planning", "confirmed", "completed"];
 
 const STATUS_FLOW = [
   "draft",
@@ -44,22 +46,15 @@ export function EventDetailPage() {
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
   const assignCoordinator = useAppStore((s) => s.assignCoordinator);
-  const reviewEvent = useAppStore((s) => s.reviewEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
   const updateEvent = useAppStore((s) => s.updateEvent);
-
-  const [reviewOpen, setReviewOpen] = useState(false);
-  const [decision, setDecision] = useState<"approve" | "reject" | "">("");
-  const [note, setNote] = useState("");
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
 
   const [editMode, setEditMode] = useState(false);
-
-  const AVAILABLE_FACILITIES = ["Catering", "AV System", "Stage", "Projector"];
-  const AVAILABLE_ACCESSIBILITY = ["Accessible restrooms", "Elevator access"];
+  const [reviewNotice, setReviewNotice] = useState("");
 
   const event = events.find((e) => e.id === id);
 
@@ -95,6 +90,22 @@ export function EventDetailPage() {
     );
   }
 
+  const isSupportStaff =
+    currentUser.role === "venue_staff" || currentUser.role === "tech_support";
+  if (isSupportStaff && !STAFF_ACCESSIBLE_STATUSES.includes(event.status)) {
+    return (
+      <div
+        role="alert"
+        className="rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300"
+      >
+        Access restricted: Venue and technical support staff cannot access unapproved submitted requests.{" "}
+        <Link to="/events" className="underline">
+          Back to events
+        </Link>
+      </div>
+    );
+  }
+
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
   const isUnassignedForCoordinator =
@@ -103,14 +114,6 @@ export function EventDetailPage() {
   const myRegistration = registrations.find(
     (r) => r.eventId === event.id && r.attendeeId === currentUser.id
   );
-
-  const submitReview = () => {
-    if (!decision) return;
-    reviewEvent(event.id, decision, note || undefined);
-    setReviewOpen(false);
-    setDecision("");
-    setNote("");
-  };
 
   const canRequestClarification =
     isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
@@ -170,14 +173,19 @@ export function EventDetailPage() {
                 Edit
               </Button>
             )}
+            {isAssignedCoordinator && ["submitted", "under_review"].includes(event.status) && (
+              // The approve/reject workflow is not implemented for SPM-37; the
+              // entrypoint stays visible but surfaces a not-available message.
+              <Button onClick={() => setReviewNotice("Event review is not available yet.")}>
+                Review Event
+              </Button>
+            )}
             {isUnassignedForCoordinator && (
               <Button onClick={() => assignCoordinator(event.id, currentUser.id, currentUser.name)}>
                 Assign Myself as Coordinator
               </Button>
             )}
-            {isAssignedCoordinator && ["submitted", "under_review"].includes(event.status) && (
-              <Button onClick={() => setReviewOpen(true)}>Review Event</Button>
-            )}
+
             {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
               <Link to={`/venues?eventId=${event.id}`}>
                 <Button variant="secondary">Search Venues</Button>
@@ -208,6 +216,11 @@ export function EventDetailPage() {
         </ol>
       )}
 
+      {reviewNotice && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {reviewNotice}
+        </div>
+      )}
       {commentsError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {commentsError}
@@ -241,7 +254,7 @@ export function EventDetailPage() {
                   <div>
                     <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
                     <dd className="font-medium text-gray-800 dark:text-gray-200">
-                      {formatDateRange(event.startDateTime, event.endDateTime)}
+                      {formatDateTimeRange(event.startDateTime, event.endDateTime)}
                     </dd>
                   </div>
                   <div>
@@ -334,27 +347,39 @@ export function EventDetailPage() {
           </Card>
         )}
 
-
-        {currentUser.role === "attendee" && event.registrationEnabled && (
+        {currentUser.role === "attendee" && (
           <Card className="lg:col-span-3">
             <CardHeader>
               <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>
             </CardHeader>
-            <CardBody className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Status:{" "}
-                <span className="font-medium text-gray-900 dark:text-gray-100">
-                  {myRegistration?.status === "registered" ? "You're registered" : "Not registered"}
-                </span>
-              </p>
-              {myRegistration?.status === "registered" ? (
-                <Button variant="secondary" onClick={() => withdrawRegistration(event.id)}>
-                  Withdraw Registration
-                </Button>
-              ) : (
-                <Button onClick={() => registerForEvent(event.id)}>Register</Button>
-              )}
-            </CardBody>
+            {!event.registrationEnabled ? (
+              <CardBody className="text-sm text-gray-600 dark:text-gray-400">
+                Registration through the website is not enabled for this event.
+              </CardBody>
+            ) : (
+              <CardBody className="space-y-3">
+                {myRegistration?.status !== "registered" && (
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Please sign up through the website first to attend this event.
+                  </p>
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Status:{" "}
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {myRegistration?.status === "registered" ? "You're registered" : "Not registered"}
+                    </span>
+                  </p>
+                  {myRegistration?.status === "registered" ? (
+                    <Button variant="secondary" onClick={() => withdrawRegistration(event.id)}>
+                      Withdraw Registration
+                    </Button>
+                  ) : (
+                    <Button onClick={() => registerForEvent(event.id)}>Register</Button>
+                  )}
+                </div>
+              </CardBody>
+            )}
           </Card>
         )}
 
@@ -372,44 +397,6 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
-
-      <Modal
-        open={reviewOpen}
-        onClose={() => setReviewOpen(false)}
-        title={`Review — ${event.name}`}
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setReviewOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant={decision === "reject" ? "danger" : "primary"}
-              disabled={!decision}
-              onClick={submitReview}
-            >
-              Submit Decision
-            </Button>
-          </>
-        }
-      >
-        <RadioGroup
-          label="Coordinator decision"
-          name="review-decision"
-          value={decision}
-          onChange={(v) => setDecision(v as typeof decision)}
-          options={[
-            { value: "approve", label: "Approve — move to planning" },
-            { value: "reject", label: "Reject" },
-          ]}
-        />
-        {decision === "reject" && (
-          <TextArea
-            label="Rejection reason"
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
-        )}
-      </Modal>
 
       <div className="mt-4">
         <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">

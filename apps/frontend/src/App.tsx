@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAppStore } from "@/store/useAppStore";
@@ -24,8 +24,20 @@ import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 
+function RootRedirect() {
+  const role = useAppStore((state) => state.currentUser.role);
+  if (role === "venue_staff") {
+    return <Navigate to="/venues" replace />;
+  }
+  if (role === "tech_support") {
+    return <Navigate to="/equipment/requests" replace />;
+  }
+  return <Navigate to="/events" replace />;
+}
+
 export default function App() {
   const setAuthUser = useAppStore((s) => s.setAuthUser);
+  const currentUserId = useAppStore((s) => s.currentUser.id);
 
   useEffect(() => {
     // Subscribes once for the lifetime of the app; keeps currentUser/
@@ -44,14 +56,15 @@ export default function App() {
       <Route
         element={
           <RequireAuth>
-            <AppShell />
+            <AppShell key={currentUserId} />
           </RequireAuth>
         }
       >
-        <Route path="/" element={<EventListPage />} />
+        <Route path="/" element={<RootRedirect />} />
 
-        <Route path="/planning" element={<EventListPage />} />
-        <Route path="/events" element={<EventListPage />} />
+        <Route element={<RequireRole allowedRoles={["coordinator", "organiser", "attendee"]} />}>
+          <Route path="/events" element={<EventListPage />} />
+        </Route>
         <Route element={<RequireRole allowedRoles={["organiser"]} />}>
           <Route path="/events/create" element={<EventCreatePage />} />
           <Route path="/requests" element={<MyRequestsPage />} />

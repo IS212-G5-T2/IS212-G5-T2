@@ -10,6 +10,8 @@ The shared local Docker Compose stack builds this app with `apps/frontend/Docker
 
 ## Continuity notes
 
+My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
+
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
 - The repository test workflow discovers `scripts/ci/unit-test.sh`; this
   frontend entrypoint installs dependencies and runs `npm run test:coverage`.
@@ -39,8 +41,8 @@ The shared local Docker Compose stack builds this app with `apps/frontend/Docker
 
 The create/list/detail pages call the real local API and forward the current
 Firebase ID token as a Bearer credential; other existing store actions remain
-prototype behavior. The current event API does not verify that token or use the
-Firebase user as its event identity, so client guards are not server-side
-enforcement. The app starts in light mode. Email and Save Draft are deferred.
+prototype behavior. Draft and event APIs verify that token and enforce ownership
+using its Firebase UID. The app starts in light mode. Save Draft is implemented;
+email delivery remains deferred.
 The API maps stored Submitted status to the existing lowercase frontend status
 type.

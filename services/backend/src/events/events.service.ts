@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -6,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import { validateEvent } from './event-input.js';
+import { validateEvent, type EventAttachment } from './event-input.js';
 
 @Injectable()
 export class EventsService implements OnModuleDestroy {
@@ -40,6 +41,8 @@ export class EventsService implements OnModuleDestroy {
       description: row.description,
       organiserId: row.organiser_id,
       organiserName: row.organiser_name,
+      coordinatorId: row.coordinator_id ?? undefined,
+      coordinatorName: row.coordinator_name ?? undefined,
       status: row.status.toLowerCase(),
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
@@ -64,7 +67,19 @@ export class EventsService implements OnModuleDestroy {
       'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
       [user.id],
     );
-    return result.rows.map((row) => this.record(row));
+    // The list view only needs attachment metadata (name/size/type), never the
+    // base64 file contents. Keeping dataUrl here would balloon the response to
+    // tens of MB per attached file and make the page time out; the detail
+    // endpoint (get) still returns the full attachments including dataUrl.
+    return result.rows.map((row) => {
+      const record = this.record(row);
+      return {
+        ...record,
+        attachments: (record.attachments as EventAttachment[]).map(
+          ({ dataUrl: _dataUrl, ...meta }) => meta,
+        ),
+      };
+    });
   }
   async get(id: string) {
     const user = this.identity();
@@ -77,6 +92,36 @@ export class EventsService implements OnModuleDestroy {
     const result = await this.pool.query(
       'SELECT * FROM events WHERE id = $1 AND organiser_id = $2',
       [id, user.id],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Event not found.');
+    return this.record(result.rows[0]);
+  }
+  // Persist a coordinator claiming an event. A coordinator (not the organiser)
+  // performs this, so it is scoped by event id rather than organiser_id. A
+  // still-'Submitted' request advances to 'Under_Review'; later statuses are
+  // left untouched. coordinatorId/name come from the caller because the events
+  // routes carry no authenticated identity in local/demo mode.
+  async assignCoordinator(id: string, body: unknown) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    )
+      throw new NotFoundException('Event not found.');
+    const data = body as Record<string, unknown> | null;
+    const coordinatorId =
+      typeof data?.coordinatorId === 'string' ? data.coordinatorId.trim() : '';
+    const coordinatorName =
+      typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
+    if (!coordinatorId || !coordinatorName)
+      throw new BadRequestException('A coordinator id and name are required.');
+    const result = await this.pool.query(
+      `UPDATE events
+         SET coordinator_id = $2,
+             coordinator_name = $3,
+             status = CASE WHEN status = 'Submitted' THEN 'Under_Review' ELSE status END,
+             updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [id, coordinatorId, coordinatorName],
     );
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);

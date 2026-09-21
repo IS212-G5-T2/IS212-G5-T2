@@ -21,6 +21,29 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-20 - Gemini 3.8 / Claude Sonnet 4.6 - Role-based request & event access control, coordinator boundaries, and venue/tech support role separation
+
+- Issue/PR: SPM-37 / fix_request_view_logic
+- Human requester/operator: kirub
+- Areas touched: `services/backend/src/events/`, `services/backend/migrations/`, `development/database/postgresql/init/`, `apps/frontend/src/`, `AI_USAGE.md`
+- Summary: Implemented complete role-based request and event viewing logic across backend and frontend:
+  1. **Event Organiser & Multi-Role Users (e.g. `org_venue`)**: Full save draft and submission workflow enabled. After submission, events immediately appear under "My Events" (`/events`). Pre-submission drafts are directly editable. Post-submission direct editing is strictly restricted to `name` and `description` ("Save Name/Description Only"); date/time, attendance, venue, and equipment changes must go through coordinator Change Requests. Fixed SQL syntax error in `EventsService.insert` and enhanced `EventsService.list` and `get` to use capability-based `identity.roles.includes(...)` rather than assuming a single primary role.
+  2. **Event Coordinator**: The ONLY role with access to the "All Events" oversight page (`/events`) and initial submitted requests (`submitted`, `under_review`) from event organisers. Unassigned events are automatically assigned by the system to an available coordinator (manual self-assignment removed). Assigned coordinator has full operational authority (`Review Event`, `Change Requests`, `Search Venues`). Non-assigned coordinators opening an event receive an immediate pop-up error modal: `"This event has not been assigned to you."` with `[Back to Events]`.
+  3. **Venue Staff & Technical Support**: Strictly restricted from the "All Events" page (`/events` or `/`). Venue staff are routed to Venue Catalogue (`/venues`), and Technical Support staff are routed to Equipment Requests (`/equipment/requests`). Route guards (`RootRedirect`, `RequireRole`, and page-level guards) ensure they cannot view or browse raw submitted requests from organisers. Only the assigned coordinator submits formal venue booking requests to Venue Staff and equipment/tech support requests to Technical Support Staff.
+  4. **Attendee**: Strictly blocked from unconfirmed requests. Views confirmed events on `/events`. If `registrationEnabled === true` and the attendee has not signed up, prompted to *"Please sign up through the website first to attend this event."* with the `Register` button. If `registrationEnabled === false`, explicitly displays *"Registration through the website is not enabled for this event."* and suppresses registration actions.
+  5. **"Register through website"**: Checkbox on Step 0 of `EventCreatePage`, validated in backend `event-input.ts`, and persisted in the PostgreSQL `registration_enabled` column.
+- AI contribution: Full-stack diagnosis, implementation plan, database migration, backend validation and query refactoring, frontend form controls, role-scoped filtering, auto-assignment logic, modal pop-up error handling, attendee prompt notices, routing & role guard updates, and comprehensive test suite updates.
+- Assumptions: Firebase auth middleware attaches `request.currentUser`. Non-organisers cannot access draft endpoints (403 Forbidden). Venue staff and tech support do not have access to the All Events overview.
+- Checks run:
+  - Backend unit tests (`npm test` in `services/backend`): 364/364 passed across all 12 test suites.
+  - Backend production build (`npm run build` in `services/backend`): completed successfully with zero errors.
+  - Docker Compose backend rebuild and frontend restart: running healthy.
+  - Frontend production build (`npm run build` in `apps/frontend`): `tsc -b && vite build` completed cleanly with zero errors.
+  - Frontend unit tests (`npx vitest run` in `apps/frontend`): 158/158 passed across all 13 test suites.
+- Follow-up/conflict notes: None. Staged for human review. No commit or push performed per AGENTS.md Rule 11.
+
+
+
 ## 2026-09-16 - Codex (GPT-5) - Restore SPM-30 frontend authentication integration
 
 - Issue/PR: SPM-30 / PR #15
@@ -827,3 +850,96 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: `@Inject(Class)` was purely redundant here; the excluded branch is compiler-generated and unreachable, so ignoring it does not hide any real code path. `events.controller.ts` (SPM-36 scope) still uses `@Inject` and was left unchanged.
 - Checks run: Backend `npm test` 260/260; `npm run test:cov:spm37` 100% statements/branches/functions/lines for the eight configured files; `npm run lint` and `nest build` (Node 24) passed.
 - Follow-up/conflict notes: Supersedes the earlier ledger note that retained `@Inject` to preserve the coverage gate. No behavioural change; DI resolves identically by type.
+
+## 2026-09-20 - Codex (GPT-6) - Diagnose blank frontend and login setup
+
+- Issue/PR: None supplied; runtime diagnosis requested by user.
+- Areas touched: AI_USAGE.md only; inspected frontend, backend and local Compose runtime.
+- Findings: Chromium reproduced an empty page and Firebase auth/invalid-api-key during module initialization. All six VITE_FIREBASE configuration values are empty in the frontend container; local development/local-dev/.env has no matching Firebase entries. Backend FIREBASE_SERVICE_ACCOUNT_JSON is also empty. Required team Firebase configuration must be supplied locally before real sign-in can be verified.
+- Checks: Compose frontend/backend/PostgreSQL healthy; backend /healthz returned status ok; frontend source HTTP 200; Playwright captured missing-config warning and uncaught Firebase error. In-app browser timed out, so used installed Playwright for diagnosis. No application tests rerun because no implementation changed.
+- Follow-up/conflicts: Existing services and data preserved; no credentials printed, configuration invented, commits or pushes. Await team local Firebase configuration, then recreate frontend/backend and verify sign-in.
+
+- Runtime follow-up: User supplied Firebase values and requested stack restart. Recreated Compose services preserving volumes. Browser now renders /login without page errors. Corrected local untracked .env PORT and VITE_API_BASE_URL from 8080 to Compose's published 3000; restarted services. Real account sign-in remains untested.
+
+## 2026-09-20 - Codex (GPT-6) - Remove My Requests creation link
+
+- Issue/PR: No new Jira key supplied; user requested a small follow-up to the existing My Requests UI on the current feature branch.
+- Areas: apps/frontend/src/pages/MyRequestsPage.tsx, frontend README, AI_USAGE.md.
+- Summary: Removed the + Create event request link above the request list. Existing request links and creation routes remain available.
+- Checks: EventCreatePage and DraftWorkflow component suites passed (59 tests); git diff --check passed. Signed-in browser view not re-tested.
+- Follow-up/conflicts: Preserved earlier runtime ledger entries; staged for human review, no commit or push.
+- Runtime verification follow-up: Vite was serving stale transformed MyRequestsPage code despite the updated bind-mounted source. Restarted only the frontend container; HTTP verification now confirms the served module retains My Requests and no longer contains the removed creation link. Database and backend left untouched.
+- Label follow-up: Renamed My Requests to My drafts in page heading, navigation, form links/help, related tests and frontend README. Kept existing list behavior and routes. Both affected suites passed (59 tests); restarted frontend and verified served heading/navigation contain My drafts; whitespace check passed. Staged without commit.
+- Submission visibility follow-up: My drafts now filters the requests response to Draft status only, with updated description/loading/empty-state wording. Existing submission creates an event and My Events loads /events; its submitted-event test passes. Updated mixed-status regression and added submitted-only empty-state test. Three frontend suites passed (62 tests); whitespace check passed; restarted frontend and verified served filter. API records retained; no backend changes, commit or push.
+- Missing submitted events follow-up: Backend /api/events returns two persisted submitted events under its local demo organiser. My Events incorrectly filtered this organiser ID against the Firebase UID. Removed redundant client organiser filtering, relying on existing backend organiser scoping; documented local identity limitation. Added Firebase-UID mismatch/reload regression. All three affected suites passed (63 tests); whitespace check passed; restarted frontend and confirmed old filter absent from served module. No data changes or backend authentication changes; signed-in browser verification remains with user.
+
+## 2026-09-20 - Codex (GPT-6) - Expand Confluence draft test procedures
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37 (In Progress; seven acceptance criteria reviewed).
+- Areas: Confluence Event Request Creation folder https://is212-g5-t2.atlassian.net/wiki/spaces/SP/folder/10321973, EVE-DRF-01 through EVE-DRF-11; AI_USAGE.md only locally on the existing SPM-37 branch.
+- Summary: With explicit user authorization, updated 26 cases with 209 numbered steps covering setup, concrete inputs, browser/API/database actions and verification. Added execution-context and AC guidance; clarified normalized draft defaults, retry identifiers and attachment size checks. Preserved test IDs, authorship, automation references and execution-result fields.
+- Checks: Compared against Jira AC, reference EVE-CRE pages and relevant local implementation/tests; validated HTML and read back all 11 published pages. Content matches authored HTML after normalizing generated local IDs and apostrophe encoding; execution fields unchanged.
+- Assumptions/follow-up: Procedures are authored, not executed; no application tests rerun or pass results claimed. Supporting security/boundary checks distinguished from the seven core AC. No code changes, Jira transitions, commit or push. Existing source work preserved; ledger staged for review.
+
+## 2026-09-20 - Codex (GPT-6) - Audit Confluence pre-conditions against dev
+
+- Issue/context: SPM-37; user requested assessment of all 11 EVE-DRF pages against Event Management cases and dev code.
+- Areas: AI_USAGE.md only; read all 26 draft-case pre-conditions and all eight EVE-CRE pages. Fetched origin/dev at 8179b93c7ad3193c949ddfb5cb65f885f883049c without switching or changing source files.
+- Findings: Specify test layer, branch/commit, mocks versus live services, dedicated PostgreSQL/schema setup, fixture state, failure injection and boundary files. Dev still uses DEMO_ORGANISER_ENABLED/current-user for event/draft APIs; Firebase middleware applies only to AuthController. EVE-DRF-08 and 09-B require newer authentication integration. Dev My Requests includes Submitted records, unlike EVE-DRF-03. Sixth-file error is Use up to five files.; combined-size error includes 50 MB total.
+- Checks: Read dev controllers, services, app bootstrap, frontend form/list/API code and test harnesses. No tests executed and no Confluence changes in this audit. Prior procedure rewrite used local feature-branch code; branch mismatch now explicitly reported. Existing staged ledger retained.
+- Branch-reference correction: User specified fix/SPM-37-Update-Draft-request-workflow instead of dev. Fetched and checked remote commit 4fda7e3f2efa07531b07c648c66c0679fe3334a2 (same source tree as local HEAD). Draft/event Firebase middleware, ORGANISER authorization, per-user ownership and My drafts filtering are present, so the dev-specific mismatches for EVE-DRF-03/08/09-B do not apply to this target. Keep recommendations for explicit test layer, authentication fixtures, database/schema setup, failure injection and fixture state. Integration token verification is stubbed; DEMO_ORGANISER_ENABLED is not an authentication prerequisite despite a leftover harness assignment. File-count error wording still differs from the current Confluence procedure. Assessment only; no Confluence changes or tests executed.
+
+## 2026-09-20 - Codex (GPT-6) - Update Confluence pre-conditions from SPM-37 fix branch
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37. User explicitly requested updates using fix/SPM-37-Update-Draft-request-workflow, commit 4fda7e3f2efa07531b07c648c66c0679fe3334a2.
+- Areas: EVE-DRF-01 through EVE-DRF-11 in Confluence folder 10321973; AI_USAGE.md locally.
+- Summary: Replaced pre-conditions for all 26 cases with numbered branch-specific setup covering live browser versus mocked component tests, PostgreSQL/schema setup, stubbed token identities, initial fixture state, failure injection and validation helpers. Every case records the branch/commit baseline. Clarified owner-isolation read-back identity; corrected the attachment-count error wording in two procedure steps for consistency with the branch.
+- Checks: Inspected fix-branch authentication, draft integration tests, frontend test harnesses, validator and browser spec. Published all 11 pages and read each back to compare with intended HTML. Existing result fields and test IDs preserved; no tests executed or results claimed.
+- Follow-up/conflicts: Existing staged ledger entries retained. No application source changes, Jira transitions, commit or push. Ledger staged for human review.
+
+## 2026-09-21 - Codex (GPT-6) - Rebase SPM-37 fix branch onto dev
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; user requested branch maintenance.
+- Summary: Rebased fix/SPM-37-Update-Draft-request-workflow from e7a73c6 onto latest origin/dev 90e8a60; resulting HEAD 1f0e67e. Preserved original history at backup/SPM-37-fix-before-rebase-20260921. Initial working tree was clean.
+- Conflict resolution: Applied root AGENTS.md dev-wins rule to entire conflicted files: frontend EventListPage.tsx, DraftWorkflow.test.tsx, EventCreatePage.tsx, EventCreatePage.test.tsx, EventDetailPage.tsx, EventListPage.test.tsx; backend README.md, src/app.module.ts, and events drafts.e2e-spec.ts, drafts.service.spec.ts, drafts.service.ts, events.controller.ts, events.service.spec.ts, events.service.ts. Nonconflicting patches replayed normally. No scripts or dependency manifests/lockfiles were lost or changed relative to the backup.
+- Checks: Rebase completed, origin/dev is an ancestor, no unresolved index entries, git diff --check passed. Backend unit tests: 385 passed, 1 failed (draft controller/service contract mismatch). Frontend: 151 passed, 11 failed across DraftWorkflow, EventDetailPage and registration suites, plus comments.filter runtime error in a test. Browser/database/build checks not run.
+- Follow-up: Rebase is complete but the combined branch is not merge-ready. Dev conflict replacements remove branch-specific authorization/registration behavior while some nonconflicting callers/tests still expect it; reconcile in follow-up implementation work. User subsequently authorized committing this entry and syncing the remote fix branch. Verified remote still equals the pre-rebase backup e7a73c6; publish using an explicit force-with-lease to preserve any concurrent remote updates.
+
+## 2026-09-21 - Codex (GPT-6) - Attempt local container startup
+
+- Context: SPM-37 branch; user requested all local stack containers start.
+- Areas: Docker Desktop runtime; AI_USAGE.md. Read development guidance and local Compose configuration.
+- Checks/result: docker desktop start attempted; docker compose up -d --build could not connect to the Linux engine. Docker host log reports backend startup crash while opening/renaming sailor-ingest.sock (file cannot be accessed by the system). Frontend, backend and PostgreSQL startup could not proceed.
+- Follow-up: Repair/restart Docker Desktop before retrying Compose. No containers, volumes or database data removed; no source edits, commit or push. Ledger left unstaged.
+
+## 2026-09-21 - Codex (GPT-6) - Diagnose Docker failure
+
+- Context: User requested runtime diagnosis; no issue supplied. Areas changed: AI_USAGE.md only.
+- Findings: Docker Desktop failed at 14:12 SGT because Windows could not access/rename sailor-ingest.sock; its log records successful socket listening at 14:21. Engine now responds; frontend, backend and PostgreSQL healthy, frontend HTTP 200 and backend health status ok. Old gateway container remains exited with a file/directory bind-mount mismatch for gateway/nginx.conf. Existing containers reference former compose.yaml; current checkout uses docker-compose.yml.
+- Checks: docker version, compose ls, container status/state, Docker host logs, HTTP readiness and current Compose service names. No application tests needed for diagnosis.
+- Follow-up/conflicts: Preserved existing ledger changes; no runtime or source changes, deletions, commit or push. Old gateway failure is separate from recovered Docker Desktop startup failure.
+## 2026-09-21 - Codex (GPT-6) - Restore manual coordinator assignment
+
+- Context: User requested the pre-auto-assignment workflow on the existing SPM-37 fix branch; no new Jira key or acceptance criteria supplied. Reused existing branch work. GitHub PR lookup failed because gh could not resolve the configured repository.
+- Areas: frontend store, EventDetailPage tests, frontend README, AI_USAGE.md.
+- Summary: Reverted the store's automatic coordinator assignment and assignment notifications to the implementation before 05da9db. Current page already contains Assign Myself as Coordinator and no access-restricted popup. Added submission/unassigned and explicit-click regression coverage; corrected the assigned-coordinator test's comment API mock.
+- Checks: Two focused regression tests passed; targeted ESLint and production build passed. Full detail suite has four existing rebase-related failures (popup expectation, missing Change Requests control, venue/technical access expectations). Playwright on localhost:5173 at 1440x1000 verified Unassigned -> Assign Myself as Coordinator -> Review Event, with mocked API/auth state, no page errors or Vite overlay, and before/after screenshots outside the repo. Browser plugin unavailable; used installed Playwright. Served store confirmed free of automatic assignment.
+- Limits/follow-up: Preserved earlier browser-memory-only assignment behavior; database persistence and real authenticated API flow were not implemented or verified. Existing runtime/backend state untouched. Prior ledger edits preserved. Changes staged for human review; no commit or push.
+
+## 2026-09-21 - Codex (GPT-6) - Remove event approval/rejection outside SPM-37
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; fetched full story, all seven AC, comments (none), Medium priority and In Progress status. User explicitly requested removing approval/rejection and limiting fixes to draft-story scope.
+- Areas: frontend EventDetailPage, store, page regression tests, README, AI_USAGE.md; reused existing fix branch and staged work. Earlier GitHub PR lookup remains unavailable.
+- Summary: Removed Review Event entrypoint, decision modal/state/handler, and the reviewEvent store action that changed status and sent approval/rejection notifications. Git history traces the UI to 3f46e16 Frontend Skeleton. Preserved the separately requested manual assignment and unrelated existing features.
+- Checks: Three focused tests passed (submission stays unassigned, explicit manual assignment, no approval/rejection controls for assigned coordinator); production build passed. Playwright at localhost:5173 (1440x1000, mocked auth/API) verified manual assignment with no review/decision controls, page errors or framework overlay. Served source matches. ESLint reports two pre-existing unused constants in EventDetailPage (AVAILABLE_FACILITIES and AVAILABLE_ACCESSIBILITY); left unchanged. Earlier unrelated page-suite failures remain; no full-story pass claimed.
+- AC review: All seven SPM-37 criteria concern draft save/status/reopen/update/persistence/feedback/submitted-edit restrictions; approval/rejection is outside that scope. This removal does not change draft APIs or forms. Real authenticated backend flow and full AC regression were not rerun for this removal.
+- Follow-up/conflicts: Changes staged without commit/push. Previous staged changes preserved. Supersedes the prior check that expected Review Event after manual assignment; that action is intentionally absent now.
+
+- Lint follow-up: At the user's request, removed the two unused EventDetailPage constants. ESLint now passes for EventDetailPage.tsx, EventDetailPage.test.tsx and useAppStore.ts. No behavior change; no additional tests required. Staged without commit or push.
+
+## 2026-09-21 - Codex (GPT-6) - Diagnose comments error after manual assignment
+
+- Context: User reported Cannot GET /api/events/:id/comments after assignment; scope remains SPM-37.
+- Findings: Assignment changes frontend state and triggers the existing SPM-39 comment fetch. Current source registers ClarificationsModule and GET events/:id/comments, but the running backend image has no compiled clarification module and startup logs show no comments route. Frontend/backend runtime versions are mismatched.
+- Checks: Read controller/module wiring and frontend effect; inspected compiled module existence and backend route logs without printing credentials. No code or runtime changes; prior mocked browser test did not validate live route availability.
+- Follow-up: Align backend runtime with reviewed source before live clarification testing. Current rebased backend has previously documented authentication/contract differences, so blindly rebuilding it is broader than this SPM-37 diagnosis. Ledger staged; no commit/push.
