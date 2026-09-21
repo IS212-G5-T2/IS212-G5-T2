@@ -32,11 +32,14 @@ export function MyRequestsPage() {
       active = false;
     };
   }, [retry]);
+  // Only unsubmitted drafts belong here. Once a draft is submitted it becomes an
+  // event and is surfaced under "My Events" instead, so it drops out of this list.
+  const drafts = requests.filter((request) => request.status === "Draft");
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="My requests"
-        description="Continue a saved draft or open a submitted request."
+        title="My drafts"
+        description="Continue a saved draft. Submitted requests move to My Events."
       />
       {loading ? (
         <p role="status">Loading drafts…</p>
@@ -45,16 +48,16 @@ export function MyRequestsPage() {
           <p>{failure}</p>
           <Button onClick={() => setRetry((v) => v + 1)}>Retry</Button>
         </div>
-      ) : requests.length === 0 ? (
+      ) : drafts.length === 0 ? (
         <Card>
           <CardBody>
-            No saved requests yet. Save a draft from the event form to continue
+            No saved drafts yet. Save a draft from the event form to continue
             it later.
           </CardBody>
         </Card>
       ) : (
         <ul className="space-y-3">
-          {requests.map((request) => (
+          {drafts.map((request) => (
             <li key={request.id}>
               <Card>
                 <CardBody>
@@ -62,11 +65,7 @@ export function MyRequestsPage() {
                     <div>
                       <Link
                         className="font-semibold text-primary-700"
-                        to={
-                          request.status === "Draft"
-                            ? `/requests/${request.id}`
-                            : `/events/${request.eventId}`
-                        }
+                        to={`/requests/${request.id}`}
                       >
                         {request.fields.name.trim() || "Untitled event request"}
                       </Link>
@@ -75,7 +74,7 @@ export function MyRequestsPage() {
                       </p>
                     </div>
                     <span
-                      className={`rounded-full px-3 py-1 text-xs font-medium ${request.status === "Draft" ? "bg-amber-50 text-amber-800" : "bg-blue-50 text-blue-800"}`}
+                      className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800"
                     >
                       {request.status}
                     </span>

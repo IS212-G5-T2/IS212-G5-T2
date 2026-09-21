@@ -156,7 +156,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
       expect(
         screen
-          .getByRole("link", { name: "Back to My Requests" })
+          .getByRole("link", { name: "Back to My Drafts" })
           .getAttribute("href"),
       ).toBe("/requests");
     },
@@ -236,7 +236,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "Unable to save draft",
     );
   });
-  it("Q2-008 confirmation supports keyboard and returns to My Requests", async () => {
+  it("Q2-008 confirmation supports keyboard and returns to My Drafts", async () => {
     mocked.mockResolvedValueOnce(draft()).mockResolvedValueOnce([]);
     open("/events/create");
     save();
@@ -244,7 +244,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(fireEvent.keyDown(dialog, { key: "Tab" })).toBe(false);
     expect(fireEvent.keyDown(dialog, { key: "Escape" })).toBe(true);
     click("OK");
-    expect(await screen.findByText(/No saved requests yet/)).toBeTruthy();
+    expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
   });
   it("Q2-009 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
@@ -337,7 +337,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
-  it("Q2-015 list handles loading, empty state, unnamed draft and submitted links", async () => {
+  it("Q2-015 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
     mocked.mockReturnValue(pending.promise);
     open("/requests");
@@ -348,15 +348,24 @@ describe("SPM-37 Q2 functional cases", () => {
         { ...draft(), id: "submitted", status: "Submitted", eventId: id },
       ]),
     );
+    // The unnamed draft renders and links back into the draft editor.
     expect(
       screen
         .getByRole("link", { name: "Untitled event request" })
         .getAttribute("href"),
     ).toBe(`/requests/${id}`);
-    expect(
-      screen.getByRole("link", { name: "Workshop" }).getAttribute("href"),
-    ).toBe(`/events/${id}`);
-    expect(screen.getByText("Submitted")).toBeTruthy();
+    // The submitted request is filtered out of My Drafts — it now lives under My Events.
+    expect(screen.queryByRole("link", { name: "Workshop" })).toBeNull();
+    expect(screen.queryByText("Submitted")).toBeNull();
+  });
+  // A response containing only submitted requests must behave like an empty draft list.
+  it("Q2-015B shows the draft empty state when every request is submitted", async () => {
+    mocked.mockResolvedValue([
+      { ...draft(), id: "submitted", status: "Submitted", eventId: id },
+    ]);
+    open("/requests");
+    expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Workshop" })).toBeNull();
   });
   it.each([new Error("List unavailable"), "unknown"])(
     "Q2-016 failed list retry recovers %j",
@@ -365,7 +374,7 @@ describe("SPM-37 Q2 functional cases", () => {
       open("/requests");
       await screen.findByRole("alert");
       click("Retry");
-      expect(await screen.findByText(/No saved requests yet/)).toBeTruthy();
+      expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );

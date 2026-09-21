@@ -230,7 +230,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Case EVE-CRE-08-A
-  it("uploads optional supporting files on the venue-needs step", async () => {
+  it("keeps registration enabled and appends optional supporting files", async () => {
     const user = userEvent.setup();
     const saved = {
       ...eventRecord(),
@@ -250,16 +250,24 @@ describe("EventCreatePage", () => {
       throw new Error(`Unexpected API call: ${String(_path)}`);
     });
     renderCreate();
+    // Preserve the organiser's registration choice in the submitted request.
+    await user.click(screen.getByLabelText("Register through website"));
     await enterBasicInformation(user);
     await enterSchedule(user);
 
+    // Upload files in separate selections to exercise accumulated-size handling.
     await user.upload(
       screen.getByLabelText(/supporting files/i),
       new File(["proposal"], "proposal.txt", { type: "text/plain" }),
     );
     expect(await screen.findByText("proposal.txt")).toBeTruthy();
+    await user.upload(
+      screen.getByLabelText(/supporting files/i),
+      new File(["agenda"], "agenda.txt", { type: "text/plain" }),
+    );
+    expect(await screen.findByText("agenda.txt")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: /continue/i }));
-    expect(screen.getByText("proposal.txt")).toBeTruthy();
+    expect(screen.getByText("proposal.txt, agenda.txt")).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: /submit for review/i }));
 
@@ -274,6 +282,12 @@ describe("EventCreatePage", () => {
       size: 8,
     });
     expect(submittedBody.attachments[0].dataUrl).toMatch(/^data:text\/plain/);
+    expect(submittedBody.attachments[1]).toMatchObject({
+      name: "agenda.txt",
+      type: "text/plain",
+      size: 6,
+    });
+    expect(submittedBody.registrationEnabled).toBe(true);
   });
 });
 
@@ -363,7 +377,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
   // AC3: the list shows the persisted Draft status and links back to the editor.
-  it("lists drafts in My Requests with their status and reopen link", async () => {
+  it("lists drafts in My Drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
     renderCreate("/requests");
     const link = await screen.findByRole("link", { name: "Saved name" });

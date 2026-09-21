@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-21 - Codex (GPT-5) - Verify My Drafts frontend changes and close test gaps
+
+- Issue/PR: SPM-37 / current `fix/SPM-37-Update-Draft-request-workflow` working tree
+- Human requester/operator: kirub
+- Areas touched: `apps/frontend/src/components/layout/`, `apps/frontend/src/pages/`, `AI_USAGE.md`
+- Summary: Reviewed the latest My Requests-to-My Drafts rename and submitted-request filtering. Removed unreachable submitted-row rendering branches, added regressions for the organiser navigation label and submitted-only draft empty state, and expanded form coverage for registration selection and accumulated attachment uploads.
+- AI contribution: Test-gap analysis, focused implementation cleanup, regression tests, coverage verification, and build/lint validation.
+- Assumptions: Submitted requests are intentionally surfaced only under My Events; `/requests` may still return submitted records and the frontend must filter them defensively.
+- Checks run: `npm run test:cov:spm37` (174/174, 100% statements/branches/functions/lines for configured files); `npm test` (174/174); `npm run build` passed; targeted ESLint for all changed frontend files passed; `git diff --check` passed. Full `npm run lint` remains blocked by pre-existing unused variables in `ClarificationThread.tsx:157` and `EventDetailPage.clarifications.test.tsx:8`.
+- Follow-up/conflict notes: Preserved the latest Claude Code changes and added coverage around them. No commit, push, pull request, Jira transition, or runtime/database mutation performed.
+
 ## 2026-09-20 - Gemini 3.8 / Claude Sonnet 4.6 - Role-based request & event access control, coordinator boundaries, and venue/tech support role separation
 
 - Issue/PR: SPM-37 / fix_request_view_logic
