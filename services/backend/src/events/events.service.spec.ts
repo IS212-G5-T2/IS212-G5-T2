@@ -266,6 +266,91 @@ describe('EventsService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  // The list view must not ship the base64 file contents (they balloon the
+  // response); metadata is retained so the UI can still show name/size/type.
+  it('omits attachment dataUrl from the list while keeping metadata', async () => {
+    const row = savedEventRow();
+    db.query.mockResolvedValue({ rows: [row] });
+
+    const events = await service.list();
+
+    expect(events[0].attachments).toEqual([
+      { id: 'attachment-1', name: 'proposal.txt', type: 'text/plain', size: 12 },
+    ]);
+    expect(events[0].attachments[0]).not.toHaveProperty('dataUrl');
+  });
+
+  // The detail endpoint still returns the full attachment including dataUrl.
+  it('keeps attachment dataUrl on the single-event detail', async () => {
+    const row = savedEventRow();
+    db.query.mockResolvedValue({ rows: [row] });
+
+    const event = await service.get(row.id);
+
+    expect(event.attachments[0]).toMatchObject({
+      name: 'proposal.txt',
+      dataUrl: 'data:text/plain;base64,SGVsbG8=',
+    });
+  });
+
+  describe('assignCoordinator', () => {
+    it('claims a submitted event: writes the coordinator and advances to Under_Review', async () => {
+      const row = {
+        ...savedEventRow(),
+        coordinator_id: 'coord-9',
+        coordinator_name: 'Coord Nine',
+        status: 'Under_Review',
+      };
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const result = await service.assignCoordinator(row.id, {
+        coordinatorId: 'coord-9',
+        coordinatorName: 'Coord Nine',
+      });
+
+      expect(result).toMatchObject({
+        coordinatorId: 'coord-9',
+        coordinatorName: 'Coord Nine',
+        status: 'under_review',
+      });
+      const [sql, params] = db.query.mock.calls[0];
+      expect(sql).toContain('UPDATE events');
+      expect(sql).toContain("CASE WHEN status = 'Submitted' THEN 'Under_Review'");
+      expect(params).toEqual([row.id, 'coord-9', 'Coord Nine']);
+    });
+
+    it('rejects a missing coordinator id or name before touching the database', async () => {
+      await expect(
+        service.assignCoordinator(savedEventRow().id, { coordinatorName: 'Coord Nine' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.assignCoordinator(savedEventRow().id, { coordinatorId: '  ', coordinatorName: '  ' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('rejects a malformed event id without querying', async () => {
+      await expect(
+        service.assignCoordinator('not-a-uuid', {
+          coordinatorId: 'coord-9',
+          coordinatorName: 'Coord Nine',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.query).not.toHaveBeenCalled();
+    });
+
+    it('returns not found when the event does not exist', async () => {
+      db.query.mockResolvedValue({ rows: [] });
+
+      await expect(
+        service.assignCoordinator(savedEventRow().id, {
+          coordinatorId: 'coord-9',
+          coordinatorName: 'Coord Nine',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
   // SPM-36 event lookup guard
   it('returns not found for malformed and unknown event IDs', async () => {
     const row = savedEventRow();

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { User as FirebaseUser } from "firebase/auth";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, getAuthErrorMessage } from "@/lib/firebase";
+import { api } from "@/utils/api";
 import { getRoleFromFirebaseClaims } from "@/lib/firebaseRoles";
 import type {
   Booking,
@@ -47,9 +48,7 @@ interface AppState {
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
-  autoAssignCoordinator: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
-  reviewEvent: (id: string, decision: "approve" | "reject", note?: string) => void;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
   reviewChangeRequest: (eventId: string, crId: string, decision: "approved" | "rejected") => void;
@@ -124,20 +123,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   submitEvent: (id) => {
-    const defaultCoordinator = {
-      id: "coordinator-1",
-      name: "Coordinator",
-    };
     set((s) => ({
       events: s.events.map((e) =>
         e.id === id
-          ? {
-              ...e,
-              status: "submitted" as EventStatus,
-              coordinatorId: e.coordinatorId || defaultCoordinator.id,
-              coordinatorName: e.coordinatorName || defaultCoordinator.name,
-              updatedAt: new Date().toISOString(),
-            }
+          ? { ...e, status: "submitted" as EventStatus, updatedAt: new Date().toISOString() }
           : e
       ),
     }));
@@ -145,41 +134,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (event) {
       get().pushNotification({
         audienceRole: "coordinator",
-        audienceUserId: event.coordinatorId,
         type: "submission",
-        message: `"${event.name}" was submitted and auto-assigned to ${event.coordinatorName}.`,
-        relatedEventId: id,
-      });
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "coordinator_assignment",
-        message: `${event.coordinatorName} was auto-assigned to "${event.name}".`,
+        message: `"${event.name}" was submitted for review.`,
         relatedEventId: id,
       });
     }
   },
 
-  autoAssignCoordinator: (id) => {
-    const defaultCoordinator = {
-      id: "coordinator-1",
-      name: "Coordinator",
-    };
-    set((s) => ({
-      events: s.events.map((e) =>
-        e.id === id && !e.coordinatorId
-          ? {
-              ...e,
-              coordinatorId: defaultCoordinator.id,
-              coordinatorName: defaultCoordinator.name,
-              updatedAt: new Date().toISOString(),
-            }
-          : e
-      ),
-    }));
-  },
-
   assignCoordinator: (id, coordinatorId, coordinatorName) => {
+    // Optimistically reflect the claim so the UI updates immediately.
     set((s) => ({
       events: s.events.map((e) =>
         e.id === id
@@ -193,6 +156,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           : e
       ),
     }));
+    // Persist the assignment so it survives a reload: the detail page refetches
+    // GET /events/:id on mount, which now returns the stored coordinator. Fire
+    // and forget — the optimistic state above already matches what the server
+    // writes (submitted -> under_review), so no reconciliation is needed here.
+    api(`/events/${id}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ coordinatorId, coordinatorName }),
+    }).catch(() => {
+      /* Optimistic state stands; a later refetch will resurface any drift. */
+    });
     const event = get().events.find((e) => e.id === id);
     if (event) {
       get().pushNotification({
@@ -200,35 +173,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         audienceUserId: event.organiserId,
         type: "coordinator_assignment",
         message: `${coordinatorName} was assigned to "${event.name}".`,
-        relatedEventId: id,
-      });
-    }
-  },
-
-  reviewEvent: (id, decision, note) => {
-    const event = get().events.find((e) => e.id === id);
-    if (!event) return;
-    if (decision === "approve") {
-      get().setEventStatus(id, "approved");
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "approval",
-        message: `"${event.name}" was approved and is moving to planning.`,
-        relatedEventId: id,
-      });
-      set((s) => ({
-        events: s.events.map((e) =>
-          e.id === id ? { ...e, status: "planning" as EventStatus } : e
-        ),
-      }));
-    } else {
-      get().updateEvent(id, { status: "rejected", rejectionReason: note });
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "rejection",
-        message: `"${event.name}" was rejected. Reason: ${note ?? "No reason provided."}`,
         relatedEventId: id,
       });
     }

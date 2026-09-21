@@ -93,6 +93,12 @@ successful sign-in alone. The route guards restrict organiser event creation,
 organiser-owned edits, and coordinator change-request reviews in the client.
 The in-memory registration actions are also limited to the signed-in attendee.
 
+Coordinator assignment is manual: submitting a request leaves it unassigned.
+Coordinators use **Assign Myself as Coordinator** on an unassigned event to
+claim it. Approval/rejection controls are not part of the SPM-37 draft workflow.
+As in the earlier client workflow, this assignment is held
+in browser memory and is not persisted by an assignment API.
+
 The API client forwards the signed-in Firebase ID token. Draft/event endpoints verify that token, require the ORGANISER role, and scope data to its UID.
 
 ### Local Compose Firebase

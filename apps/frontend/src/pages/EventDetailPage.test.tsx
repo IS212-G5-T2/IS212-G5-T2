@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/EventDetailPage";
@@ -100,9 +100,13 @@ describe("EventDetailPage", () => {
     );
   });
 
-  it("does not render 'Assign Myself as Coordinator' button", async () => {
+  // SPM-37 follow-up: coordinators claim an unassigned request explicitly.
+  it("assigns the current coordinator only after clicking Assign Myself", async () => {
+    // Load an unassigned event and an empty comment thread.
     const event = { ...assignedEvent(), coordinatorId: undefined, coordinatorName: undefined };
-    apiMock.mockResolvedValue(event);
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
 
     render(
       <MemoryRouter initialEntries={[`/events/${event.id}`]}>
@@ -113,10 +117,40 @@ describe("EventDetailPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.getByText("Unassigned")).toBeTruthy();
+    // Before claiming, an unassigned coordinator sees no review entrypoint.
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    // Claim the request through the visible control.
+    fireEvent.click(screen.getByRole("button", { name: "Assign Myself as Coordinator" }));
+    // After assignment the Review Event entrypoint appears (enabled), but there
+    // is no approve/reject workflow behind it for SPM-37.
+    expect(screen.getByRole("button", { name: "Review Event" })).toHaveProperty("disabled", false);
+    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
+    expect(useAppStore.getState().events[0]).toMatchObject({
+      coordinatorId: "coordinator-1", status: "under_review",
+    });
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  it("shows pop-up error message and restricts review actions for non-assigned coordinators without read-only badge", async () => {
+  // SPM-37 follow-up: submitting a draft must not pick a coordinator.
+  it("leaves a submitted draft unassigned and sends only a submission notification", () => {
+    // Start with a new draft and an empty notification list.
+    useAppStore.setState({ events: [], notifications: [] });
+    const draft = useAppStore.getState().createDraftEvent({ name: "Manual assignment" });
+    // Submit without taking the separate assignment action.
+    useAppStore.getState().submitEvent(draft.id);
+    // Submission is visible to coordinators without an assignment notification.
+    const state = useAppStore.getState();
+    expect(state.events[0].status).toBe("submitted");
+    expect(state.events[0].coordinatorId).toBeUndefined();
+    expect(state.events[0].coordinatorName).toBeUndefined();
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      type: "submission", message: '"Manual assignment" was submitted for review.',
+    });
+  });
+
+  it("does not show review or assignment controls to a coordinator the event is not assigned to", async () => {
     const event = assignedEvent();
     apiMock.mockResolvedValue(event);
 
@@ -139,13 +173,21 @@ describe("EventDetailPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
     expect(screen.queryByText(/Read-Only/i)).toBeNull();
-    expect(screen.getAllByText("This event has not been assigned to you.").length).toBeGreaterThan(0);
+    // No "not assigned" notice, no review entrypoint, and no claim control for a
+    // coordinator the event already belongs to someone else.
+    expect(screen.queryByText(/not been assigned to you/i)).toBeNull();
     expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  it("allows assigned coordinator to access review actions", async () => {
+  // SPM-37 shows a Review Event entrypoint that surfaces a not-available notice,
+  // with no approval/rejection workflow behind it.
+  it("shows a Review Event button that surfaces a not-available notice and no decision controls", async () => {
+    // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();
-    apiMock.mockResolvedValue(event);
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
 
     useAppStore.setState({
       currentUser: {
@@ -156,6 +198,7 @@ describe("EventDetailPage", () => {
       },
     });
 
+    // Open the event detail page.
     render(
       <MemoryRouter initialEntries={[`/events/${event.id}`]}>
         <Routes>
@@ -165,8 +208,14 @@ describe("EventDetailPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Review Event" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /Change Requests/i })).toBeTruthy();
+    // The review entrypoint is present and enabled, but clicking it only surfaces
+    // a not-available notice — there are no decision controls.
+    const reviewButton = screen.getByRole("button", { name: "Review Event" });
+    expect(reviewButton).toHaveProperty("disabled", false);
+    fireEvent.click(reviewButton);
+    expect(screen.getByText("Event review is not available yet.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /Approve|Reject/i })).toBeNull();
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 

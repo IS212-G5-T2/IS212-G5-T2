@@ -904,3 +904,42 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Conflict resolution: Applied root AGENTS.md dev-wins rule to entire conflicted files: frontend EventListPage.tsx, DraftWorkflow.test.tsx, EventCreatePage.tsx, EventCreatePage.test.tsx, EventDetailPage.tsx, EventListPage.test.tsx; backend README.md, src/app.module.ts, and events drafts.e2e-spec.ts, drafts.service.spec.ts, drafts.service.ts, events.controller.ts, events.service.spec.ts, events.service.ts. Nonconflicting patches replayed normally. No scripts or dependency manifests/lockfiles were lost or changed relative to the backup.
 - Checks: Rebase completed, origin/dev is an ancestor, no unresolved index entries, git diff --check passed. Backend unit tests: 385 passed, 1 failed (draft controller/service contract mismatch). Frontend: 151 passed, 11 failed across DraftWorkflow, EventDetailPage and registration suites, plus comments.filter runtime error in a test. Browser/database/build checks not run.
 - Follow-up: Rebase is complete but the combined branch is not merge-ready. Dev conflict replacements remove branch-specific authorization/registration behavior while some nonconflicting callers/tests still expect it; reconcile in follow-up implementation work. User subsequently authorized committing this entry and syncing the remote fix branch. Verified remote still equals the pre-rebase backup e7a73c6; publish using an explicit force-with-lease to preserve any concurrent remote updates.
+
+## 2026-09-21 - Codex (GPT-6) - Attempt local container startup
+
+- Context: SPM-37 branch; user requested all local stack containers start.
+- Areas: Docker Desktop runtime; AI_USAGE.md. Read development guidance and local Compose configuration.
+- Checks/result: docker desktop start attempted; docker compose up -d --build could not connect to the Linux engine. Docker host log reports backend startup crash while opening/renaming sailor-ingest.sock (file cannot be accessed by the system). Frontend, backend and PostgreSQL startup could not proceed.
+- Follow-up: Repair/restart Docker Desktop before retrying Compose. No containers, volumes or database data removed; no source edits, commit or push. Ledger left unstaged.
+
+## 2026-09-21 - Codex (GPT-6) - Diagnose Docker failure
+
+- Context: User requested runtime diagnosis; no issue supplied. Areas changed: AI_USAGE.md only.
+- Findings: Docker Desktop failed at 14:12 SGT because Windows could not access/rename sailor-ingest.sock; its log records successful socket listening at 14:21. Engine now responds; frontend, backend and PostgreSQL healthy, frontend HTTP 200 and backend health status ok. Old gateway container remains exited with a file/directory bind-mount mismatch for gateway/nginx.conf. Existing containers reference former compose.yaml; current checkout uses docker-compose.yml.
+- Checks: docker version, compose ls, container status/state, Docker host logs, HTTP readiness and current Compose service names. No application tests needed for diagnosis.
+- Follow-up/conflicts: Preserved existing ledger changes; no runtime or source changes, deletions, commit or push. Old gateway failure is separate from recovered Docker Desktop startup failure.
+## 2026-09-21 - Codex (GPT-6) - Restore manual coordinator assignment
+
+- Context: User requested the pre-auto-assignment workflow on the existing SPM-37 fix branch; no new Jira key or acceptance criteria supplied. Reused existing branch work. GitHub PR lookup failed because gh could not resolve the configured repository.
+- Areas: frontend store, EventDetailPage tests, frontend README, AI_USAGE.md.
+- Summary: Reverted the store's automatic coordinator assignment and assignment notifications to the implementation before 05da9db. Current page already contains Assign Myself as Coordinator and no access-restricted popup. Added submission/unassigned and explicit-click regression coverage; corrected the assigned-coordinator test's comment API mock.
+- Checks: Two focused regression tests passed; targeted ESLint and production build passed. Full detail suite has four existing rebase-related failures (popup expectation, missing Change Requests control, venue/technical access expectations). Playwright on localhost:5173 at 1440x1000 verified Unassigned -> Assign Myself as Coordinator -> Review Event, with mocked API/auth state, no page errors or Vite overlay, and before/after screenshots outside the repo. Browser plugin unavailable; used installed Playwright. Served store confirmed free of automatic assignment.
+- Limits/follow-up: Preserved earlier browser-memory-only assignment behavior; database persistence and real authenticated API flow were not implemented or verified. Existing runtime/backend state untouched. Prior ledger edits preserved. Changes staged for human review; no commit or push.
+
+## 2026-09-21 - Codex (GPT-6) - Remove event approval/rejection outside SPM-37
+
+- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; fetched full story, all seven AC, comments (none), Medium priority and In Progress status. User explicitly requested removing approval/rejection and limiting fixes to draft-story scope.
+- Areas: frontend EventDetailPage, store, page regression tests, README, AI_USAGE.md; reused existing fix branch and staged work. Earlier GitHub PR lookup remains unavailable.
+- Summary: Removed Review Event entrypoint, decision modal/state/handler, and the reviewEvent store action that changed status and sent approval/rejection notifications. Git history traces the UI to 3f46e16 Frontend Skeleton. Preserved the separately requested manual assignment and unrelated existing features.
+- Checks: Three focused tests passed (submission stays unassigned, explicit manual assignment, no approval/rejection controls for assigned coordinator); production build passed. Playwright at localhost:5173 (1440x1000, mocked auth/API) verified manual assignment with no review/decision controls, page errors or framework overlay. Served source matches. ESLint reports two pre-existing unused constants in EventDetailPage (AVAILABLE_FACILITIES and AVAILABLE_ACCESSIBILITY); left unchanged. Earlier unrelated page-suite failures remain; no full-story pass claimed.
+- AC review: All seven SPM-37 criteria concern draft save/status/reopen/update/persistence/feedback/submitted-edit restrictions; approval/rejection is outside that scope. This removal does not change draft APIs or forms. Real authenticated backend flow and full AC regression were not rerun for this removal.
+- Follow-up/conflicts: Changes staged without commit/push. Previous staged changes preserved. Supersedes the prior check that expected Review Event after manual assignment; that action is intentionally absent now.
+
+- Lint follow-up: At the user's request, removed the two unused EventDetailPage constants. ESLint now passes for EventDetailPage.tsx, EventDetailPage.test.tsx and useAppStore.ts. No behavior change; no additional tests required. Staged without commit or push.
+
+## 2026-09-21 - Codex (GPT-6) - Diagnose comments error after manual assignment
+
+- Context: User reported Cannot GET /api/events/:id/comments after assignment; scope remains SPM-37.
+- Findings: Assignment changes frontend state and triggers the existing SPM-39 comment fetch. Current source registers ClarificationsModule and GET events/:id/comments, but the running backend image has no compiled clarification module and startup logs show no comments route. Frontend/backend runtime versions are mismatched.
+- Checks: Read controller/module wiring and frontend effect; inspected compiled module existence and backend route logs without printing credentials. No code or runtime changes; prior mocked browser test did not validate live route availability.
+- Follow-up: Align backend runtime with reviewed source before live clarification testing. Current rebased backend has previously documented authentication/contract differences, so blindly rebuilding it is broader than this SPM-37 diagnosis. Ledger staged; no commit/push.

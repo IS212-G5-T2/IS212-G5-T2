@@ -10,7 +10,7 @@ export interface NavItem {
 export const navByRole: Record<UserRole, NavItem[]> = {
   organiser: [
     { label: "My Events", to: "/events", icon: "📅", feature: "Feature 5, 6" },
-    { label: "My drafts", to: "/requests", icon: "📝", feature: "Feature 1" },
+    { label: "My Requests", to: "/requests", icon: "📝", feature: "Feature 1" },
     { label: "Create Event", to: "/events/create", icon: "➕", feature: "Feature 1, 2" },
   ],
   coordinator: [

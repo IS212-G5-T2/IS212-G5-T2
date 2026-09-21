@@ -17,7 +17,7 @@ export function MyRequestsPage() {
     setFailure("");
     api<DraftRecord[]>("/requests")
       .then((value) => {
-        if (active) setRequests(value.filter((request) => request.status === "Draft"));
+        if (active) setRequests(value);
       })
       .catch((error) => {
         if (active)
@@ -35,8 +35,8 @@ export function MyRequestsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="My drafts"
-        description="Continue a saved draft. Submitted requests appear in My Events."
+        title="My requests"
+        description="Continue a saved draft or open a submitted request."
       />
       {loading ? (
         <p role="status">Loading drafts…</p>
@@ -48,7 +48,7 @@ export function MyRequestsPage() {
       ) : requests.length === 0 ? (
         <Card>
           <CardBody>
-            No saved drafts yet. Save a draft from the event form to continue
+            No saved requests yet. Save a draft from the event form to continue
             it later.
           </CardBody>
         </Card>
