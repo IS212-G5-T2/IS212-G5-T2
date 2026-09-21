@@ -1,6 +1,6 @@
 import { api } from "@/utils/api";
-import type { EventRecord } from "@/types";
-import { useEffect, useState } from "react";
+import type { EventComment, EventRecord } from "@/types";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -9,7 +9,11 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
+import { ClarificationThread } from "@/components/domain/ClarificationThread";
+import { EventEditForm } from "@/components/EventEditForm";
 import { formatDateRange, formatDateTime } from "@/utils/format";
+
+const CLARIFIABLE_STATUSES = ["submitted", "under_review", "approved"];
 
 const STATUS_FLOW = [
   "draft",
@@ -43,12 +47,42 @@ export function EventDetailPage() {
   const reviewEvent = useAppStore((s) => s.reviewEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
+  const updateEvent = useAppStore((s) => s.updateEvent);
 
   const [reviewOpen, setReviewOpen] = useState(false);
-  const [decision, setDecision] = useState<"approve" | "reject" | "clarify" | "">("");
+  const [decision, setDecision] = useState<"approve" | "reject" | "">("");
   const [note, setNote] = useState("");
 
+  const [comments, setComments] = useState<EventComment[]>([]);
+  const [commentsError, setCommentsError] = useState("");
+
+  const [editMode, setEditMode] = useState(false);
+
+  const AVAILABLE_FACILITIES = ["Catering", "AV System", "Stage", "Projector"];
+  const AVAILABLE_ACCESSIBILITY = ["Accessible restrooms", "Elevator access"];
+
   const event = events.find((e) => e.id === id);
+
+  const refreshComments = useCallback(async () => {
+    try {
+      const data = await api<EventComment[]>(`/events/${id}/comments`);
+      setComments(data);
+      setCommentsError("");
+    } catch (e) {
+      setCommentsError(e instanceof Error ? e.message : "Could not load comments.");
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (loading || loadError || !event) return;
+    const canView =
+      currentUser.role === "organiser" ||
+      (currentUser.role === "coordinator" && event.coordinatorId === currentUser.id);
+    if (canView) refreshComments();
+    // Only re-run when the values that decide *whether* we can view change;
+    // refreshComments itself is called explicitly after posting/replying.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
 
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
@@ -61,7 +95,7 @@ export function EventDetailPage() {
     );
   }
 
-  const isOwner = currentUser.role === "organiser" && event.organiserId === currentUser.id;
+  const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
   const isUnassignedForCoordinator =
     currentUser.role === "coordinator" && !event.coordinatorId && event.status !== "draft";
@@ -76,6 +110,41 @@ export function EventDetailPage() {
     setReviewOpen(false);
     setDecision("");
     setNote("");
+  };
+
+  const canRequestClarification =
+    isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
+
+  const submitClarification = async (message: string) => {
+    await api(`/events/${event.id}/clarifications`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    const [refreshedEvent] = await Promise.all([
+      api<EventRecord>(`/events/${event.id}`),
+      refreshComments(),
+    ]);
+    useAppStore.setState((s) => ({
+      events: [
+        { ...event, ...refreshedEvent },
+        ...s.events.filter((e) => e.id !== refreshedEvent.id),
+      ],
+    }));
+  };
+
+  const submitClarificationReply = async (clarificationId: string, message: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/reply`, {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    });
+    await refreshComments();
+  };
+
+  const submitClarificationResolve = async (clarificationId: string) => {
+    await api(`/events/${event.id}/clarifications/${clarificationId}/resolve`, {
+      method: "POST",
+    });
+    await refreshComments();
   };
 
   const currentStepIndex = STATUS_FLOW.indexOf(event.status as (typeof STATUS_FLOW)[number]);
@@ -96,10 +165,10 @@ export function EventDetailPage() {
                 <Button onClick={() => submitEvent(event.id)}>Submit for Review</Button>
               </>
             )}
-            {isOwner && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && (
-              <Link to={`/events/${event.id}/edit`}>
-                <Button variant="secondary">Request Change</Button>
-              </Link>
+            {isAssignedCoordinator && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && !editMode && (
+              <Button variant="secondary" onClick={() => setEditMode(true)}>
+                Edit
+              </Button>
             )}
             {isUnassignedForCoordinator && (
               <Button onClick={() => assignCoordinator(event.id, currentUser.id, currentUser.name)}>
@@ -108,18 +177,6 @@ export function EventDetailPage() {
             )}
             {isAssignedCoordinator && ["submitted", "under_review"].includes(event.status) && (
               <Button onClick={() => setReviewOpen(true)}>Review Event</Button>
-            )}
-            {isAssignedCoordinator && (
-              <Link to={`/events/${event.id}/change-requests`}>
-                <Button variant="secondary">
-                  Change Requests
-                  {event.changeRequests.filter((c) => c.status === "pending").length > 0 && (
-                    <span className="ml-1 rounded-full bg-warning-500 px-1.5 text-xs text-white">
-                      {event.changeRequests.filter((c) => c.status === "pending").length}
-                    </span>
-                  )}
-                </Button>
-              </Link>
             )}
             {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
               <Link to={`/venues?eventId=${event.id}`}>
@@ -151,9 +208,9 @@ export function EventDetailPage() {
         </ol>
       )}
 
-      {event.clarificationNote && event.status === "under_review" && (
-        <div className="mb-4 rounded-lg border border-warning-300 dark:border-warning-700 bg-warning-50 dark:bg-warning-900/20 px-4 py-3 text-sm text-warning-900 dark:text-warning-300">
-          <strong>Clarification requested:</strong> {event.clarificationNote}
+      {commentsError && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {commentsError}
         </div>
       )}
       {event.rejectionReason && event.status === "rejected" && (
@@ -168,99 +225,115 @@ export function EventDetailPage() {
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Event Details</h2>
           </CardHeader>
           <CardBody>
-            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
-            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {formatDateRange(event.startDateTime, event.endDateTime)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {event.venueRequirements.facilities.join(", ") || "None specified"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {event.venueRequirements.accessibility.join(", ") || "None specified"}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
-                <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
-                  {event.attachments?.length ? (
-                    event.attachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
-                      >
-                        <span>{attachment.name}</span>
-                        <span className="flex items-center gap-3 text-xs">
-                          <a
-                            href={attachment.dataUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-primary-700 underline dark:text-primary-300"
+            {editMode ? (
+              <EventEditForm
+                event={event}
+                onSave={(updates) => {
+                  updateEvent(event.id, updates);
+                  setEditMode(false);
+                }}
+                onCancel={() => setEditMode(false)}
+              />
+            ) : (
+              <>
+                <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {formatDateRange(event.startDateTime, event.endDateTime)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {event.venueRequirements.facilities.join(", ") || "None specified"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">
+                      {event.venueRequirements.accessibility.join(", ") || "None specified"}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
+                    <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
+                      {event.attachments?.length ? (
+                        event.attachments.map((attachment) => (
+                          <div
+                            key={attachment.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
                           >
-                            View
-                          </a>
-                          <a
-                            href={attachment.dataUrl}
-                            download={attachment.name}
-                            className="text-primary-700 underline dark:text-primary-300"
-                          >
-                            Download
-                          </a>
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    "None specified"
-                  )}
-                </dd>
-              </div>
-              <div className="sm:col-span-2">
-                <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
-              </div>
-            </dl>
+                            <span>{attachment.name}</span>
+                            <span className="flex items-center gap-3 text-xs">
+                              <a
+                                href={attachment.dataUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary-700 underline dark:text-primary-300"
+                              >
+                                View
+                              </a>
+                              <a
+                                href={attachment.dataUrl}
+                                download={attachment.name}
+                                className="text-primary-700 underline dark:text-primary-300"
+                              >
+                                Download
+                              </a>
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        "None specified"
+                      )}
+                    </dd>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
+                  </div>
+                </dl>
+              </>
+            )}
           </CardBody>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
-          </CardHeader>
-          <CardBody className="space-y-3 text-sm">
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
-            </div>
-          </CardBody>
-        </Card>
+        {!editMode && (
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
+            </CardHeader>
+            <CardBody className="space-y-3 text-sm">
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+
 
         {currentUser.role === "attendee" && event.registrationEnabled && (
           <Card className="lg:col-span-3">
@@ -283,6 +356,20 @@ export function EventDetailPage() {
               )}
             </CardBody>
           </Card>
+        )}
+
+        {(isOwner || isAssignedCoordinator) && (
+          <div className="lg:col-span-3">
+            <ClarificationThread
+              comments={comments}
+              canRequestClarification={canRequestClarification}
+              onSubmitClarification={submitClarification}
+              canReply={isOwner || isAssignedCoordinator}
+              onSubmitReply={submitClarificationReply}
+              canResolve={isOwner || isAssignedCoordinator}
+              onResolve={submitClarificationResolve}
+            />
+          </div>
         )}
       </div>
 
@@ -312,13 +399,12 @@ export function EventDetailPage() {
           onChange={(v) => setDecision(v as typeof decision)}
           options={[
             { value: "approve", label: "Approve — move to planning" },
-            { value: "clarify", label: "Request clarification from organiser" },
             { value: "reject", label: "Reject" },
           ]}
         />
-        {(decision === "reject" || decision === "clarify") && (
+        {decision === "reject" && (
           <TextArea
-            label={decision === "reject" ? "Rejection reason" : "What needs clarifying?"}
+            label="Rejection reason"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />

@@ -75,7 +75,9 @@ describe("EventDetailPage", () => {
   // Second story Test Case AC3
   it("shows attached files with view and download actions", async () => {
     const event = assignedEvent();
-    apiMock.mockResolvedValue(event);
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
 
     render(
       <MemoryRouter initialEntries={[`/events/${event.id}`]}>
