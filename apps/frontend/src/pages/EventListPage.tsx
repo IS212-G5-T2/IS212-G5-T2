@@ -12,7 +12,6 @@ import type { EventStatus } from "@/types";
 const statusOptions: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
   { value: "submitted", label: "Submitted" },
-  { value: "under_review", label: "Under Review" },
   { value: "approved", label: "Approved" },
   { value: "planning", label: "Planning" },
   { value: "confirmed", label: "Confirmed" },
@@ -43,8 +42,9 @@ export function EventListPage() {
     if (currentUser.role === "attendee") {
       return events.filter((e) => e.registrationEnabled && e.status !== "draft");
     }
-    // organiser: the backend already scopes GET /api/events to the caller's own events.
-    // coordinator sees everything (assigned + unassigned) to triage
+    // SPM-38: the backend scopes GET /api/events to the caller's own events —
+    // an organiser sees their submitted requests, a coordinator sees only the
+    // requests round-robin has assigned to them.
     return events;
   }, [events, currentUser]);
 

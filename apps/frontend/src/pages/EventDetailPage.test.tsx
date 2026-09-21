@@ -56,7 +56,10 @@ function assignedEvent(): EventRecord {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -69,10 +72,14 @@ beforeEach(() => {
     },
     events: [],
   });
+  // jsdom does not implement the Blob-object-URL APIs the fixed "View" action
+  // relies on (see EventDetailPage.tsx's openAttachmentPreview).
+  window.URL.createObjectURL = vi.fn(() => "blob:mock-url");
+  window.URL.revokeObjectURL = vi.fn();
 });
 
 describe("EventDetailPage", () => {
-  // Second story Test Case AC3
+  // SPM-38 Test Case EVE-REV-03-A
   it("shows attached files with view and download actions", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -90,20 +97,111 @@ describe("EventDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
     expect(screen.getByText("Attached files")).toBeTruthy();
     expect(screen.getByText("proposal.txt")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "View" })).toHaveProperty(
-      "href",
-      "data:text/plain;base64,cHJvcG9zYWw=",
-    );
+    expect(screen.getByRole("button", { name: "View" })).toBeTruthy();
     expect(screen.getByRole("link", { name: "Download" })).toHaveProperty(
       "download",
       "proposal.txt",
     );
+    expect(screen.getByRole("link", { name: "Download" })).toHaveProperty(
+      "href",
+      "data:text/plain;base64,cHJvcG9zYWw=",
+    );
   });
 
-  // SPM-37 follow-up: coordinators claim an unassigned request explicitly.
-  it("assigns the current coordinator only after clicking Assign Myself", async () => {
-    // Load an unassigned event and an empty comment thread.
-    const event = { ...assignedEvent(), coordinatorId: undefined, coordinatorName: undefined };
+  // SPM-38 Test Case EVE-REV-03-B: Chrome/Firefox block top-level navigation
+  // of a link to a data: URL, so "View" previously opened nothing in a real
+  // browser (only jsdom's laxer <a href> checks made the old test pass). The
+  // fix converts the attachment to a Blob object URL before opening it.
+  it("EVE-REV-03-B opens the attachment as a Blob object URL instead of navigating to the raw data: URL", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1);
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect(blob).toBeInstanceOf(Blob);
+    expect((blob as Blob).type).toBe("text/plain");
+    expect(openSpy).toHaveBeenCalledWith("blob:mock-url", "_blank", "noopener,noreferrer");
+  });
+
+  // SPM-38 Test Case EVE-REV-03-C: an event with no attachments shows a plain
+  // fallback and never renders View/Download controls.
+  it("EVE-REV-03-C shows None specified and no view/download controls when there are no attachments", async () => {
+    const event = { ...assignedEvent(), attachments: [] };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.getByText("Attached files").nextElementSibling).toHaveTextContent(
+      "None specified",
+    );
+    expect(screen.queryByRole("button", { name: "View" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Download" })).toBeNull();
+  });
+
+  // SPM-38 Test Case EVE-REV-03-D: openAttachmentPreview falls back to the
+  // attachment's own `type` field when the data: URL header doesn't carry a
+  // recognizable `;base64` marker to extract a MIME type from.
+  it("EVE-REV-03-D falls back to the attachment's type when the data URL has no extractable MIME type", async () => {
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-2",
+          name: "notes.bin",
+          type: "application/octet-stream",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/octet-stream");
+  });
+
+  // SPM-38 AC5: round-robin now assigns a coordinator automatically at
+  // submission time, so there is no manual "claim this request" control for
+  // coordinators to see or use.
+  it("SPM-38 EVE-REV-05-E never renders a manual coordinator-assignment control", async () => {
+    const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
       Promise.resolve(path.includes("/comments") ? [] : event),
     );
@@ -117,19 +215,29 @@ describe("EventDetailPage", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    expect(screen.getByText("Unassigned")).toBeTruthy();
-    // Before claiming, an unassigned coordinator sees no review entrypoint.
-    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
-    // Claim the request through the visible control.
-    fireEvent.click(screen.getByRole("button", { name: "Assign Myself as Coordinator" }));
-    // After assignment the Review Event entrypoint appears (enabled), but there
-    // is no approve/reject workflow behind it for SPM-37.
-    expect(screen.getByRole("button", { name: "Review Event" })).toHaveProperty("disabled", false);
-    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
-    expect(useAppStore.getState().events[0]).toMatchObject({
-      coordinatorId: "coordinator-1", status: "under_review",
-    });
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  // The coordinator "Edit" button only updated local browser state (no
+  // backend persistence existed for it), so an organiser viewing the same
+  // event never saw the change. Removed for this sprint; real post-submission
+  // editing is tracked separately under "Edit Event Details".
+  it("does not show an Edit control to the assigned coordinator on a submitted request", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
   });
 
   // SPM-37 follow-up: submitting a draft must not pick a coordinator.
@@ -150,9 +258,12 @@ describe("EventDetailPage", () => {
     });
   });
 
-  it("does not show review or assignment controls to a coordinator the event is not assigned to", async () => {
-    const event = assignedEvent();
-    apiMock.mockResolvedValue(event);
+  // SPM-38 Test Case EVE-REV-04-E: the backend now returns a real 404 for a
+  // coordinator the event isn't assigned to (see events.service.spec.ts for
+  // the server-side enforcement), so the page must surface that as an error
+  // rather than rendering event details it should never have received.
+  it("EVE-REV-04-E shows an error instead of event details when the backend denies access", async () => {
+    apiMock.mockRejectedValue(new Error("Event not found."));
 
     useAppStore.setState({
       currentUser: {
@@ -164,18 +275,15 @@ describe("EventDetailPage", () => {
     });
 
     render(
-      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+      <MemoryRouter initialEntries={["/events/00000000-0000-4000-8000-000000000036"]}>
         <Routes>
           <Route path="/events/:id" element={<EventDetailPage />} />
         </Routes>
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    expect(screen.queryByText(/Read-Only/i)).toBeNull();
-    // No "not assigned" notice, no review entrypoint, and no claim control for a
-    // coordinator the event already belongs to someone else.
-    expect(screen.queryByText(/not been assigned to you/i)).toBeNull();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });

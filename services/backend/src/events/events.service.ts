@@ -4,10 +4,13 @@ import {
   Injectable,
   NotFoundException,
   OnModuleDestroy,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
+import { pickNextCoordinator } from './coordinator-roster.js';
 
 @Injectable()
 export class EventsService implements OnModuleDestroy {
@@ -16,19 +19,21 @@ export class EventsService implements OnModuleDestroy {
     connectionTimeoutMillis: 5000,
   });
 
-  identity() {
-    // Explicit local-only identity. Never trust an organiser ID from a request body.
-    if (process.env.DEMO_ORGANISER_ENABLED !== 'true')
-      throw new ForbiddenException(
-        'Event access requires configured authentication.',
-      );
-    return {
-      id: 'current-user',
-      name: 'Demo Organiser',
-      email: 'organiser@example.test',
-      role: 'organiser' as const,
-    };
+  // SPM-38: never trust an organiser/coordinator id from a request body — the
+  // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
+  // the only source of truth for who is calling.
+  private requireUser(identity: AuthenticatedUser | undefined): AuthenticatedUser {
+    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
+    return identity;
   }
+
+  private requireOrganiser(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    if (!user.roles.includes('ORGANISER'))
+      throw new ForbiddenException('Organiser access required.');
+    return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
+  }
+
   async onModuleDestroy() {
     await this.pool.end();
   }
@@ -61,12 +66,23 @@ export class EventsService implements OnModuleDestroy {
       updatedAt: row.updated_at.toISOString(),
     };
   }
-  async list() {
-    const user = this.identity();
-    const result = await this.pool.query(
-      'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
-      [user.id],
-    );
+  // SPM-38 AC1/AC2/AC3: an organiser sees their own submitted requests; a
+  // coordinator sees only the requests round-robin has assigned to them —
+  // never another coordinator's. Every other role gets nothing from this
+  // organiser/coordinator-facing endpoint.
+  async list(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    const result = user.roles.includes('COORDINATOR')
+      ? await this.pool.query(
+          'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
+          [user.uid],
+        )
+      : user.roles.includes('ORGANISER')
+        ? await this.pool.query(
+            'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
+            [user.uid],
+          )
+        : { rows: [] as pg.QueryResultRow[] };
     // The list view only needs attachment metadata (name/size/type), never the
     // base64 file contents. Keeping dataUrl here would balloon the response to
     // tens of MB per attached file and make the page time out; the detail
@@ -81,26 +97,32 @@ export class EventsService implements OnModuleDestroy {
       };
     });
   }
-  async get(id: string) {
-    const user = this.identity();
+  // SPM-38 AC4: only the owning organiser or the assigned coordinator may
+  // view a request's details — a different coordinator gets the same
+  // NotFoundException as a bad ID, so existence is never leaked to them.
+  async get(identity: AuthenticatedUser | undefined, id: string) {
+    const user = this.requireUser(identity);
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
         id,
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.pool.query(
-      'SELECT * FROM events WHERE id = $1 AND organiser_id = $2',
-      [id, user.id],
-    );
-    if (!result.rows[0]) throw new NotFoundException('Event not found.');
-    return this.record(result.rows[0]);
+    const result = await this.pool.query('SELECT * FROM events WHERE id = $1', [id]);
+    const row = result.rows[0];
+    if (!row) throw new NotFoundException('Event not found.');
+    const isOwningOrganiser =
+      user.roles.includes('ORGANISER') && row.organiser_id === user.uid;
+    const isAssignedCoordinator =
+      user.roles.includes('COORDINATOR') && row.coordinator_id === user.uid;
+    if (!isOwningOrganiser && !isAssignedCoordinator)
+      throw new NotFoundException('Event not found.');
+    return this.record(row);
   }
-  // Persist a coordinator claiming an event. A coordinator (not the organiser)
-  // performs this, so it is scoped by event id rather than organiser_id. A
-  // still-'Submitted' request advances to 'Under_Review'; later statuses are
-  // left untouched. coordinatorId/name come from the caller because the events
-  // routes carry no authenticated identity in local/demo mode.
+  // Manual override for a coordinator claim/reassignment. Round-robin
+  // (see insert()) is now the primary path, so this mainly exists for
+  // reassignment edge cases; kept scoped by event id like before. Assignment
+  // never advances status — "Under Review" was retired as a distinct stage.
   async assignCoordinator(id: string, body: unknown) {
     if (
       !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
@@ -117,7 +139,6 @@ export class EventsService implements OnModuleDestroy {
       `UPDATE events
          SET coordinator_id = $2,
              coordinator_name = $3,
-             status = CASE WHEN status = 'Submitted' THEN 'Under_Review' ELSE status END,
              updated_at = now()
        WHERE id = $1
        RETURNING *`,
@@ -126,8 +147,13 @@ export class EventsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
   }
-  async create(body: unknown, transaction?: pg.PoolClient, eventId?: string) {
-    const user = this.identity();
+  async create(
+    identity: AuthenticatedUser | undefined,
+    body: unknown,
+    transaction?: pg.PoolClient,
+    eventId?: string,
+  ) {
+    const user = this.requireOrganiser(identity);
     const data = validateEvent(body);
     // When the caller supplies a transaction (e.g. draft submission), it owns
     // BEGIN/COMMIT/ROLLBACK and the connection lifecycle; we just run the insert.
@@ -150,7 +176,7 @@ export class EventsService implements OnModuleDestroy {
 
   private async insert(
     data: ReturnType<typeof validateEvent>,
-    user: ReturnType<EventsService['identity']>,
+    user: ReturnType<EventsService['requireOrganiser']>,
     client: pg.PoolClient,
     eventId?: string,
   ) {
@@ -188,9 +214,32 @@ export class EventsService implements OnModuleDestroy {
           [user.id, data.submissionKey],
         )
       ).rows[0];
+    const assignedRow = await this.autoAssignCoordinator(row, client);
     return {
-      event: this.record(row),
+      event: this.record(assignedRow),
       message: 'Your event request was submitted successfully.',
     };
+  }
+
+  // SPM-38 AC5: round-robin assignment at submission time, so a request is
+  // never left waiting for a coordinator to manually claim it. A retried
+  // submission (ON CONFLICT above) reuses the row already assigned, so this
+  // only ever assigns once per event. Assignment never advances status.
+  private async autoAssignCoordinator(row: pg.QueryResultRow, client: pg.PoolClient) {
+    if (row.coordinator_id) return row;
+    const { rows } = await client.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM events WHERE coordinator_id IS NOT NULL',
+    );
+    const coordinator = pickNextCoordinator(Number(rows[0].count));
+    const updated = await client.query(
+      `UPDATE events
+         SET coordinator_id = $2,
+             coordinator_name = $3,
+             updated_at = now()
+       WHERE id = $1
+       RETURNING *`,
+      [row.id, coordinator.id, coordinator.name],
+    );
+    return updated.rows[0];
   }
 }

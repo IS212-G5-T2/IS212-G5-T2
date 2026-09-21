@@ -8,10 +8,9 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
-import { EventEditForm } from "@/components/EventEditForm";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 
-const CLARIFIABLE_STATUSES = ["submitted", "under_review", "approved"];
+const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
 // Venue and technical support staff only get involved once a request is
 // approved; anything earlier in the workflow is off-limits to them.
@@ -20,12 +19,30 @@ const STAFF_ACCESSIBLE_STATUSES = ["approved", "planning", "confirmed", "complet
 const STATUS_FLOW = [
   "draft",
   "submitted",
-  "under_review",
   "approved",
   "planning",
   "confirmed",
   "completed",
 ] as const;
+
+// Chrome and Firefox block top-level navigation of a link to a data: URL
+// (a phishing-hardening measure), so `target="_blank"` on an `<a
+// href="data:...">` silently fails to open a new tab in real browsers even
+// though jsdom-based tests don't enforce that restriction. Converting to a
+// Blob object URL first sidesteps the restriction entirely.
+function openAttachmentPreview(dataUrl: string, fallbackType: string): void {
+  const commaIndex = dataUrl.indexOf(",");
+  const header = dataUrl.slice(0, commaIndex);
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const mimeMatch = /^data:(.*?);base64$/.exec(header);
+  const mime = mimeMatch?.[1] || fallbackType || "application/octet-stream";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  const blobUrl = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  window.open(blobUrl, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}
 
 export function EventDetailPage() {
   const { id } = useParams();
@@ -45,15 +62,12 @@ export function EventDetailPage() {
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
-  const assignCoordinator = useAppStore((s) => s.assignCoordinator);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
-  const updateEvent = useAppStore((s) => s.updateEvent);
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
 
-  const [editMode, setEditMode] = useState(false);
   const [reviewNotice, setReviewNotice] = useState("");
 
   const event = events.find((e) => e.id === id);
@@ -108,8 +122,6 @@ export function EventDetailPage() {
 
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
-  const isUnassignedForCoordinator =
-    currentUser.role === "coordinator" && !event.coordinatorId && event.status !== "draft";
 
   const myRegistration = registrations.find(
     (r) => r.eventId === event.id && r.attendeeId === currentUser.id
@@ -168,24 +180,13 @@ export function EventDetailPage() {
                 <Button onClick={() => submitEvent(event.id)}>Submit for Review</Button>
               </>
             )}
-            {isAssignedCoordinator && !["draft", "rejected", "cancelled", "completed"].includes(event.status) && !editMode && (
-              <Button variant="secondary" onClick={() => setEditMode(true)}>
-                Edit
-              </Button>
-            )}
-            {isAssignedCoordinator && ["submitted", "under_review"].includes(event.status) && (
+            {isAssignedCoordinator && event.status === "submitted" && (
               // The approve/reject workflow is not implemented for SPM-37; the
               // entrypoint stays visible but surfaces a not-available message.
               <Button onClick={() => setReviewNotice("Event review is not available yet.")}>
                 Review Event
               </Button>
             )}
-            {isUnassignedForCoordinator && (
-              <Button onClick={() => assignCoordinator(event.id, currentUser.id, currentUser.name)}>
-                Assign Myself as Coordinator
-              </Button>
-            )}
-
             {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
               <Link to={`/venues?eventId=${event.id}`}>
                 <Button variant="secondary">Search Venues</Button>
@@ -238,114 +239,98 @@ export function EventDetailPage() {
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Event Details</h2>
           </CardHeader>
           <CardBody>
-            {editMode ? (
-              <EventEditForm
-                event={event}
-                onSave={(updates) => {
-                  updateEvent(event.id, updates);
-                  setEditMode(false);
-                }}
-                onCancel={() => setEditMode(false)}
-              />
-            ) : (
-              <>
-                <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
-                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">
-                      {formatDateTimeRange(event.startDateTime, event.endDateTime)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">
-                      {event.venueRequirements.facilities.join(", ") || "None specified"}
-                    </dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">
-                      {event.venueRequirements.accessibility.join(", ") || "None specified"}
-                    </dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
-                    <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
-                      {event.attachments?.length ? (
-                        event.attachments.map((attachment) => (
-                          <div
-                            key={attachment.id}
-                            className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
+            <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Date & time</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {formatDateTimeRange(event.startDateTime, event.endDateTime)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Room layout</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueRequirements.layout || "—"}</dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Required facilities</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {event.venueRequirements.facilities.join(", ") || "None specified"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Accessibility needs</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">
+                  {event.venueRequirements.accessibility.join(", ") || "None specified"}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Attached files</dt>
+                <dd className="space-y-2 font-medium text-gray-800 dark:text-gray-200">
+                  {event.attachments?.length ? (
+                    event.attachments.map((attachment) => (
+                      <div
+                        key={attachment.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
+                      >
+                        <span>{attachment.name}</span>
+                        <span className="flex items-center gap-3 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => openAttachmentPreview(attachment.dataUrl, attachment.type)}
+                            className="text-primary-700 underline dark:text-primary-300"
                           >
-                            <span>{attachment.name}</span>
-                            <span className="flex items-center gap-3 text-xs">
-                              <a
-                                href={attachment.dataUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-primary-700 underline dark:text-primary-300"
-                              >
-                                View
-                              </a>
-                              <a
-                                href={attachment.dataUrl}
-                                download={attachment.name}
-                                className="text-primary-700 underline dark:text-primary-300"
-                              >
-                                Download
-                              </a>
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        "None specified"
-                      )}
-                    </dd>
-                  </div>
-                  <div className="sm:col-span-2">
-                    <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
-                  </div>
-                </dl>
-              </>
-            )}
+                            View
+                          </button>
+                          <a
+                            href={attachment.dataUrl}
+                            download={attachment.name}
+                            className="text-primary-700 underline dark:text-primary-300"
+                          >
+                            Download
+                          </a>
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    "None specified"
+                  )}
+                </dd>
+              </div>
+              <div className="sm:col-span-2">
+                <dt className="text-gray-400 dark:text-gray-500">Equipment needs</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.equipmentNeeds || "None specified"}</dd>
+              </div>
+            </dl>
           </CardBody>
         </Card>
 
-        {!editMode && (
-          <Card>
-            <CardHeader>
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
-            </CardHeader>
-            <CardBody className="space-y-3 text-sm">
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
-              </div>
-            </CardBody>
-          </Card>
-        )}
+        <Card>
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
+          </CardHeader>
+          <CardBody className="space-y-3 text-sm">
+            <div>
+              <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
+              <dd className="break-words font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
+              <dd className="break-words font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
+            </div>
+            <div>
+              <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
+              <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
+            </div>
+          </CardBody>
+        </Card>
 
         {currentUser.role === "attendee" && (
           <Card className="lg:col-span-3">

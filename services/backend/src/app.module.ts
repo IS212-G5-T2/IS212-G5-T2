@@ -20,6 +20,11 @@ export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
     consumer
       .apply(FirebaseAuthenticationMiddleware)
-      .forRoutes(AuthController, ClarificationsController);
+      .forRoutes(
+        AuthController,
+        ClarificationsController,
+        EventsController,
+        DraftsController,
+      );
   }
 }

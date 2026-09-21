@@ -138,7 +138,9 @@ Organiser. Unlike the events endpoints above, these routes are protected by
   Requires `Authorization: Bearer <Firebase ID token>` for a user with the
   `COORDINATOR` role whose uid matches the event's `coordinator_id`. Body:
   `{ "message": string }` (rejected with 400 if blank/whitespace-only).
-  Forces the event to `Under_Review` and notifies the Organiser.
+  Notifies the Organiser. Does not change the event's status — "Under Review"
+  was retired as a distinct status (SPM-38 follow-up); only `Submitted` and
+  `Approved` remain.
 - `GET /api/events/:id/comments`: full chronological clarification/reply
   thread. Restricted to the event's Organiser or its assigned Coordinator.
 - `POST /api/events/:id/clarifications/:clarificationId/reply`: Organiser

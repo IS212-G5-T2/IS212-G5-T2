@@ -17,21 +17,27 @@ export function EventCard({ event }: { event: EventRecord }) {
             <StatusBadge status={event.status} />
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 sm:grid-cols-4">
-            <div>
+            <div className="min-w-0">
               <dt className="text-gray-400 dark:text-gray-500">When</dt>
-              <dd>{formatDateRange(event.startDateTime, event.endDateTime)}</dd>
+              <dd className="truncate" title={formatDateRange(event.startDateTime, event.endDateTime)}>
+                {formatDateRange(event.startDateTime, event.endDateTime)}
+              </dd>
             </div>
-            <div>
+            <div className="min-w-0">
               <dt className="text-gray-400 dark:text-gray-500">Attendance</dt>
-              <dd>{event.expectedAttendance}</dd>
+              <dd className="truncate">{event.expectedAttendance}</dd>
             </div>
-            <div>
+            <div className="min-w-0">
               <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
-              <dd>{event.venueName ?? "Not booked"}</dd>
+              <dd className="truncate" title={event.venueName ?? "Not booked"}>
+                {event.venueName ?? "Not booked"}
+              </dd>
             </div>
-            <div>
+            <div className="min-w-0">
               <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
-              <dd>{event.coordinatorName ?? "Unassigned"}</dd>
+              <dd className="truncate" title={event.coordinatorName ?? "Unassigned"}>
+                {event.coordinatorName ?? "Unassigned"}
+              </dd>
             </div>
           </dl>
         </CardBody>

@@ -15,7 +15,6 @@ export interface User {
 export type EventStatus =
   | "draft"
   | "submitted"
-  | "under_review"
   | "approved"
   | "planning"
   | "confirmed"

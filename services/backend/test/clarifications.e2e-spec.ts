@@ -50,7 +50,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // REQ-CLAR-01-A
-  it('REQ-CLAR-01-A: Event Coordinator can send a clarification request, status changes to Under Review, and Organiser is notified', async () => {
+  it('REQ-CLAR-01-A: Event Coordinator can send a clarification request without changing status, and Organiser is notified', async () => {
     const coordinator = await createEmulatorUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createEmulatorUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({
@@ -75,12 +75,13 @@ describe('Clarifications (e2e)', () => {
     });
     const clarificationId = createResponse.body.id as string;
 
-    // AC4: status forced to Under_Review, surfaced as 'under_review' by EventsService's record().
+    // "Under Review" was retired as a distinct status (SPM-38 follow-up): a
+    // clarification request no longer changes the event's status.
     const statusResult = await pool.query<{ status: string }>(
       'SELECT status FROM events WHERE id = $1',
       [eventId],
     );
-    expect(statusResult.rows[0].status).toBe('Under_Review');
+    expect(statusResult.rows[0].status).toBe('Submitted');
 
     // CLAR-01-A / AC6: organiser is notified in-app when the clarification is opened.
     const notificationsAfterCreate = await pool.query<{
