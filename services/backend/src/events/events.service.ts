@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -49,6 +50,7 @@ export class EventsService implements OnModuleDestroy {
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
       status: row.status.toLowerCase(),
+      rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
       expectedAttendance: row.expected_attendance,
@@ -147,6 +149,129 @@ export class EventsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
   }
+
+  private requireCoordinator(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    if (!user.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    return user;
+  }
+
+  private eventId(id: string) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    )
+      throw new NotFoundException('Event not found.');
+  }
+
+  static validateRejectionReason(reason: string): string {
+    const raw = typeof reason === 'string' ? reason : '';
+    const trimmed = raw.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    const hasLetters = /[a-zA-Z]/.test(trimmed);
+    if (
+      !trimmed ||
+      raw.length > 500 ||
+      trimmed.length < 10 ||
+      trimmed.length > 500 ||
+      words.length < 3 ||
+      !hasLetters
+    ) {
+      throw new BadRequestException(
+        'Please provide a reason that: is between 10 and 500 characters; ' +
+          'contains at least 3 words; and includes real words, not just numbers or symbols.',
+      );
+    }
+    return trimmed;
+  }
+
+  // SPM-83: only the coordinator assigned by SPM-38's round-robin flow may
+  // reject a still-Submitted request. The decision and organiser notification
+  // share one transaction so a rejection is never persisted without its reason.
+  async reject(id: string, body: unknown, identity?: AuthenticatedUser) {
+    const coordinator = this.requireCoordinator(identity);
+    this.eventId(id);
+    const data = body as Record<string, unknown> | null;
+    const reason = EventsService.validateRejectionReason(
+      typeof data?.reason === 'string' ? data.reason : '',
+    );
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted')
+        throw new ConflictException(
+          'Only Submitted requests can be rejected. Refresh the pending list.',
+        );
+      if (event.coordinator_id !== coordinator.uid)
+        throw new ForbiddenException(
+          'This request is assigned to another coordinator.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+           SET status = 'Rejected',
+               rejection_reason = $2,
+               updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [id, reason],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'rejection', $3, $4)`,
+        [
+          randomUUID(),
+          event.organiser_id,
+          `Your event request "${event.event_name}" was rejected: ${reason}`,
+          id,
+        ],
+      );
+      await client.query('COMMIT');
+      return this.record(updated.rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  async notifications(identity?: AuthenticatedUser) {
+    const organiser = this.requireOrganiser(identity);
+    const result = await this.pool.query(
+      "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
+      [organiser.id],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      audienceRole: 'organiser',
+      audienceUserId: row.recipient_id,
+      type: row.type,
+      message: row.message,
+      relatedEventId: row.related_event_id,
+      read: row.read,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  async readNotification(id: string, identity?: AuthenticatedUser) {
+    const organiser = this.requireOrganiser(identity);
+    this.eventId(id);
+    const result = await this.pool.query(
+      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
+      [id, organiser.id],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Notification not found.');
+    return { success: true };
+  }
+
   async create(
     identity: AuthenticatedUser | undefined,
     body: unknown,

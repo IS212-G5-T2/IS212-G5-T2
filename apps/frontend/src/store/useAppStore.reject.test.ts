@@ -39,7 +39,7 @@ function pendingEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     organiserName: "Organiser Nine",
     coordinatorId: "coordinator-1",
     coordinatorName: "Coordinator One",
-    status: "under_review",
+    status: "submitted",
     startDateTime: "2026-10-01T09:00:00.000Z",
     endDateTime: "2026-10-01T10:00:00.000Z",
     expectedAttendance: 10,
@@ -54,7 +54,7 @@ function pendingEvent(overrides: Partial<EventRecord> = {}): EventRecord {
 }
 
 // Statuses that count as "awaiting review" in the coordinator's pending list.
-const REVIEWABLE = ["submitted", "under_review"];
+const REVIEWABLE = ["submitted"];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -102,7 +102,7 @@ describe("rejectEvent (SPM-83)", () => {
     useAppStore.setState({
       events: [
         pendingEvent({ id: "event-1", status: "submitted" }),
-        pendingEvent({ id: "event-2", status: "under_review" }),
+        pendingEvent({ id: "event-2", status: "submitted" }),
       ],
       notifications: [],
     });

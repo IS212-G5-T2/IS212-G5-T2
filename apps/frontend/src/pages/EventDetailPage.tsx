@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
+import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 
@@ -24,6 +25,10 @@ const STATUS_FLOW = [
   "confirmed",
   "completed",
 ] as const;
+
+// A rejection is terminal for this request, so it leaves the normal approval
+// path and clearly shows the decision that was reached.
+const REJECTED_FLOW = ["draft", "submitted", "rejected"] as const;
 
 // Chrome and Firefox block top-level navigation of a link to a data: URL
 // (a phishing-hardening measure), so `target="_blank"` on an `<a
@@ -62,6 +67,7 @@ export function EventDetailPage() {
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
+  const rejectEvent = useAppStore((s) => s.rejectEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
 
@@ -69,6 +75,11 @@ export function EventDetailPage() {
   const [commentsError, setCommentsError] = useState("");
 
   const [reviewNotice, setReviewNotice] = useState("");
+  const [showReviewControls, setShowReviewControls] = useState(false);
+  const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | "">("");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [rejectionError, setRejectionError] = useState(false);
+  const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const event = events.find((e) => e.id === id);
 
@@ -162,7 +173,9 @@ export function EventDetailPage() {
     await refreshComments();
   };
 
-  const currentStepIndex = STATUS_FLOW.indexOf(event.status as (typeof STATUS_FLOW)[number]);
+  const isRejected = event.status === "rejected";
+  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : STATUS_FLOW;
+  const currentStepIndex = statusFlow.indexOf(event.status);
 
   return (
     <div>
@@ -181,9 +194,7 @@ export function EventDetailPage() {
               </>
             )}
             {isAssignedCoordinator && event.status === "submitted" && (
-              // The approve/reject workflow is not implemented for SPM-37; the
-              // entrypoint stays visible but surfaces a not-available message.
-              <Button onClick={() => setReviewNotice("Event review is not available yet.")}>
+              <Button onClick={() => setShowReviewControls((previous) => !previous)}>
                 Review Event
               </Button>
             )}
@@ -196,25 +207,114 @@ export function EventDetailPage() {
         }
       />
 
-      {!STATUS_FLOW.includes(event.status as (typeof STATUS_FLOW)[number]) ? (
+      {!statusFlow.includes(event.status) ? (
         <div className="mb-6">
           <StatusBadge status={event.status} />
         </div>
       ) : (
         <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
-          {STATUS_FLOW.map((s, i) => (
+          {statusFlow.map((s, i) => (
             <li key={s} className="flex items-center gap-2">
               <span
                 className={`rounded-full px-2.5 py-1 font-medium ${
-                  i <= currentStepIndex ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300" : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                  isRejected && s === "rejected"
+                    ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                    : i <= currentStepIndex
+                      ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
                 }`}
               >
                 {s.replace("_", " ")}
               </span>
-              {i < STATUS_FLOW.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+              {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
             </li>
           ))}
         </ol>
+      )}
+
+      {showReviewControls && isAssignedCoordinator && event.status === "submitted" && (
+        <Card className="mb-6">
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Review Decision</h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <RadioGroup
+              label="Select Decision"
+              name="review-decision"
+              value={reviewDecision}
+              onChange={(value) => {
+                setReviewDecision(value as "approve" | "reject");
+                setRejectionError(false);
+              }}
+              options={[
+                { value: "approve", label: "Approve" },
+                { value: "reject", label: "Reject" },
+              ]}
+            />
+
+            {reviewDecision === "reject" && (
+              <div className="space-y-3">
+                <TextArea
+                  label="Rejection reason"
+                  value={rejectionReason}
+                  onChange={(event) => {
+                    setRejectionReason(event.target.value);
+                    if (rejectionError) setRejectionError(false);
+                  }}
+                  aria-invalid={rejectionError ? "true" : undefined}
+                />
+                {rejectionError && (
+                  <div role="alert" className="space-y-1 text-sm text-danger-600 dark:text-danger-400">
+                    <p>Rejection reason failed validation:</p>
+                    <ul className="list-disc pl-5">
+                      <li>between 10 and 500 characters</li>
+                      <li>at least 3 words</li>
+                      <li>real words, not just numbers or symbols</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div>
+              <Button
+                disabled={submittingDecision || !reviewDecision}
+                onClick={async () => {
+                  if (reviewDecision !== "reject") return;
+                  const raw = rejectionReason;
+                  const trimmed = raw.trim();
+                  const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+                  const isValid =
+                    raw.length <= 500 &&
+                    trimmed.length >= 10 &&
+                    trimmed.length <= 500 &&
+                    words.length >= 3 &&
+                    /[a-zA-Z]/.test(trimmed);
+                  if (!isValid) {
+                    setRejectionError(true);
+                    return;
+                  }
+                  setSubmittingDecision(true);
+                  try {
+                    await rejectEvent(event.id, trimmed);
+                    setShowReviewControls(false);
+                    setReviewDecision("");
+                    setRejectionReason("");
+                    setRejectionError(false);
+                  } catch (error) {
+                    setReviewNotice(
+                      error instanceof Error ? error.message : "Failed to reject event.",
+                    );
+                  } finally {
+                    setSubmittingDecision(false);
+                  }
+                }}
+              >
+                {submittingDecision ? "Submitting…" : "Submit Decision"}
+              </Button>
+            </div>
+          </CardBody>
+        </Card>
       )}
 
       {reviewNotice && (

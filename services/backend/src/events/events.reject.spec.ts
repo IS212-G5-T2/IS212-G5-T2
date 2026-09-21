@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -244,8 +245,8 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(txSql()).toContain('ROLLBACK');
   });
 
-  // EVENT-REJECT-03-H — variation: works from both reviewable statuses
-  it('rejects from both Submitted and Under_Review', async () => {
+  // EVENT-REJECT-03-H — variation: the current lifecycle has Submitted only.
+  it('rejects a Submitted request and refuses the retired Under_Review status', async () => {
     wireReject(
       eventRow({ status: 'Submitted' }),
       eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
@@ -254,13 +255,10 @@ describe('EventsService.reject (SPM-83)', () => {
       service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
     ).resolves.toMatchObject({ status: 'rejected' });
 
-    wireReject(
-      eventRow({ status: 'Under_Review' }),
-      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
-    );
+    wireReject(eventRow({ status: 'Under_Review' }), null);
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator()),
-    ).resolves.toMatchObject({ status: 'rejected' });
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 });
 
@@ -271,7 +269,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, undefined),
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(db.connect).not.toHaveBeenCalled();
   });
 

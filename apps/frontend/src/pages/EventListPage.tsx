@@ -36,7 +36,12 @@ export function EventListPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [retry]);
-  const [statusFilter, setStatusFilter] = useState("");
+  // Coordinators land on pending Submitted requests. Rejected requests remain
+  // accessible through the explicit Rejected filter rather than mixing into
+  // their decision queue.
+  const [statusFilter, setStatusFilter] = useState(
+    currentUser.role === "coordinator" ? "submitted" : "",
+  );
 
   const scoped = useMemo(() => {
     if (currentUser.role === "attendee") {
@@ -57,7 +62,9 @@ export function EventListPage() {
       ? "My Events"
       : currentUser.role === "attendee"
       ? "Browse Events"
-      : "All Events";
+      : statusFilter === "submitted"
+        ? "Pending Requests"
+        : "All Events";
 
   return (
     <div>

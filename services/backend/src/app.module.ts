@@ -1,5 +1,6 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { EventsController } from './events/events.controller.js';
+import { EventRejectionsController } from './events/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
 import { DraftsController } from './events/drafts.controller.js';
 import { DraftsService } from './events/drafts.service.js';
@@ -13,7 +14,12 @@ import { ClarificationsController } from './clarifications/clarifications.contro
 
 @Module({
   imports: [AuthModule, ClarificationsModule],
-  controllers: [AppController, EventsController, DraftsController],
+  controllers: [
+    AppController,
+    EventsController,
+    EventRejectionsController,
+    DraftsController,
+  ],
   providers: [AppService, EventsService, DraftsService],
 })
 export class AppModule implements NestModule {
@@ -24,6 +30,7 @@ export class AppModule implements NestModule {
         AuthController,
         ClarificationsController,
         EventsController,
+        EventRejectionsController,
         DraftsController,
       );
   }

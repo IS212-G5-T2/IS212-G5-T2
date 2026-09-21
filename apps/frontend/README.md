@@ -125,6 +125,6 @@ Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this director
 
 ## Rejecting requests (SPM-83)
 
-Coordinators land on Pending Requests with the Submitted filter selected. Open a request and choose Reject Request. The dialog requires a reason (1–2000 characters); blank or whitespace-only input blocks confirmation. Cancel leaves the request unchanged. Server failures keep the dialog and reason available for retry. The saved request displays Rejected and the recorded reason, and disappears from the Submitted filter.
+Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.
 
-Organisers receive persistent rejection notifications above their main content, with the reason and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Backend migration 003_event_rejection.sql is required for existing databases.
+Organisers receive persistent rejection notifications above their main content, with the reason in a separate block and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Existing databases require backend migrations 003_event_rejection.sql and 004_allow_rejected_event_status.sql.

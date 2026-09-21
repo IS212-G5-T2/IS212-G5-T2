@@ -94,8 +94,8 @@ Known gaps to close before this is fully production-ready:
 
 ## Rejection integration (SPM-83)
 
-`EventRejectionsController` alone is protected by Firebase middleware. It adds rejection and rejection-notification endpoints without changing the existing event, draft, or coordinator-assignment contracts. Only a verified Coordinator can reject a Submitted request; only a verified Organiser can retrieve or mark rejection notifications as read.
+The event, draft, clarification, and rejection routes are protected by Firebase middleware. `EventRejectionsController` adds rejection and rejection-notification endpoints. Only the verified Coordinator assigned to a Submitted request can reject it; only a verified Organiser can retrieve or mark their rejection notifications as read.
 
-Apply migration 003_event_rejection.sql after the clarification schema before starting this version. The equivalent fresh-volume asset is 006_event_rejection.sql. Status, rejection reason and recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
+For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes run 006_event_rejection.sql, the SPM-38 status retirement migration, then 007_allow_rejected_event_status.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
-Existing event/draft ownership and assignment behavior remain unchanged. Local demo events continue to use `current-user`, so rejection notifications use that same recipient while `DEMO_ORGANISER_ENABLED=true`. Production ownership migration remains separate work.
+SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
