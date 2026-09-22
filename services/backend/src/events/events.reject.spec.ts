@@ -9,6 +9,7 @@ import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service.js';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
 
 /**
  * SPM-83 — Reject a request. Backend unit tests for the real production endpoint
@@ -33,8 +34,9 @@ const db = {
   end: vi.fn(),
 };
 
-type TestableEventsService = EventsService & {
-  pool: { query: typeof db.query; connect: typeof db.connect; end: typeof db.end };
+const database = {
+  query: db.query,
+  transaction: vi.fn(),
 };
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000036';
@@ -105,19 +107,26 @@ let service: EventsService;
 beforeEach(async () => {
   vi.resetAllMocks();
   vi.stubEnv('DEMO_ORGANISER_ENABLED', 'true');
-  db.connect.mockResolvedValue({ query: db.transaction, release: db.release });
   db.transaction.mockResolvedValue({ rows: [] });
+  database.transaction.mockImplementation(async (work) => {
+    await db.transaction('BEGIN');
+    try {
+      const result = await work({ query: db.transaction });
+      await db.transaction('COMMIT');
+      return result;
+    } catch (error) {
+      await db.transaction('ROLLBACK');
+      throw error;
+    } finally {
+      db.release();
+    }
+  });
 
   const module = await Test.createTestingModule({
-    providers: [EventsService],
+    providers: [EventsService, { provide: DatabaseService, useValue: database }],
   }).compile();
 
   service = module.get(EventsService);
-  (service as TestableEventsService).pool = {
-    query: db.query,
-    connect: db.connect,
-    end: db.end,
-  };
 });
 
 afterEach(() => {

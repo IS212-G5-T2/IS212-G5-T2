@@ -11,9 +11,10 @@ import { AuthController } from './auth/auth.controller.js';
 import { FirebaseAuthenticationMiddleware } from './auth/authentication/firebase-authentication.middleware.js';
 import { ClarificationsModule } from './clarifications/clarifications.module.js';
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
+import { DatabaseModule } from './database/database.module.js';
 
 @Module({
-  imports: [AuthModule, ClarificationsModule],
+  imports: [AuthModule, ClarificationsModule, DatabaseModule],
   controllers: [
     AppController,
     EventsController,

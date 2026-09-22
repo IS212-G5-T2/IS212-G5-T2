@@ -4,21 +4,18 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
-  OnModuleDestroy,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
 import { pickNextCoordinator } from './coordinator-roster.js';
 
 @Injectable()
-export class EventsService implements OnModuleDestroy {
-  private readonly pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 5000,
-  });
+export class EventsService {
+  constructor(private readonly database: DatabaseService) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
   // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
@@ -33,10 +30,6 @@ export class EventsService implements OnModuleDestroy {
     if (!user.roles.includes('ORGANISER'))
       throw new ForbiddenException('Organiser access required.');
     return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
-  }
-
-  async onModuleDestroy() {
-    await this.pool.end();
   }
 
   private record(row: pg.QueryResultRow) {
@@ -75,12 +68,12 @@ export class EventsService implements OnModuleDestroy {
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const result = user.roles.includes('COORDINATOR')
-      ? await this.pool.query(
+      ? await this.database.query(
           'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
-        ? await this.pool.query(
+        ? await this.database.query(
             'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
             [user.uid],
           )
@@ -110,7 +103,7 @@ export class EventsService implements OnModuleDestroy {
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.pool.query('SELECT * FROM events WHERE id = $1', [id]);
+    const result = await this.database.query('SELECT * FROM events WHERE id = $1', [id]);
     const row = result.rows[0];
     if (!row) throw new NotFoundException('Event not found.');
     const isOwningOrganiser =
@@ -137,7 +130,7 @@ export class EventsService implements OnModuleDestroy {
       typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
     if (!coordinatorId || !coordinatorName)
       throw new BadRequestException('A coordinator id and name are required.');
-    const result = await this.pool.query(
+    const result = await this.database.query(
       `UPDATE events
          SET coordinator_id = $2,
              coordinator_name = $3,
@@ -197,9 +190,7 @@ export class EventsService implements OnModuleDestroy {
     const reason = EventsService.validateRejectionReason(
       typeof data?.reason === 'string' ? data.reason : '',
     );
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return this.database.transaction(async (client) => {
       const selected = await client.query(
         'SELECT * FROM events WHERE id = $1 FOR UPDATE',
         [id],
@@ -233,19 +224,13 @@ export class EventsService implements OnModuleDestroy {
           id,
         ],
       );
-      await client.query('COMMIT');
       return this.record(updated.rows[0]);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   async notifications(identity?: AuthenticatedUser) {
     const organiser = this.requireOrganiser(identity);
-    const result = await this.pool.query(
+    const result = await this.database.query(
       "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
       [organiser.id],
     );
@@ -264,7 +249,7 @@ export class EventsService implements OnModuleDestroy {
   async readNotification(id: string, identity?: AuthenticatedUser) {
     const organiser = this.requireOrganiser(identity);
     this.eventId(id);
-    const result = await this.pool.query(
+    const result = await this.database.query(
       "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
       [id, organiser.id],
     );
@@ -285,18 +270,10 @@ export class EventsService implements OnModuleDestroy {
     if (transaction) {
       return this.insert(data, user, transaction, eventId);
     }
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return this.database.transaction(async (client) => {
       const result = await this.insert(data, user, client, eventId);
-      await client.query('COMMIT');
       return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   private async insert(

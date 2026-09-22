@@ -5,26 +5,22 @@ import {
   Injectable,
   NotFoundException,
   UnauthorizedException,
-  type OnModuleDestroy,
 } from '@nestjs/common';
 import { isDeepStrictEqual } from 'node:util';
 import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
 import { uuid, validateDraft } from './draft-input.js';
 
 /* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Injectable()
-export class DraftsService implements OnModuleDestroy {
+export class DraftsService {
   /* v8 ignore stop */
-  private readonly pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 5000,
-  });
-  constructor(private readonly events: EventsService) {}
-  async onModuleDestroy() {
-    await this.pool.end();
-  }
+  constructor(
+    private readonly events: EventsService,
+    private readonly database: DatabaseService,
+  ) {}
   private id(id: string) {
     if (!uuid.test(id)) throw new NotFoundException('Request not found.');
   }
@@ -48,7 +44,7 @@ export class DraftsService implements OnModuleDestroy {
   }
   async list(identity: AuthenticatedUser | undefined) {
     const owner = this.requireOrganiser(identity);
-    const result = await this.pool.query(
+    const result = await this.database.query(
       'SELECT * FROM event_drafts WHERE organiser_id=$1 ORDER BY updated_at DESC',
       [owner.id],
     );
@@ -57,7 +53,7 @@ export class DraftsService implements OnModuleDestroy {
   async get(identity: AuthenticatedUser | undefined, id: string) {
     const owner = this.requireOrganiser(identity);
     this.id(id);
-    const result = await this.pool.query(
+    const result = await this.database.query(
       'SELECT * FROM event_drafts WHERE id=$1 AND organiser_id=$2',
       [id, owner.id],
     );
@@ -68,9 +64,7 @@ export class DraftsService implements OnModuleDestroy {
     const owner = this.requireOrganiser(identity);
     this.id(id);
     const data = validateDraft(body);
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return this.database.transaction(async (client) => {
       if (data.version === 0)
         await client.query(
           'INSERT INTO event_drafts (id, organiser_id, fields) VALUES ($1,$2,$3) ON CONFLICT (id) DO NOTHING',
@@ -103,14 +97,8 @@ export class DraftsService implements OnModuleDestroy {
           )
         ).rows[0];
       }
-      await client.query('COMMIT');
       return this.record(row);
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
   async submit(identity: AuthenticatedUser | undefined, id: string, body: unknown) {
     const owner = this.requireOrganiser(identity);
@@ -122,9 +110,7 @@ export class DraftsService implements OnModuleDestroy {
       (data.version as number) < 1
     )
       throw new BadRequestException('Invalid draft version.');
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return this.database.transaction(async (client) => {
       const selected = await client.query(
         'SELECT * FROM event_drafts WHERE id=$1 AND organiser_id=$2 FOR UPDATE',
         [id, owner.id],
@@ -133,7 +119,6 @@ export class DraftsService implements OnModuleDestroy {
       if (!row) throw new NotFoundException('Request not found.');
       // A lost submission response is safely retried without creating another event.
       if (row.status === 'Submitted') {
-        await client.query('COMMIT');
         return {
           event: await this.events.get(identity, row.event_id),
           message: 'Your event request was submitted successfully.',
@@ -164,13 +149,7 @@ export class DraftsService implements OnModuleDestroy {
         "UPDATE event_drafts SET status='Submitted', event_id=$2, version=version+1, updated_at=now() WHERE id=$1",
         [id, result.event.id],
       );
-      await client.query('COMMIT');
       return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 }

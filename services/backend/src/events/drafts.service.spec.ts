@@ -6,12 +6,14 @@ import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DraftsService } from './drafts.service.js';
 import { DraftsController } from './drafts.controller.js';
 import type { EventsService } from './events.service.js';
+import type { DatabaseService } from '../database/database.service.js';
 
 const db = vi.hoisted(() => ({
   query: vi.fn(),
   connect: vi.fn(),
   end: vi.fn(),
   transaction: vi.fn(),
+  withTransaction: vi.fn(),
   release: vi.fn(),
 }));
 vi.mock('pg', () => ({
@@ -43,14 +45,33 @@ const row = () => ({
   updated_at: new Date('2030-01-01Z'),
 });
 const events = { create: vi.fn(), get: vi.fn() };
+const database = {
+  query: db.query,
+  transaction: db.withTransaction,
+};
 let service: DraftsService;
 const client = { query: db.transaction, release: db.release };
 beforeEach(() => {
   vi.resetAllMocks();
   events.create.mockResolvedValue({ event: { id }, message: 'Submitted' });
-  db.connect.mockResolvedValue(client);
   db.transaction.mockResolvedValue({ rows: [] });
-  service = new DraftsService(events as unknown as EventsService);
+  db.withTransaction.mockImplementation(async (work) => {
+    await db.transaction('BEGIN');
+    try {
+      const result = await work(client);
+      await db.transaction('COMMIT');
+      return result;
+    } catch (error) {
+      await db.transaction('ROLLBACK');
+      throw error;
+    } finally {
+      db.release();
+    }
+  });
+  service = new DraftsService(
+    events as unknown as EventsService,
+    database as unknown as DatabaseService,
+  );
 });
 function selected(value: object | null) {
   db.transaction.mockImplementation(async (sql: string) => ({
@@ -88,8 +109,6 @@ describe('SPM-37 Q1 service contract and failures', () => {
     await expect(service.get(identity, id)).rejects.toMatchObject({
       status: 404,
     });
-    await service.onModuleDestroy();
-    expect(db.end).toHaveBeenCalledOnce();
   });
   it('Q1-024 rejects malformed IDs before database access', async () => {
     await expect(service.get(identity, 'bad')).rejects.toMatchObject({

@@ -14,12 +14,11 @@ When `FIREBASE_AUTH_EMULATOR_HOST` is configured, `FirebaseTokenService` initial
 
 Auth source is split by responsibility: `src/auth/authentication` for token verification and middleware, `src/auth/authorization` for RBAC/ownership services, and `src/auth/models` for shared auth types.
 
-`DatabaseModule` centralizes PostgreSQL access. Repositories should inject
+`DatabaseModule` centralizes PostgreSQL access. Services and repositories inject
 `DatabaseService` instead of creating new pools so connection limits, timeouts,
 and shutdown behavior stay consistent. Use `query()` for single statements and
 `transaction()` for multi-step writes that need shared commit/rollback handling.
-The current `EventsService` does not yet follow this guidance: it creates a
-separate pool. The generated starter endpoint currently returns `Hello World!`.
+The generated starter endpoint currently returns `Hello World!`.
 The events controller/service validates and persists submitted requests in
 PostgreSQL. Drafts and events use Firebase UID ownership; submission retains the owner. Email delivery is deferred.
 
@@ -32,9 +31,8 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
 - Reuse `FirebaseAuthenticationMiddleware` for token verification and
   `RbacRepository` for composable resource-query permission checks instead of
   duplicating RBAC SQL in controllers. Draft and event controllers apply this middleware and require the ORGANISER role.
-- Use `DatabaseService` for new PostgreSQL queries; do not instantiate
-  `pg.Pool` inside feature repositories. Migrate the current event pool as part
-  of hardening that endpoint.
+- Use `DatabaseService` for PostgreSQL queries; do not instantiate `pg.Pool`
+  inside feature services or repositories.
 - Keep Firebase `roles` claim values aligned with the RBAC seed values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
 - Keep exactly one CI unit-test entrypoint at `scripts/ci/unit-test.sh`.
 - Review the npm audit output from adding Firebase Admin/PostgreSQL dependencies before release hardening.
