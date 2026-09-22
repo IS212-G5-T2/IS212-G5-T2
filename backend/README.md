@@ -99,11 +99,13 @@ Run local checks from this directory:
 ```sh
 npm run lint
 npm test
+npm run test:cov
 npm run test:e2e
 npm run build
 ```
 
-The monorepo test workflow runs `scripts/ci/unit-test.sh`, which currently delegates to `npm test`.
+The monorepo test workflow runs `scripts/ci/unit-test.sh`, which delegates to
+`npm run test:cov` and writes a local V8 coverage report to `coverage/`.
 
 ## Branch Flow
 

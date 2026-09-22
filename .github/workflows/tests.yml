@@ -1,14 +1,15 @@
 name: Tests
 
 on:
-  push:
+  pull_request:
+    branches:
+      - dev
+      - main
     paths:
       - "frontend/**"
       - "backend/**"
       - "database/**"
       - "docker-compose/**"
-      - "docs/ci-process.md"
-      - ".github/workflows/tests.yml"
   workflow_dispatch:
 
 permissions:

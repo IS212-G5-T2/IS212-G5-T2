@@ -7,4 +7,4 @@ component_dir=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 cd "$component_dir"
 
 npm ci
-npm test
+npm run test:cov
