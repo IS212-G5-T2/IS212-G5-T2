@@ -1,24 +1,24 @@
 /*
- * End-to-end tests proving the production authenticated-user endpoint accepts
- * Firebase Auth Emulator credentials and rejects invalid authentication.
+ * Exercises the PostgreSQL-backed local login flow against the same seeded
+ * database image used by CI.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { getAuth } from 'firebase-admin/auth';
-import { getApps, initializeApp } from 'firebase-admin/app';
-import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
-import { RbacRepository } from '../src/auth/authorization/rbac.repository.js';
 
-describe('FirebaseAuthenticationMiddleware (e2e)', () => {
-  let app: INestApplication<App>;
-  let testUser: EmulatorUser;
+const { Pool } = pg;
+const LOCAL_EMAIL = 'attendee1@connectsphere.test';
+const LOCAL_PASSWORD = 'P@55w0rd';
+const SESSION_COOKIE_NAME = 'connectsphere_session';
+
+describe('Local PostgreSQL authentication (e2e)', () => {
+  let app: INestApplication;
+  let pool: pg.Pool;
 
   beforeEach(async () => {
-    testUser = await createEmulatorUser('ATTENDEE');
-
+    pool = new Pool({ connectionString: process.env.DATABASE_URL });
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -27,139 +27,196 @@ describe('FirebaseAuthenticationMiddleware (e2e)', () => {
     await app.init();
   });
 
-  it('returns the verified Firebase user from the production auth endpoint', () => {
-    return request(app.getHttpServer())
-      .get('/auth/me')
-      .set('Authorization', `Bearer ${testUser.idToken}`)
+  // A valid seeded account receives a server-side session and only an HTTP-only browser cookie.
+  it('logs in a seeded attendee and resolves the persisted session', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: LOCAL_EMAIL, password: LOCAL_PASSWORD })
+      .expect(201);
+
+    expect(login.body).toMatchObject({
+      email: LOCAL_EMAIL,
+      name: 'Attendee 1',
+      roles: ['ATTENDEE'],
+    });
+    expect(login.body).not.toHaveProperty('token');
+    const cookie = sessionCookie(login.headers['set-cookie']);
+    expect(cookie.startsWith(`${SESSION_COOKIE_NAME}=`)).toBe(true);
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+    expect(cookie).toContain('Path=/');
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', cookie.split(';', 1)[0])
       .expect(200)
-      .expect({
-        uid: testUser.uid,
-        roles: ['ATTENDEE'],
-        email: testUser.email,
-      });
+      .expect(login.body);
   });
 
-  it('returns an organiser role from the production auth endpoint', async () => {
-    const organiser = await createEmulatorUser('ORGANISER');
+  // Email normalization at the API boundary must still authenticate the seeded PostgreSQL account.
+  it('accepts a trimmed, case-insensitive seeded email address', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({
+        email: `  ${LOCAL_EMAIL.toUpperCase()}  `,
+        password: LOCAL_PASSWORD,
+      })
+      .expect(201);
 
-    try {
-      await request(app.getHttpServer())
-        .get('/auth/me')
-        .set('Authorization', `Bearer ${organiser.idToken}`)
-        .expect(200)
-        .expect({
-          uid: organiser.uid,
-          roles: ['ORGANISER'],
-          email: organiser.email,
-        });
-    } finally {
-      await getAuth(getFirebaseEmulatorApp()).deleteUser(organiser.uid);
-    }
+    expect(response.body.email).toBe(LOCAL_EMAIL);
   });
 
-  it('reads the seeded PostgreSQL RBAC permissions used by protected resources', async () => {
-    const rbacRepository = app.get(RbacRepository);
+  // Malformed, missing, and blank credentials are rejected before authentication can issue a session.
+  it.each([
+    ['an absent request body', undefined],
+    ['a non-string email', { email: 42, password: LOCAL_PASSWORD }],
+    ['a blank email', { email: '   ', password: LOCAL_PASSWORD }],
+    ['a non-string password', { email: LOCAL_EMAIL, password: 42 }],
+    ['a blank password', { email: LOCAL_EMAIL, password: '' }],
+  ])('rejects %s without setting a session cookie', async (_caseName, body) => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send(body)
+      .expect(400);
 
-    await expect(rbacRepository.hasPermission('ORGANISER', 'Event', 'create')).resolves.toBe(true);
-    await expect(rbacRepository.hasPermission('ATTENDEE', 'Event', 'create')).resolves.toBe(false);
+    expect(response.body.message).toBe('Email and password are required');
+    expect(response.headers['set-cookie']).toBeUndefined();
   });
 
-  it('returns 401 when authentication is invalid', () => {
-    return request(app.getHttpServer())
-      .get('/auth/me')
-      .set('Authorization', 'Bearer invalid-token')
+  // Unknown accounts and incorrect passwords intentionally receive the same response to prevent enumeration.
+  it.each([
+    [
+      'an incorrect password',
+      { email: LOCAL_EMAIL, password: 'wrong-password' },
+    ],
+    [
+      'an unknown email',
+      { email: 'unknown@connectsphere.test', password: LOCAL_PASSWORD },
+    ],
+  ])('rejects %s without setting a session cookie', async (_caseName, body) => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send(body)
+      .expect(401);
+
+    expect(response.body.message).toBe('Invalid email or password');
+    expect(response.headers['set-cookie']).toBeUndefined();
+  });
+
+  // The protected identity endpoint requires the configured cookie, not merely any cookie header.
+  it.each([
+    ['no cookie', undefined],
+    ['an unrelated cookie', 'theme=dark'],
+    ['an empty session cookie', `${SESSION_COOKIE_NAME}=`],
+    [
+      'an unrecognised session token',
+      `${SESSION_COOKIE_NAME}=not-a-real-token`,
+    ],
+  ])('rejects /api/auth/me with %s', async (_caseName, cookie) => {
+    const response = request(app.getHttpServer()).get('/api/auth/me');
+    if (cookie) response.set('Cookie', cookie);
+
+    await response.expect(401);
+  });
+
+  // Logout revokes the database row, clears the cookie, and leaves a copied pre-logout cookie unusable.
+  it('revokes a persisted session on logout', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: LOCAL_EMAIL, password: LOCAL_PASSWORD })
+      .expect(201);
+    const cookie = sessionCookie(login.headers['set-cookie']).split(';', 1)[0];
+
+    const logout = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .set('Cookie', cookie)
+      .expect(204);
+
+    const clearedCookie = sessionCookie(logout.headers['set-cookie']);
+    expect(clearedCookie.startsWith(`${SESSION_COOKIE_NAME}=`)).toBe(true);
+    expect(clearedCookie).toContain('HttpOnly');
+    expect(clearedCookie).toContain('SameSite=Lax');
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', cookie)
       .expect(401);
   });
 
-  it('returns 401 when authentication is missing on protected routes', () => {
-    return request(app.getHttpServer()).get('/auth/me').expect(401);
+  // Logout is idempotent: a missing cookie still receives a correctly cleared browser cookie.
+  it('clears the session cookie when logging out without a session', async () => {
+    const response = await request(app.getHttpServer())
+      .post('/api/auth/logout')
+      .expect(204);
+
+    expect(
+      sessionCookie(response.headers['set-cookie']).startsWith(
+        `${SESSION_COOKIE_NAME}=`,
+      ),
+    ).toBe(true);
   });
 
-  it('rejects an incorrect Firebase email/password before a token is issued', async () => {
-    const response = await signInWithPassword(testUser.email, 'wrong-password');
+  // Expired session rows are not accepted even before cleanup removes them.
+  it('rejects an expired local session', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: LOCAL_EMAIL, password: LOCAL_PASSWORD })
+      .expect(201);
+    const cookie = sessionCookie(login.headers['set-cookie']);
+    const rawToken = cookie.split(';', 1)[0].split('=', 2)[1];
 
-    expect(response.ok).toBe(false);
-    expect(response.status).toBe(400);
+    await pool.query(
+      `UPDATE auth_sessions
+       SET created_at = now() - interval '9 hours',
+           expires_at = now() - interval '1 second'
+       WHERE token_hash = encode(digest($1, 'sha256'), 'hex')`,
+      [rawToken],
+    );
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', cookie.split(';', 1)[0])
+      .expect(401);
+  });
+
+  // Disabling an account invalidates every otherwise-live server-side session for that account.
+  it('rejects a live session after its account is disabled', async () => {
+    const login = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: LOCAL_EMAIL, password: LOCAL_PASSWORD })
+      .expect(201);
+    const cookie = sessionCookie(login.headers['set-cookie']).split(';', 1)[0];
+
+    await pool.query('UPDATE users SET is_active = false WHERE email = $1', [
+      LOCAL_EMAIL,
+    ]);
+
+    await request(app.getHttpServer())
+      .get('/api/auth/me')
+      .set('Cookie', cookie)
+      .expect(401);
   });
 
   afterEach(async () => {
-    await getAuth(getFirebaseEmulatorApp()).deleteUser(testUser.uid);
+    await pool?.query('UPDATE users SET is_active = true WHERE email = $1', [
+      LOCAL_EMAIL,
+    ]);
+    await pool?.query(
+      `DELETE FROM auth_sessions
+       WHERE user_id = (SELECT id FROM users WHERE email = $1)`,
+      [LOCAL_EMAIL],
+    );
+    await pool?.end();
     await app?.close();
   });
 });
 
-interface EmulatorUser {
-  email: string;
-  idToken: string;
-  uid: string;
-}
-
-async function createEmulatorUser(role: string): Promise<EmulatorUser> {
-  const email = `e2e-${randomUUID()}@example.com`;
-  const password = 'password123';
-  const emulatorUrl = getFirebaseEmulatorUrl();
-  const apiKey = 'fake-api-key';
-
-  const signUpResponse = await fetch(
-    `${emulatorUrl}/identitytoolkit.googleapis.com/v1/accounts:signUp?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
-    },
+function sessionCookie(setCookie: string | string[] | undefined): string {
+  const cookies = typeof setCookie === 'string' ? [setCookie] : setCookie;
+  const cookie = cookies?.find((value) =>
+    value.startsWith(`${SESSION_COOKIE_NAME}=`),
   );
-  const signUp = (await signUpResponse.json()) as { localId?: string };
-
-  if (!signUpResponse.ok || !signUp.localId) {
-    throw new Error(`Could not create Firebase emulator user: ${JSON.stringify(signUp)}`);
-  }
-
-  await getAuth(getFirebaseEmulatorApp()).setCustomUserClaims(signUp.localId, {
-    roles: [role],
-  });
-
-  const signInResponse = await signInWithPassword(email, password);
-  const signIn = (await signInResponse.json()) as { idToken?: string };
-
-  if (!signInResponse.ok || !signIn.idToken) {
-    throw new Error(`Could not sign in Firebase emulator user: ${JSON.stringify(signIn)}`);
-  }
-
-  return { email, idToken: signIn.idToken, uid: signUp.localId };
-}
-
-/**
- * Signs a user in through the Firebase Auth Emulator REST interface.
- *
- * @param email - Firebase emulator user's email address.
- * @param password - Firebase emulator user's password.
- * @returns Firebase REST API response, containing an ID token on success.
- */
-function signInWithPassword(email: string, password: string): Promise<Response> {
-  return fetch(
-    `${getFirebaseEmulatorUrl()}/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=fake-api-key`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
-    },
-  );
-}
-
-/**
- * Returns the configured Firebase Auth Emulator HTTP origin.
- *
- * @returns Firebase Auth Emulator origin.
- */
-function getFirebaseEmulatorUrl(): string {
-  return `http://${process.env.FIREBASE_AUTH_EMULATOR_HOST ?? '127.0.0.1:9099'}`;
-}
-
-function getFirebaseEmulatorApp() {
-  return (
-    getApps()[0] ??
-    initializeApp({
-      projectId: process.env.GCLOUD_PROJECT ?? 'demo-is212',
-    })
-  );
+  if (!cookie)
+    throw new Error('Expected a local authentication session cookie');
+  return cookie;
 }

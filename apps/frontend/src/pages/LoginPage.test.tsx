@@ -1,66 +1,38 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { FirebaseError } from "firebase/app";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { AuthError, login as authenticate } from "@/lib/auth";
 import { useAppStore } from "@/store/useAppStore";
-import { SEED_PASSWORD, SEED_USERS } from "@/test/fixtures/authUsers";
 import type { User } from "@/types";
 import { renderLoginPage } from "./testUtils";
 
-// The store's `login` action calls Firebase directly, so we mock the SDK
-// call at its source rather than the store action itself. This exercises
-// the real client-side validation, the real store logic, and the real
-// Firebase-error-to-message mapping in `@/lib/firebase` — only the network
-// call is faked.
-vi.mock("firebase/auth", async () => {
-  const actual = await vi.importActual<typeof import("firebase/auth")>("firebase/auth");
-  return {
-    ...actual,
-    signInWithEmailAndPassword: vi.fn(),
-    signOut: vi.fn(),
-  };
+// The store's login action calls the backend-auth client. Mock its HTTP-facing
+// boundary rather than the store action so these tests exercise the real form
+// validation, state transition, redirect, and safe error-display behavior.
+// Only the network request is replaced.
+vi.mock("@/lib/auth", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");
+  return { ...actual, login: vi.fn() };
 });
 
-const mockSignIn = vi.mocked(signInWithEmailAndPassword);
+const mockAuthenticate = vi.mocked(authenticate);
 const storeLogin = useAppStore.getState().login;
-
-function firebaseError(code: string) {
-  return new FirebaseError(code, `Firebase: Error (${code}).`);
-}
-
-const firebaseRoleByUiRole: Record<User["role"], string> = {
-  organiser: "ORGANISER",
-  coordinator: "COORDINATOR",
-  venue_staff: "VENUE_STAFF",
-  tech_support: "TECH_SUPPORT",
-  attendee: "ATTENDEE",
-};
+const PASSWORD = "P@55w0rd";
+const seedAccounts: ReadonlyArray<{ email: string; role: User["role"] }> = [
+  { email: "organiser1@connectsphere.test", role: "organiser" },
+  { email: "coordinator1@connectsphere.test", role: "coordinator" },
+  { email: "venue_staff1@connectsphere.test", role: "venue_staff" },
+  { email: "tech_support1@connectsphere.test", role: "tech_support" },
+  { email: "attendee1@connectsphere.test", role: "attendee" },
+];
 
 /**
- * Creates a successful Firebase credential with the role expected for the
- * account under test. The real store reads this claim before marking a user
- * authenticated, so a login test must not reuse an attendee claim for every
- * account.
- *
- * @param role - Frontend role represented by the Firebase custom claim.
- * @param email - Email address returned by the Firebase user.
- * @returns Firebase sign-in credential test double.
+ * Creates the server-owned user shape returned after a successful session
+ * login. Each role gets its own fixture so route-guard state is never tested
+ * with an accidentally reused attendee identity.
  */
-function successfulCredential(
-  role: User["role"] = "attendee",
-  email = "attendee@connectsphere.sg"
-) {
-  return {
-    user: {
-      uid: `${role}-1`,
-      email,
-      displayName: role,
-      getIdTokenResult: vi.fn().mockResolvedValue({
-        claims: { roles: [firebaseRoleByUiRole[role]] },
-      }),
-    },
-  } as never;
+function userFor(email: string, role: User["role"]): User {
+  return { id: `${role}-1`, email, name: role, role };
 }
 
 async function fillAndSubmit(email: string, password: string) {
@@ -72,247 +44,172 @@ async function fillAndSubmit(email: string, password: string) {
 }
 
 beforeEach(() => {
-  mockSignIn.mockReset();
-  // The store is a singleton, so each test starts from a known,
-  // unauthenticated, "auth check finished" state instead of leaking
-  // whatever the previous test left behind.
-  useAppStore.setState({ isAuthenticated: false, authLoading: false, login: storeLogin });
+  mockAuthenticate.mockReset();
+  // Zustand is a singleton. Reset authentication state and restore the real
+  // action so no earlier test's session or one-off login double leaks here.
+  useAppStore.setState({
+    authLoading: false,
+    isAuthenticated: false,
+    currentUser: { id: "current-user", name: "Current User", email: "", role: "attendee" },
+    login: storeLogin,
+  });
 });
 
-describe("LoginPage — rendering", () => {
+describe("LoginPage — PostgreSQL session authentication", () => {
   it("renders the sign-in form", () => {
     renderLoginPage();
-
     expect(screen.getByRole("heading", { name: /connectsphere/i })).toBeInTheDocument();
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/password/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /log in/i })).toBeInTheDocument();
   });
 
-  it("shows a loading screen instead of the form while the initial auth check is in progress", () => {
+  // USER-LOGIN-02-D: session restoration is resolved before the form is displayed.
+  it("shows authentication loading during session restoration", () => {
     useAppStore.setState({ authLoading: true, isAuthenticated: false });
     renderLoginPage();
-
     expect(screen.getByText(/checking your sign-in status/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
-    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
-  it("redirects to / immediately if the user is already authenticated", async () => {
-    useAppStore.setState({ authLoading: false, isAuthenticated: true });
+  // USER-LOGIN-02-C: an existing session redirects without exposing login fields.
+  it("redirects an already authenticated user", async () => {
+    useAppStore.setState({ isAuthenticated: true, currentUser: userFor("attendee1@connectsphere.test", "attendee") });
     renderLoginPage();
-
-    await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
+    expect(await screen.findByTestId("home-screen")).toBeInTheDocument();
     expect(screen.queryByLabelText(/email/i)).not.toBeInTheDocument();
   });
-});
 
-describe("LoginPage — client-side field validation", () => {
-  it("requires both fields when the form is submitted empty", async () => {
+  // USER-LOGIN-01-B: both blank fields are rejected before the backend is called.
+  it("requires both fields and marks them invalid", async () => {
     renderLoginPage();
-
     await userEvent.setup().click(screen.getByRole("button", { name: /log in/i }));
-
     expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
     expect(screen.getByText(/password is required/i)).toBeInTheDocument();
-    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(screen.getByLabelText(/email/i)).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText(/password/i)).toHaveAttribute("aria-invalid", "true");
+    expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
-  it("requires an email when only the password is filled in", async () => {
+  // USER-LOGIN-01-B: each missing field receives only its own validation message.
+  it.each([
+    ["email", "", PASSWORD, /email is required/i, /password is required/i],
+    ["password", "attendee1@connectsphere.test", "", /password is required/i, /email is required/i],
+  ])("requires the %s field independently", async (_, email, password, expected, absent) => {
     renderLoginPage();
-    await fillAndSubmit("", "some-password");
-
-    expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
-    expect(screen.queryByText(/password is required/i)).not.toBeInTheDocument();
-    expect(mockSignIn).not.toHaveBeenCalled();
+    await fillAndSubmit(email, password);
+    expect(await screen.findByText(expected)).toBeInTheDocument();
+    expect(screen.queryByText(absent)).not.toBeInTheDocument();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
-  it("requires a password when only the email is filled in", async () => {
-    renderLoginPage();
-    await fillAndSubmit("attendee@connectsphere.sg", "");
-
-    expect(await screen.findByText(/password is required/i)).toBeInTheDocument();
-    expect(screen.queryByText(/email is required/i)).not.toBeInTheDocument();
-    expect(mockSignIn).not.toHaveBeenCalled();
-  });
-
+  // USER-LOGIN-01-B: whitespace-only emails are not valid credentials.
   it("treats a whitespace-only email as missing", async () => {
     renderLoginPage();
-    await fillAndSubmit("   ", "some-password");
-
+    await fillAndSubmit("   ", PASSWORD);
     expect(await screen.findByText(/email is required/i)).toBeInTheDocument();
-    expect(mockSignIn).not.toHaveBeenCalled();
+    expect(mockAuthenticate).not.toHaveBeenCalled();
   });
 
-  it("marks invalid fields with aria-invalid for assistive tech", async () => {
+  // USER-LOGIN-01-B: correcting a field removes its old validation error.
+  it("clears a validation error after corrected credentials are submitted", async () => {
+    mockAuthenticate.mockResolvedValueOnce(userFor("attendee1@connectsphere.test", "attendee"));
     renderLoginPage();
-    await userEvent.setup().click(screen.getByRole("button", { name: /log in/i }));
-
-    expect(await screen.findByLabelText(/email/i)).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText(/password/i)).toHaveAttribute("aria-invalid", "true");
-  });
-
-  it("clears a field error on the next successful submission", async () => {
-    mockSignIn.mockResolvedValueOnce(successfulCredential());
-    renderLoginPage();
-
     // First submit: no password yet.
-    await fillAndSubmit("attendee@connectsphere.sg", "");
+    await fillAndSubmit("attendee1@connectsphere.test", "");
     expect(await screen.findByText(/password is required/i)).toBeInTheDocument();
-
-    // Fix it and resubmit.
-    await userEvent.setup().type(screen.getByLabelText(/password/i), SEED_PASSWORD);
-    await userEvent.setup().click(screen.getByRole("button", { name: /log in/i }));
-
+    const user = userEvent.setup();
+    // Fix the field and resubmit with a seeded development credential.
+    await user.type(screen.getByLabelText(/password/i), PASSWORD);
+    await user.click(screen.getByRole("button", { name: /log in/i }));
     await waitFor(() => expect(screen.queryByText(/password is required/i)).not.toBeInTheDocument());
   });
-});
 
-describe("LoginPage — correct credentials", () => {
-  it.each(SEED_USERS)(
-    "signs in the $role account ($email) and redirects to /",
-    async ({ email, password, role }) => {
-      mockSignIn.mockResolvedValueOnce(successfulCredential(role as User["role"], email));
-      renderLoginPage();
-
-      await fillAndSubmit(email, password);
-
-      await waitFor(() => expect(mockSignIn).toHaveBeenCalledTimes(1));
-      expect(mockSignIn).toHaveBeenCalledWith(expect.anything(), email, password);
-      await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
-      expect(useAppStore.getState().currentUser.role).toBe(role);
-    }
-  );
-
-  it("trims surrounding whitespace from the email before signing in", async () => {
-    mockSignIn.mockResolvedValueOnce(successfulCredential());
+  // USER-LOGIN-01-A and USER-LOGIN-02-A: every seeded role reaches the dashboard with its server role.
+  it.each(seedAccounts)("signs in the $role seed account", async ({ email, role }) => {
+    mockAuthenticate.mockResolvedValueOnce(userFor(email, role));
     renderLoginPage();
-
-    await fillAndSubmit("  attendee@connectsphere.sg  ", SEED_PASSWORD);
-
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith(expect.anything(), "attendee@connectsphere.sg", SEED_PASSWORD)
-    );
+    await fillAndSubmit(email, PASSWORD);
+    await waitFor(() => expect(mockAuthenticate).toHaveBeenCalledWith(email, PASSWORD));
+    expect(await screen.findByTestId("home-screen")).toBeInTheDocument();
+    expect(useAppStore.getState().currentUser.role).toBe(role);
   });
 
-  it("redirects back to the page the user originally tried to visit", async () => {
-    mockSignIn.mockResolvedValueOnce(successfulCredential());
+  // USER-LOGIN-01-A: normalization occurs before credentials are sent to the backend.
+  it("trims surrounding email whitespace before login", async () => {
+    mockAuthenticate.mockResolvedValueOnce(userFor("attendee1@connectsphere.test", "attendee"));
+    renderLoginPage();
+    await fillAndSubmit(" attendee1@connectsphere.test ", PASSWORD);
+    await waitFor(() => expect(mockAuthenticate).toHaveBeenCalledWith("attendee1@connectsphere.test", PASSWORD));
+  });
+
+  // USER-LOGIN-01-C: a pending request disables the button and a second click is a no-op.
+  it("prevents duplicate login while a request is pending", async () => {
+    let resolveLogin!: (account: User) => void;
+    mockAuthenticate.mockReturnValueOnce(new Promise<User>((resolve) => { resolveLogin = resolve; }));
+    renderLoginPage();
+    const user = await fillAndSubmit("attendee1@connectsphere.test", PASSWORD);
+    const button = await screen.findByRole("button", { name: /signing in/i });
+    expect(button).toBeDisabled();
+    // A disabled browser control cannot cause another login request.
+    await user.click(button);
+    expect(mockAuthenticate).toHaveBeenCalledTimes(1);
+    resolveLogin(userFor("attendee1@connectsphere.test", "attendee"));
+    expect(await screen.findByTestId("home-screen")).toBeInTheDocument();
+  });
+
+  // USER-LOGIN-02-B: the original protected route is restored after login.
+  it("returns the user to the requested route", async () => {
+    mockAuthenticate.mockResolvedValueOnce(userFor("organiser1@connectsphere.test", "organiser"));
     renderLoginPage({ from: "/events" });
-
-    await fillAndSubmit("organiser@connectsphere.sg", SEED_PASSWORD);
-
-    await waitFor(() => expect(screen.getByTestId("events-screen")).toBeInTheDocument());
+    await fillAndSubmit("organiser1@connectsphere.test", PASSWORD);
+    expect(await screen.findByTestId("events-screen")).toBeInTheDocument();
   });
 
-  it("disables the submit button and shows progress text while the request is in flight", async () => {
-    let resolveSignIn!: () => void;
-    mockSignIn.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveSignIn = () => resolve(successfulCredential());
-      })
-    );
+  // USER-LOGIN-03-A: invalid credentials receive the generic server-safe error and retain the email.
+  it("shows an invalid-credential error without creating a session", async () => {
+    mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));
     renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", SEED_PASSWORD);
-
-    const pendingButton = await screen.findByRole("button", { name: /signing in/i });
-    expect(pendingButton).toBeDisabled();
-
-    resolveSignIn();
-    await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
-  });
-});
-
-describe("LoginPage — incorrect credentials", () => {
-  const cases: Array<{ description: string; code: string; expected: RegExp }> = [
-    { description: "wrong password for an existing account", code: "auth/wrong-password", expected: /incorrect email or password/i },
-    { description: "credential rejected (modern Firebase error for bad email/password)", code: "auth/invalid-credential", expected: /incorrect email or password/i },
-    { description: "email with no matching account", code: "auth/user-not-found", expected: /couldn't find an account/i },
-    { description: "malformed email address", code: "auth/invalid-email", expected: /email address doesn't look right/i },
-    { description: "disabled account", code: "auth/user-disabled", expected: /account has been disabled/i },
-    { description: "rate-limited after repeated bad attempts", code: "auth/too-many-requests", expected: /too many attempts/i },
-    { description: "network failure while contacting Firebase", code: "auth/network-request-failed", expected: /network error/i },
-    { description: "unrecognized Firebase error code", code: "auth/some-future-error-code", expected: /couldn't sign you in\. please try again/i },
-  ];
-
-  it.each(cases)("shows the right message for: $description", async ({ code, expected }) => {
-    mockSignIn.mockRejectedValueOnce(firebaseError(code));
-    renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
-
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(expected);
-    // Fields keep their entered values so the user can correct just the
-    // password without retyping the email.
-    expect(screen.getByLabelText(/email/i)).toHaveValue("attendee@connectsphere.sg");
+    await fillAndSubmit("attendee1@connectsphere.test", "wrong-password");
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid email or password");
+    // Retain the email so the user needs to correct only the password.
+    expect(screen.getByLabelText(/email/i)).toHaveValue("attendee1@connectsphere.test");
     expect(screen.queryByTestId("home-screen")).not.toBeInTheDocument();
   });
 
-  it("falls back to a generic message for a non-Firebase error", async () => {
-    mockSignIn.mockRejectedValueOnce(new Error("boom"));
+  // USER-LOGIN-03-B: unexpected failures and missing error details never expose raw errors.
+  it.each([
+    ["an unexpected error", () => mockAuthenticate.mockRejectedValueOnce(new Error("database unavailable"))],
+    ["a failed result without detail", () => useAppStore.setState({ login: vi.fn().mockResolvedValue({ success: false }) })],
+  ])("shows a generic error for %s", async (_, arrange) => {
+    arrange();
     renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", "irrelevant");
-
-    expect(await screen.findByText(/couldn't sign you in\. please try again/i)).toBeInTheDocument();
+    await fillAndSubmit("attendee1@connectsphere.test", "wrong-password");
+    expect(await screen.findByRole("alert")).toHaveTextContent("We couldn't sign you in. Please try again.");
   });
 
-  it("uses a generic message when a failed login provides no error detail", async () => {
-    useAppStore.setState({ login: vi.fn().mockResolvedValue({ success: false }) });
+  // USER-LOGIN-03-C: the user can correct credentials after a failed attempt.
+  it("re-enables the submit button after login fails", async () => {
+    mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));
     renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
-
-    expect(await screen.findByText(/couldn't sign you in\. please try again/i)).toBeInTheDocument();
+    await fillAndSubmit("attendee1@connectsphere.test", "wrong-password");
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: /^log in$/i })).toBeEnabled();
   });
 
-  it("re-enables the submit button after a failed attempt so the user can retry", async () => {
-    mockSignIn.mockRejectedValueOnce(firebaseError("auth/wrong-password"));
+  // USER-LOGIN-03-D: a successful retry clears the stale error and opens the dashboard.
+  it("clears an earlier error after a corrected retry", async () => {
+    mockAuthenticate.mockRejectedValueOnce(new AuthError(401, "Invalid email or password"));
+    mockAuthenticate.mockResolvedValueOnce(userFor("attendee1@connectsphere.test", "attendee"));
     renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
-
-    await screen.findByText(/incorrect email or password/i);
-    const button = screen.getByRole("button", { name: /^log in$/i });
-    expect(button).toBeEnabled();
-  });
-
-  it("clears the previous error banner as soon as a new attempt is submitted", async () => {
-    mockSignIn.mockRejectedValueOnce(firebaseError("auth/wrong-password"));
-    mockSignIn.mockResolvedValueOnce(successfulCredential());
-    renderLoginPage();
-
-    await fillAndSubmit("attendee@connectsphere.sg", "wrong-password");
-    expect(await screen.findByText(/incorrect email or password/i)).toBeInTheDocument();
-
-    // Correct the password and resubmit.
-    const passwordInput = screen.getByLabelText(/password/i);
-    await userEvent.setup().clear(passwordInput);
-    await userEvent.setup().type(passwordInput, SEED_PASSWORD);
-    await userEvent.setup().click(screen.getByRole("button", { name: /^log in$/i }));
-
-    await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
-  });
-
-  it("does not call Firebase again while a previous request is still pending", async () => {
-    let resolveSignIn!: () => void;
-    mockSignIn.mockReturnValueOnce(
-      new Promise((resolve) => {
-        resolveSignIn = () => resolve(successfulCredential());
-      })
-    );
-    renderLoginPage();
-
+    await fillAndSubmit("attendee1@connectsphere.test", "wrong-password");
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
     const user = userEvent.setup();
-    await user.type(screen.getByLabelText(/email/i), "attendee@connectsphere.sg");
-    await user.type(screen.getByLabelText(/password/i), SEED_PASSWORD);
-    await user.click(screen.getByRole("button", { name: /log in/i }));
-    // Button is now disabled; a second click is a no-op.
-    await user.click(await screen.findByRole("button", { name: /signing in/i }));
-
-    expect(mockSignIn).toHaveBeenCalledTimes(1);
-    resolveSignIn();
-    await waitFor(() => expect(screen.getByTestId("home-screen")).toBeInTheDocument());
+    // Correct the password and resubmit the same form instance.
+    await user.clear(screen.getByLabelText(/password/i));
+    await user.type(screen.getByLabelText(/password/i), PASSWORD);
+    await user.click(screen.getByRole("button", { name: /^log in$/i }));
+    expect(await screen.findByTestId("home-screen")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
