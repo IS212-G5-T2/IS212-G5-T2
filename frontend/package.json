@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:cov": "vitest run --cov",
+    "test:cov": "vitest run --coverage",
     "test:cov:spm37": "vitest run --config vitest.spm37.config.ts"
   },
   "dependencies": {

@@ -50,7 +50,7 @@ are meaningful only when the selected suite passes and includes those tests.
 ```sh
 npm test              # run the suite once
 npm run test:watch    # re-run on file changes while developing
-npm run test:coverage # run once with a coverage report
+npm run test:cov      # run once with a coverage report
 ```
 
 Test files live alongside the code they cover (for example,

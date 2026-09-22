@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Corrected the frontend CI unit-test entrypoint to invoke the configured
+  `test:cov` coverage script.
+
 - Keep drafts and submitted events private to their verified Firebase owner. Clear cached events and remount account pages when the signed-in user changes.
 
 - Keep submitted events visible in My Events when the local API organiser ID differs from the signed-in Firebase UID. My drafts shows only Draft records.
