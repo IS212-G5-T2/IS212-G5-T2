@@ -6,13 +6,19 @@
 
 The generated starter endpoint currently returns `Hello World!`, and `/healthz` returns a simple health payload.
 
-`AuthModule` provides shared Firebase JWT authentication middleware and database-backed RBAC helpers. Route-owning modules apply `FirebaseAuthenticationMiddleware` to their controllers; it verifies Bearer tokens for non-public routes and attaches the verified Firebase user to `request.currentUser`.
+`AuthModule` provides PostgreSQL-backed session authentication middleware and database-backed RBAC helpers. Route-owning modules apply `AuthenticationMiddleware` to protected controllers; it validates the HTTP-only session cookie and attaches the authenticated user to `request.currentUser`.
 
-When `FIREBASE_AUTH_EMULATOR_HOST` is configured, `FirebaseTokenService` initializes Firebase Admin with `GCLOUD_PROJECT` (default `demo-is212`) and no service-account credential. This is for the shared local Auth Emulator only; non-emulator environments continue to use the configured service account or application-default credentials.
+`RbacRepository` reads the existing local database tables: `roles`, `resources`, and `role_permissions`. Its composable permission predicate is intended to be embedded in resource SQL alongside ownership conditions, so authorization and the data operation can execute in one database request. Runtime configuration requires `DATABASE_URL` plus optional `AUTH_COOKIE_NAME`, `AUTH_COOKIE_SECURE`, and `AUTH_SESSION_TTL_HOURS` overrides.
 
-`RbacRepository` reads the existing local database tables: `roles`, `resources`, and `role_permissions`. Its composable permission predicate is intended to be embedded in resource SQL alongside ownership conditions, so authorization and the data operation can execute in one database request. Runtime configuration requires `DATABASE_URL`; Firebase Admin prefers `FIREBASE_SERVICE_ACCOUNT_PATH`, falls back to `FIREBASE_SERVICE_ACCOUNT_JSON`, and otherwise uses application default credentials.
+Auth source is split by responsibility: `src/config/auth.config.ts` parses and
+validates session environment settings; `src/auth/authentication` owns login,
+logout, session lookup, and middleware; `src/auth/authorization` owns
+RBAC/ownership services; and `src/auth/models` owns shared auth types.
 
-Auth source is split by responsibility: `src/auth/authentication` for token verification and middleware, `src/auth/authorization` for RBAC/ownership services, and `src/auth/models` for shared auth types.
+Authentication uses `users`, `user_roles`, and `auth_sessions`, seeded together
+in `development/database/postgresql/init/001_users.sql`. Sessions are opaque
+HTTP-only cookies whose SHA-256 digests are persisted. The frontend uses
+`/api/auth/login`, `/api/auth/me`, and `/api/auth/logout`.
 
 `DatabaseModule` centralizes PostgreSQL access. Repositories should inject
 `DatabaseService` instead of creating new pools so connection limits, timeouts,
@@ -29,13 +35,15 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
 
 - Start backend feature work from Jira acceptance criteria.
 - Keep API contract changes coordinated with the frontend under `apps/`.
-- Reuse `FirebaseAuthenticationMiddleware` for token verification and
-  `RbacRepository` for composable resource-query permission checks instead of
-  duplicating RBAC SQL in controllers. Draft and event controllers apply this middleware and require the ORGANISER role.
+- Reuse `AuthenticationMiddleware` for session verification and `RbacRepository`
+  for composable resource-query permission checks instead of
+  duplicating RBAC SQL in controllers. The current event controller has not
+  yet been wired to this middleware.
 - Use `DatabaseService` for new PostgreSQL queries; do not instantiate
   `pg.Pool` inside feature repositories. Migrate the current event pool as part
   of hardening that endpoint.
-- Keep Firebase `roles` claim values aligned with the RBAC seed values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
+- Keep account role values aligned with the RBAC seed values: `ORGANISER`,
+  `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
 - Keep exactly one CI unit-test entrypoint at `scripts/ci/unit-test.sh`.
 - Review the npm audit output from adding Firebase Admin/PostgreSQL dependencies before release hardening.
 - No deployment path is configured in this repository.
@@ -86,7 +94,7 @@ Known gaps to close before this is fully production-ready:
   only. It does not replace the frontend's broader mock notification system
   in `useAppStore.ts` (approvals, rejections, venue bookings, etc.), which
   remains client-only.
-- RBAC's `002_rbac.sql` seed grants `ORGANISER` only `read` on the "Event
+- RBAC's `001_rbac.sql` seed grants `ORGANISER` only `read` on the "Event
   Review" resource (not `update`), so the Organiser-reply endpoint is
   authorized by a direct `organiser_id` ownership check rather than
   `RbacRepository`'s predicate builder. See the comment in

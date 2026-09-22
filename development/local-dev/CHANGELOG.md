@@ -9,7 +9,7 @@
 ## 2026-09-15
 
 - Simplified the local Compose stack to frontend, backend, and PostgreSQL.
-- Removed gateway, GCS, Pub/Sub, initialization, and Adminer services; the backend is now exposed directly on `localhost:3000`.
+- Removed gateway, GCS, Pub/Sub, initialization, and Adminer services; the backend is now exposed directly on `localhost:8080`.
 
 ## 2026-09-11
 

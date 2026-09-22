@@ -8,7 +8,7 @@ The stack is local-only; this repository no longer contains deployment, Terrafor
 | --- | --- |
 | Compose network | `spm` |
 | Frontend container | `frontend` on `localhost:5173` |
-| Backend container | `backend` on `localhost:3000` |
+| Backend container | `backend` on `localhost:8080` |
 | PostgreSQL | `postgres` on `localhost:5432` |
 | Runtime configuration | `.env` file |
 | Service readiness | Compose health checks |
@@ -34,7 +34,7 @@ The Compose build contexts expect `../../apps/frontend` for the React/Vite front
 3. Check the backend:
 
    ```sh
-   curl http://localhost:3000/healthz
+   curl http://localhost:8080/healthz
    ```
 
 The response should show `status: ok` once Postgres is ready and the backend service has started.
@@ -50,7 +50,7 @@ The response should show `status: ok` once Postgres is ready and the backend ser
 | Service | URL |
 | --- | --- |
 | Frontend | `http://localhost:5173` |
-| Backend | `http://localhost:3000/healthz` |
+| Backend | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
 
 ## Local Configuration
@@ -63,21 +63,23 @@ Use local-only values in `.env`. Do not commit real credentials.
 
 `VITE_API_BASE_URL` is passed into the frontend container. PostgreSQL and backend settings stay on their respective containers.
 
-## Firebase Authentication
+## PostgreSQL Authentication
 
-The Compose stack uses the real Firebase project configured in this folder's
-untracked `.env` file for frontend sign-in and the backend `/auth/me` endpoint.
-Fill the `VITE_FIREBASE_*` values with the Firebase Web app configuration,
-enable Email/Password sign-in, and use dedicated non-production Firebase users
-for local testing.
+The backend authenticates against PostgreSQL at `/api/auth/login`,
+`/api/auth/me`, and `/api/auth/logout`. Login sets an HTTP-only `SameSite=Lax`
+cookie with an eight-hour default lifetime. The Compose defaults keep
+`AUTH_COOKIE_SECURE=false` for `http://localhost`; set it to `true` only behind
+HTTPS.
 
-Set `FIREBASE_SERVICE_ACCOUNT_JSON` to the complete service-account JSON for
-the same Firebase project. The backend needs it to verify real Firebase ID
-tokens. Never commit that JSON or use a production Firebase project for local
-testing.
+Fresh database volumes receive local role accounts automatically. Existing
+volumes can receive them without a reset (they already contain the RBAC seed):
 
-The Firebase Auth Emulator is reserved for the GitHub Actions E2E test; it is
-not started by local Docker Compose.
+```sh
+docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < ../database/postgresql/init/001_users.sql
+```
+
+Use the documented development accounts and password in
+`development/database/README.md`; never reuse them outside local development.
 
 ## Frontend, Backend, And Database Layout
 
@@ -90,7 +92,7 @@ Local orchestration is intentionally split by responsibility:
 | `development/database/postgresql` | Local PostgreSQL image and initialization assets |
 | `development/local-dev` | Three-tier Docker Compose orchestration and local stack docs |
 
-The frontend is exposed on `localhost:5173`; the backend is exposed directly on `localhost:3000` and PostgreSQL on `localhost:5432`.
+The frontend is exposed on `localhost:5173`; the backend is exposed directly on `localhost:8080` and PostgreSQL on `localhost:5432`.
 
 ## Replacing The Backend Service
 
@@ -146,8 +148,8 @@ The local `spm` PostgreSQL database stores requests in `events`. `002_events.sql
 For an existing local volume, apply these additive scripts from the repository root (no reset needed):
 
 ```sh
-docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_events.sql
-docker compose -f development/local-dev/compose.yaml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/003_sample_events.sql
+docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_events.sql
+docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/003_sample_events.sql
 ```
 
 The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.

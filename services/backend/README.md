@@ -2,46 +2,57 @@
 
 NestJS backend service for the IS212 G5 T2 workspace.
 
-This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes the starter endpoint, a health check, and shared Firebase JWT middleware/RBAC services for protected endpoints.
+This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes a health check, PostgreSQL-backed authentication, and RBAC services for protected endpoints.
 
 ## Authentication endpoint
 
-`GET /auth/me` requires `Authorization: Bearer <Firebase ID token>`. It returns
-the verified Firebase UID, optional email, and normalized application roles.
-Missing, malformed, or invalid tokens receive `401 Unauthorized`.
+The cookie-based API never returns password hashes or session tokens:
+
+- `POST /api/auth/login` accepts `{ "email", "password" }`, creates an
+  eight-hour server-side session, and sets an HTTP-only `SameSite=Lax` cookie.
+- `GET /api/auth/me` reads that cookie and returns the authenticated user identity
+  and roles.
+- `POST /api/auth/logout` revokes the persisted session and clears the
+  cookie.
+
+The local database seeds one account per role. All use password
+`P@55w0rd` and are strictly for local development:
+
+| Role | Email |
+| --- | --- |
+| Organiser | `organiser@local.connectsphere.test` |
+| Coordinator | `coordinator@local.connectsphere.test` |
+| Venue Staff | `venue.staff@local.connectsphere.test` |
+| Tech Support | `tech.support@local.connectsphere.test` |
+| Attendee | `attendee@local.connectsphere.test` |
+
+Sessions are opaque random values. PostgreSQL retains only their SHA-256
+digests in `auth_sessions`; passwords are verified with bcrypt through the
+PostgreSQL `pgcrypto` extension. Configure `AUTH_COOKIE_NAME`,
+`AUTH_COOKIE_SECURE`, and `AUTH_SESSION_TTL_HOURS` in `.env`.
+Keep `AUTH_COOKIE_SECURE=false` only for local HTTP; set it to `true`
+when serving HTTPS.
 
 ## Authorization
 
-Route-owning modules must apply `FirebaseAuthenticationMiddleware` to protected
+Route-owning modules must apply `AuthenticationMiddleware` to protected
 controllers. The app module currently applies it only to `AuthController`.
-The current events controller is therefore not Firebase-protected. When the
+The current events controller is therefore not session-protected. When the
 middleware is applied to a controller, it:
 
 - Leaves public `GET /` and `GET /healthz` requests alone.
-- Requires `Authorization: Bearer <Firebase ID token>` for that protected
-  controller's non-public routes.
-- Verifies the token with Firebase Admin before trusting any claims.
-- Extracts the authenticated Firebase `uid` and normalized `roles` claim.
-- Attaches the verified user to `request.currentUser`.
+- Requires a valid session cookie for that protected controller's non-public routes.
+- Resolves the account identity and normalized roles from PostgreSQL.
+- Attaches the authenticated user to `request.currentUser`.
 
 `RbacRepository` reads PostgreSQL `roles`, `resources`, and `role_permissions` rows and builds composable permission predicates for resource queries. Protected resource repositories should include the predicate and ownership condition in the same `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement.
-
-### Assigning local Firebase test roles
-
-For the five manual integration-test users, update the email placeholders in `scripts/set-firebase-roles.mjs`, then run it from this directory:
-
-```sh
-FIREBASE_SERVICE_ACCOUNT_PATH="/absolute/path/to/service-account.json" \
-  node scripts/set-firebase-roles.mjs
-```
-
-Generate the service-account JSON in Firebase Console → Project settings → Service accounts. Keep it outside the repository and do not commit it. The script preserves other custom claims while setting `roles` to an array of supported values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`. Users can have more than one role, for example `roles: ['ORGANISER', 'ATTENDEE']`. Users must sign out and back in after the script completes.
 
 Auth code is organized by responsibility:
 
 | Path | Purpose |
 | --- | --- |
-| `src/auth/authentication/` | Firebase ID token verification and request authentication middleware. |
+| `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
+| `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
 | `src/auth/authorization/` | RBAC permission and ownership checks. |
 | `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
 
@@ -61,10 +72,10 @@ Required runtime configuration:
 | Variable | Purpose |
 | --- | --- |
 | `DATABASE_URL` | PostgreSQL connection string used for RBAC lookups. |
-| `FIREBASE_SERVICE_ACCOUNT_PATH` | Optional path to a Firebase service account JSON file for local development. |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Optional raw Firebase service account JSON fallback for CI/emergency use. |
+| `AUTH_COOKIE_NAME` | Name of the HTTP-only session cookie. |
+| `AUTH_COOKIE_SECURE` | Set `true` when the backend is served over HTTPS. |
+| `AUTH_SESSION_TTL_HOURS` | Session lifetime; defaults to `8`, maximum `168`. |
 
-If both Firebase service account variables are omitted, Firebase Admin uses application default credentials.
 This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes event submission and retrieval endpoints alongside the starter health checks.
 
 ## Setup

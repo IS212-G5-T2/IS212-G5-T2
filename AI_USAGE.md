@@ -21,6 +21,214 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-22 - Codex (GPT-5) - Correct event-assignment E2E seed parameter mapping
+
+- Issue/PR: SPM-30
+- Human requester/operator: swr
+- Areas touched: `services/backend/test`, `AI_USAGE.md`
+- Summary: Restored the event seed query's placeholders so organiser, coordinator, attachments, and status values align with the supplied PostgreSQL parameter array.
+- AI contribution: Parameter-mapping diagnosis and commit-history cleanup.
+- Assumptions: `$6` represents the status value because it is the sixth query parameter; the explicit INSERT column list determines where that value is stored.
+- Checks run: Focused `events-assign.e2e-spec.ts` execution attempted; blocked because no PostgreSQL service is listening on local port 5432.
+- Follow-up/conflict notes: The correction is folded into the existing SPM-30 test commit; no remote push was made.
+
+## 2026-09-22 - Codex (GPT-5) - Convert event-assignment E2E authentication to PostgreSQL sessions
+
+- Issue/PR: SPM-37
+- Human requester/operator: swr
+- Areas touched: `services/backend/test`, `AI_USAGE.md`
+- Summary: Replaced the obsolete Firebase-token mock in the event-assignment E2E suite with temporary PostgreSQL users and real login cookies, including cleanup of test users and events.
+- AI contribution: Firebase-removal regression diagnosis, E2E fixture migration, and static verification.
+- Assumptions: Event route authentication is intentionally backed by the local PostgreSQL session middleware; temporary users are safe to delete after their test events.
+- Checks run: Backend lint and build passed; PostgreSQL E2E rerun pending because Docker Desktop is unavailable.
+- Follow-up/conflict notes: No commit or push created.
+
+## 2026-09-22 - Codex (GPT-5) - Wait for final PostgreSQL startup in E2E CI
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/workflows`, `AI_USAGE.md`
+- Summary: Corrected the CI readiness gate to wait for the PostgreSQL image's initialization phase to finish before accepting the final server as ready.
+- AI contribution: PostgreSQL container-log analysis and CI readiness repair.
+- Assumptions: The official image retains its documented initialization-complete log message; the final `pg_isready` probe confirms its replacement server is accepting connections.
+- Checks run: Reviewed failed CI container logs and shell syntax; GitHub Actions rerun pending.
+- Follow-up/conflict notes: The prior readiness check passed against a temporary initialization server that was intentionally shut down seconds later.
+
+## 2026-09-22 - Codex (GPT-5) - Restore event-assignment API import
+
+- Issue/PR: SPM-37
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/store`, `AI_USAGE.md`
+- Summary: Restored the `api` helper import removed during merge resolution so coordinator assignments can persist after their optimistic state update.
+- AI contribution: Merge regression diagnosis and focused test verification.
+- Assumptions: The existing `/events/:id/assign` API call is the intended assignment persistence contract.
+- Checks run: Focused `useAppStore.events.test.ts` (5 passed); `git diff --check`.
+- Follow-up/conflict notes: The change is uncommitted and unpushed.
+
+## 2026-09-22 - Codex (GPT-5) - Serialize shared PostgreSQL E2E suites
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Configured Vitest to run PostgreSQL-backed E2E files sequentially because they share one mutable test database and clean up their own fixtures.
+- AI contribution: E2E failure diagnosis, test-runner configuration, and isolated-database verification.
+- Assumptions: A single disposable PostgreSQL instance is the intended E2E dependency; serial file execution is an acceptable reliability trade-off.
+- Checks run: `DATABASE_URL=postgresql://spm:spm_dev_password@127.0.0.1:5432/spm npm run test:e2e` against an isolated temporary PostgreSQL container (32 passed; 11 intentional skips); temporary container removed.
+- Follow-up/conflict notes: No commit or push created.
+
+## 2026-09-22 - Codex (GPT-5) - Guard browser-session restoration against stale auth updates
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/store`, `AI_USAGE.md`
+- Summary: Completed the auth revision guard so late session-restoration results cannot overwrite a newer login or logout, and added a regression test for a late restore after sign-out.
+- AI contribution: Merge-conflict diagnosis, state-race hardening, and unit testing.
+- Assumptions: Login and logout are newer auth decisions than a pending startup session restoration.
+- Checks run: Focused `useAppStore.auth.test.ts` (9 passed). Frontend lint and build remain blocked by pre-existing unrelated merge changes.
+- Follow-up/conflict notes: Current build errors include missing `Navigate`, `currentUserId`, and `api` identifiers; lint also reports unrelated unused variables.
+
+## 2026-09-22 - Codex (GPT-5) - Repair PostgreSQL E2E clarification session fixture
+
+- Issue/PR: SPM-39
+- Human requester/operator: swr
+- Areas touched: `services/backend/test`, `.github/workflows`, `AI_USAGE.md`
+- Summary: Updated the clarification E2E fixture to consume the configured PostgreSQL session cookie name, kept the expired-session fixture valid under the session timestamp constraint, and added PostgreSQL container-log output when E2E CI fails.
+- AI contribution: CI failure diagnosis, test-fixture repair, and CI diagnostics.
+- Assumptions: `connectsphere_session` remains the backend default cookie name; CI container logs are safe diagnostic output because the database contains local-only fixture data.
+- Checks run: `DATABASE_URL=postgresql://spm:spm_dev_password@127.0.0.1:5432/spm npm run test:e2e` against an isolated temporary PostgreSQL container (27 passed; 11 intentional skips); final container removed.
+- Follow-up/conflict notes: The earlier CI database termination needs the newly captured PostgreSQL logs if it recurs.
+
+## 2026-09-21 - Codex (GPT-5) - Complete frontend authentication-client coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/lib`, `AI_USAGE.md`
+- Summary: Expanded the PostgreSQL-session authentication client tests without removing traceability comments. Coverage now includes normalized multi-role mapping, unsupported roles, profile fallbacks, successful and failed login, malformed response fallbacks, session restoration states, logout, error construction, and the default API-base fallback.
+- AI contribution: Unit-test expansion, boundary analysis, and regression verification.
+- Assumptions: Browser authentication remains cookie-based, and `USER-LOGIN-01` identifiers remain the relevant test-case traceability labels.
+- Checks run: Focused auth coverage (15 passed; 100% statements, branches, functions, and lines) and frontend `npm test` (153 passed).
+- Follow-up/conflict notes: No files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Complete API helper coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/utils`, `AI_USAGE.md`
+- Summary: Merged duplicate session-header assertions and expanded API-helper coverage for configured/default origins, caller headers, network failure, non-JSON responses, validation errors, attachment-size errors, server errors, and the error type.
+- AI contribution: Unit-test consolidation, edge-case coverage, and verification.
+- Assumptions: Browser session cookies remain the sole authentication mechanism; frontend requests deliberately do not send an `Authorization` header.
+- Checks run: Focused API coverage (9 passed; 100% statements, branches, functions, and lines), frontend `npm test` (128 passed), build, and `git diff --check`.
+- Follow-up/conflict notes: Frontend lint remains blocked by unrelated existing unused variables in clarification/event-detail files. No files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Rebuild PostgreSQL login page tests
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/pages`, `AI_USAGE.md`
+- Summary: Rebuilt `LoginPage.test.tsx` from the current `USER-LOGIN-01/02/03` Confluence cases, retaining separate field-validation, pending-submission, redirect, and recovery checks while replacing Firebase doubles with the local backend-auth client.
+- AI contribution: Confluence-backed test migration, coverage expansion, and verification.
+- Assumptions: The numbered `@connectsphere.test` names are test fixtures matching the current seed data.
+- Checks run: Focused suite (21 passed), focused `LoginPage.tsx` coverage (100% statements, branches, functions, and lines), frontend `npm test` (121 passed), build, and `git diff --check`.
+- Follow-up/conflict notes: Frontend lint remains blocked by unrelated existing unused variables in clarification/event-detail files. No files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Harden PostgreSQL authentication E2E coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/test`, `development/database/postgresql/init`, `AI_USAGE.md`
+- Summary: Reworked the backend authentication E2E suite to use a real seeded account and cover successful session use, credential normalization and validation, enumeration-safe failures, invalid/missing cookies, logout clearing and revocation, expired sessions, and disabled accounts. Corrected malformed local-user seed SQL and its role-assignment email mismatch so CI can initialize the E2E database.
+- AI contribution: E2E test analysis, edge-case expansion, test-data repair, and verification.
+- Assumptions: `attendee1@connectsphere.test` and `P@55w0rd` are the intended local-only CI fixture; E2E coverage needs the CI PostgreSQL container to produce its final report.
+- Checks run: Backend lint passed; focused auth unit suite passed (23 tests). E2E execution could not run locally because Docker Desktop is stopped and this environment blocks listening sockets/database connections.
+- Follow-up/conflict notes: Existing authentication migration work was preserved. No commit, push, or pull request was created.
+
+## 2026-09-21 - Codex (GPT-5) - Restore local-login test traceability
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `apps/frontend/src/pages`, `apps/frontend/src/store`, `AI_USAGE.md`
+- Summary: Restored the deleted login-page unit suite as PostgreSQL-session tests and added direct `USER-LOGIN-01/02/03` Confluence test-case comments above each corresponding test. Updated unexpected-login-failure handling to use a generic user-safe message.
+- AI contribution: Confluence-to-test traceability, Firebase-to-local test migration, and frontend regression testing.
+- Assumptions: The numbered `@connectsphere.test` fixture accounts mirror the current schema text; live seed initialization remains blocked by the separately identified SQL consistency issue.
+- Checks run: Focused login suite (16 passed), frontend `npm test` (116 passed), build, and `git diff --check`. Lint remains blocked by four pre-existing unused variables in clarification/event-detail files outside this change.
+- Follow-up/conflict notes: No files were staged, committed, or pushed. The exact seed-account naming and schema repair still require the requester's direction.
+
+## 2026-09-21 - Codex (GPT-5) - Centralize authentication configuration
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `development/local-dev`, `AI_USAGE.md`
+- Summary: Moved session environment parsing from the authentication feature to `src/config/auth.config.ts`; standardized configuration and the default cookie as `AUTH_*` and `connectsphere_session` without a temporary local-auth namespace.
+- AI contribution: NestJS configuration-boundary refactor, environment/documentation updates, and regression checks.
+- Assumptions: PostgreSQL session authentication is the sole supported authentication implementation; `AUTH_COOKIE_SECURE=false` remains appropriate only for local HTTP development.
+- Checks run: Backend `npm test` (388 passed), lint, build, stale-name scan, and `git diff --check`.
+- Follow-up/conflict notes: The separately identified seeded-account email/schema inconsistency remains untouched pending the requester's choice of authoritative accounts; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Expand authentication repository edge coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authentication`, `AI_USAGE.md`
+- Summary: Added failure-path tests that verify each authentication repository operation propagates PostgreSQL failures instead of treating an outage as an authentication result.
+- AI contribution: Unit-test edge-case expansion and coverage verification.
+- Assumptions: Repository storage errors intentionally propagate to the service/global Nest error boundary; login remains responsible for mapping only absent account rows to invalid credentials.
+- Checks run: Focused repository coverage (10 passed; 100% statements, functions, and lines; 83.33% branches due solely to Nest decorator instrumentation), backend `npm test` (388 passed), lint, build, and `git diff --check`.
+- Follow-up/conflict notes: Existing uncommitted authentication migration work was preserved; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Align local development seed password
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `development/database`, `services/backend`, `AI_USAGE.md`
+- Summary: Aligned authentication unit/E2E fixtures and local setup documentation with the existing PostgreSQL seed password `P@55w0rd`.
+- AI contribution: Development credential consistency update and verification.
+- Assumptions: This is a deliberately non-production credential and has already been applied in the committed schema seed.
+- Checks run: Repository-wide old-password scan, backend `npm test` (384 passed), and `git diff --check`.
+- Follow-up/conflict notes: Existing uncommitted authentication migration work was preserved; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Minimize authenticated account data
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth`, `AI_USAGE.md`
+- Summary: Removed password hashes from the authentication repository SELECT result and account types; PostgreSQL retains credential verification through `crypt()` without returning the hash to application memory.
+- AI contribution: Authentication data-minimization refactor and regression testing.
+- Assumptions: A verified account requires only identity and role data after the database predicate succeeds.
+- Checks run: Backend `npm test` (384 passed), lint, build, password-hash reference scan, and `git diff --check`.
+- Follow-up/conflict notes: Database fixture inserts still set password hashes as required for test-user creation; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Cover authentication repository persistence boundary
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth/authentication`, `AI_USAGE.md`
+- Summary: Added focused unit coverage for PostgreSQL credential lookup, account/session row mapping, session creation, absent rows, and idempotent session revocation.
+- AI contribution: Repository-boundary tests and validation.
+- Assumptions: PostgreSQL itself remains covered by migration/E2E checks; these tests verify the repository's query contract and mapping without a database container.
+- Checks run: Focused Vitest coverage (6 tests; 100% statements, functions, and lines; remaining decorator-only branch instrumentation), backend `npm test` (384 passed), lint, build, and `git diff --check`.
+- Follow-up/conflict notes: Existing uncommitted authentication migration work was preserved; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Reorganize backend authentication source
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `services/backend/src/auth`, `services/backend/src/app.module.ts`, `AI_USAGE.md`
+- Summary: Grouped local login, session, repository, controller, configuration, middleware, and their unit tests under `src/auth/authentication`, while retaining the module, shared models, and RBAC authorization boundary at their existing feature-level locations.
+- AI contribution: Non-functional source-tree refactor and import-path correction.
+- Assumptions: The requested reorganization applies to the local-session implementation shown and should preserve every public endpoint and provider name.
+- Checks run: Backend authentication unit tests (75 passed), build, lint, and `git diff --check`.
+- Follow-up/conflict notes: Existing uncommitted authentication and Firebase-removal work was preserved; no files were staged, committed, or pushed.
+
+## 2026-09-21 - Codex (GPT-5) - Add PostgreSQL local-login foundation
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `development/database`, `development/local-dev`, `services/backend`, `AI_USAGE.md`
+- Summary: Replaced the incorrect untracked user SQL with ordered user/session schema and seeded local role accounts; added parallel cookie-based PostgreSQL login endpoints while preserving Firebase authentication.
+- AI contribution: Schema, backend authentication/session implementation, tests, and local setup documentation.
+- Assumptions: Firebase remains active until a later frontend/API cutover; documented `.test` credentials are development-only; local HTTP uses non-secure cookies.
+- Checks run: Backend unit tests (401 passed), build, lint, `git diff --check`, and Docker Compose configuration validation.
+- Follow-up/conflict notes: The confirmed untracked `001_user.sql` was replaced and renamed to `001_users.sql`; Docker was unavailable before implementation, so live database verification remains pending.
 ## 2026-09-22 - Claude (Sonnet 5) - Final negative/boundary/edge-case audit for SPM-38
 
 - Issue/PR: SPM-38 / branch `feature/SPM-38-Review-a-submitted-request-details` (no PR yet)
