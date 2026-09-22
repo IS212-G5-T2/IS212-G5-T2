@@ -1,0 +1,77 @@
+name: spm-local
+
+services:
+  frontend:
+    build:
+      context: ../frontend
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - frontend-node-modules:/app/node_modules
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - spm
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ../backend
+    environment:
+      - PORT=8080
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 10s
+    networks:
+      - spm
+    restart: unless-stopped
+
+  postgres:
+    build:
+      context: ../database/postgresql
+    env_file:
+      - .env.example
+      - path: .env
+        required: false
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ../backend/migrations/001_event_drafts.sql:/docker-entrypoint-initdb.d/004_event_drafts.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    networks:
+      - spm
+    restart: unless-stopped
+
+networks:
+  spm:
+    internal: false
+
+volumes:
+  frontend-node-modules:
+  postgres-data:

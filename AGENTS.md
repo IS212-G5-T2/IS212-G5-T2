@@ -56,30 +56,30 @@ This is one GitHub repository. Run Git commands, branch creation, commits, pushe
 
 | Path                     | Owns                                                                             | Does Not Own                                                                             |
 | ------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `apps/`                  | Frontend and client-facing applications.                                         | Backend service logic or shared local integration tooling.                               |
-| `services/`              | Backend services, service contracts, persistence logic, and service-level tests. | Frontend UI or shared local integration tooling.                                         |
-| `development/local-dev/` | Docker Compose local integration stack, local gateway, and emulator setup.       | Application feature ownership, database asset ownership, or production infrastructure.   |
-| `development/database/`  | Local database initialization assets for the shared local development stack.     | Backend persistence code, application migrations, or production database infrastructure. |
+| `frontend/`              | Frontend and client-facing application.                                          | Backend service logic or shared local integration tooling.                               |
+| `backend/`               | Backend service, contracts, persistence logic, and service-level tests.          | Frontend UI or shared local integration tooling.                                         |
+| `docker-compose/`        | Docker Compose local integration stack and local setup.                          | Application feature ownership, database asset ownership, or production infrastructure.   |
+| `database/`              | Local database initialization assets for the shared local development stack.      | Backend persistence code, application migrations, or production database infrastructure. |
 | `.github/workflows/`     | Repository-level GitHub Actions orchestration for security and tests.            | Component-specific test commands or release automation.                                  |
 | `docs/`                  | Durable workflow and process documentation.                                      | Dynamic task tracking, implementation source, environment secrets.                       |
 
 ## Component Boundaries
 
-Treat every direct child under `apps/` and `services/` as a component or project once it contains real implementation code. Each component must have a clear owner boundary.
+Treat every top-level application or service component as a project once it contains real implementation code. Each component must have a clear owner boundary.
 
-When adding a new project, such as `services/events-service`, create an `AGENTS.md` inside that project before or alongside implementation work. That file must state:
+When adding a new project, create an `AGENTS.md` inside that project before or alongside implementation work. That file must state:
 
 - What the project owns.
 - What the project explicitly does not own.
 - Its runtime, framework, and package manager once chosen.
 - Its public API, events, queues, database tables, or external integrations if any.
 - Its local setup, test, build, and CI entrypoints.
-- Which other folders it is allowed to coordinate with, such as `apps/`, `services/`, or `development/local-dev/`.
+- Which other folders it is allowed to coordinate with, such as `frontend/`, `backend/`, `database/`, or `docker-compose/`.
 
 Example for a new backend service:
 
 ```text
-services/events-service/
+events-service/
 |-- AGENTS.md
 |-- README.md
 |-- HANDOVER.md
@@ -96,8 +96,8 @@ Do not silently mix ownership areas. If a change crosses boundaries, name the af
 
 Common boundary crossings:
 
-- Frontend calling a backend API: read `apps/AGENTS.md`, the app's `AGENTS.md`, `services/AGENTS.md`, and the target service's `AGENTS.md`.
-- Local integration change: read `development/AGENTS.md` and `development/local-dev/README.md`.
+- Frontend calling a backend API: read `frontend/AGENTS.md` and `backend/AGENTS.md`.
+- Local integration change: read `docker-compose/AGENTS.md` and `docker-compose/README.md`.
 - CI change: read `docs/ci-process.md` and the relevant workflow under `.github/workflows/`.
 
 ## AI Usage Tracking

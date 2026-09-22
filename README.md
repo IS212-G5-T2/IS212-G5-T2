@@ -7,11 +7,12 @@ This repository contains the project code, local development setup, and GitHub A
 ```text
 .
 |-- .github/              # GitHub metadata, pull request template, and workflows
-|-- apps/                 # Front-facing applications
 |-- assets/               # README and documentation images
-|-- development/          # Local Compose tooling and database init assets
+|-- backend/              # NestJS backend service
+|-- database/             # Local database image and initialization assets
 |-- docs/                 # Project workflow documentation
-|-- services/             # Backend-facing services
+|-- docker-compose/       # Local Docker Compose integration stack
+|-- frontend/             # React/Vite frontend application
 |-- AGENTS.md             # Agent working instructions
 |-- AI_USAGE.md           # AI-assisted work log
 `-- opencode.json
@@ -23,10 +24,10 @@ The project is structured as a Student Project Management workspace. The intende
 
 At a high level:
 
-- `apps/frontend` is the React/Vite frontend application area.
-- `services/backend` is the NestJS backend service.
-- `development/local-dev` owns the Docker Compose environment for local integration testing.
-- `development/database` owns the local PostgreSQL image and initialization assets used by Compose.
+- `frontend` is the React/Vite frontend application.
+- `backend` is the NestJS backend service.
+- `docker-compose` owns the Docker Compose environment for local integration testing.
+- `database` owns the local PostgreSQL image and initialization assets used by Compose.
 - `.github/workflows` owns the GitHub Actions security and test workflows.
 - `docs` owns project workflow documentation.
 
@@ -43,10 +44,10 @@ The system is organized around clear ownership boundaries:
 | Layer | Repository | Responsibility |
 | --- | --- | --- |
 | Project coordination | Repository root and `docs` | README, AI usage notes, agent instructions, project workflow documentation |
-| Frontend | `apps/frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
-| Backend services | `services/backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
-| Database assets | `development/database` | Local PostgreSQL image and initialization assets used by Docker Compose |
-| Local integration | `development/local-dev` | Docker Compose gateway, frontend/backend runtime targets, PostgreSQL, Pub/Sub emulator, fake GCS, Adminer |
+| Frontend | `frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
+| Backend service | `backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
+| Database assets | `database` | Local PostgreSQL image and initialization assets used by Docker Compose |
+| Local integration | `docker-compose` | Docker Compose frontend/backend runtime targets and PostgreSQL |
 | CI | `.github/workflows` | GitHub Actions workflows for security and tests |
 
 The local development stack supports integration work without deployment infrastructure:
@@ -97,7 +98,7 @@ C4Container
     title IS212 G5 T2 - Local Development Containers
 
     Person(dev, "Developer", "Runs the full local stack.")
-    System_Boundary(local, "development/local-dev") {
+    System_Boundary(local, "docker-compose") {
         Container(frontendLocal, "frontend", "React / Vite dev container", "Frontend development server on localhost:5173.")
         Container(gateway, "gateway", "Nginx", "Local reverse proxy on localhost:8080.")
         Container(service, "backend", "NestJS backend container", "Service target expected by the Compose stack.")
@@ -192,7 +193,7 @@ Get-Content "$HOME\.ssh\id_ed25519_github.pub" | Set-Clipboard
 To run the local development stack, move into the Compose environment:
 
 ```sh
-cd development/local-dev
+cd docker-compose
 cp .env.example .env
 docker compose up --build
 ```
@@ -243,7 +244,7 @@ Reset local database and storage volumes only when a full data reset is intended
 docker compose down -v
 ```
 
-The local Compose stack builds `../../apps/frontend` for the frontend container, `../../services/backend` for the backend container, and `development/database/postgresql` for the local PostgreSQL image.
+The local Compose stack builds `../frontend` for the frontend container, `../backend` for the backend container, and `../database/postgresql` for the local PostgreSQL image.
 
 ## Developers
 

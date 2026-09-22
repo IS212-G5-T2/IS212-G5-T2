@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-22 - Codex (GPT-5) - Move application, database, and Compose directories to the repository root
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/`, `database/`, `docker-compose/`, `.github/workflows/`, root documentation and agent guidance
+- Summary: Moved `apps/frontend` to `frontend`, `services/backend` to `backend`, `development/database` to `database`, and `development/local-dev` to `docker-compose`. Updated all operational path references, Compose build and bind-mount paths, CI discovery/cache/working-directory paths, backend path-sensitive helpers, and documentation. Removed the now-empty parent directories and their superseded parent-scoped agent guidance; the local Compose guidance now lives in `docker-compose/AGENTS.md`.
+- AI contribution: Repository-wide path-reference audit, tracked and ignored-file inventory comparison, layout migration, configuration/documentation updates, and validation.
+- Assumptions: The current `integration/Sprint-1` checkout is the intended migration baseline. Ignored local dependencies, build output, coverage, and `.env` files should move with their directories and remain uncommitted.
+- Checks run: `docker compose -f docker-compose/docker-compose.yml config --quiet`; backend `npm test` (434 passed), `npm run lint`, and `npm run build`; frontend `npm test` (201 passed) and `npm run build`; stale operational-path audit and `git diff --check`. Frontend `npm run lint` remains blocked by two pre-existing unused-variable errors in `src/components/domain/ClarificationThread.tsx` and `src/store/useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Full before/after SHA-256 inventories confirm every moved regular file is present (8,788 backend, 20,374 frontend, 7 database, and 8 Compose files) and all 47 symlinks remain. The only content changes are the intended path/documentation updates plus regenerated ignored Vitest cache records and backend build output. The changes were staged for human review; no push has been made.
+
 ## 2026-09-22 - Claude (Sonnet 5) - Replace hardcoded coordinator roster with a live Postgres query
 
 - Issue/PR: SPM-38 follow-up / branch `dev` (working directly on `dev` at the user's local checkout; not yet committed)
