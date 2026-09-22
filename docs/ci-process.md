@@ -24,9 +24,9 @@ Implemented apps and services should expose their unit tests through:
 Examples:
 
 ```text
-apps/frontend/scripts/ci/unit-test.sh
-services/user-service/scripts/ci/unit-test.sh
-services/project-service/scripts/ci/unit-test.sh
+frontend/scripts/ci/unit-test.sh
+backend/scripts/ci/unit-test.sh
+events-service/scripts/ci/unit-test.sh
 ```
 
 The root `tests.yml` workflow discovers these entrypoints and runs each one from its component directory.

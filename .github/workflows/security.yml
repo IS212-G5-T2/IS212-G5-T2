@@ -36,8 +36,8 @@ jobs:
       fail-fast: false
       matrix:
         component:
-          - apps/frontend
-          - services/backend
+          - frontend
+          - backend
 
     steps:
       - name: Checkout

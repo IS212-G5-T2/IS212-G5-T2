@@ -3,9 +3,10 @@ name: Tests
 on:
   push:
     paths:
-      - "apps/**"
-      - "services/**"
-      - "development/**"
+      - "frontend/**"
+      - "backend/**"
+      - "database/**"
+      - "docker-compose/**"
       - "docs/ci-process.md"
       - ".github/workflows/tests.yml"
   workflow_dispatch:
@@ -49,8 +50,9 @@ jobs:
           }
 
           entrypoints="$(
-            find apps services \
-              -path "*/scripts/ci/unit-test.sh" -type f -print | sort
+            find . \
+              \( -path './.git' -o -path '*/node_modules' \) -prune -o \
+              -path '*/scripts/ci/unit-test.sh' -type f -print | sort
           )"
 
           if [ -z "$entrypoints" ]; then
@@ -99,14 +101,14 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: services/backend/package-lock.json
+          cache-dependency-path: backend/package-lock.json
 
       - name: Install backend dependencies
         run: npm ci
-        working-directory: services/backend
+        working-directory: backend
 
       - name: Build local PostgreSQL image
-        run: docker build -t spm-postgresql ./development/database/postgresql
+        run: docker build -t spm-postgresql ./database/postgresql
 
       - name: Start PostgreSQL
         run: |
@@ -134,7 +136,7 @@ jobs:
 
       - name: Run backend E2E tests
         run: npm run test:e2e
-        working-directory: services/backend
+        working-directory: backend
 
       - name: Show PostgreSQL logs after E2E failure
         if: failure()
