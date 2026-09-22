@@ -2,6 +2,7 @@ import { ReactElement } from "react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { AuthLoadingScreen } from "./AuthLoadingScreen";
 import { useAppStore } from "@/store/useAppStore";
+import { hasRole } from "@/types";
 
 /**
  * Restricts organiser event routes to the organiser responsible for the event.
@@ -29,7 +30,7 @@ export function RequireEventOwner({ children }: { children?: ReactElement }) {
   }
 
   const event = events.find((candidate) => candidate.id === id);
-  const isOwner = currentUser.role === "organiser" && event?.organiserId === currentUser.id;
+  const isOwner = hasRole(currentUser, "organiser") && event?.organiserId === currentUser.id;
 
   if (!isOwner) {
     return <Navigate to="/events" replace />;

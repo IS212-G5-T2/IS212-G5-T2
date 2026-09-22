@@ -24,7 +24,7 @@ export default defineConfig({
       thresholds: {
         "src/pages/LoginPage.tsx": { 100: true },
         "src/components/auth/Require*.tsx": { 100: true },
-        "src/lib/firebaseRoles.ts": { 100: true },
+        "src/lib/localAuth.ts": { 100: true },
       },
     },
   },

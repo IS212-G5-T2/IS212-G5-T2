@@ -23,6 +23,7 @@ async function bootstrap() {
   // (:5173 vs this service's :3000) can't read it at all.
   app.enableCors({
     origin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
+    credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Demo-Role'],
   });
   app.useBodyParser('json', { limit: MAX_BODY_SIZE });

@@ -8,8 +8,16 @@ export type UserRole =
 export interface User {
   id: string;
   name: string;
+  /** Every role granted by the server; optional only while legacy fixtures migrate. */
+  roles?: UserRole[];
+  /** Primary display/navigation role retained while the UI gains a role switcher. */
   role: UserRole;
   email: string;
+}
+
+/** Checks every server-granted role, with a legacy fallback for test fixtures. */
+export function hasRole(user: Pick<User, "role"> & Partial<Pick<User, "roles">>, role: UserRole): boolean {
+  return user.roles?.includes(role) ?? user.role === role;
 }
 
 export type EventStatus =

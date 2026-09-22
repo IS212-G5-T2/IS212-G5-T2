@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 describe("TopNav", () => {
-  it("shows the Firebase-derived signed-in user without offering role switching", () => {
+  it("shows the local signed-in user without offering role switching", () => {
     render(
       <MemoryRouter>
         <TopNav onMenuClick={vi.fn()} />

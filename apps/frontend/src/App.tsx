@@ -1,7 +1,5 @@
 import { useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { Route, Routes } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -36,18 +34,11 @@ function RootRedirect() {
 }
 
 export default function App() {
-  const setAuthUser = useAppStore((s) => s.setAuthUser);
-  const currentUserId = useAppStore((s) => s.currentUser.id);
+  const restoreAuthSession = useAppStore((s) => s.restoreAuthSession);
 
   useEffect(() => {
-    // Subscribes once for the lifetime of the app; keeps currentUser/
-    // isAuthenticated in sync with Firebase, including restoring a session
-    // that was already active when the page loads.
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      setAuthUser(firebaseUser);
-    });
-    return unsubscribe;
-  }, [setAuthUser]);
+    void restoreAuthSession();
+  }, [restoreAuthSession]);
 
   return (
     <Routes>

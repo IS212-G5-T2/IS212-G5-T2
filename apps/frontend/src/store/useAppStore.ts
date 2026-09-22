@@ -1,9 +1,6 @@
 import { create } from "zustand";
-import type { User as FirebaseUser } from "firebase/auth";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { auth, getAuthErrorMessage } from "@/lib/firebase";
+import { AuthError, login, logout, restoreSession } from "@/lib/auth";
 import { api } from "@/utils/api";
-import { getRoleFromFirebaseClaims } from "@/lib/firebaseRoles";
 import type {
   Booking,
   ChangeRequest,
@@ -33,9 +30,7 @@ const PLACEHOLDER_USER: User = {
 interface AppState {
   currentUser: User;
   isAuthenticated: boolean;
-  // True until Firebase's initial auth state (e.g. a persisted session from a
-  // previous visit) has resolved. Route guards and the login page use this to
-  // avoid flashing the wrong screen while Firebase starts up.
+  // True until the backend has checked the persisted HTTP-only local session.
   authLoading: boolean;
   events: EventRecord[];
   venues: Venue[];
@@ -65,8 +60,8 @@ interface AppState {
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
-  /** Called by the Firebase onAuthStateChanged listener wired up in App.tsx. */
-  setAuthUser: (firebaseUser: FirebaseUser | null) => Promise<void>;
+  /** Restores the persisted PostgreSQL-backed browser session at app startup. */
+  restoreAuthSession: () => Promise<void>;
 
   markNotificationRead: (id: string) => void;
   markAllNotificationsRead: () => void;
@@ -440,61 +435,39 @@ export const useAppStore = create<AppState>((set, get) => ({
     }));
   },
 
-  // Firebase Authentication (Email/Password provider). A user must exist in
-  // the Firebase project and the provider must be enabled in the console —
-  // see apps/frontend/README.md for setup.
   login: async (email, password) => {
+    authRevision += 1;
     try {
-      const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
-      await get().setAuthUser(credential.user);
-
-      if (!get().isAuthenticated) {
-        return {
-          success: false,
-          error: "Your account does not have a supported ConnectSphere role.",
-        };
-      }
-
+      const user = await login(email.trim(), password);
+      set({ currentUser: user, isAuthenticated: true, authLoading: false });
       return { success: true };
     } catch (error) {
-      return { success: false, error: getAuthErrorMessage(error) };
+      const message = error instanceof AuthError
+        ? error.message
+        : "We couldn't sign you in. Please try again.";
+      return { success: false, error: message };
     }
   },
 
   logout: async () => {
-    await signOut(auth);
+    authRevision += 1;
+    try {
+      await logout();
+    } finally {
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+    }
   },
 
-  setAuthUser: async (firebaseUser) => {
+  restoreAuthSession: async () => {
     const revision = ++authRevision;
-    // Remove account-owned event data before resolving a new session or sign-out.
-    set({ events: [] });
-    if (!firebaseUser) {
-      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
-      return;
-    }
-
     set({ authLoading: true });
-
     try {
-      const tokenResult = await firebaseUser.getIdTokenResult();
+      const user = await restoreSession();
       if (revision !== authRevision) return;
-      const role = getRoleFromFirebaseClaims(tokenResult.claims.roles);
-
-      if (!role) {
-        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
-        return;
-      }
-
       set({
-        isAuthenticated: true,
+        isAuthenticated: Boolean(user),
         authLoading: false,
-        currentUser: {
-          id: firebaseUser.uid,
-          name: firebaseUser.displayName ?? firebaseUser.email ?? "Signed-in user",
-          email: firebaseUser.email ?? "",
-          role,
-        },
+        currentUser: user ?? PLACEHOLDER_USER,
       });
     } catch {
       if (revision !== authRevision) return;
