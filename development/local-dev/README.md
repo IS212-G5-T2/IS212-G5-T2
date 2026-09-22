@@ -155,17 +155,22 @@ docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql
 The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
 
 As of SPM-38, `/api/events` and `/api/requests` (drafts) require a verified
-Firebase Bearer token; `DEMO_ORGANISER_ENABLED` no longer applies to these
-routes (`request.currentUser`, set by `FirebaseAuthenticationMiddleware`, is
-the only source of identity). An Organiser sees only their own requests; a
-Coordinator sees only requests round-robin has assigned to them
-(`services/backend/src/events/coordinator-roster.ts` holds the local
-coordinator roster). A request is assigned a coordinator automatically at
-submission time — there is no manual "claim this request" step. Pre-SPM-38
-event rows created under the old fixed demo identity (`current-user`, no
-coordinator) are legacy-owned and stay invisible under real-identity scoping;
-they are not automatically migrated (see `services/backend/AGENTS.md`'s
-events-boundary policy). After backend changes, rebuild and start it with
-`docker compose up -d --build backend`. The frontend code is bind-mounted and
+identity; `DEMO_ORGANISER_ENABLED` no longer applies to these routes
+(`request.currentUser`, set by `AuthenticationMiddleware` from a Postgres
+session — this later replaced the original Firebase-token implementation,
+see the SPM-30 local-session-auth migration — is the only source of
+identity). An Organiser sees only their own requests; a Coordinator sees only
+requests round-robin has assigned to them. The coordinator roster
+(`services/backend/src/events/coordinator-roster.ts`) is queried live from
+Postgres (`users`/`user_roles`/`roles`, seeded in
+`development/database/postgresql/init/001_users.sql`) rather than hardcoded —
+any active account holding the `COORDINATOR` role is eligible. A request is
+assigned a coordinator automatically at submission time — there is no manual
+"claim this request" step. Pre-SPM-38 event rows created under the old fixed
+demo identity (`current-user`, no coordinator) are legacy-owned and stay
+invisible under real-identity scoping; they are not automatically migrated
+(see `services/backend/AGENTS.md`'s events-boundary policy). After backend
+changes, rebuild and start it with `docker compose up -d --build backend`.
+The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/auth/RequireAuth";
@@ -35,6 +35,7 @@ function RootRedirect() {
 
 export default function App() {
   const restoreAuthSession = useAppStore((s) => s.restoreAuthSession);
+  const currentUserId = useAppStore((s) => s.currentUser.id);
 
   useEffect(() => {
     void restoreAuthSession();

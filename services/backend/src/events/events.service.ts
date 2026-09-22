@@ -326,13 +326,17 @@ export class EventsService {
   // SPM-38 AC5: round-robin assignment at submission time, so a request is
   // never left waiting for a coordinator to manually claim it. A retried
   // submission (ON CONFLICT above) reuses the row already assigned, so this
-  // only ever assigns once per event. Assignment never advances status.
+  // only ever assigns once per event. Assignment never advances status. The
+  // roster is queried live from Postgres (see coordinator-roster.ts); if no
+  // active coordinator account exists yet, the event is left unassigned
+  // rather than failing the submission.
   private async autoAssignCoordinator(row: pg.QueryResultRow, client: pg.PoolClient) {
     if (row.coordinator_id) return row;
     const { rows } = await client.query<{ count: string }>(
       'SELECT COUNT(*)::text AS count FROM events WHERE coordinator_id IS NOT NULL',
     );
-    const coordinator = pickNextCoordinator(Number(rows[0].count));
+    const coordinator = await pickNextCoordinator(client, Number(rows[0].count));
+    if (!coordinator) return row;
     const updated = await client.query(
       `UPDATE events
          SET coordinator_id = $2,
