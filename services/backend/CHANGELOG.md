@@ -2,7 +2,12 @@
 
 ## Unreleased
 
-- Enforce Firebase UID ownership on draft and event APIs, including list, direct reads, saves and submission. Reject unauthenticated access and cross-user requests; remove the shared demo identity fallback.
+- Added PostgreSQL-backed `/api/auth` login, session introspection, and logout
+  endpoints with seeded development role accounts, bcrypt password verification,
+  persisted opaque sessions, and HTTP-only cookies.
+- Moved authentication environment parsing to `src/config/auth.config.ts` and
+  standardized its variables as `AUTH_COOKIE_NAME`, `AUTH_COOKIE_SECURE`, and
+  `AUTH_SESSION_TTL_HOURS`.
 
 - Added protected `GET /auth/me`, which returns the identity and roles from a
   verified Firebase ID token without exposing credentials or raw claims.

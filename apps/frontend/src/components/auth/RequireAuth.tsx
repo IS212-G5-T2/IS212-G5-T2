@@ -7,7 +7,7 @@ import { AuthLoadingScreen } from "@/components/auth/AuthLoadingScreen";
  * Gates its children behind sign-in. Unauthenticated visitors are redirected
  * to /login, preserving the page they were trying to reach so LoginPage can
  * send them back after a successful sign-in. Shows a brief loading state
- * while Firebase resolves whether a session already exists.
+ * while the backend resolves whether a local session already exists.
  */
 export function RequireAuth({ children }: { children: ReactElement }) {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);

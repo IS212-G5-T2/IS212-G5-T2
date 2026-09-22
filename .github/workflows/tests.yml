@@ -88,8 +88,6 @@ jobs:
     name: Backend E2E Tests
     runs-on: ubuntu-latest
     env:
-      GCLOUD_PROJECT: demo-is212
-      FIREBASE_AUTH_EMULATOR_HOST: 127.0.0.1:9099
       DATABASE_URL: postgresql://spm:spm_dev_password@127.0.0.1:5432/spm
 
     steps:
@@ -122,7 +120,11 @@ jobs:
       - name: Wait for PostgreSQL
         run: |
           for attempt in {1..30}; do
-            if docker exec spm-postgres pg_isready -U spm -d spm; then
+            # The official image briefly starts a temporary server to run its
+            # init scripts. It accepts pg_isready probes, then shuts down;
+            # wait for that phase to finish and for the final server to listen.
+            if docker logs spm-postgres 2>&1 | grep -q 'PostgreSQL init process complete; ready for start up.' \
+              && docker exec spm-postgres pg_isready -U spm -d spm; then
               exit 0
             fi
             sleep 1
@@ -130,9 +132,13 @@ jobs:
           docker logs spm-postgres
           exit 1
 
-      - name: Run E2E tests with Firebase Auth Emulator
-        run: npx firebase-tools@latest emulators:exec --config ../../development/local-dev/firebase/firebase.json --only auth --project demo-is212 "npm run test:e2e"
+      - name: Run backend E2E tests
+        run: npm run test:e2e
         working-directory: services/backend
+
+      - name: Show PostgreSQL logs after E2E failure
+        if: failure()
+        run: docker logs spm-postgres
 
       - name: Remove PostgreSQL test container
         if: always()
