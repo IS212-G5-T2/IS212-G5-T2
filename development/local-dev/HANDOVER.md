@@ -6,9 +6,9 @@
 
 The Compose build contexts currently expect `../../apps/frontend` for the React/Vite frontend, `../../services/backend` for the NestJS backend service, and `../database/postgresql` for the local PostgreSQL image in this checkout. PostgreSQL initialization assets are built into that image from `development/database/postgresql/init`.
 
-The local PostgreSQL initialization runs `001_schema.sql` for the base local
-schema, `002_events.sql` for the event table, `001_rbac.sql` for seeded RBAC
-tables, and `003_sample_events.sql` for a fictional event. Backend
+The local PostgreSQL initialization runs `001_schema.sql` for every local
+table, constraint, extension, and index, then `002_seed_data.sql` for RBAC,
+accounts, health-check data, and a fictional event. Backend
 authorization code should treat these as local schema/seed assumptions and
 still enforce relationship-level record checks separately from role permissions.
 

@@ -35,7 +35,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await db.query(
       await readFile(
         new URL(
-          '../../../../development/database/postgresql/init/002_events.sql',
+          '../../../../development/database/postgresql/init/001_schema.sql',
           import.meta.url,
         ),
         'utf8',

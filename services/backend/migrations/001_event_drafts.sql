@@ -1,4 +1,4 @@
--- Apply after development/database/postgresql/init/002_events.sql.
+-- Apply after development/database/postgresql/init/001_schema.sql.
 -- Separate draft storage keeps submitted-event constraints intact.
 CREATE TABLE IF NOT EXISTS event_drafts (
   id uuid PRIMARY KEY,

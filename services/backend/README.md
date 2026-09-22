@@ -116,8 +116,8 @@ No deployment command is configured for this repository.
 Set `DATABASE_URL` to the local PostgreSQL connection and
 `DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both
 through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
-for CORS. The events schema and optional fictional seed live in
-`development/database/postgresql/init/002_events.sql` and `003_sample_events.sql`.
+for CORS. The complete local schema and optional fictional seed live in
+`development/database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
 - `GET /api/events`: lists the fixed local demo organiser's events, newest first.
@@ -169,7 +169,7 @@ real PostgreSQL database and the Firebase Auth Emulator.
 
 ## Request rejection (SPM-83)
 
-Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_event_status.sql`, after the existing events and clarification schema (including its notifications table). Fresh local databases apply `development/database/postgresql/init/006_event_rejection.sql`, the SPM-38 status retirement migration, and `007_allow_rejected_event_status.sql` in order. This preserves existing rows; do not reset volumes.
+Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_event_status.sql`, after the existing events and clarification schema (including its notifications table). Fresh local databases receive the final SPM-38/83 status and reason constraints directly from `development/database/postgresql/init/001_schema.sql`. This preserves existing rows; do not reset volumes.
 
 - `POST /api/events/:id/reject` accepts `{ "reason": "..." }`. It requires the verified COORDINATOR assigned to a Submitted event. The trimmed reason must be 10–500 characters, contain at least three words, and include letters. It returns the updated event, including `rejectionReason`.
 - Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.

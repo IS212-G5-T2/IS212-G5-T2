@@ -263,7 +263,7 @@ export class ClarificationsService {
   // Replying and resolving are both open to either side of the thread: the
   // event's organiser, or the coordinator assigned to it. The RBAC seed only
   // grants ORGANISER "read" on the Event Review resource, not "update" (that
-  // action is COORDINATOR-only) - see 001_rbac.sql - so this is authorized
+  // action is COORDINATOR-only) - see 002_seed_data.sql - so this is authorized
   // directly against events.organiser_id/coordinator_id instead of going
   // through RbacRepository's predicate, per the fallback documented in
   // RbacRepository's usage notes.

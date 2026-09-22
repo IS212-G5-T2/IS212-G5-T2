@@ -16,7 +16,7 @@ logout, session lookup, and middleware; `src/auth/authorization` owns
 RBAC/ownership services; and `src/auth/models` owns shared auth types.
 
 Authentication uses `users`, `user_roles`, and `auth_sessions`, seeded together
-in `development/database/postgresql/init/001_users.sql`. Sessions are opaque
+in `development/database/postgresql/init/001_schema.sql` and seeded by `002_seed_data.sql`. Sessions are opaque
 HTTP-only cookies whose SHA-256 digests are persisted. The frontend uses
 `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout`.
 
@@ -67,14 +67,13 @@ using local npm 11; Docker npm 10 requires it.
 `src/clarifications` implements the Coordinator-to-Organiser clarification
 thread on an event request, using real Firebase-authenticated identity
 (`FirebaseAuthenticationMiddleware` is applied to `ClarificationsController`
-in `AppModule.configure()`), unlike `EventsController`. `004_clarifications.sql`
-adds `events.coordinator_id`/`coordinator_name` and creates `event_comments`
-(the clarification/reply thread) and a minimal `notifications` table.
-`006_remove_under_review_status.sql` (SPM-38 follow-up) later tightens the
-`status` CHECK constraint back down to `Submitted`/`Approved` only —
-"Under Review" was retired as a distinct status, since neither coordinator
-assignment nor a clarification request is a meaningful "review started"
-signal on its own.
+in `AppModule.configure()`), unlike `EventsController`. `001_schema.sql`
+creates `events.coordinator_id`/`coordinator_name`, `event_comments` (the
+clarification/reply thread), and the minimal `notifications` table. The base
+local event initializer defines the final `status`
+CHECK constraint as `Submitted`/`Approved`/`Rejected` — "Under Review" was
+retired as a distinct status, since neither coordinator assignment nor a
+clarification request is a meaningful "review started" signal on its own.
 
 Known gaps to close before this is fully production-ready:
 
@@ -99,7 +98,7 @@ Known gaps to close before this is fully production-ready:
   only. It does not replace the frontend's broader mock notification system
   in `useAppStore.ts` (approvals, rejections, venue bookings, etc.), which
   remains client-only.
-- RBAC's `001_rbac.sql` seed grants `ORGANISER` only `read` on the "Event
+- RBAC's `002_seed_data.sql` seed grants `ORGANISER` only `read` on the "Event
   Review" resource (not `update`), so the Organiser-reply endpoint is
   authorized by a direct `organiser_id` ownership check rather than
   `RbacRepository`'s predicate builder. See the comment in
@@ -109,6 +108,6 @@ Known gaps to close before this is fully production-ready:
 
 The event, draft, clarification, and rejection routes are protected by Firebase middleware. `EventRejectionsController` adds rejection and rejection-notification endpoints. Only the verified Coordinator assigned to a Submitted request can reject it; only a verified Organiser can retrieve or mark their rejection notifications as read.
 
-For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes run 006_event_rejection.sql, the SPM-38 status retirement migration, then 007_allow_rejected_event_status.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
+For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
 SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
