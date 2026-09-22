@@ -20,12 +20,11 @@ in `development/database/postgresql/init/001_users.sql`. Sessions are opaque
 HTTP-only cookies whose SHA-256 digests are persisted. The frontend uses
 `/api/auth/login`, `/api/auth/me`, and `/api/auth/logout`.
 
-`DatabaseModule` centralizes PostgreSQL access. Repositories should inject
+`DatabaseModule` centralizes PostgreSQL access. Services and repositories inject
 `DatabaseService` instead of creating new pools so connection limits, timeouts,
 and shutdown behavior stay consistent. Use `query()` for single statements and
 `transaction()` for multi-step writes that need shared commit/rollback handling.
-The current `EventsService` does not yet follow this guidance: it creates a
-separate pool. The generated starter endpoint currently returns `Hello World!`.
+The generated starter endpoint currently returns `Hello World!`.
 The events controller/service validates and persists submitted requests in
 PostgreSQL. Drafts and events use Firebase UID ownership; submission retains the owner. Email delivery is deferred.
 
@@ -35,6 +34,12 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
 
 - Start backend feature work from Jira acceptance criteria.
 - Keep API contract changes coordinated with the frontend under `apps/`.
+- Reuse `FirebaseAuthenticationMiddleware` for token verification and
+  `RbacRepository` for composable resource-query permission checks instead of
+  duplicating RBAC SQL in controllers. Draft and event controllers apply this middleware and require the ORGANISER role.
+- Use `DatabaseService` for PostgreSQL queries; do not instantiate `pg.Pool`
+  inside feature services or repositories.
+- Keep Firebase `roles` claim values aligned with the RBAC seed values: `ORGANISER`, `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
 - Reuse `AuthenticationMiddleware` for session verification and `RbacRepository`
   for composable resource-query permission checks instead of
   duplicating RBAC SQL in controllers. The current event controller has not
@@ -99,3 +104,11 @@ Known gaps to close before this is fully production-ready:
   authorized by a direct `organiser_id` ownership check rather than
   `RbacRepository`'s predicate builder. See the comment in
   `clarifications.service.ts`.
+
+## Rejection integration (SPM-83)
+
+The event, draft, clarification, and rejection routes are protected by Firebase middleware. `EventRejectionsController` adds rejection and rejection-notification endpoints. Only the verified Coordinator assigned to a Submitted request can reject it; only a verified Organiser can retrieve or mark their rejection notifications as read.
+
+For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes run 006_event_rejection.sql, the SPM-38 status retirement migration, then 007_allow_rejected_event_status.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
+
+SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.

@@ -7,6 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
 import { COORDINATOR_ROSTER } from './coordinator-roster.js';
 import { EventsService } from './events.service.js';
 
@@ -18,12 +19,9 @@ const db = {
   end: vi.fn(),
 };
 
-type TestableEventsService = {
-  pool: {
-    query: typeof db.query;
-    connect: typeof db.connect;
-    end: typeof db.end;
-  };
+const database = {
+  query: db.query,
+  transaction: vi.fn(),
 };
 
 function organiserUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
@@ -112,19 +110,26 @@ let service: EventsService;
 
 beforeEach(async () => {
   vi.resetAllMocks();
-  db.connect.mockResolvedValue({ query: db.transaction, release: db.release });
   db.transaction.mockResolvedValue({ rows: [] });
+  database.transaction.mockImplementation(async (work) => {
+    await db.transaction('BEGIN');
+    try {
+      const result = await work({ query: db.transaction });
+      await db.transaction('COMMIT');
+      return result;
+    } catch (error) {
+      await db.transaction('ROLLBACK');
+      throw error;
+    } finally {
+      db.release();
+    }
+  });
 
   const module = await Test.createTestingModule({
-    providers: [EventsService],
+    providers: [EventsService, { provide: DatabaseService, useValue: database }],
   }).compile();
 
   service = module.get(EventsService);
-  (service as unknown as TestableEventsService).pool = {
-    query: db.query,
-    connect: db.connect,
-    end: db.end,
-  };
 });
 
 describe('EventsService', () => {
@@ -170,8 +175,6 @@ describe('EventsService', () => {
       id: row.id,
       attachments: [],
     });
-    await service.onModuleDestroy();
-    expect(db.end).toHaveBeenCalledOnce();
   });
   it('Q1-043 draft submission shares transaction ownership on success and failure', async () => {
     const row = savedEventRow();

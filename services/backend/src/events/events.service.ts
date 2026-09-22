@@ -1,23 +1,21 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
-  OnModuleDestroy,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
 import { pickNextCoordinator } from './coordinator-roster.js';
 
 @Injectable()
-export class EventsService implements OnModuleDestroy {
-  private readonly pool = new pg.Pool({
-    connectionString: process.env.DATABASE_URL,
-    connectionTimeoutMillis: 5000,
-  });
+export class EventsService {
+  constructor(private readonly database: DatabaseService) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
   // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
@@ -34,10 +32,6 @@ export class EventsService implements OnModuleDestroy {
     return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
   }
 
-  async onModuleDestroy() {
-    await this.pool.end();
-  }
-
   private record(row: pg.QueryResultRow) {
     return {
       id: row.id,
@@ -49,6 +43,7 @@ export class EventsService implements OnModuleDestroy {
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
       status: row.status.toLowerCase(),
+      rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
       expectedAttendance: row.expected_attendance,
@@ -73,12 +68,12 @@ export class EventsService implements OnModuleDestroy {
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const result = user.roles.includes('COORDINATOR')
-      ? await this.pool.query(
+      ? await this.database.query(
           'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
-        ? await this.pool.query(
+        ? await this.database.query(
             'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
             [user.uid],
           )
@@ -108,7 +103,7 @@ export class EventsService implements OnModuleDestroy {
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.pool.query('SELECT * FROM events WHERE id = $1', [id]);
+    const result = await this.database.query('SELECT * FROM events WHERE id = $1', [id]);
     const row = result.rows[0];
     if (!row) throw new NotFoundException('Event not found.');
     const isOwningOrganiser =
@@ -135,7 +130,7 @@ export class EventsService implements OnModuleDestroy {
       typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
     if (!coordinatorId || !coordinatorName)
       throw new BadRequestException('A coordinator id and name are required.');
-    const result = await this.pool.query(
+    const result = await this.database.query(
       `UPDATE events
          SET coordinator_id = $2,
              coordinator_name = $3,
@@ -147,6 +142,121 @@ export class EventsService implements OnModuleDestroy {
     if (!result.rows[0]) throw new NotFoundException('Event not found.');
     return this.record(result.rows[0]);
   }
+
+  private requireCoordinator(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    if (!user.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    return user;
+  }
+
+  private eventId(id: string) {
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      )
+    )
+      throw new NotFoundException('Event not found.');
+  }
+
+  static validateRejectionReason(reason: string): string {
+    const raw = typeof reason === 'string' ? reason : '';
+    const trimmed = raw.trim();
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    const hasLetters = /[a-zA-Z]/.test(trimmed);
+    if (
+      !trimmed ||
+      raw.length > 500 ||
+      trimmed.length < 10 ||
+      trimmed.length > 500 ||
+      words.length < 3 ||
+      !hasLetters
+    ) {
+      throw new BadRequestException(
+        'Please provide a reason that: is between 10 and 500 characters; ' +
+          'contains at least 3 words; and includes real words, not just numbers or symbols.',
+      );
+    }
+    return trimmed;
+  }
+
+  // SPM-83: only the coordinator assigned by SPM-38's round-robin flow may
+  // reject a still-Submitted request. The decision and organiser notification
+  // share one transaction so a rejection is never persisted without its reason.
+  async reject(id: string, body: unknown, identity?: AuthenticatedUser) {
+    const coordinator = this.requireCoordinator(identity);
+    this.eventId(id);
+    const data = body as Record<string, unknown> | null;
+    const reason = EventsService.validateRejectionReason(
+      typeof data?.reason === 'string' ? data.reason : '',
+    );
+    return this.database.transaction(async (client) => {
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted')
+        throw new ConflictException(
+          'Only Submitted requests can be rejected. Refresh the pending list.',
+        );
+      if (event.coordinator_id !== coordinator.uid)
+        throw new ForbiddenException(
+          'This request is assigned to another coordinator.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+           SET status = 'Rejected',
+               rejection_reason = $2,
+               updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [id, reason],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'rejection', $3, $4)`,
+        [
+          randomUUID(),
+          event.organiser_id,
+          `Your event request "${event.event_name}" was rejected: ${reason}`,
+          id,
+        ],
+      );
+      return this.record(updated.rows[0]);
+    });
+  }
+
+  async notifications(identity?: AuthenticatedUser) {
+    const organiser = this.requireOrganiser(identity);
+    const result = await this.database.query(
+      "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
+      [organiser.id],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      audienceRole: 'organiser',
+      audienceUserId: row.recipient_id,
+      type: row.type,
+      message: row.message,
+      relatedEventId: row.related_event_id,
+      read: row.read,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  async readNotification(id: string, identity?: AuthenticatedUser) {
+    const organiser = this.requireOrganiser(identity);
+    this.eventId(id);
+    const result = await this.database.query(
+      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
+      [id, organiser.id],
+    );
+    if (!result.rows[0]) throw new NotFoundException('Notification not found.');
+    return { success: true };
+  }
+
   async create(
     identity: AuthenticatedUser | undefined,
     body: unknown,
@@ -160,18 +270,10 @@ export class EventsService implements OnModuleDestroy {
     if (transaction) {
       return this.insert(data, user, transaction, eventId);
     }
-    const client = await this.pool.connect();
-    try {
-      await client.query('BEGIN');
+    return this.database.transaction(async (client) => {
       const result = await this.insert(data, user, client, eventId);
-      await client.query('COMMIT');
       return result;
-    } catch (error) {
-      await client.query('ROLLBACK');
-      throw error;
-    } finally {
-      client.release();
-    }
+    });
   }
 
   private async insert(

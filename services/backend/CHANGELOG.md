@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
+- Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.
+
+- Enforce Firebase UID ownership on draft and event APIs, including list, direct reads, saves and submission. Reject unauthenticated access and cross-user requests; remove the shared demo identity fallback.
 - Added PostgreSQL-backed `/api/auth` login, session introspection, and logout
   endpoints with seeded development role accounts, bcrypt password verification,
   persisted opaque sessions, and HTTP-only cookies.

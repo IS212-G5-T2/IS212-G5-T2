@@ -113,3 +113,7 @@ docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql
 The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
 
 The Compose postgres service also mounts the backend-owned draft migration as `004_event_drafts.sql`. Drafts use separate `event_drafts` storage so incomplete values do not weaken submitted-event constraints. For existing volumes follow the additive migration command in development/local-dev/README.md; no reset is required.
+
+## Request rejection schema
+
+Fresh PostgreSQL images apply `006_event_rejection.sql` after the clarification schema. Existing volumes must apply the equivalent backend migration `services/backend/migrations/003_event_rejection.sql` with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. It adds `rejection_reason`, permits Rejected status and requires a nonblank recorded reason for rejected rows. Existing events and notifications are retained; no volume reset is needed.
