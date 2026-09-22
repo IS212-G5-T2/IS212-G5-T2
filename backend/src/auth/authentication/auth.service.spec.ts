@@ -24,18 +24,28 @@ describe('AuthService', () => {
   // Creates an opaque session from an already verified account.
   it('logs a seeded local account in with a server-side session', async () => {
     vi.mocked(repository.findAccountByCredentials).mockResolvedValue({
-      uid: 'user-1', email: 'attendee@local.connectsphere.test', name: 'Local Attendee',
+      uid: 'user-1',
+      email: 'attendee@local.connectsphere.test',
+      name: 'Local Attendee',
       roles: ['ATTENDEE'],
     });
 
-    const result = await service.login('attendee@local.connectsphere.test', 'P@55w0rd');
+    const result = await service.login(
+      'attendee@local.connectsphere.test',
+      'P@55w0rd',
+    );
 
     expect(result.token).toHaveLength(43);
     expect(result.user).toEqual({
-      uid: 'user-1', email: 'attendee@local.connectsphere.test', name: 'Local Attendee', roles: ['ATTENDEE'],
+      uid: 'user-1',
+      email: 'attendee@local.connectsphere.test',
+      name: 'Local Attendee',
+      roles: ['ATTENDEE'],
     });
     expect(repository.createSession).toHaveBeenCalledWith(
-      'user-1', expect.stringMatching(/^[0-9a-f]{64}$/), expect.any(Date),
+      'user-1',
+      expect.stringMatching(/^[0-9a-f]{64}$/),
+      expect.any(Date),
     );
   });
 
@@ -43,19 +53,27 @@ describe('AuthService', () => {
   it('rejects invalid credentials without creating a session', async () => {
     vi.mocked(repository.findAccountByCredentials).mockResolvedValue(undefined);
 
-    await expect(service.login('unknown@example.test', 'wrong')).rejects.toThrow(UnauthorizedException);
+    await expect(
+      service.login('unknown@example.test', 'wrong'),
+    ).rejects.toThrow(UnauthorizedException);
     expect(repository.createSession).not.toHaveBeenCalled();
   });
 
   // Reads the identity from an active persisted session rather than a browser token claim.
   it('returns the user associated with an active session', async () => {
     vi.mocked(repository.findSessionUser).mockResolvedValue({
-      sessionId: 'session-1', uid: 'user-1', email: 'attendee@local.connectsphere.test',
-      name: 'Local Attendee', roles: ['ATTENDEE'],
+      sessionId: 'session-1',
+      uid: 'user-1',
+      email: 'attendee@local.connectsphere.test',
+      name: 'Local Attendee',
+      roles: ['ATTENDEE'],
     });
 
     await expect(service.getSessionUser('opaque-token')).resolves.toEqual({
-      uid: 'user-1', email: 'attendee@local.connectsphere.test', name: 'Local Attendee', roles: ['ATTENDEE'],
+      uid: 'user-1',
+      email: 'attendee@local.connectsphere.test',
+      name: 'Local Attendee',
+      roles: ['ATTENDEE'],
     });
   });
 
@@ -63,13 +81,24 @@ describe('AuthService', () => {
   it('rejects a missing or expired session', async () => {
     vi.mocked(repository.findSessionUser).mockResolvedValue(undefined);
 
-    await expect(service.getSessionUser('expired-token')).rejects.toThrow(UnauthorizedException);
+    await expect(service.getSessionUser('expired-token')).rejects.toThrow(
+      UnauthorizedException,
+    );
   });
 
   // Logout hashes the opaque cookie before revoking its database record.
   it('revokes the persisted session when logging out', async () => {
     await service.logout('opaque-token');
 
-    expect(repository.revokeSession).toHaveBeenCalledWith(expect.stringMatching(/^[0-9a-f]{64}$/));
+    expect(repository.revokeSession).toHaveBeenCalledWith(
+      expect.stringMatching(/^[0-9a-f]{64}$/),
+    );
+  });
+
+  // Repeated logout without a browser token does not query the session store.
+  it('does not revoke a session when logging out without a token', async () => {
+    await expect(service.logout(undefined)).resolves.toBeUndefined();
+
+    expect(repository.revokeSession).not.toHaveBeenCalled();
   });
 });

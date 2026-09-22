@@ -13,12 +13,10 @@ describe('AuthController', () => {
   function createController() {
     const service = {
       getConfig: vi.fn().mockReturnValue(config),
-      login: vi
-        .fn()
-        .mockResolvedValue({
-          token: 'opaque-token',
-          user: { uid: 'user-1', roles: ['ATTENDEE'] },
-        }),
+      login: vi.fn().mockResolvedValue({
+        token: 'opaque-token',
+        user: { uid: 'user-1', roles: ['ATTENDEE'] },
+      }),
       logout: vi.fn(),
     } as unknown as AuthService;
     return { controller: new AuthController(service), service };
@@ -51,6 +49,16 @@ describe('AuthController', () => {
     );
   });
 
+  // The identity endpoint returns the account that authentication middleware attached.
+  it('returns the authenticated request user', () => {
+    const { controller } = createController();
+    const user = { uid: 'user-1', roles: ['ATTENDEE'] };
+
+    expect(controller.getCurrentUser({ currentUser: user } as never)).toBe(
+      user,
+    );
+  });
+
   // Empty credentials are rejected before a database authentication query is made.
   it('rejects a malformed login body', async () => {
     const { controller } = createController();
@@ -61,6 +69,18 @@ describe('AuthController', () => {
       } as never),
     ).rejects.toThrow(BadRequestException);
   });
+
+  // Missing and non-object bodies fail before any credential fields are read.
+  it.each([undefined, 'email=attendee@local.connectsphere.test'])(
+    'rejects a non-object login body',
+    async (body) => {
+      const { controller } = createController();
+
+      await expect(
+        controller.login(body, { cookie: vi.fn() } as never),
+      ).rejects.toThrow(BadRequestException);
+    },
+  );
 
   // Logout is idempotent and clears the browser cookie even if it is already invalid.
   it('revokes the cookie session and clears it on logout', async () => {
@@ -73,6 +93,20 @@ describe('AuthController', () => {
     );
 
     expect(service.logout).toHaveBeenCalledWith('opaque-token');
+    expect(response.clearCookie).toHaveBeenCalledWith(
+      'local_session',
+      expect.objectContaining({ path: '/' }),
+    );
+  });
+
+  // Logging out without a session remains repeat-safe and still expires the cookie.
+  it('clears the cookie when logout has no session token', async () => {
+    const { controller, service } = createController();
+    const response = { clearCookie: vi.fn() };
+
+    await controller.logout({ headers: {} } as never, response as never);
+
+    expect(service.logout).toHaveBeenCalledWith(undefined);
     expect(response.clearCookie).toHaveBeenCalledWith(
       'local_session',
       expect.objectContaining({ path: '/' }),
