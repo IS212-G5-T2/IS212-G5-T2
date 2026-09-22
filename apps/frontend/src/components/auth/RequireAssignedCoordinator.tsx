@@ -2,6 +2,7 @@ import { ReactElement } from "react";
 import { Navigate, Outlet, useLocation, useParams } from "react-router-dom";
 import { AuthLoadingScreen } from "./AuthLoadingScreen";
 import { useAppStore } from "@/store/useAppStore";
+import { hasRole } from "@/types";
 
 /**
  * Restricts event-change reviews to the coordinator assigned to that event.
@@ -30,7 +31,7 @@ export function RequireAssignedCoordinator({ children }: { children?: ReactEleme
 
   const event = events.find((candidate) => candidate.id === id);
   const isAssignedCoordinator =
-    currentUser.role === "coordinator" && event?.coordinatorId === currentUser.id;
+    hasRole(currentUser, "coordinator") && event?.coordinatorId === currentUser.id;
 
   if (!isAssignedCoordinator) {
     return <Navigate to="/events" replace />;

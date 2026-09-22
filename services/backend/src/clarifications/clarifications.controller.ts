@@ -1,7 +1,6 @@
 /*
  * SPM-39: HTTP surface for the coordinator clarification/amendment thread.
- * Protected by FirebaseAuthenticationMiddleware, applied to this controller
- * in AppModule.
+ * Protected by the PostgreSQL local-session middleware in AppModule.
  */
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';

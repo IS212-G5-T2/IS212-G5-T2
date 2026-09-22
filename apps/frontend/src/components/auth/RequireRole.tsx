@@ -1,6 +1,6 @@
 import { ReactElement } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import type { UserRole } from "@/types";
+import { hasRole, type UserRole } from "@/types";
 import { AuthLoadingScreen } from "./AuthLoadingScreen";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -22,7 +22,7 @@ export function RequireRole({
 }) {
   const authLoading = useAppStore((state) => state.authLoading);
   const isAuthenticated = useAppStore((state) => state.isAuthenticated);
-  const role = useAppStore((state) => state.currentUser.role);
+  const currentUser = useAppStore((state) => state.currentUser);
   const location = useLocation();
 
   if (authLoading) {
@@ -33,15 +33,8 @@ export function RequireRole({
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (!allowedRoles.includes(role)) {
-    const fallback =
-      role === "venue_staff"
-        ? "/venues"
-        : role === "tech_support"
-          ? "/equipment/requests"
-          : "/events";
-
-    return <Navigate to={fallback} replace />;
+  if (!allowedRoles.some((role) => hasRole(currentUser, role))) {
+    return <Navigate to="/events" replace />;
   }
 
   return children ?? <Outlet />;

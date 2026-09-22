@@ -12,7 +12,7 @@ export type UserRole =
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
 
 /**
- * Verified identity placed on the request after Firebase token validation.
+ * Verified identity placed on the request after local-session validation.
  */
 export interface AuthenticatedUser {
   uid: string;
@@ -36,3 +36,32 @@ export const PUBLIC_ROUTES = [
   { method: 'GET', path: '/' },
   { method: 'GET', path: '/healthz' },
 ] as const;
+
+/** Authenticated account resolved after PostgreSQL verifies its credentials. */
+export type AuthAccount = AuthenticatedUser;
+
+/** Authenticated account resolved from an active persisted session. */
+export interface SessionUser extends AuthenticatedUser {
+  sessionId: string;
+}
+
+export interface AuthConfig {
+  cookieName: string;
+  cookieSecure: boolean;
+  sessionTtlHours: number;
+}
+
+export interface AuthAccountRow {
+  id: string;
+  email: string;
+  display_name: string;
+  roles: UserRole[];
+}
+
+export interface SessionRow {
+  session_id: string;
+  id: string;
+  email: string;
+  display_name: string;
+  roles: UserRole[];
+}

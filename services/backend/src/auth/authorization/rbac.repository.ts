@@ -51,7 +51,7 @@ export class RbacRepository {
   /**
    * Reads whether a role has permission for a resource/action pair.
    *
-   * @param role - Verified RBAC role from Firebase custom claims.
+   * @param role - Verified RBAC role from the local authenticated account.
    * @param resource - Resource name matching the seeded `resources` table.
    * @param action - CRUD action column to inspect in `role_permissions`.
    * @returns True when the role permission row explicitly allows the action.

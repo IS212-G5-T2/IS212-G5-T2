@@ -30,7 +30,7 @@ export function LoginPage() {
 
   const redirectTo = (location.state as LocationState | null)?.from?.pathname ?? "/";
 
-  // Already signed in (e.g. Firebase restored a session) and landed on
+  // Already signed in through a restored local session and landed on
   // /login anyway — send them straight through instead of showing the form.
   useEffect(() => {
     if (!authLoading && isAuthenticated) {

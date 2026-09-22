@@ -1,7 +1,3 @@
-DROP TABLE IF EXISTS roles;
-DROP TABLE IF EXISTS resources;
-DROP TABLE IF EXISTS role_permissions;
-
 CREATE TABLE IF NOT EXISTS roles (
     id integer PRIMARY KEY,
     name text NOT NULL UNIQUE,
@@ -53,35 +49,11 @@ ON CONFLICT (id) DO UPDATE SET
 
 INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", "delete")
 VALUES
-    (1, 1, true, true, true, false),
-    (2, 1, false, true, true, false),
-    (3, 1, false, true, false, false),
-    (4, 1, false, true, false, false),
-    (5, 1, false, true, false, false),
-    (1, 2, false, true, false, false),
-    (2, 2, true, true, true, false),
-    (1, 3, true, true, false, false),
-    (2, 3, false, true, true, false),
-    (2, 4, false, true, false, false),
-    (3, 4, true, true, true, false),
-    (2, 5, false, true, false, false),
-    (3, 5, true, true, true, true),
-    (2, 6, true, true, true, false),
-    (3, 6, false, true, true, false),
-    (2, 7, true, true, true, false),
-    (4, 7, false, true, true, false),
-    (2, 8, false, true, false, false),
-    (4, 8, true, true, true, true),
-    (1, 9, false, true, false, false),
-    (2, 9, false, true, false, false),
-    (5, 9, true, true, false, true),
-    (1, 10, false, true, false, false),
-    (2, 10, false, true, false, false),
-    (3, 10, false, true, false, false),
-    (4, 10, false, true, false, false),
-    (5, 10, false, true, false, false)
+    (1, 1, true, true, true, false), (2, 1, false, true, true, false), (3, 1, false, true, false, false), (4, 1, false, true, false, false), (5, 1, false, true, false, false),
+    (1, 2, false, true, false, false), (2, 2, true, true, true, false), (1, 3, true, true, false, false), (2, 3, false, true, true, false), (2, 4, false, true, false, false),
+    (3, 4, true, true, true, false), (2, 5, false, true, false, false), (3, 5, true, true, true, true), (2, 6, true, true, true, false), (3, 6, false, true, true, false),
+    (2, 7, true, true, true, false), (4, 7, false, true, true, false), (2, 8, false, true, false, false), (4, 8, true, true, true, true), (1, 9, false, true, false, false),
+    (2, 9, false, true, false, false), (5, 9, true, true, false, true), (1, 10, false, true, false, false), (2, 10, false, true, false, false), (3, 10, false, true, false, false),
+    (4, 10, false, true, false, false), (5, 10, false, true, false, false)
 ON CONFLICT (role_id, resource_id) DO UPDATE SET
-    "create" = EXCLUDED."create",
-    "read" = EXCLUDED."read",
-    "update" = EXCLUDED."update",
-    "delete" = EXCLUDED."delete";
+    "create" = EXCLUDED."create", "read" = EXCLUDED."read", "update" = EXCLUDED."update", "delete" = EXCLUDED."delete";

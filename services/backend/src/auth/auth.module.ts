@@ -1,29 +1,14 @@
-/*
- * Wires the authenticated-user route, Firebase token verification, and RBAC
- * database helpers.
- */
 import { Module } from '@nestjs/common';
 import { DatabaseModule } from '../database/database.module.js';
-import { AuthController } from './auth.controller.js';
-import { FirebaseAuthenticationMiddleware } from './authentication/firebase-authentication.middleware.js';
-import { FirebaseTokenService } from './authentication/firebase-token.service.js';
-import { RbacRepository } from './authorization/rbac.repository.js';
+import { AuthController } from './authentication/auth.controller.js';
+import { AuthenticationMiddleware } from './authentication/authentication.middleware.js';
+import { AuthRepository } from './authentication/auth.repository.js';
+import { AuthService } from './authentication/auth.service.js';
 
 @Module({
   imports: [DatabaseModule],
   controllers: [AuthController],
-  providers: [
-    FirebaseTokenService,
-    FirebaseAuthenticationMiddleware,
-    RbacRepository,
-  ],
-  exports: [
-    FirebaseAuthenticationMiddleware,
-    FirebaseTokenService,
-    RbacRepository,
-  ],
+  providers: [AuthRepository, AuthService, AuthenticationMiddleware],
+  exports: [AuthService, AuthenticationMiddleware],
 })
-/**
- * Provides authentication and authorization building blocks to the backend.
- */
 export class AuthModule {}

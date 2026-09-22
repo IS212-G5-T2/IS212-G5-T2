@@ -1,5 +1,3 @@
-import { auth } from "@/lib/firebase";
-
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -11,21 +9,17 @@ export class ApiError extends Error {
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
-    const idToken = await auth.currentUser?.getIdToken();
     const headers = Object.fromEntries(
       new Headers(init?.headers).entries(),
     ) as Record<string, string>;
 
     headers["Content-Type"] = "application/json";
 
-    if (idToken) {
-      headers.Authorization = `Bearer ${idToken}`;
-    }
-
     response = await fetch(
       `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api${path}`,
       {
         ...init,
+        credentials: "include",
         headers,
         signal: AbortSignal.timeout(15000),
       },
