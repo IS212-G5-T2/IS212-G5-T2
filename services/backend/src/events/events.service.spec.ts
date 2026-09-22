@@ -8,7 +8,6 @@ import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { COORDINATOR_ROSTER } from './coordinator-roster.js';
 import { EventsService } from './events.service.js';
 
 const db = {
@@ -538,9 +537,15 @@ describe('EventsService', () => {
   });
 
   // SPM-38 AC5: a newly-submitted request is round-robin assigned a
-  // coordinator automatically, cycling through the roster, and an event that
-  // already has a coordinator is never reassigned.
+  // coordinator automatically, cycling through the live database roster
+  // (see coordinator-roster.ts), and an event that already has a coordinator
+  // is never reassigned.
   describe('SPM-38 AC5: round-robin coordinator assignment', () => {
+    const TEST_ROSTER = [
+      { id: 'roster-coord-1', name: 'Coordinator One' },
+      { id: 'roster-coord-2', name: 'Coordinator Two' },
+    ];
+
     it('EVE-REV-05-A assigns the first roster coordinator when no events have been assigned yet', async () => {
       const request = validEventRequest();
       const freshRow = {
@@ -551,24 +556,25 @@ describe('EventsService', () => {
       };
       const assignedRow = {
         ...freshRow,
-        coordinator_id: COORDINATOR_ROSTER[0].id,
-        coordinator_name: COORDINATOR_ROSTER[0].name,
+        coordinator_id: TEST_ROSTER[0].id,
+        coordinator_name: TEST_ROSTER[0].name,
       };
       db.transaction
         .mockResolvedValueOnce({ rows: [] }) // BEGIN
         .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
         .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // COUNT assigned coordinators
+        .mockResolvedValueOnce({ rows: TEST_ROSTER }) // SELECT live coordinator roster
         .mockResolvedValueOnce({ rows: [assignedRow] }); // UPDATE assigns coordinator
 
       const result = await service.create(organiserUser(), request);
 
-      expect(result.event.coordinatorId).toBe(COORDINATOR_ROSTER[0].id);
+      expect(result.event.coordinatorId).toBe(TEST_ROSTER[0].id);
       // Assignment alone does not advance status; the event stays Submitted.
       expect(result.event.status).toBe('submitted');
       expect(db.transaction).toHaveBeenNthCalledWith(
-        4,
+        5,
         expect.stringContaining('UPDATE events'),
-        [freshRow.id, COORDINATOR_ROSTER[0].id, COORDINATOR_ROSTER[0].name],
+        [freshRow.id, TEST_ROSTER[0].id, TEST_ROSTER[0].name],
       );
     });
 
@@ -582,18 +588,19 @@ describe('EventsService', () => {
       };
       const assignedRow = {
         ...freshRow,
-        coordinator_id: COORDINATOR_ROSTER[1].id,
-        coordinator_name: COORDINATOR_ROSTER[1].name,
+        coordinator_id: TEST_ROSTER[1].id,
+        coordinator_name: TEST_ROSTER[1].name,
       };
       db.transaction
         .mockResolvedValueOnce({ rows: [] }) // BEGIN
         .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
         .mockResolvedValueOnce({ rows: [{ count: '1' }] }) // COUNT assigned coordinators
+        .mockResolvedValueOnce({ rows: TEST_ROSTER }) // SELECT live coordinator roster
         .mockResolvedValueOnce({ rows: [assignedRow] }); // UPDATE assigns coordinator
 
       const result = await service.create(organiserUser(), request);
 
-      expect(result.event.coordinatorId).toBe(COORDINATOR_ROSTER[1].id);
+      expect(result.event.coordinatorId).toBe(TEST_ROSTER[1].id);
     });
 
     it('EVE-REV-05-C does not reassign an event that already has a coordinator', async () => {
@@ -608,6 +615,32 @@ describe('EventsService', () => {
       expect(result.event.coordinatorId).toBe('coord-9');
       expect(db.transaction).not.toHaveBeenCalledWith(
         expect.stringContaining('COUNT(*)'),
+      );
+    });
+
+    // If every coordinator account has been deactivated, a submission must
+    // still succeed rather than failing outright — it's just left unassigned
+    // for a human to fix manually.
+    it('EVE-REV-05-F leaves the event unassigned when no active coordinator account exists', async () => {
+      const request = validEventRequest();
+      const freshRow = {
+        ...savedEventRow(),
+        coordinator_id: null,
+        coordinator_name: null,
+        status: 'Submitted',
+      };
+      db.transaction
+        .mockResolvedValueOnce({ rows: [] }) // BEGIN
+        .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
+        .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // COUNT assigned coordinators
+        .mockResolvedValueOnce({ rows: [] }); // SELECT live coordinator roster — empty
+
+      const result = await service.create(organiserUser(), request);
+
+      expect(result.event.coordinatorId).toBeUndefined();
+      expect(db.transaction).not.toHaveBeenCalledWith(
+        expect.stringContaining('UPDATE events'),
+        expect.anything(),
       );
     });
   });
