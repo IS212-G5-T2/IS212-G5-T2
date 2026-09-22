@@ -14,7 +14,7 @@ My Events and My drafts rely on backend Firebase UID ownership. API requests car
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
 - The repository test workflow discovers `scripts/ci/unit-test.sh`; this
-  frontend entrypoint installs dependencies and runs `npm run test:coverage`.
+  frontend entrypoint installs dependencies and runs `npm run test:cov`.
   Keep the command and the CI workflow aligned.
 
 ## Testing

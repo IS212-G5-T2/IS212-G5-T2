@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-22 - Codex (GPT-5) - Repair frontend coverage CI entrypoint
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `AI_USAGE.md`
+- Summary: Corrected the frontend CI entrypoint to invoke the configured `test:cov` script and corrected that script to use Vitest's supported `--coverage` flag. Updated current frontend setup and handover documentation.
+- AI contribution: CI failure diagnosis, focused command and documentation repair, and verification.
+- Assumptions: `test:cov` is the intended shared coverage-script name, matching the backend component convention.
+- Checks run: `npm run test:cov` in `frontend/` (201 passed); `sh -n frontend/scripts/ci/unit-test.sh`; `git diff --check`.
+- Follow-up/conflict notes: No frontend lint or build run; the observed CI failure occurred before tests started because the entrypoint referenced a missing npm script.
+
 ## 2026-09-22 - Codex (GPT-5) - Move application, database, and Compose directories to the repository root
 
 - Issue/PR: Unknown
