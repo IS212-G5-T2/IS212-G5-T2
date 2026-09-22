@@ -2,6 +2,10 @@
 
 This directory contains database initialization files shared by local development tooling.
 
+For the feature and schema evolution that led to the consolidated initializer,
+see [CHANGELOG.md](CHANGELOG.md). The init directory stays limited to one
+schema script and one seed-data script.
+
 ## PostgreSQL
 
 `postgresql/` contains a buildable PostgreSQL image for local development. Its `Dockerfile` copies `postgresql/init/` into `/docker-entrypoint-initdb.d`, so the same image can be used by Docker Compose or run on its own.
@@ -32,7 +36,7 @@ docker run --rm --name spm-postgresql \
 
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `development/local-dev/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
-The PostgreSQL entrypoint runs every SQL file in `postgresql/init/` by filename order when it creates a fresh database. `001_schema.sql` contains base local schema, `001_rbac.sql` creates and seeds local RBAC tables, and `001_users.sql` creates local account identities, role membership, sessions, and development accounts:
+The PostgreSQL entrypoint runs two SQL files by filename order when it creates a fresh database: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
 
 | Table | Purpose |
 | --- | --- |
@@ -61,17 +65,17 @@ The expected counts are 5 roles, 10 resources, and 27 role permission rows.
 
 ## Local login data
 
-`001_users.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
-session storage, and seeds one development-only account per role. Each seed
+`001_schema.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
+session storage; `002_seed_data.sql` seeds one development-only account per role. Each seed
 account uses password `P@55w0rd`:
 
 | Role | Email |
 | --- | --- |
-| Organiser | `organiser@local.connectsphere.test` |
-| Coordinator | `coordinator@local.connectsphere.test` |
-| Venue Staff | `venue.staff@local.connectsphere.test` |
-| Tech Support | `tech.support@local.connectsphere.test` |
-| Attendee | `attendee@local.connectsphere.test` |
+| Organiser | `organiser1@connectsphere.test` |
+| Coordinator | `coordinator1@connectsphere.test` |
+| Venue Staff | `venue_staff1@connectsphere.test` |
+| Tech Support | `tech_support1@connectsphere.test` |
+| Attendee | `attendee1@connectsphere.test` |
 
 These values are intentionally local-only and must never be reused outside the
 development database. Passwords are stored as bcrypt hashes; session tokens are
@@ -85,35 +89,27 @@ docker compose -f development/local-dev/docker-compose.yml down -v
 
 Use reset only when local data can be discarded.
 
-To add local login to an existing Compose volume without resetting data, apply
-the user schema from the repository root. Existing volumes already contain the
-RBAC tables; apply `001_rbac.sql` first only if they do not:
+To reseed local accounts in an existing Compose volume without resetting data,
+apply the seed script from the repository root:
 
 ```sh
-docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/001_users.sql
+docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_seed_data.sql
 ```
 
 ## Events sample database
 
-The local `spm` PostgreSQL database stores requests in `events`.
-`002_events.sql` defines the schema and `003_sample_events.sql` adds one
-fictional Submitted event. Records persist in Docker's `postgres-data` volume.
+The local `spm` PostgreSQL database stores requests in `events`. The complete
+schema is in `001_schema.sql` and the fictional Submitted event is part of
+`002_seed_data.sql`. Records persist in Docker's `postgres-data` volume.
 Dates/times use `timestamptz`; the API/browser handles local-time display.
-The RBAC seed is named `001_rbac.sql` so it runs before `001_users.sql`, whose
-role-membership foreign key depends on the seeded `roles` table. The event
-schema remains independent in `002_events.sql`.
 
-For an existing local volume, apply these additive scripts from the repository root (no reset needed):
-
-```sh
-docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/002_events.sql
-docker compose -f development/local-dev/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < development/database/postgresql/init/003_sample_events.sql
-```
-
-The second command is optional sample data. Both scripts are safe to repeat. Fresh volumes receive them when the PostgreSQL image is rebuilt. Do not delete volumes to apply these scripts.
+The two files create a fresh database only. For an existing volume, use the
+backend migrations that correspond to the missing schema change; do not apply
+the schema file as a replacement migration or delete the volume merely to pick
+up initializer refactoring.
 
 The Compose postgres service also mounts the backend-owned draft migration as `004_event_drafts.sql`. Drafts use separate `event_drafts` storage so incomplete values do not weaken submitted-event constraints. For existing volumes follow the additive migration command in development/local-dev/README.md; no reset is required.
 
 ## Request rejection schema
 
-Fresh PostgreSQL images apply `006_event_rejection.sql` after the clarification schema. Existing volumes must apply the equivalent backend migration `services/backend/migrations/003_event_rejection.sql` with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. It adds `rejection_reason`, permits Rejected status and requires a nonblank recorded reason for rejected rows. Existing events and notifications are retained; no volume reset is needed.
+Fresh PostgreSQL images receive the final event lifecycle directly from `001_schema.sql`: `Submitted`, `Approved`, or `Rejected`. A rejected event needs a 10–500-character `rejection_reason`. Existing volumes must retain their migration history: apply `services/backend/migrations/003_event_rejection.sql`, then `services/backend/migrations/004_allow_rejected_event_status.sql`, with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. Existing events and notifications are retained; no volume reset is needed.

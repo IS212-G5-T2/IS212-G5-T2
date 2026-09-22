@@ -1,4 +1,4 @@
--- Apply after 004_clarifications.sql. Existing rows are preserved.
+-- Apply after the existing events and clarification schema. Existing rows are preserved.
 BEGIN;
 ALTER TABLE events ADD COLUMN IF NOT EXISTS rejection_reason text;
 ALTER TABLE events DROP CONSTRAINT IF EXISTS events_status_check;

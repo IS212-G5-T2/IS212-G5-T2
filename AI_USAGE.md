@@ -1252,3 +1252,48 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: This request refers to the outstanding shared PostgreSQL-pool migration described in the backend README and handover notes.
 - Checks run: `npm test` in `services/backend` — 427/427 passed; `npm run build` passed; `git diff --check` passed.
 - Follow-up/conflict notes: Changes are staged for human review only; no commit, push, pull request, or database schema migration was run.
+
+## 2026-09-22 - Codex (GPT-5) - Repair frontend route authentication identity selector
+
+- Context: User-reported frontend compile error; no Jira issue supplied.
+- Areas touched: `apps/frontend/src/App.tsx`, `AI_USAGE.md`.
+- Summary: Derived `currentUserId` from the Zustand auth state for the `AppShell` remount key, and imported React Router's `Navigate` used by the root redirect.
+- Assumptions: The shell should remount when `currentUser.id` changes after a login, logout, or session restoration.
+- Checks: `npm run build` in `apps/frontend` passed.
+- Follow-up/conflict notes: No commit, push, or pull request was created.
+
+## 2026-09-22 - Codex (GPT-5) - Consolidate overlapping PostgreSQL initializers
+
+- Context: User-requested scan and merge of overlapping local PostgreSQL initialization files; no Jira issue supplied.
+- Areas touched: `development/database/postgresql/init`, database and backend setup documentation, `AI_USAGE.md`.
+- Summary: Merged the overlapping status/rejection rules from `006_event_rejection.sql`, `006_remove_under_review_status.sql`, and `007_allow_rejected_event_status.sql` into one final `006_event_rejection.sql`; removed the two superseded files. The consolidated initializer normalizes legacy `Under_Review` rows to `Submitted`, allows `Submitted`/`Approved`/`Rejected`, and requires a 10–500-character reason for rejections.
+- Assumptions: Docker init scripts define fresh-volume state; existing volumes retain the backend-owned `003_event_rejection.sql` then `004_allow_rejected_event_status.sql` migration sequence.
+- Checks: Reviewed filename-order execution and all references; `git diff --check` passed. Docker engine is available but its required `postgres:16-alpine` image is not present, so a fresh-container SQL execution was not run.
+- Follow-up/conflict notes: The complementary `001_schema.sql`, `001_rbac.sql`, and `001_users.sql` were retained. No local volume, container, commit, push, or pull request was changed.
+
+## 2026-09-22 - Codex (GPT-5) - Fold final event lifecycle into the base initializer
+
+- Context: User requested consolidating the fresh-volume event lifecycle instead of retaining a dedicated rejection initializer; no Jira issue supplied.
+- Areas touched: `development/database/postgresql/init`, database and backend setup documentation, `AI_USAGE.md`.
+- Summary: Moved the final `Submitted`/`Approved`/`Rejected` status constraint and the 10–500-character rejected-reason constraint into `002_events.sql`; removed the status-changing logic from `004_clarifications.sql` and deleted the now-redundant `006_event_rejection.sql`.
+- Assumptions: `002_events.sql` is the source of truth for fresh event-table creation, while existing persistent volumes continue to use backend migrations `003_event_rejection.sql` and `004_allow_rejected_event_status.sql`.
+- Checks: Built a temporary `postgres:16-alpine`-based image and initialized an isolated PostgreSQL 16 database. All init scripts succeeded; `events_status_check`, `events_rejection_reason_check`, and `events.rejection_reason` were verified. Removed the temporary container and image afterward. `git diff --check` passed.
+- Follow-up/conflict notes: No shared Compose container, volume, data, commit, push, or pull request was changed.
+
+## 2026-09-22 - Codex (GPT-5) - Consolidate local PostgreSQL initialization into schema and seed scripts
+
+- Context: User requested exactly two SQL files under `development/database/postgresql/init`: one schema and one seed-data script; no Jira issue supplied.
+- Areas touched: local PostgreSQL initialization, backend draft E2E fixture reference, migration comments, database/backend/local-dev documentation, `AI_USAGE.md`.
+- Summary: Consolidated all extensions, tables, constraints, and indexes into `001_schema.sql`, and all RBAC, local-account, health-check, and fictional-event inserts into `002_seed_data.sql`. Removed the seven superseded initializer files and updated references.
+- Assumptions: These scripts define fresh Docker-volume state only. Existing persistent volumes must keep using backend-owned additive migrations, not the rewritten initializer.
+- Checks: Fresh isolated PostgreSQL 16 container initialization passed with only `001_schema.sql` and `002_seed_data.sql`; verified 5 roles, 10 resources, 27 permissions, 16 users, one sample event, and the auth/clarification/notification tables. `npm run build` in `services/backend` and `git diff --check` passed. Temporary container and image were removed; shared Compose resources were untouched.
+- Follow-up/conflict notes: No commit, push, pull request, or local-volume reset was performed.
+
+## 2026-09-22 - Codex (GPT-5) - Preserve local database initializer history
+
+- Context: User requested retained history after consolidating the PostgreSQL initializer; no Jira issue supplied.
+- Areas touched: `development/database/CHANGELOG.md`, database README, `AI_USAGE.md`.
+- Summary: Added a durable changelog that records the prior event, local-auth/RBAC, clarification, status-retirement, and rejection-schema changes now represented by the two consolidated init scripts.
+- Assumptions: Git history remains the complete implementation-level audit trail; the changelog is a concise operational guide, not a migration sequence.
+- Checks: Confirmed historical commits touching the initializer and linked the changelog from the database README.
+- Follow-up/conflict notes: No SQL files, containers, volumes, commits, pushes, or pull requests were changed by this documentation update.
