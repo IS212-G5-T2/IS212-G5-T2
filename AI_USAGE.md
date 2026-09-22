@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `backend/src/auth/authentication`, `AI_USAGE.md`
+- Summary: Created `codex/fix-authentication-coverage` from the current `dev` baseline, analyzed the authentication-only coverage gaps before any deletion, and added focused coverage tests. No production code was deleted or changed.
+- AI contribution: Coverage-baseline verification, source/test-path analysis, and unit-test expansion.
+- Assumptions: The requested focus is the backend `src/auth/authentication` folder shown in the supplied coverage report.
+- Checks run: `npm run test:cov -- src/auth/authentication` in `backend/` (32 passed; every authentication source file is 100% for statements, branches, functions, and lines); `npm run lint`; `npm run build`; focused Prettier check; `git diff --check`.
+- Follow-up/conflict notes: Added business-path tests for authenticated-user retrieval, invalid bodies, and cookie-less logout, plus constructor-metadata fallback tests for compiler-generated Nest decorator branches. No files are staged, committed, or pushed.
+
 ## 2026-09-22 - Codex (GPT-5) - Repair frontend coverage CI entrypoint
 
 - Issue/PR: Unknown
