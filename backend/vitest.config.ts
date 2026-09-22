@@ -11,5 +11,11 @@ export default defineConfig({
     root: './',
     include: ['**/*.spec.ts'],
     exclude: ['**/*.e2e-spec.ts'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary', 'html'],
+      reportsDirectory: './coverage',
+      exclude: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'src/main.ts'],
+    },
   },
 });

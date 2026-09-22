@@ -1308,3 +1308,21 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Git history remains the complete implementation-level audit trail; the changelog is a concise operational guide, not a migration sequence.
 - Checks: Confirmed historical commits touching the initializer and linked the changelog from the database README.
 - Follow-up/conflict notes: No SQL files, containers, volumes, commits, pushes, or pull requests were changed by this documentation update.
+
+## 2026-09-22 - Codex (GPT-5) - Configure Vitest V8 coverage reports
+
+- Context: User requested `@vitest/coverage-v8` for both frontend and backend; no Jira issue supplied.
+- Areas touched: frontend/backend Vitest configuration, backend CI test entrypoint and README, `AI_USAGE.md`.
+- Summary: The package was already installed and locked in both components. Added explicit V8 coverage/report configuration to their standard Vitest configs and changed backend CI to run its existing coverage command, matching the frontend's coverage-enabled CI entrypoint.
+- Assumptions: Coverage reporting should not enforce a project-wide threshold; the existing SPM-37 focused coverage configurations retain their strict thresholds.
+- Checks: `npm run test:coverage` in `apps/frontend` — 201/201 passed; V8 summary: 87.61% statements, 80.66% branches, 80.95% functions, 89.60% lines. `npm run test:cov` in `services/backend` — 434/434 passed; V8 summary: 95.41% statements, 94.16% branches, 92.17% functions, 96.20% lines.
+- Follow-up/conflict notes: No commit, push, or pull request was created.
+
+## 2026-09-22 - Codex (GPT-5) - Remove combined coverage dashboard automation
+
+- Context: User no longer wanted frontend and backend coverage aggregated into one folder; the V8 package and per-component reports remain required.
+- Areas touched: root coverage-dashboard documentation and `AI_USAGE.md`.
+- Summary: Removed the obsolete root dashboard documentation. The already-removed aggregation scripts and CI dashboard upload are not restored; frontend and backend retain their independent V8 coverage configuration and commands.
+- Assumptions: Per-component `coverage/` reports are sufficient for local coverage use.
+- Checks: Confirmed the combined dashboard scripts and CI steps are absent while both component coverage configurations remain present.
+- Follow-up/conflict notes: No dependency, commit, push, or pull request was removed or created.
