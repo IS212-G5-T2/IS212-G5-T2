@@ -1,20 +1,15 @@
 name: Tests
 
 on:
-  push:
-    branches:
-      - staging
-    paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/tests.yml"
   pull_request:
     branches:
-      - staging
+      - dev
+      - main
     paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/tests.yml"
+      - "frontend/**"
+      - "backend/**"
+      - "database/**"
+      - "docker-compose/**"
   workflow_dispatch:
 
 permissions:
@@ -24,7 +19,6 @@ jobs:
   component-unit-tests:
     name: Component Unit Tests
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout
@@ -35,9 +29,31 @@ jobs:
         run: |
           set -eu
 
+          collect_failure_diagnostics() {
+            local component_dir="$1"
+            local npm_log_dir="${NPM_CONFIG_CACHE:-$HOME/.npm}/_logs"
+            local artifact_dir="$GITHUB_WORKSPACE/ci-diagnostics/$component_dir"
+
+            mkdir -p "$artifact_dir"
+            {
+              echo "Git commit: $(git rev-parse HEAD)"
+              echo "Node version: $(node --version)"
+              echo "npm version: $(npm --version)"
+              echo "legacy-peer-deps: $(npm config get legacy-peer-deps)"
+              echo "strict-peer-deps: $(npm config get strict-peer-deps)"
+              echo "Dependency files:"
+              sha256sum "$component_dir/package.json" "$component_dir/package-lock.json"
+            } > "$artifact_dir/dependency-state.txt"
+
+            if [ -d "$npm_log_dir" ]; then
+              find "$npm_log_dir" -type f -name '*-debug-*.log' -exec cp {} "$artifact_dir/" \;
+            fi
+          }
+
           entrypoints="$(
-            find apps services \
-              -path "*/scripts/ci/unit-test.sh" -type f -print | sort
+            find . \
+              \( -path './.git' -o -path '*/node_modules' \) -prune -o \
+              -path '*/scripts/ci/unit-test.sh' -type f -print | sort
           )"
 
           if [ -z "$entrypoints" ]; then
@@ -56,8 +72,85 @@ jobs:
             fi
 
             echo "Running unit tests for $component_dir"
+            set +e
             (
               cd "$component_dir"
               ./scripts/ci/unit-test.sh
             )
+            status=$?
+            set -e
+
+            if [ "$status" -ne 0 ]; then
+              echo "Unit tests failed for $component_dir with exit code $status"
+              collect_failure_diagnostics "$component_dir"
+              exit "$status"
+            fi
           done
+
+  backend-e2e-tests:
+    name: Backend E2E Tests
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: postgresql://spm:spm_dev_password@127.0.0.1:5432/spm
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies
+        run: npm ci
+        working-directory: backend
+
+      - name: Build local PostgreSQL image
+        run: docker build -t spm-postgresql ./database/postgresql
+
+      - name: Start PostgreSQL
+        run: |
+          docker run -d --name spm-postgres \
+            -e POSTGRES_USER=spm \
+            -e POSTGRES_PASSWORD=spm_dev_password \
+            -e POSTGRES_DB=spm \
+            -p 5432:5432 \
+            spm-postgresql
+
+      - name: Wait for PostgreSQL
+        run: |
+          for attempt in {1..30}; do
+            # The official image briefly starts a temporary server to run its
+            # init scripts. It accepts pg_isready probes, then shuts down;
+            # wait for that phase to finish and for the final server to listen.
+            if docker logs spm-postgres 2>&1 | grep -q 'PostgreSQL init process complete; ready for start up.' \
+              && docker exec spm-postgres pg_isready -U spm -d spm; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs spm-postgres
+          exit 1
+
+      - name: Run backend E2E tests
+        run: npm run test:e2e
+        working-directory: backend
+
+      - name: Show PostgreSQL logs after E2E failure
+        if: failure()
+        run: docker logs spm-postgres
+
+      - name: Remove PostgreSQL test container
+        if: always()
+        run: docker rm -f spm-postgres || true
+      - name: Upload npm diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-debug-logs-${{ github.run_id }}
+          path: ci-diagnostics/
+          if-no-files-found: warn
+          retention-days: 7

@@ -31,10 +31,10 @@ Link the Jira story or paste the relevant acceptance criteria.
 ## Branch Flow
 
 - Source branch:
-- Target branch: `staging`
+- Target branch: `dev`
 - Flow:
-  - [ ] Branch was created from the latest `staging`
-  - [ ] Pull request targets `staging`
+  - [ ] Branch was created from the latest `dev`
+  - [ ] Pull request targets `dev`
 
 ## Test Evidence
 

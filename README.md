@@ -7,11 +7,12 @@ This repository contains the project code, local development setup, and GitHub A
 ```text
 .
 |-- .github/              # GitHub metadata, pull request template, and workflows
-|-- apps/                 # Front-facing applications
 |-- assets/               # README and documentation images
-|-- development/          # Local development and integration tooling
+|-- backend/              # NestJS backend service
+|-- database/             # Local database image and initialization assets
 |-- docs/                 # Project workflow documentation
-|-- services/             # Backend-facing services
+|-- docker-compose/       # Local Docker Compose integration stack
+|-- frontend/             # React/Vite frontend application
 |-- AGENTS.md             # Agent working instructions
 |-- AI_USAGE.md           # AI-assisted work log
 `-- opencode.json
@@ -23,13 +24,14 @@ The project is structured as a Student Project Management workspace. The intende
 
 At a high level:
 
-- `apps/frontend` is the React/Vite frontend application area.
-- `services/backend` is the NestJS backend service.
-- `development/local-dev` owns the Docker Compose environment for local integration testing.
+- `frontend` is the React/Vite frontend application.
+- `backend` is the NestJS backend service.
+- `docker-compose` owns the Docker Compose environment for local integration testing.
+- `database` owns the local PostgreSQL image and initialization assets used by Compose.
 - `.github/workflows` owns the GitHub Actions security and test workflows.
 - `docs` owns project workflow documentation.
 
-No deployment target is defined in this repository. `staging` is the latest shared branch; create new work branches from the latest `staging` and open pull requests back into `staging`.
+No deployment target is defined in this repository. `dev` is the latest shared branch; create new work branches from the latest `dev` and open pull requests back into `dev`.
 
 ![Secure Architecture with Centralized Logging](assets/Secure%20Architecture%20with%20Centralized%20Logging.png)
 
@@ -42,9 +44,10 @@ The system is organized around clear ownership boundaries:
 | Layer | Repository | Responsibility |
 | --- | --- | --- |
 | Project coordination | Repository root and `docs` | README, AI usage notes, agent instructions, project workflow documentation |
-| Frontend | `apps/frontend` | User-facing client application scaffold and frontend CI security checks |
-| Backend services | `services/*` | Microservice code, service-specific tests, service Dockerfiles, service CI |
-| Local integration | `development/local-dev` | Docker Compose gateway, backend runtime target, PostgreSQL, Pub/Sub emulator, fake GCS, Adminer |
+| Frontend | `frontend` | React/Vite user-facing client application, frontend package scripts, and frontend Dockerfile |
+| Backend service | `backend` | NestJS backend service code, service-specific tests, service Dockerfile, and service CI entrypoint |
+| Database assets | `database` | Local PostgreSQL image and initialization assets used by Docker Compose |
+| Local integration | `docker-compose` | Docker Compose frontend/backend runtime targets and PostgreSQL |
 | CI | `.github/workflows` | GitHub Actions workflows for security and tests |
 
 The local development stack supports integration work without deployment infrastructure:
@@ -53,7 +56,8 @@ The local development stack supports integration work without deployment infrast
 | --- | --- |
 | Compose network | `spm` |
 | Local gateway | Nginx gateway at `http://localhost:8080` |
-| Service container | `backend` container |
+| Frontend container | `frontend` container at `http://localhost:5173` |
+| Backend container | `backend` container through the gateway at `http://localhost:8080` |
 | PostgreSQL | PostgreSQL at `localhost:5432` |
 | Object storage emulator | Fake GCS server at `http://localhost:4443` |
 | Pub/Sub emulator | Pub/Sub emulator at `localhost:8085` |
@@ -94,7 +98,8 @@ C4Container
     title IS212 G5 T2 - Local Development Containers
 
     Person(dev, "Developer", "Runs the full local stack.")
-    System_Boundary(local, "development/local-dev") {
+    System_Boundary(local, "docker-compose") {
+        Container(frontendLocal, "frontend", "React / Vite dev container", "Frontend development server on localhost:5173.")
         Container(gateway, "gateway", "Nginx", "Local reverse proxy on localhost:8080.")
         Container(service, "backend", "NestJS backend container", "Service target expected by the Compose stack.")
         ContainerDb(postgres, "postgres", "PostgreSQL 16", "Local relational database on localhost:5432.")
@@ -103,7 +108,9 @@ C4Container
         Container(adminer, "db-admin", "Adminer", "Optional database UI on localhost:8081.")
     }
 
-    Rel(dev, gateway, "Sends API requests")
+    Rel(dev, frontendLocal, "Opens UI")
+    Rel(frontendLocal, gateway, "Calls backend API through localhost:8080")
+    Rel(dev, gateway, "Sends direct API requests")
     Rel(gateway, service, "Routes /healthz and service traffic")
     Rel(service, postgres, "Uses DATABASE_URL / DB_HOST / DB_PORT")
     Rel(service, pubsub, "Uses emulator config")
@@ -186,7 +193,7 @@ Get-Content "$HOME\.ssh\id_ed25519_github.pub" | Set-Clipboard
 To run the local development stack, move into the Compose environment:
 
 ```sh
-cd development/local-dev
+cd docker-compose
 cp .env.example .env
 docker compose up --build
 ```
@@ -201,6 +208,7 @@ Common local URLs:
 
 | Service | URL |
 | --- | --- |
+| Frontend | `http://localhost:5173` |
 | Local gateway | `http://localhost:8080` |
 | Backend through gateway | `http://localhost:8080/healthz` |
 | PostgreSQL | `localhost:5432` |
@@ -236,7 +244,7 @@ Reset local database and storage volumes only when a full data reset is intended
 docker compose down -v
 ```
 
-The local Compose stack builds `../../services/backend` for the backend container.
+The local Compose stack builds `../frontend` for the frontend container, `../backend` for the backend container, and `../database/postgresql` for the local PostgreSQL image.
 
 ## Developers
 
@@ -272,17 +280,17 @@ A typical Scrum flow:
 4. A developer creates a branch using the Jira key.
 5. The developer implements the work, updates tests and documentation, and opens a GitHub pull request.
 6. CI evidence, review feedback, and acceptance criteria are checked before merging.
-7. Jira is updated as the work moves from in progress to review, staging validation, and done.
+7. Jira automation reflects branch creation, pull request review, and post-merge testing status.
 
-### Branch Flow: Branch To Integration To Staging To Main
+### Branch Flow: Work Branch To dev
 
-The team uses `staging` as the latest shared branch:
+The team uses `dev` as the latest shared branch:
 
 ```text
 feature/fix/docs branch
         |
         v
-staging
+dev
 ```
 
 Recommended branch names:
@@ -300,21 +308,21 @@ Use the Jira ticket id, such as `SPM-155`, followed by a hyphenated slug of the 
 
 This is where individual development happens.
 
-- Created from the latest `staging`.
+- Created from the latest `dev`.
 - Named with the Jira key whenever available.
 - Contains focused commits for one Jira issue or one tightly related change.
 - Developer runs relevant local checks before opening a pull request.
 - Pull request explains the change, links the Jira issue, lists tests, and calls out risks or follow-up work.
 
-#### 2. Staging
+#### 2. dev
 
-`staging` is the latest shared branch for the project.
+`dev` is the latest shared branch for the project.
 
 - Feature branches merge here after review.
-- GitHub Actions should run unit tests on `staging`.
-- GitHub Actions should catch security, unit-test, and integration problems on `staging`.
+- GitHub Actions should run unit tests on `dev`.
+- GitHub Actions should catch security and unit-test problems on `dev`.
 - The team resolves merge conflicts and cross-service incompatibilities here.
-- Bugs found on `staging` should be fixed from a new branch based on the latest `staging`.
+- Bugs found on `dev` should be fixed from a new branch based on the latest `dev`.
 - Jira issues should only be marked done when the implementation, review, CI, and acceptance criteria are complete.
 
-The goal of this workflow is to keep Scrum planning, code review, and CI evidence connected. Jira explains why the work exists; GitHub proves what changed; CI shows whether the change is safe to merge into `staging`.
+The goal of this workflow is to keep Scrum planning, code review, and CI evidence connected. Jira explains why the work exists; GitHub proves what changed; CI shows whether the change is safe to merge into `dev`.

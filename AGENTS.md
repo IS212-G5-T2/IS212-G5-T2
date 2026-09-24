@@ -54,31 +54,32 @@ Jira automation owns these status transitions:
 
 This is one GitHub repository. Run Git commands, branch creation, commits, pushes, and pull requests from the repository root unless a tool explicitly requires a narrower working directory.
 
-| Path | Owns | Does Not Own |
-| --- | --- | --- |
-| `apps/` | Frontend and client-facing applications. | Backend service logic or shared local integration tooling. |
-| `services/` | Backend services, service contracts, persistence logic, and service-level tests. | Frontend UI or shared local integration tooling. |
-| `development/local-dev/` | Docker Compose local integration stack, local gateway, emulator setup, and local database initialization. | Application feature ownership or production infrastructure. |
-| `.github/workflows/` | Repository-level GitHub Actions orchestration for security and tests. | Component-specific test commands or release automation. |
-| `docs/` | Durable workflow and process documentation. | Dynamic task tracking, implementation source, environment secrets. |
+| Path                     | Owns                                                                             | Does Not Own                                                                             |
+| ------------------------ | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `frontend/`              | Frontend and client-facing application.                                          | Backend service logic or shared local integration tooling.                               |
+| `backend/`               | Backend service, contracts, persistence logic, and service-level tests.          | Frontend UI or shared local integration tooling.                                         |
+| `docker-compose/`        | Docker Compose local integration stack and local setup.                          | Application feature ownership, database asset ownership, or production infrastructure.   |
+| `database/`              | Local database initialization assets for the shared local development stack.      | Backend persistence code, application migrations, or production database infrastructure. |
+| `.github/workflows/`     | Repository-level GitHub Actions orchestration for security and tests.            | Component-specific test commands or release automation.                                  |
+| `docs/`                  | Durable workflow and process documentation.                                      | Dynamic task tracking, implementation source, environment secrets.                       |
 
 ## Component Boundaries
 
-Treat every direct child under `apps/` and `services/` as a component or project once it contains real implementation code. Each component must have a clear owner boundary.
+Treat every top-level application or service component as a project once it contains real implementation code. Each component must have a clear owner boundary.
 
-When adding a new project, such as `services/events-service`, create an `AGENTS.md` inside that project before or alongside implementation work. That file must state:
+When adding a new project, create an `AGENTS.md` inside that project before or alongside implementation work. That file must state:
 
 - What the project owns.
 - What the project explicitly does not own.
 - Its runtime, framework, and package manager once chosen.
 - Its public API, events, queues, database tables, or external integrations if any.
 - Its local setup, test, build, and CI entrypoints.
-- Which other folders it is allowed to coordinate with, such as `apps/`, `services/`, or `development/local-dev/`.
+- Which other folders it is allowed to coordinate with, such as `frontend/`, `backend/`, `database/`, or `docker-compose/`.
 
 Example for a new backend service:
 
 ```text
-services/events-service/
+events-service/
 |-- AGENTS.md
 |-- README.md
 |-- HANDOVER.md
@@ -95,8 +96,8 @@ Do not silently mix ownership areas. If a change crosses boundaries, name the af
 
 Common boundary crossings:
 
-- Frontend calling a backend API: read `apps/AGENTS.md`, the app's `AGENTS.md`, `services/AGENTS.md`, and the target service's `AGENTS.md`.
-- Local integration change: read `development/AGENTS.md` and `development/local-dev/README.md`.
+- Frontend calling a backend API: read `frontend/AGENTS.md` and `backend/AGENTS.md`.
+- Local integration change: read `docker-compose/AGENTS.md` and `docker-compose/README.md`.
 - CI change: read `docs/ci-process.md` and the relevant workflow under `.github/workflows/`.
 
 ## AI Usage Tracking
@@ -130,6 +131,26 @@ Implemented apps and services own their local unit-test command in:
 
 The root tests workflow should stay generic. Do not hard-code a component's runtime-specific test command into `.github/workflows/tests.yml`; put that command in the component's script.
 
+## Test Organization and Naming
+
+- Keep tests beside the component or module they cover; do not create a root tests tree or Jira-key directories.
+- Place frontend component tests beside their component or page as descriptive .test.tsx files. Place backend unit tests beside their module as descriptive .spec.ts files.
+- Maintain one behavior-focused suite as later Jira stories change the same module. Keep Jira keys and acceptance-criterion wording inside suites and test names for traceability, rather than duplicating files by story.
+- Vitest discovers matching test/spec filenames within the component. Exclude Playwright browser specs from Vitest.
+- Place browser acceptance tests beside their frontend page as .playwright.spec.ts, discovered by Playwright.
+- Place database/API integration tests beside the backend module as .e2e-spec.ts, discovered only by the dedicated integration configuration. Shared application smoke tests may remain in the backend test directory.
+- Keep fixtures within the owning component, outside production entrypoints. Backend browser harnesses belong in scripts/testing/.
+- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections.
+- Use Playwright for real browser workflows; use backend/database runners for validation, authorization, persistence, and concurrency.
+- Keep test configuration and CI entrypoints with the owning component. New tests should be discovered without adding Jira-specific patterns.
+- Run affected suites before reporting testing complete; identify skipped checks and environment limitations.
+
+## Conflict Resolution
+
+- When syncing dev into a feature branch, use dev's version of files with merge conflicts.
+- Replace only the conflicted files. Preserve unrelated local files and folders.
+- Report any local scripts or dependencies lost through this resolution; do not silently reintroduce them.
+
 ## Issue Workflow
 
 For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):
@@ -144,12 +165,12 @@ Jira remains the source of truth for Scrum planning and acceptance criteria when
 
 GitHub uses pull requests. If a Jira card, teammate, or older doc says "merge request", create a GitHub pull request.
 
-`staging` is the latest shared branch and the default base for all new work. When starting new implementation, documentation, test, chore, or refactor work, create a focused branch from the latest `staging` and open the pull request back into `staging`.
+`dev` is the latest shared branch and the default base for all new work. The branch flow is `work branch -> dev -> main`. When starting new implementation, documentation, test, chore, or refactor work, create a focused branch from the latest `dev` and open the pull request back into `dev`.
 
-| Jira card intent | Work branch | Pull request target | Purpose |
-| --- | --- | --- | --- |
-| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `staging` | `staging` | Add normal development work to the latest shared branch. |
-| Urgent fix | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `staging` | `staging` | Repair the latest shared branch without a separate production branch. |
+| Jira card intent                                                     | Work branch                                                                                                                                             | Pull request target | Purpose                                                     |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- | ----------------------------------------------------------- |
+| New feature, bug fix, refactor, test, or ordinary documentation work | `feature/<ticket_id>-<ticket_name>`, `fix/<ticket_id>-<ticket_name>`, `docs/<ticket_id>-<ticket_name>`, or `chore/<ticket_id>-<ticket_name>` from `dev` | `dev`               | Add normal development work to the latest shared branch.    |
+| Urgent fix                                                           | `fix/<ticket_id>-<ticket_name>` or `hotfix/<ticket_id>-<ticket_name>` from `dev`                                                                        | `dev`               | Repair the latest shared branch before promotion to `main`. |
 
 Use the exact Jira ticket id, such as `SPM-155`, and a hyphenated slug of the Jira ticket name so Jira and GitHub can display the connected work clearly. Do not replace the ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
 
@@ -161,6 +182,10 @@ Do not implement a Jira card whose status is not `To Do` or `In Progress`; repor
 - Keep changes focused and reviewable.
 - Preserve user and teammate changes already present in the working tree.
 - Add or update tests for changed behavior where meaningful.
+- Place ticket-specific tests in the component's established test layout and
+  identify the Jira key in the test name or nearby test-case comments. Do not
+  introduce a parallel root `tests/` tree unless the repository explicitly
+  adopts one.
 - Update README, HANDOVER, CHANGELOG, and scoped AGENTS files when behavior, ownership, setup, CI, or operational assumptions change.
 - Never commit secrets, credentials, tokens, private keys, certificates, or real production data.
 

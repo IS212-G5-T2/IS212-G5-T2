@@ -56,11 +56,12 @@ GitHub calls this final review step a pull request. If the task says "merge requ
 
 ### 5. Create Or Reuse The Correct Branch
 
-Use `staging` as the latest shared branch:
+Use `dev` as the latest shared branch:
 
-- Normal feature, bug fix, refactor, test, or documentation cards start from `staging`.
-- Pull requests target `staging`.
-- Start from the latest `staging`.
+- Normal feature, bug fix, refactor, test, or documentation cards start from `dev`.
+- Pull requests target `dev`.
+- Start from the latest `dev`.
+- The branch flow is `work branch -> dev -> main`.
 - Use the Jira ticket id and ticket name in the branch name.
 - Format the branch as `<type>/<ticket_id>-<ticket_name>`, where `<ticket_name>` is a hyphenated slug of the Jira ticket name.
 - Do not replace the Jira ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
@@ -80,9 +81,9 @@ Branch and pull request targets:
 
 | Card intent | Start from | Pull request target |
 | --- | --- | --- |
-| Normal implementation | `staging` | `staging` |
-| Documentation, test, chore, or refactor | `staging` | `staging` |
-| Urgent fix | `staging` | `staging` |
+| Normal implementation | `dev` | `dev` |
+| Documentation, test, chore, or refactor | `dev` | `dev` |
+| Urgent fix | `dev` | `dev` |
 
 ### 6. Implement And Test
 
@@ -103,7 +104,7 @@ Branch and pull request targets:
 
 ### 8. Stage For Human Review
 
-- Review the diff before staging.
+- Review the diff before adding files to the Git index.
 - Stage completed changes so the human can review exactly what would be committed.
 - Report the staged files, tests/checks run, checks not run and why, and any known risks.
 - Do not commit, push, or create a pull request until the human explicitly says to proceed with the commit.
@@ -121,7 +122,7 @@ Branch and pull request targets:
 - Link the Jira ticket.
 - Include what changed, test evidence, acceptance criteria coverage, and known risks.
 - Include an implementation summary, acceptance-criteria checklist, and testing notes.
-- Set the pull request base branch to `staging`.
+- Set the pull request base branch to `dev`.
 - Stop for human review unless explicitly told to merge.
 - Do not auto-merge or accept the pull request.
 - If review requests changes, continue work on the existing branch and pull request.

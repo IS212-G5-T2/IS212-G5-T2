@@ -3,66 +3,53 @@ name: Security
 on:
   push:
     branches:
-      - staging
-    paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/security.yml"
+      - dev
+      - main
   pull_request:
     branches:
-      - staging
-    paths:
-      - "apps/**"
-      - "services/**"
-      - ".github/workflows/security.yml"
+      - dev
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
   pull-requests: read
-  security-events: write
 
 jobs:
-  frontend-codeql:
-    name: Frontend CodeQL
+  sast:
+    name: Semgrep SAST
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    container:
+      image: semgrep/semgrep
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          source-root: apps/frontend
+      - name: Run Semgrep Community Edition
+        run: semgrep scan --config auto
 
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
-
-  backend-codeql:
-    name: Backend CodeQL
+  dependency-scan:
+    name: Dependency Vulnerability Scan
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        component:
+          - frontend
+          - backend
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: javascript-typescript
-          source-root: services/backend
-
-      - name: Analyze
-        uses: github/codeql-action/analyze@v3
+      - name: Run npm audit
+        working-directory: ${{ matrix.component }}
+        run: npm audit --audit-level=high
 
   secret-scan:
     name: Secret Scan
     runs-on: ubuntu-latest
-    if: github.ref_name == 'staging' || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout

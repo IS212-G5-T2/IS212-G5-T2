@@ -9,9 +9,9 @@ This repository uses root-level GitHub Actions workflows to orchestrate checks f
 
 ## Branch Flow
 
-`staging` is the latest shared branch. Create new feature, fix, docs, chore, refactor, and test branches from the latest `staging`, then open pull requests back into `staging`.
+`dev` is the latest shared branch. The branch flow is `work branch -> dev -> main`. Create new feature, fix, docs, chore, refactor, and test branches from the latest `dev`, then open pull requests back into `dev`.
 
-There is no deployment or branch-promotion workflow in this repository.
+There is no separate intermediate branch workflow in this repository.
 
 ## Component Test Entrypoints
 
@@ -24,9 +24,9 @@ Implemented apps and services should expose their unit tests through:
 Examples:
 
 ```text
-apps/frontend/scripts/ci/unit-test.sh
-services/user-service/scripts/ci/unit-test.sh
-services/project-service/scripts/ci/unit-test.sh
+frontend/scripts/ci/unit-test.sh
+backend/scripts/ci/unit-test.sh
+events-service/scripts/ci/unit-test.sh
 ```
 
 The root `tests.yml` workflow discovers these entrypoints and runs each one from its component directory.
@@ -56,6 +56,7 @@ python -m pytest
 ```
 
 - Pull requests: run relevant security and test workflows.
-- `staging`: run security and tests for the latest shared branch.
+- `dev`: run security and tests for the latest shared branch.
+- `main`: run security and tests after promotion from `dev`.
 
 Do not commit credentials, tokens, private keys, or secret payloads.
