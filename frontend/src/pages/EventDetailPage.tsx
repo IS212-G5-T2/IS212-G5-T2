@@ -141,6 +141,11 @@ export function EventDetailPage() {
   const now = new Date();
   const attendeeRegistrationState = registrationState(event, now);
   const canRegister = attendeeRegistrationState === "open";
+  // Registration is attendee-facing only after an organiser has configured
+  // both boundaries; an incomplete period is not useful information to show.
+  const hasRegistrationPeriod = Boolean(
+    event.registrationOpensAt && event.registrationClosesAt,
+  );
 
   const canRequestClarification =
     isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
@@ -442,7 +447,7 @@ export function EventDetailPage() {
           </CardBody>
         </Card>
 
-        {currentUser.role === "attendee" && (
+        {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
           <Card className="lg:col-span-3">
             <CardHeader>
               <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>

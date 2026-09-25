@@ -28,6 +28,8 @@ const event: EventRecord = {
   venueRequirements: { minCapacity: 10, accessibility: [], facilities: [], layout: "" },
   equipmentNeeds: "",
   registrationEnabled: true,
+  registrationOpensAt: "2020-10-01T09:00:00.000Z",
+  registrationClosesAt: "2099-10-14T23:59:00.000Z",
   changeRequests: [],
   createdAt: "2026-09-15T00:00:00.000Z",
   updatedAt: "2026-09-15T00:00:00.000Z",
@@ -108,6 +110,20 @@ describe("EventDetailPage attendee registration", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
     expect(screen.queryByRole("heading", { name: restrictedEvent.name })).not.toBeInTheDocument();
     expect(screen.queryByText(restrictedEvent.description)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  // Supplementary negative path: a transient request failure must take
+  // precedence over any stale copy of the event left in the client store.
+  it("shows a request error instead of stale event details when loading fails", async () => {
+    apiMock.mockRejectedValue(new Error("Could not reach the event service."));
+    useAppStore.setState({ events: [event] });
+
+    renderEventDetail();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not reach the event service.");
+    expect(screen.queryByRole("heading", { name: event.name })).not.toBeInTheDocument();
+    expect(screen.queryByText(event.description)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
@@ -234,6 +250,40 @@ describe("EventDetailPage attendee registration", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Supplementary robustness path: incomplete optional event details should
+  // use deliberate fallbacks rather than leaving the attendee page blank.
+  it("renders safe fallbacks when optional description and venue data are absent", async () => {
+    const incompleteEvent = { ...event, description: "", venueName: undefined };
+    apiMock.mockResolvedValue(incompleteEvent);
+    useAppStore.setState({ events: [incompleteEvent] });
+
+    renderEventDetail();
+
+    expect(await screen.findByRole("heading", { name: incompleteEvent.name })).toBeInTheDocument();
+    expect(screen.getByText("No description provided.")).toBeInTheDocument();
+    expect(screen.getByText("Not yet booked")).toBeInTheDocument();
+  });
+
+  // Supplementary negative path: attendee registration information is hidden
+  // until the organiser has configured both boundaries of its period.
+  it("hides registration information when its window timestamps are absent", async () => {
+    const unconfiguredWindowEvent = {
+      ...event,
+      registrationOpensAt: undefined,
+      registrationClosesAt: undefined,
+      availableRegistrationSpots: 3,
+    };
+    apiMock.mockResolvedValue(unconfiguredWindowEvent);
+    useAppStore.setState({ events: [unconfiguredWindowEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: unconfiguredWindowEvent.name });
+    expect(screen.queryByRole("heading", { name: "Registration" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Registration opens")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
   // SPM-99 EVENT-VIEW-02-D and EVENT-VIEW-03-A: attendee-facing metadata is
   // visible, and registration closes after its configured boundary even where
   // venue capacity is greater than the configured registration limit.
@@ -272,6 +322,11 @@ describe("EventDetailPage attendee registration", () => {
       { status: "cancelled" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
       "Registration Closed",
     ],
+    [
+      "completed",
+      { status: "completed" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
+      "Registration Closed",
+    ],
   ])("shows the correct %s registration notice and disables registration", async (_scenario, overrides, notice) => {
     const unavailableEvent = { ...event, ...overrides };
     apiMock.mockResolvedValue(unavailableEvent);
@@ -282,8 +337,29 @@ describe("EventDetailPage attendee registration", () => {
     await screen.findByRole("heading", { name: unavailableEvent.name });
     expect(screen.getByRole("status")).toHaveTextContent(notice);
     expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
-    if (unavailableEvent.status === "cancelled") {
-      expect(screen.getByText("Cancelled", { selector: "dd" })).toBeInTheDocument();
+    if (unavailableEvent.status === "cancelled" || unavailableEvent.status === "completed") {
+      expect(
+        screen.getByText(unavailableEvent.status === "cancelled" ? "Cancelled" : "Completed", { selector: "dd" }),
+      ).toBeInTheDocument();
     }
+  });
+
+  // Supplementary boundary path: zero is full, so no negative availability
+  // or enabled registration control can leak into the attendee view.
+  it("treats zero remaining registration spots as full", async () => {
+    const fullEvent = {
+      ...event,
+      registrationOpensAt: "2020-10-01T09:00:00.000Z",
+      registrationClosesAt: "2099-10-14T23:59:00.000Z",
+      availableRegistrationSpots: 0,
+    };
+    apiMock.mockResolvedValue(fullEvent);
+    useAppStore.setState({ events: [fullEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: fullEvent.name });
+    expect(screen.getByRole("status")).toHaveTextContent("Registration Full");
+    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
   });
 });

@@ -588,6 +588,15 @@ describe('EventsService', () => {
     expect(db.query).toHaveBeenCalledWith(expect.any(String), [missingId]);
   });
 
+  // Supplementary negative path: malformed identifiers are rejected before an
+  // attendee request reaches persistence, just like a real missing event.
+  it('rejects a malformed event identifier from an attendee without querying', async () => {
+    await expect(
+      service.get(attendeeUser(), 'not-a-valid-event-id'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
   // SPM-38 AC5: a newly-submitted request is round-robin assigned a
   // coordinator automatically, cycling through the live database roster
   // (see coordinator-roster.ts), and an event that already has a coordinator
