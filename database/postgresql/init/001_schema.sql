@@ -84,7 +84,11 @@ CREATE TABLE IF NOT EXISTS events (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
     CHECK (end_date_time > start_date_time),
-    CONSTRAINT events_status_check CHECK (status IN ('Submitted', 'Approved', 'Rejected')),
+    -- Keep the base schema compatible with the local seed events.  The
+    -- SPM-99 additive initializer repeats this constraint for existing volumes.
+    CONSTRAINT events_status_check CHECK (
+        status IN ('Submitted', 'Approved', 'Rejected', 'Confirmed', 'Completed', 'Cancelled')
+    ),
     CONSTRAINT events_rejection_reason_check CHECK (
         status <> 'Rejected' OR (
             rejection_reason IS NOT NULL
