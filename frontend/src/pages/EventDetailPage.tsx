@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
+import { attendeeEventStatus, registrationState, registrationStateLabel } from "./EventView";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
@@ -137,6 +138,9 @@ export function EventDetailPage() {
   const myRegistration = registrations.find(
     (r) => r.eventId === event.id && r.attendeeId === currentUser.id
   );
+  const now = new Date();
+  const attendeeRegistrationState = registrationState(event, now);
+  const canRegister = attendeeRegistrationState === "open";
 
   const canRequestClarification =
     isAssignedCoordinator && CLARIFIABLE_STATUSES.includes(event.status);
@@ -351,6 +355,12 @@ export function EventDetailPage() {
                 <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
               </div>
+              {currentUser.role === "attendee" && (
+                <div>
+                  <dt className="text-gray-400 dark:text-gray-500">Event status</dt>
+                  <dd className="font-medium text-gray-800 dark:text-gray-200">{attendeeEventStatus(event, now)}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
@@ -443,6 +453,23 @@ export function EventDetailPage() {
               </CardBody>
             ) : (
               <CardBody className="space-y-3">
+                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Registration opens</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.registrationOpensAt ? formatDateTime(event.registrationOpensAt) : "Not specified"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Registration closes</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.registrationClosesAt ? formatDateTime(event.registrationClosesAt) : "Not specified"}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-gray-400 dark:text-gray-500">Available registration spots</dt>
+                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.availableRegistrationSpots ?? event.expectedAttendance}</dd>
+                  </div>
+                </dl>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100" role="status">
+                  {registrationStateLabel(attendeeRegistrationState)}
+                </p>
                 {myRegistration?.status !== "registered" && (
                   <p className="text-sm text-gray-600 dark:text-gray-400">
                     Please sign up through the website first to attend this event.
@@ -460,7 +487,7 @@ export function EventDetailPage() {
                       Withdraw Registration
                     </Button>
                   ) : (
-                    <Button onClick={() => registerForEvent(event.id)}>Register</Button>
+                    <Button disabled={!canRegister} onClick={() => registerForEvent(event.id)}>Register</Button>
                   )}
                 </div>
               </CardBody>

@@ -70,6 +70,12 @@ export interface EventRecord {
   venueRequirements: VenueRequirements;
   equipmentNeeds: string;
   registrationEnabled: boolean;
+  /** ISO timestamp at which attendee registration becomes available. */
+  registrationOpensAt?: string;
+  /** ISO timestamp after which attendee registration is no longer available. */
+  registrationClosesAt?: string;
+  /** Registration capacity remaining; separate from venue capacity. */
+  availableRegistrationSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
   venueId?: string;

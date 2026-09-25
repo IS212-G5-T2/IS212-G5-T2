@@ -65,6 +65,104 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage attendee registration", () => {
+  // SPM-99 EVENT-VIEW-05-A: a valid-looking but nonexistent event must show a
+  // safe attendee-facing error and must not render stale or fabricated details.
+  it("shows a safe not-found state for a nonexistent attendee event", async () => {
+    apiMock.mockRejectedValue(new Error("Event not found."));
+    useAppStore.setState({ events: [] });
+
+    render(
+      <MemoryRouter initialEntries={["/events/00000000-0000-4000-8000-000000000099"]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
+    expect(screen.queryByRole("heading", { name: event.name })).not.toBeInTheDocument();
+    expect(screen.queryByText(event.description)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  // SPM-99 EVENT-VIEW-05-B: the attendee UI treats a restricted existing
+  // event as unavailable, without exposing the event's planning details.
+  it("does not expose a restricted event when the attendee API request is denied", async () => {
+    const restrictedEvent = {
+      ...event,
+      name: "Private planning event",
+      description: "Restricted planning information",
+      status: "submitted" as const,
+    };
+    apiMock.mockRejectedValue(new Error("Event not found."));
+    useAppStore.setState({ events: [] });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${restrictedEvent.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
+    expect(screen.queryByRole("heading", { name: restrictedEvent.name })).not.toBeInTheDocument();
+    expect(screen.queryByText(restrictedEvent.description)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  // SPM-99 EVENT-VIEW-01-A: the attendee detail view presents every core
+  // field from the loaded event, rather than a subset of the event object.
+  it("shows an attendee every core event-information field", async () => {
+    const attendeeEvent = {
+      ...event,
+      name: "SMU Tech Connect",
+      description: "Student technology networking event",
+      venueName: "Seminar Room 2",
+      expectedAttendance: 80,
+    };
+    apiMock.mockResolvedValue(attendeeEvent);
+    useAppStore.setState({ events: [attendeeEvent] });
+
+    renderEventDetail();
+
+    expect(await screen.findByRole("heading", { name: attendeeEvent.name })).toBeInTheDocument();
+    expect(screen.getByText(attendeeEvent.description)).toBeInTheDocument();
+    expect(screen.getByText("Date & time")).toBeInTheDocument();
+    expect(screen.getByText("Expected attendance")).toBeInTheDocument();
+    expect(screen.getAllByText("80", { selector: "dd" })).toHaveLength(2);
+    expect(screen.getByText("Venue")).toBeInTheDocument();
+    expect(screen.getByText("Seminar Room 2")).toBeInTheDocument();
+    expect(screen.getByText("Event status")).toBeInTheDocument();
+    expect(screen.getByText("Upcoming", { selector: "dd" })).toBeInTheDocument();
+  });
+
+  // SPM-99 EVENT-VIEW-06-A: reloading the unchanged event must preserve the
+  // server-provided detail and registration presentation.
+  it("keeps attendee event information consistent after a refresh", async () => {
+    const stableEvent = {
+      ...event,
+      registrationOpensAt: "2020-10-01T09:00:00.000Z",
+      registrationClosesAt: "2099-10-14T23:59:00.000Z",
+      availableRegistrationSpots: 17,
+    };
+    apiMock.mockClear();
+    apiMock.mockResolvedValue(stableEvent);
+    useAppStore.setState({ events: [stableEvent] });
+
+    const firstView = renderEventDetail();
+    await screen.findByRole("heading", { name: stableEvent.name });
+    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Registration Open");
+    firstView.unmount();
+
+    renderEventDetail();
+    await screen.findByRole("heading", { name: stableEvent.name });
+    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Registration Open");
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
   it("registers and withdraws only the signed-in attendee's registration", async () => {
     const user = userEvent.setup();
     renderEventDetail();
@@ -135,6 +233,57 @@ describe("EventDetailPage attendee registration", () => {
       screen.queryByText("Please sign up through the website first to attend this event."),
     ).not.toBeInTheDocument();
   });
+
+  // SPM-99 EVENT-VIEW-02-D and EVENT-VIEW-03-A: attendee-facing metadata is
+  // visible, and registration closes after its configured boundary even where
+  // venue capacity is greater than the configured registration limit.
+  it("shows registration metadata, remaining spots, and a closed notice after the window", async () => {
+    const closedEvent = {
+      ...event,
+      registrationOpensAt: "2020-10-01T09:00:00.000Z",
+      registrationClosesAt: "2020-10-14T23:59:00.000Z",
+      availableRegistrationSpots: 17,
+      venueRequirements: { ...event.venueRequirements, minCapacity: 120 },
+    };
+    apiMock.mockResolvedValue(closedEvent);
+    useAppStore.setState({ events: [closedEvent] });
+
+    renderEventDetail();
+
+    expect(await screen.findByRole("heading", { name: closedEvent.name })).toBeInTheDocument();
+    expect(screen.getByText("Registration opens")).toBeInTheDocument();
+    expect(screen.getByText("Registration closes")).toBeInTheDocument();
+    expect(screen.getByText("Available registration spots")).toBeInTheDocument();
+    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByText("Registration Closed", { selector: "p" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+  });
+
+  // SPM-99 EVENT-VIEW-02-A and EVENT-VIEW-04-B: a pre-opening or cancelled
+  // event must never expose a misleading enabled registration control.
+  it.each([
+    [
+      "not-yet-open",
+      { registrationOpensAt: "2099-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
+      "Registration Not Yet Open",
+    ],
+    [
+      "cancelled",
+      { status: "cancelled" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
+      "Registration Closed",
+    ],
+  ])("shows the correct %s registration notice and disables registration", async (_scenario, overrides, notice) => {
+    const unavailableEvent = { ...event, ...overrides };
+    apiMock.mockResolvedValue(unavailableEvent);
+    useAppStore.setState({ events: [unavailableEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: unavailableEvent.name });
+    expect(screen.getByRole("status")).toHaveTextContent(notice);
+    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    if (unavailableEvent.status === "cancelled") {
+      expect(screen.getByText("Cancelled", { selector: "dd" })).toBeInTheDocument();
+    }
+  });
 });
-
-

@@ -43,6 +43,16 @@ function coordinatorUser(overrides: Partial<AuthenticatedUser> = {}): Authentica
   };
 }
 
+function attendeeUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+  return {
+    uid: 'attendee-1',
+    roles: ['ATTENDEE'],
+    email: 'attendee@example.test',
+    name: 'Attendee One',
+    ...overrides,
+  };
+}
+
 function futureIso(daysFromNow: number, hour: number): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
@@ -99,6 +109,11 @@ function savedEventRow() {
     accessibility_needs: request.accessibility,
     attachments: request.attachments,
     equipment_needs: request.equipmentNeeds,
+    registration_enabled: true,
+    registration_opens_at: new Date('2026-10-01T09:00:00.000Z'),
+    registration_closes_at: new Date('2026-10-14T23:59:00.000Z'),
+    registration_limit: 80,
+    available_registration_spots: 17,
     status: 'Submitted',
     created_at: new Date('2026-09-13T00:00:00.000Z'),
     updated_at: new Date('2026-09-13T00:00:00.000Z'),
@@ -333,12 +348,21 @@ describe('EventsService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
-  it('returns no events for a role that is neither organiser nor coordinator', async () => {
-    const events = await service.list(
-      organiserUser({ roles: ['ATTENDEE'] }),
+  // SPM-99 EVENT-VIEW-01-A: the attendee browse feed exposes only safe
+  // attendee-facing lifecycle states, with registration availability included.
+  it('lists attendee-viewable events with current registration availability', async () => {
+    const row = { ...savedEventRow(), status: 'Confirmed' };
+    db.query.mockResolvedValue({ rows: [row] });
+
+    const events = await service.list(attendeeUser());
+
+    expect(events).toMatchObject([{ id: row.id, status: 'confirmed', availableRegistrationSpots: 17 }]);
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('AS available_registration_spots'),
     );
-    expect(events).toEqual([]);
-    expect(db.query).not.toHaveBeenCalled();
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining("status IN ('Confirmed', 'Completed', 'Cancelled')"),
+    );
   });
 
   // SPM-38 AC1/AC2: a coordinator's My Events list is scoped to only the
@@ -429,6 +453,22 @@ describe('EventsService', () => {
       await expect(
         service.get(organiserUser({ uid: 'coord-9', roles: ['ATTENDEE'] }), row.id),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    // SPM-99 EVENT-VIEW-01-A and EVENT-VIEW-05-B: attendees can read a
+    // confirmed event, but submitted planning data remains unavailable.
+    it('lets attendees view only attendee-facing lifecycle states', async () => {
+      const attendeeVisible = { ...savedEventRow(), status: 'Confirmed' };
+      db.query.mockResolvedValueOnce({ rows: [attendeeVisible] });
+      await expect(service.get(attendeeUser(), attendeeVisible.id)).resolves.toMatchObject({
+        registrationEnabled: true,
+        registrationOpensAt: '2026-10-01T09:00:00.000Z',
+        registrationClosesAt: '2026-10-14T23:59:00.000Z',
+        availableRegistrationSpots: 17,
+      });
+
+      db.query.mockResolvedValueOnce({ rows: [savedEventRow()] });
+      await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
@@ -534,6 +574,18 @@ describe('EventsService', () => {
     await expect(service.get(organiserUser(), row.id)).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  // SPM-99 EVENT-VIEW-05-A: an authenticated attendee receives the same safe
+  // not-found result for a syntactically valid identifier with no event row.
+  it('does not disclose a nonexistent event to an attendee', async () => {
+    const missingId = '00000000-0000-4000-8000-000000000099';
+    db.query.mockResolvedValue({ rows: [] });
+
+    await expect(service.get(attendeeUser(), missingId)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(db.query).toHaveBeenCalledWith(expect.any(String), [missingId]);
   });
 
   // SPM-38 AC5: a newly-submitted request is round-robin assigned a
