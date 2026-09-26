@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "./EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
+import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import type { EventRecord, User } from "@/types";
 
 const attendee: User = {
@@ -43,9 +44,9 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 const apiMock = vi.mocked(api);
 
 /** Renders an event detail route with the current Zustand test state. */
-function renderEventDetail() {
+function renderEventDetail(eventId = event.id) {
   return render(
-    <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+    <MemoryRouter initialEntries={[`/events/${eventId}`]}>
       <Routes>
         <Route path="/events/:id" element={<EventDetailPage />} />
       </Routes>
@@ -67,7 +68,7 @@ beforeEach(() => {
 });
 
 describe("EventDetailPage attendee registration", () => {
-  // SPM-99 EVENT-VIEW-05-A: a valid-looking but nonexistent event must show a
+  // Supplementary negative path: a valid-looking but nonexistent event must show a
   // safe attendee-facing error and must not render stale or fabricated details.
   it("shows a safe not-found state for a nonexistent attendee event", async () => {
     apiMock.mockRejectedValue(new Error("Event not found."));
@@ -87,7 +88,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-05-B: the attendee UI treats a restricted existing
+  // Supplementary security path: the attendee UI treats a restricted existing
   // event as unavailable, without exposing the event's planning details.
   it("does not expose a restricted event when the attendee API request is denied", async () => {
     const restrictedEvent = {
@@ -127,33 +128,34 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-01-A: the attendee detail view presents every core
-  // field from the loaded event, rather than a subset of the event object.
+  // SPM-99 EVENT-VIEW-01-A: the attendee detail view presents every agreed
+  // core field from the seeded event fixture.
   it("shows an attendee every core event-information field", async () => {
     const attendeeEvent = {
       ...event,
-      name: "SMU Tech Connect",
-      description: "Student technology networking event",
-      venueName: "Seminar Room 2",
-      expectedAttendance: 80,
+      id: "00000000-0000-4000-8000-000000000104",
+      name: "Inclusive Arts Workshop",
+      description: "A hands-on workshop where participants create collaborative art with guided support.",
+      startDateTime: "2027-03-13T05:00:00.000Z",
+      endDateTime: "2027-03-13T08:00:00.000Z",
+      expectedAttendance: 45,
     };
     apiMock.mockResolvedValue(attendeeEvent);
     useAppStore.setState({ events: [attendeeEvent] });
 
-    renderEventDetail();
+    renderEventDetail(attendeeEvent.id);
 
     expect(await screen.findByRole("heading", { name: attendeeEvent.name })).toBeInTheDocument();
     expect(screen.getByText(attendeeEvent.description)).toBeInTheDocument();
-    expect(screen.getByText("Date & time")).toBeInTheDocument();
-    expect(screen.getByText("Expected attendance")).toBeInTheDocument();
-    expect(screen.getAllByText("80", { selector: "dd" })).toHaveLength(2);
-    expect(screen.getByText("Venue")).toBeInTheDocument();
-    expect(screen.getByText("Seminar Room 2")).toBeInTheDocument();
+    expect(within(screen.getByText("Date & time").parentElement!).getByText(
+      formatDateTimeRange(attendeeEvent.startDateTime, attendeeEvent.endDateTime),
+    )).toBeInTheDocument();
+    expect(within(screen.getByText("Expected attendance").parentElement!).getByText("45")).toBeInTheDocument();
     expect(screen.getByText("Event status")).toBeInTheDocument();
     expect(screen.getByText("Upcoming", { selector: "dd" })).toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-06-A: reloading the unchanged event must preserve the
+  // Supplementary refresh path: reloading the unchanged event must preserve the
   // server-provided detail and registration presentation.
   it("keeps attendee event information consistent after a refresh", async () => {
     const stableEvent = {
@@ -284,9 +286,30 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-02-D and EVENT-VIEW-03-A: attendee-facing metadata is
-  // visible, and registration closes after its configured boundary even where
-  // venue capacity is greater than the configured registration limit.
+  // SPM-99 EVENT-VIEW-03-A: both configured registration boundaries are
+  // shown using the timestamps supplied by the event API.
+  it("shows the configured registration opening and closing timestamps", async () => {
+    const scheduledEvent = {
+      ...event,
+      registrationOpensAt: "2027-03-01T01:00:00.000Z",
+      registrationClosesAt: "2027-03-12T15:59:00.000Z",
+    };
+    apiMock.mockResolvedValue(scheduledEvent);
+    useAppStore.setState({ events: [scheduledEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: scheduledEvent.name });
+    expect(within(screen.getByText("Registration opens").parentElement!).getByText(
+      formatDateTime(scheduledEvent.registrationOpensAt),
+    )).toBeInTheDocument();
+    expect(within(screen.getByText("Registration closes").parentElement!).getByText(
+      formatDateTime(scheduledEvent.registrationClosesAt),
+    )).toBeInTheDocument();
+  });
+
+  // SPM-99 EVENT-VIEW-04-A: the attendee sees Registration Closed after the
+  // configured closing time, while remaining spots still come from the API.
   it("shows registration metadata, remaining spots, and a closed notice after the window", async () => {
     const closedEvent = {
       ...event,
@@ -309,7 +332,7 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
   });
 
-  // SPM-99 EVENT-VIEW-02-A and EVENT-VIEW-04-B: a pre-opening or cancelled
+  // SPM-99 EVENT-VIEW-05-A and supplementary lifecycle checks: a pre-opening or cancelled
   // event must never expose a misleading enabled registration control.
   it.each([
     [

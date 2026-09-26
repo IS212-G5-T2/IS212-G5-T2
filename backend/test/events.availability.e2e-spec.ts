@@ -34,10 +34,14 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
 
   afterAll(async () => {
     if (eventIds.length) {
-      await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds]);
+      await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [
+        eventIds,
+      ]);
     }
     if (userIds.length) {
-      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
+      await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [
+        userIds,
+      ]);
     }
     await pool.end();
   });
@@ -53,7 +57,10 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
     return id;
   }
 
-  async function addRegistration(eventId: string, status: 'Registered' | 'Withdrawn') {
+  async function addRegistration(
+    eventId: string,
+    status: 'Registered' | 'Withdrawn',
+  ) {
     await pool.query(
       `INSERT INTO event_registrations (id, event_id, attendee_id, status)
        VALUES ($1, $2, $3, $4)`,
@@ -63,12 +70,11 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
 
   async function availabilityFor(eventId: string): Promise<number | undefined> {
     const events = await service.list(attendee);
-    return events.find((event) => event.id === eventId)?.availableRegistrationSpots;
+    return events.find((event) => event.id === eventId)
+      ?.availableRegistrationSpots;
   }
 
-  // EVENT-VIEW-03-A/B/C: verify the real PostgreSQL calculation, not its SQL
-  // formatting. The registration limit is 3 while venue capacity is 120.
-  it('uses registered attendees and clamps availability at zero', async () => {
+  async function createEvent(registrationLimit: number): Promise<string> {
     const eventId = randomUUID();
     eventIds.push(eventId);
     await pool.query(
@@ -79,17 +85,46 @@ describe.skipIf(!database)('SPM-99 attendee availability (PostgreSQL)', () => {
        ) VALUES (
          $1, 'availability-organiser', 'Availability Organiser',
          'availability-organiser@example.test', 'Availability Event', 'Testing', '',
-         now() + interval '1 day', now() + interval '1 day 1 hour', 120, 3,
+         now() + interval '1 day', now() + interval '1 day 1 hour', 120, $2,
          'Confirmed', $1
        )`,
-      [eventId],
+      [eventId, registrationLimit],
     );
+    return eventId;
+  }
+
+  // EVENT-VIEW-02-A: no active registrations leaves the full limit available.
+  it('shows every configured spot when no one is registered', async () => {
+    const eventId = await createEvent(45);
+
+    expect(await availabilityFor(eventId)).toBe(45);
+  });
+
+  // EVENT-VIEW-02-B: Withdrawn registrations do not consume capacity.
+  it('subtracts only Registered rows from the configured limit', async () => {
+    const eventId = await createEvent(45);
 
     await addRegistration(eventId, 'Registered');
     await addRegistration(eventId, 'Registered');
     await addRegistration(eventId, 'Withdrawn');
-    expect(await availabilityFor(eventId)).toBe(1);
+    expect(await availabilityFor(eventId)).toBe(43);
+  });
 
+  // EVENT-VIEW-02-C: one remaining spot must still be available.
+  it('shows one spot when two of three places are registered', async () => {
+    const eventId = await createEvent(3);
+
+    await addRegistration(eventId, 'Registered');
+    await addRegistration(eventId, 'Registered');
+    expect(await availabilityFor(eventId)).toBe(1);
+  });
+
+  // EVENT-VIEW-02-D: a full event reports zero, including overbooked data.
+  it('clamps availability at zero when the limit is consumed', async () => {
+    const eventId = await createEvent(3);
+
+    await addRegistration(eventId, 'Registered');
+    await addRegistration(eventId, 'Registered');
     await addRegistration(eventId, 'Registered');
     expect(await availabilityFor(eventId)).toBe(0);
 

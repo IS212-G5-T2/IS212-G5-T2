@@ -455,7 +455,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    // SPM-99 EVENT-VIEW-01-A and EVENT-VIEW-05-B: attendees can read a
+    // SPM-99 EVENT-VIEW-01-A and supplementary security coverage: attendees can read a
     // confirmed event, but submitted planning data remains unavailable.
     it('lets attendees view only attendee-facing lifecycle states', async () => {
       const attendeeVisible = { ...savedEventRow(), status: 'Confirmed' };
@@ -576,7 +576,7 @@ describe('EventsService', () => {
     );
   });
 
-  // SPM-99 EVENT-VIEW-05-A: an authenticated attendee receives the same safe
+  // Supplementary SPM-99 negative path: an authenticated attendee receives the same safe
   // not-found result for a syntactically valid identifier with no event row.
   it('does not disclose a nonexistent event to an attendee', async () => {
     const missingId = '00000000-0000-4000-8000-000000000099';

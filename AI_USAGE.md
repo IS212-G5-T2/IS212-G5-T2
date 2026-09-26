@@ -21,6 +21,16 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
+
+- Issue/PR: SPM-99 / existing feature branch `feature/SPM-99-View-Event-information`
+- Human requester/operator: swr
+- Areas touched: frontend event-view tests, backend event service test comments, PostgreSQL availability integration tests, `AI_USAGE.md`.
+- Summary: Reassigned stale EVENT-VIEW references to the revised 01–06 cases. Kept supplementary not-found, security, refresh and lifecycle checks without reusing Confluence case IDs. Added an AC3 display assertion for both registration timestamps, used the seeded event values for AC1, and split the real PostgreSQL availability check into 02-A through 02-D scenarios.
+- Assumptions: The earlier 100% coverage claim applies to `frontend/src/pages/EventView.ts`; repository-wide coverage is not 100%. The requester excluded location from the test scope, while Jira AC1 still lists it.
+- Checks run: Focused frontend tests 33/33 passed; `EventView.ts` coverage 100% statements (20/20), branches (26/26), functions (3/3), lines (15/15). PostgreSQL availability integration tests 4/4 passed against the local database with unique fixture IDs and cleanup. Frontend build, targeted frontend ESLint, backend lint and `git diff --check` passed.
+- Follow-up/conflict notes: No production behavior changed. Confluence cases remain marked Not Executed as manual cases; the automated evidence is recorded here. Jira AC1 location wording still differs from the agreed test scope. Changes staged for human review only; no commit, push or PR created.
+
 ## 2026-09-26 - Codex (GPT-5) - Complete SPM-99 attendee-view test evidence
 
 - Issue/PR: SPM-99
