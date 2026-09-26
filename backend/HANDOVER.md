@@ -111,3 +111,9 @@ The event, draft, clarification, and rejection routes are protected by Firebase 
 For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
 SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
+
+## Approval integration (SPM-40)
+
+`POST /api/events/:id/approve` is protected by the same authentication middleware as the rejection endpoint. Only the verified Coordinator assigned to a `Submitted` request can approve it. The service locks the event row, rejects every non-`Submitted` state with 409, changes the status to `Approved`, and inserts an organiser-addressed `approval` notification in one transaction. This Submitted-only transition is the server-side guard preventing an approved request from returning to an earlier state.
+
+The organiser decision feed now returns both `approval` and `rejection` notifications, scoped by verified organiser UID; read-state updates use the same recipient boundary. Approval does not require a reason and does not change the rejection-reason schema.

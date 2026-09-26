@@ -1348,3 +1348,46 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Per-component `coverage/` reports are sufficient for local coverage use.
 - Checks: Confirmed the combined dashboard scripts and CI steps are absent while both component coverage configurations remain present.
 - Follow-up/conflict notes: No dependency, commit, push, or pull request was removed or created.
+
+## 2026-09-22 - Codex (GPT-5) - Prepare SPM-40 accept-request branch
+
+- Issue/PR: SPM-40 / no pull request; Jira could not be accessed from the available tools.
+- Human requester/operator: kirub
+- Areas touched: branch setup and `AI_USAGE.md` only.
+- Summary: Created `feature/SPM-40-accept-a-request` from the latest `dev` as requested. An older local branch, `feature/SPM-40-approve-a-request`, was inspected and found to have no commits beyond `dev`, so it contained no development work to reuse.
+- Assumptions: The user-supplied ticket name, "Accept a request," is used for the branch slug. No feature requirements or acceptance criteria were inferred.
+- Checks run: Fetched `origin/dev`, verified local `dev` matches it, checked local/remote SPM-40 branches and GitHub pull requests, and verified the new branch starts at the same commit as `dev`.
+- Follow-up/conflict notes: Jira summary, description, acceptance criteria, comments, priority, sprint, and status remain unverified. No implementation, commit, push, pull request, or Jira status change was performed.
+
+## 2026-09-26 - Codex - Implement SPM-40 approval workflow
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages`, `frontend/src/store`, `frontend/src/components/domain`, `backend/src/events`, component documentation, and `AI_USAGE.md`.
+- Summary: Added assigned-coordinator approval for Submitted requests, a transactional `Submitted → Approved` backend transition, persistent organiser approval notifications, frontend decision submission, pending-list removal through the existing Submitted filter, and forward-only state guards.
+- AI contribution: Jira verification, implementation, unit tests, notification UI integration, documentation, and validation.
+- Assumptions: Approval requires no reason; the existing request-decision controller and organiser notification feed are shared with SPM-83 while preserving rejection behavior.
+- Checks run: Backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed; backend direct oxlint and production build passed; targeted frontend ESLint for all SPM-40-touched files and production build passed; `git diff --check` passed.
+- Follow-up/conflict notes: Reused and completed the three pre-existing untracked SPM-40 TDD test files. Full frontend lint remains blocked by two pre-existing unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, both untouched. The Windows backend npm lint wrapper mis-parses its root-relative executable, so the underlying oxlint command was run directly. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-26 - Codex - Add SPM-40 approval functional tests
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages`, `backend/scripts/testing`, and `AI_USAGE.md`.
+- Summary: Added Playwright functional coverage for the SPM-40 approval workflow: coordinator default Submitted queue, approval action, pending-list removal, approved filter visibility, organiser approval notification, and UI immutability once approved.
+- AI contribution: Functional test design, browser-test implementation, and browser harness cleanup extension.
+- Assumptions: The user's "SPM-40-reject request" wording refers to SPM-40 approve request, since Jira SPM-40 is "Approve a Request" and rejection belongs to SPM-83.
+- Checks run: `npx playwright test src/pages/EventDetailPage.approve.playwright.spec.ts` in `frontend/` — 2/2 passed; backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed.
+- Follow-up/conflict notes: Uses local seeded accounts and the existing browser-test harness. The direct Playwright run created two local SPM-40 test events and approval notifications; they were removed from the local PostgreSQL database by exact `SPM-40 approval functional %` test-name cleanup. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-26 - Codex - Add SPM-40 approval integration tests
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `backend/test` and `AI_USAGE.md`.
+- Summary: Added backend integration coverage for the approval endpoint using the real Nest HTTP pipeline, PostgreSQL-backed session cookies, persisted event status changes, organiser approval notification retrieval/read state, assigned-coordinator authorization, organiser role rejection, unassigned request rejection, invalid/unknown IDs, unauthenticated access, and non-Submitted conflict guards.
+- AI contribution: Integration test design and implementation.
+- Assumptions: Integration testing should target the backend API/database boundary; Playwright functional coverage remains the browser-level check.
+- Checks run: Focused backend e2e `npx vitest run --config ./vitest.config.e2e.ts test/events-approve.e2e-spec.ts` with local `DATABASE_URL` — 8/8 passed; full backend `npm run test:e2e` — 41 passed / 11 skipped across 6 files; backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed.
+- Follow-up/conflict notes: The first focused e2e attempt failed before exercising code because `DATABASE_URL` was not set in the shell; reran with the local Compose host URL `postgres://spm:spm_dev_password@localhost:5432/spm`. No commit, push, pull request, or Jira status change performed.

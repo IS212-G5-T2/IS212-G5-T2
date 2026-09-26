@@ -44,6 +44,7 @@ interface AppState {
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
+  approveEvent: (id: string) => Promise<void>;
   rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
@@ -172,6 +173,55 @@ export const useAppStore = create<AppState>((set, get) => ({
         message: `${coordinatorName} was assigned to "${event.name}".`,
         relatedEventId: id,
       });
+    }
+  },
+
+  approveEvent: async (id) => {
+    const existing = get().events.find((event) => event.id === id);
+    const notificationId = "notif-" + Date.now();
+    set((state) => ({
+      events: state.events.map((event) =>
+        event.id === id
+          ? { ...event, status: "approved" as const, updatedAt: new Date().toISOString() }
+          : event
+      ),
+      notifications: existing
+        ? [
+            {
+              id: notificationId,
+              audienceRole: "organiser" as const,
+              audienceUserId: existing.organiserId,
+              type: "approval" as const,
+              message: `Your event request "${existing.name}" was approved and can proceed.`,
+              relatedEventId: id,
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+            ...state.notifications,
+          ]
+        : state.notifications,
+    }));
+    try {
+      const approved = await api<EventRecord>(`/events/${id}/approve`, {
+        method: "POST",
+      });
+      if (approved?.id) {
+        set((state) => ({
+          events: state.events.map((event) =>
+            event.id === id ? { ...event, ...approved } : event
+          ),
+        }));
+      }
+    } catch (error) {
+      set((state) => ({
+        events: existing
+          ? state.events.map((event) => (event.id === id ? existing : event))
+          : state.events,
+        notifications: state.notifications.filter(
+          (notification) => notification.id !== notificationId,
+        ),
+      }));
+      throw error;
     }
   },
 
