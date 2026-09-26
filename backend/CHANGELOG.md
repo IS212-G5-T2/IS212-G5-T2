@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added assigned-coordinator approval of Submitted event requests, with a forward-only transactional status change and persistent organiser approval notification (SPM-40).
 - Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
 - Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.
 

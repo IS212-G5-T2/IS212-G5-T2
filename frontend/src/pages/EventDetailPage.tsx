@@ -67,6 +67,7 @@ export function EventDetailPage() {
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
+  const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
@@ -280,6 +281,21 @@ export function EventDetailPage() {
               <Button
                 disabled={submittingDecision || !reviewDecision}
                 onClick={async () => {
+                  if (reviewDecision === "approve") {
+                    setSubmittingDecision(true);
+                    try {
+                      await approveEvent(event.id);
+                      setShowReviewControls(false);
+                      setReviewDecision("");
+                    } catch (error) {
+                      setReviewNotice(
+                        error instanceof Error ? error.message : "Failed to approve event.",
+                      );
+                    } finally {
+                      setSubmittingDecision(false);
+                    }
+                    return;
+                  }
                   if (reviewDecision !== "reject") return;
                   const raw = rejectionReason;
                   const trimmed = raw.trim();
