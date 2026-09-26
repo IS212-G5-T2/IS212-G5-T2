@@ -55,7 +55,15 @@ export class EventsService {
       },
       attachments: row.attachments ?? [],
       equipmentNeeds: row.equipment_needs,
-      registrationEnabled: false,
+      registrationEnabled: row.registration_enabled,
+      registrationOpensAt: row.registration_opens_at?.toISOString(),
+      registrationClosesAt: row.registration_closes_at?.toISOString(),
+      // PostgreSQL owns the capacity calculation so every API consumer sees
+      // the same persisted registration availability.
+      availableRegistrationSpots:
+        row.available_registration_spots == null
+          ? undefined
+          : Number(row.available_registration_spots),
       changeRequests: [],
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
@@ -67,7 +75,20 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
-    const result = user.roles.includes('COORDINATOR')
+    const result = user.roles.includes('ATTENDEE')
+      ? await this.database.query(
+          `SELECT events.*, GREATEST(
+             0,
+             COALESCE(events.registration_limit, events.expected_attendance) - (
+               SELECT COUNT(*)::integer FROM event_registrations
+                WHERE event_id = events.id AND status = 'Registered'
+             )
+           )::integer AS available_registration_spots
+             FROM events
+            WHERE status IN ('Confirmed', 'Completed', 'Cancelled')
+            ORDER BY start_date_time ASC`,
+        )
+      : user.roles.includes('COORDINATOR')
       ? await this.database.query(
           'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
           [user.uid],
@@ -103,14 +124,27 @@ export class EventsService {
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.database.query('SELECT * FROM events WHERE id = $1', [id]);
+    const result = await this.database.query(
+      `SELECT events.*, GREATEST(
+         0,
+         COALESCE(events.registration_limit, events.expected_attendance) - (
+           SELECT COUNT(*)::integer FROM event_registrations
+            WHERE event_id = events.id AND status = 'Registered'
+         )
+       )::integer AS available_registration_spots
+         FROM events WHERE id = $1`,
+      [id],
+    );
     const row = result.rows[0];
     if (!row) throw new NotFoundException('Event not found.');
     const isOwningOrganiser =
       user.roles.includes('ORGANISER') && row.organiser_id === user.uid;
     const isAssignedCoordinator =
       user.roles.includes('COORDINATOR') && row.coordinator_id === user.uid;
-    if (!isOwningOrganiser && !isAssignedCoordinator)
+    const isAttendeeViewable =
+      user.roles.includes('ATTENDEE') &&
+      ['Confirmed', 'Completed', 'Cancelled'].includes(row.status);
+    if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable)
       throw new NotFoundException('Event not found.');
     return this.record(row);
   }
@@ -286,8 +320,9 @@ export class EventsService {
       `INSERT INTO events
         (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
         start_date_time, end_date_time, expected_attendance, preferred_room_layout,
-        required_facilities, accessibility_needs, attachments, equipment_needs, submission_key)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        required_facilities, accessibility_needs, attachments, equipment_needs, registration_enabled,
+        registration_limit, submission_key)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
         ON CONFLICT (organiser_id, submission_key) DO NOTHING RETURNING *`,
       [
         eventId ?? randomUUID(),
@@ -305,6 +340,8 @@ export class EventsService {
         data.accessibility,
         JSON.stringify(data.attachments),
         data.equipmentNeeds,
+        data.registrationEnabled,
+        data.expectedAttendance,
         data.submissionKey,
       ],
     );
