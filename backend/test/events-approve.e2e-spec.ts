@@ -9,11 +9,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module.js';
 
 describe('Events approval decisions (SPM-40 e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication;
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
