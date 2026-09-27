@@ -1391,3 +1391,14 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Integration testing should target the backend API/database boundary; Playwright functional coverage remains the browser-level check.
 - Checks run: Focused backend e2e `npx vitest run --config ./vitest.config.e2e.ts test/events-approve.e2e-spec.ts` with local `DATABASE_URL` — 8/8 passed; full backend `npm run test:e2e` — 41 passed / 11 skipped across 6 files; backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed.
 - Follow-up/conflict notes: The first focused e2e attempt failed before exercising code because `DATABASE_URL` was not set in the shell; reran with the local Compose host URL `postgres://spm:spm_dev_password@localhost:5432/spm`. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-27 - Codex - Address PR #31 review-thread wording updates
+
+- Issue/PR: PR #31 review thread `#pullrequestreview-5326720172`.
+- Human requester/operator: @chaw678.
+- Areas touched: `backend/src/events/events.approve.spec.ts`, `frontend/src/pages/EventDetailPage.approve.test.tsx`, `frontend/src/store/useAppStore.approve.test.ts`, and `AI_USAGE.md`.
+- Summary: Updated stale RED/TDD preambles and helper comments to describe implemented SPM-40 approval behavior as regression coverage, matching current production code.
+- AI contribution: Applied the three requested review-thread comment-text fixes with no logic changes.
+- Assumptions: "Improved relevant comments for RED/TDD" means only rewriting outdated TDD wording identified in that review thread.
+- Checks run: backend targeted test `npm test -- src/events/events.approve.spec.ts` — 11/11 passed; frontend targeted tests `npm test -- src/pages/EventDetailPage.approve.test.tsx src/store/useAppStore.approve.test.ts` — 9/9 passed.
+- Follow-up/conflict notes: No functional behavior changes were made.

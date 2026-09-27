@@ -8,10 +8,8 @@ import type { EventRecord, UserRole } from "@/types";
 
 /**
  * SPM-40 — Approve a request. Frontend UI unit tests (Confluence: EVENT-APPROVE-01
- * A-C and the AC6 UI immutability guard EVENT-APPROVE-04-C). RED / TDD: the
- * "Review Event" decision controls already render an Approve option (from the
- * SPM-83 reject work), but selecting Approve + "Submit Decision" is not wired to
- * anything yet, so the approve request never fires. Intended UI contract:
+ * A-C and the AC6 UI immutability guard EVENT-APPROVE-04-C). These regression
+ * tests verify the implemented approval UI contract:
  *
  *   - Clicking "Review Event" reveals Approve and Reject options + "Submit
  *     Decision"; Approve needs no reason field.

@@ -5,10 +5,9 @@ import type { EventRecord } from "@/types";
 
 /**
  * SPM-40 — Approve a request. Store-level unit tests (Confluence: EVENT-APPROVE-02
- * — approval outcome, organiser notification, pending-list removal). RED / TDD:
- * the `approveEvent` store action does not exist yet, so every case fails at
- * runtime until the feature is implemented. Intended contract (mirrors
- * `rejectEvent`, minus the reason):
+ * — approval outcome, organiser notification, pending-list removal). These
+ * regression tests verify the implemented `approveEvent` store contract
+ * (mirrors `rejectEvent`, minus the reason):
  *
  *   approveEvent(id: string)
  *     - sets the event status to "approved"
@@ -23,8 +22,7 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
-// Reference the not-yet-implemented action through a cast so the file type-checks
-// while still failing at runtime (undefined is not a function).
+// Access the store action through a typed helper to keep call sites concise.
 type ApproveStore = { approveEvent: (id: string) => Promise<void> };
 const approveEvent = (id: string) =>
   (useAppStore.getState() as unknown as ApproveStore).approveEvent(id);

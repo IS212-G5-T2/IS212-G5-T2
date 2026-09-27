@@ -14,9 +14,8 @@ import { DatabaseService } from '../database/database.service.js';
  * SPM-40 — Approve a request. Backend unit tests for the production endpoint
  * `EventsService.approve(id, identity)` (Confluence: EVENT-APPROVE-03 status
  * transition + authorization + id guards, EVENT-APPROVE-04-A/B state guards,
- * and the AC4 organiser notification). RED / TDD: `approve` is not implemented
- * yet, so every case fails at runtime until the feature lands. Intended
- * contract (mirrors reject, minus the reason):
+ * and the AC4 organiser notification). These regression tests verify the
+ * implemented approve contract (mirrors reject, minus the reason):
  *
  *   approve(id, identity?)
  *     - requires an authenticated COORDINATOR assigned to the event
@@ -40,8 +39,7 @@ const database = {
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000036';
 
-// The approve method does not exist on EventsService yet; reference it through a
-// cast so the file type-checks while failing at runtime (red).
+// Access the approve method through a typed helper to keep call sites concise.
 type ApprovableEventsService = EventsService & {
   approve: (id: string, identity?: AuthenticatedUser) => Promise<{ status: string }>;
 };
