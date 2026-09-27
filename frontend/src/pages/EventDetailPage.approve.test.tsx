@@ -7,9 +7,9 @@ import { api } from "@/utils/api";
 import type { EventRecord, UserRole } from "@/types";
 
 /**
- * SPM-40 — Approve a request. Frontend UI unit tests (Confluence: EVENT-APPROVE-01
- * A-C and the AC6 UI immutability guard EVENT-APPROVE-04-C). These regression
- * tests verify the implemented approval UI contract:
+ * SPM-40 regression coverage for the approval controls on EventDetailPage.
+ * Covers EVENT-APPROVE-01-A-C and the EVENT-APPROVE-04-C immutability guard.
+ * The implemented UI contract:
  *
  *   - Clicking "Review Event" reveals Approve and Reject options + "Submit
  *     Decision"; Approve needs no reason field.

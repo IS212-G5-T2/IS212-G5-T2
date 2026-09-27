@@ -4,10 +4,9 @@ import { useAppStore } from "./useAppStore";
 import type { EventRecord } from "@/types";
 
 /**
- * SPM-40 — Approve a request. Store-level unit tests (Confluence: EVENT-APPROVE-02
- * — approval outcome, organiser notification, pending-list removal). These
- * regression tests verify the implemented `approveEvent` store contract
- * (mirrors `rejectEvent`, minus the reason):
+ * SPM-40 regression coverage for the implemented `approveEvent` store action.
+ * Covers EVENT-APPROVE-02: approval persistence, organiser notification, and
+ * removal from the coordinator's pending list. The store contract:
  *
  *   approveEvent(id: string)
  *     - sets the event status to "approved"

@@ -11,11 +11,9 @@ import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 
 /**
- * SPM-40 — Approve a request. Backend unit tests for the production endpoint
- * `EventsService.approve(id, identity)` (Confluence: EVENT-APPROVE-03 status
- * transition + authorization + id guards, EVENT-APPROVE-04-A/B state guards,
- * and the AC4 organiser notification). These regression tests verify the
- * implemented approve contract (mirrors reject, minus the reason):
+ * SPM-40 regression coverage for `EventsService.approve(id, identity)`.
+ * Covers EVENT-APPROVE-03, EVENT-APPROVE-04-A/B, and the AC4 organiser
+ * notification. The implemented approval contract:
  *
  *   approve(id, identity?)
  *     - requires an authenticated COORDINATOR assigned to the event

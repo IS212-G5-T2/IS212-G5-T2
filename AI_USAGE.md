@@ -1402,3 +1402,14 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: "Improved relevant comments for RED/TDD" means only rewriting outdated TDD wording identified in that review thread.
 - Checks run: backend targeted test `npm test -- src/events/events.approve.spec.ts` — 11/11 passed; frontend targeted tests `npm test -- src/pages/EventDetailPage.approve.test.tsx src/store/useAppStore.approve.test.ts` — 9/9 passed.
 - Follow-up/conflict notes: No functional behavior changes were made.
+
+## 2026-09-27 - Codex - Refine SPM-40 regression-test headers
+
+- Issue/PR: SPM-40 / PR #31.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/events/events.approve.spec.ts`, `frontend/src/pages/EventDetailPage.approve.test.tsx`, `frontend/src/store/useAppStore.approve.test.ts`, and `AI_USAGE.md`.
+- Summary: Refined the three approval-test headers so they identify the implemented behavior and traceability references directly, without stale TDD framing or ambiguous endpoint terminology.
+- AI contribution: Documentation-only test comment cleanup.
+- Assumptions: The requested local changes are a follow-up refinement to the already-committed review-thread fix; no production or test behavior should change.
+- Checks run: `git diff --check`; no test run because only comments and the AI usage ledger changed.
+- Follow-up/conflict notes: Changes are local and uncommitted for human review.
