@@ -128,3 +128,9 @@ Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this director
 Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.
 
 Organisers receive persistent rejection notifications above their main content, with the reason in a separate block and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Existing databases require backend migrations 003_event_rejection.sql and 004_allow_rejected_event_status.sql.
+
+## Approving requests (SPM-40)
+
+Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
+
+Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.

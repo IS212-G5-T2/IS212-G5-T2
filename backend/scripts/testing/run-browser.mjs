@@ -8,6 +8,7 @@ if (!process.env.TEST_DATABASE_URL)
     'Set TEST_DATABASE_URL to the database used by the browser test backend.',
   );
 const name = `Draft browser ${randomUUID()}`;
+const approvalName = `SPM-40 approval functional ${randomUUID()}`;
 const frontend = fileURLToPath(
   new URL('../../../frontend/', import.meta.url),
 );
@@ -22,7 +23,11 @@ try {
       {
         cwd: frontend,
         stdio: 'inherit',
-        env: { ...process.env, SPM37_TEST_NAME: name },
+        env: {
+          ...process.env,
+          SPM37_TEST_NAME: name,
+          SPM40_TEST_NAME: approvalName,
+        },
       },
     );
     child.on('error', reject);
@@ -32,6 +37,16 @@ try {
   // Delete only the uniquely named record created by this browser run, in FK order.
   await db.query("DELETE FROM event_drafts WHERE fields->>'name'=$1", [name]);
   await db.query('DELETE FROM events WHERE event_name=$1', [name]);
+  await db.query(
+    `DELETE FROM notifications
+     WHERE related_event_id IN (
+       SELECT id FROM events WHERE event_name LIKE $1
+     )`,
+    [`${approvalName}%`],
+  );
+  await db.query('DELETE FROM events WHERE event_name LIKE $1', [
+    `${approvalName}%`,
+  ]);
   await db.end();
 }
 process.exitCode = code;
