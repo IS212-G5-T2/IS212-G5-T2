@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commit-record.schema.json",
+  "title": "Private ticket commit record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ticketId", "commits"],
+  "properties": {
+    "ticketId": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$" },
+    "commits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["sha", "message", "createdAt", "paths", "verification"],
+        "properties": {
+          "sha": { "type": "string", "pattern": "^[0-9a-f]{7,64}$" },
+          "message": { "type": "string", "minLength": 1 },
+          "createdAt": { "type": "string", "format": "date-time" },
+          "paths": { "type": "array", "items": { "type": "string", "not": { "pattern": "^\\.ai/runtime/" } } },
+          "verification": { "type": "array", "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

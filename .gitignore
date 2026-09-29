@@ -153,3 +153,7 @@ playwright-report/
 
 # Local scratch / temporary working files
 tmp/
+
+# Private, per-ticket AI runtime context (keep the tracked directory marker only).
+.ai/runtime/*
+!.ai/runtime/.gitkeep

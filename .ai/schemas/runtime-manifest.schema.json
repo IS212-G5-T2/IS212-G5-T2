@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "runtime-manifest.schema.json",
+  "title": "Private ticket runtime manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ticketId", "createdAt", "workflow", "artifacts"],
+  "properties": {
+    "ticketId": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "workflow": { "const": "jira-ticket" },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "properties": {
+        "jira": { "const": "jira.md" },
+        "implementationContext": { "const": "implementation-context.md" },
+        "independentTestContext": { "const": "independent-test-context.md" },
+        "confluenceTests": { "const": "confluence-tests.md" }
+      }
+    },
+    "sourceAccess": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "jira": { "type": "boolean" },
+        "confluence": { "type": "boolean" }
+      }
+    }
+  }
+}
