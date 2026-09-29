@@ -1,6 +1,6 @@
 # AI Agent Instructions
 
-Read this file, relevant `AI_USAGE.md` entries, and each scoped `AGENTS.md` for files you change.
+Read this file, search `AI_USAGE.md` only for active overlap relevant to the ticket or affected paths, and read each scoped `AGENTS.md` for files you change. Do not load the complete historical ledger.
 
 ## Shared Agent Architecture
 
@@ -21,12 +21,12 @@ Keep temporary Jira, Confluence, conversation IDs, and workflow state in `.ai/ru
 
 ## Agent Role Boundaries
 
-Read your numbered `.ai/agents/` role file (for example, `02-implementer.md`). `00-orchestrator.md` coordinates implementation; `11-ticket-closeout.md` runs only when the user requests ticket closure; `99-recovery.md` is separate. Respect role permissions and context boundaries, including indirect access to prohibited Confluence-derived cases.
+Read your numbered `.ai/agents/` role file (for example, `03-implementer.md`). `00-orchestrator.md` coordinates implementation; `11-ticket-closeout.md` runs only when the user requests ticket closure; `99-recovery.md` is separate. Respect role permissions and context boundaries, including indirect access to prohibited Confluence-derived cases.
 
 Ticket sequence:
 
 ```text
-01 Context Loader → 02 Implementer → 03 Unit Test Writer → 04 Test Case Reviewer → 05 Requirements Traceability Reviewer → 06 Architecture Reviewer → 07 Code Quality Reviewer → 08 Accountability Reviewer → 09 Change Reviewer → 10 Git Committer
+Core: 01 Context Loader → 02 Architecture Planner (when needed) → 03 Implementer → 04 Unit Test Writer → 05 Requirements and Test Reviewer → 08 Delivery Reviewer. Add 06 Code Quality Reviewer for material/risky changes; add 07 Accountability Reviewer after 06 or when explicitly requested.
 ```
 
 After delivery, run `11 Ticket Closeout` only when the user explicitly names a finished ticket and asks to close it. Register available chat/thread and subagent IDs in private `.ai/runtime/{ticket-id}/conversation-registry.json` during ticket work; never invent IDs. Run `99 Recovery` only for a reported issue or explicit recovery request. Details: `.ai/workflows/jira-ticket.md`.
@@ -70,7 +70,7 @@ Branch from the latest `dev`; target PRs to `dev` (`work branch → dev → main
 
 ## Documentation Ownership
 
-Use `AGENTS.md` for agent rules, `AI_USAGE.md` for the AI work ledger, `README.md` for setup, `HANDOVER.md` for durable context and risks, `CHANGELOG.md` for notable changes, and `docs/` for human process guidance. Update the ledger for meaningful AI work: find the existing date-and-agent heading in `AI_USAGE.md` and append a distinct task bullet there, creating that heading only if absent.
+Use `AGENTS.md` for agent rules, `AI_USAGE.md` for active AI-work overlap only, `README.md` for setup, `HANDOVER.md` for durable context and risks, `CHANGELOG.md` for notable changes, and `docs/` for human process guidance. Use Git history and PRs for completed-work detail. Update the ledger only while work remains active or has an unresolved handoff, then remove the entry after merge/abandonment.
 
 ## Scoped Instruction Precedence
 

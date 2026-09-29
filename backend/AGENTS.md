@@ -72,8 +72,8 @@ test/
 - Add `dto/` for multiple transport contracts/validators; keep SQL row mappings in `models/` or near repositories.
 - Add `models/` for feature-local types and row shapes; share only when multiple features need them.
 - Add `helpers/` for reusable pure feature functions, not one-offs; share across features only after two need them.
-- Add a repository when queries/mapping need a separate boundary; keep HTTP validation and orchestration elsewhere.
-- Controllers parse/delegate; services orchestrate use cases; repositories query PostgreSQL; DTOs validate transport. Validate before business logic; omit secrets, traces, and sensitive data from API errors.
+- New or materially expanded persistence needs a feature repository; do not place raw PostgreSQL queries or row mapping in controllers, DTOs, or services. A narrow legacy exception must be explicit and should not expand casually.
+- Controllers parse/delegate; services orchestrate use cases; repositories query PostgreSQL; DTOs validate transport and never access persistence. Validate before business logic; omit secrets, traces, and sensitive data from API errors.
 - Register feature modules/providers/controllers in the feature module, then import it into `AppModule`; keep feature logic out of `AppModule`.
 
 Coordinate API changes with `frontend/`, schemas/migrations with `database/`, and local setup with `docker-compose/`. Update README, HANDOVER, and CHANGELOG when setup, behavior, scripts, or contracts change.
