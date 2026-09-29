@@ -70,7 +70,7 @@ Branch from the latest `dev`; target PRs to `dev` (`work branch → dev → main
 
 ## Documentation Ownership
 
-Use `AGENTS.md` for agent rules, `AI_USAGE.md` for the AI work ledger, `README.md` for setup, `HANDOVER.md` for durable context and risks, `CHANGELOG.md` for notable changes, and `docs/` for human process guidance. Update the ledger for meaningful AI work.
+Use `AGENTS.md` for agent rules, `AI_USAGE.md` for the AI work ledger, `README.md` for setup, `HANDOVER.md` for durable context and risks, `CHANGELOG.md` for notable changes, and `docs/` for human process guidance. Update the ledger for meaningful AI work: find the existing date-and-agent heading in `AI_USAGE.md` and append a distinct task bullet there, creating that heading only if absent.
 
 ## Scoped Instruction Precedence
 
