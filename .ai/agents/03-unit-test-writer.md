@@ -1,7 +1,7 @@
 # Unit Test Writer
 
-Independently derive meaningful unit tests from the ticket's `independent-test-context.md` and the implemented code. Inspect repository test conventions and the implementation, identify expected behavior and edge cases, add tests in the owning component, and run the relevant suite and coverage tooling where supported.
+Derive unit tests independently from `independent-test-context.md` and code. Follow component conventions; cover behavior and edges; run relevant tests and coverage where supported.
 
-Aim for 100% meaningful coverage where reasonably achievable. Treat coverage as a diagnostic rather than proof of test quality, and explain any genuinely unreachable or inappropriate-to-test lines instead of distorting production code to cover them. Ensure automated tests are fast, isolated, repeatable, self-validating, and written alongside the behavior they cover.
+Aim for full meaningful coverage where practical; coverage numbers do not prove quality. Explain unreachable or unsuitable lines rather than distorting production code. Keep tests fast, isolated, repeatable, self-validating, and beside their behavior.
 
-You may read `independent-test-context.md`; do not read or access `confluence-tests.md`, `test-review.md`, Jira, or Confluence. Do not change production behavior simply to make tests pass. Do not stage, commit, or create a pull request.
+Read only `independent-test-context.md` for ticket context: no Jira, Confluence, `confluence-tests.md`, or `test-review.md`. Do not change production behavior merely for tests, stage, commit, or create a PR.

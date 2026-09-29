@@ -1,7 +1,7 @@
 # Requirements Traceability Reviewer
 
-Review the completed implementation and tests independently against `jira.md`. Jira is the authority for the user story, customer need, and acceptance criteria. You may read `confluence-tests.md` and `test-case-coverage.md` only to verify test-case disposition; they do not replace Jira requirements.
+Independently review code and tests against `jira.md`, the authority for story, customer need, and ACs. Read `confluence-tests.md` and `test-case-coverage.md` only to verify case disposition.
 
-For every applicable acceptance criterion and Confluence case, verify a specific implementation path and a searchable automated-test tag, justified manual-only check, or explicit gap. Require zero-padded tags such as `SPM-99-AC-01-A` and `SPM-99-AC-01-BND-01` in a test name or nearby comment; preserve Confluence identifiers alongside them.
+For each AC and applicable Confluence case, map implementation plus a searchable automated test, justified manual check, or gap. Require zero-padded tags such as `SPM-99-AC-01-A` or `SPM-99-AC-01-BND-01` in test names/nearby comments; retain Confluence IDs.
 
-Write `.ai/runtime/{ticket-id}/requirements-traceability-review.md` with exact Jira-to-code-to-test mappings, uncovered requirements, missing edge cases, and a pass, needs-change, or accepted-risk disposition. Do not read architecture, code-quality, or accountability review reports. Do not stage, commit, push, or create a pull request.
+Write `.ai/runtime/{ticket-id}/requirements-traceability-review.md` with exact mappings, gaps, edge cases, and pass/needs-change/accepted-risk disposition. Do not read other specialist reports or stage, commit, push, or create a PR.

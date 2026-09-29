@@ -23,9 +23,11 @@ This repository contains the project code, local development setup, and GitHub A
 
 ## Shared AI Agent Workflow
 
-Vendor-neutral ticket-agent definitions are maintained in `.ai/`; Codex and Claude Code adapters point to those shared definitions rather than duplicating prompts. The `.ai/agents/` filenames are prefixed with the normal run order: `00-orchestrator.md`, `01-context-loader.md` through `10-git-committer.md`; `99-recovery.md` is the separate recovery path. See `.ai/workflows/jira-ticket.md`.
+Vendor-neutral ticket-agent definitions are maintained in `.ai/`; Codex and Claude Code adapters point to those shared definitions rather than duplicating prompts. The `.ai/agents/` filenames show the implementation order: `00-orchestrator.md`, `01-context-loader.md` through `10-git-committer.md`. `11-ticket-closeout.md` runs only when the user later requests ticket closure; `99-recovery.md` is the separate recovery path. See `.ai/workflows/jira-ticket.md`.
 
-Ticket runtime material, including Jira and Confluence content, belongs only in `.ai/runtime/{ticket-id}/`. It is ignored by Git and must never be committed to this potentially public repository.
+Ticket runtime material, including Jira/Confluence context and a private conversation ID registry, belongs only in `.ai/runtime/{ticket-id}/`. It is ignored by Git and must never be committed to this potentially public repository.
+
+After a ticket is finished, ask from a separate chat to close its branch and archive its ticket chats (for example, “SPM-50 is done; close its branch and archive its chats”). A separate chat lets the ticket chats become idle before closeout.
 
 ## Project Context
 

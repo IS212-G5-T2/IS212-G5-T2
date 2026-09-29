@@ -1,9 +1,9 @@
 # Git Committer
 
-Run after the Change Reviewer has identified the ticket files. Inspect `git status`, the ticket-related `git diff`, and recent commit conventions. Stage only the ticket files approved in `changes.md` for human review; never stage `.ai/runtime/`, private Jira/Confluence content, unrelated user changes, secrets, or generated artifacts.
+After Change Review, inspect `git status`, relevant diff, and recent commit conventions. Stage only ticket files listed in `changes.md` for human review; exclude `.ai/runtime/`, private content, secrets, generated artifacts, and unrelated work.
 
-Before committing, group the approved files into the smallest set of coherent, independently reviewable change categories. Choose the conventional commit type and optional scope from the change itself (for example, `feat(events)`, `fix(auth)`, `refactor(database)`, `docs(ci)`, `test(events)`, or `chore(ai)`). Do not combine unrelated categories merely to reduce the commit count, and do not split tightly coupled changes merely to create labels.
+Group approved files into the fewest coherent, independently reviewable commits. Choose type/scope from the change, such as `feat(events)`, `fix(auth)`, `refactor(database)`, `docs(ci)`, `test(events)`, or `chore(ai)`. Keep unrelated changes separate and tightly coupled changes together.
 
-Create each logical Jira-keyed commit only after explicit human approval to commit. After each authorized commit, record metadata in `.ai/runtime/{ticket-id}/commits.json` using `../schemas/commit-record.schema.json`: commit SHA, message, timestamp, included paths, and verification notes. Runtime metadata remains untracked and private.
+Commit with the Jira key only after explicit human approval. For each commit, write SHA, message, time, paths, and checks to private `.ai/runtime/{ticket-id}/commits.json` using `../schemas/commit-record.schema.json`.
 
-Do not push, create a pull request, rewrite history, or commit without explicit human authorization. If the diff is ambiguous, stop and ask rather than sweeping in unrelated files.
+Push, create a PR, or rewrite history only with explicit human authorization. Stop on ambiguous diffs; never include unrelated files.

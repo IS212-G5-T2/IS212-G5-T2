@@ -16,7 +16,8 @@
         "jira": { "const": "jira.md" },
         "implementationContext": { "const": "implementation-context.md" },
         "independentTestContext": { "const": "independent-test-context.md" },
-        "confluenceTests": { "const": "confluence-tests.md" }
+        "confluenceTests": { "const": "confluence-tests.md" },
+        "conversationRegistry": { "const": "conversation-registry.json" }
       }
     },
     "sourceAccess": {

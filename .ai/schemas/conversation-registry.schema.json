@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "conversation-registry.schema.json",
+  "title": "Private ticket conversation registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ticketId", "records"],
+  "properties": {
+    "ticketId": { "type": "string", "pattern": "^[A-Z][A-Z0-9]+-[0-9]+$" },
+    "branch": { "type": "string", "minLength": 1 },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "provider", "id", "source", "recordedAt"],
+        "properties": {
+          "kind": { "enum": ["chat", "subagent"] },
+          "provider": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1 },
+          "source": { "enum": ["created-for-ticket", "verified-discovery"] },
+          "role": { "type": "string", "minLength": 1 },
+          "parentThreadId": { "type": "string", "minLength": 1 },
+          "parentAgentId": { "type": "string", "minLength": 1 },
+          "threadId": { "type": "string", "minLength": 1 },
+          "branch": { "type": "string", "minLength": 1 },
+          "recordedAt": { "type": "string", "format": "date-time" },
+          "archivedAt": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}
