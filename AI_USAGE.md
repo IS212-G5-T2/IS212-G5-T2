@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-30 - Codex (GPT-5) - Require language-appropriate implementation documentation
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `.ai/agents/02-implementer.md`, `.ai/agents/07-code-quality-reviewer.md`, `.ai/agents/09-change-reviewer.md`, `AI_USAGE.md`
+- Summary: Required language- and component-conventional docstrings/API documentation for public interfaces and non-obvious domain, business-rule, integration, lifecycle, or security logic. Added implementation, quality-review, and final-review enforcement points.
+- AI contribution: Documentation-policy update.
+- Assumptions: TypeScript components use their existing JSDoc/TSDoc style unless a more specific scoped instruction states otherwise; trivial private helpers should not receive redundant commentary.
+- Checks run: Confirmed the requirement is present in repository-wide guidance and all three relevant agent stages; `git diff --check` passed.
+- Follow-up/conflict notes: No application behavior, CI behavior, runtime data, commit, push, or pull request changed.
+
 ## 2026-09-30 - Codex (GPT-5) - Make agent execution order visible in filenames
 
 - Issue/PR: Unknown

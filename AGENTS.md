@@ -56,6 +56,10 @@ Name every affected ownership area and read each scoped `AGENTS.md` before editi
 
 Tests must validate behavior, not merely raise coverage metrics. Do not change production behavior solely to make tests pass. Use meaningful coverage, run affected checks where possible, and report skipped checks and their limitations. Derive reviewable test cases from acceptance criteria using `.ai/workflows/test-case-generation.md`. Components own their local test entrypoints; root CI orchestrates them.
 
+## Code Documentation
+
+Implementation must document public APIs and non-obvious domain, business-rule, integration, lifecycle, or security logic using the documentation convention established by that language and component (for example, JSDoc/TSDoc for TypeScript). Documentation must explain intent, contracts, important constraints, side effects, errors, and non-obvious decisions—not restate self-evident syntax. Follow the component's existing style where one exists; do not add noisy docstrings to trivial private helpers.
+
 ## Git Safety
 
 Stage or commit only when the assigned role permits it. Before either action, inspect `git status` and relevant diffs, preserve unrelated working-tree changes, and stage only task files. Never stage `.ai/runtime/`. Do not rewrite history unless explicitly requested; prefer corrective commits over destructive history changes.
