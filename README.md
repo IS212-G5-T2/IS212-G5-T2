@@ -7,6 +7,9 @@ This repository contains the project code, local development setup, and GitHub A
 ```text
 .
 |-- .github/              # GitHub metadata, pull request template, and workflows
+|-- .ai/                  # Vendor-neutral agent roles, workflows, schemas, and ignored runtime context
+|-- .claude/              # Thin Claude Code adapters for shared agent roles
+|-- .codex/               # Thin Codex adapters for shared agent roles
 |-- assets/               # README and documentation images
 |-- backend/              # NestJS backend service
 |-- database/             # Local database image and initialization assets
@@ -17,6 +20,12 @@ This repository contains the project code, local development setup, and GitHub A
 |-- AI_USAGE.md           # AI-assisted work log
 `-- opencode.json
 ```
+
+## Shared AI Agent Workflow
+
+Vendor-neutral ticket-agent definitions are maintained in `.ai/`; Codex and Claude Code adapters point to those shared definitions rather than duplicating prompts. The `.ai/agents/` filenames are prefixed with the normal run order: `00-orchestrator.md`, `01-context-loader.md` through `10-git-committer.md`; `99-recovery.md` is the separate recovery path. See `.ai/workflows/jira-ticket.md`.
+
+Ticket runtime material, including Jira and Confluence content, belongs only in `.ai/runtime/{ticket-id}/`. It is ignored by Git and must never be committed to this potentially public repository.
 
 ## Project Context
 

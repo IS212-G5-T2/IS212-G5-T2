@@ -18,4 +18,6 @@ Scope: `frontend`, within the [global policy](../AGENTS.md).
 
 Use `npm test` for Vitest/jsdom component interaction checks, `npm run lint`, and `npm run build`. CI entrypoint: `scripts/ci/unit-test.sh`. Event create/list/detail pages use `/api/events`; drafts and My Requests use `/api/requests`. Keep both contracts aligned with `backend/`. Real account/organisation integration and email delivery are separate work.
 
-Keep unit tests beside pages as `.test.tsx` and browser tests as `.playwright.spec.ts`. Playwright tests are excluded from the frontend production TypeScript build and Vitest discovery. Use the backend `scripts/testing/run-browser.mjs` harness with a dedicated test database for browser checks and record cleanup.
+Keep unit tests beside their component or page as descriptive `.test.tsx` files, and browser tests beside their page as `.playwright.spec.ts` files. Keep fixtures within `frontend/`, outside production entrypoints. Include short plain-English comments above cases and their important setup, action, and assertion sections. Playwright tests are excluded from the frontend production TypeScript build and Vitest discovery. Use the backend `scripts/testing/run-browser.mjs` harness with a dedicated test database for browser checks and record cleanup.
+
+Maintain one behavior-focused suite as a frontend area changes rather than creating a Jira-keyed test tree. Capture relevant Jira keys and acceptance-criterion wording in test names or nearby comments for traceability.

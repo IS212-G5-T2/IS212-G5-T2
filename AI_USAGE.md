@@ -21,6 +21,127 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-30 - Codex (GPT-5) - Make agent execution order visible in filenames
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.ai/agents/`, `.claude/agents/`, `.codex/agents/`, `.ai/workflows/jira-ticket.md`, `AGENTS.md`, `README.md`, `AI_USAGE.md`
+- Summary: Renamed canonical role files and thin vendor adapters with visible execution prefixes: `00` is the orchestrator, `01`–`10` are the normal sequential ticket stages, and `99` is the separate recovery path. Added canonical filenames to the workflow table.
+- AI contribution: Documentation and filename-structure refactor.
+- Assumptions: A `99` prefix communicates that Recovery is intentionally not the next normal stage after Git Committer.
+- Checks run: Confirmed the 12 canonical filenames sort in the intended order; verified exact filename parity and valid links for all Claude and Codex adapters; confirmed no stale unnumbered agent-path references remain; `git diff --check` passed.
+- Follow-up/conflict notes: No implementation, CI, runtime data, commit, push, or pull request changed.
+
+## 2026-09-30 - Codex (GPT-5) - Split quality review into isolated subagents
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.ai/agents/`, `.ai/workflows/`, `.claude/agents/`, `.codex/agents/`, `AGENTS.md`, `README.md`, `docs/`, `AI_USAGE.md`
+- Summary: Replaced the combined quality/accountability reviewer with independent requirements-traceability, architecture, and code-quality reviewers, followed by an Accountability Reviewer that alone reconciles their reports. Removed duplicate agent-process documents from `docs/`; `.ai/` is the canonical workflow source.
+- AI contribution: Context-isolation design and workflow refactor.
+- Assumptions: `docs/ci-process.md` and the existing concise human-facing issue-workflow pointer remain useful durable documentation; new duplicate agent-process documents are unnecessary.
+- Checks run: Confirmed 12 canonical role files and 12 matching adapters for each vendor; verified the removed duplicate `docs/` files are absent while CI and issue-workflow documentation remains; validated both runtime schemas as JSON; confirmed all four reviewer reports are Git-ignored under `.ai/runtime/`; `git diff --check` passed.
+- Follow-up/conflict notes: All specialist reports remain private under `.ai/runtime/`; no application or CI behavior changed.
+
+## 2026-09-30 - Codex (GPT-5) - Add Definition of Done to pull-request template
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.github/pull_request_template.md`, `AI_USAGE.md`
+- Summary: Added the supplied Definition of Done checks for passing user-story test cases, passing unit tests, peer approval, applicable UI standards, and Product Owner acceptance, while preserving private ticket-data protections.
+- AI contribution: Pull-request workflow documentation update.
+- Assumptions: UI-guideline confirmation applies only to changes that affect the user interface; Product Owner acceptance is recorded when available and is not replaced by an AI assertion.
+- Checks run: Verified every supplied Definition of Done criterion appears in the pull-request template; `git diff --check`; confirmed no workflow YAML changed.
+- Follow-up/conflict notes: No CI workflow, application code, or GitHub state changed.
+
+## 2026-09-30 - Codex (GPT-5) - Add quality and accountability review stage
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.ai/agents/`, `.ai/workflows/`, `.claude/agents/`, `.codex/agents/`, `AGENTS.md`, `README.md`, `docs/`, `AI_USAGE.md`
+- Summary: Added a sequential Quality and Accountability Reviewer that evaluates Jira traceability, searchable test indexing, Context7-backed framework guidance, code quality, system design, decisions, trade-offs, and risks before final change review. No application behavior changed.
+- AI contribution: Rubric-focused architecture design, Context7 capability verification, and workflow documentation.
+- Assumptions: One reviewer with explicit independent passes is sufficient for the current workflow; additional specialist reviews can be introduced later if evidence shows a recurring gap.
+- Checks run: Rendered and visually inspected the supplied rubric pages; resolved and queried the official NestJS Context7 documentation; parsed schemas; verified canonical/adaptor role parity, workflow references, searchable test-tag conventions, private quality-review ignore protection, and `git diff --check`.
+- Follow-up/conflict notes: The restricted assignment document and all ticket-specific evidence remain outside version control and private runtime context.
+
+## 2026-09-30 - Codex (GPT-5) - Align CI and pull-request documentation
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `docs/ci-process.md`, `.github/pull_request_template.md`, `AI_USAGE.md`
+- Summary: Documented the actual CI triggers, coverage entrypoints, and backend E2E job; linked private test-case design guidance without changing CI execution. Updated the pull-request template to avoid private Jira/Confluence content and to match Semgrep, npm audit, and Gitleaks security checks.
+- AI contribution: CI/template audit and documentation alignment.
+- Assumptions: Jira keys are safe repository references, while Jira and Confluence URLs and contents remain private unless explicitly approved for disclosure.
+- Checks run: Inspected the current GitHub Actions workflows and component CI scripts; verified workflow-trigger wording, security-tool names, private-context protections, and `git diff --check`.
+- Follow-up/conflict notes: No GitHub Actions YAML, application code, or CI behavior changed.
+
+## 2026-09-30 - Codex (GPT-5) - Standardize future backend E2E test placement
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `backend/AGENTS.md`, `AI_USAGE.md`
+- Summary: Updated backend structure guidance so new database/API E2E suites live under `backend/test/`, while unit tests remain beside source behavior. Documented the existing `src/events/drafts.e2e-spec.ts` as a supported legacy exception; no test file moved.
+- AI contribution: E2E discovery audit and scoped convention refinement.
+- Assumptions: A single `backend/test/` E2E location is clearer for future contributors and matches most current E2E suites.
+- Checks run: E2E configuration and location scan; verified the new placement rule and the runner's recursive discovery pattern; `git diff --check`.
+- Follow-up/conflict notes: No application source, test, CI, or runtime configuration changed.
+
+## 2026-09-30 - Codex (GPT-5) - Require Confluence and AC test-case coverage mapping
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.ai/agents/`, `.ai/workflows/`, `docs/`, `AI_USAGE.md`
+- Summary: Strengthened test-case guidance so every applicable Confluence case receives an automated, manual-only, or gap disposition, while an independent AC analysis identifies omitted happy, negative, boundary, cross-cutting, and variation coverage. Clarified that test-case coverage and code coverage are distinct.
+- AI contribution: Coverage-policy refinement and private runtime artifact design.
+- Assumptions: “100% coverage” means complete disposition of applicable Confluence cases and meaningful AC-derived behaviors, not an unsupported claim that every possible combination is tested.
+- Checks run: Verified Confluence-case disposition, implicit-boundary, and test-case-versus-code-coverage rules; verified the new private matrix path is ignored; `git diff --check`.
+- Follow-up/conflict notes: The coverage matrix is private runtime context and is never staged or committed.
+
+## 2026-09-30 - Codex (GPT-5) - Document backend service structure
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `backend/AGENTS.md`, `AI_USAGE.md`
+- Summary: Replaced event-only backend guidance with a current source-area map and a scalable feature-module layout for controllers, services, repositories, DTOs, models, helpers, and tests. Corrected stale Firebase guidance to the existing PostgreSQL-session architecture. No source files were moved or behavior changed.
+- AI contribution: Backend-structure audit and scoped instruction redesign.
+- Assumptions: Existing small features should remain flat; subdirectories are introduced only when their distinct responsibilities are needed.
+- Checks run: Source-tree, module, route, package-script, and authentication-boundary scans; backend-structure and stale-Firebase wording scans; `git diff --check`; confirmed no backend implementation paths changed.
+- Follow-up/conflict notes: No production code, migrations, dependencies, or CI configuration changed.
+
+## 2026-09-30 - Codex (GPT-5) - Add acceptance-criteria test-case generation standard
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `.ai/agents/`, `.ai/workflows/`, `docs/`, `AGENTS.md`, `AI_USAGE.md`
+- Summary: Added a canonical AC-to-test-case generation workflow based on the supplied team Markdown guidance, including confidence and assumption gates, prioritized coverage tiers, reproducible case format, runtime privacy, and automated-test quality principles. No application behavior changed.
+- AI contribution: Source comparison, workflow and role-instruction design, and documentation update.
+- Assumptions: The supplied Markdown guidance takes precedence over the attached lecture slides; the slides remain supporting instructional sources.
+- Checks run: Reviewed the supplied Markdown guidance and supporting lecture slides; parsed shared schemas; verified required coverage tiers and private generated-case path; verified runtime ignore protection; `git diff --check`; confirmed no application source, dependency, database, deployment, or CI files changed.
+- Follow-up/conflict notes: Generated test cases remain private runtime artifacts and are not published to Confluence or a test-management system without explicit authorization.
+
+## 2026-09-30 - Codex (GPT-5) - Refactor AI instruction hierarchy
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `AGENTS.md`, `.ai/`, `docs/`, `frontend/AGENTS.md`, `backend/AGENTS.md`, `AI_USAGE.md`
+- Summary: Reduced root instructions to stable repository-wide rules; made the shared Jira workflow canonical; retained component-specific test layout in scoped guidance; and documented AI usage tracking as a durable process document. No application, dependency, database, deployment, or CI behavior changed.
+- AI contribution: Instruction classification, documentation refactor, and consistency validation.
+- Assumptions: The existing frontend and backend scoped files are the appropriate homes for framework-specific test naming and layout rules.
+- Checks run: Read root, scoped, and process instructions; verified the canonical adapters and runtime ignore rule; `git diff --check`; instruction-hierarchy and duplicate-workflow scans.
+- Follow-up/conflict notes: Existing staged multi-agent scaffold is being refined on `refactor/agent_files`; no commit or push is authorized.
+
+## 2026-09-30 - Codex (GPT-5) - Scaffold shared multi-agent architecture
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: repository root, `.ai/`, `.claude/`, `.codex/`, `AI_USAGE.md`
+- Summary: Added vendor-neutral shared agent roles, a sequential Jira-ticket workflow, private-runtime JSON schemas, thin Codex/Claude adapters, and Git ignore protection for ticket runtime context. The Context Loader now discovers Confluence test cases through each epic's `unit-test` area, matching SPM-ticket folder, and Matrix page. No application behavior was changed.
+- AI contribution: Architecture and documentation scaffold.
+- Assumptions: Jira and Confluence content must remain private runtime data; adapter files should remain minimal pointers to canonical shared definitions.
+- Checks run: Parsed both JSON schemas with Node.js; verified all eight canonical roles and both sets of eight thin adapters; verified per-ticket runtime content is ignored while `.gitkeep` remains trackable; `git diff --check`.
+- Follow-up/conflict notes: Created on `refactor/agent_files`; no files will be committed or pushed without explicit human approval.
+
 ## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
 
 - Issue/PR: Unknown
