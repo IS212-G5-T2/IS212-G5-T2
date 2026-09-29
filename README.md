@@ -23,7 +23,7 @@ This repository contains the project code, local development setup, and GitHub A
 
 ## Shared AI Agent Workflow
 
-Vendor-neutral ticket-agent definitions are maintained in `.ai/`; Codex and Claude Code adapters point to those shared definitions rather than duplicating prompts. The `.ai/agents/` filenames show the implementation order: `00-orchestrator.md`, `01-context-loader.md` through `10-git-committer.md`. `11-ticket-closeout.md` runs only when the user later requests ticket closure; `99-recovery.md` is the separate recovery path. See `.ai/workflows/jira-ticket.md`.
+Vendor-neutral ticket-agent definitions are maintained in `.ai/`; Codex and Claude Code adapters point to those shared definitions rather than duplicating prompts. The lean flow is `00-main-coding-agent.md` → `01-implementation-agent.md` → parallel `02-test-agent.md`, `03-code-quality-agent.md`, and `04-requirements-agent.md` → targeted revalidation and delivery. `11-ticket-closeout.md` runs only when the user later requests ticket closure; `99-recovery.md` is the separate recovery path. See `.ai/workflows/jira-ticket.md`.
 
 Ticket runtime material, including Jira/Confluence context and a private conversation ID registry, belongs only in `.ai/runtime/{ticket-id}/`. It is ignored by Git and must never be committed to this potentially public repository.
 

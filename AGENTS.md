@@ -21,12 +21,12 @@ Keep temporary Jira, Confluence, conversation IDs, and workflow state in `.ai/ru
 
 ## Agent Role Boundaries
 
-Read your numbered `.ai/agents/` role file (for example, `03-implementer.md`). `00-orchestrator.md` coordinates implementation; `11-ticket-closeout.md` runs only when the user requests ticket closure; `99-recovery.md` is separate. Respect role permissions and context boundaries, including indirect access to prohibited Confluence-derived cases.
+Read your numbered `.ai/agents/` role file (for example, `01-implementation-agent.md`). `00-main-coding-agent.md` coordinates implementation; `11-ticket-closeout.md` runs only when the user requests ticket closure; `99-recovery.md` is separate. Respect role permissions and context boundaries, including indirect access to prohibited Confluence-derived cases.
 
 Ticket sequence:
 
 ```text
-Core: 01 Context Loader → 02 Architecture Planner (when needed) → 03 Implementer → 04 Unit Test Writer → 05 Requirements and Test Reviewer → 08 Delivery Reviewer. Add 06 Code Quality Reviewer for material/risky changes; add 07 Accountability Reviewer after 06 or when explicitly requested.
+00 Main Coding Agent (medium) → 01 Implementation Agent (high) → 02 Test Agent (high), 03 Code Quality Agent (low), and 04 Requirements Agent (low) in parallel → 00 targeted fix/revalidation → delivery. Details: `.ai/workflows/jira-ticket.md`.
 ```
 
 After delivery, run `11 Ticket Closeout` only when the user explicitly names a finished ticket and asks to close it. Register available chat/thread and subagent IDs in private `.ai/runtime/{ticket-id}/conversation-registry.json` during ticket work; never invent IDs. Run `99 Recovery` only for a reported issue or explicit recovery request. Details: `.ai/workflows/jira-ticket.md`.

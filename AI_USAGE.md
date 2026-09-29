@@ -6,5 +6,5 @@ Add one concise bullet under the existing `## YYYY-MM-DD - Agent` heading only w
 
 ## 2026-09-30 - Codex
 
-- **PR #32 / `refactor/agent_files`**: Shared vendor-neutral AI workflow is awaiting review and CI. It uses a pre-implementation architecture plan, repository-owned persistence, an active-only ledger, and a lean core route with risk-gated specialist reviews.
+- **PR #32 / `refactor/agent_files`**: Shared vendor-neutral AI workflow is being simplified to a medium Main Coding Agent, high Implementation/Test Agents, and parallel low Quality/Requirements Agents. Jira remains authoritative; private Confluence cases inform Test-Agent coverage.
 - **SPM-50 / `agent_testing/SPM-50-create-venue-records`**: Experimental isolated ticket run based on `refactor/agent_files`; do not mix its changes into PR #32. Commit, push, and PR creation still require explicit human approval.

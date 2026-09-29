@@ -1,16 +1,16 @@
 # Test-Case Generation from Acceptance Criteria
 
-Derive reviewable cases from Jira ACs. Cases specify inputs, conditions, steps, and expected results; ACs state outcomes. Map `Given` to preconditions, `When` to steps/data, and `Then` to expected results.
+Derive reviewable cases from Jira ACs. Cases specify inputs, conditions, steps, and expected results; ACs state outcomes. Map `Given` to concrete preconditions, `When` to reproducible steps/data, and `Then` to observable response, state, or persistence results. Never use vague expectations such as “works properly.”
 
 ## Input and confidence gate
 
-Use Jira as the requirements source; access Confluence only through private Context Loader artifacts. Before generating cases, state confidence, assumptions, and ambiguities:
+Use Jira as the requirements source; access Confluence only through private Main Coding Agent artifacts. This is the Test Agent's standard for both test generation and validation. Before generating cases, state confidence, assumptions, and ambiguities:
 
 - **High:** AC specifies constraints, values, and outcomes.
 - **Medium:** behavior is clear; flag assumed constraints.
 - **Low:** critical constraints or outcomes are missing; request clarification.
 
-Never pass inferred limits, enum values, behavior, or implementation details off as ticket facts. Keep private content out of tracked files.
+Never pass inferred limits, enum values, behavior, or implementation details off as ticket facts. For low confidence on a critical outcome, request clarification rather than fabricate cases. Keep private content out of tracked files.
 
 ## Coverage strategy
 
@@ -43,6 +43,6 @@ Keep case specifications separate from run records; revise on requirement change
 
 ## Outputs and use in the agent workflow
 
-Write generated cases to `.ai/runtime/{ticket-id}/generated-test-cases.md` and the matrix to `test-case-coverage.md`, unless explicitly authorized to publish to approved test management. The Test Case Reviewer records gaps and conclusions in `test-review.md`. The Unit Test Writer receives only `independent-test-context.md`, never Confluence or generated artifacts.
+Write generated cases to `.ai/runtime/{ticket-id}/generated-test-cases.md` and the matrix to `test-case-coverage.md`, unless explicitly authorized to publish to approved test management. The Test Agent records gaps and conclusions in `test-review.md`; it may access private Confluence cases only for coverage validation.
 
 Automated tests must follow component guidance, be fast, isolated, repeatable, self-validating, and live beside their behavior. Never alter production behavior just to satisfy generated tests.
