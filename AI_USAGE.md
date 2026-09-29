@@ -21,6 +21,60 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
+
+- Issue/PR: SPM-99 / existing feature branch `feature/SPM-99-View-Event-information`
+- Human requester/operator: swr
+- Areas touched: frontend event-view tests, backend event service test comments, PostgreSQL availability integration tests, `AI_USAGE.md`.
+- Summary: Reassigned stale EVENT-VIEW references to the revised 01–06 cases. Kept supplementary not-found, security, refresh and lifecycle checks without reusing Confluence case IDs. Added an AC3 display assertion for both registration timestamps, used the seeded event values for AC1, and split the real PostgreSQL availability check into 02-A through 02-D scenarios.
+- Assumptions: The earlier 100% coverage claim applies to `frontend/src/pages/EventView.ts`; repository-wide coverage is not 100%. The requester excluded location from the test scope, while Jira AC1 still lists it.
+- Checks run: Focused frontend tests 33/33 passed; `EventView.ts` coverage 100% statements (20/20), branches (26/26), functions (3/3), lines (15/15). PostgreSQL availability integration tests 4/4 passed against the local database with unique fixture IDs and cleanup. Frontend build, targeted frontend ESLint, backend lint and `git diff --check` passed.
+- Follow-up/conflict notes: No production behavior changed. Confluence cases remain marked Not Executed as manual cases; the automated evidence is recorded here. Jira AC1 location wording still differs from the agreed test scope. Changes staged for human review only; no commit, push or PR created.
+
+## 2026-09-26 - Codex (GPT-5) - Complete SPM-99 attendee-view test evidence
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages`, `backend/src/events`, `backend/test`, `AI_USAGE.md`
+- Summary: Compared the staged SPM-99 tests with Jira acceptance criteria, Confluence EVENT-VIEW-01 through EVENT-VIEW-06, and the supplied IS212 testing/CI slides. Added missing UI and unit evidence for core attendee details, exact registration-close behaviour, pre-open, cancelled, completed, full, and no-window-hidden states, lifecycle mapping, refresh consistency, nonexistent-event safety, restricted-event non-disclosure, request-error/stale-data handling, and missing optional detail fallbacks. Replaced brittle SQL-text assertions with a PostgreSQL integration test for the registration-limit calculation rule.
+- AI contribution: Requirements traceability review, boundary/negative/integration-test expansion, coverage verification, and test execution.
+- Assumptions: The implemented policy is that registration is open through the exact configured closing instant and closes strictly after it; the attendee registration panel is displayed only when website registration is disabled (to explain that state) or both registration timestamps are configured.
+- Checks run: Focused frontend tests (29 passed); `vitest` coverage scoped to `src/pages/EventView.ts` (100% statements, branches, functions, lines); full frontend `npm test` (218 passed before the final supplemental cases) and `npm run build`; backend focused `events.service.spec.ts` (34 passed), new PostgreSQL availability integration test (1 passed), `npm run lint`, and `npm run build`; `git diff --check`.
+- Follow-up/conflict notes: Frontend `npm run lint` remains blocked by two unrelated pre-existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`. Repository-wide coverage is not 100%; the 100% claim is intentionally scoped to the new lifecycle decision unit, consistent with the course slides’ guidance that coverage is diagnostic rather than proof of correctness.
+
+## 2026-09-26 - Codex (GPT-5) - Repair fresh SPM-99 database initialization
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `backend/src/events`, `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Updated the base local event-status constraint so `002_seed_data.sql` can insert its Confirmed seed events, allowing the subsequent SPM-99 initializer to create attendee registration storage on a fresh database. Moved the attendee available-spots calculation into the PostgreSQL query, with the backend returning that database result directly.
+- AI contribution: Diagnosed PostgreSQL initializer ordering failure, added a schema compatibility correction, and aligned attendee availability ownership with the database.
+- Assumptions: The statuses supported by the SPM-99 attendee event view are valid statuses for new local databases, as already specified by its additive initializer.
+- Checks run: Built and initialized an isolated PostgreSQL 16 container; confirmed logs ran `001_schema.sql`, `002_seed_data.sql`, and `003_spm99_attendee_event_view.sql` in sequence; verified `event_registrations` exists and five seed events were inserted. Backend `npm test -- --run src/events/events.service.spec.ts` (32 passed), `npm run lint`, `npm run build`, and `git diff --check`.
+- Follow-up/conflict notes: The currently running Compose database was left unchanged; it was initialized before this repair and still needs the previously provided one-time SQL application or a reset after rebuilding.
+
+## 2026-09-24 - Codex (GPT-5) - Implement attendee event information view
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages`, `frontend/src/types`, `backend/src/events`, `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Implemented attendee-safe event listing/detail access and attendee-facing registration information: configured opening/closing times, remaining registration spots, registration notices, and derived Upcoming/In Progress/Completed/Cancelled labels. Added an additive local PostgreSQL schema update for registration settings, registration records, and attendee-view lifecycle states.
+- AI contribution: Read Jira SPM-99 and Confluence EVENT-VIEW-01 through EVENT-VIEW-06, implemented the contract, and added boundary-focused unit tests.
+- Assumptions: The registration opening instant is inclusive; closing occurs strictly after the configured closing timestamp; existing `expected_attendance` is the default registration limit until a separate organiser registration-limit UI exists.
+- Checks run: Frontend `npm test` (213 passed), `npm run build`, focused `eventView` coverage (100% statements/branches/functions/lines); backend `npm test` (444 passed), `npm run lint`, `npm run build`; `git diff --check`. Frontend `npm run lint` remains blocked by unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Preserved the pre-existing uncommitted SPM-99 local seed-data changes in `002_seed_data.sql`. The new schema has not been applied to a live local PostgreSQL volume because no database service was running during this work.
+
+## 2026-09-24 - Codex (GPT-5) - Add local event seed cases
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Added four fictional event records to the local PostgreSQL seed data, retaining the existing demo event. The added records cover submitted, approved, and rejected workflows, plus registration-enabled and accessibility variants.
+- AI contribution: Seed-data design and SQL validation.
+- Assumptions: “Test cases” means local development seed records for exercising event workflows, not automated test files.
+- Checks run: `git diff --check`; confirmed all four new IDs and their Submitted/Approved/Rejected states. Full PostgreSQL execution was not run because `postgres:16-alpine` is not cached locally.
+- Follow-up/conflict notes: No existing records, schemas, migrations, or application code were changed; no commit or push was created.
+
 ## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
 
 - Issue/PR: Unknown
