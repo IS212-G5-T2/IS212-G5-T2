@@ -235,7 +235,7 @@ implementer/reviewer rerun, and owns final deterministic validation.
 | --- | --- | --- | --- |
 | Agent 1 — Implementation (high) | Requirement acquisition, full implementation, tests, initial checks | Jira/Confluence once, scoped repo guidance, source | `context/*`, `implementation/*`, `traceability.md`, `status.json` |
 | Agent 2 — Test review (high) | Test adequacy, per-AC implementation/test status, changed-file coverage, and spec gaps | requirements, Confluence matrix/cases, implementation metadata, test-coverage matrix, traceability, diff/source | `reviews/test-review.md` |
-| Agent 3 — Code quality (low) | Focused maintainability and convention review | requirements, implementation metadata, changed files, diff/source | `reviews/code-quality-review.md` |
+| Agent 3 — Code quality (low) | Focused maintainability, convention, and test case ID comment review | requirements, Confluence cases, traceability, implementation metadata, changed files, affected suites, diff/source | `reviews/code-quality-review.md` |
 | Agent 4 — Requirements validation (low) | Acceptance criteria and business behavior coverage | requirements, implementation summary, traceability, diff/source | `reviews/requirements-review.md` |
 | Agent 5 — Final validation/orchestration (medium) | Verify, reconcile, hand accepted fixes to Agent 1, coordinate selective rerun, final checks | All runtime artifacts and current diff/source | `implementation/fix-handoff.md` when needed, `final/*`, updated `status.json` |
 

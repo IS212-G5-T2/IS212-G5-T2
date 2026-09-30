@@ -22,7 +22,7 @@ when the snapshot is complete.
 
 ## Source-of-Truth Rules
 
-1. Jira defines the required product behavior and acceptance criteria.
+1. Jira defines the required user story and acceptance criteria.
 2. Confluence defines the detailed test cases, data, steps, and expected
    results. Treat each relevant case as a required verification target.
 3. Repository behavior and conventions explain how to implement or test the
@@ -53,7 +53,12 @@ Perform these steps before marking implementation complete:
 5. **Extend the established suite.** Add cases to the existing behavior-focused
    module/feature suite. Never create a new test file per Jira ticket or
    Confluence case. Follow scoped component instructions. Put the Jira key and
-   real Confluence case ID in the test name or a nearby comment where useful.
+   every real Confluence case ID checked by a test in a short comment
+   immediately above its `it`/`test` declaration, including parameterized
+   tests. List multiple IDs on a shared test only when it checks each case.
+   If a ticket test has no Confluence case, state that and name its Jira AC or
+   regression in the preceding comment. A test title or traceability row does
+   not replace the preceding comment.
 6. **Make tests diagnostic.** Use reproducible setup, isolated data, meaningful
    assertions, and deterministic outcomes. A plausible incorrect
    implementation should fail the test. Add short comments for test intent and
@@ -221,6 +226,9 @@ recorded as blocked/not applicable:
       reaches the 100% target or has an evidence-based not-applicable reason.
 - [ ] Every relevant Confluence case maps to an automated test or has a
       recorded reason it is manual-only, blocked, or not applicable.
+- [ ] Each test claimed by a Confluence mapping has its real Jira key and case
+      ID(s) immediately above the test declaration. Partial mappings state the
+      uncovered part in that comment and in `traceability.md`.
 - [ ] Tests assert source-backed observable behavior.
 - [ ] Existing suite organization is preserved; no ticket-specific test file
       was added.

@@ -137,7 +137,7 @@ The root tests workflow should stay generic. Do not hard-code a component's runt
 - Place browser acceptance tests beside their frontend page as .playwright.spec.ts, discovered by Playwright.
 - Place database/API integration tests beside the backend module as .e2e-spec.ts, discovered only by the dedicated integration configuration. Shared application smoke tests may remain in the backend test directory.
 - Keep fixtures within the owning component, outside production entrypoints. Backend browser harnesses belong in scripts/testing/.
-- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections.
+- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections. For a Jira test mapped to Confluence, include the real Jira key and every case ID it checks in the comment directly above the test function. State any partial coverage there and in traceability; never label an unrelated test as covering a missing case. If no Confluence case exists, identify the Jira AC or regression and say so in that comment.
 - Use Playwright for real browser workflows; use backend/database runners for validation, authorization, persistence, and concurrency.
 - Keep test configuration and CI entrypoints with the owning component. New tests should be discovered without adding Jira-specific patterns.
 - Run affected suites before reporting testing complete; identify skipped checks and environment limitations.
