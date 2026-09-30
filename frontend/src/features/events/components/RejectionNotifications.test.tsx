@@ -33,6 +33,19 @@ function rejectionNotification(overrides: Partial<Notification> = {}): Notificat
   };
 }
 
+function approvalNotification(): Notification {
+  return {
+    id: "notif-approval-1",
+    audienceRole: "organiser",
+    audienceUserId: "organiser-9",
+    type: "approval",
+    message: 'Your event request "Welcome Evening" was approved and can proceed.',
+    relatedEventId: "event-1",
+    read: false,
+    createdAt: "2026-09-14T00:00:00.000Z",
+  };
+}
+
 function setUserRole(role: "organiser" | "coordinator") {
   useAppStore.setState({
     currentUser: { id: "organiser-9", name: "Org", email: "o@example.test", role },
@@ -99,5 +112,27 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
 
     expect(container).toBeEmptyDOMElement();
     expect(apiMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("RejectionNotifications (SPM-40 AC4)", () => {
+  it("shows the organiser that the approved event can proceed", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([approvalNotification()]);
+
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByText(
+        'Your event request "Welcome Evening" was approved and can proceed.',
+      ),
+    ).toBeTruthy();
+    expect(screen.getByRole("link", { name: /View request/i }).getAttribute("href")).toBe(
+      "/events/event-1",
+    );
   });
 });

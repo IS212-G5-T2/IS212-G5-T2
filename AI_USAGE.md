@@ -13,7 +13,34 @@ Record concise AI-assisted work here. Keep open-ticket history in this file; mov
 
 ## Ticket sections
 
-No open Jira ticket sections currently have entries. Add ongoing work under `## SPM-<id>`.
+Unarchived ticket history stays here. Add ongoing work under `## SPM-<id>`.
+
+## SPM-40
+
+### 22-09-2026 - Codex - SPM-40
+- kirub prompted SPM-40: Prepared the accept-request branch after confirming the earlier branch had no work to reuse; Jira details were unavailable.
+
+### 26-09-2026 - Codex - SPM-40
+- kirub prompted SPM-40: Implemented coordinator approval and its notification flow, with browser and API tests for authorization, persistence, and status handling.
+
+### 27-09-2026 - Codex - SPM-40
+- chaw678 and kirub prompted SPM-40: Addressed PR #31 review feedback and refined the approval regression-test headers.
+
+## SPM-99
+
+### 26-09-2026 - Codex - SPM-99
+- swr prompted SPM-99: Updated EVENT-VIEW traceability, expanded attendee-view test evidence, and repaired fresh database initialization and availability handling.
+
+### 24-09-2026 - Codex - SPM-99
+- swr prompted SPM-99: Implemented the attendee event view, lifecycle and registration details, and supporting schema and tests.
+
+## Unknown
+
+### 24-09-2026 - Codex - Unknown
+- swr prompted Unknown: Added four fictional local seed events covering event statuses, registration, and accessibility.
+
+### 22-09-2026 - Codex - Unknown
+- swr prompted Unknown: Audited backend authentication coverage and added focused coverage tests.
 
 ## Archived ticket pointers
 

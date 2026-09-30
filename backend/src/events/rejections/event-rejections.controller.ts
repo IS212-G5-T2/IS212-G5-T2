@@ -18,6 +18,11 @@ export class EventRejectionsController {
     return this.events.reject(id, body, request.currentUser);
   }
 
+  @Post('events/:id/approve')
+  approve(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.events.approve(id, request.currentUser);
+  }
+
   @Get('notifications')
   notifications(@Req() request: AuthenticatedRequest) {
     return this.events.notifications(request.currentUser);

@@ -56,7 +56,15 @@ export class EventsService {
       },
       attachments: row.attachments ?? [],
       equipmentNeeds: row.equipment_needs,
-      registrationEnabled: false,
+      registrationEnabled: row.registration_enabled,
+      registrationOpensAt: row.registration_opens_at?.toISOString(),
+      registrationClosesAt: row.registration_closes_at?.toISOString(),
+      // PostgreSQL owns the capacity calculation so every API consumer sees
+      // the same persisted registration availability.
+      availableRegistrationSpots:
+        row.available_registration_spots == null
+          ? undefined
+          : Number(row.available_registration_spots),
       changeRequests: [],
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
@@ -68,7 +76,20 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
-    const result = user.roles.includes('COORDINATOR')
+    const result = user.roles.includes('ATTENDEE')
+      ? await this.database.query(
+          `SELECT events.*, GREATEST(
+             0,
+             COALESCE(events.registration_limit, events.expected_attendance) - (
+               SELECT COUNT(*)::integer FROM event_registrations
+                WHERE event_id = events.id AND status = 'Registered'
+             )
+           )::integer AS available_registration_spots
+             FROM events
+            WHERE status IN ('Confirmed', 'Completed', 'Cancelled')
+            ORDER BY start_date_time ASC`,
+        )
+      : user.roles.includes('COORDINATOR')
       ? await this.database.query(
           'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
           [user.uid],
@@ -104,14 +125,27 @@ export class EventsService {
       )
     )
       throw new NotFoundException('Event not found.');
-    const result = await this.database.query('SELECT * FROM events WHERE id = $1', [id]);
+    const result = await this.database.query(
+      `SELECT events.*, GREATEST(
+         0,
+         COALESCE(events.registration_limit, events.expected_attendance) - (
+           SELECT COUNT(*)::integer FROM event_registrations
+            WHERE event_id = events.id AND status = 'Registered'
+         )
+       )::integer AS available_registration_spots
+         FROM events WHERE id = $1`,
+      [id],
+    );
     const row = result.rows[0];
     if (!row) throw new NotFoundException('Event not found.');
     const isOwningOrganiser =
       user.roles.includes('ORGANISER') && row.organiser_id === user.uid;
     const isAssignedCoordinator =
       user.roles.includes('COORDINATOR') && row.coordinator_id === user.uid;
-    if (!isOwningOrganiser && !isAssignedCoordinator)
+    const isAttendeeViewable =
+      user.roles.includes('ATTENDEE') &&
+      ['Confirmed', 'Completed', 'Cancelled'].includes(row.status);
+    if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable)
       throw new NotFoundException('Event not found.');
     return this.record(row);
   }
@@ -229,10 +263,54 @@ export class EventsService {
     });
   }
 
+  // SPM-40: approval is a one-way decision made only by the coordinator
+  // assigned to a still-Submitted request. The status change and organiser
+  // notification are committed together so neither can exist without the
+  // other, and the row lock prevents concurrent decisions from both winning.
+  async approve(id: string, identity?: AuthenticatedUser) {
+    const coordinator = this.requireCoordinator(identity);
+    this.eventId(id);
+    return this.database.transaction(async (client) => {
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted')
+        throw new ConflictException(
+          'Only Submitted requests can be approved. Refresh the pending list.',
+        );
+      if (event.coordinator_id !== coordinator.uid)
+        throw new ForbiddenException(
+          'This request is assigned to another coordinator.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+           SET status = 'Approved',
+               updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [id],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'approval', $3, $4)`,
+        [
+          randomUUID(),
+          event.organiser_id,
+          `Your event request "${event.event_name}" was approved and can proceed.`,
+          id,
+        ],
+      );
+      return this.record(updated.rows[0]);
+    });
+  }
+
   async notifications(identity?: AuthenticatedUser) {
     const organiser = this.requireOrganiser(identity);
     const result = await this.database.query(
-      "SELECT * FROM notifications WHERE recipient_id = $1 AND type = 'rejection' ORDER BY created_at DESC",
+      "SELECT * FROM notifications WHERE recipient_id = $1 AND (type = 'rejection' OR type = 'approval') ORDER BY created_at DESC",
       [organiser.id],
     );
     return result.rows.map((row) => ({
@@ -251,7 +329,7 @@ export class EventsService {
     const organiser = this.requireOrganiser(identity);
     this.eventId(id);
     const result = await this.database.query(
-      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = 'rejection' RETURNING id",
+      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND (type = 'rejection' OR type = 'approval') RETURNING id",
       [id, organiser.id],
     );
     if (!result.rows[0]) throw new NotFoundException('Notification not found.');
@@ -287,8 +365,9 @@ export class EventsService {
       `INSERT INTO events
         (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
         start_date_time, end_date_time, expected_attendance, preferred_room_layout,
-        required_facilities, accessibility_needs, attachments, equipment_needs, submission_key)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        required_facilities, accessibility_needs, attachments, equipment_needs, registration_enabled,
+        registration_limit, submission_key)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
         ON CONFLICT (organiser_id, submission_key) DO NOTHING RETURNING *`,
       [
         eventId ?? randomUUID(),
@@ -306,6 +385,8 @@ export class EventsService {
         data.accessibility,
         JSON.stringify(data.attachments),
         data.equipmentNeeds,
+        data.registrationEnabled,
+        data.expectedAttendance,
         data.submissionKey,
       ],
     );
