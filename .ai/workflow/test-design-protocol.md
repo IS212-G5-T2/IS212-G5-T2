@@ -67,6 +67,50 @@ Perform these steps before marking implementation complete:
    implementation or test oracle. Do not encode speculative behavior as a
    passing assertion.
 
+## Changed-File Test and Coverage Contract
+
+Create `implementation/test-coverage.md` for every ticket. List every changed
+source file and classify it as runtime behavior, type/declaration-only, or
+module wiring. For each runtime-behavior file, record:
+
+- its direct unit-test suite and the test cases that exercise it;
+- the relevant Jira AC/Confluence case IDs;
+- statement/line, branch, and function coverage for the changed file;
+- any supplemental API, database, or browser integration test;
+- status: `implemented`, `partially implemented`, `not implemented`, `blocked`,
+  or `not applicable`.
+
+The test matrix must distinguish product implementation from test
+implementation. A feature can be implemented while its test is missing; report
+those as separate statuses rather than calling the feature unimplemented.
+
+Every changed runtime-behavior file needs direct unit coverage in the owning
+feature/module suite. In particular, backend controllers and repositories need
+their own unit tests: controller tests exercise request-to-service delegation,
+identity/body/parameter forwarding, and response/error behavior; repository
+tests exercise query parameters, relevant SQL predicates/ordering, row mapping,
+empty results, and database errors. Service, validator, and helper files also
+need direct tests for their own behavior. API/database/browser tests supplement
+these unit tests; they do not replace them where direct unit testing is
+practical.
+
+Target 100% statement/line, branch, and function coverage for new or changed
+runtime behavior in the ticket's source files. Do not chase 100% for the whole
+component just because the ticket touches it. Investigate every uncovered
+changed line or branch, add a test when it represents behavior, and record a
+specific reason when it is non-executable glue or genuinely not applicable.
+Do not mark the implementation complete while changed behavior is uncovered
+without an evidence-based exception. Coverage numbers support this review;
+they do not replace meaningful assertions or source-case traceability.
+
+Only `*.module.*` dependency-registration files are exempt from direct unit
+tests. Still list them in the file matrix and verify their wiring through
+relevant consumer/module tests where practical. Type-only interfaces and
+declaration-only files have no executable coverage; list them as `not
+applicable`, cite the consumer tests and type/build check, and do not create
+tests that merely restate a type declaration. Do not create one test file per
+Jira ticket or Confluence case; extend the owning behavior-focused suite.
+
 ### Scenario Selection Table
 
 | Priority | Scenario | Include when | Do not add when |
@@ -85,8 +129,23 @@ could reasonably question its absence.
 
 ## Agent 2 Procedure — Review Tests Independently
 
-Do not edit implementation files or read another reviewer's output. For each
-AC and relevant Confluence case:
+Do not edit implementation files or read another reviewer's output. Start the
+report with a coverage-status matrix for every Jira AC and relevant Confluence
+case. For each row separately classify:
+
+- **Implementation status:** `implemented`, `partially implemented`, `not
+  implemented`, `blocked`, or `not applicable`.
+- **Test status:** `implemented`, `partially implemented`, `not implemented`,
+  `blocked`, or `not applicable`.
+
+Use these statuses based on inspected behavior and evidence. “Test status:
+not implemented” means the required automated test is absent or does not
+establish the expected result; it does not by itself mean the product feature
+is not implemented. State where the two statuses differ.
+
+Then inspect each changed runtime-behavior source file and its direct test
+mapping/coverage result. Do not edit implementation files or read another
+reviewer's output. For each AC and relevant Confluence case:
 
 1. Confirm the traceability row points to a real test and changed behavior, or
    clearly identifies a gap/manual-only check.
@@ -110,8 +169,11 @@ Use one finding per issue:
 ```text
 ID: TEST-<number>
 Severity: critical | high | medium | low
+Finding type: implementation defect | test coverage gap | test defect | specification gap
 Requirement / AC: <Jira AC, or none identified>
 Confluence case: <actual case ID, or none identified>
+Implementation status: implemented | partially implemented | not implemented | blocked | not applicable
+Test status: implemented | partially implemented | not implemented | blocked | not applicable
 Location: <file and line, or runtime artifact>
 Problem: <specific missing, incorrect, or weak behavior>
 Evidence: <source requirement and observed test/implementation evidence>
@@ -120,8 +182,9 @@ Recommendation: <smallest actionable correction>
 Confidence: high | medium | low
 ```
 
-If no actionable issue exists, output exactly `No findings.` Do not report
-style preferences or speculative test cases as defects.
+If no actionable issue exists, include the completed status matrix and then
+write `No findings.` in the findings section. Do not report style preferences
+or speculative test cases as defects.
 
 ## Completion Checks
 
@@ -129,6 +192,11 @@ Agent 1 is complete only when all applicable checks pass or are explicitly
 recorded as blocked/not applicable:
 
 - [ ] Every Jira AC is represented in `traceability.md`.
+- [ ] Every changed source file appears in `implementation/test-coverage.md`;
+      every changed runtime-behavior file has direct unit-test evidence, except
+      `*.module.*` wiring files.
+- [ ] Coverage was inspected for changed runtime-behavior files; changed code
+      reaches the 100% target or has an evidence-based not-applicable reason.
 - [ ] Every relevant Confluence case maps to an automated test or has a
       recorded reason it is manual-only, blocked, or not applicable.
 - [ ] Tests assert source-backed observable behavior.

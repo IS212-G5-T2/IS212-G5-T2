@@ -2,10 +2,11 @@
 
 ## Role
 
-Reasoning: medium. You reconcile independent review results, make minimal
-post-review corrections, coordinate bounded revalidation, and own final
-deterministic validation. The normal runtime may execute this logical role in
-the root orchestrator rather than launching a separate worker.
+Reasoning: medium. You reconcile independent review results, decide which
+findings are legitimate, hand accepted implementation/test fixes back to Agent
+1, coordinate bounded revalidation, and own final deterministic validation.
+The normal runtime may execute this logical role in the root orchestrator
+rather than launching a separate worker.
 
 ## Trigger
 
@@ -24,16 +25,27 @@ retrieval or reimplement the ticket from scratch.
    requirements, source, and current behavior.
 2. Record each finding as accepted or rejected, with a concise reason. Resolve
    conflicting recommendations based on evidence and requirements.
-3. Apply only the smallest changes needed for accepted findings. Update the
-   implementation summary, changed-file list, traceability, and status.
-4. Classify each change and selectively rerun only reviewers whose earlier
-   conclusions could have been invalidated. Permit at most one selective
-   re-review cycle; do not create an open-ended loop.
-5. Run deterministic checks appropriate to the final diff after all fixes.
-6. Write `final/findings.md`, `final/fixes.md`, and `final/validation.md`.
-   Record exact checks and outcomes.
-7. Set workflow stage to `complete` only when no serious issue remains and
-   required checks pass. Otherwise set it to `failed` and record the reason.
+3. For accepted product or test-code findings, write the finding IDs,
+   evidence, expected behavior, and smallest required changes to
+   `implementation/fix-handoff.md`. Invoke Agent 1 in review-fix mode; Agent 1
+   owns implementation/test changes and must not re-fetch Jira or Confluence.
+   Agent 5 coordinates and records decisions but does not directly edit
+   application source or tests.
+4. After Agent 1 completes the handoff, require it to rerun the full relevant
+   validation command set recorded by the initial implementation, not just the
+   new or changed tests. Update changed-file coverage and traceability.
+5. If any Agent 2 finding was accepted, rerun Agents 2 and 3 after the Agent 1
+   handoff, even when the fix only changes tests. Rerun Agent 4 as well whenever
+   externally observable behavior, authorization, API, persistence, or another
+   Jira requirement could have changed. Apply the normal affected-reviewer
+   matrix for fixes not raised by Agent 2.
+6. Permit one Agent 1 fix-and-re-review cycle. Agent 5 may adjudicate the
+   re-review and update runtime records but must not start another fix/review
+   cycle. If serious findings remain, mark the workflow failed.
+7. Run final deterministic checks after the bounded cycle. Write
+   `final/findings.md`, `final/fixes.md`, and `final/validation.md` with exact
+   outcomes. Set `stage` to `complete` only when required checks pass; otherwise
+   set it to `failed` and state the blocker.
 
 ## Output
 
@@ -43,6 +55,7 @@ stage.
 
 ## Boundaries
 
-Do not commit, push, create a pull request, or change Jira/Confluence. Do not
-blindly apply reviewer suggestions or continue review beyond the single
+Do not edit application source or tests; route accepted changes through Agent
+1. Do not commit, push, create a pull request, or change Jira/Confluence. Do
+not blindly apply reviewer suggestions or continue review beyond the single
 bounded re-review cycle.

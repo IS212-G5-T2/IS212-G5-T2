@@ -87,3 +87,7 @@ No open Jira ticket sections currently have entries. Add ongoing work under `## 
 - swr prompted test verification guidance: Integrated curated case derivation, test quality, traceability, and CI validation rules into the implementation and test-review workflow using the provided prompts and course references.
 - swr prompted AI-readable test guidance: Recast shared test rules as `.ai/workflow/test-design-protocol.md` with input contracts, decision tables, review schema, and completion checks; standardized every role prompt's section order.
 - swr prompted agent effort alignment: Matched Claude subagent effort frontmatter to Codex role TOMLs and documented that root Agent 5 inherits the active session's effort.
+
+### 30-09-2026 - Codex - refactor/agent_workflow
+
+- swr prompted test-review workflow feedback: Added per-changed-file unit-test and coverage requirements, separate implementation/test status reporting, and a bounded Agent 5 to Agent 1 repair handoff followed by selective re-review.

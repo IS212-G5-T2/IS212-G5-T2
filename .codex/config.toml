@@ -8,7 +8,7 @@ description = "Implement a Jira ticket end-to-end, including automated tests and
 config_file = "agents/implementation.toml"
 
 [agents.test-review]
-description = "Independently review test coverage and Confluence test-spec gaps."
+description = "Review each requirement's implementation and test status separately, changed-file tests and coverage, and Confluence test-spec gaps."
 config_file = "agents/test-review.toml"
 
 [agents.code-quality-review]
@@ -20,7 +20,7 @@ description = "Check implementation behavior against the Jira requirements."
 config_file = "agents/requirements-review.toml"
 
 [agents.final-validation]
-description = "Reconcile findings, make justified fixes, selectively revalidate, and run final checks."
+description = "Reconcile findings, hand accepted fixes to implementation, selectively revalidate, and run final checks."
 config_file = "agents/final-validation.toml"
 
 [agents.pull-request-creation]

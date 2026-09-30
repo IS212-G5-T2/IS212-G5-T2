@@ -20,17 +20,30 @@ complete.
 ## Procedure
 
 Follow `Agent 2 Procedure` and `Review Finding Format` in the protocol. Compare
-the Jira ACs, Confluence matrix/cases, traceability, automated tests, and
-relevant implementation behavior. Assess coverage and test quality, including
-authorization, state transitions, integration/database behavior, error cases,
-assertions, isolation, fixtures, and specification gaps where relevant.
+the Jira ACs, Confluence matrix/cases, traceability, changed-file test matrix,
+automated tests, coverage report, and relevant implementation behavior. At the
+start of the report, classify implementation status and test status separately
+for every Jira AC and relevant Confluence case. Then inspect each changed
+runtime-behavior file's direct test and coverage evidence, including backend
+controllers and repositories. Assess authorization, state transitions,
+integration/database behavior, error cases, assertions, isolation, fixtures,
+and specification gaps. A feature can be implemented while its test is
+missing; do not collapse those into one status.
 
 ## Output
 
-Write the report to `reviews/test-review.md`; the orchestrator persists your
-findings there. Separate Confluence-spec gaps from automated-test or
-implementation gaps. Report concise conclusions and evidence, not private
-step-by-step reasoning.
+Return a report for `reviews/test-review.md`; the orchestrator persists it
+there. Start with this matrix:
+
+| Jira AC / Confluence case | Implementation status | Test status | Evidence (source and test) | Finding IDs |
+| --- | --- | --- | --- | --- |
+
+Use only `implemented`, `partially implemented`, `not implemented`, `blocked`,
+or `not applicable` for both status columns. Then report findings in the
+protocol format. Separate specification gaps, implementation defects, test
+coverage gaps, and test defects. If there are no actionable findings, retain
+the completed matrix and write `No findings.` Report concise conclusions and
+evidence, not private step-by-step reasoning.
 
 ## Boundaries
 

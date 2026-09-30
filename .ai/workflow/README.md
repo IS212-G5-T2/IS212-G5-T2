@@ -57,7 +57,13 @@ return mechanism.
    context directory. Inspect the repository and scoped instructions, then
    implement the full ticket, including automated tests. Run initial relevant
    validation and write implementation summary, changed files, assumptions,
-   traceability, and status.
+   traceability, file-level test coverage, and status. Every changed runtime-
+   behavior file gets a direct unit-test mapping; backend controllers and
+   repositories require their own unit suites. `*.module.*` registration files
+   are the only source-file exemption from direct tests. Type-only/declaration-
+   only files still appear in the test-coverage matrix with a not-applicable
+   reason. Inspect coverage for changed executable code and target 100% per
+   changed file, without imposing a 100% threshold on the whole component.
 2. **Independent reviews (Agents 2–4):** Once Agent 1 marks implementation
    complete, launch the test, code quality, and requirements reviewers. They
    read the snapshot and inspect the relevant diff/source. They do not edit
@@ -67,17 +73,26 @@ return mechanism.
    its designated review file without merging or rewriting it.
 3. **Reconciliation (Agent 5, medium reasoning):** Read the snapshot, diff,
    status, and all three reviews. Verify findings against the code and stated
-   requirements; accept or reject each with a reason. Make only the smallest
-   fixes needed for legitimate issues. Record findings and fixes.
-4. **Selective re-review:** If Agent 5 changed implementation, update the
-   changed-file list and rerun only reviewers whose conclusions could have
-   changed, using the rules below. Permit one re-review cycle. Agent 5 resolves
-   those results once; do not start another review cycle.
-5. **Final validation:** Run deterministic checks relevant to the final diff
-   (tests, lint, typecheck, build, migration validation, or repository checks).
-   Record exact commands and outcomes. Mark the workflow complete only if there
-   are no unresolved serious findings and required checks pass. Otherwise mark
-   it failed with the remaining issue and failed/skipped checks.
+   requirements; accept or reject each with a reason. Do not edit source or
+   tests. For accepted changes, write `implementation/fix-handoff.md` naming
+   the finding IDs, evidence, expected result, and requested correction.
+4. **Implementation repair (Agent 1, high reasoning):** Invoke Agent 1 in
+   review-fix mode with the accepted handoff and runtime snapshot. Agent 1
+   updates production code/tests, test-coverage matrix, traceability, and
+   changed-file metadata without re-fetching Jira/Confluence. It reruns the
+   full relevant validation command set recorded during initial implementation
+   (not only tests added for the finding) and reports each finding's result.
+5. **Re-review:** If any Agent 2 finding was accepted, rerun Agents 2 and 3
+   after Agent 1's repair, including when only tests changed. Rerun Agent 4 when
+   behavior, authorization, API, persistence, or another Jira requirement may
+   have changed. Other fixes use the dependency table below. Permit one Agent 1
+   repair/re-review cycle only. Agent 5 adjudicates that result and does not
+   initiate another code-fix/review loop.
+6. **Final validation:** Run the full recorded relevant check set after all
+   repairs (tests, coverage, lint, typecheck, build, migration validation, or
+   repository checks). Record exact commands and outcomes. Mark complete only
+   if required checks pass and no serious finding remains; otherwise mark
+   failed with the remaining issue and failed/skipped checks.
 
 Use the existing Jira/branch/PR rules in the root `AGENTS.md` and
 `docs/ai-issue-workflow.md`. This workflow does not authorize Jira or Confluence
@@ -116,7 +131,9 @@ capture time/version where available so stale snapshots can be recognized.
 ├── implementation/
 │   ├── implementation-summary.md
 │   ├── changed-files.md
-│   └── assumptions.md
+│   ├── assumptions.md
+│   ├── test-coverage.md
+│   └── fix-handoff.md        # only when Agent 5 sends accepted findings to Agent 1
 ├── reviews/
 │   ├── test-review.md
 │   ├── code-quality-review.md
@@ -148,9 +165,20 @@ leaves a method unclear.
 `traceability.md` maps each requirement to a real Confluence case (if present),
 automated test, and implementation location. Use “none identified” for missing
 links; never invent case IDs or coverage. Reviewer reports use one entry per
-finding with: ID, severity, requirement/AC if applicable, file and line, issue,
-evidence, expected behavior, and recommended correction. If there are no
-findings, say so explicitly.
+finding with: ID, severity, finding type, requirement/AC if applicable,
+Confluence case, implementation status, test status, file and line, issue,
+evidence, expected behavior, and recommended correction. Agent 2 reports a
+status matrix before findings with implementation status and test status as
+separate columns. This makes it explicit when a feature is implemented but its
+test is missing. If there are no findings, include the completed matrix and
+say so explicitly.
+
+`implementation/test-coverage.md` uses one row per changed source file. Include
+file kind, direct unit suite/cases, linked AC and Confluence case IDs,
+statement/line, branch, and function coverage, supplemental integration tests,
+and separate implementation/test statuses. For type-only files, record why
+runtime coverage does not apply and cite the type/build check. For module
+registration files, cite the consumer/module check used to validate wiring.
 
 `status.json` is the lightweight state record. Preserve this shape and update
 it at stage boundaries:
@@ -160,6 +188,8 @@ it at stage boundaries:
   "ticket_id": "SPM-50",
   "stage": "implementation",
   "implementation_complete": false,
+  "implementation_fix_requested": false,
+  "implementation_fix_complete": false,
   "test_review_complete": false,
   "code_quality_review_complete": false,
   "requirements_review_complete": false,
@@ -187,16 +217,17 @@ same section order so any runtime can parse them consistently:
 The orchestrator passes the relevant role prompt, ticket runtime path, and
 explicit output path to the native task launcher. Codex review roles use a
 read-only sandbox and return findings for the orchestrator to persist.
-Implementer owns changes before the first review; final validator owns
-post-review fixes and final validation.
+Implementer owns changes before and after review; final validator adjudicates
+findings, writes accepted fixes to the implementation handoff, coordinates the
+implementer/reviewer rerun, and owns final deterministic validation.
 
 | Role | Focus | Inputs | Output |
 | --- | --- | --- | --- |
 | Agent 1 — Implementation (high) | Requirement acquisition, full implementation, tests, initial checks | Jira/Confluence once, scoped repo guidance, source | `context/*`, `implementation/*`, `traceability.md`, `status.json` |
-| Agent 2 — Test review (high) | Test adequacy and spec gaps against behavior | requirements, Confluence matrix/cases, implementation metadata, traceability, diff/source | `reviews/test-review.md` |
+| Agent 2 — Test review (high) | Test adequacy, per-AC implementation/test status, changed-file coverage, and spec gaps | requirements, Confluence matrix/cases, implementation metadata, test-coverage matrix, traceability, diff/source | `reviews/test-review.md` |
 | Agent 3 — Code quality (low) | Focused maintainability and convention review | requirements, implementation metadata, changed files, diff/source | `reviews/code-quality-review.md` |
 | Agent 4 — Requirements validation (low) | Acceptance criteria and business behavior coverage | requirements, implementation summary, traceability, diff/source | `reviews/requirements-review.md` |
-| Agent 5 — Final validation/orchestration (medium) | Verify, reconcile, fix, selectively rerun, final checks | All runtime artifacts and current diff/source | `final/*`, updated `status.json` |
+| Agent 5 — Final validation/orchestration (medium) | Verify, reconcile, hand accepted fixes to Agent 1, coordinate selective rerun, final checks | All runtime artifacts and current diff/source | `implementation/fix-handoff.md` when needed, `final/*`, updated `status.json` |
 
 Reviewers should limit repository reads to changed files and directly relevant
 callers/tests. Jira and Confluence are read by Agent 1 only; downstream agents
@@ -206,22 +237,27 @@ work, followed by updating the snapshot.
 
 ## Selective revalidation and retry bound
 
-Classify each Agent 5 fix by what it can invalidate, and rerun:
+Agent 5 never edits product source or tests. It hands accepted findings to
+Agent 1, which performs the correction and reruns the full relevant validation
+set captured during initial implementation. Use this reviewer matrix after
+Agent 1 reports the handoff complete:
 
 | Fix | Reviewers to rerun |
 | --- | --- |
-| Tests only | Agent 2 |
-| Production implementation, behavior unchanged | Agents 2 and 3 |
-| Business behavior, authorization/security, API contract, or database/schema behavior | Agents 2, 3, and 4 |
+| Any accepted Agent 2 finding, including tests-only gaps/fixes | Agents 2 and 3; also Agent 4 if a Jira behavior/contract could change |
+| Test-only change from a finding outside Agent 2 | Agents 2 and 3 if test assumptions or implementation evidence could change |
+| Production behavior, authorization/security, API contract, or database/schema change | Agents 2, 3, and 4 |
+| Production implementation change with behavior unchanged | Agents 2 and 3 |
 | Refactor only | Agent 3; also Agent 2 if behavior or test assumptions may change |
 | Documentation only | None, unless it changes an interface or operational requirement |
 
-At most one selective re-review cycle is allowed after the initial reviews.
-Agent 5 may make one final correction after that cycle, but must not relaunch
-reviewers. Run final deterministic checks after all corrections. If an
-unresolved serious finding remains, or a required deterministic check fails,
-set `stage` to `failed`, describe the blocker in `final/findings.md` and record
-the check result in `final/validation.md`.
+Any accepted test-review issue returns to Agent 1 for implementation/test
+repair, then must pass Agents 2 and 3 again. Agent 5 may adjudicate findings
+after that one cycle but must not directly patch source or launch another
+repair/review cycle. Run final deterministic checks after the cycle. If an
+unresolved serious finding remains, or a required check fails, set `stage` to
+`failed`, describe the blocker in `final/findings.md`, and record the check
+result in `final/validation.md`.
 
 ## Cost and correctness rules
 

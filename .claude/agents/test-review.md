@@ -1,6 +1,6 @@
 ---
 name: test-review
-description: Independently review test coverage and Confluence test-spec gaps.
+description: Review implementation and test status separately, per-file test coverage, and Confluence test-spec gaps.
 effort: high
 tools:
   - Read
