@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Grouped event drafts and rejection flows under `src/events/`, organized clarifications by DTO/model/repository responsibility, and promoted `authentication/` and `authorization/` to top-level domains; consolidated duplicate draft validator suites into one behavior-focused suite.
 - Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
 - Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.
 

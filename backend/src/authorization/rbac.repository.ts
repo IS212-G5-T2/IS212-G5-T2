@@ -3,8 +3,8 @@
  * development and later production-aligned authorization checks.
  */
 import { Injectable } from '@nestjs/common';
-import { DatabaseService } from '../../database/database.service.js';
-import { PermissionAction, UserRole } from '../models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
+import { PermissionAction, UserRole } from '../authentication/models/auth.models.js';
 
 @Injectable()
 export class RbacRepository {

@@ -2,7 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { validateDraft } from './draft-input.js';
-import { ACCESSIBILITY, FACILITIES, LAYOUTS } from './event-input.js';
+import { ACCESSIBILITY, FACILITIES, LAYOUTS } from '../../dto/event-input.js';
 
 const payload = (fields: unknown = {}) => ({
   fields,
@@ -69,6 +69,32 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
       ...fields,
       purpose: '',
     });
+  });
+  // AC2: an incomplete schedule is still valid while the organiser is drafting.
+  it('AC2 accepts an empty draft with an incomplete schedule', () => {
+    const result = validateDraft({
+      fields: { startDate: '2030-04-01' },
+      version: 0,
+      operationId: randomUUID(),
+    });
+    expect(result.fields.name).toBe('');
+    expect(result.fields.startDate).toBe('2030-04-01');
+    expect(result.fields.startTime).toBe('');
+  });
+  // AC3: draft fields preserve the organiser's text and selected options.
+  it('AC3 preserves exact text, zero attendance and selections', () => {
+    const result = validateDraft({
+      fields: {
+        name: '  Work in progress  ',
+        expectedAttendance: '0',
+        facilities: ['Catering'],
+      },
+      version: 2,
+      operationId: randomUUID(),
+    });
+    expect(result.fields.name).toBe('  Work in progress  ');
+    expect(result.fields.expectedAttendance).toBe('0');
+    expect(result.fields.facilities).toEqual(['Catering']);
   });
   const textLimits = {
     name: 200,

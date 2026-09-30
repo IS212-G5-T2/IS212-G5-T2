@@ -87,8 +87,12 @@ No open Jira ticket sections currently have entries. Add ongoing work under `## 
 - swr prompted test verification guidance: Integrated curated case derivation, test quality, traceability, and CI validation rules into the implementation and test-review workflow using the provided prompts and course references.
 - swr prompted AI-readable test guidance: Recast shared test rules as `.ai/workflow/test-design-protocol.md` with input contracts, decision tables, review schema, and completion checks; standardized every role prompt's section order.
 - swr prompted agent effort alignment: Matched Claude subagent effort frontmatter to Codex role TOMLs and documented that root Agent 5 inherits the active session's effort.
+- swr prompted backend E2E environment fix: Updated `test:e2e` to load `backend/.env` into the Vitest process while preserving already-exported shell values.
+- swr prompted backend E2E setup alignment: Updated the drafts suite to use the shared `DATABASE_URL`, Nest testing-module lifecycle, and a seeded organiser session for protected routes; schema setup remains with the shared stack.
 
 ### 30-09-2026 - Codex - refactor/agent_workflow
 
 - swr prompted test-review workflow feedback: Added per-changed-file unit-test and coverage requirements, separate implementation/test status reporting, and a bounded Agent 5 to Agent 1 repair handoff followed by selective re-review.
 - swr prompted independent coverage verification: Require Agent 2 to run each affected component's coverage command and inspect fresh per-file reports; missing coverage evidence blocks that part of review.
+- swr prompted frontend/backend organization refactor: Grouped frontend route files and page-only UI by domain/page; grouped backend features by responsibility, with top-level authentication/authorization and feature-local clarifications DTOs/models/repositories; removed confirmed duplicate test cases and updated component guidance.
+- swr prompted backend refactor follow-up: Kept the draft PostgreSQL E2E suite beside its module and corrected authentication guidance to match the implemented session-cookie middleware.

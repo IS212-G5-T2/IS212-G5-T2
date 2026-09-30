@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
-import { getAuthConfig } from '../../config/auth.config.js';
-import type { AuthenticatedUser } from '../models/auth.models.js';
-import type { AuthConfig } from '../models/auth.models.js';
-import { AuthRepository } from './auth.repository.js';
+import { getAuthConfig } from '../config/auth.config.js';
+import type { AuthenticatedUser } from './models/auth.models.js';
+import type { AuthConfig } from './models/auth.models.js';
+import { AuthRepository } from './repositories/auth.repository.js';
 
 @Injectable()
 export class AuthService {

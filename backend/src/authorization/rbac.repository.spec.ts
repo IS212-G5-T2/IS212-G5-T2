@@ -2,8 +2,8 @@
  * Unit tests for the RBAC repository's database boundary and permission-row
  * interpretation.
  */
-import { DatabaseService } from '../../database/database.service.js';
-import { PermissionAction } from '../models/auth.models.js';
+import { DatabaseService } from '../database/database.service.js';
+import { PermissionAction } from '../authentication/models/auth.models.js';
 import { RbacRepository } from './rbac.repository.js';
 
 describe('RbacRepository', () => {

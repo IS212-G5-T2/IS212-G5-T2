@@ -32,18 +32,20 @@ For Jira work, follow [`.ai/workflow/README.md`](../.ai/workflow/README.md) and 
 
 ## Backend file responsibilities
 
-Keep code within its Nest feature/module. The current service uses folders such as `src/events/`, `src/clarifications/`, and `src/auth/`. As features are implemented or reorganized, use these responsibilities:
+Keep code within its Nest feature/module. The service groups code by top-level domain, with feature-local layers beneath it. Authentication and authorization are separate top-level areas: `src/authentication/` owns identity/session verification and `src/authorization/` owns RBAC policy queries. Keep Nest modules, controllers, services, and middleware at the feature root. Put repositories in a `repositories/` folder when that clarifies persistence ownership, shared types in `models/`, and boundary contracts in `dto/` when they warrant standalone files. Place unit tests beside their implementation. Use these responsibilities:
 
 | Location | Responsibility |
 | --- | --- |
 | `*.module.ts`, `*.controller.ts`, `*.service.ts` | Nest wiring, HTTP boundary, and business/use-case logic. |
 | `*.repository.ts` or `repositories/` | SQL, joins, persistence mapping, and data access. Repository code never belongs under `dto/`. |
 | `dto/` | Data Transfer Objects for data crossing the API boundary, such as request/response shapes, with boundary validation/transformation. A DTO is not a database repository and is not the place for SQL. |
-| `models/` | Domain/application types, enums, or data shapes used within a feature or shared across its files. For example, `src/auth/models/auth.models.ts`. A model type does not by itself validate untrusted input. |
+| `models/` | Domain/application types, enums, or data shapes used within a feature or shared across its files. For example, shared identity types live in `src/authentication/models/auth.models.ts`. A model type does not by itself validate untrusted input. |
 | `helpers/` | Cohesive helper functions that are reused within a feature. Prefer a purpose-named module file for a single helper; avoid a generic catch-all helper directory. |
 | `*.spec.ts`, `*.e2e-spec.ts` | Unit tests beside their implementation; database/API integration tests use the dedicated integration configuration. |
 
-Request/input types belong to the DTO/API-boundary responsibility. Internal domain and application types belong to models. SQL and persistence operations belong to repositories. Existing input validators such as `event-input.ts` and `draft-input.ts` are valid boundary modules: preserve the established validation approach unless the ticket calls for a deliberate change. Don't create empty directories, duplicate types across DTO and model, or add validation libraries solely to impose a folder convention.
+Request/input types belong to the DTO/API-boundary responsibility. Internal domain and application types belong to models. SQL and persistence operations belong to repositories. Input validators such as `src/events/dto/event-input.ts`, `src/events/drafts/dto/draft-input.ts`, and `src/clarifications/dto/clarification-input.ts` belong with their DTO boundary: preserve the established validation approach unless the ticket calls for a deliberate change. Don't create empty directories, duplicate types across DTO and model, or add validation libraries solely to impose a folder convention.
+
+Group cohesive backend subfeatures under their owning domain, then use layer folders where they clarify file roles. Clarifications keep API input/response shapes in `dto/`, internal row/write types in `models/`, and SQL in `repositories/`; service, controller, and module remain at the feature root. Events keep shared request validators in `dto/`, shared event types in `models/`, reusable coordinator selection logic in `helpers/`, drafts and their tests in `drafts/` (with draft DTOs in `drafts/dto/`), and rejection routes/tests in `rejections/`. Authentication is a top-level domain rather than `auth/authentication`; its module/controller/service/middleware are at the feature root, with shared types in `models/` and SQL in `repositories/`. Authorization/RBAC is a separate top-level domain. These folders do not create separate Nest modules by themselves: `AppModule` remains the composition root until a subfeature has a real module boundary. Do not split files into generic layer folders solely to make a tree look uniform.
 
 ## Implementation guidance
 
@@ -64,6 +66,6 @@ Request/input types belong to the DTO/API-boundary responsibility. Internal doma
 
 ## Events boundary
 
-- `src/events/` owns event and draft request validation, routes, use cases, and persistence through repositories.
-- Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass `request.currentUser` explicitly and scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
-- Unit tests live beside the events module. `src/events/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with `TEST_DATABASE_URL` and the dedicated integration configuration.
+- `src/events/` owns event and draft request validation, routes, use cases, and persistence through repositories. Keep DTO validation in `dto/` (and `drafts/dto/`), shared event shapes in `models/`, and only cohesive reusable logic in `helpers/`.
+- Draft and event routes are protected by `AuthenticationMiddleware`, which reads the configured session cookie and resolves the user through the PostgreSQL-backed session service. Authorization and ownership must use that server-verified identity. Pass `request.currentUser` explicitly and scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
+- Unit tests live beside the behavior they cover. Draft unit tests and the PostgreSQL-backed E2E suite live in `src/events/drafts/`; the E2E suite logs in the seeded organiser, exercises the session middleware, and checks owner isolation against PostgreSQL. Run it with `DATABASE_URL` and the dedicated integration configuration.

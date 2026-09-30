@@ -1,4 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
+import type { EventAttachment } from '../models/event.models.js';
 
 export const FACILITIES = [
   'Catering',
@@ -38,13 +39,6 @@ export interface EventInput {
   registrationEnabled: boolean;
 }
 
-export interface EventAttachment {
-  id: string;
-  name: string;
-  type: string;
-  size: number;
-  dataUrl: string;
-}
 export function validateEvent(input: unknown): EventInput {
   const data = (
     input && typeof input === 'object' && !Array.isArray(input) ? input : {}

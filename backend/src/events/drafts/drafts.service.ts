@@ -8,10 +8,10 @@ import {
 } from '@nestjs/common';
 import { isDeepStrictEqual } from 'node:util';
 import pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
-import { DatabaseService } from '../database/database.service.js';
-import { EventsService } from './events.service.js';
-import { uuid, validateDraft } from './draft-input.js';
+import type { AuthenticatedUser } from '../../authentication/models/auth.models.js';
+import { DatabaseService } from '../../database/database.service.js';
+import { EventsService } from '../events.service.js';
+import { uuid, validateDraft } from './dto/draft-input.js';
 
 /* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Injectable()

@@ -9,8 +9,8 @@ import {
   Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../models/auth.models.js';
-import type { AuthenticatedUser } from '../models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from './models/auth.models.js';
+import type { AuthenticatedUser } from './models/auth.models.js';
 import { AuthService } from './auth.service.js';
 
 type AuthenticatedRequest = Request & {

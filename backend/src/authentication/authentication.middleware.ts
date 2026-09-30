@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { NextFunction, Request, Response } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from './models/auth.models.js';
 import { AuthService } from './auth.service.js';
 
 @Injectable()

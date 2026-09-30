@@ -1,12 +1,12 @@
 import 'reflect-metadata';
 import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../../authentication/models/auth.models.js';
+import type { AuthenticatedUser } from '../../authentication/models/auth.models.js';
 import { DraftsService } from './drafts.service.js';
 import { DraftsController } from './drafts.controller.js';
-import type { EventsService } from './events.service.js';
-import type { DatabaseService } from '../database/database.service.js';
+import type { EventsService } from '../events.service.js';
+import type { DatabaseService } from '../../database/database.service.js';
 
 const db = vi.hoisted(() => ({
   query: vi.fn(),
@@ -174,7 +174,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     ).toBe(false);
   });
   it('Q1-026 retries identical save without issuing an update', async () => {
-    const { validateDraft } = await import('./draft-input.js');
+    const { validateDraft } = await import('./dto/draft-input.js');
     const body = { fields, version: 0, operationId };
     selected({
       ...row(),

@@ -7,9 +7,9 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { EventsService } from './events.service.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
-import { DatabaseService } from '../database/database.service.js';
+import { EventsService } from '../events.service.js';
+import type { AuthenticatedUser } from '../../authentication/models/auth.models.js';
+import { DatabaseService } from '../../database/database.service.js';
 
 /**
  * SPM-83 — Reject a request. Backend unit tests for the real production endpoint

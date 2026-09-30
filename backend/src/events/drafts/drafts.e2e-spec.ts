@@ -1,17 +1,27 @@
 import 'reflect-metadata';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
-import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
-import { AppModule } from '../app.module.js';
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppModule } from '../../app.module.js';
 
-const database = process.env.TEST_DATABASE_URL;
+const database = process.env.DATABASE_URL;
+const ORGANISER_EMAIL = 'organiser1@connectsphere.test';
+const ORGANISER_PASSWORD = 'P@55w0rd';
 describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   let app: INestApplication;
   let db: pg.Pool;
+  let client: ReturnType<typeof request.agent>;
   const ids: string[] = [];
   const newId = () => {
     const id = randomUUID();
@@ -23,32 +33,35 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     fields: object,
     version = 0,
     operationId = randomUUID(),
-  ) =>
-    request(app.getHttpServer())
-      .put(`/api/requests/${id}`)
-      .send({ fields, version, operationId });
+  ) => client.put(`/api/requests/${id}`).send({ fields, version, operationId });
+  const createApplication = async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    const application = moduleFixture.createNestApplication();
+    await application.init();
+    return application;
+  };
+  const authenticateOrganiser = async () => {
+    client = request.agent(app.getHttpServer());
+    await client
+      .post('/api/auth/login')
+      .send({ email: ORGANISER_EMAIL, password: ORGANISER_PASSWORD })
+      .expect(201);
+  };
   beforeAll(async () => {
-    // Use only the explicitly configured test database, never the application URL by default.
-    process.env.DATABASE_URL = database;
-    process.env.DEMO_ORGANISER_ENABLED = 'true';
+    // Use the shared local database configuration used by the other backend E2E suites.
     db = new pg.Pool({ connectionString: database });
-    await db.query(
-      await readFile(
-        new URL(
-          '../../../database/postgresql/init/001_schema.sql',
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    );
-    await db.query(
-      await readFile(
-        new URL('../../migrations/001_event_drafts.sql', import.meta.url),
-        'utf8',
-      ),
-    );
-    app = await NestFactory.create(AppModule, { logger: false });
-    await app.init();
+  });
+  // Log in as a seeded organiser so requests carry the session required by DraftsController.
+  beforeEach(async () => {
+    app = await createApplication();
+    await authenticateOrganiser();
+  });
+  afterEach(async () => {
+    if (client) await client.post('/api/auth/logout').expect(204);
+    await app?.close();
   });
   afterAll(async () => {
     // Remove only records created by this suite, preserving the shared database.
@@ -59,7 +72,6 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       await db.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [ids]);
       await db.end();
     }
-    await app?.close();
   });
   // AC1/2: incomplete drafts persist without creating submitted events.
   it('saves an incomplete Draft without submitting', async () => {
@@ -100,14 +112,14 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await save(id, fields).expect(200);
     expect(
       (
-        await request(app.getHttpServer())
+        await client
           .get(`/api/requests/${id}`)
           .expect(200)
       ).body.fields,
     ).toEqual(fields);
     expect(
       (
-        await request(app.getHttpServer()).get('/api/requests').expect(200)
+        await client.get('/api/requests').expect(200)
       ).body.some((row: { id: string }) => row.id === id),
     ).toBe(true);
   });
@@ -128,7 +140,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
     const latest = responses.find((r) => r.status === 200)!.body;
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await client.get(`/api/requests/${id}`)).body
         .fields,
     ).toEqual(latest.fields);
     expect(
@@ -141,7 +153,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await save(id, { name: 'Safe value' }).expect(200);
     await save(id, { name: 123 }, 1).expect(400);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await client.get(`/api/requests/${id}`)).body
         .fields.name,
     ).toBe('Safe value');
   });
@@ -160,11 +172,11 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       layout: 'Theatre',
     }).expect(200);
     const payload = { version: 1, startDateTime, endDateTime };
-    const first = await request(app.getHttpServer())
+    const first = await client
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
-    const retry = await request(app.getHttpServer())
+    const retry = await client
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
@@ -172,7 +184,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(retry.body.event.id).toBe(id);
     await save(id, { name: 'Illegal edit' }, 2).expect(409);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await client.get(`/api/requests/${id}`)).body
         .status,
     ).toBe('Submitted');
     expect(
@@ -183,7 +195,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
     await save(id, {}).expect(200);
-    await request(app.getHttpServer())
+    await client
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(400);
@@ -194,9 +206,9 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   });
   it('Q1-038 malformed and missing IDs return 404 without insertion', async () => {
     for (const id of ['bad-id', newId()]) {
-      await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
+      await client.get(`/api/requests/${id}`).expect(404);
       await save(id, {}, 1).expect(404);
-      await request(app.getHttpServer())
+      await client
         .post(`/api/requests/${id}/submit`)
         .send({ version: 1 })
         .expect(404);
@@ -206,12 +218,12 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     const id = newId();
     await save(id, { name: 'First' }).expect(200);
     await save(id, { name: 'Latest' }, 1).expect(200);
-    await request(app.getHttpServer())
+    await client
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(409);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body,
+      (await client.get(`/api/requests/${id}`)).body,
     ).toMatchObject({
       status: 'Draft',
       version: 2,
@@ -224,12 +236,13 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   it('Q1-040 data survives a backend restart and a new database connection', async () => {
     const id = newId();
     await save(id, { name: 'Restart evidence', formStep: 2 }).expect(200);
+    await client.post('/api/auth/logout').expect(204);
     await app.close();
-    app = await NestFactory.create(AppModule, { logger: false });
-    await app.init();
+    app = await createApplication();
+    await authenticateOrganiser();
     expect(
       (
-        await request(app.getHttpServer())
+        await client
           .get(`/api/requests/${id}`)
           .expect(200)
       ).body,
@@ -255,7 +268,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     };
     const responses = await Promise.all(
       [1, 2].map(() =>
-        request(app.getHttpServer())
+        client
           .post(`/api/requests/${id}/submit`)
           .send(body),
       ),
@@ -278,10 +291,10 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       "INSERT INTO event_drafts (id, organiser_id, fields) VALUES ($1,'other-owner','{}')",
       [id],
     );
-    await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
+    await client.get(`/api/requests/${id}`).expect(404);
     await save(id, {}).expect(404);
     expect(
-      (await request(app.getHttpServer()).get('/api/requests')).body.some(
+      (await client.get('/api/requests')).body.some(
         (row: { id: string }) => row.id === id,
       ),
     ).toBe(false);

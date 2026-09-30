@@ -3,15 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-if (!process.env.TEST_DATABASE_URL)
+if (!process.env.DATABASE_URL)
   throw new Error(
-    'Set TEST_DATABASE_URL to the database used by the browser test backend.',
+    'Set DATABASE_URL to the database used by the browser test backend.',
   );
 const name = `Draft browser ${randomUUID()}`;
 const frontend = fileURLToPath(
   new URL('../../../frontend/', import.meta.url),
 );
-const db = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
+const db = new pg.Client({ connectionString: process.env.DATABASE_URL });
 await db.connect();
 let code = 1;
 try {
