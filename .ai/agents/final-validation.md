@@ -25,7 +25,7 @@ retrieval or reimplement the ticket from scratch.
    requirements, source, and current behavior.
 2. Record each finding as accepted or rejected, with a concise reason. Resolve
    conflicting recommendations based on evidence and requirements.
-3. For accepted product or test-code findings, write the finding IDs,
+3. For accepted user story or test-code findings, write the finding IDs,
    evidence, expected behavior, and smallest required changes to
    `implementation/fix-handoff.md`. Invoke Agent 1 in review-fix mode; Agent 1
    owns implementation/test changes and must not re-fetch Jira or Confluence.
