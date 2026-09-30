@@ -103,3 +103,17 @@ describe("api", () => {
     });
   });
 });
+
+describe("api error codes (SPM-61)", () => {
+  // The server's machine-readable code and status reach the caller so the UI can branch on them.
+  it("exposes code, errors and status on ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: "registration_closed", message: "Registration has closed for this event." }), { status: 422 }),
+    ));
+    await expect(api("/events/x/registrations")).rejects.toMatchObject({
+      message: "Registration has closed for this event.",
+      code: "registration_closed",
+      status: 422,
+    });
+  });
+});

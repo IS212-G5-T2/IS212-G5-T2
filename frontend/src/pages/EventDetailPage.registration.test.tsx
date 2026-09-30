@@ -178,24 +178,33 @@ describe("EventDetailPage attendee registration", () => {
     await screen.findByRole("heading", { name: stableEvent.name });
     expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Registration Open");
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    // The SPM-61 registration lookup adds calls; the event itself is still fetched once per view.
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
   });
 
-  it("registers and withdraws only the signed-in attendee's registration", async () => {
+  // SPM-61 AC3/AC4 smoke check at page level (full coverage lives in
+  // RegistrationSection.test.tsx): registering calls the server, shows the
+  // confirmation, and no Withdraw control is offered (item 10, hidden until
+  // the withdraw story ships).
+  it("registers through the server and offers no withdraw control", async () => {
     const user = userEvent.setup();
+    const created = {
+      id: "reg-1", eventId: event.id, attendeeId: attendee.id, attendeeName: "Attendee",
+      status: "registered", registeredAt: "2026-09-15T00:00:00.000Z",
+    };
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.includes("/registrations/me")) return Promise.resolve({ registration: null });
+      if (path.includes("/registrations") && init?.method === "POST") return Promise.resolve({ registration: created });
+      return Promise.resolve(path.includes("/comments") ? [] : event);
+    });
     renderEventDetail();
 
     await user.click(await screen.findByRole("button", { name: "Register" }));
-    expect(useAppStore.getState().registrations).toMatchObject([
-      { eventId: event.id, attendeeId: attendee.id, status: "registered" },
-    ]);
-    expect(screen.getByRole("button", { name: "Withdraw Registration" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Submit registration" }));
 
-    await user.click(screen.getByRole("button", { name: "Withdraw Registration" }));
-    expect(useAppStore.getState().registrations[0]).toMatchObject({
-      attendeeId: attendee.id,
-      status: "withdrawn",
-    });
+    expect(await screen.findByText("Registration successful. You are registered for Open event.")).toBeInTheDocument();
+    expect(useAppStore.getState().registrations).toMatchObject([{ id: "reg-1", status: "registered" }]);
+    expect(screen.queryByRole("button", { name: /withdraw/i })).not.toBeInTheDocument();
   });
 
   it("does not offer registration controls to a different role", async () => {
@@ -329,7 +338,8 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.getByText("Available registration spots")).toBeInTheDocument();
     expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
     expect(screen.getByText("Registration Closed", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    // SPM-61 D7: no Register button is rendered once registration has closed.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
   // SPM-99 EVENT-VIEW-05-A and supplementary lifecycle checks: a pre-opening or cancelled
@@ -358,8 +368,9 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     await screen.findByRole("heading", { name: unavailableEvent.name });
-    expect(screen.getByRole("status")).toHaveTextContent(notice);
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    expect(screen.getAllByRole("status")[0]).toHaveTextContent(notice);
+    // SPM-61 D7: the control is not rendered at all, rather than disabled.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
     if (unavailableEvent.status === "cancelled" || unavailableEvent.status === "completed") {
       expect(
         screen.getByText(unavailableEvent.status === "cancelled" ? "Cancelled" : "Completed", { selector: "dd" }),
@@ -383,6 +394,7 @@ describe("EventDetailPage attendee registration", () => {
 
     await screen.findByRole("heading", { name: fullEvent.name });
     expect(screen.getByRole("status")).toHaveTextContent("Registration Full");
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    // SPM-61 D7: a full event renders no Register button.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 });

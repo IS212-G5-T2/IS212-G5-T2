@@ -74,6 +74,8 @@ export interface EventRecord {
   registrationOpensAt?: string;
   /** ISO timestamp after which attendee registration is no longer available. */
   registrationClosesAt?: string;
+  /** Server-computed: the registration window is open right now (SPM-61). */
+  registrationOpen?: boolean;
   /** Registration capacity remaining; separate from venue capacity. */
   availableRegistrationSpots?: number;
   coordinatorId?: string;
@@ -175,6 +177,10 @@ export interface Registration {
   attendeeName: string;
   status: RegistrationStatus;
   registeredAt: string;
+  /** Details captured at registration (SPM-61); absent on older records. */
+  email?: string;
+  contactNumber?: string;
+  specialRequirements?: string;
 }
 
 export type NotificationType =

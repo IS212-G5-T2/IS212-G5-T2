@@ -35,3 +35,7 @@ apply the backend migration sequence for the features it lacks—particularly
 `backend/migrations/003_event_rejection.sql` followed by
 `004_allow_rejected_event_status.sql` for the final rejection lifecycle.
 Git history retains the original incremental changes and their commits.
+
+## SPM-61 - Registration detail columns
+
+- Added `postgresql/init/004_spm61_event_registration.sql`: nullable `full_name`, `email`, `contact_number` and `special_requirements` on `event_registrations`. Additive and idempotent; existing volumes must apply it manually because init scripts only run on an empty volume.

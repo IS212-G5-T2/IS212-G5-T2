@@ -40,9 +40,10 @@ describe("SPM-99 attendee event-view lifecycle", () => {
     expect(registrationState(event(), new Date("2027-03-12T15:58:59.000Z"))).toBe("open");
   });
 
-  // Supplementary boundary: the current policy keeps the exact closing instant open.
-  it("keeps registration open at the exact closing instant", () => {
-    expect(registrationState(event(), new Date("2027-03-12T15:59:00.000Z"))).toBe("open");
+  // SPM-61 EVENT-REG-01-BND-1[D] (replaces the SPM-99 inclusive-close policy, D6):
+  // the exact closing instant is closed.
+  it("closes registration at the exact closing instant", () => {
+    expect(registrationState(event(), new Date("2027-03-12T15:59:00.000Z"))).toBe("closed");
   });
 
   // EVENT-VIEW-02-C/D: one available spot is open and zero spots is full.

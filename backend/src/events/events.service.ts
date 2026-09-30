@@ -2,8 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -12,10 +14,15 @@ import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
 import { pickNextCoordinator } from './coordinator-roster.js';
+import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
+import { isRegistrationOpen } from '../registrations/registration-window.js';
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
+  ) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
   // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
@@ -58,6 +65,17 @@ export class EventsService {
       registrationEnabled: row.registration_enabled,
       registrationOpensAt: row.registration_opens_at?.toISOString(),
       registrationClosesAt: row.registration_closes_at?.toISOString(),
+      // SPM-61: computed here so every client applies the same window rule
+      // (inclusive open, exclusive close) using the injected clock.
+      registrationOpen: isRegistrationOpen(
+        {
+          registrationEnabled: row.registration_enabled,
+          status: row.status,
+          opensAt: row.registration_opens_at ?? null,
+          closesAt: row.registration_closes_at ?? null,
+        },
+        this.clock.now(),
+      ),
       // PostgreSQL owns the capacity calculation so every API consumer sees
       // the same persisted registration availability.
       availableRegistrationSpots:

@@ -1,4 +1,5 @@
 import type { EventRecord } from "@/types";
+import { isRegistrationOpen } from "@/utils/registration";
 
 export type RegistrationState = "not-yet-open" | "open" | "closed" | "full" | "disabled";
 
@@ -7,18 +8,19 @@ export type RegistrationState = "not-yet-open" | "open" | "closed" | "full" | "d
  *
  * @param event The event and its configured registration window/capacity.
  * @param now The current instant used to evaluate opening and closing boundaries.
- * @returns The attendee-facing registration state. The opening instant is inclusive.
+ * @returns The attendee-facing registration state. The opening instant is inclusive and the closing instant exclusive.
  */
 export function registrationState(event: EventRecord, now: Date): RegistrationState {
   if (!event.registrationEnabled) return "disabled";
   if (event.status === "cancelled" || event.status === "completed") return "closed";
 
-  const current = now.getTime();
-  if (event.registrationOpensAt && current < new Date(event.registrationOpensAt).getTime()) {
-    return "not-yet-open";
-  }
-  if (event.registrationClosesAt && current > new Date(event.registrationClosesAt).getTime()) {
-    return "closed";
+  const period = { opensAt: event.registrationOpensAt, closesAt: event.registrationClosesAt };
+  if (!isRegistrationOpen(period, now)) {
+    // Inclusive open, exclusive close (SPM-61 D6): before the opening instant is
+    // not-yet-open, everything at or after the closing instant is closed.
+    return event.registrationOpensAt && now.getTime() < new Date(event.registrationOpensAt).getTime()
+      ? "not-yet-open"
+      : "closed";
   }
   if ((event.availableRegistrationSpots ?? event.expectedAttendance) <= 0) return "full";
   return "open";

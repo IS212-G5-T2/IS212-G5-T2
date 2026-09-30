@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added attendee registration UI (`components/EventDetail/`): details form, confirmation, and server-backed duplicate handling. The Register button is now rendered only while registration is open (closed, not-yet-open and full states show text), the closing instant is exclusive, and the local-only Withdraw button is hidden until a withdraw story ships (SPM-61).
+
 - Corrected the frontend CI unit-test entrypoint to invoke the configured
   `test:cov` coverage script.
 

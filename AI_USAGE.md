@@ -1467,3 +1467,15 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: The requested local changes are a follow-up refinement to the already-committed review-thread fix; no production or test behavior should change.
 - Checks run: `git diff --check`; no test run because only comments and the AI usage ledger changed.
 - Follow-up/conflict notes: Changes are local and uncommitted for human review.
+
+## 2026-09-30 - Claude (Sonnet 5.5 / Opus 5.5) - SPM-61 attendee event registration
+
+- Issue/PR: SPM-61 (In Progress) on `feature/SPM-61-Register-for-Event`; no PR yet.
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations/`, `backend/src/events/events.service.ts`, `backend/src/app.module.ts`, `database/postgresql/init/004_spm61_event_registration.sql`, `frontend/src/components/EventDetail/`, `frontend/src/utils/registration.ts`, `frontend/src/store/useAppStore.ts`, `frontend/src/pages/EventDetailPage.tsx`, `EventView.ts`, related tests and docs, `docs/specs/SPM-61-test-results.md`.
+- Summary: Server-enforced registration (role, strict validation, window, duplicate, capacity), server-computed `registrationOpen` from an injectable clock, and the attendee form, confirmation and status UI. Changed SPM-99 behaviour by decision: exclusive close, no button when closed/full/not-yet-open, Withdraw hidden.
+- AI contribution: implementation, tests, docs.
+- Assumptions: `docs/specs/SPM-61-*.md` were absent, so Test Case IDs and quotes are ASSUMED from the task matrix and Jira ACs; MSG-02/03/04/07 wording, email/requirements limits and capacity rule are ASSUMED (listed in the results file).
+- Checks run: backend unit 495 passed; backend integration (Docker Postgres `spm_test`) 71 passed, 11 failed (pre-existing SPM-37 `drafts.e2e-spec.ts`); frontend 275 passed; frontend build and typecheck clean; backend lint clean; frontend lint has 2 pre-existing errors in untouched files.
+- Follow-up/conflict notes: Product decisions later locked messages, limits and capacity; constants split into `messages.ts` and `validation.ts`. Existing local Postgres volumes need `004_spm61_event_registration.sql` applied. Manual-close (01-C[B]) is blocked. Registrations e2e suite was written after the service, not red-first. Changes are staged for review; nothing committed or pushed.
+
