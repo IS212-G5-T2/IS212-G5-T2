@@ -62,8 +62,10 @@ return mechanism.
    repositories require their own unit suites. `*.module.*` registration files
    are the only source-file exemption from direct tests. Type-only/declaration-
    only files still appear in the test-coverage matrix with a not-applicable
-   reason. Inspect coverage for changed executable code and target 100% per
-   changed file, without imposing a 100% threshold on the whole component.
+   reason. Require 100% statement, branch, function, and line coverage for
+   each newly created runtime file. `npm run test:cov` must run the changed-file
+   coverage verifier; a coverage report without a passing verifier is a failed
+   check. This does not impose a 100% threshold on the whole component.
 2. **Independent reviews (Agents 2–4):** Once Agent 1 marks implementation
    complete, launch the test, code quality, and requirements reviewers. They
    read the snapshot and inspect the relevant diff/source. They do not edit
@@ -99,7 +101,10 @@ return mechanism.
    repairs (tests, coverage, lint, typecheck, build, migration validation, or
    repository checks). Record exact commands and outcomes. Mark complete only
    if required checks pass and no serious finding remains; otherwise mark
-   failed with the remaining issue and failed/skipped checks.
+   failed with the remaining issue and failed/skipped checks. Do not send a
+   completion message until every reviewer has returned, every report is
+   persisted, every finding has an accept/reject decision, and each accepted
+   finding has completed the repair and required re-review cycle.
 
 Use the existing Jira/branch/PR rules in the root `AGENTS.md` and
 `docs/ai-issue-workflow.md`. This workflow does not authorize Jira or Confluence
@@ -188,7 +193,9 @@ runtime coverage does not apply and cite the type/build check. For module
 registration files, cite the consumer/module check used to validate wiring.
 Agent 2 reruns the component coverage command independently and verifies the
 report itself; Agent 1's matrix guides file mapping but does not establish the
-review result.
+review result. A newly created runtime source file below 100% in any metric is
+a required finding unless an evidence-backed instrumentation exception is
+recorded in both the review and final findings.
 
 `status.json` is the lightweight state record. Preserve this shape and update
 it at stage boundaries:

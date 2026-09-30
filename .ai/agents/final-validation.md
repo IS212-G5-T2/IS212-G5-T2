@@ -46,6 +46,12 @@ retrieval or reimplement the ticket from scratch.
    `final/findings.md`, `final/fixes.md`, and `final/validation.md` with exact
    outcomes. Set `stage` to `complete` only when required checks pass; otherwise
    set it to `failed` and state the blocker.
+8. Do not produce a completion or handoff message while a reviewer is running,
+   any reviewer report is unpersisted, a finding lacks an accept/reject
+   decision, or an accepted finding lacks its repair and required re-review.
+   A newly created runtime file below 100% statements, branches, functions, or
+   lines fails final validation unless an evidence-backed instrumentation
+   exception is recorded in `final/findings.md`.
 
 ## Output
 
