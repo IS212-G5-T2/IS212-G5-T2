@@ -13,17 +13,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Checks run: Backend lint and build passed; PostgreSQL E2E rerun pending because Docker Desktop is unavailable.
 - Follow-up/conflict notes: No commit or push created.
 
-## 22-09-2026 - Codex (GPT-5) - SPM-37
-
-- Issue/PR: SPM-37
-- Human requester/operator: swr
-- Areas touched: `apps/frontend/src/store`, `AI_USAGE.md`
-- Summary: Restored the `api` helper import removed during merge resolution so coordinator assignments can persist after their optimistic state update.
-- AI contribution: Merge regression diagnosis and focused test verification.
-- Assumptions: The existing `/events/:id/assign` API call is the intended assignment persistence contract.
-- Checks run: Focused `useAppStore.events.test.ts` (5 passed); `git diff --check`.
-- Follow-up/conflict notes: The change is uncommitted and unpushed.
-
 ## 21-09-2026 - Codex (GPT-5) - SPM-37
 
 - Issue/PR: SPM-37 / current `fix/SPM-37-Update-Draft-request-workflow` working tree
@@ -42,39 +31,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Conflict resolution: Applied root AGENTS.md dev-wins rule to entire conflicted files: frontend EventListPage.tsx, DraftWorkflow.test.tsx, EventCreatePage.tsx, EventCreatePage.test.tsx, EventDetailPage.tsx, EventListPage.test.tsx; backend README.md, src/app.module.ts, and events drafts.e2e-spec.ts, drafts.service.spec.ts, drafts.service.ts, events.controller.ts, events.service.spec.ts, events.service.ts. Nonconflicting patches replayed normally. No scripts or dependency manifests/lockfiles were lost or changed relative to the backup.
 - Checks: Rebase completed, origin/dev is an ancestor, no unresolved index entries, git diff --check passed. Backend unit tests: 385 passed, 1 failed (draft controller/service contract mismatch). Frontend: 151 passed, 11 failed across DraftWorkflow, EventDetailPage and registration suites, plus comments.filter runtime error in a test. Browser/database/build checks not run.
 - Follow-up: Rebase is complete but the combined branch is not merge-ready. Dev conflict replacements remove branch-specific authorization/registration behavior while some nonconflicting callers/tests still expect it; reconcile in follow-up implementation work. User subsequently authorized committing this entry and syncing the remote fix branch. Verified remote still equals the pre-rebase backup e7a73c6; publish using an explicit force-with-lease to preserve any concurrent remote updates.
-
-## 21-09-2026 - Codex (GPT-6) - SPM-37
-
-- Context: SPM-37 branch; user requested all local stack containers start.
-- Areas: Docker Desktop runtime; AI_USAGE.md. Read development guidance and local Compose configuration.
-- Checks/result: docker desktop start attempted; docker compose up -d --build could not connect to the Linux engine. Docker host log reports backend startup crash while opening/renaming sailor-ingest.sock (file cannot be accessed by the system). Frontend, backend and PostgreSQL startup could not proceed.
-- Follow-up: Repair/restart Docker Desktop before retrying Compose. No containers, volumes or database data removed; no source edits, commit or push. Ledger left unstaged.
-
-## 21-09-2026 - Codex (GPT-6) - SPM-37
-
-- Context: User requested the pre-auto-assignment workflow on the existing SPM-37 fix branch; no new Jira key or acceptance criteria supplied. Reused existing branch work. GitHub PR lookup failed because gh could not resolve the configured repository.
-- Areas: frontend store, EventDetailPage tests, frontend README, AI_USAGE.md.
-- Summary: Reverted the store's automatic coordinator assignment and assignment notifications to the implementation before 05da9db. Current page already contains Assign Myself as Coordinator and no access-restricted popup. Added submission/unassigned and explicit-click regression coverage; corrected the assigned-coordinator test's comment API mock.
-- Checks: Two focused regression tests passed; targeted ESLint and production build passed. Full detail suite has four existing rebase-related failures (popup expectation, missing Change Requests control, venue/technical access expectations). Playwright on localhost:5173 at 1440x1000 verified Unassigned -> Assign Myself as Coordinator -> Review Event, with mocked API/auth state, no page errors or Vite overlay, and before/after screenshots outside the repo. Browser plugin unavailable; used installed Playwright. Served store confirmed free of automatic assignment.
-- Limits/follow-up: Preserved earlier browser-memory-only assignment behavior; database persistence and real authenticated API flow were not implemented or verified. Existing runtime/backend state untouched. Prior ledger edits preserved. Changes staged for human review; no commit or push.
-
-## 21-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; fetched full story, all seven AC, comments (none), Medium priority and In Progress status. User explicitly requested removing approval/rejection and limiting fixes to draft-story scope.
-- Areas: frontend EventDetailPage, store, page regression tests, README, AI_USAGE.md; reused existing fix branch and staged work. Earlier GitHub PR lookup remains unavailable.
-- Summary: Removed Review Event entrypoint, decision modal/state/handler, and the reviewEvent store action that changed status and sent approval/rejection notifications. Git history traces the UI to 3f46e16 Frontend Skeleton. Preserved the separately requested manual assignment and unrelated existing features.
-- Checks: Three focused tests passed (submission stays unassigned, explicit manual assignment, no approval/rejection controls for assigned coordinator); production build passed. Playwright at localhost:5173 (1440x1000, mocked auth/API) verified manual assignment with no review/decision controls, page errors or framework overlay. Served source matches. ESLint reports two pre-existing unused constants in EventDetailPage (AVAILABLE_FACILITIES and AVAILABLE_ACCESSIBILITY); left unchanged. Earlier unrelated page-suite failures remain; no full-story pass claimed.
-- AC review: All seven SPM-37 criteria concern draft save/status/reopen/update/persistence/feedback/submitted-edit restrictions; approval/rejection is outside that scope. This removal does not change draft APIs or forms. Real authenticated backend flow and full AC regression were not rerun for this removal.
-- Follow-up/conflicts: Changes staged without commit/push. Previous staged changes preserved. Supersedes the prior check that expected Review Event after manual assignment; that action is intentionally absent now.
-
-- Lint follow-up: At the user's request, removed the two unused EventDetailPage constants. ESLint now passes for EventDetailPage.tsx, EventDetailPage.test.tsx and useAppStore.ts. No behavior change; no additional tests required. Staged without commit or push.
-
-## 21-09-2026 - Codex (GPT-6) - SPM-37
-
-- Context: User reported Cannot GET /api/events/:id/comments after assignment; scope remains SPM-37.
-- Findings: Assignment changes frontend state and triggers the existing SPM-39 comment fetch. Current source registers ClarificationsModule and GET events/:id/comments, but the running backend image has no compiled clarification module and startup logs show no comments route. Frontend/backend runtime versions are mismatched.
-- Checks: Read controller/module wiring and frontend effect; inspected compiled module existence and backend route logs without printing credentials. No code or runtime changes; prior mocked browser test did not validate live route availability.
-- Follow-up: Align backend runtime with reviewed source before live clarification testing. Current rebased backend has previously documented authentication/contract differences, so blindly rebuilding it is broader than this SPM-37 diagnosis. Ledger staged; no commit/push.
 
 ## 20-09-2026 - Gemini 3.8 / Claude Sonnet 4.6 - SPM-37
 
@@ -105,22 +61,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Checks: Inspected fix-branch authentication, draft integration tests, frontend test harnesses, validator and browser spec. Published all 11 pages and read each back to compare with intended HTML. Existing result fields and test IDs preserved; no tests executed or results claimed.
 - Follow-up/conflicts: Existing staged ledger entries retained. No application source changes, Jira transitions, commit or push. Ledger staged for human review.
 
-## 20-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37 (In Progress; seven acceptance criteria reviewed).
-- Areas: Confluence Event Request Creation folder https://is212-g5-t2.atlassian.net/wiki/spaces/SP/folder/10321973, EVE-DRF-01 through EVE-DRF-11; AI_USAGE.md only locally on the existing SPM-37 branch.
-- Summary: With explicit user authorization, updated 26 cases with 209 numbered steps covering setup, concrete inputs, browser/API/database actions and verification. Added execution-context and AC guidance; clarified normalized draft defaults, retry identifiers and attachment size checks. Preserved test IDs, authorship, automation references and execution-result fields.
-- Checks: Compared against Jira AC, reference EVE-CRE pages and relevant local implementation/tests; validated HTML and read back all 11 published pages. Content matches authored HTML after normalizing generated local IDs and apostrophe encoding; execution fields unchanged.
-- Assumptions/follow-up: Procedures are authored, not executed; no application tests rerun or pass results claimed. Supporting security/boundary checks distinguished from the seven core AC. No code changes, Jira transitions, commit or push. Existing source work preserved; ledger staged for review.
-
-## 20-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue/context: SPM-37; user requested assessment of all 11 EVE-DRF pages against Event Management cases and dev code.
-- Areas: AI_USAGE.md only; read all 26 draft-case pre-conditions and all eight EVE-CRE pages. Fetched origin/dev at 8179b93c7ad3193c949ddfb5cb65f885f883049c without switching or changing source files.
-- Findings: Specify test layer, branch/commit, mocks versus live services, dedicated PostgreSQL/schema setup, fixture state, failure injection and boundary files. Dev still uses DEMO_ORGANISER_ENABLED/current-user for event/draft APIs; Firebase middleware applies only to AuthController. EVE-DRF-08 and 09-B require newer authentication integration. Dev My Requests includes Submitted records, unlike EVE-DRF-03. Sixth-file error is Use up to five files.; combined-size error includes 50 MB total.
-- Checks: Read dev controllers, services, app bootstrap, frontend form/list/API code and test harnesses. No tests executed and no Confluence changes in this audit. Prior procedure rewrite used local feature-branch code; branch mismatch now explicitly reported. Existing staged ledger retained.
-- Branch-reference correction: User specified fix/SPM-37-Update-Draft-request-workflow instead of dev. Fetched and checked remote commit 4fda7e3f2efa07531b07c648c66c0679fe3334a2 (same source tree as local HEAD). Draft/event Firebase middleware, ORGANISER authorization, per-user ownership and My drafts filtering are present, so the dev-specific mismatches for EVE-DRF-03/08/09-B do not apply to this target. Keep recommendations for explicit test layer, authentication fixtures, database/schema setup, failure injection and fixture state. Integration token verification is stubbed; DEMO_ORGANISER_ENABLED is not an authentication prerequisite despite a leftover harness assignment. File-count error wording still differs from the current Confluence procedure. Assessment only; no Confluence changes or tests executed.
-
 ## 19-09-2026 - Claude Opus 4.8 - SPM-37
 
 - Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37 (In Progress; seven acceptance criteria; same staged rebuild as the prior Codex/Claude entries above).
@@ -132,29 +72,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Checks run: `npm run test:cov:spm37` - backend 260/260 and frontend 68/68, 100% statements/branches/functions/lines for the eight configured source files; backend API/database integration 13/13 against a scratch `spm_test` PostgreSQL; real-browser Playwright `Q2-021` passed headed. Backend `nest build` (Node 24) and oxlint passed.
 - Follow-up/conflict notes: No commit or push made this session (user commits manually). Remote `origin/feature/SPM-37-save-event-request-as-a-draft` still holds the older `event-requests`-module implementation; the local rebuild replaces it. `tmp/` holds session scratch (Codex handoff + PDF renders) and must not be committed. Current AC7 is the submitted-draft lockout (older eight-AC / org-isolation wording is superseded).
 
-## 19-09-2026 - Claude Opus 4.8 - SPM-37
-
-- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37 (open PR on the feature branch; reviewer JacobSoh).
-- Human requester/operator: Kishore kirubakaran.
-- Areas touched: `services/backend/vitest.config.ts`, `AI_USAGE.md`.
-- Summary: Reverted the backend Vitest `include` glob from `src/**/*.spec.ts` back to `**/*.spec.ts` as requested in review. Reviewed the other flagged comments against the current rebuild: the `@Inject` question and the `migrate.mjs`/`browser-fixture.mjs` comments were on the superseded `event-requests` implementation (now removed). The `@Inject(Class)` pattern carried into `drafts.controller.ts`/`drafts.service.ts` is technically redundant (`emitDecoratorMetadata` is enabled), but removing it drops v8 branch coverage on the emitted decorator metadata below the enforced 100% per-file gate, so it was deliberately kept and will be answered in the PR rather than changed.
-- AI contribution: Review triage against the current implementation, config fix, coverage-impact verification, documentation.
-- Assumptions: The reviewer's `**/*.spec.ts` request applies to the merged rebuild; all backend specs live under `src/`, so the broader glob matches the same files.
-- Checks run: Backend `npm test` 260/260; `npm run test:cov:spm37` 100% statements/branches/functions/lines for the eight configured files; `npm run lint` and `nest build` (Node 24) passed.
-- Follow-up/conflict notes: `@Inject` questions to be answered in the PR (redundant but retained to preserve the 100% coverage gate). `migrate.mjs`/`browser-fixture.mjs` review comments are moot - those files were replaced by `migrate-drafts.mjs` and `scripts/testing/run-browser.mjs`.
-
-## 19-09-2026 - Claude Opus 4.8 - SPM-37
-
-- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37 (open PR; reviewer JacobSoh asked why `@Inject` was used).
-- Human requester/operator: Kishore kirubakaran.
-- Areas touched: `services/backend/src/events/drafts.service.ts`, `services/backend/src/events/drafts.controller.ts`, `AI_USAGE.md`.
-- Summary: Removed the redundant `@Inject(EventsService)` / `@Inject(DraftsService)` decorators (Nest resolves these by type since `emitDecoratorMetadata` is enabled), per review. This reverses the earlier "retain @Inject" decision. Removing the decorators exposed an unreachable branch in TypeScript's emitted `design:paramtypes` guard (`typeof X === "undefined" ? Object : X`) that v8 counted as half-covered; wrapped only the class-declaration line in a scoped `/* v8 ignore start/stop */` (method bodies still fully counted) so per-file coverage stays a genuine 100%.
-- AI contribution: Refactor, coverage-artifact diagnosis, scoped v8 ignore, verification, documentation.
-- Assumptions: `@Inject(Class)` was purely redundant here; the excluded branch is compiler-generated and unreachable, so ignoring it does not hide any real code path. `events.controller.ts` (SPM-36 scope) still uses `@Inject` and was left unchanged.
-- Checks run: Backend `npm test` 260/260; `npm run test:cov:spm37` 100% statements/branches/functions/lines for the eight configured files; `npm run lint` and `nest build` (Node 24) passed.
-- Follow-up/conflict notes: Supersedes the earlier ledger note that retained `@Inject` to preserve the coverage gate. No behavioural change; DI resolves identically by type.
-
-
 ## 19-09-2026 - Codex (GPT-6) - SPM-37
 
 - Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37 (live status In Progress; current description has seven acceptance criteria).
@@ -162,33 +79,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Summary: Commit-message feature claims match the inspected implementation. Recommend replacing "complete" test suites with named test types and scoping 100% coverage to the eight configured source files. My Requests currently uses shared demo identity. Saved wizard-step resume is also implemented.
 - Checks run: `npm run test:cov:spm37` in frontend (68 tests passed) and backend (260 tests passed); generated summaries confirm 100% statements, branches, functions and lines for all eight included files. Inspected integration and Playwright tests but did not rerun them. Confirmed staged test-case PDF exists.
 - Follow-up/conflict notes: Existing staged changes preserved; review entry left unstaged. No implementation changes, commits or pushes. Earlier ledger/test comments referring to eight AC and deferred AC7 reflect older Jira wording; current AC7 is submission lockout.
-
-## 19-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; fetched current seven AC and In Progress status.
-- Areas touched: `AI_USAGE.md` only. Inspected merge metadata, index stages and frontend/backend conflicts.
-- Summary: Current merge joins local HEAD 75e03df (rebuild feature commit 61bab0d) with older remote dfc7e64 (original feature 69c5986). Found 18 unresolved files and four original conflicts already staged as resolved. Prepared per-file old-remote versus new-local comparisons for the user's choices.
-- Checks run: Git status, divergent history, merge message, index-stage contents and diffs. No tests run because merge remains unresolved. Working Playwright config is empty; App routes are partially resolved; staged older implementation additions require consistency review after choices.
-- Assumptions/follow-up: User explicitly reserves resolution choices. No conflicts resolved, files staged, commits or pushes by this review. Existing partial resolutions preserved. This is a remote feature merge, not a dev merge; the dev-wins rule does not select a side here.
-
-## 19-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue: https://is212-g5-t2.atlassian.net/browse/SPM-37; In Progress, current seven acceptance criteria rechecked against the implementation and tests.
-- Authorization: User directed use of the newer local implementation, correction of issues, and push to the SPM-37 feature branch.
-- Areas: frontend/backend merge resolution, component tooling/docs, local gateway, existing root guidance and ledger. Retained HEAD 75e03df/feature commit 61bab0d for application behavior, routes, draft API, migration and Playwright configuration. Removed only incoming older implementation additions; retained the user's recent frontend Node types dependency, merged historical ledger, root guidance and ignore rules.
-- Backup: Pre-resolution changed files and index copied to C:/Users/kirub/AppData/Local/Temp/SPM37-merge-backup-20260919-005932. Removed incoming scripts migrate.mjs and browser-fixture.mjs belong to the superseded event-requests implementation; migrate-drafts.mjs and run-browser.mjs remain. No application database reset or migration of old draft data was performed.
-- Issues fixed: TypeScript frontend aliases no longer use deprecated baseUrl; ESLint 10 flat configuration; Tailwind pinned to 3.4.19 for the existing theme/PostCSS setup; backend TypeScript pinned to 6.0.3 because Nest cannot use TypeScript 7.0 compiler API. Corrected stale AC7/Save Draft and nonexistent integration-test documentation. Gateway body limit now matches backend 8 MB attachments.
-- Checks: frontend 68 tests and backend 260 tests passed with all eight configured files at 100% coverage; backend rerun after npm ci with locked Vitest 5 passed. API/PostgreSQL integration 13 passed, including rerun with locked backend dependencies. Real Chromium save/reopen/refresh/retry/submit/lock flow passed after restarting Vite with compatible Tailwind. Frontend and backend production builds passed after toolchain fixes. Backend lint passed; frontend lint exits successfully with three existing API-loader state-reset warnings (retained as warnings in flat config). Both dependency lockfile dry-run checks passed; Compose config and git whitespace checks passed; no unmerged index entries remain.
-- Limits: Node 24.14 locally emits engine warnings; docs require Node 24.15+ for current packages. Docker daemon unavailable, so gateway was inspected but not exercised in Docker. Reused persistent embedded PostgreSQL; spm_test suites clean only their own records. Temporary browser servers stopped after checks; PostgreSQL left running with data preserved.
-- Handoff: Complete the existing merge with both parents and push normally, preserving remote history. Git transport can access origin; gh and GitHub connector cannot read PR metadata, so do not create a duplicate PR. No Jira status changes or PR merge requested.
-
-## 19-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue: SPM-37; reviewed user-provided screenshots against local and remote commit 947972b.
-- Areas touched: `AI_USAGE.md` only; no implementation changes or review replies.
-- Findings: Requested unit-test discovery revert is not applied (`src/**/*.spec.ts` remains). Original event-requests service was removed, but explicit @Inject remains in replacement draft service/controller; reviewer clarification is still needed. Old migrate.mjs and browser-fixture.mjs were replaced, but no evidence establishes compliance with the reviewer's unspecified migration schedule/destination.
-- Checks: Current files, tracked script inventory, clean initial status and remote branch hash. Tests not rerun for this read-only comparison.
-- Follow-up: Outdated review locations do not prove the underlying comments are resolved. Ledger entry left unstaged; no commit or push.
 
 ## 16-09-2026 - Claude Sonnet 5 - SPM-37
 
@@ -221,15 +111,3 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Assumptions: Authentication must populate a verified `request.user` containing userId, organisationId, and roles. Default app denies unauthenticated calls; no production auth bypass added. Frontend token-provider hook is an integration seam. Firebase/login/RBAC and submission/change-request workflows remain separate dependencies; request requirement fields are draft text pending catalogue integration.
 - Checks run: Node 24 backend build, 13 unit tests, 10 e2e tests including 8 real-PostgreSQL draft tests; frontend TypeScript/Vite build, 8 component tests, frontend ESLint and backend oxlint. Chromium browser checks covered all eight AC scenarios with test-only sessions, loss/retry, blank draft, all-field reopening, organisation isolation, legacy edit URL, and desktop/mobile screenshots. No page runtime errors; expected failure responses were exercised. Real Firebase sign-in/sign-out remains unverified.
 - Follow-up/conflict notes: User requires a testing report and explicit 'ok' before preparing review. Nothing staged/committed/pushed; review documentation and handoff deferred. Existing AI_USAGE edits preserved. Test fixture stopped and its five remaining records removed; shared PostgreSQL and normal frontend/backend left running (frontend 127.0.0.1:5174, backend 3000). Default Node 23 fails existing Nest tooling; Node 24 passes. Existing frontend Vite/router dependency audit findings remain; newly added Vitest upgraded to 4.1.11. CI still targets staging and frontend shell executable mode must be set when staging is authorised. Browser plugin skill absent; bundled Playwright used for browser checks.
-
-## 11-09-2026 - Codex (GPT-6) - SPM-37
-
-- Issue/PR: https://is212-g5-t2.atlassian.net/browse/SPM-37
-- Human requester/operator: Kirubakaran Kishore.
-- Areas touched: Local Git branch; `AI_USAGE.md`; read-only frontend, backend, and database inspection.
-- Summary: Pulled dev with fast-forward-only; local dev and origin/dev match df9a0b1ecff768865526ba723755574ea68be0be. Created feature/SPM-37-save-event-request-as-a-draft after finding no matching local/remote branch or PR. Read ticket description, all four acceptance criteria, status, priority, sprint, and comments (none), plus scoped agent guidance.
-- AI contribution: Branch preparation and implementation planning; no feature code changed.
-- Planning refresh: Re-read all seven repository AGENTS.md files and local integration/CI guidance; confirmed Jira now contains all eight discussed criteria and remains To Do. Week 4's 20 core functions define release scope. Plan covers persistent drafts, form/list integration, server-enforced ownership and draft status, failure feedback, and AC-traceable tests. Authentication is still absent; coordinate its contract before security/sign-in acceptance testing. Existing tests workflow targets staging, so dev PR automation needs alignment or a manual run.
-- Assumptions: User-requested dev base overrides stale staging references in docs/ai-issue-workflow.md. Draft persistence requires backend work; current frontend identity is a placeholder and authentication integration needs coordination.
-- Checks run: git pull --ff-only origin dev; HEAD/origin-dev comparison; branch searches; gh pr list (successful, empty); source and ownership review.
-- Follow-up/conflict notes: Preserved pre-existing AI_USAGE.md edits. Frontend creation is a placeholder, edits use memory-only state, and backend/database have no event model. GitHub PR lookup succeeded on this attempt, superseding the earlier API lookup failure for this operation. No commit or push.

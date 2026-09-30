@@ -13,18 +13,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Checks run: `npm test` in `services/backend` — 427/427 passed; `npm test` in `apps/frontend` — 200/200 passed; production builds passed in both components; backend lint passed. Frontend lint remains blocked by pre-existing unused `hasReplies` in `apps/frontend/src/components/domain/ClarificationThread.tsx`, outside this work. Docker rebuilt/recreated all services; frontend, backend, and PostgreSQL are healthy; `/healthz` returned `status: ok`; database constraints verified for `Submitted`, `Approved`, `Rejected` and a 10–500-character rejected reason.
 - Follow-up/conflict notes: No commit, push, or pull request was created. The SPM-83 implementation now deliberately supersedes stale documentation/tests that mentioned `Under_Review` or a 1–2000-character reason.
 
-## 22-09-2026 - Codex (GPT-5) - SPM-83
-
-- Issue/PR: Unknown (user-requested maintenance; branch `feature/SPM-83-reject-a-request`)
-- Human requester/operator: kirub
-- Areas touched: `services/backend/src/app.module.ts`, `services/backend/src/events`, backend documentation, `AI_USAGE.md`
-- Summary: Replaced the separate `pg.Pool` instances in `EventsService` and `DraftsService` with injected `DatabaseService` access. Single statements now use `query()` and multi-step operations use the shared `transaction()` helper, preserving atomic draft submission and rejection workflows. Registered `DatabaseModule` with `AppModule`.
-- AI contribution: Dependency wiring, transaction refactor, unit-test migration, and documentation update.
-- Assumptions: This request refers to the outstanding shared PostgreSQL-pool migration described in the backend README and handover notes.
-- Checks run: `npm test` in `services/backend` — 427/427 passed; `npm run build` passed; `git diff --check` passed.
-- Follow-up/conflict notes: Changes are staged for human review only; no commit, push, pull request, or database schema migration was run.
-
-
 ## 21-09-2026 - Codex (GPT-6) - SPM-83
 
 - Issue: https://is212-g5-t2.atlassian.net/browse/SPM-83; Reject a request, In Progress, Medium, no comments. All seven Jira AC match the supplied story. Reused feature/SPM-83-reject-a-request; GitHub PR search returned none.

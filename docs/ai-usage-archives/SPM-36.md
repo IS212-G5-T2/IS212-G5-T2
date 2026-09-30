@@ -24,18 +24,6 @@ Jira status at migration: `Done`. Migrated at the user’s request on 30-09-2026
 - Checks run: `cd services/backend && npm test -- --run src/events/event-input.spec.ts` passed; `cd services/backend && npm test -- --run src/events/events.service.spec.ts` passed; `cd apps/frontend && npm test -- --run src/pages/EventCreatePage.test.tsx` passed; `cd apps/frontend && npm test -- --run src/pages/EventListPage.test.tsx` passed. Frontend tests emitted React Router non-failing future-flag warnings.
 - Follow-up/conflict notes: Existing broader AI_USAGE entry and remaining database SPM-36 test were preserved for later cleanup/review.
 
-## 13-09-2026 - Codex (GPT-5) - SPM-36
-
-- Issue/PR: SPM-36 — Jira verified as In Progress, Medium priority, with no comments; no PR.
-- Human requester/operator: Unknown.
-- Areas touched: `apps/frontend`, `services/backend/src/events`, `tests/backend/SPM-36`, `tests/database/SPM-36`, `AI_USAGE.md`.
-- Summary: Added page-level React tests beside Event Create/List, expanded backend validation/service and database integration coverage for every supplied SPM-36 test case, and fixed defects exposed by the tests: description/layout were not required and same-day past start times were accepted.
-- AI contribution: Repository/test-framework review, Jira verification through Atlassian Rovo, React interaction tests, NestJS TestingModule service tests, integration assertions, narrow validation fixes, documentation, and verification.
-- Assumptions: The existing fixed local demo organiser is the authenticated-organiser precondition until login is merged. The requester explicitly made preferred room layout, accessibility needs, and required facilities the option terminology source of truth.
-- Checks run: Frontend `npm test` (2 files, 8 tests), lint, and build passed; backend `npm test` (3 files, 34 tests), lint, and build passed; rebuilt the local backend and ran the database/API SPM-36 integration test successfully.
-- Follow-up/conflict notes: No Cypress configuration or local login flow exists, so no browser E2E/login test was added. React Router emitted non-failing v7 future-flag warnings. Docker production pruning reported 3 existing high-severity dependency findings, outside this test scope. Existing unrelated staged/unstaged work on `fix/backend-dependency-lock` was preserved; no commit, push, or PR was performed.
-
-
 ## 12-09-2026 - Codex (GPT-6) - SPM-36
 
 - Issue: https://is212-g5-t2.atlassian.net/browse/SPM-36 — fetched full story, six AC, comments (none), Medium priority, Sprint 1, In Progress.
