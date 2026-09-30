@@ -57,3 +57,41 @@ export function attendeeEventStatus(event: EventRecord, now: Date): string {
   if (now.getTime() >= new Date(event.startDateTime).getTime()) return "In Progress";
   return "Upcoming";
 }
+
+export type AttendeeBrowseFilter = "upcoming" | "registered" | "past" | "cancelled";
+
+export const ATTENDEE_BROWSE_FILTERS: { value: AttendeeBrowseFilter; label: string }[] = [
+  { value: "upcoming", label: "Upcoming events" },
+  { value: "registered", label: "Registered Events" },
+  { value: "past", label: "Past Events" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
+/**
+ * SPM-61 attendee Browse Events filters. "Approved" and "Confirmed" are the
+ * same published state for attendees.
+ *
+ * @param event The event, including the attendee's own registration status.
+ * @param filter The selected filter.
+ * @param now The current instant used to split upcoming and past events.
+ * @returns Whether the event belongs in the selected filter.
+ */
+export function matchesAttendeeFilter(event: EventRecord, filter: AttendeeBrowseFilter, now: Date): boolean {
+  const published = event.status === "approved" || event.status === "confirmed";
+  const ended = now.getTime() >= new Date(event.endDateTime).getTime();
+  const registered = event.myRegistrationStatus === "registered";
+  switch (filter) {
+    case "upcoming":
+      // Every published event that has not ended, registered or not.
+      return published && !ended;
+    case "registered":
+      // Events I'm registered for that are still to come.
+      return registered && published && !ended;
+    case "past":
+      // Events I registered for that have finished.
+      return registered && event.status !== "cancelled" && (event.status === "completed" || ended);
+    case "cancelled":
+      // Events I registered for that were cancelled.
+      return registered && event.status === "cancelled";
+  }
+}

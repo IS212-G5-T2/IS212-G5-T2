@@ -27,7 +27,7 @@ Commands: backend unit `cd backend && npx vitest run`; backend integration `DATA
 | EVENT-REG-05-B | | `registrations.e2e-spec.ts :: EVENT-REG-05-B` | BE integration, real PostgreSQL | Pass | 5 concurrent: one 201, four 409, one row |
 | EVENT-REG-05-C | | `registrations.e2e-spec.ts :: EVENT-REG-05-C` (re-register, capacity); `RegistrationSection.test.tsx :: 05-C` | BE integration + FE component | Pass | Capacity 422 `registration_full` locked (hard limit, no waitlist in R1) |
 | EVENT-REG-05-SEC-1 | A-C, non-attendee roles, hidden and malformed events | `registrations.e2e-spec.ts :: EVENT-REG-05-SEC-1` | BE integration | Pass | 401, 403 for 4 roles, own-registration-only, 404 |
-| EVENT-REG-05-SEC-1 | D FE redirect | | n/a | Not Automated | Redirect URL locked to `/events/:id/registrations/:registrationId`, but that route does not exist yet; see open item 2 |
+| EVENT-REG-05-SEC-1 | D FE redirect | | n/a | Not Automated | R1 decision: registration stays on event detail page with inline confirmation. No redirect. Dedicated registration details page may be a future story (SPM-62+). |
 
 Also added: `useAppStore.registration.test.ts` (GET backoff, no POST retry, D14), `api.test.ts` (error code and status), and an updated SPM-99 `EventView.test.ts` and `EventDetailPage.registration.test.tsx`.
 
@@ -59,8 +59,8 @@ Locked (product decisions): MSG-02 "Registration for this event opens on [date] 
 Still open:
 
 1. Test Case IDs and quotes are ASSUMED (source documents absent).
-2. 05-SEC-1[D]: the redirect URL was locked to `/events/:id/registrations/:registrationId`, but no such frontend route or redirect behaviour exists yet. Not automated until the intended behaviour is confirmed.
-3. Only Confirmed events accept registration; unpublished events return 404; a missing window bound is unbounded on the server. The attendee page still hides the section unless both bounds exist (SPM-99).
+2. 05-SEC-1[D]: R1 decision is to keep registration on the event detail page (no redirect). Other auth subtests (A-C) cover role enforcement. A dedicated registration details page is deferred to a future story if needed.
+3. Only Approved or Confirmed events accept registration (product decision: they mean the same thing to attendees); unpublished events return 404; a missing window bound is unbounded on the server. The attendee page still hides the section unless both bounds exist (SPM-99).
 4. Check order on POST: role, body validation, event lookup, window, duplicate, capacity.
 5. The registration date rows keep SPM-99's local-time `formatDateTime`; only the new "opens on" sentence is in SGT (D20).
 6. The integration-test gap is to be recorded in the retro; no retro document exists in the repo.
@@ -72,3 +72,17 @@ Still open:
 - Slices 1 and 2 (validation, window rule) were written red-first. The registrations e2e suite was written after the service, so it was not observed failing first.
 - Existing SPM-99 assertions were changed on purpose: closing instant is now closed, and closed, full, not-yet-open and cancelled states render no Register button.
 - The Withdraw button is hidden until a withdraw story ships; the store `withdrawRegistration` action is unchanged.
+
+## Follow-up: Browse Events and Approved visibility
+
+- Product decision: "Approved" means "Confirmed" for attendees. Approved events are listed, viewable and registrable; the coordinator approval flow is unchanged. Covered by `registration-window.spec.ts`, `events.service.spec.ts` and `registrations.e2e-spec.ts :: SPM-61 decision: "Approved" means "Confirmed"`.
+- Attendee Browse Events filters (Upcoming default, Registered, Past, Cancelled) and the Registered badge: `EventView.test.ts :: SPM-61 attendee Browse Events filters`, `EventListPage.test.tsx :: gives attendees personal filters and a Registered badge`.
+- Seed data: `database/postgresql/init/005_spm61_dev_seed_fixes.sql` fixes coordinator ids and registration windows for local development.
+- Test totals after this follow-up: backend unit 496 passed; backend integration 73 passed, 1 todo, 11 SPM-37 draft tests skipped because `TEST_DATABASE_URL` was unset; frontend 280 passed, 1 todo.
+
+## Follow-up: registration card redesign (SPM-99 AC3 compliance)
+
+- States: not yet open (heading "Registration opens on [date/time] SGT"), open with "closes in N days" / "closes today" AND "Opens/Closes" rows, closed ("Registration closed", "Closed on", no Available), fully booked. Register is rendered only while open. Tests: `RegistrationSection.test.tsx :: SPM-61 registration heading states (design)`, `utils/registration.test.ts :: SPM-61 registration heading helpers`, and the updated SPM-99 cases in `EventDetailPage.registration.test.tsx`.
+- SPM-99 AC3 now satisfied: both opening and closing times are visible in the open state.
+- Assumptions: the registered state shows heading "You're registered" with the registration ID; the not-yet-open state lists Available and Closes; the fully-booked state lists Closes; precedence is not-yet-open, then closed, then fully booked; "Closed on" is shown only once the closing time has passed (not for a cancelled/completed event with a future scheduled close).
+- Totals: backend unit 496 passed; registrations integration 28 passed, 1 todo; frontend 294 passed, 1 todo.

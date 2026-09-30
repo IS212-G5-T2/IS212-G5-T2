@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationSection } from "./RegistrationSection";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
+import { formatSgt } from "@/utils/registration";
 import type { EventRecord, Registration, User } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -67,13 +68,13 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
   it("01-B not yet open: no button, shows the opening time in SGT", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(2 * HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByText(/Registration opens on .* SGT\./)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: `Registration opens on ${formatSgt(iso(2 * HOUR))}` })).toBeInTheDocument();
   });
   // 01-C[A]: after the close time there is no button, only status text.
   it("01-C[A] closed by time: no button, closed text", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(-48 * HOUR), registrationClosesAt: iso(-HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/registration closed/i);
+    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
   });
   // 01-C[B]: manual close needs a schema field that does not exist (D17).
   it.todo("01-C[B] Blocked: no manual_close_at field exists (D17)");
@@ -86,7 +87,60 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
   it("full event: no button", () => {
     renderSection({ ...baseEvent, availableRegistrationSpots: 0 });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Registration Full");
+    expect(screen.getByRole("heading", { name: "This event is fully booked." })).toBeInTheDocument();
+  });
+});
+
+describe("SPM-61 registration heading states (design)", () => {
+  // NOW is 2030-06-01 08:00 SGT. Closing times are 23:59 SGT on the target day.
+  const closesOn = (isoDay: string) => `${isoDay}T15:59:00.000Z`;
+  const withCloses = (closes: string, extra: Partial<EventRecord> = {}) => ({
+    ...baseEvent, registrationOpensAt: iso(-HOUR), registrationClosesAt: closes, availableRegistrationSpots: 45, ...extra,
+  });
+
+  // State 1: open, closes in more than 1 day: X-days heading, Available and Closes, Register shown.
+  it("State 1: open, closes in more than 1 day", () => {
+    renderSection(withCloses(closesOn("2030-06-04")));
+    expect(screen.getByRole("heading", { name: "Registration closes in 3 days" })).toBeInTheDocument();
+    expect(within(screen.getByText("Available").parentElement!).getByText("45 spots")).toBeInTheDocument();
+    expect(within(screen.getByText("Opens").parentElement!).getByText("1 Jun 2030, 07:00")).toBeInTheDocument();
+    expect(within(screen.getByText("Closes").parentElement!).getByText("4 Jun 2030, 23:59")).toBeInTheDocument();
+    expect(registerButton()).toBeInTheDocument();
+  });
+  // Singular: "1 day", never "1 days".
+  it("uses the singular for 1 day", () => {
+    renderSection(withCloses(closesOn("2030-06-02")));
+    expect(screen.getByRole("heading", { name: "Registration closes in 1 day" })).toBeInTheDocument();
+    expect(within(screen.getByText("Opens").parentElement!).getByText("1 Jun 2030, 07:00")).toBeInTheDocument();
+  });
+  // State 2: open, closing day (SGT): a 23:59 close never reads "1 day" on the closing day.
+  it("State 2: open, closes today (same SGT calendar day)", () => {
+    renderSection(withCloses(closesOn("2030-06-01")));
+    expect(screen.getByRole("heading", { name: "Registration closes today" })).toBeInTheDocument();
+    expect(within(screen.getByText("Opens").parentElement!).getByText("1 Jun 2030, 07:00")).toBeInTheDocument();
+    expect(within(screen.getByText("Closes").parentElement!).getByText("1 Jun 2030, 23:59")).toBeInTheDocument();
+    expect(registerButton()).toBeInTheDocument();
+  });
+  // State 3: closed: "Closed on" replaces "Closes", Available is dropped, no button.
+  it("State 3: closed shows Closed on, drops Available, hides Register", () => {
+    renderSection(withCloses(iso(-HOUR), { registrationOpensAt: iso(-48 * HOUR) }));
+    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByText("Closed on")).toBeInTheDocument();
+    expect(screen.queryByText("Closes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    expect(registerButton()).not.toBeInTheDocument();
+  });
+  // Not yet open: MSG-02 heading in SGT, Register hidden.
+  it("not yet open shows the opening time and hides Register", () => {
+    renderSection(withCloses(closesOn("2030-06-10"), { registrationOpensAt: "2030-06-03T01:00:00.000Z" }));
+    expect(screen.getByRole("heading", { name: "Registration opens on 3 Jun 2030, 09:00 SGT" })).toBeInTheDocument();
+    expect(registerButton()).not.toBeInTheDocument();
+  });
+  // Singular spot count.
+  it("uses the singular for 1 spot", () => {
+    renderSection(withCloses(closesOn("2030-06-04"), { availableRegistrationSpots: 1 }));
+    expect(screen.getByText("1 spot")).toBeInTheDocument();
+    expect(within(screen.getByText("Opens").parentElement!).getByText("1 Jun 2030, 07:00")).toBeInTheDocument();
   });
 });
 
@@ -217,8 +271,9 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
   it("05-A registered attendee sees status and ID, no Register button", () => {
     renderSection(baseEvent, created);
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByText("You're registered")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
     expect(screen.getByText("REG-9001")).toBeInTheDocument();
+    expect(within(screen.getByText("Registered on").parentElement!).getByText("1 Jun 2030, 08:00")).toBeInTheDocument();
   });
   // 05-A via the server: a 409 shows MSG-05 and syncs to the registered state.
   it("a 409 shows MSG-05 and reloads the registration", async () => {

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Updated REGISTRABLE_STATUSES and ATTENDEE_VISIBLE_STATUSES to reflect this distinction.
+
+- MSG-02 now formats the opening time as `12 Mar 2027, 23:59 SGT` (24-hour, SGT) to match the frontend (SPM-61).
+
+- Attendees now see and can register for Approved events ("Approved" and "Confirmed" are the same published state), and the attendee event list includes `myRegistrationStatus` (SPM-61).
+
 - Added attendee event registration: `POST /api/events/:eventId/registrations` and `GET /api/events/:eventId/registrations/me` with strict validation, window/duplicate/capacity rules under an event-row lock, an injectable clock, and a server-computed `registrationOpen` on event responses (SPM-61).
 
 - Added assigned-coordinator approval of Submitted event requests, with a forward-only transactional status change and persistent organiser approval notification (SPM-40).

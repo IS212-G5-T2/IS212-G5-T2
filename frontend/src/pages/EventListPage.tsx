@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
 import { EventCard } from "@/components/domain/EventCard";
 import type { EventStatus } from "@/types";
+import {
+  ATTENDEE_BROWSE_FILTERS,
+  matchesAttendeeFilter,
+  type AttendeeBrowseFilter,
+} from "./EventView";
 
 const statusOptions: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -42,6 +47,10 @@ export function EventListPage() {
   const [statusFilter, setStatusFilter] = useState(
     currentUser.role === "coordinator" ? "submitted" : "",
   );
+  // SPM-61: attendees filter by their own relationship to each event instead
+  // of by raw workflow status.
+  const isAttendee = currentUser.role === "attendee";
+  const [attendeeFilter, setAttendeeFilter] = useState<AttendeeBrowseFilter>("upcoming");
 
   const scoped = useMemo(() => {
     if (currentUser.role === "attendee") {
@@ -53,9 +62,11 @@ export function EventListPage() {
     return events;
   }, [events, currentUser]);
 
-  const filtered = statusFilter
-    ? scoped.filter((e) => e.status === (statusFilter as EventStatus))
-    : scoped;
+  const filtered = isAttendee
+    ? scoped.filter((e) => matchesAttendeeFilter(e, attendeeFilter, new Date()))
+    : statusFilter
+      ? scoped.filter((e) => e.status === (statusFilter as EventStatus))
+      : scoped;
 
   const title =
     currentUser.role === "organiser"
@@ -85,12 +96,21 @@ export function EventListPage() {
       />
 
       <div className="mb-4 max-w-xs">
-        <Select
-          label="Filter by status"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          options={statusOptions.filter((o) => o.value !== "")}
-        />
+        {isAttendee ? (
+          <Select
+            label="Show"
+            value={attendeeFilter}
+            onChange={(e) => setAttendeeFilter(e.target.value as AttendeeBrowseFilter)}
+            options={ATTENDEE_BROWSE_FILTERS}
+          />
+        ) : (
+          <Select
+            label="Filter by status"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            options={statusOptions.filter((o) => o.value !== "")}
+          />
+        )}
       </div>
 
       {loading ? <p role="status">Loading events…</p> : error ? <div role="alert">{error} <Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button></div> : filtered.length === 0 ? (
@@ -100,7 +120,12 @@ export function EventListPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((e) => (
-            <EventCard key={e.id} event={e} />
+            <EventCard
+              key={e.id}
+              // "Approved" and "Confirmed" are the same published state for attendees.
+              event={isAttendee && e.status === "approved" ? { ...e, status: "confirmed" } : e}
+              registered={isAttendee && e.myRegistrationStatus === "registered"}
+            />
           ))}
         </div>
       )}

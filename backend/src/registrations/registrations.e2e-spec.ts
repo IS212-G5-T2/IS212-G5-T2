@@ -95,6 +95,31 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  describe('SPM-61: only Confirmed events are visible and registrable to attendees', () => {
+    // Expected: a Confirmed event is listed and accepts a registration; Approved events are hidden.
+    it('lists Confirmed (not Approved) events and accepts registrations only for Confirmed', async () => {
+      const confirmedId = await seedEvent({ status: 'Confirmed' });
+      const approvedId = await seedEvent({ status: 'Approved' });
+      const { cookie } = await createUser('ATTENDEE');
+      const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', cookie).expect(200);
+      expect(list.body.find((e: { id: string }) => e.id === confirmedId)).toMatchObject({ registrationOpen: true });
+      expect(list.body.find((e: { id: string }) => e.id === approvedId)).toBeUndefined();
+      await post(confirmedId, cookie).expect(201);
+      await post(approvedId, cookie).expect(404);
+    });
+    // Expected: the browse list tells each attendee only about their own registration.
+    it('reports myRegistrationStatus per attendee in the browse list', async () => {
+      const id = await seedEvent();
+      const alice = await createUser('ATTENDEE');
+      const ben = await createUser('ATTENDEE', 'Ben Lim');
+      await post(id, alice.cookie).expect(201);
+      const mine = await request(app.getHttpServer()).get('/api/events').set('Cookie', alice.cookie).expect(200);
+      expect(mine.body.find((e: { id: string }) => e.id === id).myRegistrationStatus).toBe('registered');
+      const theirs = await request(app.getHttpServer()).get('/api/events').set('Cookie', ben.cookie).expect(200);
+      expect(theirs.body.find((e: { id: string }) => e.id === id).myRegistrationStatus).toBeUndefined();
+    });
+  });
+
   describe('EVENT-REG-01-B: not yet open', () => {
     // Expected: registrationOpen=false and a POST is refused with the "opens on" message.
     it('reports registrationOpen=false and POST -> 422 registration_not_open (MSG-02)', async () => {

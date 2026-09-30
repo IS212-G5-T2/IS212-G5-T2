@@ -28,10 +28,14 @@ describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants'
   it('[D] exactly at close: closed', () => {
     expect(isRegistrationOpen(event, closesAt)).toBe(false);
   });
-  // Events without registration enabled, or not Confirmed, are never open.
+  // Only Confirmed events are registrable; Approved is internal workflow state.
+  it('is never open for an Approved event', () => {
+    expect(isRegistrationOpen({ ...event, status: 'Approved' }, at(1000))).toBe(false);
+  });
+  // Disabled or unpublished/finished events are never open.
   it('is never open when disabled or not Confirmed', () => {
     expect(isRegistrationOpen({ ...event, registrationEnabled: false }, at(1000))).toBe(false);
-    for (const status of ['Submitted', 'Approved', 'Rejected', 'Completed', 'Cancelled']) {
+    for (const status of ['Approved', 'Submitted', 'Rejected', 'Completed', 'Cancelled']) {
       expect(isRegistrationOpen({ ...event, status }, at(1000))).toBe(false);
     }
   });

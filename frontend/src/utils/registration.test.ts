@@ -7,7 +7,10 @@ import { describe, expect, it } from "vitest";
 import {
   REGISTRATION_LIMITS,
   formatSgt,
+  formatSgtDateTime,
   isRegistrationOpen,
+  registrationClosingHeading,
+  sgtCalendarDayDiff,
   validateRegistrationDetails,
 } from "./registration";
 
@@ -84,5 +87,33 @@ describe("D20: Singapore time display", () => {
   it("formats a UTC instant as SGT", () => {
     expect(formatSgt("2030-01-10T02:00:00.000Z")).toContain("10:00");
     expect(formatSgt("2030-01-10T02:00:00.000Z")).toMatch(/SGT$/);
+  });
+});
+
+describe("SPM-61 registration heading helpers", () => {
+  // The single date-and-time format used everywhere, in Singapore time.
+  it("formats as 12 Mar 2027, 23:59 in SGT", () => {
+    expect(formatSgtDateTime("2027-03-12T15:59:00.000Z")).toBe("12 Mar 2027, 23:59");
+    expect(formatSgt("2027-03-12T15:59:00.000Z")).toBe("12 Mar 2027, 23:59 SGT");
+  });
+  // "X days" is the SGT calendar-day difference, so a 23:59 close never reads "1 day" on the closing day.
+  it.each([
+    ["2027-03-12T02:00:00.000Z", 0, "Registration closes today"],           // 10:00 SGT, closes 23:59 SGT same day
+    ["2027-03-12T15:58:00.000Z", 0, "Registration closes today"],           // 23:58 SGT
+    ["2027-03-11T15:59:00.000Z", 1, "Registration closes in 1 day"],        // 23:59 SGT the day before
+    ["2027-03-11T16:00:00.000Z", 0, "Registration closes today"],           // 00:00 SGT on the closing day
+    ["2027-03-09T02:00:00.000Z", 3, "Registration closes in 3 days"],
+  ])("now %s -> %i days: %s", (nowIso, days, heading) => {
+    const closesAt = "2027-03-12T15:59:00.000Z";
+    expect(sgtCalendarDayDiff(new Date(nowIso), new Date(closesAt))).toBe(days);
+    expect(registrationClosingHeading(closesAt, new Date(nowIso))).toBe(heading);
+  });
+  // Days are counted in Singapore, not UTC: 17:00 UTC is already the next SGT day.
+  it("counts calendar days in SGT, not UTC", () => {
+    expect(sgtCalendarDayDiff(new Date("2027-03-11T17:00:00.000Z"), new Date("2027-03-12T15:59:00.000Z"))).toBe(0);
+  });
+  // The mock's example: 163 days before 12 Mar 2027.
+  it("matches the design example of 163 days", () => {
+    expect(registrationClosingHeading("2027-03-12T15:59:00.000Z", new Date("2026-09-30T04:00:00.000Z"))).toBe("Registration closes in 163 days");
   });
 });

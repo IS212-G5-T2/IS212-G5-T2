@@ -220,29 +220,33 @@ export function EventDetailPage() {
         }
       />
 
-      {!statusFlow.includes(event.status) ? (
-        <div className="mb-6">
-          <StatusBadge status={event.status} />
-        </div>
-      ) : (
-        <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
-          {statusFlow.map((s, i) => (
-            <li key={s} className="flex items-center gap-2">
-              <span
-                className={`rounded-full px-2.5 py-1 font-medium ${
-                  isRejected && s === "rejected"
-                    ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
-                    : i <= currentStepIndex
-                      ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
-                }`}
-              >
-                {s.replace("_", " ")}
-              </span>
-              {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
-            </li>
-          ))}
-        </ol>
+      {(isOwner || isAssignedCoordinator) && (
+        <>
+          {!statusFlow.includes(event.status) ? (
+            <div className="mb-6">
+              <StatusBadge status={event.status} />
+            </div>
+          ) : (
+            <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
+              {statusFlow.map((s, i) => (
+                <li key={s} className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-medium ${
+                      isRejected && s === "rejected"
+                        ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                        : i <= currentStepIndex
+                          ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                    }`}
+                  >
+                    {s.replace("_", " ")}
+                  </span>
+                  {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
       )}
 
       {showReviewControls && isAssignedCoordinator && event.status === "submitted" && (

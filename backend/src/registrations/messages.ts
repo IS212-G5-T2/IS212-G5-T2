@@ -11,14 +11,15 @@ export const REGISTRATION_ERROR_CODES = {
   duplicate: 'already_registered',
 } as const;
 
-const SGT_FORMAT = new Intl.DateTimeFormat('en-SG', {
+// Same format as the frontend: 12 Mar 2027, 23:59 (24-hour, SGT).
+const SGT_FORMAT = new Intl.DateTimeFormat('en-GB', {
   timeZone: 'Asia/Singapore',
   day: 'numeric',
   month: 'short',
   year: 'numeric',
-  hour: 'numeric',
+  hour: '2-digit',
   minute: '2-digit',
-  hour12: true,
+  hourCycle: 'h23',
 });
 
 /** Formats an instant in Singapore time for user-facing messages. */

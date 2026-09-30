@@ -19,12 +19,13 @@ import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from './clock.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
-import { registrationWindowState } from './registration-window.js';
+import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration-window.js';
 import { validateRegistration } from './validation.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Capacity is a hard limit (no waitlist in Release 1). Attendees may only see (and register for) published events.
-const ATTENDEE_VISIBLE = ['Confirmed', 'Completed', 'Cancelled'];
+// Capacity is a hard limit (no waitlist in Release 1). Attendees may only see
+// (and register for) published events.
+const ATTENDEE_VISIBLE = ATTENDEE_VISIBLE_STATUSES;
 
 @Injectable()
 export class RegistrationsService {

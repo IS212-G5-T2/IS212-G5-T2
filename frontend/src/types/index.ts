@@ -76,6 +76,8 @@ export interface EventRecord {
   registrationClosesAt?: string;
   /** Server-computed: the registration window is open right now (SPM-61). */
   registrationOpen?: boolean;
+  /** The signed-in attendee's own registration status, on the browse list only (SPM-61). */
+  myRegistrationStatus?: RegistrationStatus;
   /** Registration capacity remaining; separate from venue capacity. */
   availableRegistrationSpots?: number;
   coordinatorId?: string;

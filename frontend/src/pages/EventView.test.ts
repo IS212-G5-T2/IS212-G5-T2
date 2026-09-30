@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { EventRecord } from "@/types";
-import { attendeeEventStatus, registrationState, registrationStateLabel } from "./EventView";
+import { attendeeEventStatus, matchesAttendeeFilter, registrationState, registrationStateLabel } from "./EventView";
 
 function event(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
@@ -94,5 +94,45 @@ describe("SPM-99 attendee event-view lifecycle", () => {
     expect(registrationStateLabel("closed")).toBe("Registration Closed");
     expect(registrationStateLabel("full")).toBe("Registration Full");
     expect(registrationStateLabel("disabled")).toBe("Registration Unavailable");
+  });
+});
+
+describe("SPM-61 attendee Browse Events filters", () => {
+  const now = new Date("2027-01-01T00:00:00.000Z");
+  const future = { startDateTime: "2027-02-01T00:00:00.000Z", endDateTime: "2027-02-01T03:00:00.000Z" };
+  const ended = { startDateTime: "2026-12-01T00:00:00.000Z", endDateTime: "2026-12-01T03:00:00.000Z" };
+  const matching = (filter: Parameters<typeof matchesAttendeeFilter>[1], overrides: Partial<EventRecord>) =>
+    matchesAttendeeFilter(event(overrides), filter, now);
+
+  // Upcoming lists every published future event, registered or not; Approved counts as published.
+  it("upcoming shows published future events whether or not I'm registered", () => {
+    expect(matching("upcoming", { ...future, status: "confirmed" })).toBe(true);
+    expect(matching("upcoming", { ...future, status: "approved" })).toBe(true);
+    expect(matching("upcoming", { ...future, status: "confirmed", myRegistrationStatus: "registered" })).toBe(true);
+    expect(matching("upcoming", { ...ended, status: "confirmed" })).toBe(false);
+    expect(matching("upcoming", { ...future, status: "cancelled" })).toBe(false);
+  });
+
+  // Registered Events: registered for, still to come.
+  it("registered shows only my future registrations", () => {
+    expect(matching("registered", { ...future, myRegistrationStatus: "registered" })).toBe(true);
+    expect(matching("registered", { ...future, myRegistrationStatus: "withdrawn" })).toBe(false);
+    expect(matching("registered", { ...future })).toBe(false);
+    expect(matching("registered", { ...ended, myRegistrationStatus: "registered" })).toBe(false);
+    expect(matching("registered", { ...future, status: "cancelled", myRegistrationStatus: "registered" })).toBe(false);
+  });
+
+  // Past Events: registered for, and finished by time or by Completed status.
+  it("past shows my registrations that have ended or completed", () => {
+    expect(matching("past", { ...ended, myRegistrationStatus: "registered" })).toBe(true);
+    expect(matching("past", { ...future, status: "completed", myRegistrationStatus: "registered" })).toBe(true);
+    expect(matching("past", { ...ended })).toBe(false);
+    expect(matching("past", { ...ended, status: "cancelled", myRegistrationStatus: "registered" })).toBe(false);
+  });
+
+  // Cancelled: only cancelled events I had registered for.
+  it("cancelled shows only cancelled events I registered for", () => {
+    expect(matching("cancelled", { ...future, status: "cancelled", myRegistrationStatus: "registered" })).toBe(true);
+    expect(matching("cancelled", { ...future, status: "cancelled" })).toBe(false);
   });
 });

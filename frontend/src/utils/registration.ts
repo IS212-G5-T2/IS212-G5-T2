@@ -20,6 +20,7 @@ export const REGISTRATION_MESSAGES = {
   success: (eventName: string) => `Registration successful. You are registered for ${eventName}.`,
   // MSG-03 and MSG-04 wording is locked (mirrors backend messages.ts).
   validation: "Please correct the highlighted fields.",
+  full: "This event is fully booked.",
   failure: "We couldn't complete your registration. Please try again.",
 } as const;
 
@@ -74,17 +75,48 @@ export function validateRegistrationDetails(details: RegistrationDetails): Regis
   return errors;
 }
 
-const SGT_FORMAT = new Intl.DateTimeFormat("en-SG", {
-  timeZone: "Asia/Singapore",
+const SGT_TIME_ZONE = "Asia/Singapore";
+
+// One date-and-time format everywhere: 12 Mar 2027, 23:59 (24-hour, SGT).
+const SGT_FORMAT = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SGT_TIME_ZONE,
   day: "numeric",
   month: "short",
   year: "numeric",
-  hour: "numeric",
+  hour: "2-digit",
   minute: "2-digit",
-  hour12: true,
+  hourCycle: "h23",
 });
 
-/** Formats an ISO instant in Singapore time (D20). */
-export function formatSgt(value: string): string {
-  return `${SGT_FORMAT.format(new Date(value))} SGT`;
+// en-CA yields an unambiguous YYYY-MM-DD calendar date in Singapore.
+const SGT_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", { timeZone: SGT_TIME_ZONE });
+
+/** Formats an instant as "12 Mar 2027, 23:59" in Singapore time (D20). */
+export function formatSgtDateTime(value: string | Date): string {
+  return SGT_FORMAT.format(new Date(value));
+}
+
+/** Same as formatSgtDateTime with the zone spelled out, for sentences like MSG-02. */
+export function formatSgt(value: string | Date): string {
+  return `${formatSgtDateTime(value)} SGT`;
+}
+
+const sgtDayNumber = (value: Date): number => {
+  const [year, month, day] = SGT_DAY_FORMAT.format(value).split("-").map(Number);
+  return Date.UTC(year, month - 1, day) / 86_400_000;
+};
+
+/**
+ * Calendar-day difference between two instants in Singapore time. This is not
+ * hoursRemaining / 24: a 23:59 close is "0 days" away on the closing day.
+ */
+export function sgtCalendarDayDiff(from: Date, to: Date): number {
+  return sgtDayNumber(to) - sgtDayNumber(from);
+}
+
+/** Heading for an open registration: "Registration closes today" / "in 1 day" / "in N days". */
+export function registrationClosingHeading(closesAt: string, now: Date): string {
+  const days = sgtCalendarDayDiff(now, new Date(closesAt));
+  if (days <= 0) return "Registration closes today";
+  return `Registration closes in ${days} ${days === 1 ? "day" : "days"}`;
 }

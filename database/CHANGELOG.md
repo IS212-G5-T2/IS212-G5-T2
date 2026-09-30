@@ -39,3 +39,4 @@ Git history retains the original incremental changes and their commits.
 ## SPM-61 - Registration detail columns
 
 - Added `postgresql/init/004_spm61_event_registration.sql`: nullable `full_name`, `email`, `contact_number` and `special_requirements` on `event_registrations`. Additive and idempotent; existing volumes must apply it manually because init scripts only run on an empty volume.
+- Added `postgresql/init/005_spm61_dev_seed_fixes.sql` (local data only): points the seeded events at the real coordinator accounts (002 used the literal ids `coordinator1`/`coordinator2`, which matched no user) and gives Alumni Networking Night and Inclusive Arts Workshop an open registration window. Idempotent; apply manually to existing volumes.
