@@ -153,3 +153,6 @@ playwright-report/
 
 # Local scratch / temporary working files
 tmp/
+
+# Temporary shared context and review artifacts for agent workflows
+.ai/runtime/

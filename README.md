@@ -282,6 +282,11 @@ A typical Scrum flow:
 6. CI evidence, review feedback, and acceptance criteria are checked before merging.
 7. Jira automation reflects branch creation, pull request review, and post-merge testing status.
 
+For AI-assisted Jira implementation, use the
+[implementation and review workflow](.ai/workflow/README.md). It captures Jira
+and Confluence context once, then hands a shared runtime snapshot to independent
+reviewers and a bounded final validation stage.
+
 ### Branch Flow: Work Branch To dev
 
 The team uses `dev` as the latest shared branch:

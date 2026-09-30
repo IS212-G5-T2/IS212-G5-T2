@@ -1,0 +1,32 @@
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4
+max_depth = 1
+
+[agents.implementation]
+description = "Implement a Jira ticket end-to-end, including automated tests and initial checks."
+config_file = "agents/implementation.toml"
+
+[agents.test-review]
+description = "Independently review test coverage and Confluence test-spec gaps."
+config_file = "agents/test-review.toml"
+
+[agents.code-quality-review]
+description = "Review changed code for focused maintainability and convention issues."
+config_file = "agents/code-quality-review.toml"
+
+[agents.requirements-review]
+description = "Check implementation behavior against the Jira requirements."
+config_file = "agents/requirements-review.toml"
+
+[agents.final-validation]
+description = "Reconcile findings, make justified fixes, selectively revalidate, and run final checks."
+config_file = "agents/final-validation.toml"
+
+[agents.pull-request-creation]
+description = "When explicitly asked, create a GitHub pull request through gh using the repository template and an auto-generated title."
+config_file = "agents/pull-request-creation.toml"
+
+[agents.ticket-completion]
+description = "When explicitly asked to archive a completed ticket, move its AI_USAGE section into the ticket archive."
+config_file = "agents/ticket-completion.toml"
