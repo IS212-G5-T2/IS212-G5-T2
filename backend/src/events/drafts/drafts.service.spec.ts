@@ -123,7 +123,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
-  // Drafts are organiser-only, matching AGENTS.md's events-boundary policy.
+  // SPM-37 EVE-DRF-08-A (partial): checks missing identity at the service; forged credentials and HTTP routes still need tests.
   it('rejects all draft operations without an authenticated identity', async () => {
     await expect(service.list(undefined)).rejects.toMatchObject({
       status: 401,
@@ -140,6 +140,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
+  // SPM-37 EVE-DRF-08-B (partial): checks list/get; save, submit, and event routes still need role tests.
   it('rejects draft operations from a caller without the organiser role', async () => {
     const coordinator: AuthenticatedUser = {
       uid: 'coord-9',
@@ -153,6 +154,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     });
     expect(db.query).not.toHaveBeenCalled();
   });
+  // SPM-37 EVE-DRF-04-A: saving an existing draft updates its row instead of inserting another.
   it('Q1-025 saves new and existing drafts and releases connections', async () => {
     selected({ ...row(), version: 0 });
     const body = { fields, version: 0, operationId };
@@ -173,6 +175,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('INSERT')),
     ).toBe(false);
   });
+  // SPM-37 EVE-DRF-04-B: an identical operation ID retry causes no update.
   it('Q1-026 retries identical save without issuing an update', async () => {
     const { validateDraft } = await import('./dto/draft-input.js');
     const body = { fields, version: 0, operationId };
@@ -189,6 +192,8 @@ describe('SPM-37 Q1 service contract and failures', () => {
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('UPDATE')),
     ).toBe(false);
   });
+  // SPM-37 EVE-DRF-05-A and EVE-DRF-05-C: stale saves and altered retries roll back.
+  // SPM-37 EVE-DRF-07-A: a submitted draft rejects further saves.
   it.each([
     ['missing', null, 404],
     ['submitted', { ...row(), status: 'Submitted' }, 409],

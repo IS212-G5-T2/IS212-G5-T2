@@ -77,6 +77,7 @@ describe("api", () => {
   });
 
   // Maps attachment-size failures to an actionable message.
+  // SPM-37 EVE-DRF-10-C (partial): maps a non-JSON 413; backend 413 and CORS headers still need a test.
   it("maps a 413 response to the attachment-size message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 413 })));
 

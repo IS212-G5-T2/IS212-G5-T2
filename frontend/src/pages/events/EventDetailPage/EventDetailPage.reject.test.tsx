@@ -266,8 +266,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
-  // AC5 visual: a rejected request shows a draft → submitted → rejected timeline,
-  // not the normal approval pipeline.
+  // SPM-83 EVENT-REJECT-01-I: a rejected request follows the draft → submitted → rejected timeline.
   it("shows a draft → submitted → rejected status timeline for a rejected request", async () => {
     setUser("organiser", "organiser-9");
     renderDetail(

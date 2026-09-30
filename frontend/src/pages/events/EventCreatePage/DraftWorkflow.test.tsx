@@ -177,6 +177,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
     },
   );
+  // SPM-37 EVE-DRF-06-A: an uncertain save retains edits and retries before a new save.
   it("Q2-005 retries uncertain operation before saving edits made after failure", async () => {
     mocked
       .mockRejectedValueOnce(new Error("offline"))
@@ -199,6 +200,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
+  // SPM-37 EVE-DRF-06-B: a field error stays visible until a corrected retry succeeds.
   it("Q2-006 field validation error allows corrected payload with a new operation", async () => {
     mocked
       .mockRejectedValueOnce(
@@ -337,6 +339,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
+  // SPM-37 EVE-DRF-03: My Drafts keeps draft links and excludes submitted requests.
   it("Q2-015 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
     mocked.mockReturnValue(pending.promise);
@@ -392,6 +395,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     },
   );
+  // SPM-37 EVE-DRF-10-A (partial): checks one file's size; combined file sizes still need a test.
   it.each([52428799, 52428800, 52428801])(
     "Q2-018 file size boundary %s bytes",
     async (size) => {
@@ -420,6 +424,7 @@ describe("SPM-37 Q2 functional cases", () => {
       }
     },
   );
+  // SPM-37 EVE-DRF-10-A (partial): checks file count; combined file sizes still need a test.
   it.each([4, 5, 6])("Q2-019 file count boundary %s", async (count) => {
     mocked.mockResolvedValue(draft({ formStep: 1 }));
     open();

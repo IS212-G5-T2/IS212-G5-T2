@@ -217,7 +217,7 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
-  // SPM-38 AC5: round-robin now assigns a coordinator automatically at
+  // SPM-38 EVE-REV-05-E (AC5): round-robin now assigns a coordinator automatically at
   // submission time, so there is no manual "claim this request" control for
   // coordinators to see or use.
   it("SPM-38 EVE-REV-05-E never renders a manual coordinator-assignment control", async () => {
@@ -308,7 +308,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  // SPM-83 verifies the assigned coordinator can open the review controls without seeing the obsolete placeholder.
+  // SPM-40 EVENT-APPROVE-01-A and SPM-83 EVENT-REJECT-01-A: the assigned coordinator can open both decisions.
   it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
     // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();

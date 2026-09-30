@@ -272,6 +272,7 @@ describe('EventsService.reject (SPM-83)', () => {
 });
 
 describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
+  // SPM-83 EVENT-REJECT-04-B: callers without coordinator access are rejected.
   it('refuses a caller who is not a coordinator, before opening a transaction', async () => {
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, organiser()),
@@ -282,6 +283,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
 
+  // SPM-83 EVENT-REJECT-04-B: only the assigned coordinator can reject.
   it('refuses a coordinator who is not the one assigned to the request', async () => {
     wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
 
@@ -296,6 +298,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
 });
 
 describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
+  // SPM-83 EVENT-REJECT-04-C: terminal states cannot be rejected.
   it.each(['Approved', 'Rejected', 'Cancelled', 'Completed'])(
     'cannot reject a %s request (Conflict, no update)',
     async (status) => {
@@ -323,6 +326,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     created_at: new Date('2026-09-14T00:00:00.000Z'),
   };
 
+  // SPM-83 EVENT-REJECT-03-I (partial): checks organiser access and reason; another organiser's isolation still needs a test.
   it("returns the organiser's rejection notifications including the reason", async () => {
     db.query.mockResolvedValue({ rows: [notificationRow] });
 

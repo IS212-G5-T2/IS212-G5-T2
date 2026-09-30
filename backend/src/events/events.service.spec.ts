@@ -147,7 +147,7 @@ beforeEach(async () => {
 });
 
 describe('EventsService', () => {
-  // SPM-38 AC1: the assigned coordinator can view the full submitted details
+  // SPM-38 EVE-REV-01-A (AC1): the assigned coordinator can view the full submitted details
   // of a request assigned to them (name, purpose, date/time, attendance,
   // venue and equipment requirements, accessibility needs).
   it('EVE-REV-01-A returns the full submitted details of an event assigned to the coordinator', async () => {
@@ -172,7 +172,7 @@ describe('EventsService', () => {
     });
   });
 
-  // SPM-38 AC2: the coordinator can see the current status of the request.
+  // SPM-38 EVE-REV-02-A (AC2): the coordinator can see the current status of the request.
   it('EVE-REV-02-A shows the current status of the event request', async () => {
     const row = { ...savedEventRow(), status: 'Approved' };
     db.query.mockResolvedValue({ rows: [row] });
@@ -412,6 +412,7 @@ describe('EventsService', () => {
   // unauthenticated caller) gets the same NotFoundException as a bad ID, so
   // existence is never leaked.
   describe('SPM-38 AC4: per-coordinator access restriction', () => {
+    // SPM-38 EVE-REV-04-A: the assigned coordinator can view the event.
     it('EVE-REV-04-A lets the assigned coordinator view the event', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -421,6 +422,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ id: row.id, coordinatorId: 'coord-9' });
     });
 
+    // SPM-38 EVE-REV-04-B: another coordinator cannot view the event.
     it('EVE-REV-04-B hides the event from a coordinator it is not assigned to', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -430,6 +432,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // SPM-38 EVE-REV-04-C: a non-owning organiser cannot view the event.
     it('EVE-REV-04-C hides the event from an organiser who does not own it', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -439,6 +442,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // SPM-38 EVE-REV-04-D: unauthenticated access is rejected.
     it('EVE-REV-04-D requires authentication to view event details', async () => {
       await expect(
         service.get(undefined, savedEventRow().id),
@@ -446,6 +450,7 @@ describe('EventsService', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
+    // SPM-38 EVE-REV-04-G: unrelated roles cannot view the event.
     it('EVE-REV-04-G hides the event from a role that is neither organiser nor coordinator', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -471,6 +476,7 @@ describe('EventsService', () => {
       await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // SPM-38 EVE-REV-04-H: unassigned events are hidden from coordinators.
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
       const row = { ...savedEventRow(), coordinator_id: null, coordinator_name: null };
       db.query.mockResolvedValue({ rows: [row] });
@@ -480,7 +486,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    // A dual-role account (e.g. coor_tech@connectsphere.sg, which holds both
+    // SPM-38 EVE-REV-04-I: a dual-role account (e.g. coor_tech@connectsphere.sg, which holds both
     // ORGANISER and COORDINATOR in this system) must see an event through
     // either match — owning it as organiser, or being its assigned coordinator.
     it('EVE-REV-04-I lets a dual-role (organiser + coordinator) user view an event via either match', async () => {
@@ -607,6 +613,7 @@ describe('EventsService', () => {
       { id: 'roster-coord-2', name: 'Coordinator Two' },
     ];
 
+    // SPM-38 EVE-REV-05-A: the first submission selects the first coordinator.
     it('EVE-REV-05-A assigns the first roster coordinator when no events have been assigned yet', async () => {
       const request = validEventRequest();
       const freshRow = {
@@ -639,6 +646,7 @@ describe('EventsService', () => {
       );
     });
 
+    // SPM-38 EVE-REV-05-B: subsequent submissions advance the roster.
     it('EVE-REV-05-B cycles to the next roster coordinator after a prior assignment', async () => {
       const request = validEventRequest();
       const freshRow = {
@@ -664,6 +672,7 @@ describe('EventsService', () => {
       expect(result.event.coordinatorId).toBe(TEST_ROSTER[1].id);
     });
 
+    // SPM-38 EVE-REV-05-C: an already assigned event keeps its coordinator.
     it('EVE-REV-05-C does not reassign an event that already has a coordinator', async () => {
       const request = validEventRequest();
       const row = savedEventRow();

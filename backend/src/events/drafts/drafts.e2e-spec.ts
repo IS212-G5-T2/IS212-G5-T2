@@ -73,7 +73,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       await db.end();
     }
   });
-  // AC1/2: incomplete drafts persist without creating submitted events.
+  // SPM-37 EVE-DRF-01-B: an incomplete request persists as Draft without creating an event.
   it('saves an incomplete Draft without submitting', async () => {
     const id = newId();
     const response = await save(id, { name: 'Incomplete' }).expect(200);
@@ -82,7 +82,9 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
-  // AC3/5: fresh API reads retrieve every field from PostgreSQL, including files.
+  // SPM-37 EVE-DRF-01-B: fresh API reads retain all partial fields, including files.
+  // SPM-37 EVE-DRF-02-A (partial): API values are restored; UI prefill of every field still needs a test.
+  // SPM-37 EVE-DRF-03: the organiser can list and reopen the saved draft.
   it('lists and reopens all saved values', async () => {
     const id = newId();
     const fields = {
@@ -123,7 +125,8 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       ).body.some((row: { id: string }) => row.id === id),
     ).toBe(true);
   });
-  // AC4/6: an uncertain response can be retried and later saves update the same row.
+  // SPM-37 EVE-DRF-04-A and EVE-DRF-04-B: repeat saves update one row; identical retries are idempotent.
+  // SPM-37 EVE-DRF-05-A, EVE-DRF-05-B, and EVE-DRF-05-C: stale, concurrent, and altered retries preserve data.
   it('retries idempotently and rejects stale concurrent updates', async () => {
     const id = newId(),
       operation = randomUUID();
@@ -157,7 +160,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .fields.name,
     ).toBe('Safe value');
   });
-  // AC8: real submission is atomic, idempotent and permanently closes draft editing.
+  // SPM-37 EVE-DRF-07-A and EVE-DRF-07-B: repeat submission creates one event and locks the draft.
   it('submits once and blocks later draft saves', async () => {
     const id = newId();
     const startDateTime = new Date(Date.now() + 86400000 * 14).toISOString();
@@ -191,7 +194,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT * FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(1);
   });
-  // AC2/8: submission requires complete valid details even though saving does not.
+  // SPM-37 EVE-DRF-07-C: invalid submission rolls back and leaves the draft editable.
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
     await save(id, {}).expect(200);
@@ -233,6 +236,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  // SPM-37 EVE-DRF-02-B: persisted draft data survives an application restart.
   it('Q1-040 data survives a backend restart and a new database connection', async () => {
     const id = newId();
     await save(id, { name: 'Restart evidence', formStep: 2 }).expect(200);
@@ -252,6 +256,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       fields: { name: 'Restart evidence', formStep: 2 },
     });
   });
+  // SPM-37 EVE-DRF-07-B: concurrent submits resolve to the same event and close draft editing.
   it('Q1-041 simultaneous submissions create one event and close the draft', async () => {
     const id = newId();
     await save(id, {
@@ -284,7 +289,8 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .rows[0].event_name,
     ).toBe('Concurrent submit');
   });
-  // Ownership filtering is retained; original AC7 real organisation authentication is explicitly deferred.
+  // SPM-37 EVE-DRF-09-A: another owner's row is hidden from direct read, save, and list.
+  // SPM-37 EVE-DRF-09-B (partial): a second login and forged organiserId still need tests.
   it('does not expose a row belonging to a different server-side owner', async () => {
     const id = newId();
     await db.query(
