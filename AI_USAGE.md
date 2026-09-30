@@ -91,3 +91,4 @@ No open Jira ticket sections currently have entries. Add ongoing work under `## 
 ### 30-09-2026 - Codex - refactor/agent_workflow
 
 - swr prompted test-review workflow feedback: Added per-changed-file unit-test and coverage requirements, separate implementation/test status reporting, and a bounded Agent 5 to Agent 1 repair handoff followed by selective re-review.
+- swr prompted independent coverage verification: Require Agent 2 to run each affected component's coverage command and inspect fresh per-file reports; missing coverage evidence blocks that part of review.

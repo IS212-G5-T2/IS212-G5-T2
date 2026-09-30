@@ -162,6 +162,28 @@ reviewer's output. For each AC and relevant Confluence case:
 7. Report only actionable gaps or defects with concrete evidence. Separate a
    Confluence specification gap from an implementation/test gap.
 
+Before judging changed-file coverage, Agent 2 must run the owning component's
+coverage command itself against the frozen implementation. The implementation
+coverage matrix is a file inventory and comparison aid, not evidence that
+replaces this run. In this repository, run `npm run test:cov` from each
+affected `backend/` or `frontend/` directory; for another component, inspect
+its package scripts and use its established coverage entrypoint. Do not fetch
+Jira or Confluence to do this.
+
+Inspect the fresh command result and its generated per-file report (including
+uncovered lines/branches when present) for every changed runtime-behavior file.
+Record the exact command, pass/fail result, and the per-file statement/line,
+branch, and function percentages in the review. For any claimed exception,
+inspect the uncovered locations and cite why they are generated glue or
+otherwise non-executable; do not accept an implementation summary's
+explanation without independently checking the report. If the command fails,
+coverage output is missing/unreadable, or changed files cannot be mapped to
+the report, mark coverage review `blocked`, state the reason, and do not treat
+Agent 1's numbers or claims as a substitute. Agent 2 may still report other
+findings supported by available evidence. Running the established command may
+create its normal generated coverage output; Agent 2 must not edit source,
+tests, or configuration.
+
 ## Review Finding Format
 
 Use one finding per issue:
@@ -206,7 +228,9 @@ recorded as blocked/not applicable:
 
 Agent 2 review is complete only when each finding follows the format above, or
 the report says `No findings.` Coverage percentages alone never establish
-completion or test adequacy.
+completion or test adequacy. Also record Agent 2's own coverage command and
+result; an unavailable run leaves coverage review blocked even if Agent 1
+provided a coverage matrix.
 
 ## Reference Materials
 

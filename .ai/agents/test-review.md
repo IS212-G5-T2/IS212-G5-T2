@@ -30,6 +30,18 @@ integration/database behavior, error cases, assertions, isolation, fixtures,
 and specification gaps. A feature can be implemented while its test is
 missing; do not collapse those into one status.
 
+Run coverage independently before assessing coverage: execute
+`npm run test:cov` from every affected `backend/` and/or `frontend/` directory
+(or the owning component's established coverage command). Treat Agent 1's
+`implementation/test-coverage.md` as an inventory, not as coverage evidence.
+Inspect the fresh per-file report and uncovered locations yourself, and record
+the commands, results, and changed-file percentages in `reviews/test-review.md`.
+Verify any claimed generated-code exception against those locations. If the
+command or report is unavailable, explicitly mark coverage review blocked and
+explain why; do not pass coverage based on Agent 1's summary. The command may
+write normal generated coverage output only. Do not edit source, tests, or
+configuration.
+
 ## Output
 
 Return a report for `reviews/test-review.md`; the orchestrator persists it

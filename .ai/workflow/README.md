@@ -69,8 +69,15 @@ return mechanism.
    read the snapshot and inspect the relevant diff/source. They do not edit
    implementation files or read each other's findings during this pass. Each
    returns its independently attributable findings, including an explicit “no
-   findings” result when appropriate. The orchestrator persists each report to
-   its designated review file without merging or rewriting it.
+   findings” result when appropriate. Agent 2 independently runs the owning
+   component's coverage command on the frozen implementation (`npm run
+   test:cov` from each affected `backend/` or `frontend/` directory in this
+   repository), then inspects the fresh per-file report. Agent 1's coverage
+   matrix is an inventory, not a substitute for this run. If the command or
+   report is unavailable, Agent 2 marks coverage review blocked. The command
+   may write normal generated coverage output but must not modify source,
+   tests, or configuration. The orchestrator persists each report to its
+   designated review file without merging or rewriting it.
 3. **Reconciliation (Agent 5, medium reasoning):** Read the snapshot, diff,
    status, and all three reviews. Verify findings against the code and stated
    requirements; accept or reject each with a reason. Do not edit source or
@@ -179,6 +186,9 @@ statement/line, branch, and function coverage, supplemental integration tests,
 and separate implementation/test statuses. For type-only files, record why
 runtime coverage does not apply and cite the type/build check. For module
 registration files, cite the consumer/module check used to validate wiring.
+Agent 2 reruns the component coverage command independently and verifies the
+report itself; Agent 1's matrix guides file mapping but does not establish the
+review result.
 
 `status.json` is the lightweight state record. Preserve this shape and update
 it at stage boundaries:
