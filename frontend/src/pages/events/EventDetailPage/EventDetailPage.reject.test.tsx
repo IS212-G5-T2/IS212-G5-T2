@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { EventDetailPage } from "@/pages/EventDetailPage";
+import { EventDetailPage } from "@/pages/events/EventDetailPage/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
 import type { EventRecord, UserRole } from "@/types";
@@ -127,6 +127,8 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
   // EVENT-REJECT-01-B — happy path (submit)

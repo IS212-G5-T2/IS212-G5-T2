@@ -53,10 +53,12 @@ npm run test:watch    # re-run on file changes while developing
 npm run test:cov      # run once with a coverage report
 ```
 
-Test files live alongside the code they cover (for example,
-`src/pages/LoginPage.test.tsx` next to `src/pages/LoginPage.tsx`). Shared test
-helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup,
-`src/test/fixtures/` for reusable test data).
+Route pages are grouped by domain under `src/pages/` (for example,
+`src/pages/events/EventDetailPage/`). Keep each page's implementation, tests,
+and page-only components together. Shared feature behavior belongs under
+`src/features/<feature>/`; shared UI primitives and application chrome remain
+under `src/components/`. Test files live beside the code they cover. Shared
+test setup and reusable fixtures live in `src/test/`.
 
 The standard Vitest command currently loads `vitest.config.ts`, which selects
 `src/**/*.test.tsx`. Any `.test.ts` files are not run by that command. Do not
@@ -121,7 +123,7 @@ In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
 variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
 
-Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
+Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. Page-level tests live in their owning page folders under `src/pages/<domain>/<PageName>/`; browser workflows use `.playwright.spec.ts` beside the page. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
 ## Rejecting requests (SPM-83)
 

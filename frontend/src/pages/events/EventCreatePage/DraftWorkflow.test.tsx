@@ -8,8 +8,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { EventCreatePage } from "./EventCreatePage";
-import { MyRequestsPage } from "./MyRequestsPage";
+import { EventCreatePage } from "@/pages/events/EventCreatePage/EventCreatePage";
+import { MyRequestsPage } from "@/pages/events/MyRequestsPage/MyRequestsPage";
 import { api, ApiError } from "@/utils/api";
 import type { DraftRecord } from "@/types/draft";
 import { useAppStore } from "@/store/useAppStore";

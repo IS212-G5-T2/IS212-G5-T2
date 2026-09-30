@@ -13,8 +13,8 @@ export default mergeConfig(
         enabled: true,
         provider: "v8",
         include: [
-          "src/pages/EventCreatePage.tsx",
-          "src/pages/MyRequestsPage.tsx",
+          "src/pages/events/EventCreatePage/EventCreatePage.tsx",
+          "src/pages/events/MyRequestsPage/MyRequestsPage.tsx",
           "src/utils/api.ts",
         ],
         reporter: ["text", "json", "json-summary", "html"],

@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { LoginPage } from "@/pages/LoginPage";
+import { LoginPage } from "@/pages/account/LoginPage/LoginPage";
 
 interface RenderLoginPageOptions {
   /** Path the user tried to visit before being redirected to /login. */

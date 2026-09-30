@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { EventDetailPage } from "@/pages/EventDetailPage";
+import { EventDetailPage } from "@/pages/events/EventDetailPage/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
 import type { EventRecord } from "@/types";
@@ -288,9 +288,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  // SPM-83 builds the approve/reject decision controls behind the Review Event
-  // entrypoint, replacing the SPM-37 "not available yet" placeholder. Full
-  // coverage of the reject workflow lives in EventDetailPage.reject.test.tsx.
+  // SPM-83 verifies the assigned coordinator can open the review controls without seeing the obsolete placeholder.
   it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
     // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();
@@ -307,7 +305,7 @@ describe("EventDetailPage", () => {
       },
     });
 
-    // Open the event detail page.
+    // Open the event detail page as its assigned coordinator.
     render(
       <MemoryRouter initialEntries={[`/events/${event.id}`]}>
         <Routes>
@@ -316,9 +314,8 @@ describe("EventDetailPage", () => {
       </MemoryRouter>,
     );
 
+    // Review Event is enabled and reveals the current decision controls.
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    // The review entrypoint is present and enabled; clicking it now reveals the
-    // approve/reject decision controls (no more "not available yet" placeholder).
     const reviewButton = screen.getByRole("button", { name: "Review Event" });
     expect(reviewButton).toHaveProperty("disabled", false);
     fireEvent.click(reviewButton);
@@ -383,4 +380,3 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
 });
-

@@ -6,7 +6,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
-import { EventCard } from "@/components/domain/EventCard";
+import { EventCard } from "./EventCard";
 import type { EventStatus } from "@/types";
 
 const statusOptions: { value: string; label: string }[] = [

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Grouped route pages by domain and colocated page tests and page-only UI; moved app-wide event rejection notices into the events feature.
 - Corrected the frontend CI unit-test entrypoint to invoke the configured
   `test:cov` coverage script.
 

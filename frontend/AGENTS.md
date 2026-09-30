@@ -34,17 +34,16 @@ Use feature ownership for new and substantially changed frontend work. Do not ma
 
 | Location | Responsibility |
 | --- | --- |
-| `src/pages/` | Route-level page composition. Keep the page's tests and small page-only pieces colocated. |
+| `src/pages/<domain>/<PageName>/` | Route-level page composition, its page tests, and components/helpers used only by that page. Group routes under domains such as `events/`, `venues/`, `bookings/`, and `equipment/`. |
 | `src/features/<feature>/` | Feature-specific components, hooks, API operations, types, and tests when a feature has enough code to form a clear boundary. Prefer this over growing global buckets for new multi-file features. |
 | `src/components/ui/`, `auth/`, `layout/` | UI primitives and components genuinely shared across routes for presentation, authentication, or application chrome. |
-| `src/components/domain/` | Reusable domain components shared by multiple features. Do not use it as a catch-all for one feature's components. |
 | `src/lib/` | Cross-feature integrations and foundational client logic such as authentication. |
 | `src/utils/api.ts` | Shared HTTP transport, credentials, timeout, and error handling. Feature-specific request functions belong with their feature when they grow beyond a simple call. |
 | `src/store/` | Cross-page or app-wide state in the existing Zustand stores. Keep temporary form/display state local to the component or page. |
 | `src/types/` | Types shared by multiple features or common API contracts. Keep feature-only types inside that feature. |
 | `src/test/` | Shared test setup and fixtures. Keep feature-specific fixtures/helpers beside the feature. |
 
-For a substantial feature, organize related code together, for example `src/features/events/{components,hooks,api,types}` with page-level routes in `src/pages/`. A tiny feature can remain colocated in `pages/` until it needs that boundary. Do not make both a global and feature-local copy of API clients, state, types, or helpers. Avoid moving existing files solely to match the target layout.
+For a substantial feature, keep route entrypoints grouped by domain and put cross-page feature code in `src/features/<feature>/`. For example, event routes live under `src/pages/events/`, while event notifications shared with the app shell live under `src/features/events/`. A page-specific component belongs in that page's folder. Do not restore a global `components/domain/` catch-all or make both a global and feature-local copy of API clients, state, types, or helpers.
 
 ## UI, state, and API guidance
 
@@ -56,8 +55,8 @@ For a substantial feature, organize related code together, for example `src/feat
 
 ## Tests and documentation
 
-- Put unit/component tests beside pages or components as `.test.tsx`. Put browser workflows beside their page as `.playwright.spec.ts`; keep browser specs excluded from Vitest and production compilation.
-- Extend the existing behavior-focused page/component suite when adding coverage for another ticket. Do not create ticket-named test files such as `EventsAccept.test.tsx`; use the established `.test.tsx` suite and identify the Jira key in the test name or nearby case comment.
+- Put unit/component tests beside pages or components as `.test.tsx`, inside the owning page/feature folder. Put browser workflows beside their page as `.playwright.spec.ts`; keep browser specs excluded from Vitest and production compilation.
+- Extend the existing behavior-focused page/component suite when adding coverage for another ticket. Keep any already-established, distinct workflow suites together in their page folder; check for overlap before adding a scenario. Do not create ticket-named test files such as `EventsAccept.test.tsx`; identify the Jira key in the test name or nearby case comment.
 - Use `src/test/setup.ts` and shared fixtures under `src/test/`. Keep fixtures outside production entrypoints.
 - Follow root test naming/comment guidance. Test observable behavior and meaningful failure states; mocked tests do not prove live integration.
 - Add JSDoc to exported components, hooks, functions, and types, plus new or materially changed nontrivial functions. Explain intent and use `@param`, `@returns`, and `@throws` where they clarify the contract; keep the documentation accurate as behavior changes.

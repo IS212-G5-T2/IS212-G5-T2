@@ -3,8 +3,8 @@ import { useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select, TextInput } from "@/components/ui/FormControls";
-import { VenueCard } from "@/components/domain/VenueCard";
-import { SubmitBookingModal } from "@/components/domain/SubmitBookingModal";
+import { VenueCard } from "./VenueCard";
+import { SubmitBookingModal } from "./SubmitBookingModal";
 import { Card, CardBody } from "@/components/ui/Card";
 import type { Venue } from "@/types";
 

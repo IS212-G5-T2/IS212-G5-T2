@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { RejectionNotifications } from "@/components/domain/RejectionNotifications";
+import { RejectionNotifications } from "./RejectionNotifications";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
 import type { Notification } from "@/types";

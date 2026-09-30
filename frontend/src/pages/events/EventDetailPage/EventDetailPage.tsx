@@ -8,7 +8,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
-import { ClarificationThread } from "@/components/domain/ClarificationThread";
+import { ClarificationThread } from "./ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
