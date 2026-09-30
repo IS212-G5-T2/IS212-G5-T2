@@ -1,3 +1,10 @@
+/*
+ * Story: SPM-61 Register for an Event (page level, with the SPM-99 event view).
+ * ACs: AC1 (Register only while open), AC2 (closed/not-yet-open/full states),
+ * AC5 (already registered). Test Case IDs are ASSUMED from the task's matrix
+ * (see docs/specs/SPM-61-test-results.md). Time is frozen per test with
+ * freezeTime; the API is mocked at the boundary.
+ */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -382,13 +389,28 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
     // SPM-61 D7: the control is not rendered at all, rather than disabled.
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
-    if (unavailableEvent.status === "cancelled" || unavailableEvent.status === "completed") {
-      // A future scheduled close is not "Closed on" a date that has not happened.
-      expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
-      expect(
-        screen.getByText(unavailableEvent.status === "cancelled" ? "Cancelled" : "Completed", { selector: "dd" }),
-      ).toBeInTheDocument();
-    }
+  });
+
+  // A cancelled or completed event with a future scheduled close must not claim
+  // "Closed on" a date that has not happened, and shows its own status instead.
+  it.each([
+    ["cancelled", "Cancelled"],
+    ["completed", "Completed"],
+  ] as const)("does not show Closed on for a %s event with a future close", async (status, label) => {
+    const endedEvent = {
+      ...event,
+      status,
+      registrationOpensAt: "2020-10-01T09:00:00.000Z",
+      registrationClosesAt: "2099-10-14T23:59:00.000Z",
+    };
+    apiMock.mockResolvedValue(endedEvent);
+    useAppStore.setState({ events: [endedEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: endedEvent.name });
+    expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
+    expect(screen.getByText(label, { selector: "dd" })).toBeInTheDocument();
   });
 
   // Supplementary boundary path: zero is full, so no negative availability

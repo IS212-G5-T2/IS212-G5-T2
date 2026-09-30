@@ -96,16 +96,29 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
   });
 
   describe('SPM-61: only Confirmed events are visible and registrable to attendees', () => {
-    // Expected: a Confirmed event is listed and accepts a registration; Approved events are hidden.
-    it('lists Confirmed (not Approved) events and accepts registrations only for Confirmed', async () => {
-      const confirmedId = await seedEvent({ status: 'Confirmed' });
-      const approvedId = await seedEvent({ status: 'Approved' });
+    // Expected: a Confirmed event is listed as open and accepts a registration (one row stored).
+    it('lists a Confirmed event and accepts a registration for it', async () => {
+      const id = await seedEvent({ status: 'Confirmed' });
       const { cookie } = await createUser('ATTENDEE');
       const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', cookie).expect(200);
-      expect(list.body.find((e: { id: string }) => e.id === confirmedId)).toMatchObject({ registrationOpen: true });
-      expect(list.body.find((e: { id: string }) => e.id === approvedId)).toBeUndefined();
-      await post(confirmedId, cookie).expect(201);
-      await post(approvedId, cookie).expect(404);
+      expect(list.body.find((e: { id: string }) => e.id === id)).toMatchObject({ registrationOpen: true });
+      await post(id, cookie).expect(201);
+      expect(await rows(id)).toHaveLength(1);
+    });
+    // Expected: an Approved event is absent from the attendee list.
+    it('does not list an Approved event to attendees', async () => {
+      const id = await seedEvent({ status: 'Approved' });
+      const { cookie } = await createUser('ATTENDEE');
+      const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', cookie).expect(200);
+      expect(list.body.find((e: { id: string }) => e.id === id)).toBeUndefined();
+    });
+    // Expected: an Approved event cannot be opened or registered for, and nothing is stored.
+    it('hides an Approved event: detail 404, POST 404, no registration row', async () => {
+      const id = await seedEvent({ status: 'Approved' });
+      const { cookie } = await createUser('ATTENDEE');
+      await request(app.getHttpServer()).get(`/api/events/${id}`).set('Cookie', cookie).expect(404);
+      await post(id, cookie).expect(404);
+      expect(await rows(id)).toHaveLength(0);
     });
     // Expected: the browse list tells each attendee only about their own registration.
     it('reports myRegistrationStatus per attendee in the browse list', async () => {

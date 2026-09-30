@@ -32,12 +32,13 @@ describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants'
   it('is never open for an Approved event', () => {
     expect(isRegistrationOpen({ ...event, status: 'Approved' }, at(1000))).toBe(false);
   });
-  // Disabled or unpublished/finished events are never open.
-  it('is never open when disabled or not Confirmed', () => {
+  // A disabled registration setting is never open, even inside the window.
+  it('is never open when registration is disabled', () => {
     expect(isRegistrationOpen({ ...event, registrationEnabled: false }, at(1000))).toBe(false);
-    for (const status of ['Approved', 'Submitted', 'Rejected', 'Completed', 'Cancelled']) {
-      expect(isRegistrationOpen({ ...event, status }, at(1000))).toBe(false);
-    }
+  });
+  // Every non-Confirmed status is closed, even inside the window (one case each).
+  it.each(['Submitted', 'Rejected', 'Completed', 'Cancelled'])('is never open for a %s event', (status) => {
+    expect(isRegistrationOpen({ ...event, status }, at(1000))).toBe(false);
   });
   // A missing bound is treated as unbounded on that side.
   it('treats a missing bound as unbounded', () => {
