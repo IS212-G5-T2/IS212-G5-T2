@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "./ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
-import { attendeeEventStatus, registrationState, registrationStateLabel } from "./EventView";
+import { attendeeEventStatus, registrationState, registrationStateLabel } from "@/pages/EventView";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 

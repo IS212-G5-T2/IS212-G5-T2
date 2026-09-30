@@ -124,3 +124,4 @@ Unarchived ticket history stays here. Add ongoing work under `## SPM-<id>`.
 - swr prompted frontend/backend organization refactor: Grouped frontend route files and page-only UI by domain/page; grouped backend features by responsibility, with top-level authentication/authorization and feature-local clarifications DTOs/models/repositories; removed confirmed duplicate test cases and updated component guidance.
 - swr prompted backend refactor follow-up: Kept the draft PostgreSQL E2E suite beside its module and corrected authentication guidance to match the implemented session-cookie middleware.
 - swr prompted frontend coverage preservation: Restored the coordinator review-controls test in its page suite after confirming it had assertions beyond the overlapping SPM-83 test.
+- swr prompted frontend test repair: Fixed EventDetailPage imports, merged the three distinct SPM-40 approval cases into its existing suite, and verified all 238 frontend tests pass.

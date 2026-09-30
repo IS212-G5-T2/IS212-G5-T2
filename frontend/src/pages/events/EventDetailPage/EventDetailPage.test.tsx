@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/events/EventDetailPage/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
-import type { EventRecord } from "@/types";
+import type { EventRecord, UserRole } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -13,7 +13,7 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
-function assignedEvent(): EventRecord {
+function assignedEvent(overrides: Partial<EventRecord> = {}): EventRecord {
   const start = new Date();
   start.setDate(start.getDate() + 7);
   start.setHours(18, 0, 0, 0);
@@ -53,7 +53,27 @@ function assignedEvent(): EventRecord {
     changeRequests: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
+    ...overrides,
   };
+}
+
+function setUser(role: UserRole, id = "coordinator-1") {
+  useAppStore.setState({
+    currentUser: { id, name: "Test User", email: "user@example.test", role },
+  });
+}
+
+function renderDetail(event: EventRecord) {
+  apiMock.mockImplementation((path: string) =>
+    Promise.resolve(String(path).includes("/comments") ? [] : event),
+  );
+  return render(
+    <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+      <Routes>
+        <Route path="/events/:id" element={<EventDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
 }
 
 afterEach(() => {
@@ -324,6 +344,63 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("radio", { name: "Reject" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
+  });
+
+  // SPM-40 EVENT-APPROVE-01-B: the assigned coordinator can submit approval without a reason.
+  it("submits an approval and fires the approve request without asking for a reason", async () => {
+    // Load an event assigned to the signed-in coordinator.
+    const event = assignedEvent();
+    renderDetail(event);
+
+    // Open the review controls and choose Approve.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+    fireEvent.click(screen.getByRole("radio", { name: /approve/i }));
+
+    // Approval has no reason field and sends the approve request when submitted.
+    expect(screen.queryByRole("textbox", { name: /reason/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Decision" }));
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("/approve"))).toBe(true);
+  });
+
+  // SPM-40 EVENT-APPROVE-01-C: only the assigned coordinator receives review controls.
+  it("shows the Approve controls only to the assigned coordinator", async () => {
+    // An unassigned coordinator cannot open the review workflow.
+    setUser("coordinator", "coordinator-2");
+    renderDetail(assignedEvent());
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    cleanup();
+
+    // The organiser can view the event but cannot make a decision.
+    setUser("organiser", "organiser-9");
+    renderDetail(assignedEvent({ organiserId: "organiser-9" }));
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
+    cleanup();
+
+    // The assigned coordinator can open the approval option.
+    setUser("coordinator", "coordinator-1");
+    renderDetail(assignedEvent());
+    fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+    expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
+  });
+
+  // SPM-40 EVENT-APPROVE-04-C: an approved event cannot expose controls to reverse its decision.
+  it("hides the approve controls once the event is approved", async () => {
+    // Load the approved event as its assigned coordinator.
+    setUser("coordinator", "coordinator-1");
+    renderDetail(assignedEvent({ status: "approved" }));
+
+    // The approved event has no review entrypoint or Approve option.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
+    cleanup();
+
+    // Submitted events still allow review.
+    renderDetail(assignedEvent({ status: "submitted" }));
+    expect(await screen.findByRole("button", { name: "Review Event" })).toBeTruthy();
   });
 
   it("restricts venue staff from accessing unapproved submitted requests", async () => {
