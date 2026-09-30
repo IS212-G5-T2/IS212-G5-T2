@@ -1,6 +1,7 @@
 ---
 name: code-quality-review
 description: Independently review changed code for focused maintainability issues.
+effort: low
 tools:
   - Read
   - Grep

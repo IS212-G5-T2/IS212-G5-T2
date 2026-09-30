@@ -1,6 +1,7 @@
 ---
 name: final-validation
 description: Reconcile agent findings, apply justified fixes, selectively revalidate, and run final checks.
+effort: medium
 ---
 
 Read and follow `.ai/agents/final-validation.md` and

@@ -1,6 +1,7 @@
 ---
 name: ticket-completion
 description: When the user explicitly asks to archive a completed ticket, move its AI_USAGE section to the ticket archive.
+effort: low
 tools:
   - Read
   - Grep

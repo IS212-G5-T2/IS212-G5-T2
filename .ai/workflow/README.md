@@ -12,9 +12,13 @@ runtime-specific registrations under `.codex/agents/` and `.claude/agents/`.
 `opencode.json` only configures OpenCode permissions; it does not register
 agents. Use the active platform's native task launcher. Codex supports project
 agent roles with TOML configuration; this repository registers those roles in
-`.codex/config.toml`, with each registration loading `.codex/agents/{role}.toml`
-([Codex configuration reference](https://developers.openai.com/codex/config-reference/)).
-Claude Code uses its native Markdown agent files.
+`.codex/config.toml`, with each registration loading `.codex/agents/{role}.toml`.
+Codex role TOMLs set `model_reasoning_effort`. Claude Code uses native Markdown
+agent files with the matching `effort` frontmatter field ([Codex configuration](https://developers.openai.com/codex/config-reference/), [Claude Code subagents](https://code.claude.com/docs/en/sub-agents)).
+Keep both runtime adapters aligned with the logical role levels in the role
+table below. Prompt text that says “Reasoning: high/medium/low” is descriptive
+fallback guidance, not a substitute for native configuration when that runtime
+supports it.
 
 Codex loads project configuration only when the repository is trusted. The
 native files register roles and set role-level reasoning/sandbox defaults; they
@@ -24,6 +28,14 @@ Treat the root orchestrator as logical Agent 5: it dispatches Agent 1, starts
 Agents 2–4 after implementation, then reconciles and validates. Do not spawn a
 separate Agent 5 worker in the normal path; that would add a handoff without
 adding an independent review.
+
+Agent 5's `medium` level is a logical target. Because Agent 5 runs in the
+already-active root session, its actual effort is inherited from that session;
+the `final-validation` adapter setting applies only if that worker is explicitly
+launched. When the runtime supports per-task effort selection, use medium for
+Agent 5. Otherwise follow the medium-scope role instructions and record the
+runtime limitation if relevant. This keeps orchestration lightweight while
+making the one non-enforced level explicit.
 
 The Codex CLI adapter registers role TOMLs in `.codex/config.toml`. The active
 Codex task interface in this environment also provides native `spawn_agent` and
@@ -124,6 +136,15 @@ assumptions. Preserve source language for acceptance criteria; normalize only
 to make requirements concise. If Confluence is missing, record the search and
 limitation, then continue from Jira requirements if they are sufficient.
 
+## Test design and review contract
+
+`.ai/workflow/test-design-protocol.md` is the operational test-design and
+review contract. Agent 1 and Agent 2 must follow its input contract, ordered
+steps, scenario-selection table, finding schema, and completion checks. The
+root test-generation prompt, rationale, usage guide, and Week 4 and Week 6 PDFs
+are reference material; consult only the relevant section when the protocol
+leaves a method unclear.
+
 `traceability.md` maps each requirement to a real Confluence case (if present),
 automated test, and implementation location. Use “none identified” for missing
 links; never invent case IDs or coverage. Reviewer reports use one entry per
@@ -159,11 +180,15 @@ rather than duplicating it in JSON.
 
 ## Role contracts
 
-Every canonical role prompt is in `.ai/agents/`. The orchestrator passes the
-relevant role prompt, ticket runtime path, and explicit output path to the
-native task launcher. Codex review roles use a read-only sandbox and return
-findings for the orchestrator to persist. Implementer owns changes before the
-first review; final validator owns post-review fixes and final validation.
+Every canonical role prompt is in `.ai/agents/`. Keep all role prompts in the
+same section order so any runtime can parse them consistently:
+`Role` → `Trigger` → `Required Context` → `Procedure` → `Output` →
+`Boundaries`. A section may say `Not applicable`, but do not silently omit it.
+The orchestrator passes the relevant role prompt, ticket runtime path, and
+explicit output path to the native task launcher. Codex review roles use a
+read-only sandbox and return findings for the orchestrator to persist.
+Implementer owns changes before the first review; final validator owns
+post-review fixes and final validation.
 
 | Role | Focus | Inputs | Output |
 | --- | --- | --- | --- |

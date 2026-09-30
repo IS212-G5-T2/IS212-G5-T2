@@ -1,6 +1,7 @@
 ---
 name: requirements-review
 description: Independently check implementation behavior against Jira requirements.
+effort: low
 tools:
   - Read
   - Grep

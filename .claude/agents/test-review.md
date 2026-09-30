@@ -1,6 +1,7 @@
 ---
 name: test-review
 description: Independently review test coverage and Confluence test-spec gaps.
+effort: high
 tools:
   - Read
   - Grep

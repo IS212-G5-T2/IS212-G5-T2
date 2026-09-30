@@ -1,6 +1,7 @@
 ---
 name: implementation
 description: Implement a Jira ticket end-to-end, including tests and initial checks.
+effort: high
 ---
 
 Read and follow the shared role contract at `.ai/agents/implementation.md` and

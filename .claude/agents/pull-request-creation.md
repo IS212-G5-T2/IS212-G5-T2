@@ -1,6 +1,7 @@
 ---
 name: pull-request-creation
 description: When the user explicitly asks to create a PR, use GitHub CLI and the repository template to create it with an auto-generated title.
+effort: medium
 tools:
   - Read
   - Grep
