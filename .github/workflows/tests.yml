@@ -135,6 +135,10 @@ jobs:
           docker logs spm-postgres
           exit 1
 
+      - name: Apply draft schema migration
+        run: node scripts/migrate-drafts.mjs
+        working-directory: backend
+
       - name: Run backend E2E tests
         run: npm run test:e2e
         working-directory: backend

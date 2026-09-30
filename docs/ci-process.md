@@ -5,7 +5,12 @@ This repository uses root-level GitHub Actions workflows to orchestrate checks f
 ## Workflow Files
 
 - `.github/workflows/security.yml`: security scanning for application and service code.
-- `.github/workflows/tests.yml`: unit-test orchestration for implemented apps and services.
+- `.github/workflows/tests.yml`: unit-test orchestration for implemented apps and services, plus backend E2E tests.
+
+The backend E2E job in `tests.yml` starts a fresh PostgreSQL container, applies
+the backend-owned draft migration, and then runs the backend E2E suites. The
+standalone database image contains the base schema and seed data; Docker Compose
+mounts the draft migration separately for local fresh databases.
 
 ## Branch Flow
 
