@@ -14,7 +14,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "cd .. && backend/node_modules/.bin/oxlint backend/src/ backend/test/ tests/backend/",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage && node ../scripts/ci/verify-new-source-coverage.mjs",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",

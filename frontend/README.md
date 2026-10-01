@@ -42,8 +42,8 @@ No deployment command is configured for this repository.
 ## Testing
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
-GitHub Actions is configured to run the suite with coverage through
-`scripts/ci/unit-test.sh`. The coverage configuration declares thresholds for
+GitHub Actions runs this package's `npm test` through the root
+`scripts/ci/unit-test.sh`, in parallel with the backend suite. The coverage configuration declares thresholds for
 the SPM-30 login page, Firebase-role mapper, and access guards; the thresholds
 are meaningful only when the selected suite passes and includes those tests.
 
@@ -123,7 +123,7 @@ In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
 variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
 
-Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. Page-level tests live in their owning page folders under `src/pages/<domain>/<PageName>/`; browser workflows use `.playwright.spec.ts` beside the page. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
+Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. Page-level tests live in their owning page folders under `src/pages/<domain>/<PageName>/`; browser workflows use `.playwright.spec.ts` beside the page. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes the root `../scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
 ## Rejecting requests (SPM-83)
 

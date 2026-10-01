@@ -117,15 +117,18 @@ Before final delivery or pull request handoff:
 Root GitHub Actions workflows orchestrate CI checks for the monorepo:
 
 - `.github/workflows/security.yml` runs security scanning.
-- `.github/workflows/tests.yml` discovers and runs implemented component unit-test entrypoints.
+- `.github/workflows/tests.yml` runs the root frontend/backend unit-test entrypoint.
 
-Implemented apps and services own their local unit-test command in:
+The current frontend/backend monorepo unit suites are orchestrated by the root
+entrypoint:
 
 ```text
-<component>/scripts/ci/unit-test.sh
+scripts/ci/unit-test.sh
 ```
 
-The root tests workflow should stay generic. Do not hard-code a component's runtime-specific test command into `.github/workflows/tests.yml`; put that command in the component's script.
+It runs each component from its own directory in parallel. Keep the component's
+actual test command in its package configuration and update the root entrypoint
+when a CI-owned component is added.
 
 ## Test Organization and Naming
 

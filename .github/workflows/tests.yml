@@ -26,68 +26,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Run component unit test entrypoints
+      - name: Run frontend and backend unit tests
         shell: bash
         run: |
-          set -eu
-
-          collect_failure_diagnostics() {
-            local component_dir="$1"
-            local npm_log_dir="${NPM_CONFIG_CACHE:-$HOME/.npm}/_logs"
-            local artifact_dir="$GITHUB_WORKSPACE/ci-diagnostics/$component_dir"
-
-            mkdir -p "$artifact_dir"
-            {
-              echo "Git commit: $(git rev-parse HEAD)"
-              echo "Node version: $(node --version)"
-              echo "npm version: $(npm --version)"
-              echo "legacy-peer-deps: $(npm config get legacy-peer-deps)"
-              echo "strict-peer-deps: $(npm config get strict-peer-deps)"
-              echo "Dependency files:"
-              sha256sum "$component_dir/package.json" "$component_dir/package-lock.json"
-            } > "$artifact_dir/dependency-state.txt"
-
-            if [ -d "$npm_log_dir" ]; then
-              find "$npm_log_dir" -type f -name '*-debug-*.log' -exec cp {} "$artifact_dir/" \;
-            fi
-          }
-
-          entrypoints="$(
-            find . \
-              \( -path './.git' -o -path '*/node_modules' \) -prune -o \
-              -path '*/scripts/ci/unit-test.sh' -type f -print | sort
-          )"
-
-          if [ -z "$entrypoints" ]; then
-            echo "No component unit-test entrypoints found."
-            echo "Add scripts/ci/unit-test.sh under an implemented app or service when tests exist."
-            exit 0
-          fi
-
-          for entrypoint in $entrypoints; do
-            component_dir="$(dirname "$(dirname "$(dirname "$entrypoint")")")"
-
-            if [ ! -x "$entrypoint" ]; then
-              echo "CI unit test entrypoint is not executable: $entrypoint"
-              echo "Run: chmod +x $entrypoint"
-              exit 1
-            fi
-
-            echo "Running unit tests for $component_dir"
-            set +e
-            (
-              cd "$component_dir"
-              GITHUB_BASE_SHA="${{ github.event.pull_request.base.sha }}" ./scripts/ci/unit-test.sh
-            )
-            status=$?
-            set -e
-
-            if [ "$status" -ne 0 ]; then
-              echo "Unit tests failed for $component_dir with exit code $status"
-              collect_failure_diagnostics "$component_dir"
-              exit "$status"
-            fi
-          done
+          ./scripts/ci/unit-test.sh
 
   backend-e2e-tests:
     name: Backend E2E Tests
@@ -152,11 +94,3 @@ jobs:
       - name: Remove PostgreSQL test container
         if: always()
         run: docker rm -f spm-postgres || true
-      - name: Upload npm diagnostics
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-debug-logs-${{ github.run_id }}
-          path: ci-diagnostics/
-          if-no-files-found: warn
-          retention-days: 7

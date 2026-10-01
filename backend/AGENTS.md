@@ -27,7 +27,7 @@ For Jira work, follow [`.ai/workflow/README.md`](../.ai/workflow/README.md) and 
   npm run build
   ```
 
-- CI unit-test entrypoint: [`scripts/ci/unit-test.sh`](scripts/ci/unit-test.sh).
+- CI unit tests are run by the root [`scripts/ci/unit-test.sh`](../scripts/ci/unit-test.sh) entrypoint; this package owns the `npm test` command it invokes.
 - Database/API integration tests use their dedicated test configuration and isolated test data. Record environment limits instead of claiming a skipped check passed.
 
 ## Backend file responsibilities

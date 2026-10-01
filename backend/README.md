@@ -108,8 +108,9 @@ npm run test:e2e
 npm run build
 ```
 
-The monorepo test workflow runs `scripts/ci/unit-test.sh`, which delegates to
-`npm run test:cov` and writes a local V8 coverage report to `coverage/`.
+The monorepo test workflow runs the root `scripts/ci/unit-test.sh`, which
+installs this package and invokes `npm test` in parallel with the frontend
+suite. `npm test` writes this package's local V8 coverage report to `coverage/`.
 
 ## Branch Flow
 

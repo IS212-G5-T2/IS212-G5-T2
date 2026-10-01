@@ -18,9 +18,9 @@ across pages belongs under `src/features/` or the appropriate shared
 My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
-- The repository test workflow discovers `scripts/ci/unit-test.sh`; this
-  frontend entrypoint installs dependencies and runs `npm run test:cov`.
-  Keep the command and the CI workflow aligned.
+- The repository test workflow invokes the root `scripts/ci/unit-test.sh`;
+  it installs frontend dependencies and runs `npm test` in parallel with the
+  backend suite. Keep the package command and root entrypoint aligned.
 
 ## Testing
 
@@ -40,7 +40,8 @@ My Events and My drafts rely on backend Firebase UID ownership. API requests car
   to supported application roles. The merged mock-profile switcher in `TopNav`
   is not compatible with real Firebase authorization and must not be treated as
   an authorization mechanism.
-- `scripts/ci/unit-test.sh` installs dependencies and runs the Vitest component interaction tests.
+- The root `../scripts/ci/unit-test.sh` installs dependencies and runs this
+  package's Vitest component interaction tests in parallel with the backend.
 
 ## Event requests
 

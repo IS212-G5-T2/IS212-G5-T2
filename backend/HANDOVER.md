@@ -52,7 +52,8 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
   of hardening that endpoint.
 - Keep account role values aligned with the RBAC seed values: `ORGANISER`,
   `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
-- Keep exactly one CI unit-test entrypoint at `scripts/ci/unit-test.sh`.
+- Keep exactly one CI unit-test entrypoint at the repository root:
+  `../scripts/ci/unit-test.sh`.
 - Review the npm audit output from adding Firebase Admin/PostgreSQL dependencies before release hardening.
 - No deployment path is configured in this repository.
 

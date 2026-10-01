@@ -119,6 +119,7 @@ Unarchived ticket history stays here. Add ongoing work under `## SPM-<id>`.
 
 ### 30-09-2026 - Codex - refactor/agent_workflow
 
+- swr prompted CI simplification: Replaced dynamic component-script discovery and custom diagnostics with root `scripts/ci/unit-test.sh`, which runs backend and frontend installs/tests concurrently from their own directories. Removed the obsolete component scripts at the user's request and updated CI/component guidance. Checks: shell syntax, workflow diff, `git diff --check`, and root runner (backend 447 tests; frontend 238 tests) passed.
 - swr prompted test-review workflow feedback: Added per-changed-file unit-test and coverage requirements, separate implementation/test status reporting, and a bounded Agent 5 to Agent 1 repair handoff followed by selective re-review.
 - swr prompted independent coverage verification: Require Agent 2 to run each affected component's coverage command and inspect fresh per-file reports; missing coverage evidence blocks that part of review.
 - swr prompted frontend/backend organization refactor: Grouped frontend route files and page-only UI by domain/page; grouped backend features by responsibility, with top-level authentication/authorization and feature-local clarifications DTOs/models/repositories; removed confirmed duplicate test cases and updated component guidance.

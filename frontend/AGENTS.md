@@ -25,7 +25,7 @@ For Jira work, follow [`.ai/workflow/README.md`](../.ai/workflow/README.md) and 
   npm run build
   ```
 
-- CI unit-test entrypoint: [`scripts/ci/unit-test.sh`](scripts/ci/unit-test.sh). Vitest uses jsdom and React Testing Library; Playwright specs are separate from Vitest and the production TypeScript build.
+- CI unit tests are run by the root [`scripts/ci/unit-test.sh`](../scripts/ci/unit-test.sh) entrypoint; this package owns the `npm test` command it invokes. Vitest uses jsdom and React Testing Library; Playwright specs are separate from Vitest and the production TypeScript build.
 - Backend tests do not verify browser behavior. Report browser, Firebase, or API integration checks that could not be run.
 
 ## Target source organization
