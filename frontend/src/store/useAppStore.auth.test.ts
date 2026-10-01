@@ -14,8 +14,8 @@ const mockLogout = vi.mocked(logout);
 const mockRestoreSession = vi.mocked(restoreSession);
 const placeholder = { id: "current-user", name: "Current User", email: "", role: "attendee" as const };
 const multiRoleUser: User = {
-  id: "user-1", name: "Org Coordinator", email: "organiser_coordinator@connectsphere.test",
-  role: "organiser", roles: ["organiser", "coordinator"],
+  id: "user-1", name: "Coor_Venue", email: "coordinator_venuestaff@connectsphere.test",
+  role: "coordinator", roles: ["coordinator", "venue_staff"],
 };
 
 beforeEach(() => {
@@ -28,10 +28,10 @@ describe("useAppStore authentication", () => {
   it("signs in and retains every assigned role", async () => {
     mockLogin.mockResolvedValueOnce(multiRoleUser);
 
-    await expect(useAppStore.getState().login(" organiser_coordinator@connectsphere.test ", "P@55w0rd"))
+    await expect(useAppStore.getState().login(" coordinator_venuestaff@connectsphere.test ", "P@55w0rd"))
       .resolves.toEqual({ success: true });
 
-    expect(mockLogin).toHaveBeenCalledWith("organiser_coordinator@connectsphere.test", "P@55w0rd");
+    expect(mockLogin).toHaveBeenCalledWith("coordinator_venuestaff@connectsphere.test", "P@55w0rd");
     expect(useAppStore.getState()).toMatchObject({
       currentUser: multiRoleUser, isAuthenticated: true, authLoading: false,
     });

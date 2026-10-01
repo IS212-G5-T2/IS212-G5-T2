@@ -167,12 +167,12 @@ describe("restricted organiser routes", () => {
   // A secondary server-granted role authorizes the route even when it is not the display role.
   it("allows a multi-role user through a route granted by its secondary role", () => {
     useAppStore.setState({
-      currentUser: { ...organiser, roles: ["organiser", "coordinator"] },
+      currentUser: { ...coordinator, role: "venue_staff", roles: ["venue_staff", "coordinator"] },
     });
 
-    renderRoutes("/bookings");
+    renderRoutes("/equipment");
 
-    expect(screen.getByText("Bookings")).toBeInTheDocument();
+    expect(screen.getByText("Equipment")).toBeInTheDocument();
   });
 
   it("redirects an attendee who directly opens an organiser-only route", () => {

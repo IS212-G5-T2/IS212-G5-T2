@@ -110,10 +110,16 @@ The event, draft, clarification, and rejection routes are protected by Firebase 
 
 For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
-SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
+SPM-38's verified ownership and coordinator scoping remain in force; SPM-123 replaced its round-robin assignment with workload balancing. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
 
 ## Approval integration (SPM-40)
 
 `POST /api/events/:id/approve` is protected by the same authentication middleware as the rejection endpoint. Only the verified Coordinator assigned to a `Submitted` request can approve it. The service locks the event row, rejects every non-`Submitted` state with 409, changes the status to `Approved`, and inserts an organiser-addressed `approval` notification in one transaction. This Submitted-only transition is the server-side guard preventing an approved request from returning to an earlier state.
 
 The organiser decision feed now returns both `approval` and `rejection` notifications, scoped by verified organiser UID; read-state updates use the same recipient boundary. Approval does not require a reason and does not change the rejection-reason schema.
+
+## Coordinator assignment (SPM-123)
+
+`src/events/coordinator-assignment.ts` chooses who gets a new request; `EventsService.autoAssignCoordinator` applies it inside the submission transaction. The choice is the active coordinator (COORDINATOR role, `users.is_active` true) with the fewest active requests, where active means assigned and not in `TERMINAL_STATUSES` (currently only `Rejected`; add future terminal statuses there). Ties go to the least recently assigned (the newest `created_at` among a coordinator's assigned events, since auto-assignment happens when the event is created), then to email order. A transaction-scoped advisory lock serialises the decision so concurrent submissions cannot both pick the same coordinator. The assignment and a `coordinator_assignment` notification commit together. With no active coordinator the event is saved unassigned. Approving or rejecting a request leaves the coordinator assigned.
+
+Known limits: coordinator availability is out of scope and belongs to SPM-80, which should add its filter in `getEligibleCoordinators`; the manual `POST /api/events/:id/assign` override sends no notification, and because it does not change `created_at` it does not move the reassigned coordinator's last-assigned time.

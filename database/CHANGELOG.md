@@ -4,6 +4,37 @@ This records the evolution of the local PostgreSQL initializer. The two files
 under `postgresql/init/` intentionally describe only the final fresh-volume
 state; existing databases must use backend migrations for upgrades.
 
+## 2026-10-01 - Sample events owned by real accounts (SPM-123 branch)
+
+- The five sample events in `002_seed_data.sql` used placeholder people
+  (`current-user` as organiser, `coordinator1`/`coordinator2` as text
+  coordinator ids), so no real account could see them. They now belong to
+  `organiser1@connectsphere.test` and are assigned to `coordinator1` (Welcome
+  Evening, Alumni Night), `coordinator2` (Innovation Expo, Sports Day) and
+  `coordinator3` (Arts Workshop), looked up by email.
+- Re-running the seed now updates only those organiser/coordinator columns on
+  existing sample rows, so it fixes older volumes without touching status or
+  other local edits.
+
+## 2026-10-01 - Coordinator + Venue Staff account roles (SPM-123 branch)
+
+- `002_seed_data.sql` now gives COORDINATOR and VENUE_STAFF to
+  `coordinator_venuestaff@connectsphere.test` ("Coor_Venue"). The roles were
+  still pointed at the old `organiser_coordinator@connectsphere.test` email,
+  so a fresh volume created Coor_Venue with no roles.
+- Organiser + Coordinator is not a valid role combination. Volumes created
+  before 2026-09-22 may still hold the old `organiser_coordinator` ("Org_Coor")
+  account; remove it, then re-run the seed to restore Coor_Venue's roles:
+
+  ```sql
+  DELETE FROM notifications
+   WHERE recipient_id = (SELECT id::text FROM users WHERE email = 'organiser_coordinator@connectsphere.test');
+  DELETE FROM users WHERE email = 'organiser_coordinator@connectsphere.test';
+  ```
+
+  Any requests it was assigned as coordinator must be reassigned or deleted
+  first.
+
 ## 2026-09-22 - Two-file initializer consolidation
 
 - Combined every extension, table, column, constraint, and index into

@@ -66,7 +66,7 @@ The expected counts are 5 roles, 10 resources, and 27 role permission rows.
 ## Local login data
 
 `001_schema.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
-session storage; `002_seed_data.sql` seeds one development-only account per role. Each seed
+session storage; `002_seed_data.sql` seeds development-only accounts for every role. Each seed
 account uses password `P@55w0rd`:
 
 | Role | Email |
@@ -76,6 +76,11 @@ account uses password `P@55w0rd`:
 | Venue Staff | `venue_staff1@connectsphere.test` |
 | Tech Support | `tech_support1@connectsphere.test` |
 | Attendee | `attendee1@connectsphere.test` |
+| Coordinator + Venue Staff | `coordinator_venuestaff@connectsphere.test` |
+
+Accounts 2 and 3 of each role (e.g. `organiser2@connectsphere.test`) are also
+seeded. `coordinator_venuestaff` is the one multi-role account. No account may
+hold both Organiser and Coordinator.
 
 These values are intentionally local-only and must never be reused outside the
 development database. Passwords are stored as bcrypt hashes; session tokens are
@@ -99,8 +104,11 @@ docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm
 ## Events sample database
 
 The local `spm` PostgreSQL database stores requests in `events`. The complete
-schema is in `001_schema.sql` and the fictional Submitted event is part of
-`002_seed_data.sql`. Records persist in Docker's `postgres-data` volume.
+schema is in `001_schema.sql` and five fictional sample events (Submitted,
+Approved, Rejected and two Confirmed) are part of `002_seed_data.sql`. They are
+all organised by `organiser1@connectsphere.test` and assigned to real seeded
+coordinators (`coordinator1` to `coordinator3`), so signing in as those accounts
+shows them. Records persist in Docker's `postgres-data` volume.
 Dates/times use `timestamptz`; the API/browser handles local-time display.
 
 The two files create a fresh database only. For an existing volume, use the

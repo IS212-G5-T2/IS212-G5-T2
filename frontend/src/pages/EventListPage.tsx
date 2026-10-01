@@ -62,6 +62,8 @@ export function EventListPage() {
       ? "My Events"
       : currentUser.role === "attendee"
       ? "Browse Events"
+      : currentUser.role === "coordinator"
+      ? "My Assigned Requests"
       : statusFilter === "submitted"
         ? "Pending Requests"
         : "All Events";
@@ -72,7 +74,7 @@ export function EventListPage() {
         title={isPlanning ? "Event Planning" : title}
         description={
           currentUser.role === "coordinator"
-            ? "Review submissions, track statuses, and manage every event in the pipeline."
+            ? "Requests assigned to you. Pending ones show first; use the status filter to see approved and rejected requests, which stay assigned to you."
             : undefined
         }
         actions={
