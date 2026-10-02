@@ -10,7 +10,8 @@ import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
-import { attendeeEventStatus, registrationState, registrationStateLabel } from "./EventView";
+import { attendeeEventStatus } from "./EventView";
+import { RegistrationSection } from "@/components/EventDetail/RegistrationSection";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
@@ -70,8 +71,13 @@ export function EventDetailPage() {
   const submitEvent = useAppStore((s) => s.submitEvent);
   const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
-  const registerForEvent = useAppStore((s) => s.registerForEvent);
-  const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
+  const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+
+  // SPM-61 AC5: the server is the source of truth for "already registered".
+  useEffect(() => {
+    if (currentUser.role !== "attendee" || !id) return;
+    loadMyRegistration(id).catch(() => undefined);
+  }, [id, currentUser.role, loadMyRegistration]);
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
@@ -137,11 +143,8 @@ export function EventDetailPage() {
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
 
   const myRegistration = registrations.find(
-    (r) => r.eventId === event.id && r.attendeeId === currentUser.id
+    (r) => r.eventId === event.id && r.attendeeId === currentUser.id && r.status === "registered"
   );
-  const now = new Date();
-  const attendeeRegistrationState = registrationState(event, now);
-  const canRegister = attendeeRegistrationState === "open";
   // Registration is attendee-facing only after an organiser has configured
   // both boundaries; an incomplete period is not useful information to show.
   const hasRegistrationPeriod = Boolean(
@@ -217,29 +220,33 @@ export function EventDetailPage() {
         }
       />
 
-      {!statusFlow.includes(event.status) ? (
-        <div className="mb-6">
-          <StatusBadge status={event.status} />
-        </div>
-      ) : (
-        <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
-          {statusFlow.map((s, i) => (
-            <li key={s} className="flex items-center gap-2">
-              <span
-                className={`rounded-full px-2.5 py-1 font-medium ${
-                  isRejected && s === "rejected"
-                    ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
-                    : i <= currentStepIndex
-                      ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
-                }`}
-              >
-                {s.replace("_", " ")}
-              </span>
-              {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
-            </li>
-          ))}
-        </ol>
+      {(isOwner || isAssignedCoordinator) && (
+        <>
+          {!statusFlow.includes(event.status) ? (
+            <div className="mb-6">
+              <StatusBadge status={event.status} />
+            </div>
+          ) : (
+            <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
+              {statusFlow.map((s, i) => (
+                <li key={s} className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-medium ${
+                      isRejected && s === "rejected"
+                        ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                        : i <= currentStepIndex
+                          ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                    }`}
+                  >
+                    {s.replace("_", " ")}
+                  </span>
+                  {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
       )}
 
       {showReviewControls && isAssignedCoordinator && event.status === "submitted" && (
@@ -379,7 +386,7 @@ export function EventDetailPage() {
               {currentUser.role === "attendee" && (
                 <div>
                   <dt className="text-gray-400 dark:text-gray-500">Event status</dt>
-                  <dd className="font-medium text-gray-800 dark:text-gray-200">{attendeeEventStatus(event, now)}</dd>
+                  <dd className="font-medium text-gray-800 dark:text-gray-200">{attendeeEventStatus(event, new Date())}</dd>
                 </div>
               )}
               <div>
@@ -464,56 +471,7 @@ export function EventDetailPage() {
         </Card>
 
         {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>
-            </CardHeader>
-            {!event.registrationEnabled ? (
-              <CardBody className="text-sm text-gray-600 dark:text-gray-400">
-                Registration through the website is not enabled for this event.
-              </CardBody>
-            ) : (
-              <CardBody className="space-y-3">
-                <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Registration opens</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.registrationOpensAt ? formatDateTime(event.registrationOpensAt) : "Not specified"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Registration closes</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.registrationClosesAt ? formatDateTime(event.registrationClosesAt) : "Not specified"}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-400 dark:text-gray-500">Available registration spots</dt>
-                    <dd className="font-medium text-gray-800 dark:text-gray-200">{event.availableRegistrationSpots ?? event.expectedAttendance}</dd>
-                  </div>
-                </dl>
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-100" role="status">
-                  {registrationStateLabel(attendeeRegistrationState)}
-                </p>
-                {myRegistration?.status !== "registered" && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Please sign up through the website first to attend this event.
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Status:{" "}
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {myRegistration?.status === "registered" ? "You're registered" : "Not registered"}
-                    </span>
-                  </p>
-                  {myRegistration?.status === "registered" ? (
-                    <Button variant="secondary" onClick={() => withdrawRegistration(event.id)}>
-                      Withdraw Registration
-                    </Button>
-                  ) : (
-                    <Button disabled={!canRegister} onClick={() => registerForEvent(event.id)}>Register</Button>
-                  )}
-                </div>
-              </CardBody>
-            )}
-          </Card>
+          <RegistrationSection event={event} currentUser={currentUser} registration={myRegistration} />
         )}
 
         {(isOwner || isAssignedCoordinator) && (
