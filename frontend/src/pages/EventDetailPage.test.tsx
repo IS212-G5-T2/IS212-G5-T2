@@ -197,9 +197,77 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
-  // SPM-38 AC5: round-robin now assigns a coordinator automatically at
-  // submission time, so there is no manual "claim this request" control for
-  // coordinators to see or use.
+  // SPM-36 EVE-CRE-07-C: straight after submitting, the page must not offer "← Back": history -1 is
+  // the form that was just submitted. The success banner links on instead.
+  it("EVE-CRE-07-C hides the Back button right after a request is submitted", async () => {
+    // Arrive the way EventCreatePage navigates after a successful submit.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={[{ pathname: `/events/${event.id}`, state: { submitted: true } }]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // The success banner and its link are shown, but no Back button.
+    expect(await screen.findByText("Your event request was submitted successfully.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View My Events" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Back/ })).toBeNull();
+  });
+
+  // Opening an event normally (not straight from submitting) keeps "← Back".
+  it("EVE-CRE-07-D keeps the Back button when the event is opened normally", async () => {
+    // Arrive without the post-submission state.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // No success banner, and Back is available.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByText("Your event request was submitted successfully.")).toBeNull();
+    expect(screen.getByRole("button", { name: /Back/ })).toBeTruthy();
+  });
+
+  // "← Back" returns to whichever page the user came from.
+  it("EVE-CRE-07-E takes the user back to the previous page when Back is clicked", async () => {
+    // Arrange: history is the events list, then this event's detail page.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.includes("/comments") ? [] : event),
+    );
+    render(
+      <MemoryRouter initialEntries={["/events", `/events/${event.id}`]} initialIndex={1}>
+        <Routes>
+          <Route path="/events" element={<p>Events list page</p>} />
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+
+    // Act: click Back.
+    fireEvent.click(screen.getByRole("button", { name: /Back/ }));
+
+    // Assert: the previous page (the events list) is shown again.
+    expect(await screen.findByText("Events list page")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
+  });
+
+  // SPM-38 AC5 (auto-assignment since SPM-123): a coordinator is assigned
+  // automatically at submission time, so there is no manual "claim this
+  // request" control for coordinators to see or use.
   it("SPM-38 EVE-REV-05-E never renders a manual coordinator-assignment control", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>

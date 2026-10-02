@@ -335,12 +335,55 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
       read: false,
     });
     expect(result[0].message).toContain(VALID_REASON);
-    const [sql] = db.query.mock.calls[0];
-    expect(sql).toContain("type = 'rejection'");
+    const [sql, params] = db.query.mock.calls[0];
+    expect(sql).toContain('type = ANY($2::text[])');
+    expect(params).toEqual(['current-user', ['rejection', 'approval']]);
   });
 
-  it('refuses a non-organiser caller and does not query', async () => {
-    await expect(service.notifications(coordinator())).rejects.toBeInstanceOf(ForbiddenException);
+  // SPM-40 + SPM-123: organiser decision notifications (approval as well as
+  // rejection) are labelled for the organiser; only assignment notices are
+  // labelled for the coordinator.
+  it('EVE-ASN-02-Y labels approval notifications for the organiser, not the coordinator', async () => {
+    // An organiser's feed holds their decisions; a coordinator's holds their assignments.
+    db.query
+      .mockResolvedValueOnce({
+        rows: [
+          { ...notificationRow, id: 'n-approval', type: 'approval' },
+          { ...notificationRow, id: 'n-rejection', type: 'rejection' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ ...notificationRow, id: 'n-assignment', type: 'coordinator_assignment' }],
+      });
+
+    const organiserFeed = await service.notifications(organiser());
+    const coordinatorFeed = await service.notifications(coordinator());
+
+    // Each row's audience follows its type.
+    expect(organiserFeed.map((n) => [n.type, n.audienceRole])).toEqual([
+      ['approval', 'organiser'],
+      ['rejection', 'organiser'],
+    ]);
+    expect(coordinatorFeed.map((n) => [n.type, n.audienceRole])).toEqual([
+      ['coordinator_assignment', 'coordinator'],
+    ]);
+  });
+
+  it('EVE-ASN-02-Z refuses a caller who is neither an organiser nor a coordinator, and does not query', async () => {
+    const venueStaff: AuthenticatedUser = { uid: 'venue-1', roles: ['VENUE_STAFF'] };
+    await expect(service.notifications(venueStaff)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.readNotification(VALID_UUID, venueStaff)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    // The refusal tells the caller which roles are allowed.
+    await expect(service.notifications(venueStaff)).rejects.toThrow(
+      'Organiser or coordinator access required.',
+    );
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  it('EVE-ASN-02-AA refuses an unauthenticated caller and does not query', async () => {
+    await expect(service.notifications(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
     expect(db.query).not.toHaveBeenCalled();
   });
 
@@ -356,5 +399,99 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     await expect(service.readNotification(VALID_UUID, organiser())).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    await expect(service.readNotification(VALID_UUID, organiser())).rejects.toThrow(
+      'Notification not found.',
+    );
+  });
+});
+
+describe('EventsService assignment notifications (SPM-123 AC2)', () => {
+  const assignmentRow = {
+    id: 'notif-2',
+    recipient_id: 'coordinator-1',
+    type: 'coordinator_assignment',
+    message: 'New event request "Welcome Evening" is awaiting your review.',
+    related_event_id: VALID_UUID,
+    read: false,
+    created_at: new Date('2026-09-22T00:00:00.000Z'),
+  };
+
+  it('EVE-ASN-02-C returns the coordinator their own assignment notifications', async () => {
+    db.query.mockResolvedValue({ rows: [assignmentRow] });
+
+    const result = await service.notifications(coordinator());
+
+    expect(result).toEqual([
+      {
+        id: 'notif-2',
+        audienceRole: 'coordinator',
+        audienceUserId: 'coordinator-1',
+        type: 'coordinator_assignment',
+        message: 'New event request "Welcome Evening" is awaiting your review.',
+        relatedEventId: VALID_UUID,
+        read: false,
+        createdAt: '2026-09-22T00:00:00.000Z',
+      },
+    ]);
+    const [, params] = db.query.mock.calls[0];
+    expect(params).toEqual(['coordinator-1', ['coordinator_assignment']]);
+  });
+
+  it('EVE-ASN-02-D never lets a coordinator read organiser rejection notifications, or the reverse', async () => {
+    db.query.mockResolvedValue({ rows: [] });
+
+    await service.notifications(coordinator());
+    await service.notifications(organiser());
+
+    expect(db.query.mock.calls[0][1][1]).toEqual(['coordinator_assignment']);
+    expect(db.query.mock.calls[1][1][1]).toEqual(['rejection', 'approval']);
+  });
+
+  // A Coordinator + Venue Staff account (e.g. the seeded Coor_Venue) reads its
+  // assignment notices; Venue Staff adds no notification types of its own.
+  it('EVE-ASN-02-E lets a Coordinator + Venue Staff account read its assignment notifications', async () => {
+    db.query.mockResolvedValue({ rows: [] });
+
+    await service.notifications({ uid: 'coor-venue', roles: ['COORDINATOR', 'VENUE_STAFF'] });
+
+    expect(db.query.mock.calls[0][1]).toEqual(['coor-venue', ['coordinator_assignment']]);
+  });
+
+  it('EVE-ASN-02-F lets a coordinator mark their own assignment notification as read', async () => {
+    db.query.mockResolvedValue({ rows: [{ id: 'notif-2' }] });
+
+    await expect(service.readNotification(VALID_UUID, coordinator())).resolves.toEqual({
+      success: true,
+    });
+    const [sql, params] = db.query.mock.calls[0];
+    expect(sql).toContain('recipient_id = $2');
+    expect(params).toEqual([VALID_UUID, 'coordinator-1', ['coordinator_assignment']]);
+  });
+
+  it('EVE-ASN-02-G will not mark someone else\'s notification as read', async () => {
+    db.query.mockResolvedValue({ rows: [] });
+
+    await expect(service.readNotification(VALID_UUID, coordinator('coordinator-2'))).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+});
+
+describe('EventsService.reject keeps the assignment (SPM-123 AC5)', () => {
+  it('EVE-ASN-06-C rejecting a request leaves the assigned coordinator untouched', async () => {
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
+    );
+
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    expect(result).toMatchObject({
+      status: 'rejected',
+      coordinatorId: 'coordinator-1',
+      coordinatorName: 'Coordinator One',
+    });
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(String(update[0])).not.toContain('coordinator');
   });
 });

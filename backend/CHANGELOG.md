@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Added assigned-coordinator approval of Submitted event requests, with a forward-only transactional status change and persistent organiser approval notification (SPM-40).
+- Replaced count-based round-robin with workload-balanced coordinator assignment (SPM-123): a new request goes to the active coordinator with the fewest active (non-rejected) requests, ties to whoever was assigned least recently (their newest assigned event's `created_at`), under a transaction-scoped advisory lock so concurrent submissions stay balanced. Each assignment writes a `coordinator_assignment` notification in the submission transaction. `GET /api/notifications` and `POST /api/notifications/:id/read` now serve coordinators their assignment notifications as well as organisers their rejection ones.
 - Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
 - Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.
 

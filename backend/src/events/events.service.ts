@@ -11,7 +11,23 @@ import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
-import { pickNextCoordinator } from './coordinator-roster.js';
+import {
+  getEligibleCoordinators,
+  selectCoordinator,
+} from './coordinator-assignment.js';
+
+// Every assignment decision takes this transaction-scoped lock first, so two
+// submissions racing each other can't both read the same workloads and pick the
+// same coordinator. It is released automatically on commit or rollback.
+const ASSIGNMENT_LOCK_KEY = 'event-coordinator-assignment';
+
+// Which notification types each role may read and mark as read: organisers
+// get their request decisions (SPM-40 approval, SPM-83 rejection), and
+// coordinators get their new assignments (SPM-123).
+const NOTIFICATION_TYPES_BY_ROLE = {
+  ORGANISER: ['rejection', 'approval'],
+  COORDINATOR: ['coordinator_assignment'],
+} as const;
 
 @Injectable()
 export class EventsService {
@@ -306,15 +322,30 @@ export class EventsService {
     });
   }
 
+  // Organisers read their decision notifications; coordinators read their
+  // assignment notifications. Roles without notifications (e.g. Venue Staff on
+  // a Coordinator + Venue Staff account) add nothing.
+  private notificationTypesFor(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    const types = (
+      Object.keys(NOTIFICATION_TYPES_BY_ROLE) as (keyof typeof NOTIFICATION_TYPES_BY_ROLE)[]
+    )
+      .filter((role) => user.roles.includes(role))
+      .flatMap((role) => [...NOTIFICATION_TYPES_BY_ROLE[role]]);
+    if (!types.length)
+      throw new ForbiddenException('Organiser or coordinator access required.');
+    return { user, types };
+  }
+
   async notifications(identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      "SELECT * FROM notifications WHERE recipient_id = $1 AND (type = 'rejection' OR type = 'approval') ORDER BY created_at DESC",
-      [organiser.id],
+      'SELECT * FROM notifications WHERE recipient_id = $1 AND type = ANY($2::text[]) ORDER BY created_at DESC',
+      [user.uid, types],
     );
     return result.rows.map((row) => ({
       id: row.id,
-      audienceRole: 'organiser',
+      audienceRole: row.type === 'coordinator_assignment' ? 'coordinator' : 'organiser',
       audienceUserId: row.recipient_id,
       type: row.type,
       message: row.message,
@@ -325,11 +356,11 @@ export class EventsService {
   }
 
   async readNotification(id: string, identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     this.eventId(id);
     const result = await this.database.query(
-      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND (type = 'rejection' OR type = 'approval') RETURNING id",
-      [id, organiser.id],
+      'UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = ANY($3::text[]) RETURNING id',
+      [id, user.uid, types],
     );
     if (!result.rows[0]) throw new NotFoundException('Notification not found.');
     return { success: true };
@@ -404,19 +435,21 @@ export class EventsService {
     };
   }
 
-  // SPM-38 AC5: round-robin assignment at submission time, so a request is
-  // never left waiting for a coordinator to manually claim it. A retried
-  // submission (ON CONFLICT above) reuses the row already assigned, so this
-  // only ever assigns once per event. Assignment never advances status. The
-  // roster is queried live from Postgres (see coordinator-roster.ts); if no
-  // active coordinator account exists yet, the event is left unassigned
-  // rather than failing the submission.
+  // SPM-38/SPM-123: assign a coordinator at submission time so a request is
+  // never left waiting for someone to claim it. The coordinator with the fewest
+  // active requests gets it (see coordinator-assignment.ts). Everything below
+  // runs inside the submission transaction: the assignment and the
+  // coordinator's notification are saved together or not at all. A retried
+  // submission (ON CONFLICT above) reuses the row already assigned, so an event
+  // is only ever assigned once. Assignment never changes the event's status. If
+  // there is no active coordinator the event is left unassigned rather than
+  // failing the submission.
   private async autoAssignCoordinator(row: pg.QueryResultRow, client: pg.PoolClient) {
     if (row.coordinator_id) return row;
-    const { rows } = await client.query<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM events WHERE coordinator_id IS NOT NULL',
-    );
-    const coordinator = await pickNextCoordinator(client, Number(rows[0].count));
+    await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+      ASSIGNMENT_LOCK_KEY,
+    ]);
+    const coordinator = selectCoordinator(await getEligibleCoordinators(client));
     if (!coordinator) return row;
     const updated = await client.query(
       `UPDATE events
@@ -426,6 +459,16 @@ export class EventsService {
        WHERE id = $1
        RETURNING *`,
       [row.id, coordinator.id, coordinator.name],
+    );
+    await client.query(
+      `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+       VALUES ($1, $2, 'coordinator_assignment', $3, $4)`,
+      [
+        randomUUID(),
+        coordinator.id,
+        `New event request "${row.event_name}" is awaiting your review.`,
+        row.id,
+      ],
     );
     return updated.rows[0];
   }

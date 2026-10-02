@@ -29,11 +29,11 @@ describe("auth", () => {
   it("normalizes mixed-case roles and preserves the configured role order", () => {
     expect(toLocalUser({
       uid: "user-2",
-      email: "organiser_coordinator@connectsphere.test",
-      roles: [" coordinator ", "organiser", "UNKNOWN"],
+      email: "coordinator_venuestaff@connectsphere.test",
+      roles: [" venue_staff ", "coordinator", "UNKNOWN"],
     })).toMatchObject({
-      role: "organiser",
-      roles: ["organiser", "coordinator"],
+      role: "coordinator",
+      roles: ["coordinator", "venue_staff"],
     });
   });
 

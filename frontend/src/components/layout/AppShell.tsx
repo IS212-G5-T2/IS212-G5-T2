@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
+import { AssignmentNotifications } from "@/components/domain/AssignmentNotifications";
 import { RejectionNotifications } from "@/components/domain/RejectionNotifications";
 import { TopNav } from "./TopNav";
 
@@ -21,6 +22,7 @@ export function AppShell() {
         <main id="main-content" className="flex-1 px-4 py-6 lg:px-8">
           <div className="mx-auto max-w-6xl">
             <RejectionNotifications />
+            <AssignmentNotifications />
             <Outlet />
           </div>
         </main>

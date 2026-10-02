@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -146,6 +146,87 @@ describe("EventListPage", () => {
     await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
 
     expect(screen.getByText("Rejected Gala")).toBeTruthy();
+    expect(screen.queryByText("Welcome Evening")).toBeNull();
+  });
+
+  // SPM-123 AC4 + AC5: the coordinator's dashboard is their assigned requests.
+  // Pending ones are the default queue (SPM-83); approved and rejected requests
+  // stay assigned to them and are one status-filter change away.
+  it("EVE-ASN-04-B shows a coordinator their pending assigned requests, with approved and rejected ones still reachable", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coord-1", name: "Coordinator One", email: "c@example.test", role: "coordinator" },
+    });
+    const assigned = { coordinatorId: "coord-1", coordinatorName: "Coordinator One" };
+    apiMock.mockResolvedValue([
+      { ...submittedEvent(), ...assigned, id: "e-1", name: "Pending Gala", status: "submitted" },
+      { ...submittedEvent(), ...assigned, id: "e-2", name: "Approved Fair", status: "approved" },
+      { ...submittedEvent(), ...assigned, id: "e-3", name: "Rejected Rally", status: "rejected" },
+    ]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "My Assigned Requests" })).toBeTruthy();
+    // The description explains that decided requests stay assigned and reachable.
+    expect(
+      screen.getByText(
+        "Requests assigned to you. Pending ones show first; use the status filter to see approved and rejected requests, which stay assigned to you.",
+      ),
+    ).toBeTruthy();
+    expect(await screen.findByText("Pending Gala")).toBeTruthy();
+    expect(screen.queryByText("Approved Fair")).toBeNull();
+
+    fireEvent.change(screen.getByLabelText("Filter by status"), { target: { value: "" } });
+
+    expect(screen.getByText("Pending Gala")).toBeTruthy();
+    expect(screen.getByText("Approved Fair")).toBeTruthy();
+    expect(screen.getByText("Rejected Rally")).toBeTruthy();
+    expect(apiMock).toHaveBeenCalledWith("/events");
+  });
+
+  // Only coordinators get the assigned-requests dashboard; other staff keep the full list.
+  it("EVE-ASN-04-D does not show the assigned-requests dashboard to non-coordinators", async () => {
+    // Arrange: a venue staff account with one event to list.
+    useAppStore.setState({
+      currentUser: { id: "venue-1", name: "Venue Staff", email: "v@example.test", role: "venue_staff" },
+    });
+    apiMock.mockResolvedValue([{ ...submittedEvent(), id: "e-1", name: "Pending Gala", status: "submitted" }]);
+
+    // Act: open the events page.
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the general "All Events" view, not "My Assigned Requests".
+    expect(await screen.findByRole("heading", { name: "All Events" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My Assigned Requests" })).toBeNull();
+    expect(screen.queryByText(/Requests assigned to you/)).toBeNull();
+  });
+
+  it("EVE-ASN-04-C shows a coordinator an empty dashboard, not someone else's requests, when nothing is assigned", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coord-1", name: "Coordinator One", email: "c@example.test", role: "coordinator" },
+    });
+    apiMock.mockResolvedValue([]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "My Assigned Requests" })).toBeTruthy();
     expect(screen.queryByText("Welcome Evening")).toBeNull();
   });
 });
