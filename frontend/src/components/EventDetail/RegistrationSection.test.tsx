@@ -296,6 +296,65 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
   });
 });
 
+describe("SPM-62 AC2/AC3: registered attendee sees their registration details", () => {
+  // AC3: "I can see my registration details" - full name, email, contact
+  // number and special requirements captured at registration, alongside the
+  // existing Registration ID and Registered on.
+  const full: Registration = {
+    ...created,
+    fullName: "Alice Tan",
+    email: "alice@example.com",
+    contactNumber: "+65 9123 4567",
+    specialRequirements: "Wheelchair access",
+  };
+
+  it("AC3 shows full name, email, contact number and special requirements", () => {
+    renderSection(baseEvent, full);
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
+    expect(within(screen.getByText("Email").parentElement!).getByText("alice@example.com")).toBeInTheDocument();
+    expect(within(screen.getByText("Contact number").parentElement!).getByText("+65 9123 4567")).toBeInTheDocument();
+    expect(within(screen.getByText("Special requirements").parentElement!).getByText("Wheelchair access")).toBeInTheDocument();
+  });
+
+  // Optional fields captured at registration (contact number, special
+  // requirements) must never render as blank rows when absent.
+  it("AC3 omits contact number and special requirements rows when absent", () => {
+    renderSection(baseEvent, created);
+    expect(screen.queryByText("Contact number")).not.toBeInTheDocument();
+    expect(screen.queryByText("Special requirements")).not.toBeInTheDocument();
+  });
+
+  // Older records may lack fullName (SPM-61 comment on the Registration
+  // type); the attendee's stored name is still shown via the fallback.
+  it("AC3 falls back to attendeeName when fullName is absent on older records", () => {
+    renderSection(baseEvent, created);
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
+  });
+});
+
+describe("SPM-62 AC4: registration details stay visible before and after the event", () => {
+  // AC4: "I can view my registration at any time before or after the
+  // event" - the registered branch is checked before any event-timing
+  // branch, so a Completed or Cancelled event never hides the registration.
+  const full: Registration = {
+    ...created,
+    fullName: "Alice Tan",
+    email: "alice@example.com",
+  };
+
+  it("shows full registration details once the event has completed", () => {
+    renderSection({ ...baseEvent, status: "completed" }, full);
+    expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
+  });
+
+  it("shows full registration details for a cancelled event", () => {
+    renderSection({ ...baseEvent, status: "cancelled" }, full);
+    expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
+    expect(within(screen.getByText("Email").parentElement!).getByText("alice@example.com")).toBeInTheDocument();
+  });
+});
+
 describe("D14: failed POST is not retried automatically", () => {
   // A network failure keeps the values, shows MSG-04, and offers a manual Retry.
   it("shows MSG-04 and a manual Retry that resubmits", async () => {

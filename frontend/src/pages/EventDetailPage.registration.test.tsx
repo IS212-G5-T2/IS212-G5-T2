@@ -82,6 +82,9 @@ beforeEach(() => {
 describe("EventDetailPage attendee registration", () => {
   // Supplementary negative path: a valid-looking but nonexistent event must show a
   // safe attendee-facing error and must not render stale or fabricated details.
+  // SPM-62 AC5: also the error shown when attempting to view a registration
+  // via a nonexistent event id - there is no separate registration-by-id
+  // route, so an invalid event id is this app's "registration doesn't exist" case.
   it("shows a safe not-found state for a nonexistent attendee event", async () => {
     apiMock.mockRejectedValue(new Error("Event not found."));
     useAppStore.setState({ events: [] });
