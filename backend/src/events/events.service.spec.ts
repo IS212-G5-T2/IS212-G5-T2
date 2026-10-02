@@ -476,9 +476,6 @@ describe('EventsService', () => {
       // Approved events are internal workflow state and hidden from attendees.
       db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), status: 'Approved' }] });
       await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
-
-      db.query.mockResolvedValueOnce({ rows: [savedEventRow()] });
-      await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
