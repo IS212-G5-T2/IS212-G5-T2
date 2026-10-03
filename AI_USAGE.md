@@ -1515,3 +1515,11 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Summary: Reran the SPM-111 backend equipment and frontend creation, availability, and route-access unit suites. Updated all 14 live cases with PASS, the exact run counts, test executor, and requester-confirmed manual verification.
 - Checks run: backend equipment suite — 3/3 files and 55/55 tests passed; frontend SPM-111 suites — 3/3 files and 47/47 tests passed.
 - Follow-up/conflict notes: API/database end-to-end checks were not run. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Resolve frontend dependency vulnerability scan
+
+- Issue/PR: SPM-111 / PR #37.
+- Areas touched: `frontend` dependency lockfile, Tailwind/PostCSS configuration, frontend stylesheet, frontend README, and `AI_USAGE.md`.
+- Summary: Upgraded Tailwind CSS from v3.4.17 to v4.3.3 and configured its v4 PostCSS integration. Moved the shared custom design tokens and class-based dark-mode variant into the global stylesheet so the existing UI utilities continue to build.
+- Checks run: `npm audit --audit-level=high` — 0 vulnerabilities; `npm run build` — passed; `npm test` — 28 files passed, 318 tests passed, 1 todo. A Playwright browser smoke check reached the styled login page; its only console errors were expected local CORS errors caused by testing from port 4173 while the backend permits port 5173.
+- Follow-up/conflict notes: The Tailwind v4 change is uncommitted pending human review. `tailwind.config.js` remains in the repository but is no longer the source of the shared theme tokens.
