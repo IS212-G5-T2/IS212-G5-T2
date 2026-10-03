@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
 

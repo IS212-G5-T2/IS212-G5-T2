@@ -5,7 +5,12 @@ This repository uses root-level GitHub Actions workflows to orchestrate checks f
 ## Workflow Files
 
 - `.github/workflows/security.yml`: security scanning for application and service code.
-- `.github/workflows/tests.yml`: unit-test orchestration for implemented apps and services.
+- `.github/workflows/tests.yml`: unit-test orchestration for implemented apps and services, plus backend E2E tests.
+
+The backend E2E job in `tests.yml` starts a fresh PostgreSQL container, applies
+the backend-owned draft migration, and then runs the backend E2E suites. The
+standalone database image contains the base schema and seed data; Docker Compose
+mounts the draft migration separately for local fresh databases.
 
 ## Branch Flow
 
@@ -15,43 +20,32 @@ There is no separate intermediate branch workflow in this repository.
 
 ## Component Test Entrypoints
 
-Implemented apps and services should expose their unit tests through:
+The root CI entrypoint is:
 
 ```text
-<component>/scripts/ci/unit-test.sh
+scripts/ci/unit-test.sh
 ```
 
-Examples:
-
-```text
-frontend/scripts/ci/unit-test.sh
-backend/scripts/ci/unit-test.sh
-events-service/scripts/ci/unit-test.sh
-```
-
-The root `tests.yml` workflow discovers these entrypoints and runs each one from its component directory.
+It explicitly runs the implemented `backend/` and `frontend/` suites in
+parallel, installing dependencies and running each suite from its own component
+directory. Add a component to this root entrypoint when it gains a CI-owned
+unit suite.
 
 ## Component Responsibilities
 
-Each component should keep its own setup and test command inside its entrypoint. The root workflow should not need to know whether a component uses Node.js, Python, Java, or another runtime.
+The root entrypoint owns this repository's current Node.js setup and test
+orchestration. Component package scripts remain the source of each component's
+actual test command.
 
-For example, a Node.js service entrypoint may look like:
+For example, a Node.js component package owns a test command:
 
 ```sh
-#!/bin/sh
-set -eu
-
-npm ci
 npm test
 ```
 
-A Python service entrypoint may look like:
+A Python component package may similarly use:
 
 ```sh
-#!/bin/sh
-set -eu
-
-python -m pip install -r requirements.txt
 python -m pytest
 ```
 

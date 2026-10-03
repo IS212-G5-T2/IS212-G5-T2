@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Inject, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../authentication/models/auth.models.js';
+import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import { RegistrationsService } from './registrations.service.js';
 
 type AuthenticatedRequest = Request & {

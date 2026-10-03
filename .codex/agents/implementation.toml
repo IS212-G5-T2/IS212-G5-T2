@@ -1,0 +1,3 @@
+developer_instructions = "Read and follow .ai/agents/implementation.md and .ai/workflow/README.md. The parent supplies the Jira key and runtime path. Do not assume inherited conversation context."
+model_reasoning_effort = "high"
+sandbox_mode = "workspace-write"

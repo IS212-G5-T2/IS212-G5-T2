@@ -2,7 +2,7 @@
 
 This file defines how AI agents should understand and change this repository. Read it before editing, then read `AI_USAGE.md` and every scoped `AGENTS.md` from the repo root down to the folder being changed.
 
-## Operating Flow
+## Sources of Truth and Agent Workflow
 
 Jira is the source of truth for:
 
@@ -12,29 +12,24 @@ Jira is the source of truth for:
 - Sprint.
 - Status.
 
-When Jira context is needed, use the available Atlassian/Jira MCP or connector if one is available. If Jira cannot be accessed, use the issue details supplied by the user and record the limitation in `AI_USAGE.md` and the pull request.
+Confluence is the source of truth for the story's testing specification. Its
+test matrix and detailed test cases describe the exact cases used to verify
+that the user story passes. Read them alongside Jira acceptance criteria, map
+them to automated tests, and identify any gaps; do not assume the Confluence
+specification is complete if Jira requires additional behavior.
 
-When given a Jira key, the coding agent must follow this progression:
+For Jira-driven implementation, the root orchestrator follows
+[.ai/workflow/README.md](.ai/workflow/README.md) and delegates context
+acquisition and implementation to [.ai/agents/implementation.md](.ai/agents/implementation.md).
+That role file owns the detailed Jira, Confluence, repository-inspection,
+branch-reuse/creation, implementation, test, and initial-validation progression.
+Keep that procedure in the role contract instead of duplicating it here.
 
-1. Fetch the Jira work item.
-2. Read the complete summary, description, user story, acceptance criteria, relevant comments, priority, and status.
-3. Do not implement work unless the Jira status is `To Do` or `In Progress`.
-4. Inspect the GitHub repository before making changes, including `AI_USAGE.md` and the relevant scoped `AGENTS.md` files.
-5. Check for an existing branch or pull request associated with the Jira key.
-6. Reuse existing development work when present.
-7. When starting new work, create a branch containing the Jira key.
-8. Implement all acceptance criteria.
-9. Add or modify tests appropriate to each acceptance criterion.
-10. Stage completed changes for human review.
-11. Do not commit, push, or create a pull request until the human explicitly says to proceed with the commit.
-12. After explicit commit approval, reference the Jira key in commits.
-13. After explicit commit approval, push and create a pull request whose title contains the Jira key.
-14. Include an implementation summary, acceptance-criteria checklist, and testing notes in the pull request.
-15. Do not duplicate the Jira story into a GitHub Issue.
-16. Do not mark the Jira work item `Done`.
-17. Treat Jira automation as responsible for branch, pull request, and merge status transitions.
-18. If review requests changes, continue work on the existing branch and pull request.
-19. Before declaring work ready, compare the implementation against every Jira acceptance criterion again.
+If Jira cannot be accessed, use issue details supplied by the user and record
+the limitation in `AI_USAGE.md` and the pull request. If the Confluence test
+matrix or cases cannot be found, record what was searched in the runtime
+snapshot and `AI_USAGE.md`; continue only if the Jira requirements are
+sufficient to implement and validate the ticket.
 
 GitHub owns:
 
@@ -113,6 +108,7 @@ Before starting meaningful work:
 Before final delivery or pull request handoff:
 
 - Add or update one concise `AI_USAGE.md` entry for the work.
+- Use `dd-mm-yyyy - <agent> - <ticket-id-or-branch-name>` headings. Prefer the ticket ID; if it is unavailable, use a branch name recorded in the entry. Use `Unknown` only when neither exists and `General` for other work. After a user-requested ticket archive, leave a concise pointer using `docs/ai-usage-archives/README.md`.
 - Include the AI tool/model if known, issue or PR link if available, areas touched, summary, assumptions, checks run, and follow-up/conflict notes.
 - Do not include secrets, credentials, private prompts, long chat transcripts, personal data beyond needed attribution, or production data.
 
@@ -121,26 +117,30 @@ Before final delivery or pull request handoff:
 Root GitHub Actions workflows orchestrate CI checks for the monorepo:
 
 - `.github/workflows/security.yml` runs security scanning.
-- `.github/workflows/tests.yml` discovers and runs implemented component unit-test entrypoints.
+- `.github/workflows/tests.yml` runs the root frontend/backend unit-test entrypoint.
 
-Implemented apps and services own their local unit-test command in:
+The current frontend/backend monorepo unit suites are orchestrated by the root
+entrypoint:
 
 ```text
-<component>/scripts/ci/unit-test.sh
+scripts/ci/unit-test.sh
 ```
 
-The root tests workflow should stay generic. Do not hard-code a component's runtime-specific test command into `.github/workflows/tests.yml`; put that command in the component's script.
+It runs each component from its own directory in parallel. Keep the component's
+actual test command in its package configuration and update the root entrypoint
+when a CI-owned component is added.
 
 ## Test Organization and Naming
 
 - Keep tests beside the component or module they cover; do not create a root tests tree or Jira-key directories.
 - Place frontend component tests beside their component or page as descriptive .test.tsx files. Place backend unit tests beside their module as descriptive .spec.ts files.
 - Maintain one behavior-focused suite as later Jira stories change the same module. Keep Jira keys and acceptance-criterion wording inside suites and test names for traceability, rather than duplicating files by story.
+- Extend the existing suite for a module or feature when adding coverage for a new ticket or fixing a test. Do not create a new test file for each ticket or acceptance criterion (for example, `events.accept.test.ts`); use the component's established suite name and add descriptive test cases there.
 - Vitest discovers matching test/spec filenames within the component. Exclude Playwright browser specs from Vitest.
 - Place browser acceptance tests beside their frontend page as .playwright.spec.ts, discovered by Playwright.
 - Place database/API integration tests beside the backend module as .e2e-spec.ts, discovered only by the dedicated integration configuration. Shared application smoke tests may remain in the backend test directory.
 - Keep fixtures within the owning component, outside production entrypoints. Backend browser harnesses belong in scripts/testing/.
-- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections.
+- Put a short plain-English comment immediately above each test case and beside its important setup, action, and assertion sections. For a Jira test mapped to Confluence, include the real Jira key and every case ID it checks in the comment directly above the test function. State any partial coverage there and in traceability; never label an unrelated test as covering a missing case. If no Confluence case exists, identify the Jira AC or regression and say so in that comment.
 - Use Playwright for real browser workflows; use backend/database runners for validation, authorization, persistence, and concurrency.
 - Keep test configuration and CI entrypoints with the owning component. New tests should be discovered without adding Jira-specific patterns.
 - Run affected suites before reporting testing complete; identify skipped checks and environment limitations.
@@ -153,13 +153,11 @@ The root tests workflow should stay generic. Do not hard-code a component's runt
 
 ## Issue Workflow
 
-For GitHub issue work, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md):
-
-```text
-fetch Jira ticket -> read story and AC -> inspect GitHub work -> reuse or create branch -> implement AC -> test AC -> update AI_USAGE -> stage for review -> wait for explicit commit approval -> commit and push -> open PR -> re-check AC -> report done
-```
-
-Jira remains the source of truth for Scrum planning and acceptance criteria when linked or provided. GitHub owns branches, commits, pull requests, CI, and code review.
+For Jira-driven implementation with independent agent review, follow
+[.ai/workflow/README.md](.ai/workflow/README.md). It defines the shared runtime
+artifacts, role boundaries, native-runtime adapters, review reconciliation, and
+bounded revalidation. For GitHub issue work and the branch, staging, commit, and
+pull request lifecycle, follow [docs/ai-issue-workflow.md](docs/ai-issue-workflow.md).
 
 ## Branch Workflow
 
@@ -174,14 +172,13 @@ GitHub uses pull requests. If a Jira card, teammate, or older doc says "merge re
 
 Use the exact Jira ticket id, such as `SPM-155`, and a hyphenated slug of the Jira ticket name so Jira and GitHub can display the connected work clearly. Do not replace the ticket name with a hand-written short summary unless the human requester explicitly asks for that branch name.
 
-Do not implement a Jira card whose status is not `To Do` or `In Progress`; report the status mismatch instead.
-
 ## Implementation Rules
 
 - Inspect existing code and scoped guidance before adding files, frameworks, dependencies, or abstractions.
 - Keep changes focused and reviewable.
 - Preserve user and teammate changes already present in the working tree.
 - Add or update tests for changed behavior where meaningful.
+- For TypeScript, document exported functions, classes, interfaces, and types with JSDoc. New or materially changed functions and methods should explain their purpose and document inputs with `@param` and results with `@returns` when applicable; document relevant errors with `@throws`. Keep comments accurate and useful instead of restating obvious implementation details.
 - Place ticket-specific tests in the component's established test layout and
   identify the Jira key in the test name or nearby test-case comments. Do not
   introduce a parallel root `tests/` tree unless the repository explicitly
@@ -196,5 +193,6 @@ Do not implement a Jira card whose status is not `To Do` or `In Progress`; repor
 - Use `README.md` for human setup, usage, and overview.
 - Use `HANDOVER.md` for durable technical context, constraints, risks, and next steps.
 - Use `CHANGELOG.md` for notable durable changes.
+- Use `.ai/workflow/` for shared agent roles and their cross-platform workflow.
 - Use `docs/` for repo-level process documentation such as AI issue workflow and CI process.
 - Do not put dynamic task status, sprint logs, or facts already obvious from Git history into durable docs.

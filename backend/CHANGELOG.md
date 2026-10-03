@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Grouped event drafts and rejection flows under `src/events/`, organized clarifications by DTO/model/repository responsibility, and promoted `authentication/` and `authorization/` to top-level domains; preserved all dev test suites separately.
+
 - Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Updated REGISTRABLE_STATUSES and ATTENDEE_VISIBLE_STATUSES to reflect this distinction.
 
 - MSG-02 now formats the opening time as `12 Mar 2027, 23:59 SGT` (24-hour, SGT) to match the frontend (SPM-61).

@@ -1483,3 +1483,152 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Follow-up 2 (Claude Haiku 4.5): added the opening time row back to the open state to satisfy SPM-99 AC3 (both times visible). Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
 - Follow-up 3 (Claude Haiku 4.5): added registration date/time to the "You're registered" state; hid the event status progression line from attendee view. Checks: frontend 294 passed.
 - Follow-up 4 (Claude Haiku 4.5): attendee event view now shows ONLY Confirmed events (not Approved). Created distinct REGISTRABLE_STATUSES=['Confirmed'] and ATTENDEE_VISIBLE_STATUSES=['Confirmed', 'Completed', 'Cancelled']. Updated list query to use constants and all related tests (backend 496 passed; registrations e2e 28 passed).
+
+## Writing convention
+
+- Use `dd-mm-yyyy - <agent> - <ticket-id-or-branch-name>` headings, such as `30-09-2026 - Codex - SPM-50` or `30-09-2026 - Codex - fix/example-branch`. Use a known ticket ID first, then a recorded branch name. Use `Unknown` for unlinked issue records with neither; use `General` for other work. Do not infer IDs or branches.
+- Use level-three headings for dated entries nested under sections in this file. Archive files use level-two dated headings. Keep current entries concise in this format: `- <user> prompted <issue>: <summary>`. Keep detailed assumptions, checks, and follow-up notes in archived histories when useful.
+- Combine entries with the same date, agent, and ticket, branch, or category under one heading; keep different tickets separate.
+- Keep active ticket histories under `## SPM-<id>`. For ticket work, read only that section through the next level-two heading; read `General` only when relevant.
+- Move a ticket's complete history to `docs/ai-usage-archives/SPM-<id>.md` only after the user says it is closed or asks to archive that identified ticket. After moving it, leave one concise pointer under `Archived ticket pointers` in the current entry format, with an archive link. Put each pointer under its own dated heading with the ticket ID.
+- Move unlinked issue records to `docs/ai-usage-archives/unknown.md` only when the user asks.
+
+## Ticket sections
+
+Unarchived ticket history stays here. Add ongoing work under `## SPM-<id>`.
+
+## SPM-40
+
+### 22-09-2026 - Codex - SPM-40
+- kirub prompted SPM-40: Prepared the accept-request branch after confirming the earlier branch had no work to reuse; Jira details were unavailable.
+
+### 26-09-2026 - Codex - SPM-40
+- kirub prompted SPM-40: Implemented coordinator approval and its notification flow, with browser and API tests for authorization, persistence, and status handling.
+
+### 27-09-2026 - Codex - SPM-40
+- chaw678 and kirub prompted SPM-40: Addressed PR #31 review feedback and refined the approval regression-test headers.
+
+## SPM-99
+
+### 26-09-2026 - Codex - SPM-99
+- swr prompted SPM-99: Updated EVENT-VIEW traceability, expanded attendee-view test evidence, and repaired fresh database initialization and availability handling.
+
+### 24-09-2026 - Codex - SPM-99
+- swr prompted SPM-99: Implemented the attendee event view, lifecycle and registration details, and supporting schema and tests.
+
+## Unknown
+
+### 24-09-2026 - Codex - Unknown
+- swr prompted Unknown: Added four fictional local seed events covering event statuses, registration, and accessibility.
+
+### 22-09-2026 - Codex - Unknown
+- swr prompted Unknown: Audited backend authentication coverage and added focused coverage tests.
+
+## Archived ticket pointers
+
+### 30-09-2026 - Codex - SPM-30
+
+- swr prompted SPM-30 (Attendee login): Frontend authentication and attendee route controls. [Archive](docs/ai-usage-archives/SPM-30.md)
+
+### 30-09-2026 - Codex - SPM-36
+
+- Ei Chaw Zin prompted SPM-36 (Create and submit an event request): Event request form, submission persistence, and acceptance tests. [Archive](docs/ai-usage-archives/SPM-36.md)
+
+### 30-09-2026 - Codex - SPM-37
+
+- swr and kirub prompted SPM-37 (Save event request as a draft): Draft persistence, resume/edit flows, and related frontend/backend tests. [Archive](docs/ai-usage-archives/SPM-37.md)
+
+### 30-09-2026 - Codex - SPM-38
+
+- chaw678 prompted SPM-38 (Review a submitted request details): Coordinator review access, assignment, and event status handling. [Archive](docs/ai-usage-archives/SPM-38.md)
+
+### 30-09-2026 - Codex - SPM-39
+
+- swr prompted SPM-39 (Request clarification or amendment): Clarification session fixtures and PostgreSQL E2E diagnostics. [Archive](docs/ai-usage-archives/SPM-39.md)
+
+### 30-09-2026 - Codex - SPM-83
+
+- kirub prompted SPM-83 (Reject a request): Rejection validation, API/UI flow, and notification persistence. [Archive](docs/ai-usage-archives/SPM-83.md)
+
+### 30-09-2026 - Codex - SPM-103
+
+- swr prompted SPM-103 (Set up Database for RBAC): PostgreSQL RBAC schema and seed data. [Archive](docs/ai-usage-archives/SPM-103.md)
+
+### 30-09-2026 - Codex - SPM-104
+
+- An unidentified user prompted SPM-104 (Set up Frontend login page): Firebase login, session persistence, and route guards. [Archive](docs/ai-usage-archives/SPM-104.md)
+
+### 30-09-2026 - Codex - SPM-106
+
+- swr prompted SPM-106 (Set up JWT verification and authorization): Bearer-token verification and role-based permissions. [Archive](docs/ai-usage-archives/SPM-106.md)
+
+### 30-09-2026 - Codex - Unknown
+
+- Multiple users prompted unlinked issues: Setup, maintenance, and troubleshooting records. [Archive](docs/ai-usage-archives/unknown.md)
+
+## General
+
+### 13-09-2026 - Codex - General
+
+- Issue/PR: PR #6
+- Human requester/operator: swr
+- Areas touched: `services/backend`, `AI_USAGE.md`
+- Summary: Removed `vite-tsconfig-paths`, which required a TypeScript 5.x peer and caused `npm ci` to request 5.9.3 despite the backend using TypeScript 7; enabled Vite's native tsconfig path resolution and removed temporary CI diagnostics.
+- AI contribution: Dependency/configuration fix, CI cleanup, lockfile regeneration, tests, commit, and push.
+- Assumptions: The current Vite version's native `resolve.tsconfigPaths` support is the intended replacement.
+- Checks run: `npm install --package-lock-only`; `npm ci --ignore-scripts`; `npm test`; workflow YAML validation; `git diff --check`.
+- Follow-up/conflict notes: No secret files were included or modified.
+
+### 22-09-2026 - Codex (GPT-5) - General
+
+- Context: User no longer wanted frontend and backend coverage aggregated into one folder; the V8 package and per-component reports remain required.
+- Areas touched: root coverage-dashboard documentation and `AI_USAGE.md`.
+- Summary: Removed the obsolete root dashboard documentation. The already-removed aggregation scripts and CI dashboard upload are not restored; frontend and backend retain their independent V8 coverage configuration and commands.
+- Assumptions: Per-component `coverage/` reports are sufficient for local coverage use.
+- Checks: Confirmed the combined dashboard scripts and CI steps are absent while both component coverage configurations remain present.
+- Follow-up/conflict notes: No dependency, commit, push, or pull request was removed or created.
+
+### 30-09-2026 - Codex - General
+
+- swr prompted AI usage organization: Grouped ticket histories, standardized headings, and archived nine completed tickets with concise pointers.
+- swr prompted agent workflow setup: Added Codex and Claude role adapters and read-only reviewer contracts.
+- swr prompted AI usage archive refactor: Moved 72 unlinked records to `unknown.md` and standardized ticket, branch, and General headings.
+- swr prompted test verification guidance: Integrated curated case derivation, test quality, traceability, and CI validation rules into the implementation and test-review workflow using the provided prompts and course references.
+- swr prompted AI-readable test guidance: Recast shared test rules as `.ai/workflow/test-design-protocol.md` with input contracts, decision tables, review schema, and completion checks; standardized every role prompt's section order.
+- swr prompted agent effort alignment: Matched Claude subagent effort frontmatter to Codex role TOMLs and documented that root Agent 5 inherits the active session's effort.
+- swr prompted backend E2E environment fix: Updated `test:e2e` to load `backend/.env` into the Vitest process while preserving already-exported shell values.
+- swr prompted backend E2E setup alignment: Updated the drafts suite to use the shared `DATABASE_URL`, Nest testing-module lifecycle, and a seeded organiser session for protected routes; schema setup remains with the shared stack.
+
+### 30-09-2026 - Codex - refactor/agent_workflow
+
+- swr prompted CI simplification: Replaced dynamic component-script discovery and custom diagnostics with root `scripts/ci/unit-test.sh`, which runs backend and frontend installs/tests concurrently from their own directories. Removed the obsolete component scripts at the user's request and updated CI/component guidance. Checks: shell syntax, workflow diff, `git diff --check`, and root runner (backend 447 tests; frontend 238 tests) passed.
+- swr prompted test-review workflow feedback: Added per-changed-file unit-test and coverage requirements, separate implementation/test status reporting, and a bounded Agent 5 to Agent 1 repair handoff followed by selective re-review.
+- swr prompted independent coverage verification: Require Agent 2 to run each affected component's coverage command and inspect fresh per-file reports; missing coverage evidence blocks that part of review.
+- swr prompted frontend/backend organization refactor: Grouped frontend route files and page-only UI by domain/page; grouped backend features by responsibility, with top-level authentication/authorization and feature-local clarifications DTOs/models/repositories; removed confirmed duplicate test cases and updated component guidance.
+- swr prompted backend refactor follow-up: Kept the draft PostgreSQL E2E suite beside its module and corrected authentication guidance to match the implemented session-cookie middleware.
+- swr prompted frontend coverage preservation: Restored the coordinator review-controls test in its page suite after confirming it had assertions beyond the overlapping SPM-83 test.
+- swr prompted frontend test repair: Fixed EventDetailPage imports, merged the three distinct SPM-40 approval cases into its existing suite, and verified all 238 frontend tests pass.
+- swr prompted Confluence case traceability (Codex, GPT-6; branch `refactor/agent_workflow`): Mapped the 30 previously absent IDs to existing tests, moved 20 title-only or suite-level IDs into comments directly above tests, marked eight partial mappings, and required Agent 3 to report exact missing IDs or tests from the Confluence snapshot. Areas: frontend/backend test comments, repository and agent workflow guidance. Assumption: one test may cover multiple cases when its assertions support each one. Checks: static inventory found all 132 IDs in preceding test comments; `git diff --check` passed. Tests were not run because this change only adds comments and instructions. Follow-up: the eight partial cases still need their missing assertions or route-level checks.
+- swr prompted final validation wording (Codex, GPT-6; branch `refactor/agent_workflow`): Committed the existing `product` to `user story` terminology edit in `.ai/agents/final-validation.md`. Area: agent workflow guidance. Assumption: the edit describes Jira-driven review findings. Check: `git diff --check`; no tests run for this wording-only change. No follow-up identified.
+- swr prompted CI draft E2E diagnosis (Codex, GPT-6; branch `refactor/agent_workflow`): The standalone CI PostgreSQL image lacks the Compose-mounted `event_drafts` migration, so added a step to apply the existing backend migration before E2E tests and documented that setup. Areas: root test workflow and CI process. Assumption: the CI job's `DATABASE_URL` targets its fresh test container. Check: workflow diff and `git diff --check`; E2E tests were not run locally. Follow-up: confirm the backend E2E job passes in GitHub Actions.
+- swr prompted pull request DoD visibility (Codex, GPT-6; branch `refactor/agent_workflow`): Updated `.github/pull_request_template.md` to link the pending-acceptance Confluence Definition of Done and show its applicable requirements, testing, review, documentation, CI, non-functional, UI, and Product Owner checks with evidence and exception fields. Assumption: peer and Product Owner approvals remain unchecked until granted. Check: compared the template with the linked Confluence page and ran `git diff --check`; no tests run for this documentation change. Follow-up: revisit the link or wording if the pending DoD is revised.
+- swr prompted changed-file coverage enforcement (Codex, GPT-6; branch `refactor/agent_workflow`): Added a reusable coverage-summary verifier to both component `test:cov` commands and CI, requiring 100% statements, branches, functions, and lines for newly created runtime files against the PR base. Added explicit final-validation gates requiring all reviewer reports, reconciliation, repair, and selective re-review before completion. Checks: verifier syntax and component coverage commands pending final run.
+
+## 03-10-2026 - Codex (GPT-6) - refactor/agent_workflow merge analysis
+
+- PR: https://github.com/IS212-G5-T2/IS212-G5-T2/pull/33.
+- Areas: Git merge state; frontend/backend layout, tests, documentation and CI inspected; AI_USAGE updated.
+- Summary: Fetched origin, fast-forwarded dev to 5b80f3c, reused refactor/agent_workflow and ran git merge --no-commit --no-ff dev. Produced a complete dev-first relocation/resolution proposal at /private/tmp/PR33-dev-first-resolution-map.md.
+- Assumptions: User requested stopping at merge analysis; dev code/tests transfer in full with only relocation references changed. No Jira ticket supplied.
+- Checks: Tree/diff comparison, six-conflict inventory, static relative-import audit; tests/builds not run while merge is unresolved.
+- Follow-up/conflicts: Six files remain unresolved intentionally. No resolution/file relocation implemented, commit, push, PR metadata change, script/dependency removal or Jira change. Preserve full dev draft/approval suites instead of branch consolidation/rewrites.
+
+## 03-10-2026 - Codex (GPT-6) - refactor/agent_workflow dev-first conflict resolution
+
+- PR: https://github.com/IS212-G5-T2/IS212-G5-T2/pull/33.
+- Areas: backend/frontend source organization, complete existing test suites, backend/frontend/database documentation, shared AI ledger.
+- Summary: Applied the approved relocation map using dev 5b80f3c as the source for every application source/test file. Restored separate dev draft validator and approval suites; preserved all declaration fields in relocated DTO/models, with type re-exports preserving existing exported contracts. Retained branch agent/CI workflow work. Repaired imports, mocks, fixture URLs and module wiring. Preserved full dev history alongside branch workflow history.
+- Assumptions: Organization-only; no runtime simplification, test consolidation, dependency changes or feature repairs. No Jira ticket supplied.
+- Checks: All 158 transferred source/test/declaration files match the scripted dev transfer with only relocation/wiring/type extraction changes (trailing EOF whitespace normalized). No dev source/test missing; all database init SQL byte-identical. Backend unit 500/500 passed, lint passed. Frontend unit 296 passed / 1 todo, build passed. Playwright discovery found all 4 tests in 3 relocated suites. git diff --check passed.
+- Existing limitations: Backend build fails TS2345 at src/registrations/registration-window.ts:22; reproduced identically on untouched dev in a temporary checkout, so left unchanged per 100% transfer requirement. Frontend lint retains dev's unused hasReplies and EventRecord errors. Docker daemon is not running, preventing isolated database/browser workflows. An integration invocation without database variables failed 41 tests (45 skipped / 1 todo), including sandbox-denied Supertest sockets; this is not passing database validation. HTTP-only smoke recheck with socket access passed 2/2 tests.
+- Follow-up/conflict notes: All six conflicts resolved; changes staged for human review. No commit, push, PR metadata edit or Jira status change. Backend build issue requires a separate code change beyond this organization-only scope.

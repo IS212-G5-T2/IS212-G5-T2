@@ -8,34 +8,40 @@ The app uses React, Vite, TypeScript, Tailwind CSS, React Router, and Zustand. T
 
 The shared local Docker Compose stack builds this app with `frontend/Dockerfile` and exposes Vite on `localhost:5173`.
 
+Route modules are grouped by domain under `src/pages/`, with each route's
+component, tests, and page-only UI colocated in a named page folder. Code used
+across pages belongs under `src/features/` or the appropriate shared
+`src/components/` area.
+
 ## Continuity notes
 
 My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
-- The repository test workflow discovers `scripts/ci/unit-test.sh`; this
-  frontend entrypoint installs dependencies and runs `npm run test:cov`.
-  Keep the command and the CI workflow aligned.
+- The repository test workflow invokes the root `scripts/ci/unit-test.sh`;
+  it installs frontend dependencies and runs `npm test` in parallel with the
+  backend suite. Keep the package command and root entrypoint aligned.
 
 ## Testing
 
 - Test runner: Vitest. `vite.config.ts` defines the jsdom environment and
   global setup at `src/test/setup.ts`; `vitest.config.ts` currently narrows
   standard discovery to `.test.tsx` files.
-- `src/pages/LoginPage.test.tsx` covers `/login`: empty/whitespace-only field validation, successful sign-in for every seeded account in `src/test/fixtures/authUsers.ts`, redirect-back-to-original-page behaviour, the pending/disabled submit state, and every mapped Firebase error code in `getAuthErrorMessage` (wrong password, invalid credential, user not found, invalid email, disabled account, too many requests, network failure, unrecognized code, and non-Firebase errors).
+- `src/pages/account/LoginPage/LoginPage.test.tsx` covers `/login`: empty/whitespace-only field validation, successful sign-in for every seeded account in `src/test/fixtures/authUsers.ts`, redirect-back-to-original-page behaviour, the pending/disabled submit state, and every mapped Firebase error code in `getAuthErrorMessage` (wrong password, invalid credential, user not found, invalid email, disabled account, too many requests, network failure, unrecognized code, and non-Firebase errors).
 - The Firebase Auth SDK (`signInWithEmailAndPassword`/`signOut` from `firebase/auth`) is mocked in that test file so the suite never makes a real network call; `@/lib/firebase`'s `getAuthErrorMessage` mapping runs unmocked so the tests catch regressions in the actual message copy.
-- `src/pages/testUtils.tsx` provides a `renderLoginPage()` helper that wraps `LoginPage` in a `MemoryRouter` with dummy `/` and `/events` destinations, so redirects after sign-in can be asserted against rendered screens instead of router internals.
+- `src/pages/account/LoginPage/testUtils.tsx` provides a `renderLoginPage()` helper that wraps `LoginPage` in a `MemoryRouter` with dummy `/` and `/events` destinations, so redirects after sign-in can be asserted against rendered screens instead of router internals.
 
 ## Authentication (Firebase)
 
-- `/login` (`src/pages/LoginPage.tsx`) is backed by Firebase Authentication (Email/Password provider) via `src/lib/firebase.ts`, `login`/`logout`/`setAuthUser` actions in `useAppStore`, and `isAuthenticated`/`authLoading` driven by Firebase's `onAuthStateChanged` (subscribed once in `App.tsx`).
+- `/login` (`src/pages/account/LoginPage/LoginPage.tsx`) is backed by Firebase Authentication (Email/Password provider) via `src/lib/firebase.ts`, `login`/`logout`/`setAuthUser` actions in `useAppStore`, and `isAuthenticated`/`authLoading` driven by Firebase's `onAuthStateChanged` (subscribed once in `App.tsx`).
 - All other routes are gated by `src/components/auth/RequireAuth.tsx`.
 - Requires `frontend/.env` with `VITE_FIREBASE_*` values — see `.env.example` and the Firebase Authentication section in `README.md`.
 - Signed-in Firebase users are mapped from their Firebase custom `roles` claim
   to supported application roles. The merged mock-profile switcher in `TopNav`
   is not compatible with real Firebase authorization and must not be treated as
   an authorization mechanism.
-- `scripts/ci/unit-test.sh` installs dependencies and runs the Vitest component interaction tests.
+- The root `../scripts/ci/unit-test.sh` installs dependencies and runs this
+  package's Vitest component interaction tests in parallel with the backend.
 
 ## Event requests
 

@@ -8,9 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
-    "test:cov": "vitest run --coverage",
+    "test:cov": "vitest run --coverage && node ../scripts/ci/verify-new-source-coverage.mjs",
     "test:cov:spm37": "vitest run --config vitest.spm37.config.ts"
   },
   "dependencies": {

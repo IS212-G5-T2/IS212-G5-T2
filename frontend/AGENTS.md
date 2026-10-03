@@ -1,21 +1,64 @@
 # Frontend agent rules
 
-Scope: `frontend`, within the [global policy](../AGENTS.md).
+Scope: `frontend/`, within the [global policy](../AGENTS.md).
 
-## Current state
+## Ownership
 
-- This directory is the front-facing application. It is covered by the repository-level [security workflow](../.github/workflows/security.yml). Keep setup, test, lint, and build documentation aligned with implemented files.
-- The current implementation uses React, Vite, TypeScript, Tailwind CSS, React Router, Zustand, and npm. Verify current files and Jira requirements before changing these conventions.
-- The GitHub Actions workflow runs security scanning. That is security scanning configuration, not evidence of a working application or passing browser checks.
+- This directory owns the React/Vite client, browser-facing behavior, frontend API client and state, UI assets, and frontend tests.
+- It does not own backend business rules or persistence, local database initialization, shared Docker Compose tooling, CI orchestration, or production infrastructure.
+- Coordinate API contracts and authentication behavior with `backend/`; inspect both scoped instruction files for cross-boundary work.
 
-## Implementation guidance
+## Shared Jira agent workflow
 
-- When changing the client implementation, update [README.md](README.md) with setup, development, test, build, and environment commands.
-- Add frontend checks that match the chosen stack before reporting the application as verified. Backend validation alone is not evidence that a browser workflow works.
-- Coordinate API contracts with `backend/`. Do not make claims about end-to-end connectivity from local or infrastructure intent alone.
+For Jira work, follow [`.ai/workflow/README.md`](../.ai/workflow/README.md) and [`.ai/agents/implementation.md`](../.ai/agents/implementation.md). Agent 1 owns implementation and automated tests across affected components. Jira and Confluence context is captured once under `.ai/runtime/{ticket_id}/`; use the requirements and exact Confluence test cases in that snapshot. Agents 2–4 review independently without editing; the orchestrator reconciles findings, selectively reruns affected reviewers within the bounded retry, and runs final checks. Do not create a frontend-specific agent flow or rely on conversation history instead of runtime artifacts.
 
-## Event workflow checks
+## Runtime and commands
 
-Use `npm test` for Vitest/jsdom component interaction checks, `npm run lint`, and `npm run build`. CI entrypoint: `scripts/ci/unit-test.sh`. Event create/list/detail pages use `/api/events`; drafts and My Requests use `/api/requests`. Keep both contracts aligned with `backend/`. Real account/organisation integration and email delivery are separate work.
+- Stack: React, Vite, TypeScript, Tailwind CSS, React Router, Zustand, and npm. Check the current package and config files before changing the toolchain.
+- Run from `frontend/`:
 
-Keep unit tests beside pages as `.test.tsx` and browser tests as `.playwright.spec.ts`. Playwright tests are excluded from the frontend production TypeScript build and Vitest discovery. Use the backend `scripts/testing/run-browser.mjs` harness with a dedicated test database for browser checks and record cleanup.
+  ```sh
+  npm ci
+  npm run dev
+  npm test
+  npm run lint
+  npm run build
+  ```
+
+- CI unit tests are run by the root [`scripts/ci/unit-test.sh`](../scripts/ci/unit-test.sh) entrypoint; this package owns the `npm test` command it invokes. Vitest uses jsdom and React Testing Library; Playwright specs are separate from Vitest and the production TypeScript build.
+- Backend tests do not verify browser behavior. Report browser, Firebase, or API integration checks that could not be run.
+
+## Target source organization
+
+Use feature ownership for new and substantially changed frontend work. Do not mass-move existing files as part of an unrelated ticket; broad migration can happen as a dedicated refactor. Keep the route entrypoints and genuinely shared UI separate from feature-specific behavior:
+
+| Location | Responsibility |
+| --- | --- |
+| `src/pages/<domain>/<PageName>/` | Route-level page composition, its page tests, and components/helpers used only by that page. Group routes under domains such as `events/`, `venues/`, `bookings/`, and `equipment/`. |
+| `src/features/<feature>/` | Feature-specific components, hooks, API operations, types, and tests when a feature has enough code to form a clear boundary. Prefer this over growing global buckets for new multi-file features. |
+| `src/components/ui/`, `auth/`, `layout/` | UI primitives and components genuinely shared across routes for presentation, authentication, or application chrome. |
+| `src/lib/` | Cross-feature integrations and foundational client logic such as authentication. |
+| `src/utils/api.ts` | Shared HTTP transport, credentials, timeout, and error handling. Feature-specific request functions belong with their feature when they grow beyond a simple call. |
+| `src/store/` | Cross-page or app-wide state in the existing Zustand stores. Keep temporary form/display state local to the component or page. |
+| `src/types/` | Types shared by multiple features or common API contracts. Keep feature-only types inside that feature. |
+| `src/test/` | Shared test setup and fixtures. Keep feature-specific fixtures/helpers beside the feature. |
+
+For a substantial feature, keep route entrypoints grouped by domain and put cross-page feature code in `src/features/<feature>/`. For example, event routes live under `src/pages/events/`, while event notifications shared with the app shell live under `src/features/events/`. A page-specific component belongs in that page's folder. Do not restore a global `components/domain/` catch-all or make both a global and feature-local copy of API clients, state, types, or helpers.
+
+## UI, state, and API guidance
+
+- Keep pages responsible for composing a route. Extract focused components when they have meaningful behavior, reuse, or independent tests.
+- Use semantic HTML, accessible labels and keyboard behavior, visible validation/errors, and the existing UI primitives and Tailwind conventions. Do not add another design system without a concrete requirement.
+- Keep the backend authoritative for data and authorization. Client route guards improve UX but do not replace backend checks.
+- Keep request/response shapes aligned with `backend/`. Use the shared `api()` client for common transport behavior; do not duplicate raw `fetch` logic without a concrete need.
+- Use Zustand for state shared across routes/workflows and local React state for transient interaction state.
+
+## Tests and documentation
+
+- Put unit/component tests beside pages or components as `.test.tsx`, inside the owning page/feature folder. Put browser workflows beside their page as `.playwright.spec.ts`; keep browser specs excluded from Vitest and production compilation.
+- Extend the existing behavior-focused page/component suite when adding coverage for another ticket. Keep any already-established, distinct workflow suites together in their page folder; check for overlap before adding a scenario. Do not create ticket-named test files such as `EventsAccept.test.tsx`; identify the Jira key in the test name or nearby case comment.
+- Use `src/test/setup.ts` and shared fixtures under `src/test/`. Keep fixtures outside production entrypoints.
+- Follow root test naming/comment guidance. Test observable behavior and meaningful failure states; mocked tests do not prove live integration.
+- Add JSDoc to exported components, hooks, functions, and types, plus new or materially changed nontrivial functions. Explain intent and use `@param`, `@returns`, and `@throws` where they clarify the contract; keep the documentation accurate as behavior changes.
+- Run `npm test`, `npm run lint`, and `npm run build` for relevant changes. Run the owning Playwright/browser workflow when needed and available; record limitations.
+- Update [README.md](README.md) for setup, tests, build, and environment changes. Document variable names/placeholders only; keep `.env` values private.

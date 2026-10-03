@@ -1,8 +1,8 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import type { DatabaseService } from '../database/database.service.js';
-import type { CommentRow, EventForReview } from './clarifications.repository.js';
-import type { ClarificationsRepository } from './clarifications.repository.js';
+import type { CommentRow, EventForReview } from './repositories/clarifications.repository.js';
+import type { ClarificationsRepository } from './repositories/clarifications.repository.js';
 import { ClarificationsService } from './clarifications.service.js';
 
 const EVENT_ID = '00000000-0000-4000-8000-000000000042';

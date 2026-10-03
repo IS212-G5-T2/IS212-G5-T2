@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Grouped route pages by domain and colocated page tests and page-only UI; moved shared event helpers and notices into the events feature.
+
 - Hid the event status progression line (draft → submitted → approved → planning → confirmed → completed) from the attendee event view; it remains visible to organizers and coordinators.
 - Redesigned the attendee registration card around five states: opens on [date] SGT, closes in N days, closes today, closed, and fully booked. Dates use one format (12 Mar 2027, 23:59 SGT); N is the SGT calendar-day difference; the Register button appears only while open. The SPM-99 opens/closes/spots rows and "Registration Open/Full" status line are replaced (SPM-61).
 

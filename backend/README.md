@@ -52,9 +52,13 @@ Auth code is organized by responsibility:
 | Path | Purpose |
 | --- | --- |
 | `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
-| `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
-| `src/auth/authorization/` | RBAC permission and ownership checks. |
-| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+| `src/authentication/authentication.module.ts` | Authentication feature wiring. |
+| `src/authentication/auth.controller.ts` | Login, logout, and current-user HTTP endpoints. |
+| `src/authentication/auth.service.ts` | Session creation, lookup, and revocation use cases. |
+| `src/authentication/repositories/` | Account and session SQL. |
+| `src/authentication/authentication.middleware.ts` | Session-cookie verification for protected routes. |
+| `src/authentication/models/` | Shared authenticated-user, role, permission, and request-key types. |
+| `src/authorization/` | RBAC permission and ownership query helpers. |
 
 ## Database Access
 
@@ -104,8 +108,9 @@ npm run test:e2e
 npm run build
 ```
 
-The monorepo test workflow runs `scripts/ci/unit-test.sh`, which delegates to
-`npm run test:cov` and writes a local V8 coverage report to `coverage/`.
+The monorepo test workflow runs the root `scripts/ci/unit-test.sh`, which
+installs this package and invokes `npm test` in parallel with the frontend
+suite. `npm test` writes this package's local V8 coverage report to `coverage/`.
 
 ## Branch Flow
 
@@ -133,10 +138,14 @@ integrate server-side Firebase identity and RBAC before shared or production
 use. Email delivery and Save Draft are deferred.
 
 Event unit tests live beside their implementation:
-`src/events/event-input.spec.ts` covers validation and
-`src/events/events.service.spec.ts` covers persistence behavior with mocked
-database calls. They run through `npm test`. There is no committed
-database-container E2E test for the event endpoints.
+`src/events/dto/event-input.spec.ts` covers event validation,
+`src/events/events.service.spec.ts` covers event persistence behavior, and
+`src/events/drafts/` groups draft validation, service, controller, and E2E
+coverage. Rejection route code and focused service tests live in
+`src/events/rejections/`. These paths are discovered by the existing Vitest
+configurations; no test patterns were added. The draft lifecycle's
+PostgreSQL-backed E2E suite is `src/events/drafts/drafts.e2e-spec.ts` and runs
+with `TEST_DATABASE_URL` and the dedicated `npm run test:e2e` configuration. The dev suite retains its existing bootstrap and authentication behavior; this file relocation does not rewrite it.
 
 ## Clarification/amendment requests (SPM-39)
 
@@ -164,7 +173,7 @@ and `EventsService`'s hardcoded demo-organiser identity means the reply
 endpoint's ownership check only matches events whose `organiser_id` is a real
 Firebase uid.
 
-Unit tests: `src/clarifications/clarification-input.spec.ts` and
+Clarifications are grouped by responsibility: `dto/` contains request validation and the public `CommentDto`, `models/` contains persistence/domain shapes, and `repositories/` contains SQL. Unit tests: `src/clarifications/dto/clarification-input.spec.ts` and
 `src/clarifications/clarifications.service.spec.ts`. E2E test:
 `test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
 real PostgreSQL database and the Firebase Auth Emulator.

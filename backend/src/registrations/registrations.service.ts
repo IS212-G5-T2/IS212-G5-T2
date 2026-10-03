@@ -15,7 +15,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from './clock.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';

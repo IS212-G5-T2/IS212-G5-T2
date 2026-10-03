@@ -6,14 +6,17 @@
 
 The generated starter endpoint currently returns `Hello World!`, and `/healthz` returns a simple health payload.
 
-`AuthModule` provides PostgreSQL-backed session authentication middleware and database-backed RBAC helpers. Route-owning modules apply `AuthenticationMiddleware` to protected controllers; it validates the HTTP-only session cookie and attaches the authenticated user to `request.currentUser`.
+`AuthenticationModule` provides PostgreSQL-backed session authentication middleware; the separate authorization repository provides database-backed RBAC helpers. Route-owning modules apply `AuthenticationMiddleware` to protected controllers; it validates the HTTP-only session cookie and attaches the authenticated user to `request.currentUser`.
 
 `RbacRepository` reads the existing local database tables: `roles`, `resources`, and `role_permissions`. Its composable permission predicate is intended to be embedded in resource SQL alongside ownership conditions, so authorization and the data operation can execute in one database request. Runtime configuration requires `DATABASE_URL` plus optional `AUTH_COOKIE_NAME`, `AUTH_COOKIE_SECURE`, and `AUTH_SESSION_TTL_HOURS` overrides.
 
 Auth source is split by responsibility: `src/config/auth.config.ts` parses and
-validates session environment settings; `src/auth/authentication` owns login,
-logout, session lookup, and middleware; `src/auth/authorization` owns
-RBAC/ownership services; and `src/auth/models` owns shared auth types.
+validates session environment settings; `src/authentication/` owns login,
+logout, session lookup, and identity types. Its controller, service, middleware, and module live at the feature root; SQL
+lives in `repositories/` and shared identity types in `models/`. `src/authorization/`
+owns RBAC/ownership queries.
+
+Clarifications are organized into `dto/` (validated API shapes and `CommentDto`), `models/` (row and write types), and `repositories/` (SQL). Events use `dto/`, `models/`, and `helpers/`, with draft workflows in `events/drafts/` and rejection workflows in `events/rejections/`.
 
 Authentication uses `users`, `user_roles`, and `auth_sessions`, seeded together
 in `database/postgresql/init/001_schema.sql` and seeded by `002_seed_data.sql`. Sessions are opaque
@@ -49,7 +52,8 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
   of hardening that endpoint.
 - Keep account role values aligned with the RBAC seed values: `ORGANISER`,
   `COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, and `ATTENDEE`.
-- Keep exactly one CI unit-test entrypoint at `scripts/ci/unit-test.sh`.
+- Keep exactly one CI unit-test entrypoint at the repository root:
+  `../scripts/ci/unit-test.sh`.
 - Review the npm audit output from adding Firebase Admin/PostgreSQL dependencies before release hardening.
 - No deployment path is configured in this repository.
 
@@ -61,6 +65,11 @@ ticket. The `DEMO_ORGANISER_ENABLED` switch must be replaced by authenticated
 server identity integration before multi-user use. Never trust an organiser ID
 or status supplied by the client. Keep the nested TypeScript 5 lock entry when
 using local npm 11; Docker npm 10 requires it.
+
+The `src/events/` root contains shared event routes, service logic, validation,
+and roster selection. Draft lifecycle code and its tests are grouped in
+`src/events/drafts/`; rejection routes and focused tests are grouped in
+`src/events/rejections/`. Both remain composed by `AppModule`.
 
 ## Coordinator clarification/amendment requests (SPM-39)
 

@@ -1,0 +1,3 @@
+developer_instructions = "Read and follow .ai/agents/ticket-completion.md. Run only on the user's explicit request to archive a completed ticket."
+model_reasoning_effort = "low"
+sandbox_mode = "workspace-write"
