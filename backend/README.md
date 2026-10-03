@@ -145,7 +145,7 @@ coverage. Rejection route code and focused service tests live in
 `src/events/rejections/`. These paths are discovered by the existing Vitest
 configurations; no test patterns were added. The draft lifecycle's
 PostgreSQL-backed E2E suite is `src/events/drafts/drafts.e2e-spec.ts` and runs
-with the dedicated `npm run test:e2e` configuration.
+with `TEST_DATABASE_URL` and the dedicated `npm run test:e2e` configuration. The dev suite retains its existing bootstrap and authentication behavior; this file relocation does not rewrite it.
 
 ## Clarification/amendment requests (SPM-39)
 

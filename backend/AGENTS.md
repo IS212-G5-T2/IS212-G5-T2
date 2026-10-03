@@ -66,6 +66,12 @@ Group cohesive backend subfeatures under their owning domain, then use layer fol
 
 ## Events boundary
 
-- `src/events/` owns event and draft request validation, routes, use cases, and persistence through repositories. Keep DTO validation in `dto/` (and `drafts/dto/`), shared event shapes in `models/`, and only cohesive reusable logic in `helpers/`.
-- Draft and event routes are protected by `AuthenticationMiddleware`, which reads the configured session cookie and resolves the user through the PostgreSQL-backed session service. Authorization and ownership must use that server-verified identity. Pass `request.currentUser` explicitly and scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
-- Unit tests live beside the behavior they cover. Draft unit tests and the PostgreSQL-backed E2E suite live in `src/events/drafts/`; the E2E suite logs in the seeded organiser, exercises the session middleware, and checks owner isolation against PostgreSQL. Run it with `DATABASE_URL` and the dedicated integration configuration.
+- `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table.
+- Coordinate local schema assets with `database/` and API consumers with `frontend/`.
+- Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass request.currentUser explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
+- Unit tests live beside the events module. `src/events/drafts/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
+
+## Registrations boundary
+
+- `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me`, and writes to `event_registrations`. It does not own event authoring or withdrawal.
+- Registration rules read time only from the injected `CLOCK`; tests freeze it. `src/registrations/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied.

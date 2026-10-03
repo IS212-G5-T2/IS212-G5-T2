@@ -25,7 +25,6 @@ describe('SPM-38 AC5: getCoordinatorRoster', () => {
 });
 
 describe('SPM-38 AC5: pickNextCoordinator', () => {
-  // SPM-38 EVE-REV-05-D: roster selection advances and wraps around.
   it('EVE-REV-05-D cycles through the live roster in order and wraps around', async () => {
     const client = clientWithRoster(ROSTER);
 

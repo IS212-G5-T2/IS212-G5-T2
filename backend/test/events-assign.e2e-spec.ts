@@ -180,7 +180,7 @@ describe('Events coordinator assignment (e2e)', () => {
     });
   });
 
-  // SPM-38 EVE-REV-04-F (AC4): a coordinator the event is not assigned to gets the same 404
+  // SPM-38 AC4: a coordinator the event is not assigned to gets the same 404
   // as a non-existent event when reading it through the real HTTP pipeline,
   // and an unauthenticated request is rejected before it ever reaches that check.
   it('EVE-REV-04-F returns 404 for a coordinator the event is not assigned to', async () => {

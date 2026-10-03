@@ -3,8 +3,8 @@ import {
   ACCESSIBILITY,
   FACILITIES,
   LAYOUTS,
+  type EventAttachment,
 } from '../../dto/event-input.js';
-import type { EventAttachment } from '../../models/event.models.js';
 
 export interface DraftFields {
   formStep?: number;

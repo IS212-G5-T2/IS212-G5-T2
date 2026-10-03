@@ -1,3 +1,5 @@
+import type { CommentDto } from './dto/comment.dto.js';
+export type { CommentDto } from './dto/comment.dto.js';
 /*
  * SPM-39: Coordinator clarification/amendment requests. Coordinators open a
  * clarification thread on an event assigned to them; the event's Organiser
@@ -15,9 +17,11 @@ import {
 import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateMessage } from './dto/clarification-input.js';
-import type { CommentDto } from './dto/comment.dto.js';
-import type { CommentRow, EventForReview } from './models/clarifications.models.js';
-import { ClarificationsRepository } from './repositories/clarifications.repository.js';
+import {
+  ClarificationsRepository,
+  type CommentRow,
+  type EventForReview,
+} from './repositories/clarifications.repository.js';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

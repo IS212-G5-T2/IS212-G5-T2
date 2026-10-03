@@ -1,4 +1,3 @@
-/** Event columns needed to authorize and process clarification workflows. */
 export interface EventForReview {
   id: string;
   event_name: string;
@@ -7,7 +6,6 @@ export interface EventForReview {
   coordinator_id: string | null;
 }
 
-/** Database row shape returned for a clarification or reply. */
 export interface CommentRow {
   id: string;
   event_id: string;
@@ -22,7 +20,6 @@ export interface CommentRow {
   created_at: Date;
 }
 
-/** Values used to insert a clarification or reply row. */
 export interface InsertCommentInput {
   eventId: string;
   parentId: string | null;
@@ -34,7 +31,6 @@ export interface InsertCommentInput {
   awaitingReply: boolean;
 }
 
-/** Values used to enqueue an event notification. */
 export interface InsertNotificationInput {
   recipientId: string;
   type: string;

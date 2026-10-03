@@ -77,7 +77,6 @@ describe("api", () => {
   });
 
   // Maps attachment-size failures to an actionable message.
-  // SPM-37 EVE-DRF-10-C (partial): maps a non-JSON 413; backend 413 and CORS headers still need a test.
   it("maps a 413 response to the attachment-size message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 413 })));
 
@@ -101,6 +100,20 @@ describe("api", () => {
   it("retains ApiError field errors", () => {
     expect(new ApiError("Validation failed", { title: "Required" })).toMatchObject({
       message: "Validation failed", errors: { title: "Required" },
+    });
+  });
+});
+
+describe("api error codes (SPM-61)", () => {
+  // The server's machine-readable code and status reach the caller so the UI can branch on them.
+  it("exposes code, errors and status on ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ code: "registration_closed", message: "Registration has closed for this event." }), { status: 422 }),
+    ));
+    await expect(api("/events/x/registrations")).rejects.toMatchObject({
+      message: "Registration has closed for this event.",
+      code: "registration_closed",
+      status: 422,
     });
   });
 });

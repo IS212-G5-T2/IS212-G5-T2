@@ -180,7 +180,6 @@ describe("EventDetailPage clarification thread", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/comments");
   });
 
-  // SPM-39 REQ-CLAR-02-B: the coordinator sees a pending-reply indicator.
   it("REQ-CLAR-02-B: Event Coordinator can see a clear indicator when a clarification request is awaiting Organiser's reply", async () => {
     const user = userEvent.setup();
     const event = baseEvent();

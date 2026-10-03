@@ -2,7 +2,15 @@
 
 ## Unreleased
 
-- Grouped route pages by domain and colocated page tests and page-only UI; moved app-wide event rejection notices into the events feature.
+- Grouped route pages by domain and colocated page tests and page-only UI; moved shared event helpers and notices into the events feature.
+
+- Hid the event status progression line (draft → submitted → approved → planning → confirmed → completed) from the attendee event view; it remains visible to organizers and coordinators.
+- Redesigned the attendee registration card around five states: opens on [date] SGT, closes in N days, closes today, closed, and fully booked. Dates use one format (12 Mar 2027, 23:59 SGT); N is the SGT calendar-day difference; the Register button appears only while open. The SPM-99 opens/closes/spots rows and "Registration Open/Full" status line are replaced (SPM-61).
+
+- Attendee Browse Events now filters by Upcoming events (default), Registered Events, Past Events and Cancelled (the last three are the attendee's own registrations). Cards keep the status badge and add a Registered badge; Approved events show as Confirmed to attendees (SPM-61).
+
+- Added attendee registration UI (`components/EventDetail/`): details form, confirmation, and server-backed duplicate handling. The Register button is now rendered only while registration is open (closed, not-yet-open and full states show text), the closing instant is exclusive, and the local-only Withdraw button is hidden until a withdraw story ships (SPM-61).
+
 - Corrected the frontend CI unit-test entrypoint to invoke the configured
   `test:cov` coverage script.
 

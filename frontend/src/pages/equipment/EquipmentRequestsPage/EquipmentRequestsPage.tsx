@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
 import { Card, CardBody } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { EquipmentReservationForm } from "./EquipmentReservationForm";
+import { EquipmentReservationForm } from "@/pages/equipment/EquipmentRequestsPage/EquipmentReservationForm";
 import { formatDateRange } from "@/utils/format";
 
 export function EquipmentRequestsPage() {

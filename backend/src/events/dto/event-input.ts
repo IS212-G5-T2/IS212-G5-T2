@@ -1,5 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
 import type { EventAttachment } from '../models/event.models.js';
+export type { EventAttachment } from '../models/event.models.js';
+import { BadRequestException } from '@nestjs/common';
 
 export const FACILITIES = [
   'Catering',

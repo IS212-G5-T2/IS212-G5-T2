@@ -16,7 +16,7 @@ For Jira work, follow [`.ai/workflow/README.md`](../.ai/workflow/README.md) and 
 
 - `postgresql/Dockerfile` is a thin wrapper around the official PostgreSQL image and copies `postgresql/init/` into the image entrypoint directory.
 - `postgresql/init/001_schema.sql` defines the schema for a fresh local database. `postgresql/init/002_seed_data.sql` inserts development-only roles, accounts, health-check data, and fictional sample records.
-- Preserve the two-file initializer convention and numeric execution order unless a documented repository decision changes it. Keep schema definitions in the schema file and seed inserts in the seed file.
+- Preserve dev's numbered initializer sequence: base schema and seed assets in 001/002, followed by the existing ordered 003/004/005 scripts. Do not consolidate or remove these scripts during file-organization work.
 - Make SQL safe to apply in the documented local workflows; use idempotent seed operations where appropriate because the seed script can also be rerun manually against an existing local database.
 - These scripts run only when PostgreSQL initializes a fresh data directory. Editing them does not upgrade an existing named volume. Never direct someone to reset a volume to apply a schema change without confirming local data may be discarded.
 - Existing-database changes belong in ordered, additive migrations under `backend/migrations/`. Inspect `backend/AGENTS.md` and coordinate the migration and fresh-install schema with backend owners. Do not place application migrations here or replace an existing schema from an init script.

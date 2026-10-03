@@ -1,4 +1,3 @@
-/** Public response shape for clarification and reply comments. */
 export interface CommentDto {
   id: string;
   eventId: string;

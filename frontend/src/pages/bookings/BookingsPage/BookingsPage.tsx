@@ -2,8 +2,8 @@ import { useMemo, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/FormControls";
-import { BookingCard } from "./BookingCard";
-import { BookingDetailModal } from "./BookingDetailModal";
+import { BookingCard } from "@/pages/bookings/BookingsPage/BookingCard";
+import { BookingDetailModal } from "@/pages/bookings/BookingsPage/BookingDetailModal";
 import type { Booking } from "@/types";
 
 export function BookingsPage() {

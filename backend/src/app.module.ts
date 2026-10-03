@@ -10,6 +10,9 @@ import { AuthenticationModule } from './authentication/authentication.module.js'
 import { AuthenticationMiddleware } from './authentication/authentication.middleware.js';
 import { ClarificationsModule } from './clarifications/clarifications.module.js';
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
+import { CLOCK, systemClock } from './registrations/clock.js';
+import { RegistrationsController } from './registrations/registrations.controller.js';
+import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 
 @Module({
@@ -19,8 +22,15 @@ import { DatabaseModule } from './database/database.module.js';
     EventsController,
     EventRejectionsController,
     DraftsController,
+    RegistrationsController,
   ],
-  providers: [AppService, EventsService, DraftsService],
+  providers: [
+    AppService,
+    EventsService,
+    DraftsService,
+    RegistrationsService,
+    { provide: CLOCK, useValue: systemClock },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
@@ -31,6 +41,7 @@ export class AppModule implements NestModule {
         EventsController,
         EventRejectionsController,
         DraftsController,
+        RegistrationsController,
         ClarificationsController,
       );
   }

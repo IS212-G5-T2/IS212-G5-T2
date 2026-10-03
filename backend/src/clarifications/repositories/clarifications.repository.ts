@@ -1,3 +1,5 @@
+import type { EventForReview, CommentRow, InsertCommentInput, InsertNotificationInput } from '../models/clarifications.models.js';
+export type { EventForReview, CommentRow, InsertCommentInput, InsertNotificationInput } from '../models/clarifications.models.js';
 /*
  * Raw SQL for the clarification/reply thread and its related event and
  * notification rows. Callers are responsible for wrapping multi-statement
@@ -8,12 +10,9 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { DatabaseService } from '../../database/database.service.js';
 
-import type {
-  CommentRow,
-  EventForReview,
-  InsertCommentInput,
-  InsertNotificationInput,
-} from '../models/clarifications.models.js';
+
+
+
 
 type Queryable = Pick<pg.PoolClient, 'query'>;
 

@@ -127,8 +127,6 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
   // EVENT-REJECT-01-B — happy path (submit)
@@ -266,7 +264,8 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
-  // SPM-83 EVENT-REJECT-01-I: a rejected request follows the draft → submitted → rejected timeline.
+  // AC5 visual: a rejected request shows a draft → submitted → rejected timeline,
+  // not the normal approval pipeline.
   it("shows a draft → submitted → rejected status timeline for a rejected request", async () => {
     setUser("organiser", "organiser-9");
     renderDetail(

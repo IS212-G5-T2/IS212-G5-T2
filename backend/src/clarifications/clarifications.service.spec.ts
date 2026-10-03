@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import type { DatabaseService } from '../database/database.service.js';
-import type { CommentRow, EventForReview } from './models/clarifications.models.js';
+import type { CommentRow, EventForReview } from './repositories/clarifications.repository.js';
 import type { ClarificationsRepository } from './repositories/clarifications.repository.js';
 import { ClarificationsService } from './clarifications.service.js';
 

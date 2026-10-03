@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { EventEditForm } from "./EventEditForm";
+import { EventEditForm } from "@/pages/events/EventEditPage/EventEditForm";
 
 export function EventEditPage() {
   const { id } = useParams();

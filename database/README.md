@@ -3,8 +3,7 @@
 This directory contains database initialization files shared by local development tooling.
 
 For the feature and schema evolution that led to the consolidated initializer,
-see [CHANGELOG.md](CHANGELOG.md). The init directory stays limited to one
-schema script and one seed-data script.
+see [CHANGELOG.md](CHANGELOG.md). The initializer keeps dev's ordered base schema, seed data, and subsequent numbered update scripts.
 
 ## PostgreSQL
 
@@ -36,7 +35,7 @@ docker run --rm --name spm-postgresql \
 
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `docker-compose/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
-The PostgreSQL entrypoint runs two SQL files by filename order when it creates a fresh database: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
+The PostgreSQL entrypoint runs SQL files by filename order when it creates a fresh database: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
 
 | Table | Purpose |
 | --- | --- |
@@ -62,6 +61,8 @@ SELECT count(*) FROM role_permissions;
 ```
 
 The expected counts are 5 roles, 10 resources, and 27 role permission rows.
+
+The subsequent `003` to `005` scripts extend the base schema and development seed data, including SPM-61 registrations. Preserve their numeric order.
 
 ## Local login data
 

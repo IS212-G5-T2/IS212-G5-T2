@@ -7,7 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EventsService } from './events.service.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../authentication/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 
 /**
@@ -184,7 +184,6 @@ describe('EventsService.approve (SPM-40)', () => {
 });
 
 describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
-  // SPM-40 EVENT-APPROVE-04-A: non-submitted requests cannot be approved.
   it.each(['Approved', 'Planning', 'Confirmed', 'Completed', 'Rejected', 'Cancelled'])(
     'cannot approve a %s request (Conflict, no update)',
     async (status) => {
@@ -201,7 +200,6 @@ describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
 });
 
 describe('EventsService.approve — immutability (EVENT-APPROVE-04-B)', () => {
-  // SPM-40 EVENT-APPROVE-04-B: an approved request cannot be processed twice.
   it('does not re-process or revert an already-Approved event', async () => {
     // An already-approved event stays approved: the Submitted-only guard blocks
     // it, so no status-mutating UPDATE and no duplicate approval notification.

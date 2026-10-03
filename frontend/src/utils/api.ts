@@ -2,6 +2,9 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public errors?: Record<string, string>,
+    /** Machine-readable server error code, such as registration_closed. */
+    public code?: string,
+    public status?: number,
   ) {
     super(message);
   }
@@ -29,7 +32,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       "Unable to reach the server. Check your connection and try again.",
     );
   }
-  let data: { message?: string; errors?: Record<string, string> } = {};
+  let data: { message?: string; errors?: Record<string, string>; code?: string } = {};
   try {
     data = await response.json();
   } catch {
@@ -44,6 +47,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
           ? "The service is temporarily unavailable. Please try again."
           : (data.message ?? "Request failed."),
       data.errors,
+      data.code,
+      response.status,
     );
   return data as T;
 }

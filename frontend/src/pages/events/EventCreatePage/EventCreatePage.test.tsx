@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventCreatePage } from "@/pages/events/EventCreatePage/EventCreatePage";
 import { EventDetailPage } from "@/pages/events/EventDetailPage/EventDetailPage";
-import { MyRequestsPage } from "@/pages/events/MyRequestsPage/MyRequestsPage";
+import { MyRequestsPage } from "../MyRequestsPage/MyRequestsPage";
 import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord } from "@/types";
@@ -133,8 +133,7 @@ describe("EventCreatePage", () => {
     expect(screen.getByRole("group", { name: /required facilities/i })).toBeTruthy();
   });
 
-  // SPM-36 EVE-CRE-04-A and EVE-CRE-05-A: blank basic fields show errors and retain valid input.
-  // SPM-36 EVE-CRE-05-F (partial): description is blank here, but name is also blank; description alone still needs a test.
+  // SPM-36 Test Cases EVE-CRE-04-A and EVE-CRE-05-A
   it("EVE-CRE-04-A EVE-CRE-05-A blocks blank basic fields with field errors and retains valid input", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -316,7 +315,7 @@ describe("SPM-37 drafts in the current event form", () => {
     eventId: null,
     updatedAt: "2026-09-16T00:00:00Z",
   };
-  // SPM-37 EVE-DRF-01-A: saving incomplete fields confirms a draft without submitting.
+  // AC1/2/6: saving is separate from submission and accepts incomplete fields.
   it("saves an incomplete request and confirms without submitting", async () => {
     apiMock.mockResolvedValue(draft);
     renderCreate();
@@ -328,8 +327,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(apiMock.mock.calls[0][1]?.method).toBe("PUT");
     expect(apiMock.mock.calls.some(([path]) => path === "/events")).toBe(false);
   });
-  // SPM-37 EVE-DRF-02-A (partial): checks the name; other UI fields still need prefill assertions.
-  // SPM-37 EVE-DRF-04-A: edits save to the same request ID and version.
+  // AC3/4: reopens the saved form and updates the same ID/version.
   it("prefills an existing draft and saves updates to the same request", async () => {
     apiMock.mockResolvedValue(draft);
     renderCreate(`/requests/${draft.id}`);
@@ -348,7 +346,7 @@ describe("SPM-37 drafts in the current event form", () => {
       fields: { name: "Updated name" },
     });
   });
-  // SPM-37 EVE-DRF-06-A: failed saves retain text and retry the same operation.
+  // AC6: failures retain text and retry the exact save operation.
   it("keeps entered values after failure and retries without a duplicate operation", async () => {
     apiMock
       .mockRejectedValueOnce(new Error("Network unavailable"))
@@ -370,7 +368,7 @@ describe("SPM-37 drafts in the current event form", () => {
     await screen.findByRole("dialog");
     expect(apiMock.mock.calls[1]).toEqual(apiMock.mock.calls[0]);
   });
-  // SPM-37 EVE-DRF-07-A: submitted drafts expose no editable controls.
+  // AC8: direct draft URLs cannot expose editable controls after submission.
   it("blocks the editor when the server returns Submitted", async () => {
     apiMock.mockResolvedValue({ ...draft, status: "Submitted" });
     renderCreate(`/requests/${draft.id}`);
@@ -378,7 +376,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.queryByRole("button", { name: "Save draft" })).toBeNull();
     expect(screen.queryByRole("textbox")).toBeNull();
   });
-  // SPM-37 EVE-DRF-03: the Draft list links back to the saved editor.
+  // AC3: the list shows the persisted Draft status and links back to the editor.
   it("lists drafts in My Drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
     renderCreate("/requests");
@@ -400,7 +398,7 @@ describe("SPM-37 drafts in the current event form", () => {
     )!;
     expect(JSON.parse(init!.body as string).fields.formStep).toBe(1);
   });
-  // SPM-37 EVE-DRF-02-A (partial): the saved wizard step resumes; other UI fields still need prefill assertions.
+  // Continuity: reopening a draft resumes the step it was saved on.
   it("resumes a draft on the step where it was saved", async () => {
     apiMock.mockResolvedValue({
       ...draft,
