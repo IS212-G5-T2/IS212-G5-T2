@@ -193,3 +193,72 @@ export interface Notification {
   read: boolean;
   createdAt: string;
 }
+
+export type PlanningFieldMode = "direct" | "needs_review";
+
+export interface PlanningVenueBooking { 
+  id: string; 
+  venueName: string; 
+  start: string; 
+  end: string; 
+  status: "Booked" | "Unavailable"; 
+}
+
+export interface PlanningEquipmentArrangement { 
+  id: string; 
+  name: string; 
+  quantity: number; 
+  status: string; 
+}
+
+export interface BookingImpactConflict { 
+  kind: "overlap" | "turnaround" | "capacity"; 
+  withBookingId?: string; 
+  detail: string; 
+}
+
+export interface BookingImpact { 
+  bookingId: string; 
+  venueName: string; 
+  impacted: boolean; 
+  conflicts: BookingImpactConflict[]; 
+}
+
+export interface FlaggedChange { 
+  id: string; 
+  kind: "booking_conflict"; 
+  field: string; 
+  currentValue: unknown; 
+  proposedValue: unknown; 
+  status: "Needs Review"; 
+  impacts: BookingImpact[]; 
+}
+export interface ReplacementRequired { 
+  id: string; 
+  kind: "replacement_venue_required"; 
+  field: "venue"; 
+  bookingId: string; 
+  venueName: string; 
+  status: "Needs Review"; 
+}
+export type PendingChange = FlaggedChange | ReplacementRequired;
+
+export interface ChangeHistoryEntry { 
+  id: string; 
+  field: string; 
+  originalValue: unknown; 
+  proposedValue: unknown; 
+  resolvedValue: unknown; 
+  resolvedBy: string; 
+  resolvedAt: string; 
+  status: "Applied" | "Rejected"; 
+}
+export interface PlanningView { 
+  event: EventRecord; 
+  venueBookings: PlanningVenueBooking[]; 
+  equipmentArrangements: PlanningEquipmentArrangement[]; 
+  pendingChanges: PendingChange[]; 
+  readOnly: boolean; 
+  editableFields: Array<{ field: string; mode: PlanningFieldMode }>; 
+  lastUpdatedAt: string; 
+}
