@@ -1483,3 +1483,35 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Follow-up 2 (Claude Haiku 4.5): added the opening time row back to the open state to satisfy SPM-99 AC3 (both times visible). Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
 - Follow-up 3 (Claude Haiku 4.5): added registration date/time to the "You're registered" state; hid the event status progression line from attendee view. Checks: frontend 294 passed.
 - Follow-up 4 (Claude Haiku 4.5): attendee event view now shows ONLY Confirmed events (not Approved). Created distinct REGISTRABLE_STATUSES=['Confirmed'] and ATTENDEE_VISIBLE_STATUSES=['Confirmed', 'Completed', 'Cancelled']. Updated list query to use constants and all related tests (backend 496 passed; registrations e2e 28 passed).
+
+## 2026-10-03 - Codex - Restore Docker Compose backend build
+
+- Issue/PR: No Jira issue or pull request; local Docker rebuild requested by kirub.
+- Areas touched: `backend/src/registrations/registration-window.ts`, `AI_USAGE.md`.
+- Summary: Widened the status-list lookup to accept the existing `RegistrationWindow.status: string` contract, resolving the TypeScript build error that prevented the backend Docker image from building.
+- Checks run: `npm run build` passed; `src/registrations/registration-window.spec.ts` — 11/11 passed; Docker Compose rebuild completed and frontend, backend, and PostgreSQL containers are healthy.
+- Follow-up/conflict notes: This is an uncommitted local fix. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add equipment creation acknowledgement flow
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: `frontend/src/pages/EquipmentCreatePage.tsx`, its unit test, the SPM-111 AC4 Confluence live test case, and `AI_USAGE.md`.
+- Summary: Replaced the inline post-create confirmation with an Equipment record created dialog. Selecting OK routes the user to Equipment Availability.
+- Checks run: `frontend` EquipmentCreatePage unit tests — 17/17 passed; `frontend` production build passed.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add required equipment name to SPM-111 records
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: equipment database schema/migration, backend equipment validation and persistence, frontend creation and availability pages, equipment unit tests, SPM-111 Confluence matrix/live cases, and `AI_USAGE.md`.
+- Summary: Added a required, non-blank Equipment Name throughout the create, persist, retrieve, and display flow. Existing local equipment rows are backfilled with their type when the idempotent migration runs.
+- Checks run: backend equipment tests — 55/55 passed; frontend creation-page tests — 18/18 passed; frontend availability-page test — 1/1 passed; backend and frontend builds passed; local Docker services rebuilt healthy; PostgreSQL confirms `equipment.equipment_name` is non-nullable.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Record SPM-111 B1 results
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: SPM-111 Confluence live test cases and `AI_USAGE.md`.
+- Summary: Reran the SPM-111 backend equipment and frontend creation, availability, and route-access unit suites. Updated all 14 live cases with PASS, the exact run counts, test executor, and requester-confirmed manual verification.
+- Checks run: backend equipment suite — 3/3 files and 55/55 tests passed; frontend SPM-111 suites — 3/3 files and 47/47 tests passed.
+- Follow-up/conflict notes: API/database end-to-end checks were not run. No commit, push, pull request, or Jira status change was made.

@@ -30,6 +30,20 @@ const coordinator: User = {
   role: "coordinator",
 };
 
+const technicalSupport: User = {
+  id: "tech-support-1",
+  name: "Technical Support",
+  email: "support@example.com",
+  role: "tech_support",
+};
+
+const venueStaff: User = {
+  id: "venue-staff-1",
+  name: "Venue Staff",
+  email: "venue@example.com",
+  role: "venue_staff",
+};
+
 const event: EventRecord = {
   id: "event-1",
   name: "Owned event",
@@ -86,10 +100,13 @@ function renderRoutes(initialEntry: string) {
           <Route path="/venues/:id" element={<p>Venue detail</p>} />
           <Route path="/bookings" element={<p>Bookings</p>} />
         </Route>
-        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+        <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<p>Equipment</p>} />
-          <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
+          <Route path="/equipment/create" element={<p>Create equipment</p>} />
           <Route path="/equipment/availability" element={<p>Equipment availability</p>} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -189,6 +206,7 @@ describe("restricted organiser routes", () => {
     "/venues/venue-1",
     "/bookings",
     "/equipment",
+    "/equipment/create",
     "/equipment/requests",
     "/equipment/availability",
   ])("redirects an attendee who directly opens restricted operational route %s", (path) => {
@@ -196,6 +214,36 @@ describe("restricted organiser routes", () => {
     renderRoutes(path);
 
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+  });
+
+  // SPM-111 EQUIP-CRE-01-B: only Technical Support reaches the create-record route.
+  it("allows Technical Support and blocks every other role from the equipment creation route", () => {
+    useAppStore.setState({ currentUser: technicalSupport });
+    const { unmount } = renderRoutes("/equipment/create");
+    expect(screen.getByText("Create equipment")).toBeInTheDocument();
+
+    unmount();
+    for (const user of [organiser, coordinator, venueStaff, attendee]) {
+      useAppStore.setState({ currentUser: user });
+      const { unmount: unmountBlocked } = renderRoutes("/equipment/create");
+      expect(screen.queryByText("Create equipment")).not.toBeInTheDocument();
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountBlocked();
+    }
+  });
+
+  // Coordinators handle event equipment requests but not equipment records.
+  it("allows a coordinator to view equipment requests but blocks equipment record routes", () => {
+    useAppStore.setState({ currentUser: coordinator });
+    const { unmount: unmountRequests } = renderRoutes("/equipment/requests");
+    expect(screen.getByText("Equipment requests")).toBeInTheDocument();
+    unmountRequests();
+
+    for (const path of ["/equipment", "/equipment/create", "/equipment/availability"]) {
+      const { unmount: unmountBlocked } = renderRoutes(path);
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountBlocked();
+    }
   });
 
   // SPM-37: cover every branch of RequireRole's role-specific fallback redirect.
