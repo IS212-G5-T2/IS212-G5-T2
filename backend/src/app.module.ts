@@ -14,6 +14,8 @@ import { CLOCK, systemClock } from './registrations/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EquipmentController } from './equipment/equipment.controller.js';
+import { EquipmentService } from './equipment/equipment.service.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule],
@@ -23,12 +25,14 @@ import { DatabaseModule } from './database/database.module.js';
     EventRejectionsController,
     DraftsController,
     RegistrationsController,
+    EquipmentController,
   ],
   providers: [
     AppService,
     EventsService,
     DraftsService,
     RegistrationsService,
+    EquipmentService,
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -42,6 +46,7 @@ export class AppModule implements NestModule {
         EventRejectionsController,
         DraftsController,
         RegistrationsController,
+        EquipmentController,
         ClarificationsController,
       );
   }
