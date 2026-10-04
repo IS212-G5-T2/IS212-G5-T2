@@ -36,9 +36,8 @@ when serving HTTPS.
 ## Authorization
 
 Route-owning modules must apply `AuthenticationMiddleware` to protected
-controllers. The app module currently applies it only to `AuthController`.
-The current events controller is therefore not session-protected. When the
-middleware is applied to a controller, it:
+controllers. The app module applies it to authenticated event, clarification,
+and venue routes. When the middleware is applied to a controller, it:
 
 - Leaves public `GET /` and `GET /healthz` requests alone.
 - Requires a valid session cookie for that protected controller's non-public routes.
@@ -137,6 +136,27 @@ Event unit tests live beside their implementation:
 `src/events/events.service.spec.ts` covers persistence behavior with mocked
 database calls. They run through `npm test`. There is no committed
 database-container E2E test for the event endpoints.
+
+## Venue records (SPM-50)
+
+`POST /api/venues` requires a valid local session and the RBAC `Venue:create`
+permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
+positive integer capacity, non-empty facilities,
+accessibility features, layouts, operating information, and non-negative
+whole-minute setup and turnaround durations. Facilities and layouts must match
+the controlled lookup values; an optional image must be an image data URL no
+larger than 5 MB. Successful requests persist the venue, its normalized
+relationships, and optional image atomically and return
+the saved record with `Venue created successfully.` PostgreSQL generates the
+venue UUID; clients neither provide nor control it. Missing or invalid fields
+return field-specific `400` errors. A case-insensitive, trimmed name/location
+pair must be unique; duplicates return a field-level `409` conflict while the
+UUID remains the stable identifier.
+
+Apply `migrations/005_venues.sql` to existing databases. Fresh local databases
+receive the tables through `database/postgresql/init/001_schema.sql`. Unit
+coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
+test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
 ## Clarification/amendment requests (SPM-39)
 

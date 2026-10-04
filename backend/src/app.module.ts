@@ -1,4 +1,9 @@
-import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import {
+  MiddlewareConsumer,
+  Module,
+  NestModule,
+  RequestMethod,
+} from '@nestjs/common';
 import { EventsController } from './events/events.controller.js';
 import { EventRejectionsController } from './events/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
@@ -14,9 +19,11 @@ import { CLOCK, systemClock } from './registrations/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
+import { VenuesController } from './venues/venues.controller.js';
+import { VenuesModule } from './venues/venues.module.js';
 
 @Module({
-  imports: [AuthModule, ClarificationsModule, DatabaseModule],
+  imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
   controllers: [
     AppController,
     EventsController,
@@ -43,6 +50,7 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         ClarificationsController,
+        VenuesController,
       );
   }
 }

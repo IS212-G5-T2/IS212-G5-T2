@@ -27,6 +27,14 @@ state; existing databases must use backend migrations for upgrades.
 - **SPM-83:** Added `events.rejection_reason`; rejected events require a
   10–500-character reason. The persistent notification table supports the
   organiser-facing rejection workflow.
+- **SPM-50:** Added venue catalogue with one scalar location per venue, controlled accessibility choices, and
+  their relation, including non-negative whole-minute setup and turnaround
+  durations and database-generated venue UUIDs; existing databases use
+  `backend/migrations/005_venues.sql`. Facilities and room layouts are stored
+  in controlled lookup/junction tables instead of venue array columns, and an
+  optional one-to-one venue image stores validated upload metadata/data URL.
+  A normalized unique index prevents duplicate venue name/location pairs
+  without replacing the database-generated UUID identity.
 
 ## Upgrade history
 

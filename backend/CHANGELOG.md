@@ -2,7 +2,16 @@
 
 ## Unreleased
 
-- Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Updated REGISTRABLE_STATUSES and ATTENDEE_VISIBLE_STATUSES to reflect this distinction.
+- Added authenticated venue creation and catalogue APIs for SPM-50, including
+  RBAC enforcement, field-level validation, atomic PostgreSQL persistence, and
+  required non-negative setup/turnaround durations in whole minutes. Venue IDs
+  are database-generated UUIDs rather than staff-entered values. Facilities
+  and room layouts now resolve through lookup/junction tables, and one optional
+  image of at most 5 MB is validated and stored with the venue transaction.
+  Normalized venue name/location pairs are unique and duplicate attempts return
+  a field-level conflict.
+
+- Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Registration now compares directly against the confirmed status, and attendee visibility reflects this distinction.
 
 - MSG-02 now formats the opening time as `12 Mar 2027, 23:59 SGT` (24-hour, SGT) to match the frontend (SPM-61).
 

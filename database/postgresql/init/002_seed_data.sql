@@ -22,6 +22,39 @@ INSERT INTO resources (id, name, description) VALUES
     (10, 'Notification', 'Represents a notification delivered to a user about relevant event-related activity, such as approvals, changes, bookings, or cancellations.')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
 
+INSERT INTO accessibility_features (id, label) VALUES
+    ('wheelchair-access', 'Wheelchair access'),
+    ('accessible-restrooms', 'Accessible restrooms'),
+    ('hearing-loop', 'Hearing loop'),
+    ('elevator-access', 'Elevator access')
+ON CONFLICT (id) DO UPDATE SET label = EXCLUDED.label, is_active = true;
+
+INSERT INTO facilities (name, category) VALUES
+    ('Catering', 'Amenities'),
+    ('AV System', 'Audio and video'),
+    ('Parking', 'Amenities'),
+    ('Stage', 'Room features'),
+    ('Projector', 'Presentation'),
+    ('Whiteboard', 'Presentation'),
+    ('Wi-Fi', 'Connectivity'),
+    ('Wired network', 'Connectivity'),
+    ('Video conferencing', 'Audio and video'),
+    ('Lectern', 'Room features'),
+    ('Power outlets', 'Room features')
+ON CONFLICT (name) DO UPDATE SET category = EXCLUDED.category, is_active = true;
+
+INSERT INTO room_layouts (name) VALUES
+    ('Theatre'),
+    ('Classroom'),
+    ('Seminar Room'),
+    ('Banquet'),
+    ('Boardroom'),
+    ('U-shape'),
+    ('Standing'),
+    ('Cabaret'),
+    ('Hollow square')
+ON CONFLICT (name) DO UPDATE SET is_active = true;
+
 INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", "delete") VALUES
     (1, 1, true, true, true, false), (2, 1, false, true, true, false), (3, 1, false, true, false, false), (4, 1, false, true, false, false), (5, 1, false, true, false, false),
     (1, 2, false, true, false, false), (2, 2, true, true, true, false), (1, 3, true, true, false, false), (2, 3, false, true, true, false), (2, 4, false, true, false, false),
