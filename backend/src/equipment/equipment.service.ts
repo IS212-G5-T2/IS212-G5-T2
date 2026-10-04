@@ -9,6 +9,7 @@ type EquipmentRow = {
   equipment_type: string;
   quantity: number;
   maintenance_status: string;
+  location: string;
   created_at: Date;
   updated_at: Date;
 };
@@ -25,6 +26,7 @@ function toEquipment(row: EquipmentRow) {
     type: row.equipment_type,
     quantity: row.quantity,
     maintenanceStatus: row.maintenance_status,
+    location: row.location,
     createdAt: row.created_at.toISOString(),
     updatedAt: row.updated_at.toISOString(),
   };
@@ -40,10 +42,10 @@ export class EquipmentService {
     requireTechnicalSupport(user);
     const input = validateEquipmentInput(body);
     const result = await this.database.query<EquipmentRow>(
-      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, created_at, updated_at`,
-      [input.name, input.type, input.quantity, input.maintenanceStatus],
+      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, created_at, updated_at`,
+      [input.name, input.type, input.quantity, input.maintenanceStatus, input.location],
     );
     return { equipment: toEquipment(result.rows[0]), message: 'Equipment record created.' };
   }
@@ -51,9 +53,17 @@ export class EquipmentService {
   async list(user: AuthenticatedUser | undefined) {
     requireTechnicalSupport(user);
     const result = await this.database.query<EquipmentRow>(
-      `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, created_at, updated_at
+      `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, created_at, updated_at
        FROM equipment ORDER BY created_at DESC`,
     );
     return result.rows.map(toEquipment);
+  }
+
+  async listLocations(user: AuthenticatedUser | undefined) {
+    requireTechnicalSupport(user);
+    const result = await this.database.query<{ location: string }>(
+      `SELECT DISTINCT location FROM equipment ORDER BY location ASC`,
+    );
+    return result.rows.map((row) => row.location);
   }
 }

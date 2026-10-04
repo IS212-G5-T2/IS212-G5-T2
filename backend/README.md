@@ -122,6 +122,14 @@ for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
+
+## Equipment records
+
+Technical Support users can create and list equipment through `POST /api/equipment`
+and `GET /api/equipment`; `GET /api/equipment/locations` returns distinct saved
+locations for the create form. Equipment requests require a non-blank name and
+location, predefined type and maintenance status, and a whole-number quantity
+from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
 - `GET /api/events`: lists the fixed local demo organiser's events, newest first.
 - `GET /api/events/:id`: returns full details or 404.
 
