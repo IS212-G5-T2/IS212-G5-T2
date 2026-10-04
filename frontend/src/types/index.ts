@@ -192,6 +192,7 @@ export interface Registration {
   status: RegistrationStatus;
   registeredAt: string;
   /** Details captured at registration (SPM-61); absent on older records. */
+  fullName?: string;
   email?: string;
   contactNumber?: string;
   specialRequirements?: string;
