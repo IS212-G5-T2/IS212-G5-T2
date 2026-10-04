@@ -23,6 +23,8 @@ import { VenuesController } from './venues/venues.controller.js';
 import { VenuesModule } from './venues/venues.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
+import { VenuesController } from './venues/venues.controller.js';
+import { VenuesModule } from './venues/venues.module.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
