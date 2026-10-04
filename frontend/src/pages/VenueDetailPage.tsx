@@ -65,14 +65,6 @@ export function VenueDetailPage() {
                 <dt className="text-gray-400 dark:text-gray-500">Turnaround time</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.turnaroundTimeMinutes} minutes</dd>
               </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Setup time</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.setupTimeMinutes} minutes</dd>
-              </div>
-              <div>
-                <dt className="text-gray-400 dark:text-gray-500">Turnaround time</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.turnaroundTimeMinutes} minutes</dd>
-              </div>
               <div className="sm:col-span-2">
                 <dt className="text-gray-400 dark:text-gray-500">Facilities</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.facilities.join(", ")}</dd>
