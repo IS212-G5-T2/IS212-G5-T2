@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AuthError, login, logout, restoreSession } from "@/lib/auth";
-import { api } from "@/utils/api";
+import { ApiError, api } from "@/utils/api";
+import type { RegistrationDetails } from "@/utils/registration";
 import type {
   Booking,
   ChangeRequest,
@@ -16,6 +17,21 @@ import type {
 
 let idCounter = 1000;
 let authRevision = 0;
+const GET_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+/** GETs are idempotent, so transient failures are retried with exponential backoff (D14). */
+async function getWithRetry<T>(path: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await api<T>(path);
+    } catch (error) {
+      const transient = error instanceof ApiError && (!error.status || error.status >= 500);
+      if (!transient || attempt >= GET_RETRY_DELAYS_MS.length) throw error;
+      await new Promise((resolve) => setTimeout(resolve, GET_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
 // Placeholder identity shown before sign-in and restored on sign-out. It is
@@ -56,7 +72,10 @@ interface AppState {
   requestEquipment: (data: Omit<EquipmentRequest, "id" | "status" | "createdAt">) => void;
   reviewEquipmentRequest: (id: string, decision: "reserved" | "unavailable") => void;
 
-  registerForEvent: (eventId: string) => void;
+  /** POSTs a registration; rejects with the server's ApiError (code, errors). */
+  registerForEvent: (eventId: string, details: RegistrationDetails) => Promise<Registration>;
+  /** Loads the signed-in attendee's active registration for an event from the server. */
+  loadMyRegistration: (eventId: string) => Promise<void>;
   withdrawRegistration: (eventId: string) => void;
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -427,45 +446,45 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  registerForEvent: (eventId) => {
+  registerForEvent: async (eventId, details) => {
     const user = get().currentUser;
-    const event = get().events.find((candidate) => candidate.id === eventId);
-
-    // Registration is an attendee-only action. Keep the policy beside the
-    // mutation so a caller cannot register on behalf of another user merely by
-    // bypassing the EventDetailPage button.
-    if (!get().isAuthenticated || user.role !== "attendee" || !event?.registrationEnabled) {
-      return;
+    // The server enforces role, window, duplicates and capacity; this guard
+    // only avoids a pointless request from a signed-out or non-attendee session.
+    if (!get().isAuthenticated || user.role !== "attendee") {
+      throw new Error("Only signed-in attendees can register.");
     }
-
-    const existing = get().registrations.find(
-      (r) => r.eventId === eventId && r.attendeeId === user.id
+    const { registration } = await api<{ registration: Registration }>(
+      `/events/${eventId}/registrations`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fullName: details.fullName,
+          email: details.email,
+          contactNumber: details.contactNumber,
+          specialRequirements: details.specialRequirements,
+        }),
+      },
     );
-    if (existing) {
-      set((s) => ({
-        registrations: s.registrations.map((r) =>
-          r.id === existing.id ? { ...r, status: "registered" } : r
-        ),
-      }));
-    } else {
-      const record: Registration = {
-        id: nextId("r"),
-        eventId,
-        attendeeId: user.id,
-        attendeeName: user.name,
-        status: "registered",
-        registeredAt: new Date().toISOString(),
-      };
-      set((s) => ({ registrations: [record, ...s.registrations] }));
-    }
-    if (event) {
-      get().pushNotification({
-        audienceRole: "coordinator",
-        type: "registration",
-        message: `${user.name} registered for "${event.name}".`,
-        relatedEventId: eventId,
-      });
-    }
+    set((s) => ({
+      registrations: [
+        registration,
+        ...s.registrations.filter((r) => !(r.eventId === eventId && r.attendeeId === registration.attendeeId)),
+      ],
+    }));
+    return registration;
+  },
+
+  loadMyRegistration: async (eventId) => {
+    const user = get().currentUser;
+    const { registration } = await getWithRetry<{ registration: Registration | null }>(
+      `/events/${eventId}/registrations/me`,
+    );
+    set((s) => ({
+      registrations: [
+        ...(registration ? [registration] : []),
+        ...s.registrations.filter((r) => !(r.eventId === eventId && r.attendeeId === user.id)),
+      ],
+    }));
   },
 
   withdrawRegistration: (eventId) => {

@@ -19,7 +19,8 @@ INSERT INTO resources (id, name, description) VALUES
     (7, 'Equipment Request', 'Represents the equipment requirements requested for an event, including equipment type, quantity, and technical requirements.'),
     (8, 'Equipment Reservation', 'Represents equipment allocated or reserved for a particular event and time period.'),
     (9, 'Attendee Registration', 'Represents an attendee''s registration for an event, including their registration status and withdrawal.'),
-    (10, 'Notification', 'Represents a notification delivered to a user about relevant event-related activity, such as approvals, changes, bookings, or cancellations.')
+    (10, 'Notification', 'Represents a notification delivered to a user about relevant event-related activity, such as approvals, changes, bookings, or cancellations.'),
+    (11, 'Equipment', 'Represents the total equipment inventory managed by Technical Support.')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
 
 INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", "delete") VALUES
@@ -28,7 +29,8 @@ INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", 
     (3, 4, true, true, true, false), (2, 5, false, true, false, false), (3, 5, true, true, true, true), (2, 6, true, true, true, false), (3, 6, false, true, true, false),
     (2, 7, true, true, true, false), (4, 7, false, true, true, false), (2, 8, false, true, false, false), (4, 8, true, true, true, true), (1, 9, false, true, false, false),
     (2, 9, false, true, false, false), (5, 9, true, true, false, true), (1, 10, false, true, false, false), (2, 10, false, true, false, false), (3, 10, false, true, false, false),
-    (4, 10, false, true, false, false), (5, 10, false, true, false, false)
+    (4, 10, false, true, false, false), (5, 10, false, true, false, false),
+    (4, 11, true, true, false, false)
 ON CONFLICT (role_id, resource_id) DO UPDATE SET "create" = EXCLUDED."create", "read" = EXCLUDED."read", "update" = EXCLUDED."update", "delete" = EXCLUDED."delete";
 
 INSERT INTO users (email, display_name, password_hash) VALUES

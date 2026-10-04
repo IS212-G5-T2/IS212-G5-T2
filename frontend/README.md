@@ -14,6 +14,9 @@ Install dependencies:
 npm ci
 ```
 
+The app uses Tailwind CSS v4. Shared design tokens and the class-based dark-mode
+variant are defined in `src/index.css` during the Tailwind build.
+
 Run the development server:
 
 ```sh

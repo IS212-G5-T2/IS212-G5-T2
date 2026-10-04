@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-02 - Claude (Sonnet 5) - Implement SPM-62 View Registration Details (Attendee)
+
+- Issue/PR: SPM-62 (branch `feature/SPM-62-View-Registration-Details-Attendee`, reused from an existing empty branch/no PR yet)
+- Human requester/operator: Wei Zhi
+- Areas touched: `frontend/src/components/EventDetail`, `frontend/src/types`, `AI_USAGE.md`
+- Summary: SPM-62 asked for a user-provided test-case document (`docs/specs/SPM-62-test-cases.md`) that does not exist in this repo, so scope was grounded in the real Jira ACs and the existing SPM-61/SPM-99 implementation instead of an invented fixture matrix. Phase-0 recon found the "dashboard" (AC1, via `EventListPage`'s Registered-Events filter -> `EventCard` -> `/events/:id`), the status badge (AC2), already implemented and tested by SPM-61/SPM-99. AC5 was removed from SPM-62 as unreachable (no registration-by-id route exists), so nothing is traced to it. The only real gap was AC3: `RegistrationSection` showed only Registration ID and Registered-on date. Expanded its `registered` branch to also show Full name (falling back to `attendeeName` for older records), Email, Contact number, and Special requirements when present, and added a `fullName?` field to the frontend `Registration` type to carry it. AC4 required no code change (the `registered` branch is checked before any event-timing branch) but got new tests proving it for Completed and Cancelled events.
+- AI contribution: Jira lookup (MCP), repo reconnaissance via a read-only subagent, scope decisions confirmed with the human via AskUserQuestion (expand the existing inline section rather than add a new `/registrations/:id` route/endpoint; keep "Registered"/"Withdrawn" labels instead of relabeling to "Confirmed"; drop AC5 as unreachable; leave withdrawn-registration visibility out of scope), test-first implementation, and test/type/lint verification.
+- Assumptions: A withdrawn registration stays invisible to the attendee (`findMine` only returns `status='Registered'` rows, pinned by an existing SPM-61 e2e assertion) - AC2/AC4 for a withdrawn registration are a known gap, intentionally deferred to whichever future story implements the withdraw write path. No `cancelled` registration status exists or was added; Jira AC2's "(Confirmed, Cancelled, etc.)" wording is read as illustrative, not a requirement, since no feature in this repo produces that value for a registration (as opposed to an event).
+- Checks run: Frontend `npm test` (301 passed, 1 pre-existing todo, up from 296/296 baseline), `npx tsc --noEmit` (clean), `npm run lint` (2 pre-existing, unrelated failures in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, already noted in the 2026-09-26 SPM-99 entry above, untouched by this change). Backend `npm test` re-run unchanged at 500/500 (no backend files touched; registrations `.e2e-spec.ts` still skipped locally, no `DATABASE_URL`).
+- Follow-up/conflict notes: No existing branch/PR work was overwritten (the SPM-62 branch existed but had no commits ahead of `dev`). Staged for human review only; no commit, push, or PR created per instruction. If a future "withdraw" story persists withdrawals, `registrations.service.ts`'s `findMine` filter and this component's `registered` check will both need revisiting to surface Withdrawn status/details per AC2/AC4.
+
 ## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
 
 - Issue/PR: SPM-99 / existing feature branch `feature/SPM-99-View-Event-information`
@@ -94,6 +105,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - 2026-10-01 alignment pass (Claude Opus 5.5, chaw678): renumbered EVE-ASN-07-A/B/C to EVE-ASN-06-A/B/C (code test names and Confluence page "EVE-ASN-06") so groups run 01-06 with no gap; removed every remaining audit-trail mention from SPM-123 Confluence pages, the matrix scope note and backend/HANDOVER.md; tagged every case with its AC (14 on 02/03, plus 04-C, 05-B, 05-C); moved EVE-ASN-05-E after 05-D; fixed stale 02-E remark and 03 intro. Code and Confluence now hold the same 58 IDs. Earlier entries in this ledger that mention EVE-ASN-07, EVE-ASN-06 (audit) or the audit trail are left as the historical record.
 - 2026-10-01 Organiser + Coordinator removal (Claude Opus 5.5, chaw678): per the requester, multi-role accounts are valid but ORGANISER + COORDINATOR is not. Fixed `database/postgresql/init/002_seed_data.sql` so COORDINATOR + VENUE_STAFF go to `coordinator_venuestaff@connectsphere.test` (Coor_Venue; the roles still pointed at the removed `organiser_coordinator` email from Wei Rong's 8f4bd71, so fresh volumes gave Coor_Venue no roles); documented it in database README/CHANGELOG with cleanup SQL for old volumes; verified on a throwaway database (seed idempotent, 0 org+coor accounts). Local volume: deleted Org_Coor, its 2 Submitted requests ('org 4', 'org_coor') and their notifications. Code: restored `RejectionNotifications.tsx`/`.test.tsx` to dev (their filter only existed for org+coor), `AssignmentNotifications` now uses the shared `hasRole()` and no type filter; removed SPM-123 cases old 02-K/02-P and SPM-38 EVE-REV-04-I; rewrote 02-E/02-M for Coordinator + Venue Staff and 02-AA for single-role feeds; renumbered EVE-ASN-02 to A-AA; switched SPM-30 fixtures (`auth.test.ts`, `useAppStore.auth.test.ts`, `types/index.test.ts`, `RouteAccess.test.tsx`) from organiser+coordinator to coordinator+venue_staff; reworded the service comment and HANDOVER. Confluence: EVE-ASN-02, SPM-123 matrix, EVE-REV-04 (04-I removed) and SPM-38 matrix updated. Checks: backend 485/485, frontend 262/262, coverage 100% on SPM-123 files, Stryker frontend 97.5% / backend 97.3% (equivalent survivors only). Left for owners: 6 local requests point at non-existent coordinators (4 Firebase-era test rows, 2 seed sample events using placeholder ids `coordinator1`/`coordinator2`); pre-existing unused `EventRecord` import in `useAppStore.auth.test.ts` fails eslint on dev.
 - 2026-10-01 sample-event ownership (Claude Opus 5.5, chaw678): the five `002_seed_data.sql` sample events used placeholder people (`current-user` organiser; text `coordinator1`/`coordinator2` coordinator ids), so no real account could see them. They now belong to organiser1 and are assigned to coordinator1 (036, 102), coordinator2 (101, 103) and coordinator3 (104), looked up by email; the seed's `ON CONFLICT` now updates only those five ownership columns so re-running it repairs older volumes without touching status. Verified on a throwaway database through the full init order (001, 002, 003, drafts migration) plus a re-run: 0 events with unknown people. Applied to the local volume; only the 4 Firebase-era `test 1-4` rows remain unmatched. database README/CHANGELOG updated. Flag for the clarifications owner: backend/HANDOVER.md's clarifications limits still describe the old single demo organiser identity.
+- 2026-10-04 sync with `dev` for PR #35 review (Claude Opus 5.5, chaw678): merged `origin/dev` (0c9ad1a: SPM-61 registration, SPM-62, SPM-111 equipment, dependency security fix #36) so the Dependency Vulnerability Scan passes and the PR is mergeable. Conflicts in `events.service.ts` (imports), `backend/HANDOVER.md` (new sections) and `EventListPage.test.tsx` (new tests) were resolved keeping both sides, with the requester's approval, not to dev's version as the sync rule says, because dev's version would delete the SPM-123 imports, HANDOVER section and EVE-ASN-04 tests. Dropped dev's stale `pickNextCoordinator` import (`coordinator-roster.ts` is replaced by SPM-123). SPM-111 made `/equipment` Tech Support only, so the multi-role route test now uses `/equipment/requests` (granted to coordinators, not venue staff). Replied on the PR to the reviewer's question about the notification API calls. Confluence: the SPM-123 matrix still listed EVE-ASN-02-AB/AC (no such tests; 02 runs A-AA) and labelled the AC5 cases EVE-ASN-07-A/B/C; fixed so it lists the same 56 IDs as the code. EVE-ASN test names were unchanged by the merge, so the case pages needed no edits. The multi-role route test in `RouteAccess.test.tsx` is an untagged SPM-30 test with no Confluence case, so nothing to update there. Checks: backend 583/583, oxlint and `tsc --noEmit` clean; frontend 346/346 (1 todo), `tsc -b` and eslint clean on changed files; `npm audit --audit-level=high` clean for both.
 
 ## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
 
@@ -1487,3 +1499,59 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: The requested local changes are a follow-up refinement to the already-committed review-thread fix; no production or test behavior should change.
 - Checks run: `git diff --check`; no test run because only comments and the AI usage ledger changed.
 - Follow-up/conflict notes: Changes are local and uncommitted for human review.
+
+## 2026-09-30 - Claude (Sonnet 5.5 / Opus 5.5) - SPM-61 attendee event registration
+
+- Issue/PR: SPM-61 (In Progress) on `feature/SPM-61-Register-for-Event`; no PR yet.
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations/`, `backend/src/events/events.service.ts`, `backend/src/app.module.ts`, `database/postgresql/init/004_spm61_event_registration.sql`, `frontend/src/components/EventDetail/`, `frontend/src/utils/registration.ts`, `frontend/src/store/useAppStore.ts`, `frontend/src/pages/EventDetailPage.tsx`, `EventView.ts`, related tests and docs, `docs/specs/SPM-61-test-results.md`.
+- Summary: Server-enforced registration (role, strict validation, window, duplicate, capacity), server-computed `registrationOpen` from an injectable clock, and the attendee form, confirmation and status UI. Changed SPM-99 behaviour by decision: exclusive close, no button when closed/full/not-yet-open, Withdraw hidden.
+- AI contribution: implementation, tests, docs.
+- Assumptions: `docs/specs/SPM-61-*.md` were absent, so Test Case IDs and quotes are ASSUMED from the task matrix and Jira ACs; MSG-02/03/04/07 wording, email/requirements limits and capacity rule are ASSUMED (listed in the results file).
+- Checks run: backend unit 495 passed; backend integration (Docker Postgres `spm_test`) 71 passed, 11 failed (pre-existing SPM-37 `drafts.e2e-spec.ts`); frontend 275 passed; frontend build and typecheck clean; backend lint clean; frontend lint has 2 pre-existing errors in untouched files.
+- Follow-up/conflict notes: Product decisions later locked messages, limits and capacity; constants split into `messages.ts` and `validation.ts`. Existing local Postgres volumes need `004_spm61_event_registration.sql` applied. Manual-close (01-C[B]) is blocked. Registrations e2e suite was written after the service, not red-first. Changes are staged for review; nothing committed or pushed.
+- Follow-up (same day, Claude Opus 5.5): treated Approved as attendee-published per product decision; added `myRegistrationStatus` to the attendee list; attendee Browse Events filters (Upcoming/Registered/Past/Cancelled) and a Registered badge; added dev seed fix `database/postgresql/init/005_spm61_dev_seed_fixes.sql`, applied to local `spm` and `spm_test`. Rebuilt the local backend container. Checks: backend unit 496 passed, integration 73 passed (11 draft tests skipped without `TEST_DATABASE_URL`), frontend 280 passed.
+- Follow-up (Claude Sonnet 5.5): redesigned the attendee registration card to the five-state design (open with N days / today, closed, not yet open, fully booked), one SGT date format (`12 Mar 2027, 23:59`), SGT calendar-day difference for N; updated SPM-99 assertions that pinned the old rows. Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
+- Follow-up 2 (Claude Haiku 4.5): added the opening time row back to the open state to satisfy SPM-99 AC3 (both times visible). Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
+- Follow-up 3 (Claude Haiku 4.5): added registration date/time to the "You're registered" state; hid the event status progression line from attendee view. Checks: frontend 294 passed.
+- Follow-up 4 (Claude Haiku 4.5): attendee event view now shows ONLY Confirmed events (not Approved). Created distinct REGISTRABLE_STATUSES=['Confirmed'] and ATTENDEE_VISIBLE_STATUSES=['Confirmed', 'Completed', 'Cancelled']. Updated list query to use constants and all related tests (backend 496 passed; registrations e2e 28 passed).
+
+## 2026-10-03 - Codex - Restore Docker Compose backend build
+
+- Issue/PR: No Jira issue or pull request; local Docker rebuild requested by kirub.
+- Areas touched: `backend/src/registrations/registration-window.ts`, `AI_USAGE.md`.
+- Summary: Widened the status-list lookup to accept the existing `RegistrationWindow.status: string` contract, resolving the TypeScript build error that prevented the backend Docker image from building.
+- Checks run: `npm run build` passed; `src/registrations/registration-window.spec.ts` — 11/11 passed; Docker Compose rebuild completed and frontend, backend, and PostgreSQL containers are healthy.
+- Follow-up/conflict notes: This is an uncommitted local fix. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add equipment creation acknowledgement flow
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: `frontend/src/pages/EquipmentCreatePage.tsx`, its unit test, the SPM-111 AC4 Confluence live test case, and `AI_USAGE.md`.
+- Summary: Replaced the inline post-create confirmation with an Equipment record created dialog. Selecting OK routes the user to Equipment Availability.
+- Checks run: `frontend` EquipmentCreatePage unit tests — 17/17 passed; `frontend` production build passed.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add required equipment name to SPM-111 records
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: equipment database schema/migration, backend equipment validation and persistence, frontend creation and availability pages, equipment unit tests, SPM-111 Confluence matrix/live cases, and `AI_USAGE.md`.
+- Summary: Added a required, non-blank Equipment Name throughout the create, persist, retrieve, and display flow. Existing local equipment rows are backfilled with their type when the idempotent migration runs.
+- Checks run: backend equipment tests — 55/55 passed; frontend creation-page tests — 18/18 passed; frontend availability-page test — 1/1 passed; backend and frontend builds passed; local Docker services rebuilt healthy; PostgreSQL confirms `equipment.equipment_name` is non-nullable.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Record SPM-111 B1 results
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: SPM-111 Confluence live test cases and `AI_USAGE.md`.
+- Summary: Reran the SPM-111 backend equipment and frontend creation, availability, and route-access unit suites. Updated all 14 live cases with PASS, the exact run counts, test executor, and requester-confirmed manual verification.
+- Checks run: backend equipment suite — 3/3 files and 55/55 tests passed; frontend SPM-111 suites — 3/3 files and 47/47 tests passed.
+- Follow-up/conflict notes: API/database end-to-end checks were not run. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Resolve frontend dependency vulnerability scan
+
+- Issue/PR: SPM-111 / PR #37.
+- Areas touched: `frontend` dependency lockfile, Tailwind/PostCSS configuration, frontend stylesheet, frontend README, and `AI_USAGE.md`.
+- Summary: Upgraded Tailwind CSS from v3.4.17 to v4.3.3 and configured its v4 PostCSS integration. Moved the shared custom design tokens and class-based dark-mode variant into the global stylesheet so the existing UI utilities continue to build.
+- Checks run: `npm audit --audit-level=high` — 0 vulnerabilities; `npm run build` — passed; `npm test` — 28 files passed, 318 tests passed, 1 todo. A Playwright browser smoke check reached the styled login page; its only console errors were expected local CORS errors caused by testing from port 4173 while the backend permits port 5173.
+- Follow-up/conflict notes: The Tailwind v4 change is uncommitted pending human review. `tailwind.config.js` remains in the repository but is no longer the source of the shared theme tokens.

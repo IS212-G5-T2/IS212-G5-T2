@@ -350,18 +350,24 @@ describe('EventsService', () => {
 
   // SPM-99 EVENT-VIEW-01-A: the attendee browse feed exposes only safe
   // attendee-facing lifecycle states, with registration availability included.
+  // SPM-61: Approved counts as published, and each row carries the caller's
+  // own registration status.
   it('lists attendee-viewable events with current registration availability', async () => {
-    const row = { ...savedEventRow(), status: 'Confirmed' };
+    const row = { ...savedEventRow(), status: 'Confirmed', my_registration_status: 'Registered' };
     db.query.mockResolvedValue({ rows: [row] });
 
     const events = await service.list(attendeeUser());
 
-    expect(events).toMatchObject([{ id: row.id, status: 'confirmed', availableRegistrationSpots: 17 }]);
+    expect(events).toMatchObject([
+      { id: row.id, status: 'confirmed', availableRegistrationSpots: 17, myRegistrationStatus: 'registered' },
+    ]);
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining('AS available_registration_spots'),
+      [attendeeUser().uid],
     );
     expect(db.query).toHaveBeenCalledWith(
       expect.stringContaining("status IN ('Confirmed', 'Completed', 'Cancelled')"),
+      [attendeeUser().uid],
     );
   });
 
@@ -467,7 +473,8 @@ describe('EventsService', () => {
         availableRegistrationSpots: 17,
       });
 
-      db.query.mockResolvedValueOnce({ rows: [savedEventRow()] });
+      // Approved events are internal workflow state and hidden from attendees.
+      db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), status: 'Approved' }] });
       await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 

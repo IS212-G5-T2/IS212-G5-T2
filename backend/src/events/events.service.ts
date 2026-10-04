@@ -2,8 +2,10 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -15,6 +17,11 @@ import {
   getEligibleCoordinators,
   selectCoordinator,
 } from './coordinator-assignment.js';
+import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
+import {
+  ATTENDEE_VISIBLE_STATUSES,
+  isRegistrationOpen,
+} from '../registrations/registration-window.js';
 
 // Every assignment decision takes this transaction-scoped lock first, so two
 // submissions racing each other can't both read the same workloads and pick the
@@ -31,7 +38,10 @@ const NOTIFICATION_TYPES_BY_ROLE = {
 
 @Injectable()
 export class EventsService {
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
+  ) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
   // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
@@ -74,8 +84,23 @@ export class EventsService {
       registrationEnabled: row.registration_enabled,
       registrationOpensAt: row.registration_opens_at?.toISOString(),
       registrationClosesAt: row.registration_closes_at?.toISOString(),
+      // SPM-61: computed here so every client applies the same window rule
+      // (inclusive open, exclusive close) using the injected clock.
+      registrationOpen: isRegistrationOpen(
+        {
+          registrationEnabled: row.registration_enabled,
+          status: row.status,
+          opensAt: row.registration_opens_at ?? null,
+          closesAt: row.registration_closes_at ?? null,
+        },
+        this.clock.now(),
+      ),
       // PostgreSQL owns the capacity calculation so every API consumer sees
       // the same persisted registration availability.
+      // SPM-61: the signed-in attendee's own registration, list view only.
+      myRegistrationStatus: row.my_registration_status
+        ? String(row.my_registration_status).toLowerCase()
+        : undefined,
       availableRegistrationSpots:
         row.available_registration_spots == null
           ? undefined
@@ -99,10 +124,14 @@ export class EventsService {
                SELECT COUNT(*)::integer FROM event_registrations
                 WHERE event_id = events.id AND status = 'Registered'
              )
-           )::integer AS available_registration_spots
+           )::integer AS available_registration_spots,
+           (SELECT r.status FROM event_registrations r
+             WHERE r.event_id = events.id AND r.attendee_id::text = $1
+           ) AS my_registration_status
              FROM events
-            WHERE status IN ('Confirmed', 'Completed', 'Cancelled')
+            WHERE status IN (${ATTENDEE_VISIBLE_STATUSES.map((s) => `'${s}'`).join(', ')})
             ORDER BY start_date_time ASC`,
+          [user.uid],
         )
       : user.roles.includes('COORDINATOR')
       ? await this.database.query(
@@ -159,7 +188,7 @@ export class EventsService {
       user.roles.includes('COORDINATOR') && row.coordinator_id === user.uid;
     const isAttendeeViewable =
       user.roles.includes('ATTENDEE') &&
-      ['Confirmed', 'Completed', 'Cancelled'].includes(row.status);
+      ATTENDEE_VISIBLE_STATUSES.includes(row.status);
     if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable)
       throw new NotFoundException('Event not found.');
     return this.record(row);

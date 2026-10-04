@@ -1,11 +1,18 @@
+/*
+ * Story: SPM-61 Register for an Event (page level, with the SPM-99 event view).
+ * ACs: AC1 (Register only while open), AC2 (closed/not-yet-open/full states),
+ * AC5 (already registered). Test Case IDs are ASSUMED from the task's matrix
+ * (see docs/specs/SPM-61-test-results.md). Time is frozen per test with
+ * freezeTime; the API is mocked at the boundary.
+ */
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "./EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
-import { formatDateTime, formatDateTimeRange } from "@/utils/format";
+import { formatDateTimeRange } from "@/utils/format";
 import type { EventRecord, User } from "@/types";
 
 const attendee: User = {
@@ -53,6 +60,11 @@ function renderEventDetail(eventId = event.id) {
     </MemoryRouter>,
   );
 }
+
+afterEach(() => vi.useRealTimers());
+
+/** Freezes only Date so the registration heading never depends on the wall clock. */
+const freezeTime = (iso: string) => vi.useFakeTimers({ toFake: ["Date"], now: new Date(iso) });
 
 beforeEach(() => {
   apiMock.mockImplementation((path: string) =>
@@ -158,10 +170,11 @@ describe("EventDetailPage attendee registration", () => {
   // Supplementary refresh path: reloading the unchanged event must preserve the
   // server-provided detail and registration presentation.
   it("keeps attendee event information consistent after a refresh", async () => {
+    freezeTime("2030-06-01T00:00:00.000Z");
     const stableEvent = {
       ...event,
-      registrationOpensAt: "2020-10-01T09:00:00.000Z",
-      registrationClosesAt: "2099-10-14T23:59:00.000Z",
+      registrationOpensAt: "2030-05-01T00:00:00.000Z",
+      registrationClosesAt: "2030-06-10T15:59:00.000Z",
       availableRegistrationSpots: 17,
     };
     apiMock.mockClear();
@@ -170,32 +183,41 @@ describe("EventDetailPage attendee registration", () => {
 
     const firstView = renderEventDetail();
     await screen.findByRole("heading", { name: stableEvent.name });
-    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Registration Open");
+    expect(screen.getByText("17 spots")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration closes in 9 days" })).toBeInTheDocument();
     firstView.unmount();
 
     renderEventDetail();
     await screen.findByRole("heading", { name: stableEvent.name });
-    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Registration Open");
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("17 spots")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration closes in 9 days" })).toBeInTheDocument();
+    // The SPM-61 registration lookup adds calls; the event itself is still fetched once per view.
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
   });
 
-  it("registers and withdraws only the signed-in attendee's registration", async () => {
+  // SPM-61 AC3/AC4 smoke check at page level (full coverage lives in
+  // RegistrationSection.test.tsx): registering calls the server, shows the
+  // confirmation, and no Withdraw control is offered (item 10, hidden until
+  // the withdraw story ships).
+  it("registers through the server and offers no withdraw control", async () => {
     const user = userEvent.setup();
+    const created = {
+      id: "reg-1", eventId: event.id, attendeeId: attendee.id, attendeeName: "Attendee",
+      status: "registered", registeredAt: "2026-09-15T00:00:00.000Z",
+    };
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.includes("/registrations/me")) return Promise.resolve({ registration: null });
+      if (path.includes("/registrations") && init?.method === "POST") return Promise.resolve({ registration: created });
+      return Promise.resolve(path.includes("/comments") ? [] : event);
+    });
     renderEventDetail();
 
     await user.click(await screen.findByRole("button", { name: "Register" }));
-    expect(useAppStore.getState().registrations).toMatchObject([
-      { eventId: event.id, attendeeId: attendee.id, status: "registered" },
-    ]);
-    expect(screen.getByRole("button", { name: "Withdraw Registration" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Submit registration" }));
 
-    await user.click(screen.getByRole("button", { name: "Withdraw Registration" }));
-    expect(useAppStore.getState().registrations[0]).toMatchObject({
-      attendeeId: attendee.id,
-      status: "withdrawn",
-    });
+    expect(await screen.findByText("Registration successful. You are registered for Open event.")).toBeInTheDocument();
+    expect(useAppStore.getState().registrations).toMatchObject([{ id: "reg-1", status: "registered" }]);
+    expect(screen.queryByRole("button", { name: /withdraw/i })).not.toBeInTheDocument();
   });
 
   it("does not offer registration controls to a different role", async () => {
@@ -226,13 +248,13 @@ describe("EventDetailPage attendee registration", () => {
     expect(useAppStore.getState().registrations[0].status).toBe("registered");
   });
 
-  it("prompts attendee to sign up through website first when registration is enabled and not yet registered", async () => {
+  // SPM-61 AC1: an open event shows the closing heading and the Register button.
+  it("shows the closing heading and Register button while registration is open", async () => {
     renderEventDetail();
 
     await screen.findByRole("heading", { name: event.name });
-    expect(
-      screen.getAllByText("Please sign up through the website first to attend this event.").length,
-    ).toBeGreaterThan(0);
+    expect(screen.getByRole("heading", { name: /^Registration closes in \d+ days$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register" })).toBeInTheDocument();
   });
 
   it("informs attendee that registration through website is not enabled when registrationEnabled is false", async () => {
@@ -286,9 +308,10 @@ describe("EventDetailPage attendee registration", () => {
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-03-A: both configured registration boundaries are
-  // shown using the timestamps supplied by the event API.
-  it("shows the configured registration opening and closing timestamps", async () => {
+  // SPM-99 EVENT-VIEW-03-A (updated for the SPM-61 design): before registration
+  // opens the opening time is the heading and the closing time is listed; once
+  // open, the closing time is listed with the days remaining. All in SGT.
+  it("shows the configured registration opening and closing times in SGT", async () => {
     const scheduledEvent = {
       ...event,
       registrationOpensAt: "2027-03-01T01:00:00.000Z",
@@ -297,20 +320,25 @@ describe("EventDetailPage attendee registration", () => {
     apiMock.mockResolvedValue(scheduledEvent);
     useAppStore.setState({ events: [scheduledEvent] });
 
-    renderEventDetail();
-
+    freezeTime("2027-02-01T00:00:00.000Z");
+    const beforeOpen = renderEventDetail();
     await screen.findByRole("heading", { name: scheduledEvent.name });
-    expect(within(screen.getByText("Registration opens").parentElement!).getByText(
-      formatDateTime(scheduledEvent.registrationOpensAt),
-    )).toBeInTheDocument();
-    expect(within(screen.getByText("Registration closes").parentElement!).getByText(
-      formatDateTime(scheduledEvent.registrationClosesAt),
-    )).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration opens on 1 Mar 2027, 09:00 SGT" })).toBeInTheDocument();
+    expect(within(screen.getByText("Closes").parentElement!).getByText("12 Mar 2027, 23:59")).toBeInTheDocument();
+    beforeOpen.unmount();
+
+    freezeTime("2027-03-05T04:00:00.000Z");
+    renderEventDetail();
+    await screen.findByRole("heading", { name: scheduledEvent.name });
+    expect(screen.getByRole("heading", { name: "Registration closes in 7 days" })).toBeInTheDocument();
+    expect(within(screen.getByText("Opens").parentElement!).getByText("1 Mar 2027, 09:00")).toBeInTheDocument();
+    expect(within(screen.getByText("Closes").parentElement!).getByText("12 Mar 2027, 23:59")).toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-04-A: the attendee sees Registration Closed after the
-  // configured closing time, while remaining spots still come from the API.
-  it("shows registration metadata, remaining spots, and a closed notice after the window", async () => {
+  // SPM-99 EVENT-VIEW-04-A (updated for the SPM-61 design): after the closing
+  // time the heading reads Registration closed, "Closed on" replaces "Closes",
+  // and Available is dropped.
+  it("shows Registration closed with the closing date and no availability", async () => {
     const closedEvent = {
       ...event,
       registrationOpensAt: "2020-10-01T09:00:00.000Z",
@@ -324,33 +352,33 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     expect(await screen.findByRole("heading", { name: closedEvent.name })).toBeInTheDocument();
-    expect(screen.getByText("Registration opens")).toBeInTheDocument();
-    expect(screen.getByText("Registration closes")).toBeInTheDocument();
-    expect(screen.getByText("Available registration spots")).toBeInTheDocument();
-    expect(screen.getByText("17", { selector: "dd" })).toBeInTheDocument();
-    expect(screen.getByText("Registration Closed", { selector: "p" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(within(screen.getByText("Closed on").parentElement!).getByText("15 Oct 2020, 07:59")).toBeInTheDocument();
+    expect(screen.queryByText("Closes")).not.toBeInTheDocument();
+    expect(screen.queryByText("Available")).not.toBeInTheDocument();
+    // SPM-61 D7: no Register button is rendered once registration has closed.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 
-  // SPM-99 EVENT-VIEW-05-A and supplementary lifecycle checks: a pre-opening or cancelled
-  // event must never expose a misleading enabled registration control.
+  // SPM-99 EVENT-VIEW-05-A and supplementary lifecycle checks: a pre-opening or
+  // cancelled/completed event must never expose a Register button.
   it.each([
     [
       "not-yet-open",
       { registrationOpensAt: "2099-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration Not Yet Open",
+      "Registration opens on 1 Oct 2099, 17:00 SGT",
     ],
     [
       "cancelled",
       { status: "cancelled" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration Closed",
+      "Registration closed",
     ],
     [
       "completed",
       { status: "completed" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration Closed",
+      "Registration closed",
     ],
-  ])("shows the correct %s registration notice and disables registration", async (_scenario, overrides, notice) => {
+  ])("shows the correct %s registration heading and hides Register", async (_scenario, overrides, heading) => {
     const unavailableEvent = { ...event, ...overrides };
     apiMock.mockResolvedValue(unavailableEvent);
     useAppStore.setState({ events: [unavailableEvent] });
@@ -358,13 +386,31 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     await screen.findByRole("heading", { name: unavailableEvent.name });
-    expect(screen.getByRole("status")).toHaveTextContent(notice);
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
-    if (unavailableEvent.status === "cancelled" || unavailableEvent.status === "completed") {
-      expect(
-        screen.getByText(unavailableEvent.status === "cancelled" ? "Cancelled" : "Completed", { selector: "dd" }),
-      ).toBeInTheDocument();
-    }
+    expect(screen.getByRole("heading", { name: heading })).toBeInTheDocument();
+    // SPM-61 D7: the control is not rendered at all, rather than disabled.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
+  });
+
+  // A cancelled or completed event with a future scheduled close must not claim
+  // "Closed on" a date that has not happened, and shows its own status instead.
+  it.each([
+    ["cancelled", "Cancelled"],
+    ["completed", "Completed"],
+  ] as const)("does not show Closed on for a %s event with a future close", async (status, label) => {
+    const endedEvent = {
+      ...event,
+      status,
+      registrationOpensAt: "2020-10-01T09:00:00.000Z",
+      registrationClosesAt: "2099-10-14T23:59:00.000Z",
+    };
+    apiMock.mockResolvedValue(endedEvent);
+    useAppStore.setState({ events: [endedEvent] });
+
+    renderEventDetail();
+
+    await screen.findByRole("heading", { name: endedEvent.name });
+    expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
+    expect(screen.getByText(label, { selector: "dd" })).toBeInTheDocument();
   });
 
   // Supplementary boundary path: zero is full, so no negative availability
@@ -382,7 +428,8 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     await screen.findByRole("heading", { name: fullEvent.name });
-    expect(screen.getByRole("status")).toHaveTextContent("Registration Full");
-    expect(screen.getByRole("button", { name: "Register" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "This event is fully booked." })).toBeInTheDocument();
+    // SPM-61 D7: a full event renders no Register button.
+    expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
   });
 });
