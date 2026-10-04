@@ -44,6 +44,11 @@ type VenueRow = Omit<
   image_data_url?: string | null;
 };
 
+/** PostgreSQL serializes `time` columns with seconds; the venue API uses HH:MM. */
+function toMinuteTime(value: string): string {
+  return value.slice(0, 5);
+}
+
 /* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
 /** Persists a venue and its accessibility selections atomically. */
@@ -96,8 +101,8 @@ export class VenuesRepository {
       layouts: row.layouts,
       operatingInformation: row.operating_information,
       operatingDays: row.operating_days,
-      operatingStartTime: row.operating_start_time,
-      operatingEndTime: row.operating_end_time,
+      operatingStartTime: toMinuteTime(row.operating_start_time),
+      operatingEndTime: toMinuteTime(row.operating_end_time),
       setupTimeMinutes: row.setup_time_minutes,
       turnaroundTimeMinutes: row.turnaround_time_minutes,
       ...(row.image_name &&

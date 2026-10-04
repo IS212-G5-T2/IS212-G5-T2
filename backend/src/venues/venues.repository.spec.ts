@@ -43,8 +43,9 @@ describe('VenuesRepository', () => {
             ...venue,
             operating_information: venue.operatingInformation,
             operating_days: venue.operatingDays,
-            operating_start_time: venue.operatingStartTime,
-            operating_end_time: venue.operatingEndTime,
+            // PostgreSQL's `time` type returns seconds even when the API received HH:MM.
+            operating_start_time: '08:00:00',
+            operating_end_time: '22:00:00',
             setup_time_minutes: venue.setupTimeMinutes,
             turnaround_time_minutes: venue.turnaroundTimeMinutes,
           },

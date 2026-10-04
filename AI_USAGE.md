@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Codex (GPT-5) - Normalize venue operating-time API output
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/venues.repository.ts`, `backend/src/venues/venues.repository.spec.ts`, and `AI_USAGE.md`
+- Summary: Fixed the remaining CI E2E assertion by normalizing PostgreSQL `time` output from `HH:MM:SS` to the SPM-50 API contract's `HH:MM` format.
+- AI contribution: GitHub Actions log diagnosis, persistence-to-API normalization repair, and regression test.
+- Assumptions: Venue operating times are minute-granular throughout the frontend/API contract; PostgreSQL's seconds are a storage serialization detail, not part of the response contract.
+- Checks run: Focused venue repository/service tests — 12 passed; backend build passed; diff whitespace check passed.
+- Follow-up/conflict notes: The prior Actions transform error is resolved. This change addresses the one remaining venue E2E assertion shown in the post-fix CI run.
+
 ## 2026-10-05 - Codex (GPT-5) - Repair venue module duplicate imports
 
 - Issue/PR: SPM-50 / PR #40
