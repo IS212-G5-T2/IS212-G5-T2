@@ -17,6 +17,7 @@ export function EquipmentAvailabilityPage() {
   const columns: Column<EquipmentRecord>[] = [
     { header: "Equipment name", render: (record) => <span className="font-medium text-gray-900 dark:text-gray-100">{record.name}</span> },
     { header: "Equipment type", render: (record) => <span className="font-medium text-gray-900 dark:text-gray-100">{record.type}</span> },
+    { header: "Location", render: (record) => record.location },
     { header: "Maintenance status", render: (record) => record.maintenanceStatus },
     { header: "Quantity", render: (record) => record.quantity },
   ];

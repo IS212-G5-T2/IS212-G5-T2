@@ -12,6 +12,7 @@ export interface EquipmentInput {
   type: (typeof EQUIPMENT_TYPES)[number];
   quantity: number;
   maintenanceStatus: (typeof EQUIPMENT_MAINTENANCE_STATUSES)[number];
+  location: string;
 }
 
 function fail(field: string, message: string): never {
@@ -42,5 +43,8 @@ export function validateEquipmentInput(input: unknown): EquipmentInput {
   if (!EQUIPMENT_MAINTENANCE_STATUSES.includes(value.maintenanceStatus as EquipmentInput['maintenanceStatus'])) {
     fail('maintenanceStatus', 'Maintenance status must be from the predefined list.');
   }
-  return { ...value, name: value.name.trim() } as unknown as EquipmentInput;
+  if (typeof value.location !== 'string' || value.location.trim().length === 0) {
+    fail('location', 'Location is required.');
+  }
+  return { ...value, name: value.name.trim(), location: value.location.trim() } as unknown as EquipmentInput;
 }

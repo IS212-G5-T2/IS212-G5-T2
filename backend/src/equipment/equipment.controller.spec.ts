@@ -17,6 +17,7 @@ const technicalSupport: AuthenticatedUser = {
 const service = {
   create: vi.fn(),
   list: vi.fn(),
+  listLocations: vi.fn(),
 };
 
 function request(user?: AuthenticatedUser) {
@@ -54,6 +55,18 @@ describe('EquipmentController', () => {
     // Act and assert: authenticated inventory calls preserve the request user.
     await expect(controller.list(request(technicalSupport))).resolves.toBe(inventory);
     expect(service.list).toHaveBeenCalledWith(technicalSupport);
+  });
+
+  // SPM-111 EQUIP-CRE-02-C: the locations endpoint delegates with the current user.
+  it('EQUIP-CRE-02-C delegates locations retrieval with the current user', async () => {
+    // Arrange: service returns the stored distinct locations for the dropdown.
+    const locations = ['Main Hall', 'Storage Room A'];
+    service.listLocations.mockResolvedValue(locations);
+    const controller = new EquipmentController(service as unknown as EquipmentService);
+
+    // Act and assert: authenticated locations calls preserve the request user.
+    await expect(controller.listLocations(request(technicalSupport))).resolves.toBe(locations);
+    expect(service.listLocations).toHaveBeenCalledWith(technicalSupport);
   });
 
   // SPM-111 EQUIP-CRE-01-B / EQUIP-CRE-05-SEC-1: authorization receives the request identity.

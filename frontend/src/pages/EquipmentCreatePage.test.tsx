@@ -4,19 +4,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { EquipmentCreatePage } from './EquipmentCreatePage';
 import { ApiError } from '@/utils/api';
 
-const { createEquipment, navigate } = vi.hoisted(() => ({ createEquipment: vi.fn(), navigate: vi.fn() }));
+const { createEquipment, getEquipmentLocations, navigate } = vi.hoisted(() => ({
+  createEquipment: vi.fn(),
+  getEquipmentLocations: vi.fn(),
+  navigate: vi.fn(),
+}));
 
-vi.mock('@/utils/equipment-api', () => ({ createEquipment }));
+vi.mock('@/utils/equipment-api', () => ({ createEquipment, getEquipmentLocations }));
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
 
 describe('EquipmentCreatePage', () => {
   beforeEach(() => {
     createEquipment.mockReset();
+    getEquipmentLocations.mockReset();
+    // Default: no previously-stored locations unless a test provides them.
+    getEquipmentLocations.mockResolvedValue([]);
     navigate.mockReset();
   });
 
   // SPM-111 EQUIP-CRE-01-A: Technical Support sees the complete creation form.
-  it('EQUIP-CRE-01-A renders name, type, quantity, status, and submit controls', () => {
+  it('EQUIP-CRE-01-A renders name, type, quantity, status, location, and submit controls', () => {
     // Act: open the creation page.
     render(<EquipmentCreatePage />);
 
@@ -25,6 +32,7 @@ describe('EquipmentCreatePage', () => {
     expect(screen.getByLabelText(/equipment type/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/quantity/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/maintenance status/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/location/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /create equipment/i })).toBeInTheDocument();
   });
 
@@ -44,12 +52,12 @@ describe('EquipmentCreatePage', () => {
     ]);
   });
 
-  // SPM-111 EQUIP-CRE-02-A: the UI sends all four values unchanged on valid submit.
-  it('EQUIP-CRE-02-A submits equipment name, type, positive quantity, and maintenance status', async () => {
+  // SPM-111 EQUIP-CRE-02-A: the UI sends all values unchanged on valid submit.
+  it('EQUIP-CRE-02-A submits equipment name, type, positive quantity, maintenance status, and location', async () => {
     // Arrange: the API acknowledges a valid record.
     const user = userEvent.setup();
     createEquipment.mockResolvedValue({
-      equipment: { id: 'equipment-1', name: 'Conference projector', type: 'Audio', quantity: 5, maintenanceStatus: 'Active' },
+      equipment: { id: 'equipment-1', name: 'Conference projector', type: 'Audio', quantity: 5, maintenanceStatus: 'Active', location: 'Storage Room A' },
       message: 'Equipment record created.',
     });
     render(<EquipmentCreatePage />);
@@ -59,6 +67,7 @@ describe('EquipmentCreatePage', () => {
     await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
     await user.type(screen.getByLabelText(/quantity/i), '5');
     await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), 'Storage Room A');
     await user.click(screen.getByRole('button', { name: /create equipment/i }));
 
     // Assert: the API receives all fields without alteration.
@@ -67,21 +76,101 @@ describe('EquipmentCreatePage', () => {
       type: 'Audio',
       quantity: 5,
       maintenanceStatus: 'Active',
+      location: 'Storage Room A',
     });
   });
 
-  // SPM-111 EQUIP-CRE-03-A/B: incomplete or invalid client input is stopped before POST.
+  // SPM-111 EQUIP-CRE-02-C: the location field is a combobox populated from previously-stored locations.
+  it('EQUIP-CRE-02-C renders the location combobox options from stored locations', async () => {
+    // Arrange: the API returns previously-stored distinct locations.
+    const user = userEvent.setup();
+    getEquipmentLocations.mockResolvedValue(['Main Hall', 'Storage Room A']);
+    render(<EquipmentCreatePage />);
+
+    // Act: open the dropdown by focusing the combobox input.
+    await user.click(screen.getByLabelText(/location/i));
+
+    // Assert: the dropdown lists each stored location as a selectable option.
+    expect(await screen.findByRole('option', { name: 'Main Hall' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Storage Room A' })).toBeInTheDocument();
+  });
+
+  // SPM-111 EQUIP-CRE-02-B: selecting an existing location submits it unchanged.
+  it('EQUIP-CRE-02-B submits an existing location chosen from the dropdown', async () => {
+    // Arrange: stored locations are available and the API accepts the record.
+    const user = userEvent.setup();
+    getEquipmentLocations.mockResolvedValue(['Main Hall', 'Storage Room A']);
+    createEquipment.mockResolvedValue({ message: 'Equipment record created.' });
+    render(<EquipmentCreatePage />);
+
+    // Act: fill the form and choose an existing location from the dropdown.
+    await user.type(screen.getByLabelText(/equipment name/i), 'Conference projector');
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
+    await user.type(screen.getByLabelText(/quantity/i), '5');
+    await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.click(screen.getByLabelText(/location/i));
+    await user.click(await screen.findByRole('option', { name: 'Main Hall' }));
+    await user.click(screen.getByRole('button', { name: /create equipment/i }));
+
+    // Assert: the selected location is sent unchanged.
+    expect(createEquipment).toHaveBeenCalledWith(expect.objectContaining({ location: 'Main Hall' }));
+  });
+
+  // SPM-111 EQUIP-CRE-02-B: a newly typed location is trimmed of leading/trailing whitespace on submit.
+  it('EQUIP-CRE-02-B trims leading/trailing whitespace from a newly typed location', async () => {
+    // Arrange: no stored locations; the user types a brand-new padded value.
+    const user = userEvent.setup();
+    getEquipmentLocations.mockResolvedValue([]);
+    createEquipment.mockResolvedValue({ message: 'Equipment record created.' });
+    render(<EquipmentCreatePage />);
+
+    // Act: fill the form and type a location padded with surrounding spaces.
+    await user.type(screen.getByLabelText(/equipment name/i), 'Conference projector');
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
+    await user.type(screen.getByLabelText(/quantity/i), '5');
+    await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), '  kirubakaran kishore  ');
+    await user.click(screen.getByRole('button', { name: /create equipment/i }));
+
+    // Assert: leading/trailing spaces are stripped while internal spacing is preserved.
+    expect(createEquipment).toHaveBeenCalledWith(
+      expect.objectContaining({ location: 'kirubakaran kishore' }),
+    );
+  });
+
+  // SPM-111 EQUIP-CRE-02-C: a newly created location becomes available in the dropdown.
+  it('EQUIP-CRE-02-C adds a newly created location to the dropdown options', async () => {
+    // Arrange: one stored location exists; the user creates a record with a brand-new location.
+    const user = userEvent.setup();
+    getEquipmentLocations.mockResolvedValue(['Main Hall']);
+    createEquipment.mockResolvedValue({ message: 'Equipment record created.' });
+    render(<EquipmentCreatePage />);
+
+    // Act: create a record with a new location value.
+    await user.type(screen.getByLabelText(/equipment name/i), 'Conference projector');
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
+    await user.type(screen.getByLabelText(/quantity/i), '5');
+    await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), 'Loading Bay');
+    await user.click(screen.getByRole('button', { name: /create equipment/i }));
+
+    // Assert: re-opening the dropdown now offers the newly created location.
+    await user.click(screen.getByLabelText(/location/i));
+    expect(await screen.findByRole('option', { name: 'Loading Bay' })).toBeInTheDocument();
+  });
+
+  // SPM-111 EQUIP-CRE-03-A/B: incomplete or invalid non-location input is stopped before POST.
   it.each([
-    ['name', { type: 'Audio', quantity: '5', maintenanceStatus: 'Active' }, /equipment name is required/i],
-    ['type', { name: 'Conference projector', quantity: '5', maintenanceStatus: 'Active' }, /equipment type is required/i],
-    ['quantity', { name: 'Conference projector', type: 'Audio', maintenanceStatus: 'Active' }, /quantity is required/i],
-    ['maintenance status', { name: 'Conference projector', type: 'Audio', quantity: '5' }, /maintenance status is required/i],
-    ['zero quantity', { name: 'Conference projector', type: 'Audio', quantity: '0', maintenanceStatus: 'Active' }, /positive whole number/i],
-    ['negative quantity', { name: 'Conference projector', type: 'Audio', quantity: '-1', maintenanceStatus: 'Active' }, /positive whole number/i],
-    ['decimal quantity', { name: 'Conference projector', type: 'Audio', quantity: '1.5', maintenanceStatus: 'Active' }, /positive whole number/i],
-    ['non-numeric quantity', { name: 'Conference projector', type: 'Audio', quantity: 'abc', maintenanceStatus: 'Active' }, /positive whole number/i],
-    ['mixed quantity', { name: 'Conference projector', type: 'Audio', quantity: '5kg', maintenanceStatus: 'Active' }, /positive whole number/i],
-    ['whitespace quantity', { name: 'Conference projector', type: 'Audio', quantity: ' ' }, /positive whole number/i],
+    ['name', { type: 'Audio', quantity: '5', maintenanceStatus: 'Active', location: 'Storage Room A' }, /equipment name is required/i],
+    ['type', { name: 'Conference projector', quantity: '5', maintenanceStatus: 'Active', location: 'Storage Room A' }, /equipment type is required/i],
+    ['quantity', { name: 'Conference projector', type: 'Audio', maintenanceStatus: 'Active', location: 'Storage Room A' }, /quantity is required/i],
+    ['maintenance status', { name: 'Conference projector', type: 'Audio', quantity: '5', location: 'Storage Room A' }, /maintenance status is required/i],
+    ['zero quantity', { name: 'Conference projector', type: 'Audio', quantity: '0', maintenanceStatus: 'Active', location: 'Storage Room A' }, /positive whole number/i],
+    ['negative quantity', { name: 'Conference projector', type: 'Audio', quantity: '-1', maintenanceStatus: 'Active', location: 'Storage Room A' }, /positive whole number/i],
+    ['decimal quantity', { name: 'Conference projector', type: 'Audio', quantity: '1.5', maintenanceStatus: 'Active', location: 'Storage Room A' }, /positive whole number/i],
+    ['non-numeric quantity', { name: 'Conference projector', type: 'Audio', quantity: 'abc', maintenanceStatus: 'Active', location: 'Storage Room A' }, /positive whole number/i],
+    ['mixed quantity', { name: 'Conference projector', type: 'Audio', quantity: '5kg', maintenanceStatus: 'Active', location: 'Storage Room A' }, /positive whole number/i],
+    ['whitespace quantity', { name: 'Conference projector', type: 'Audio', quantity: ' ', location: 'Storage Room A' }, /positive whole number/i],
   ])('EQUIP-CRE-03-A/B blocks %s and shows a field error', async (_caseName, values, error) => {
     // Arrange: render the blank form and supply only this case's values.
     const user = userEvent.setup();
@@ -90,12 +179,28 @@ describe('EquipmentCreatePage', () => {
     if ('type' in values) await user.selectOptions(screen.getByLabelText(/equipment type/i), values.type);
     if ('quantity' in values) await user.type(screen.getByLabelText(/quantity/i), values.quantity);
     if ('maintenanceStatus' in values) await user.selectOptions(screen.getByLabelText(/maintenance status/i), values.maintenanceStatus);
+    if ('location' in values) await user.type(screen.getByLabelText(/location/i), values.location);
 
     // Act: attempt submission.
     await user.click(screen.getByRole('button', { name: /create equipment/i }));
 
     // Assert: local validation explains the error and sends no create request.
     expect(await screen.findByText(error)).toBeInTheDocument();
+    expect(createEquipment).not.toHaveBeenCalled();
+  });
+
+  // SPM-111 EQUIP-CRE-03-D: a missing location blocks creation and identifies the field.
+  it('EQUIP-CRE-03-D blocks a missing location and shows a field error', async () => {
+    const user = userEvent.setup();
+    render(<EquipmentCreatePage />);
+    await user.type(screen.getByLabelText(/equipment name/i), 'Conference projector');
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
+    await user.type(screen.getByLabelText(/quantity/i), '5');
+    await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+
+    await user.click(screen.getByRole('button', { name: /create equipment/i }));
+
+    expect(await screen.findByText(/location is required/i)).toBeInTheDocument();
     expect(createEquipment).not.toHaveBeenCalled();
   });
 
@@ -109,6 +214,7 @@ describe('EquipmentCreatePage', () => {
     await user.type(screen.getByLabelText(/equipment name/i), 'Conference projector');
     await user.selectOptions(type, 'Audio');
     await user.type(quantity, '5');
+    await user.type(screen.getByLabelText(/location/i), 'Storage Room A');
 
     // Act: submit the incomplete form.
     await user.click(screen.getByRole('button', { name: /create equipment/i }));
@@ -143,6 +249,7 @@ describe('EquipmentCreatePage', () => {
     await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Visual');
     await user.type(screen.getByLabelText(/quantity/i), '10');
     await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), 'Storage Room A');
 
     // Act: submit the form.
     await user.click(screen.getByRole('button', { name: /create equipment/i }));
@@ -166,6 +273,7 @@ describe('EquipmentCreatePage', () => {
     await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
     await user.type(screen.getByLabelText(/quantity/i), '5');
     await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), 'Storage Room A');
 
     // Act: submit and receive the server-side validation response.
     await user.click(screen.getByRole('button', { name: /create equipment/i }));
@@ -184,6 +292,7 @@ describe('EquipmentCreatePage', () => {
     await user.selectOptions(screen.getByLabelText(/equipment type/i), 'Audio');
     await user.type(screen.getByLabelText(/quantity/i), '5');
     await user.selectOptions(screen.getByLabelText(/maintenance status/i), 'Active');
+    await user.type(screen.getByLabelText(/location/i), 'Storage Room A');
 
     // Act: submit the valid form.
     await user.click(screen.getByRole('button', { name: /create equipment/i }));

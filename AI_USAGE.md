@@ -21,6 +21,61 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-04 - Codex (GPT-5) - Correct SPM-111 test-step placement
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `EQUIP-CRE-01` through `EQUIP-CRE-07` test-case pages and `AI_USAGE.md`.
+- Summary: Corrected the prior formatting change after comparison with the supplied Register for an Event examples. Test Steps now appear inside each case-details table, directly after Pre-conditions and before Test Data, rather than as standalone sections.
+- AI contribution: Confluence formatting correction and read-back verification.
+- Assumptions: The supplied SPM-61 detailed test cases are the authoritative placement reference for SPM-111 detailed test cases.
+- Checks run: Read-back across 16 SPM-111 cases confirms Test Steps are in the case-details tables, no standalone Test Steps sections remain, and every Test Steps row precedes Test Data.
+- Follow-up/conflict notes: Supersedes the placement statement in the immediately preceding formatting entry. No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Standardize SPM-111 detailed test cases
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `EQUIP-CRE-01` through `EQUIP-CRE-07` test-case pages, excluding the already-standardized `EQUIP-CRE-05`, and `AI_USAGE.md`.
+- Summary: Standardized the detailed test-case pages without changing their SPM-111 scenarios or recorded outcomes. Converted every remaining inline Test Steps cell to a plain Markdown ordered list with one step per line and corrected retired `dto/equipment-input.ts` references.
+- AI contribution: Confluence test-case formatting and traceability cleanup.
+- Assumptions: The request to move onto test cases means standardizing the existing detailed case pages after the SPM-111 matrix was aligned.
+- Checks run: Read-back on all seven case pages confirms test IDs, actual results, pass/fail status, and standalone Test Steps sections are present. No inline Test Steps table cells or stale DTO paths remain.
+- Follow-up/conflict notes: No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Align SPM-111 test matrix format
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `Create Equipment Records Matrix` and `AI_USAGE.md`.
+- Summary: Aligned the SPM-111 traceability matrix with the four-column format used by the Register for an Event Matrix. Added the missing Location-related cases, corrected stale code paths, and retained all SPM-111-specific acceptance criteria and test-case links.
+- AI contribution: Confluence test-matrix standardization and traceability review.
+- Assumptions: The requested format applies to the SPM-111 matrix; detailed execution pages retain their separate test-case template.
+- Checks run: Read-back confirms matrix update version 5 was saved.
+- Follow-up/conflict notes: No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Display equipment locations in availability inventory
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, SPM-111 Confluence `EQUIP-CRE-05`, and `AI_USAGE.md`.
+- Summary: Added the missing Location column to Equipment Availability and asserted that a persisted location is rendered. Updated EQUIP-CRE-05-A with the location-display scenario, one-line numbered steps, and current execution evidence.
+- AI contribution: Frontend implementation, unit test, browser verification, and Confluence test-evidence update.
+- Assumptions: The user meant the missing location field in the displayed equipment records; the screenshot already showed the records themselves.
+- Checks run: EquipmentAvailabilityPage unit test — 1/1 passed; targeted ESLint passed; frontend production build passed; local Equipment Availability browser verification displayed the Location header and stored values.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Correct SPM-111 location-validation test traceability
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment`, `frontend/src/pages`, SPM-111 Confluence `EQUIP-CRE-03`, and `AI_USAGE.md`.
+- Summary: Split location-required assertions from shared required-field parameterized tests and labelled them explicitly as `EQUIP-CRE-03-D`. Refreshed the passing automated results in all SPM-111 live cases, including the Location-combobox cases in `EQUIP-CRE-02`.
+- AI contribution: Test traceability correction, focused and full-suite verification, and Confluence test-evidence updates.
+- Assumptions: `EQUIP-CRE-03-D` covers both omitted and whitespace-only Location values, as described in the Confluence case.
+- Checks run: Backend equipment input/service/controller suites — 66/66 passed; frontend equipment-create, availability, and route-access suites — 52/52 passed; full backend — 566/566 passed; full frontend — 323 passed with 1 existing todo; `git diff --check` passed.
+- Follow-up/conflict notes: `EQUIP-CRE-02` was updated through the alternate Confluence text-update path after its collaborative draft conflict cleared; its three cases are now PASS. No commit, push, or pull request was created.
+
 ## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
 
 - Issue/PR: SPM-99 / existing feature branch `feature/SPM-99-View-Event-information`

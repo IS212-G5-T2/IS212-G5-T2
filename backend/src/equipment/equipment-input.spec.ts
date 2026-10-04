@@ -11,6 +11,7 @@ const validInput = {
   type: 'Audio',
   quantity: 5,
   maintenanceStatus: 'Active',
+  location: 'Storage Room A',
 };
 
 function expectFieldError(input: unknown, field: string) {
@@ -35,19 +36,19 @@ describe('validateEquipmentInput', () => {
     },
   );
 
-  // SPM-111 EQUIP-CRE-02-A: a complete record keeps all submitted values, including its name.
-  it('EQUIP-CRE-02-A accepts equipment name, type, quantity, and maintenance status', () => {
+  // SPM-111 EQUIP-CRE-02-A: a complete record keeps all submitted values, including its name and location.
+  it('EQUIP-CRE-02-A accepts equipment name, type, quantity, maintenance status, and location', () => {
     // Arrange: a Technical Support user has provided every required field.
     const input = { ...validInput };
 
     // Act: validate the API payload before it reaches persistence.
     const result = validateEquipmentInput(input);
 
-    // Assert: all three fields are retained exactly as submitted.
+    // Assert: all fields are retained exactly as submitted.
     expect(result).toEqual(input);
   });
 
-  // SPM-111 EQUIP-CRE-03-A/C: every required field is enforced by the API.
+  // SPM-111 EQUIP-CRE-03-A/C: the original required fields are enforced by the API.
   it.each([
     ['equipment name', 'name'],
     ['type', 'type'],
@@ -62,9 +63,26 @@ describe('validateEquipmentInput', () => {
     expectFieldError(input, field);
   });
 
+  // SPM-111 EQUIP-CRE-03-D: location is required independently of the other form fields.
+  it('EQUIP-CRE-03-D rejects a missing location', () => {
+    expectFieldError({ name: validInput.name, type: validInput.type, quantity: validInput.quantity, maintenanceStatus: validInput.maintenanceStatus }, 'location');
+  });
+
   // SPM-111 EQUIP-CRE-03-A/C: whitespace-only names are not valid equipment names.
   it('EQUIP-CRE-03-A/C rejects a blank equipment name', () => {
     expectFieldError({ ...validInput, name: '   ' }, 'name');
+  });
+
+  // SPM-111 EQUIP-CRE-03-D: whitespace-only locations are not valid locations.
+  it('EQUIP-CRE-03-D rejects a blank location', () => {
+    expectFieldError({ ...validInput, location: '   ' }, 'location');
+  });
+
+  // SPM-111 EQUIP-CRE-02-A: a submitted location is trimmed before persistence.
+  it('EQUIP-CRE-02-A trims surrounding whitespace from the location', () => {
+    expect(validateEquipmentInput({ ...validInput, location: '  Storage Room A  ' }).location).toBe(
+      'Storage Room A',
+    );
   });
 
   // SPM-111 EQUIP-CRE-03-B/BND-1: only positive whole-number quantities work.

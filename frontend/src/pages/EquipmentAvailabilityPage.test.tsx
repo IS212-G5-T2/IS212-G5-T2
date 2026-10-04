@@ -13,8 +13,8 @@ describe('EquipmentAvailabilityPage', () => {
     navigate.mockReset();
   });
 
-  // SPM-111 EQUIP-CRE-05-A: inventory shows the name stored with a new equipment record.
-  it('EQUIP-CRE-05-A displays the equipment name in the inventory', async () => {
+  // SPM-111 EQUIP-CRE-05-A: inventory displays all persisted details, including location.
+  it('EQUIP-CRE-05-A displays the equipment location in the inventory', async () => {
     // Arrange: the Technical Support inventory API returns a named equipment record.
     getEquipment.mockResolvedValue([
       {
@@ -23,6 +23,7 @@ describe('EquipmentAvailabilityPage', () => {
         type: 'Visual',
         quantity: 10,
         maintenanceStatus: 'Active',
+        location: 'Storage Room A',
         createdAt: '2026-10-03T00:00:00.000Z',
         updatedAt: '2026-10-03T00:00:00.000Z',
       },
@@ -31,9 +32,11 @@ describe('EquipmentAvailabilityPage', () => {
     // Act: load the Technical Support equipment inventory.
     render(<EquipmentAvailabilityPage />);
 
-    // Assert: the persisted name is visible with the rest of the record details.
+    // Assert: the persisted location is visible with the rest of the record details.
     expect(await screen.findByText('Conference projector')).toBeInTheDocument();
     expect(screen.getByRole('columnheader', { name: /equipment name/i })).toBeInTheDocument();
     expect(screen.getByText('Visual')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: /location/i })).toBeInTheDocument();
+    expect(screen.getByText('Storage Room A')).toBeInTheDocument();
   });
 });
