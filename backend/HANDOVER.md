@@ -52,6 +52,11 @@ databases receive the venue tables from the shared initializer.
 
 ## Continuity Notes
 
+Equipment creation validates quantities from 1 through `2,147,483,647`, the
+PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
+the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a
+database with the local initialisers applied.
+
 Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
 - Start backend feature work from Jira acceptance criteria.

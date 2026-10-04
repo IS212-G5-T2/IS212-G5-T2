@@ -16,6 +16,11 @@ export class EquipmentController {
     return this.equipment.create(request[CURRENT_USER_REQUEST_KEY], body);
   }
 
+  @Get('locations')
+  listLocations(@Req() request: AuthenticatedRequest) {
+    return this.equipment.listLocations(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
   @Get()
   list(@Req() request: AuthenticatedRequest) {
     return this.equipment.list(request[CURRENT_USER_REQUEST_KEY]);

@@ -16,6 +16,10 @@
   and valid start/end times; migrations 006 and 007 preserve existing records.
 
 - Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Registration now compares directly against the confirmed status, and attendee visibility reflects this distinction.
+- Added SPM-111 equipment API/database integration coverage and reject
+  quantities above PostgreSQL's integer maximum before persistence.
+
+- Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Updated REGISTRABLE_STATUSES and ATTENDEE_VISIBLE_STATUSES to reflect this distinction.
 
 - MSG-02 now formats the opening time as `12 Mar 2027, 23:59 SGT` (24-hour, SGT) to match the frontend (SPM-61).
 

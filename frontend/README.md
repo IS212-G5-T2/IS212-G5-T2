@@ -144,6 +144,13 @@ Successful responses redirect Venue Staff to the venue catalogue and display a
 confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
 convenience. Component tests live beside the page in
 `src/pages/venues/VenueCreatePage/`.
+## Equipment records
+
+Technical Support can create equipment records at `/equipment/create` and view
+them at `/equipment/availability`. Quantity must be a whole number from 1
+through `2,147,483,647`; the create form prevents values outside that database
+range before it sends the request. The location combobox accepts either a
+saved location or new free text.
 
 ## Rejecting requests (SPM-83)
 
