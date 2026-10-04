@@ -155,16 +155,22 @@ days with valid daily start/end times, and non-negative
 whole-minute setup and turnaround durations. Facilities and layouts must match
 the controlled lookup values; an optional image must be an image data URL no
 larger than 5 MB. Successful requests persist the venue, its normalized
-relationships, and optional image atomically and return
+relationships, optional image, and the authenticated Venue Staff account ID
+(`venues.owner_user_id`) atomically and return
 the saved record with `Venue created successfully.` PostgreSQL generates the
-venue UUID; clients neither provide nor control it. Missing or invalid fields
+venue UUID; the server derives ownership from the verified session, never from
+request fields. Missing or invalid fields
 return field-specific `400` errors. A case-insensitive, trimmed name/location
 pair must be unique; duplicates return a field-level `409` conflict while the
 UUID remains the stable identifier.
 
 Apply `migrations/005_venues.sql` followed by
 `migrations/006_venue_operating_information.sql`, then
-`migrations/007_venue_operating_schedule.sql` to existing databases. Fresh local databases
+`migrations/007_venue_operating_schedule.sql`, then
+`migrations/008_venue_owner_user_id.sql` to existing databases. The owner
+migration leaves historical venues with unknown ownership unassigned, while
+requiring an owner for new rows and enforcing a foreign key to `users(id)`.
+Fresh local databases
 receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
 test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.

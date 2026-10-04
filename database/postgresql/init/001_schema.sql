@@ -163,6 +163,7 @@ CREATE TABLE IF NOT EXISTS room_layouts (
 
 CREATE TABLE IF NOT EXISTS venues (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_user_id uuid NOT NULL REFERENCES users (id) ON DELETE RESTRICT,
     name varchar(200) NOT NULL CHECK (length(btrim(name)) > 0),
     location varchar(300) NOT NULL CHECK (length(btrim(location)) > 0),
     capacity integer NOT NULL CHECK (capacity BETWEEN 1 AND 1000000),
@@ -177,6 +178,8 @@ CREATE TABLE IF NOT EXISTS venues (
 
 CREATE UNIQUE INDEX IF NOT EXISTS venues_name_location_unique
     ON venues (lower(btrim(name)), lower(btrim(location)));
+
+CREATE INDEX IF NOT EXISTS venues_owner_user_id_idx ON venues (owner_user_id);
 
 CREATE TABLE IF NOT EXISTS venue_accessibility (
     venue_id uuid NOT NULL REFERENCES venues (id) ON DELETE CASCADE,

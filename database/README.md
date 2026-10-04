@@ -46,7 +46,7 @@ The PostgreSQL entrypoint runs two SQL files by filename order when it creates a
 | `users` | Local account identity, password hash, active state, and display name. |
 | `user_roles` | Local account membership in the seeded RBAC roles. |
 | `auth_sessions` | Hashed, revocable, expiring local browser sessions. |
-| `venues` | Venue Staff-created catalogue details, including one scalar location, operating information, and selected operating days with start/end times. |
+| `venues` | Venue Staff-created catalogue details, including one scalar location, operating information, selected operating days with start/end times, and an authenticated `owner_user_id` foreign key to `users`. |
 | `facilities` | Controlled facility names and categories available to venues. |
 | `venue_facilities` | Many-to-many facility selections linked to venues. |
 | `room_layouts` | Controlled supported room-layout names. |

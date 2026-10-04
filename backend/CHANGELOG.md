@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- SPM-50 venue creation now stores the authenticated Venue Staff UUID in
+  `venues.owner_user_id`. Fresh schemas require the owner; migration 008
+  preserves unattributed legacy rows and protects new writes with a foreign
+  key and a future-row check.
+
 - Added authenticated venue creation and catalogue APIs for SPM-50, including
   RBAC enforcement, field-level validation, atomic PostgreSQL persistence, and
   required non-negative setup/turnaround durations in whole minutes. Venue IDs

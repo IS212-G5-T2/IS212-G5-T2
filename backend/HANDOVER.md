@@ -47,8 +47,15 @@ stable key and translate only that named PostgreSQL constraint into the
 field-level `409` response.
 Existing database volumes need `migrations/005_venues.sql` followed by
 `migrations/006_venue_operating_information.sql` and
-`migrations/007_venue_operating_schedule.sql`; fresh local
+`migrations/007_venue_operating_schedule.sql`, then
+`migrations/008_venue_owner_user_id.sql`; fresh local
 databases receive the venue tables from the shared initializer.
+Every new venue records the verified local session user's UUID as
+`venues.owner_user_id`; client supplied owner fields are ignored. Legacy rows
+without a known creator retain a null owner during migration and must not be
+attributed to an arbitrary staff member. A not-valid check constraint allows
+those historical rows while requiring an owner for future inserts. Owner
+filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 ## Continuity Notes
 

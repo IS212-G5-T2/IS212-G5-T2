@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Codex (GPT-6) - Link SPM-50 venues to their creator
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/`, `backend/migrations/008_venue_owner_user_id.sql`, `database/postgresql/init/001_schema.sql`, backend/database documentation, and `AI_USAGE.md`
+- Summary: Added `venues.owner_user_id` as a UUID foreign key to the local `users` table. Venue creation stores the verified session user ID in the same transaction as the venue and its relationships. The request and response do not accept or expose an owner field. Fresh schemas require an owner; migration 008 preserves historical rows with unknown owners and enforces ownership for future writes.
+- AI contribution: Cross-boundary ownership implementation, legacy-safe migration, service/repository and HTTP/PostgreSQL test updates, and documentation.
+- Assumptions: Existing venues without a trustworthy creator remain unassigned; a later retrieval story will filter by verified owner ID. SPM-50 itself remains creation-only.
+- Checks run: Backend venue unit tests, full backend coverage suite, build, and lint passed. Database E2E cases cover two staff identities, spoofed owner fields, foreign key and required-owner constraints, migration idempotence, and legacy preservation; database execution was not available locally because `DATABASE_URL` was unset and Docker was inaccessible.
+- Follow-up/conflict notes: Jira SPM-50 was In Review with PR #40 open; this is the requester's change to that existing review. Do not attribute legacy venues to the seeded staff account without evidence.
+
 ## 2026-10-05 - Codex (GPT-5) - Normalize venue operating-time API output
 
 - Issue/PR: SPM-50 / PR #40

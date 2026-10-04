@@ -59,12 +59,13 @@ export class VenuesRepository {
   /**
    * Inserts one venue and its accessibility selections in one transaction.
    *
+   * @param ownerUserId - Verified local account ID from the authenticated session.
    * @param venue - Validated venue details ready for persistence.
    * @returns The saved venue record.
    */
-  async create(venue: VenueInput): Promise<VenueRecord> {
+  async create(ownerUserId: string, venue: VenueInput): Promise<VenueRecord> {
     const created = await this.database.transaction(async (client) => {
-      const result = await this.insertVenue(client, venue);
+      const result = await this.insertVenue(client, ownerUserId, venue);
       await this.insertAccessibility(client, result.id, venue.accessibility);
       await this.insertFacilities(client, result.id, venue.facilities);
       await this.insertLayouts(client, result.id, venue.layouts);
@@ -121,10 +122,11 @@ export class VenuesRepository {
     };
   }
 
-  private async insertVenue(client: Queryable, venue: VenueInput) {
+  private async insertVenue(client: Queryable, ownerUserId: string, venue: VenueInput) {
     const result = await client.query(
-      'INSERT INTO venues (name, location, capacity, operating_information, operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
+      'INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
       [
+        ownerUserId,
         venue.name,
         venue.location,
         venue.capacity,

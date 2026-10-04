@@ -47,7 +47,7 @@ export class VenuesService {
   private async authorize(
     identity: AuthenticatedUser | undefined,
     action: PermissionAction,
-  ): Promise<void> {
+  ): Promise<AuthenticatedUser> {
     if (!identity?.uid)
       throw new UnauthorizedException('Authentication required.');
     if (
@@ -60,6 +60,7 @@ export class VenuesService {
       ).some(Boolean)
     )
       throw new ForbiddenException('Venue access denied.');
+    return identity;
   }
 
   /**
@@ -70,11 +71,11 @@ export class VenuesService {
    * @returns The saved venue and its user-facing confirmation message.
    */
   async create(identity: AuthenticatedUser | undefined, body: unknown) {
-    await this.authorize(identity, 'create');
+    const owner = await this.authorize(identity, 'create');
     const venue = validateVenue(body);
     try {
       return {
-        venue: await this.repository.create(venue),
+        venue: await this.repository.create(owner.uid, venue),
         message: 'Venue created successfully.',
       };
     } catch (error) {

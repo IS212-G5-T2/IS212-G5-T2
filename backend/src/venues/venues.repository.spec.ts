@@ -31,6 +31,7 @@ const venueInput = {
   setupTimeMinutes: venue.setupTimeMinutes,
   turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
 };
+const ownerUserId = '8ff4073d-8baa-4d32-984e-b93a46cbe49d';
 
 describe('VenuesRepository', () => {
   // SPM-50 / VEN-CRE-05-A, VEN-CRE-05-B: the venue and all normalized selections are stored together.
@@ -59,11 +60,12 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create(venueInput)).resolves.toEqual(venue);
+    await expect(repository.create(ownerUserId, venueInput)).resolves.toEqual(venue);
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]).toEqual([
-      expect.stringContaining('INSERT INTO venues'),
+      expect.stringContaining('INSERT INTO venues (owner_user_id,'),
       [
+        ownerUserId,
         venue.name,
         venue.location,
         venue.capacity,
@@ -114,7 +116,7 @@ describe('VenuesRepository', () => {
     } as unknown as DatabaseService);
 
     await expect(
-      repository.create({ ...venueInput, accessibility: [] }),
+      repository.create(ownerUserId, { ...venueInput, accessibility: [] }),
     ).resolves.toEqual({ ...venue, accessibility: [] });
     expect(query.mock.calls[1]).toEqual([
       expect.stringContaining('INSERT INTO venue_accessibility'),
@@ -153,7 +155,7 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create({ ...venueInput, image })).resolves.toEqual({
+    await expect(repository.create(ownerUserId, { ...venueInput, image })).resolves.toEqual({
       ...venue,
       image,
     });
@@ -172,6 +174,6 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create(venueInput)).rejects.toBe(failure);
+    await expect(repository.create(ownerUserId, venueInput)).rejects.toBe(failure);
   });
 });

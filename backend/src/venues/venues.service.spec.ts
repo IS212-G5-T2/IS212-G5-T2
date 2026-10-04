@@ -86,7 +86,29 @@ describe('SPM-50 venue service', () => {
     const response = await service.create(staff, venueInput);
     // Assert exact mapping and repository input.
     expect(response).toEqual({ venue, message: 'Venue created successfully.' });
-    expect(create).toHaveBeenCalledWith(venueInput);
+    expect(create).toHaveBeenCalledWith(staff.uid, venueInput);
+  });
+
+  // SPM-50 owner rule: request fields cannot replace the verified creator ID.
+  it('uses the authenticated owner for each create and ignores a spoofed owner', async () => {
+    // Arrange two staff sessions and a client payload carrying a false owner.
+    const otherStaff: AuthenticatedUser = {
+      uid: 'staff-2',
+      roles: ['VENUE_STAFF'],
+    };
+    const spoofed = {
+      ...venueInput,
+      owner_user_id: 'attacker-id',
+      ownerUserId: 'attacker-id',
+    };
+
+    // Act through the service with each verified identity.
+    await service.create(staff, spoofed);
+    await service.create(otherStaff, spoofed);
+
+    // Assert only the server identity is forwarded to persistence.
+    expect(create).toHaveBeenNthCalledWith(1, staff.uid, venueInput);
+    expect(create).toHaveBeenNthCalledWith(2, otherStaff.uid, venueInput);
   });
 
   // SPM-50 / VEN-CRE-03-A: invalid input is blocked before SQL even when staff is authorized.
@@ -146,5 +168,6 @@ describe('SPM-50 venue service', () => {
         venueInput,
       ),
     ).toEqual({ venue, message: 'Venue created successfully.' });
+    expect(create).toHaveBeenCalledWith('both', venueInput);
   });
 });
