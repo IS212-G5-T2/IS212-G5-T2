@@ -40,6 +40,17 @@ CREATE TABLE IF NOT EXISTS users (
 );
 CREATE INDEX IF NOT EXISTS users_active_email_idx ON users (email) WHERE is_active = true;
 
+CREATE TABLE IF NOT EXISTS equipment (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    equipment_name text NOT NULL CHECK (length(btrim(equipment_name)) > 0),
+    equipment_type text NOT NULL CHECK (equipment_type IN ('Audio', 'Visual', 'Furniture', 'Lighting', 'Other')),
+    quantity integer NOT NULL CHECK (quantity > 0),
+    maintenance_status text NOT NULL CHECK (maintenance_status IN ('Active', 'Under Maintenance', 'Retired')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS equipment_created_idx ON equipment (created_at DESC);
+
 CREATE TABLE IF NOT EXISTS user_roles (
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
     role_id integer NOT NULL REFERENCES roles (id) ON DELETE RESTRICT,

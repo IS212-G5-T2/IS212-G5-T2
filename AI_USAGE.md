@@ -119,6 +119,16 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
 - Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
 - Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
+## 2026-10-02 - Claude (Sonnet 5) - Implement SPM-62 View Registration Details (Attendee)
+
+- Issue/PR: SPM-62 (branch `feature/SPM-62-View-Registration-Details-Attendee`, reused from an existing empty branch/no PR yet)
+- Human requester/operator: Wei Zhi
+- Areas touched: `frontend/src/components/EventDetail`, `frontend/src/types`, `AI_USAGE.md`
+- Summary: SPM-62 asked for a user-provided test-case document (`docs/specs/SPM-62-test-cases.md`) that does not exist in this repo, so scope was grounded in the real Jira ACs and the existing SPM-61/SPM-99 implementation instead of an invented fixture matrix. Phase-0 recon found the "dashboard" (AC1, via `EventListPage`'s Registered-Events filter -> `EventCard` -> `/events/:id`), the status badge (AC2), already implemented and tested by SPM-61/SPM-99. AC5 was removed from SPM-62 as unreachable (no registration-by-id route exists), so nothing is traced to it. The only real gap was AC3: `RegistrationSection` showed only Registration ID and Registered-on date. Expanded its `registered` branch to also show Full name (falling back to `attendeeName` for older records), Email, Contact number, and Special requirements when present, and added a `fullName?` field to the frontend `Registration` type to carry it. AC4 required no code change (the `registered` branch is checked before any event-timing branch) but got new tests proving it for Completed and Cancelled events.
+- AI contribution: Jira lookup (MCP), repo reconnaissance via a read-only subagent, scope decisions confirmed with the human via AskUserQuestion (expand the existing inline section rather than add a new `/registrations/:id` route/endpoint; keep "Registered"/"Withdrawn" labels instead of relabeling to "Confirmed"; drop AC5 as unreachable; leave withdrawn-registration visibility out of scope), test-first implementation, and test/type/lint verification.
+- Assumptions: A withdrawn registration stays invisible to the attendee (`findMine` only returns `status='Registered'` rows, pinned by an existing SPM-61 e2e assertion) - AC2/AC4 for a withdrawn registration are a known gap, intentionally deferred to whichever future story implements the withdraw write path. No `cancelled` registration status exists or was added; Jira AC2's "(Confirmed, Cancelled, etc.)" wording is read as illustrative, not a requirement, since no feature in this repo produces that value for a registration (as opposed to an event).
+- Checks run: Frontend `npm test` (301 passed, 1 pre-existing todo, up from 296/296 baseline), `npx tsc --noEmit` (clean), `npm run lint` (2 pre-existing, unrelated failures in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, already noted in the 2026-09-26 SPM-99 entry above, untouched by this change). Backend `npm test` re-run unchanged at 500/500 (no backend files touched; registrations `.e2e-spec.ts` still skipped locally, no `DATABASE_URL`).
+- Follow-up/conflict notes: No existing branch/PR work was overwritten (the SPM-62 branch existed but had no commits ahead of `dev`). Staged for human review only; no commit, push, or PR created per instruction. If a future "withdraw" story persists withdrawals, `registrations.service.ts`'s `findMine` filter and this component's `registered` check will both need revisiting to surface Withdrawn status/details per AC2/AC4.
 
 ## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
 
@@ -1582,3 +1592,43 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Follow-up 2 (Claude Haiku 4.5): added the opening time row back to the open state to satisfy SPM-99 AC3 (both times visible). Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
 - Follow-up 3 (Claude Haiku 4.5): added registration date/time to the "You're registered" state; hid the event status progression line from attendee view. Checks: frontend 294 passed.
 - Follow-up 4 (Claude Haiku 4.5): attendee event view now shows ONLY Confirmed events (not Approved). Created distinct REGISTRABLE_STATUSES=['Confirmed'] and ATTENDEE_VISIBLE_STATUSES=['Confirmed', 'Completed', 'Cancelled']. Updated list query to use constants and all related tests (backend 496 passed; registrations e2e 28 passed).
+
+## 2026-10-03 - Codex - Restore Docker Compose backend build
+
+- Issue/PR: No Jira issue or pull request; local Docker rebuild requested by kirub.
+- Areas touched: `backend/src/registrations/registration-window.ts`, `AI_USAGE.md`.
+- Summary: Widened the status-list lookup to accept the existing `RegistrationWindow.status: string` contract, resolving the TypeScript build error that prevented the backend Docker image from building.
+- Checks run: `npm run build` passed; `src/registrations/registration-window.spec.ts` — 11/11 passed; Docker Compose rebuild completed and frontend, backend, and PostgreSQL containers are healthy.
+- Follow-up/conflict notes: This is an uncommitted local fix. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add equipment creation acknowledgement flow
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: `frontend/src/pages/EquipmentCreatePage.tsx`, its unit test, the SPM-111 AC4 Confluence live test case, and `AI_USAGE.md`.
+- Summary: Replaced the inline post-create confirmation with an Equipment record created dialog. Selecting OK routes the user to Equipment Availability.
+- Checks run: `frontend` EquipmentCreatePage unit tests — 17/17 passed; `frontend` production build passed.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add required equipment name to SPM-111 records
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: equipment database schema/migration, backend equipment validation and persistence, frontend creation and availability pages, equipment unit tests, SPM-111 Confluence matrix/live cases, and `AI_USAGE.md`.
+- Summary: Added a required, non-blank Equipment Name throughout the create, persist, retrieve, and display flow. Existing local equipment rows are backfilled with their type when the idempotent migration runs.
+- Checks run: backend equipment tests — 55/55 passed; frontend creation-page tests — 18/18 passed; frontend availability-page test — 1/1 passed; backend and frontend builds passed; local Docker services rebuilt healthy; PostgreSQL confirms `equipment.equipment_name` is non-nullable.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Record SPM-111 B1 results
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: SPM-111 Confluence live test cases and `AI_USAGE.md`.
+- Summary: Reran the SPM-111 backend equipment and frontend creation, availability, and route-access unit suites. Updated all 14 live cases with PASS, the exact run counts, test executor, and requester-confirmed manual verification.
+- Checks run: backend equipment suite — 3/3 files and 55/55 tests passed; frontend SPM-111 suites — 3/3 files and 47/47 tests passed.
+- Follow-up/conflict notes: API/database end-to-end checks were not run. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Resolve frontend dependency vulnerability scan
+
+- Issue/PR: SPM-111 / PR #37.
+- Areas touched: `frontend` dependency lockfile, Tailwind/PostCSS configuration, frontend stylesheet, frontend README, and `AI_USAGE.md`.
+- Summary: Upgraded Tailwind CSS from v3.4.17 to v4.3.3 and configured its v4 PostCSS integration. Moved the shared custom design tokens and class-based dark-mode variant into the global stylesheet so the existing UI utilities continue to build.
+- Checks run: `npm audit --audit-level=high` — 0 vulnerabilities; `npm run build` — passed; `npm test` — 28 files passed, 318 tests passed, 1 todo. A Playwright browser smoke check reached the styled login page; its only console errors were expected local CORS errors caused by testing from port 4173 while the backend permits port 5173.
+- Follow-up/conflict notes: The Tailwind v4 change is uncommitted pending human review. `tailwind.config.js` remains in the repository but is no longer the source of the shared theme tokens.

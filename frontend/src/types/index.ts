@@ -163,6 +163,17 @@ export interface EquipmentItem {
   totalQuantity: number;
 }
 
+/** A persisted inventory record created by Technical Support (SPM-111). */
+export interface EquipmentRecord {
+  id: string;
+  name: string;
+  type: 'Audio' | 'Visual' | 'Furniture' | 'Lighting' | 'Other';
+  quantity: number;
+  maintenanceStatus: 'Active' | 'Under Maintenance' | 'Retired';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type EquipmentRequestStatus =
   | "requested"
   | "checking"
@@ -193,6 +204,7 @@ export interface Registration {
   status: RegistrationStatus;
   registeredAt: string;
   /** Details captured at registration (SPM-61); absent on older records. */
+  fullName?: string;
   email?: string;
   contactNumber?: string;
   specialRequirements?: string;

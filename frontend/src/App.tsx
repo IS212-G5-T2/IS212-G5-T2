@@ -20,6 +20,7 @@ import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
+import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
 
@@ -81,10 +82,13 @@ export default function App() {
           <Route path="/venues/create" element={<VenueCreatePage />} />
         </Route>
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+        <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<EquipmentPage />} />
-          <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
           <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+          <Route path="/equipment/create" element={<EquipmentCreatePage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
         </Route>
 
         <Route path="/settings" element={<SettingsPage />} />
