@@ -66,3 +66,9 @@ type.
   mirror `backend/src/events/event-input.ts`; keep them in sync.
 - Business rules and assumptions (field policy, per-booking resolution,
   turnaround buffer) are documented in `backend/HANDOVER.md`.
+- Tests (case IDs and last run in
+  `docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`):
+  `pages/EventDetailPage.planning.test.tsx` (organiser and coordinator flows,
+  lifecycle, polling, hidden tab, failures), `components/domain/PlanningUpdateForm.test.tsx`,
+  `FlaggedChangeReview.test.tsx`, `PlanningInformationPanel.test.tsx` and
+  `utils/planning.test.ts`. There is no Playwright test of the planning workflow yet.

@@ -180,6 +180,37 @@ export class EventsService {
     return trimmed;
   }
 
+  // Only the assigned coordinator may approve a still-Submitted request.
+  async approve(id: string, identity?: AuthenticatedUser) {
+    const coordinator = this.requireCoordinator(identity);
+    this.eventId(id);
+    return this.database.transaction(async (client) => {
+      const selected = await client.query(
+        'SELECT * FROM events WHERE id = $1 FOR UPDATE',
+        [id],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (event.status !== 'Submitted')
+        throw new ConflictException(
+          'Only Submitted requests can be approved. Refresh the pending list.',
+        );
+      if (event.coordinator_id !== coordinator.uid)
+        throw new ForbiddenException(
+          'This request is assigned to another coordinator.',
+        );
+      const updated = await client.query(
+        `UPDATE events
+           SET status = 'Approved',
+               updated_at = now()
+         WHERE id = $1
+         RETURNING *`,
+        [id],
+      );
+      return this.record(updated.rows[0]);
+    });
+  }
+
   // SPM-83: only the coordinator assigned by SPM-38's round-robin flow may
   // reject a still-Submitted request. The decision and organiser notification
   // share one transaction so a rejection is never persisted without its reason.

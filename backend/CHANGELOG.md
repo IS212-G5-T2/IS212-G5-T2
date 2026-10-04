@@ -2,7 +2,11 @@
 
 ## Unreleased
 
+- Added persistence for coordinator approval of Submitted event requests through `POST /api/events/:id/approve`.
 - Added event planning APIs under `/api/events/:id/planning` (SPM-97, SPM-49, SPM-85): the owning organiser reads planning information (venue bookings, equipment, pending changes) read-only; the assigned coordinator updates event information, with fields that affect existing bookings flagged "Needs Review"; flagged changes carry a per-venue-booking impact assessment (overlap, setup/turnaround, capacity) and are confirmed or rejected as a whole or per booking, with a change history. Updates and resolutions are transactional. Assumptions are in HANDOVER.md.
+
+- Fixed impact assessment (SPM-85): a change that does not move the booking in time (attendance, layout, facilities) is no longer reported as an overlap or turnaround conflict because of a gap that already existed. Start and end changes are assessed as before.
+- Expanded planning test coverage (SPM-97, SPM-49, SPM-85): `Confirmed` read-only view, inactive bookings, organiser privacy, unchanged values, date halves, per-booking closing rule, history access, transactions, manual requirements checks, and PostgreSQL tests for concurrency, date-move ordering and history access. Documented the test cases in `docs/test-cases/`. No production behaviour changed.
 
 - Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
 - Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.

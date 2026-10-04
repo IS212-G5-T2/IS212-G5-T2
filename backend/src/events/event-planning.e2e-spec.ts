@@ -1,5 +1,9 @@
 import 'reflect-metadata';
-import { ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -292,6 +296,150 @@ describe.skipIf(!database)(
           venueName: 'Hall A',
         }),
       ]);
+    });
+
+    // SPM-85 AC4: two simultaneous confirms apply and record the decision once; the loser is refused.
+    it('EVENT-FLAG-04-SEC-2 applies and records a simultaneous double confirm exactly once', async () => {
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        expectedAttendance: 150,
+      });
+      const outcomes = await Promise.allSettled([
+        service.resolveChange(coordinator, eventId, flagged[0].id, {
+          decision: 'confirm',
+        }),
+        service.resolveChange(coordinator, eventId, flagged[0].id, {
+          decision: 'confirm',
+        }),
+      ]);
+      expect(outcomes.filter((o) => o.status === 'fulfilled')).toHaveLength(1);
+      const refused = outcomes.find(
+        (o): o is PromiseRejectedResult => o.status === 'rejected',
+      );
+      expect(refused?.reason).toBeInstanceOf(ConflictException);
+
+      const stored = await db.query(
+        'SELECT expected_attendance FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(stored.rows[0].expected_attendance).toBe(150);
+      const history = await service.changeHistory(coordinator, eventId);
+      expect(history.map((h) => [h.field, h.status])).toEqual([
+        ['expectedAttendance', 'Applied'],
+      ]);
+    });
+
+    // SPM-97 AC1/AC4: a Confirmed event is still viewable, but read-only for everyone.
+    it('EVENT-VIEW-01-C shows a Confirmed event read-only and refuses edits', async () => {
+      await db.query(`UPDATE events SET status = 'Confirmed' WHERE id = $1`, [
+        eventId,
+      ]);
+      for (const user of [organiser, coordinator]) {
+        const view = await service.getPlanningView(user, eventId);
+        expect(view.readOnly).toBe(true);
+        expect(view.editableFields).toEqual([]);
+      }
+      await expect(
+        service.updateEvent(coordinator, eventId, { name: 'Too late' }),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    // SPM-97 AC3: the organiser learns a change is pending, never which other events caused the clash.
+    it('EVENT-VIEW-03-A keeps other events out of what the organiser reads', async () => {
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        endDateTime: at(END, 60),
+      });
+      // The coordinator sees the clash with the neighbouring event...
+      expect(JSON.stringify(flagged[0])).toContain('Chemistry Workshop');
+      // ...the organiser sees only that a change is pending.
+      const view = await service.getPlanningView(organiser, eventId);
+      expect(view.pendingChanges).toEqual([
+        expect.objectContaining({
+          field: 'endDateTime',
+          status: 'Needs Review',
+        }),
+      ]);
+      expect(JSON.stringify(view)).not.toContain('Chemistry Workshop');
+    });
+
+    // SPM-85 AC1: bookings that were cancelled or released hold nothing, so changes apply directly.
+    it('EVENT-FLAG-01-D applies changes directly once every booking is cancelled or released', async () => {
+      await db.query(
+        `UPDATE venue_bookings SET status = 'Cancelled' WHERE event_id = $1`,
+        [eventId],
+      );
+      await db.query(
+        `UPDATE equipment_reservations SET status = 'Released' WHERE event_id = $1`,
+        [eventId],
+      );
+      const result = await service.updateEvent(coordinator, eventId, {
+        expectedAttendance: 150,
+      });
+      expect(result.applied).toEqual(['expectedAttendance']);
+      expect(result.flagged).toEqual([]);
+      const stored = await db.query(
+        'SELECT expected_attendance FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(stored.rows[0].expected_attendance).toBe(150);
+    });
+
+    // SPM-85 AC4: a date move is confirmed in an order that never leaves the end before the start.
+    it('EVENT-FLAG-04-B refuses a start that would pass the stored end until the end has moved', async () => {
+      const nextStart = at(START, 24 * 60);
+      const nextEnd = at(END, 24 * 60);
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        startDateTime: nextStart,
+        endDateTime: nextEnd,
+      });
+      const byField = Object.fromEntries(flagged.map((c) => [c.field, c.id]));
+
+      await expect(
+        service.resolveChange(coordinator, eventId, byField.startDateTime, {
+          decision: 'confirm',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      // The refusal left everything as it was and the change still awaits review.
+      const pending = await db.query(
+        `SELECT field FROM event_flagged_changes WHERE event_id = $1 AND status = 'Needs Review' ORDER BY field`,
+        [eventId],
+      );
+      expect(pending.rows.map((r) => r.field)).toEqual([
+        'endDateTime',
+        'startDateTime',
+      ]);
+
+      await service.resolveChange(coordinator, eventId, byField.endDateTime, {
+        decision: 'confirm',
+      });
+      await service.resolveChange(coordinator, eventId, byField.startDateTime, {
+        decision: 'confirm',
+      });
+      const stored = await db.query(
+        'SELECT start_date_time, end_date_time FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(stored.rows[0].start_date_time.toISOString()).toBe(nextStart);
+      expect(stored.rows[0].end_date_time.toISOString()).toBe(nextEnd);
+    });
+
+    // SPM-85 AC5: the owning organiser can read the history; another organiser cannot.
+    it('EVENT-FLAG-05-B lets the owning organiser read the history but not another organiser', async () => {
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        expectedAttendance: 150,
+      });
+      await service.resolveChange(coordinator, eventId, flagged[0].id, {
+        decision: 'reject',
+      });
+      const history = await service.changeHistory(organiser, eventId);
+      expect(history.map((h) => [h.field, h.status, h.resolvedValue])).toEqual([
+        ['expectedAttendance', 'Rejected', 80],
+      ]);
+      await expect(
+        service.changeHistory(
+          { uid: 'someone-else', roles: ['ORGANISER'] },
+          eventId,
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   },
 );

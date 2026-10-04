@@ -44,6 +44,7 @@ interface AppState {
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
   assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
+  approveEvent: (id: string) => Promise<void>;
   rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
   requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
@@ -173,6 +174,17 @@ export const useAppStore = create<AppState>((set, get) => ({
         relatedEventId: id,
       });
     }
+  },
+
+  approveEvent: async (id) => {
+    const approvedEvent = await api<EventRecord>(`/events/${id}/approve`, {
+      method: "POST",
+    });
+    set((s) => ({
+      events: s.events.map((event) =>
+        event.id === id ? { ...event, ...approvedEvent } : event,
+      ),
+    }));
   },
 
   rejectEvent: async (id, reason) => {

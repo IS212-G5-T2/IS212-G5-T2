@@ -106,11 +106,11 @@ Known gaps to close before this is fully production-ready:
 
 ## Rejection integration (SPM-83)
 
-The event, draft, clarification, and rejection routes are protected by Firebase middleware. `EventRejectionsController` adds rejection and rejection-notification endpoints. Only the verified Coordinator assigned to a Submitted request can reject it; only a verified Organiser can retrieve or mark their rejection notifications as read.
+The event, draft, clarification, approval and rejection routes are protected by `AuthenticationMiddleware`, which validates the PostgreSQL-backed session and attaches the authenticated user to `request.currentUser`. `EventRejectionsController` exposes `POST /api/events/:id/approve` and `POST /api/events/:id/reject`. Only the verified Coordinator assigned to a Submitted request can decide it; approval persists Approved status and rejection also persists its reason and rejection notification. Only a verified Organiser can retrieve or mark their rejection notifications as read.
 
 For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
-SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
+SPM-38's verified-user ownership checks and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
 
 ## Event planning: view, update and flagged changes (SPM-97, SPM-49, SPM-85)
 
@@ -124,7 +124,16 @@ SPM-38's verified Firebase ownership and round-robin coordinator assignment rema
 | `src/events/event-planning.repository.ts` | All SQL for the above; `runInTransaction()` via `AsyncLocalStorage`. |
 | `src/events/event-planning.controller.ts` | HTTP routes (below), protected by `AuthenticationMiddleware`. |
 
-Tests: `event-update-input.spec.ts`, `event-impact.spec.ts` and `event-planning.service.spec.ts` (mocked repository) pin the business rules; `event-planning.e2e-spec.ts` runs the real repository and service against PostgreSQL when `TEST_DATABASE_URL` is set (`npm run test:e2e`).
+### Tests
+
+Case index, last run and gaps: `docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`. Every test name starts with its case ID (`EVENT-VIEW-*`, `EVENT-UPDATE-*`, `EVENT-FLAG-*`).
+
+- `event-update-input.spec.ts`: validation limits and the field policy (pure).
+- `event-impact.spec.ts`: overlap, turnaround boundaries, capacity and manual requirements checks (pure).
+- `event-planning.service.spec.ts`: access, lifecycle (including `Confirmed` read-only), active/inactive bookings, privacy, unchanged values, date halves, per-booking closing rule, history access and transactions, with a mocked repository. The mock has no `runInTransaction`, so transactions are only exercised in the "atomicity" suite, which adds a fake one.
+- `event-planning.e2e-spec.ts`: the real repository and SQL against PostgreSQL when `TEST_DATABASE_URL` is set (`npm run test:e2e`), including row locking, the one-pending-per-field index and a simultaneous double confirm. The spec applies `001_schema.sql` and `007_*.sql` itself, so point it at a disposable database.
+
+A simultaneous double confirm is stopped by two independent protections (the locked event row, and the guarded `UPDATE ... WHERE status = 'Needs Review'`); the concurrency test only fails if both are removed, so it proves the outcome rather than either mechanism alone. An update racing a decision on the same event has no automated test.
 
 ### API
 
@@ -139,14 +148,14 @@ Error codes follow the existing events module: 401 unauthenticated; 403 wrong ro
 
 ### Rules and assumptions
 
-These were agreed from the Jira stories and the RED test suites; items marked **confirm** are interpretations the team should verify.
+These were derived from the Jira stories and are pinned by the test suites listed above; items marked **confirm** are interpretations the team should verify.
 
 1. **Planning phase.** `Approved` and `Planning` events can be viewed and edited; `Confirmed` events can be viewed but are read-only for everyone; any other status returns 409. The transition from `Approved` to `Planning` is owned by the venue-booking story; nothing in this module changes event status.
 2. **Field policy.** `name`, `purpose`, `description` and `accessibility` always apply immediately. `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities` and `equipmentNeeds` apply immediately while nothing is booked and are flagged "Needs Review" once the event has an active venue booking **or** an active equipment arrangement. "Venue requirements" in the stories maps to `layout` + `facilities`. Accessibility is direct because SPM-85 AC1 does not list it. **Confirm.**
 3. **Active bookings.** Venue bookings with status `Unavailable` or `Cancelled`, and equipment arrangements with `Unavailable`, `Cancelled` or `Released`, no longer hold anything, so they neither trigger review nor appear in impact assessments. An `Unavailable` venue booking instead surfaces as a `replacement_venue_required` pending item (SPM-97 AC3).
 4. **Validation.** Same rules and limits as event creation. Unknown and server-controlled keys (`id`, `status`, `organiserId`, `coordinatorId`, `venueId`, timestamps, …) are rejected, not ignored. A new end time is checked against the stored start time (and vice versa). Values identical to the stored value are dropped rather than flagged.
 5. **One pending change per field.** A field with a change awaiting review cannot be changed again until it is resolved (409). Enforced in the service and by a partial unique index.
-6. **Impact assessment.** Each venue booking is assessed independently. A booking's required window follows the event's proposed date/time; a missing edge keeps the booking's current value. Conflicts: `overlap` with another event's booking at the same venue; `turnaround` when the gap is shorter than `TURNAROUND_MINUTES` (30; exactly 30 is fine; touching bookings conflict); `capacity` when attendance exceeds the venue capacity (equal is fine). Layout/facility changes add a `requirements` entry asking the coordinator to re-check the venue by hand, because venue layout/facility data is not stored yet. **Confirm the 30-minute buffer.**
+6. **Impact assessment.** Each venue booking is assessed independently. A booking's required window follows the event's proposed date/time; a missing edge keeps the booking's current value. Conflicts: `overlap` with another event's booking at the same venue; `turnaround` when the gap is shorter than `TURNAROUND_MINUTES` (30; exactly 30 is fine; touching bookings conflict); `capacity` when attendance exceeds the venue capacity (equal is fine). Layout/facility changes add a `requirements` entry asking the coordinator to re-check the venue by hand, because venue layout/facility data is not stored yet. Overlap and turnaround are only assessed when the proposal moves the start or the end, so an attendance, layout or facilities change is never blamed for a gap that already existed. **Confirm the 30-minute buffer.**
 7. **Date/time moves together.** When an update changes both start and end, each field is flagged separately but both are assessed as one move. Confirming one half alone is refused (400) if it would put the end at or before the start.
 8. **Equipment.** Date/time and equipment-requirement changes list every active equipment arrangement under `equipmentImpacts` for the coordinator to re-check; availability is not computed here.
 9. **Whole-change resolution.** Confirm applies the proposed value immediately and records `Applied`. Reject leaves the event unchanged, records `Rejected` and clears the stored impact assessment.

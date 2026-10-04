@@ -4,6 +4,8 @@
 
 - Added planning information to the event detail page (SPM-97, SPM-49, SPM-85). Organisers see a read-only "Planning information" panel (venues, equipment, pending changes, replacement-venue alerts) that refreshes every 15 seconds. Assigned coordinators also get `PlanningUpdateForm` (per-field "Applies immediately" / "Needs review" badges, changed-fields-only saves, last-updated time) and `FlaggedChangeReview` (current vs proposed values, impacts per venue booking, whole-change and per-booking confirm/reject, change history). API helpers live in `src/utils/planning.ts`.
 
+- Expanded planning test coverage (SPM-97, SPM-49, SPM-85): coordinator save and decision flows on the event page, `Confirmed` read-only view, role gating, hidden-tab and failed-refresh behaviour, form validation and feedback, review-panel states, a new `PlanningInformationPanel` suite and a `utils/planning` suite. No production behaviour changed.
+
 - Corrected the frontend CI unit-test entrypoint to invoke the configured
   `test:cov` coverage script.
 

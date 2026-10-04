@@ -86,6 +86,7 @@ export function EventDetailPage() {
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
+  const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
@@ -332,6 +333,7 @@ export function EventDetailPage() {
               onChange={(value) => {
                 setReviewDecision(value as "approve" | "reject");
                 setRejectionError(false);
+                setReviewNotice("");
               }}
               options={[
                 { value: "approve", label: "Approve" },
@@ -367,30 +369,37 @@ export function EventDetailPage() {
               <Button
                 disabled={submittingDecision || !reviewDecision}
                 onClick={async () => {
-                  if (reviewDecision !== "reject") return;
-                  const raw = rejectionReason;
-                  const trimmed = raw.trim();
-                  const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
-                  const isValid =
-                    raw.length <= 500 &&
-                    trimmed.length >= 10 &&
-                    trimmed.length <= 500 &&
-                    words.length >= 3 &&
-                    /[a-zA-Z]/.test(trimmed);
-                  if (!isValid) {
-                    setRejectionError(true);
-                    return;
+                  if (!reviewDecision) return;
+                  let trimmed = "";
+                  if (reviewDecision === "reject") {
+                    const raw = rejectionReason;
+                    trimmed = raw.trim();
+                    const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+                    const isValid =
+                      raw.length <= 500 &&
+                      trimmed.length >= 10 &&
+                      trimmed.length <= 500 &&
+                      words.length >= 3 &&
+                      /[a-zA-Z]/.test(trimmed);
+                    if (!isValid) {
+                      setRejectionError(true);
+                      return;
+                    }
                   }
                   setSubmittingDecision(true);
                   try {
-                    await rejectEvent(event.id, trimmed);
+                    if (reviewDecision === "approve") {
+                      await approveEvent(event.id);
+                    } else {
+                      await rejectEvent(event.id, trimmed);
+                    }
                     setShowReviewControls(false);
                     setReviewDecision("");
                     setRejectionReason("");
                     setRejectionError(false);
                   } catch (error) {
                     setReviewNotice(
-                      error instanceof Error ? error.message : "Failed to reject event.",
+                      error instanceof Error ? error.message : "Failed to submit review decision.",
                     );
                   } finally {
                     setSubmittingDecision(false);

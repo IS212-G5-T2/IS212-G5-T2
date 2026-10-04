@@ -11,6 +11,8 @@
  *   booking and any other event's booking at the same venue. A gap of exactly
  *   TURNAROUND_MINUTES is fine; anything shorter (including touching bookings)
  *   is a 'turnaround' conflict; any overlap is an 'overlap' conflict.
+ * - Overlap and turnaround are only assessed when the proposal moves the start
+ *   or the end; other changes are not blamed for a gap that already existed.
  * - Attendance above the booked venue's capacity is a 'capacity' conflict;
  *   attendance equal to capacity is fine.
  * - Layout and facility changes cannot be verified automatically because venue
@@ -115,7 +117,15 @@ export function assessVenueBookings(
   return bookings.map((booking) => {
     const start = Date.parse(proposed.startDateTime ?? booking.start);
     const end = Date.parse(proposed.endDateTime ?? booking.end);
-    const conflicts = timeConflicts(start, end, booking.neighbours);
+    // Overlap/turnaround can only be caused by moving the booking in time. A
+    // gap that was already tight is not the fault of an attendance, layout or
+    // facilities change, so it is not reported for those.
+    const moves =
+      proposed.startDateTime !== undefined ||
+      proposed.endDateTime !== undefined;
+    const conflicts = moves
+      ? timeConflicts(start, end, booking.neighbours)
+      : [];
 
     if (
       proposed.expectedAttendance !== undefined &&

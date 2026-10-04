@@ -21,6 +21,28 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-04 - Claude (Anthropic, Claude Sonnet 5.5) - Close test gaps and clean up event planning (SPM-97/49/85)
+
+- Issue/PR: SPM-97, SPM-49, SPM-85 (Jira not accessed; story text supplied in chat). Branch `feature/SPM-49-Update-Event-Information`; no PR yet.
+- Human requester/operator: Unknown (requested via Claude chat with a repository zip).
+- Areas touched: `backend/src/events/` (`event-impact.ts` for the one fix; `event-planning.service.spec.ts`, `event-impact.spec.ts`, `event-update-input.spec.ts`, `event-planning.e2e-spec.ts`), `frontend/src/pages/EventDetailPage.planning.test.tsx`, `frontend/src/components/domain/` (`PlanningUpdateForm`, `FlaggedChangeReview` tests; new `PlanningInformationPanel.test.tsx`), new `frontend/src/utils/planning.test.ts`, `docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`, backend/frontend README, HANDOVER and CHANGELOG, `AI_USAGE.md`.
+- Summary: Added tests for behaviour the implementation enforces but no test covered (Confirmed read-only view, inactive bookings, organiser privacy, unchanged values, date-half confirmation, per-booking closing rule, history access, transactions, hidden-tab and failed refreshes, coordinator save/decision flows on the page, form validation and feedback, review-panel states, concurrency and date-move ordering against PostgreSQL). Removed stale "RED / TDD, does not exist yet" test headers, formatted the backend planning specs with Prettier, fixed a stale frontend README statement about `.test.ts` files, and documented the test cases. The one production change, in its own commit: `assessVenueBookings` no longer reports overlap/turnaround for a change that does not move the booking (attendance, layout, facilities), because it blamed the change for a gap that already existed.
+- AI contribution: Test design and code, one bug fix, mutation checks, documentation.
+- Assumptions: The behaviour described in `backend/HANDOVER.md` "Rules and assumptions" is what the tests should pin, including the items marked "confirm" (30-minute turnaround, per-booking closing rule, accessibility applying immediately). The tests describe current behaviour and will need updating if the team decides otherwise.
+- Checks run: Backend `npx vitest run` passed (22 files, 622 tests). `event-planning.e2e-spec.ts` passed 11/11 against local PostgreSQL 16 (`TEST_DATABASE_URL`). Backend oxlint clean; Prettier clean on the planning specs. Frontend `npx vitest run` passed (25 files, 312 tests) and `tsc -b` is clean; ESLint reports one error in `ClarificationThread.tsx`, which this change did not touch. Ten deliberate breakages of the production code (counting cancelled bookings, showing impacts to the organiser, refreshing while hidden, removing the schedule check, and others) were each caught by a new test; the concurrency test fails only when both the row lock and the status guard are removed. Planning tests ran 297/297.
+- Follow-up/conflict notes: The test-case document records a local run, not CI; replace it after the first CI run. Two older suites (`useAppStore.reject.test.ts`, `EventDetailPage.reject.test.tsx`) still carry SPM-83 "RED / TDD" headers, left alone as another ticket's. No Playwright test of the planning workflow exists. Nothing is staged, committed, or pushed.
+
+## 2026-10-04 - Copilot SDK in VS Code - Fix event review approval submission
+
+- Issue/PR: Unknown; no Jira key supplied.
+- Human requester/operator: Unknown.
+- Areas touched: `frontend/`, `backend/src/events/`, backend/frontend workflow documentation.
+- Summary: Connected the Review Decision approve action to a persisted API endpoint restricted to the assigned coordinator, and covered approval success and authorization/state guards.
+- AI contribution: Root-cause analysis, implementation, tests, and documentation.
+- Assumptions: Approval should transition a still-Submitted event to Approved; no approval notification was added because none was specified by the existing contract.
+- Checks run: Frontend targeted Vitest (22 tests), ESLint on changed files, and `npm run build` passed; backend targeted Vitest (21 tests), oxlint on changed files, and `npm run build` passed. Rebuilt the Compose backend with `cd docker-compose && docker compose up -d --build backend`; `/healthz` returned 200 and an unauthenticated POST to `/api/events/<test-id>/approve` returned the expected 401 instead of 404. Diagnosed the subsequent planning-refresh 500 as missing existing-volume SPM-97/49/85 schema, applied the documented additive/idempotent `007_spm49_spm85_spm97_event_planning.sql` to local PostgreSQL, and verified all three planning tables exist and Compose services are healthy. `git diff --check` passed.
+- Follow-up/conflict notes: No Jira context was supplied. No commit or push made.
+
 ## 2026-10-04 - Claude (Anthropic, Claude Opus) - Implement event planning view, update and flagged-change review
 
 - Issue/PR: SPM-97 (View Event Information, Organiser), SPM-49 (Update Event Information, Coordinator), SPM-85 (Review and Resolve Flagged Event Changes). Branch `feature/SPM-49-Update-Event-Information`; no PR yet.

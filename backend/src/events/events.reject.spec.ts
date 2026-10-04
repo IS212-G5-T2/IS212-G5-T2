@@ -312,6 +312,54 @@ describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
   );
 });
 
+describe('EventsService.approve', () => {
+  it('approves a Submitted request assigned to the coordinator', async () => {
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Approved' }),
+    );
+
+    const result = await service.approve(VALID_UUID, coordinator());
+
+    expect(result).toMatchObject({ id: VALID_UUID, status: 'approved' });
+    const sql = txSql();
+    expect(sql).toContain('BEGIN');
+    expect(sql.some((statement) => /FOR UPDATE/.test(statement))).toBe(true);
+    expect(sql.some((statement) => statement.startsWith('UPDATE') && /'Approved'/.test(statement))).toBe(true);
+    expect(sql).toContain('COMMIT');
+    expect(sql.some((statement) => statement.startsWith('INSERT INTO notifications'))).toBe(false);
+  });
+
+  it('rejects unauthenticated, non-coordinator and unassigned callers', async () => {
+    await expect(service.approve(VALID_UUID, undefined)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await expect(service.approve(VALID_UUID, organiser())).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    wireReject(eventRow({ status: 'Submitted' }), null);
+    await expect(
+      service.approve(VALID_UUID, coordinator('coordinator-2')),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(txSql().some((statement) => statement.startsWith('UPDATE'))).toBe(false);
+  });
+
+  it('rejects malformed or unknown IDs and refuses requests that are no longer Submitted', async () => {
+    await expect(service.approve('not-a-uuid', coordinator())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    wireReject(null, null);
+    await expect(service.approve(VALID_UUID, coordinator())).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    wireReject(eventRow({ status: 'Rejected' }), null);
+    await expect(service.approve(VALID_UUID, coordinator())).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(txSql().some((statement) => statement.startsWith('UPDATE'))).toBe(false);
+  });
+});
+
 describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () => {
   const notificationRow = {
     id: 'notif-1',

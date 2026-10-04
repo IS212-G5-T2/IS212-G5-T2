@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { PlanningUpdateForm } from "@/components/domain/PlanningUpdateForm";
@@ -7,10 +7,11 @@ import { formatDateTime } from "@/utils/format";
 import type { EventRecord } from "@/types";
 
 /**
- * SPM-49 — Coordinator updates event information. RED / TDD: PlanningUpdateForm
- * does not exist yet. Contract: props { event, editableFields, lastUpdatedAt,
- * onSave(patch) }; each field shows an "Applies immediately" or "Needs review"
- * badge; "Save changes" sends only the changed fields.
+ * SPM-49 — Coordinator updates event information (PlanningUpdateForm).
+ * Contract: props { event, editableFields, lastUpdatedAt, onSave(patch) }; each
+ * field shows an "Applies immediately" or "Needs review" badge; "Save changes"
+ * checks required fields, then sends only the changed fields and reports the
+ * outcome. Confluence IDs: EVENT-UPDATE-*, EVENT-FLAG-01-A.
  */
 
 function eventRecord(): EventRecord {
@@ -126,5 +127,191 @@ describe("PlanningUpdateForm", () => {
     const newer = "2026-10-05T08:00:00.000Z";
     rerender(<PlanningUpdateForm {...props} lastUpdatedAt={newer} />);
     expect(screen.getByText((content) => content.includes(formatDateTime(newer)))).toBeInTheDocument();
+  });
+});
+// ---------------------------------------------------------------------------
+// Gap coverage: validation, what is sent, saving feedback.
+// ---------------------------------------------------------------------------
+
+describe("PlanningUpdateForm: what is sent", () => {
+  // EVENT-UPDATE-03-A: saving without touching anything is not a save.
+  it("EVENT-UPDATE-03-A says there is nothing to save when nothing changed", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("No changes to save.");
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-03-A: surrounding spaces are not a change, and they are trimmed when a field does change.
+  it("EVENT-UPDATE-03-A trims text and ignores a change that is only spaces", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.type(screen.getByLabelText(/event name/i), "   ");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText(/^purpose/i));
+    await user.type(screen.getByLabelText(/^purpose/i), "  Welcome new students  ");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith({ purpose: "Welcome new students" });
+  });
+
+  // EVENT-UPDATE-03-A: lists are sent in full when any option is toggled, and an emptied list is sent as empty.
+  it("EVENT-UPDATE-03-A sends the whole facilities and accessibility lists when they change", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.click(screen.getByRole("checkbox", { name: "AV System" }));
+    await user.click(screen.getByRole("checkbox", { name: "Wheelchair ramps" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith({ facilities: ["Catering", "AV System"], accessibility: [] });
+  });
+
+  // EVENT-UPDATE-03-A: several edits travel together in one save.
+  it("EVENT-UPDATE-03-A sends several changed fields in one save", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.selectOptions(screen.getByLabelText(/room layout/i), "Theatre");
+    await user.clear(screen.getByLabelText(/equipment requirements/i));
+    await user.type(screen.getByLabelText(/equipment requirements/i), "Four microphones");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith({ layout: "Theatre", equipmentNeeds: "Four microphones" });
+  });
+
+  // EVENT-UPDATE-03-A: a date change is sent as UTC instants the API accepts.
+  it("EVENT-UPDATE-03-A sends changed dates as ISO UTC timestamps", async () => {
+    const { onSave } = renderForm();
+    fireEvent.change(screen.getByLabelText(/start date & time/i), { target: { value: "2026-11-12T09:00" } });
+    fireEvent.change(screen.getByLabelText(/end date & time/i), { target: { value: "2026-11-12T12:00" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith({
+      startDateTime: new Date("2026-11-12T09:00").toISOString(),
+      endDateTime: new Date("2026-11-12T12:00").toISOString(),
+    });
+  });
+});
+
+describe("PlanningUpdateForm: validation", () => {
+  // EVENT-UPDATE-04-A: every required text field has its own message, and the form says what to do.
+  it.each([
+    [/event name/i, "Event name is required."],
+    [/^purpose/i, "Purpose is required."],
+    [/^description/i, "Description is required."],
+  ])("EVENT-UPDATE-04-A shows a message when %s is blank", async (label, message) => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.clear(screen.getByLabelText(label));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByText("Please correct the highlighted fields.")).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-04-A: attendance must be a whole number of at least 1.
+  it.each([
+    ["", "Expected attendance is required."],
+    ["0", "Enter a positive whole number of attendees."],
+    ["1.5", "Enter a positive whole number of attendees."],
+    ["-3", "Enter a positive whole number of attendees."],
+  ])("EVENT-UPDATE-04-A rejects attendance %j", (value, message) => {
+    const { onSave } = renderForm();
+    fireEvent.change(screen.getByLabelText(/expected attendance/i), { target: { value } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-04-A: an end that is not after the start is refused before anything is sent.
+  it("EVENT-UPDATE-04-A refuses an end that is not after the start", () => {
+    const { onSave } = renderForm();
+    fireEvent.change(screen.getByLabelText(/start date & time/i), { target: { value: "2026-11-12T10:00" } });
+    fireEvent.change(screen.getByLabelText(/end date & time/i), { target: { value: "2026-11-12T10:00" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByText("End must be after start.")).toBeInTheDocument();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-04-A: a cleared date is reported as required, not as an ordering problem.
+  it("EVENT-UPDATE-04-A reports a cleared start date as required", () => {
+    renderForm();
+    fireEvent.change(screen.getByLabelText(/start date & time/i), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByText("Start date & time is required.")).toBeInTheDocument();
+    expect(screen.queryByText("End must be after start.")).not.toBeInTheDocument();
+  });
+
+  // EVENT-UPDATE-04-A: after fixing the problem the next save goes through and the errors clear.
+  it("EVENT-UPDATE-04-A clears the errors once the field is fixed", async () => {
+    const user = userEvent.setup();
+    const { onSave } = renderForm();
+    await user.clear(screen.getByLabelText(/event name/i));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await user.type(screen.getByLabelText(/event name/i), "Orientation");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenCalledWith({ name: "Orientation" });
+    expect(screen.queryByText("Event name is required.")).not.toBeInTheDocument();
+  });
+});
+
+describe("PlanningUpdateForm: saving feedback", () => {
+  // EVENT-UPDATE-05-A: a save that applied everything says so.
+  it("EVENT-UPDATE-05-A confirms a save that applied immediately", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockResolvedValue({ applied: ["name"], flagged: [] }));
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Changes saved.");
+  });
+
+  // EVENT-FLAG-01-A: a save that held some fields for review says how many and why.
+  it("EVENT-FLAG-01-A tells the coordinator how many changes were sent for review", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockResolvedValue({ applied: ["name"], flagged: [{ id: "chg-1" }] }));
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Saved. 1 change(s) applied; 1 sent for review because bookings already exist.",
+    );
+  });
+
+  // EVENT-UPDATE-03-A: while saving the button is disabled, so a double click cannot send twice.
+  it("EVENT-UPDATE-03-A disables the button while a save is in progress", async () => {
+    const user = userEvent.setup();
+    let finish: (value?: unknown) => void = () => {};
+    const onSave = vi.fn(() => new Promise((resolve) => (finish = resolve)));
+    renderForm(onSave);
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
+    finish();
+    expect(await screen.findByRole("button", { name: /save changes/i })).toBeEnabled();
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // EVENT-UPDATE-04-A: the server's message is shown, and nothing the coordinator typed is lost.
+  it("EVENT-UPDATE-04-A shows the server message for a refused save and keeps the typed values", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockRejectedValue(new ApiError("A change to this field is already awaiting review.", { expectedAttendance: "A change is already awaiting review." })));
+    await user.clear(screen.getByLabelText(/expected attendance/i));
+    await user.type(screen.getByLabelText(/expected attendance/i), "120");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("A change is already awaiting review.")).toBeInTheDocument();
+    // The server's message also appears as the form-level alert.
+    expect(screen.getAllByRole("alert").map((a) => a.textContent)).toContain(
+      "A change to this field is already awaiting review.",
+    );
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(120);
+  });
+
+  // EVENT-UPDATE-04-A: an unexpected failure gets a generic, retryable message.
+  it("EVENT-UPDATE-04-A shows a generic message for an unexpected failure and allows a retry", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockRejectedValue(new Error("boom")));
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByText("Could not save changes. Please try again.")).toBeInTheDocument();
+    expect(screen.queryByText("boom")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
+    expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
   });
 });
