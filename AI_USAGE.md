@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-04 - Claude (Anthropic, Claude Opus) - Implement event planning view, update and flagged-change review
+
+- Issue/PR: SPM-97 (View Event Information, Organiser), SPM-49 (Update Event Information, Coordinator), SPM-85 (Review and Resolve Flagged Event Changes). Branch `feature/SPM-49-Update-Event-Information`; no PR yet.
+- Human requester/operator: Unknown (requested via Claude chat with a repository zip).
+- Areas touched: `backend/src/events/` (new `event-update-input.ts`, `event-impact.ts`, `event-planning.{repository,service,controller}.ts`, `event-planning.e2e-spec.ts`), `backend/src/app.module.ts`, `database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql`, `frontend/src/utils/planning.ts`, `frontend/src/components/domain/{PlanningInformationPanel,PlanningUpdateForm,FlaggedChangeReview}.tsx`, `frontend/src/pages/EventDetailPage.tsx`, `frontend/src/types/index.ts`, README/HANDOVER/CHANGELOG/AGENTS docs.
+- Summary: Implemented the code that makes the existing RED suites from commit `6d68f81` pass, without changing those tests. Organisers get a read-only, auto-refreshing planning panel; assigned coordinators can update event information, and changes that affect existing venue bookings or equipment arrangements are flagged "Needs Review" with a per-booking impact assessment (overlap, setup/turnaround, capacity), then confirmed or rejected as a whole or per booking, with change history.
+- AI contribution: Design, implementation, schema, integration test, documentation.
+- Assumptions: Jira was not accessible; the story text and acceptance criteria were supplied in chat, and Jira status was not verified. Full list in `backend/HANDOVER.md` "Event planning". Main points needing team confirmation: Approved and Planning are editable while Confirmed is view-only; accessibility applies immediately; 30-minute turnaround buffer; per-booking (AC7) decisions close the change only when every impacted booking is decided (Applied if all confirmed, otherwise Rejected); one pending change per field; organisers do not see impact details. `venue_bookings` and `equipment_reservations` are placeholders because no such tables existed on any branch.
+- Checks run: Backend `npx vitest run` passed (22 files, 567 tests, including the 3 target specs with 124 tests). Backend `nest build` passed, and oxlint is clean on the new files. Backend `tsc --noEmit` shows 7 errors, all pre-existing in `test/*.e2e-spec.ts` and `vitest.spm37.config.ts`. `event-planning.e2e-spec.ts` passed 5/5 against a local PostgreSQL 16 database. Init script `007` applied cleanly and idempotently on this branch's 001-002 and on `origin/dev`'s 001-006. Frontend `npx vitest run` passed (23 files, 221 tests, including the 3 target suites with 20 tests), and `npm run build` passed. `eslint .` reports 2 errors, both pre-existing (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`). The bundled `node_modules` held macOS binaries, so dependencies were reinstalled with `npm ci` on Linux for these checks.
+- Follow-up/conflict notes: The branch is behind `dev` (dev adds init scripts 003-006, SPM-111 `equipment`, and a wider status constraint). Init script `007` was numbered and written to merge cleanly on top of that. After merging, add foreign keys from the placeholder tables to `venues`/`equipment`. Nothing is staged, committed, or pushed.
+
 ## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
 
 - Issue/PR: Unknown

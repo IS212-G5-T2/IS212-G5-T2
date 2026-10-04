@@ -4,6 +4,19 @@ This records the evolution of the local PostgreSQL initializer. The two files
 under `postgresql/init/` intentionally describe only the final fresh-volume
 state; existing databases must use backend migrations for upgrades.
 
+## Unreleased - SPM-97 / SPM-49 / SPM-85 event planning
+
+- Added `postgresql/init/007_spm49_spm85_spm97_event_planning.sql`, an additive,
+  idempotent initializer (same pattern as `dev`'s `003`-`006`; numbered `007` so
+  it runs after them). It can also be applied by hand to an existing volume.
+- Widened `events_status_check` to add `Planning`, as a superset of `dev`'s list
+  (`Submitted`, `Approved`, `Rejected`, `Planning`, `Confirmed`, `Completed`,
+  `Cancelled`).
+- Added placeholder `venue_bookings` and `equipment_reservations` tables, to be
+  taken over by the venue-booking and equipment-reservation stories.
+- Added `event_flagged_changes` (pending review and change history) with a
+  partial unique index allowing one pending change per event field.
+
 ## 2026-09-22 - Two-file initializer consolidation
 
 - Combined every extension, table, column, constraint, and index into

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added event planning APIs under `/api/events/:id/planning` (SPM-97, SPM-49, SPM-85): the owning organiser reads planning information (venue bookings, equipment, pending changes) read-only; the assigned coordinator updates event information, with fields that affect existing bookings flagged "Needs Review"; flagged changes carry a per-venue-booking impact assessment (overlap, setup/turnaround, capacity) and are confirmed or rejected as a whole or per booking, with a change history. Updates and resolutions are transactional. Assumptions are in HANDOVER.md.
+
 - Added coordinator rejection of Submitted requests with mandatory reasons, transactional organiser notifications, recipient-scoped notification retrieval/read state and a non-destructive schema migration (SPM-83).
 - Connected event/draft HTTP routes to verified Firebase ownership; coordinator assignment preserves Submitted status and uses verified identity.
 

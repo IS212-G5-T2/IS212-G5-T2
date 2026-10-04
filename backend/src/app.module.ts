@@ -2,6 +2,9 @@ import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/c
 import { EventsController } from './events/events.controller.js';
 import { EventRejectionsController } from './events/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
+import { EventPlanningController } from './events/event-planning.controller.js';
+import { EventPlanningRepository } from './events/event-planning.repository.js';
+import { EventPlanningService } from './events/event-planning.service.js';
 import { DraftsController } from './events/drafts.controller.js';
 import { DraftsService } from './events/drafts.service.js';
 import { AppController } from './app.controller.js';
@@ -18,9 +21,16 @@ import { DatabaseModule } from './database/database.module.js';
     AppController,
     EventsController,
     EventRejectionsController,
+    EventPlanningController,
     DraftsController,
   ],
-  providers: [AppService, EventsService, DraftsService],
+  providers: [
+    AppService,
+    EventsService,
+    DraftsService,
+    EventPlanningService,
+    EventPlanningRepository,
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
@@ -30,6 +40,7 @@ export class AppModule implements NestModule {
         { path: 'api/auth/me', method: RequestMethod.GET },
         EventsController,
         EventRejectionsController,
+        EventPlanningController,
         DraftsController,
         ClarificationsController,
       );

@@ -46,3 +46,23 @@ using its Firebase UID. The app starts in light mode. Save Draft is implemented;
 email delivery remains deferred.
 The API maps stored Submitted status to the existing lowercase frontend status
 type.
+
+## Event planning (SPM-97, SPM-49, SPM-85)
+
+- `EventDetailPage` fetches `GET /events/:id/planning` only for `approved`,
+  `planning` and `confirmed` events, and only for an organiser or the assigned
+  coordinator. It re-fetches every `PLANNING_REFRESH_MS` (15 s, in
+  `src/utils/planning.ts`), skipping refreshes while the tab is hidden, and
+  merges the returned event into the store so the details card stays current.
+- `PlanningInformationPanel` is the read-only region named "Planning
+  information". It renders no controls of any kind (SPM-97 AC4); organisers
+  get nothing else.
+- Assigned coordinators additionally get `PlanningUpdateForm` and
+  `FlaggedChangeReview`. The form is keyed on `lastUpdatedAt` so it reloads
+  saved values after a change but keeps in-progress edits across polls.
+- The form uses `noValidate` and its own required-field checks so error copy is
+  consistent ("Event name is required."); the backend repeats every check.
+- Layout, facility and accessibility option lists in `src/utils/planning.ts`
+  mirror `backend/src/events/event-input.ts`; keep them in sync.
+- Business rules and assumptions (field policy, per-booking resolution,
+  turnaround buffer) are documented in `backend/HANDOVER.md`.

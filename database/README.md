@@ -3,8 +3,15 @@
 This directory contains database initialization files shared by local development tooling.
 
 For the feature and schema evolution that led to the consolidated initializer,
-see [CHANGELOG.md](CHANGELOG.md). The init directory stays limited to one
-schema script and one seed-data script.
+see [CHANGELOG.md](CHANGELOG.md). `001_schema.sql` and `002_seed_data.sql`
+hold the consolidated base; later features add numbered, additive and
+idempotent initializers (for example `007_spm49_spm85_spm97_event_planning.sql`)
+that also upgrade an existing volume when applied by hand:
+
+```sh
+psql postgresql://spm:spm_dev_password@localhost:5432/spm \
+  -f database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql
+```
 
 ## PostgreSQL
 
@@ -36,7 +43,7 @@ docker run --rm --name spm-postgresql \
 
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `docker-compose/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
-The PostgreSQL entrypoint runs two SQL files by filename order when it creates a fresh database: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
+The PostgreSQL entrypoint runs every SQL file in `init/` by filename order when it creates a fresh database. The base files are: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
 
 | Table | Purpose |
 | --- | --- |
@@ -46,6 +53,9 @@ The PostgreSQL entrypoint runs two SQL files by filename order when it creates a
 | `users` | Local account identity, password hash, active state, and display name. |
 | `user_roles` | Local account membership in the seeded RBAC roles. |
 | `auth_sessions` | Hashed, revocable, expiring local browser sessions. |
+| `venue_bookings` | Event venue bookings used by planning (SPM-97/85); placeholder until the venue-booking story owns it. Added by `007`. |
+| `equipment_reservations` | Event equipment arrangements used by planning; placeholder until the equipment-reservation story owns it. Added by `007`. |
+| `event_flagged_changes` | Booking-affecting event changes awaiting coordinator review, and their resolved history (SPM-85). Added by `007`. |
 
 To check a standalone database after it starts, connect with the local defaults:
 

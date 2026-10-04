@@ -111,3 +111,73 @@ The event, draft, clarification, and rejection routes are protected by Firebase 
 For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
 SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
+
+## Event planning: view, update and flagged changes (SPM-97, SPM-49, SPM-85)
+
+### Code map
+
+| File | Owns |
+| --- | --- |
+| `src/events/event-update-input.ts` | Pure validation of a partial update (`validateEventUpdate`) and the per-field edit policy (`FIELD_POLICY`, `classifyUpdate`). |
+| `src/events/event-impact.ts` | Pure impact assessment of a proposed change against each venue booking (`assessVenueBookings`, `TURNAROUND_MINUTES`). |
+| `src/events/event-planning.service.ts` | Access rules, status gates, apply-vs-flag decision, confirm/reject logic, change history. |
+| `src/events/event-planning.repository.ts` | All SQL for the above; `runInTransaction()` via `AsyncLocalStorage`. |
+| `src/events/event-planning.controller.ts` | HTTP routes (below), protected by `AuthenticationMiddleware`. |
+
+Tests: `event-update-input.spec.ts`, `event-impact.spec.ts` and `event-planning.service.spec.ts` (mocked repository) pin the business rules; `event-planning.e2e-spec.ts` runs the real repository and service against PostgreSQL when `TEST_DATABASE_URL` is set (`npm run test:e2e`).
+
+### API
+
+| Method and path | Who | Result |
+| --- | --- | --- |
+| `GET /api/events/:id/planning` | Owning organiser (read-only) or assigned coordinator | `{ event, venueBookings, equipmentArrangements, pendingChanges, readOnly, editableFields, lastUpdatedAt }` |
+| `PATCH /api/events/:id/planning` | Assigned coordinator | Body: only the changed fields. Returns `{ event, applied, flagged, updatedAt }`. |
+| `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | Body: `{ decision: 'confirm' \| 'reject', bookingId? }`. Returns `{ event, change, closed }`. |
+| `GET /api/events/:id/planning/history` | Owning organiser or assigned coordinator | Resolved changes, newest first. |
+
+Error codes follow the existing events module: 401 unauthenticated; 403 wrong role (an organiser calling a write route, any attendee/staff role); 404 malformed id, unknown event, or an event the caller neither owns nor is assigned to (existence is never leaked); 409 wrong lifecycle status, an already-resolved change, or a second pending change to the same field; 400 validation with a per-field `errors` map.
+
+### Rules and assumptions
+
+These were agreed from the Jira stories and the RED test suites; items marked **confirm** are interpretations the team should verify.
+
+1. **Planning phase.** `Approved` and `Planning` events can be viewed and edited; `Confirmed` events can be viewed but are read-only for everyone; any other status returns 409. The transition from `Approved` to `Planning` is owned by the venue-booking story; nothing in this module changes event status.
+2. **Field policy.** `name`, `purpose`, `description` and `accessibility` always apply immediately. `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities` and `equipmentNeeds` apply immediately while nothing is booked and are flagged "Needs Review" once the event has an active venue booking **or** an active equipment arrangement. "Venue requirements" in the stories maps to `layout` + `facilities`. Accessibility is direct because SPM-85 AC1 does not list it. **Confirm.**
+3. **Active bookings.** Venue bookings with status `Unavailable` or `Cancelled`, and equipment arrangements with `Unavailable`, `Cancelled` or `Released`, no longer hold anything, so they neither trigger review nor appear in impact assessments. An `Unavailable` venue booking instead surfaces as a `replacement_venue_required` pending item (SPM-97 AC3).
+4. **Validation.** Same rules and limits as event creation. Unknown and server-controlled keys (`id`, `status`, `organiserId`, `coordinatorId`, `venueId`, timestamps, …) are rejected, not ignored. A new end time is checked against the stored start time (and vice versa). Values identical to the stored value are dropped rather than flagged.
+5. **One pending change per field.** A field with a change awaiting review cannot be changed again until it is resolved (409). Enforced in the service and by a partial unique index.
+6. **Impact assessment.** Each venue booking is assessed independently. A booking's required window follows the event's proposed date/time; a missing edge keeps the booking's current value. Conflicts: `overlap` with another event's booking at the same venue; `turnaround` when the gap is shorter than `TURNAROUND_MINUTES` (30; exactly 30 is fine; touching bookings conflict); `capacity` when attendance exceeds the venue capacity (equal is fine). Layout/facility changes add a `requirements` entry asking the coordinator to re-check the venue by hand, because venue layout/facility data is not stored yet. **Confirm the 30-minute buffer.**
+7. **Date/time moves together.** When an update changes both start and end, each field is flagged separately but both are assessed as one move. Confirming one half alone is refused (400) if it would put the end at or before the start.
+8. **Equipment.** Date/time and equipment-requirement changes list every active equipment arrangement under `equipmentImpacts` for the coordinator to re-check; availability is not computed here.
+9. **Whole-change resolution.** Confirm applies the proposed value immediately and records `Applied`. Reject leaves the event unchanged, records `Rejected` and clears the stored impact assessment.
+10. **Per-booking resolution (SPM-85 AC7). Confirm.** With `bookingId`, the decision is stored on that booking's impact entry only; other bookings' entries are untouched and the change stays "Needs Review". When the last impacted booking is decided the change closes: `Applied` (value applied) if every impacted booking was confirmed, otherwise `Rejected`. Rationale: an event field has one value, so it cannot be kept for one venue and dropped for another.
+11. **History (SPM-85 AC5).** Each resolved change records original value, proposed value, the value the event ended with (`resolvedValue`), the coordinator's display name, timestamp and status.
+12. **Privacy.** The organiser's view of a pending change omits `impacts`/`equipmentImpacts`, because those name other organisers' events. Venue booking neighbours are never returned by the view.
+13. **Live updates (SPM-97 AC5).** The backend always reads live data; the frontend polls `GET …/planning` every 15 s. A push channel was out of scope.
+14. **Atomicity.** `updateEvent` and `resolveChange` run in one transaction that locks the event row (`FOR UPDATE`), so "apply direct fields + flag the rest" and "apply value + record decision" never half-succeed. The service only wraps work when the repository exposes `runInTransaction`; the unit-test double does not, so those tests run unwrapped.
+
+### Schema and placeholders
+
+Tables come from `database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql` (additive and idempotent; apply to an existing volume with `psql "$DATABASE_URL" -f …`). It also widens `events_status_check` to add `Planning` alongside dev's statuses.
+
+`venue_bookings` and `equipment_reservations` are **minimal placeholders**: no venue-booking or equipment-reservation tables existed on any branch. `venue_id` is free text and the venue's name/capacity are copied onto the booking; equipment is identified by name. When the owning stories land, extend these tables (or point the repository's SQL at theirs) and add foreign keys to `venues`/`equipment` (the latter exists on `dev` from SPM-111). Only `event-planning.repository.ts` needs to change.
+
+### Manual QA
+
+With an `Approved` event assigned to a coordinator, add a booking so review mode turns on:
+
+```sql
+UPDATE events SET status = 'Planning' WHERE id = '<event-id>';
+INSERT INTO venue_bookings (event_id, venue_id, venue_name, venue_capacity, start_date_time, end_date_time)
+SELECT id, 'hall-a', 'Hall A', 100, start_date_time, end_date_time FROM events WHERE id = '<event-id>';
+INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status)
+VALUES ('<event-id>', 'Projector', 2, 'Reserved');
+-- Simulate a lost venue (SPM-97 AC3):
+UPDATE venue_bookings SET status = 'Unavailable' WHERE event_id = '<event-id>' AND venue_id = 'hall-a';
+```
+
+### Follow-ups
+
+- Notify the organiser when a flagged change is resolved (not required by these stories).
+- Replace polling with server push if the planning page becomes long-lived.
+- Persist venue layouts/facilities so `requirements` entries can become automatic checks.
