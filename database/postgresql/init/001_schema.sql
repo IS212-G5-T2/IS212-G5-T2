@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS equipment (
     equipment_type text NOT NULL CHECK (equipment_type IN ('Audio', 'Visual', 'Furniture', 'Lighting', 'Other')),
     quantity integer NOT NULL CHECK (quantity > 0),
     maintenance_status text NOT NULL CHECK (maintenance_status IN ('Active', 'Under Maintenance', 'Retired')),
+    location text NOT NULL CHECK (length(btrim(location)) > 0),
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );

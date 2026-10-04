@@ -18,7 +18,9 @@ const technicalSupportUser: AuthenticatedUser = {
   name: 'Technical Support',
 };
 
-function userWithRole(role: AuthenticatedUser['roles'][number]): AuthenticatedUser {
+function userWithRole(
+  role: AuthenticatedUser['roles'][number],
+): AuthenticatedUser {
   return {
     uid: `${role.toLowerCase()}-1`,
     roles: [role],
@@ -33,6 +35,7 @@ const createdRow = {
   equipment_type: 'Visual',
   quantity: 10,
   maintenance_status: 'Active',
+  location: 'Storage Room A',
   created_at: new Date('2026-10-03T00:00:00.000Z'),
   updated_at: new Date('2026-10-03T00:00:00.000Z'),
 };
@@ -42,7 +45,10 @@ let service: EquipmentService;
 beforeEach(async () => {
   vi.resetAllMocks();
   const module = await Test.createTestingModule({
-    providers: [EquipmentService, { provide: DatabaseService, useValue: database }],
+    providers: [
+      EquipmentService,
+      { provide: DatabaseService, useValue: database },
+    ],
   }).compile();
   service = module.get(EquipmentService);
 });
@@ -50,21 +56,101 @@ beforeEach(async () => {
 describe('EquipmentService', () => {
   // SPM-111 EQUIP-CRE-03-C: service validation remains effective even when UI checks are bypassed.
   it.each([
-    ['missing name', { type: 'Audio', quantity: 5, maintenanceStatus: 'Active' }],
-    ['missing type', { name: 'Conference projector', quantity: 5, maintenanceStatus: 'Active' }],
-    ['missing quantity', { name: 'Conference projector', type: 'Audio', maintenanceStatus: 'Active' }],
-    ['missing maintenance status', { name: 'Conference projector', type: 'Audio', quantity: 5 }],
-    ['zero quantity', { name: 'Conference projector', type: 'Audio', quantity: 0, maintenanceStatus: 'Active' }],
-    ['decimal quantity', { name: 'Conference projector', type: 'Audio', quantity: 1.5, maintenanceStatus: 'Active' }],
-    ['invalid type', { name: 'Conference projector', type: 'Projector', quantity: 5, maintenanceStatus: 'Active' }],
-    ['invalid maintenance status', { name: 'Conference projector', type: 'Audio', quantity: 5, maintenanceStatus: 'Broken' }],
-  ])('EQUIP-CRE-03-C rejects %s before database access', async (_caseName, body) => {
-    // Act and assert: malformed API payloads are rejected without persistence.
-    await expect(service.create(technicalSupportUser, body)).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
-    expect(database.query).not.toHaveBeenCalled();
-  });
+    [
+      'missing name',
+      {
+        type: 'Audio',
+        quantity: 5,
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'missing type',
+      {
+        name: 'Conference projector',
+        quantity: 5,
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'missing quantity',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'missing maintenance status',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        quantity: 5,
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'missing location',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        quantity: 5,
+        maintenanceStatus: 'Active',
+      },
+    ],
+    [
+      'zero quantity',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        quantity: 0,
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'decimal quantity',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        quantity: 1.5,
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'invalid type',
+      {
+        name: 'Conference projector',
+        type: 'Projector',
+        quantity: 5,
+        maintenanceStatus: 'Active',
+        location: 'Storage Room A',
+      },
+    ],
+    [
+      'invalid maintenance status',
+      {
+        name: 'Conference projector',
+        type: 'Audio',
+        quantity: 5,
+        maintenanceStatus: 'Broken',
+        location: 'Storage Room A',
+      },
+    ],
+  ])(
+    'EQUIP-CRE-03-C rejects %s before database access',
+    async (_caseName, body) => {
+      // Act and assert: malformed API payloads are rejected without persistence.
+      await expect(
+        service.create(technicalSupportUser, body),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(database.query).not.toHaveBeenCalled();
+    },
+  );
 
   // SPM-111 EQUIP-CRE-04-A: a valid submission persists a record and confirms it.
   it('EQUIP-CRE-04-A creates an equipment record and returns a confirmation message', async () => {
@@ -77,12 +163,13 @@ describe('EquipmentService', () => {
       type: 'Visual',
       quantity: 10,
       maintenanceStatus: 'Active',
+      location: 'Storage Room A',
     });
 
-    // Assert: persistence receives all four fields and the UI can display confirmation.
+    // Assert: persistence receives all fields and the UI can display confirmation.
     expect(database.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO equipment'),
-      ['Conference projector', 'Visual', 10, 'Active'],
+      ['Conference projector', 'Visual', 10, 'Active', 'Storage Room A'],
     );
     expect(result).toMatchObject({
       equipment: {
@@ -91,8 +178,9 @@ describe('EquipmentService', () => {
         type: 'Visual',
         quantity: 10,
         maintenanceStatus: 'Active',
+        location: 'Storage Room A',
       },
-      message: expect.stringMatching(/created/i),
+      message: 'Equipment record created.',
     });
   });
 
@@ -115,6 +203,7 @@ describe('EquipmentService', () => {
         type: 'Visual',
         quantity: 10,
         maintenanceStatus: 'Active',
+        location: 'Storage Room A',
       }),
     );
   });
@@ -143,16 +232,17 @@ describe('EquipmentService', () => {
   it.each(['ORGANISER', 'COORDINATOR', 'VENUE_STAFF', 'ATTENDEE'] as const)(
     'EQUIP-CRE-01-B/EQUIP-CRE-05-SEC-1 rejects %s before persistence',
     async (role) => {
-    // Act and assert: the role check happens before any persistence call.
-    await expect(
-      service.create(userWithRole(role), {
-        type: 'Audio',
-        name: 'Conference projector',
-        quantity: 5,
-        maintenanceStatus: 'Active',
-      }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(database.query).not.toHaveBeenCalled();
+      // Act and assert: the role check happens before any persistence call.
+      await expect(
+        service.create(userWithRole(role), {
+          type: 'Audio',
+          name: 'Conference projector',
+          quantity: 5,
+          maintenanceStatus: 'Active',
+          location: 'Storage Room A',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(database.query).not.toHaveBeenCalled();
     },
   );
 
@@ -164,7 +254,67 @@ describe('EquipmentService', () => {
         name: 'Conference projector',
         quantity: 5,
         maintenanceStatus: 'Active',
+        location: 'Storage Room A',
       }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  // SPM-111 EQUIP-CRE-01-B: any role set containing Technical Support is authorised.
+  it('EQUIP-CRE-01-B accepts a multi-role Technical Support user', async () => {
+    database.query.mockResolvedValue({ rows: [createdRow] });
+
+    await expect(
+      service.list({
+        ...technicalSupportUser,
+        roles: ['COORDINATOR', 'TECH_SUPPORT'],
+      }),
+    ).resolves.toHaveLength(1);
+  });
+
+  // SPM-111 EQUIP-CRE-01-B: an authenticated user with no roles is not authorised.
+  it('EQUIP-CRE-01-B rejects a user with no roles', async () => {
+    await expect(
+      service.list({ ...technicalSupportUser, roles: [] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  // SPM-111 EQUIP-CRE-02-C: the locations lookup returns distinct stored locations for the dropdown.
+  it('EQUIP-CRE-02-C returns distinct stored locations for the dropdown', async () => {
+    // Arrange: the database returns distinct location rows.
+    database.query.mockResolvedValue({
+      rows: [{ location: 'Main Hall' }, { location: 'Storage Room A' }],
+    });
+
+    // Act: list locations for the create-form dropdown.
+    const locations = await service.listLocations(technicalSupportUser);
+
+    // Assert: a DISTINCT, ordered location query runs and its values are returned as plain strings.
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /SELECT DISTINCT location[\s\S]*ORDER BY location/i,
+      ),
+    );
+    expect(locations).toEqual(['Main Hall', 'Storage Room A']);
+  });
+
+  // SPM-111 EQUIP-CRE-02-C / EQUIP-CRE-05-SEC-1: the locations lookup is Technical Support only.
+  it.each(['ORGANISER', 'COORDINATOR', 'VENUE_STAFF', 'ATTENDEE'] as const)(
+    'EQUIP-CRE-02-C rejects %s locations access before persistence',
+    async (role) => {
+      // Act and assert: non-Technical-Support roles cannot read stored locations.
+      await expect(
+        service.listLocations(userWithRole(role)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(database.query).not.toHaveBeenCalled();
+    },
+  );
+
+  // SPM-111 EQUIP-CRE-02-C / EQUIP-CRE-05-SEC-1: anonymous callers cannot read locations.
+  it('EQUIP-CRE-02-C rejects unauthenticated locations access before persistence', async () => {
+    await expect(
+      service.listLocations(undefined as never),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(database.query).not.toHaveBeenCalled();
   });

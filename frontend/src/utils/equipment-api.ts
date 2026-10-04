@@ -6,6 +6,7 @@ export interface EquipmentInput {
   type: EquipmentRecord['type'];
   quantity: number;
   maintenanceStatus: EquipmentRecord['maintenanceStatus'];
+  location: string;
 }
 
 export function createEquipment(input: EquipmentInput) {
@@ -17,4 +18,8 @@ export function createEquipment(input: EquipmentInput) {
 
 export function getEquipment() {
   return api<EquipmentRecord[]>('/equipment');
+}
+
+export function getEquipmentLocations() {
+  return api<string[]>('/equipment/locations');
 }

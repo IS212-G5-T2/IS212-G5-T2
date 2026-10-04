@@ -173,6 +173,7 @@ export interface EquipmentRecord {
   type: 'Audio' | 'Visual' | 'Furniture' | 'Lighting' | 'Other';
   quantity: number;
   maintenanceStatus: 'Active' | 'Under Maintenance' | 'Retired';
+  location: string;
   createdAt: string;
   updatedAt: string;
 }

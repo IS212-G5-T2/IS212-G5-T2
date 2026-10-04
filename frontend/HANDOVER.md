@@ -10,6 +10,11 @@ The shared local Docker Compose stack builds this app with `frontend/Dockerfile`
 
 ## Continuity notes
 
+Equipment Availability distinguishes a successful empty inventory from a
+failed fetch. `EquipmentCreatePage.playwright.spec.ts` covers the browser
+create-to-inventory flow; the backend browser harness removes its uniquely
+named equipment fixture afterward.
+
 My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.
