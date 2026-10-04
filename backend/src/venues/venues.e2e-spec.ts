@@ -19,7 +19,7 @@ describe.skipIf(!databaseUrl)(
   () => {
     let app: INestApplication;
     let pool: pg.Pool;
-    let venueId: string | undefined;
+    const venueIds: string[] = [];
     const venueInput = {
       name: 'Orchid Hall Test',
       location: 'Test Building Level 3',
@@ -81,8 +81,8 @@ describe.skipIf(!databaseUrl)(
     afterAll(async () => {
       await app?.close();
       if (pool) {
-        if (venueId)
-          await pool.query('DELETE FROM venues WHERE id = $1', [venueId]);
+        if (venueIds.length)
+          await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [venueIds]);
         await pool.end();
       }
     });
@@ -107,11 +107,20 @@ describe.skipIf(!databaseUrl)(
         venue: { id: expect.stringMatching(uuidPattern), ...venueInput },
         message: 'Venue created successfully.',
       });
-      venueId = created.body.venue.id as string;
+      const venueId = created.body.venue.id as string;
+      venueIds.push(venueId);
       expect(
         (await pool.query('SELECT id FROM venues WHERE id = $1', [venueId]))
           .rowCount,
       ).toBe(1);
+      expect(
+        (
+          await pool.query(
+            'SELECT accessibility_id FROM venue_accessibility WHERE venue_id = $1',
+            [venueId],
+          )
+        ).rows,
+      ).toEqual([{ accessibility_id: 'wheelchair-access' }]);
       expect(
         (
           await pool.query(
@@ -136,6 +145,31 @@ describe.skipIf(!databaseUrl)(
           )
         ).rowCount,
       ).toBe(1);
+    });
+
+    // SPM-50 business rule: accessibility is optional, so a valid venue can persist with no accessibility links.
+    it('creates a venue with no accessibility selection', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({
+          ...venueInput,
+          name: 'Orchid Hall Without Accessibility',
+          accessibility: [],
+        })
+        .expect(201);
+
+      const venueId = created.body.venue.id as string;
+      venueIds.push(venueId);
+      expect(created.body.venue.accessibility).toEqual([]);
+      expect(
+        (
+          await pool.query(
+            'SELECT venue_id FROM venue_accessibility WHERE venue_id = $1',
+            [venueId],
+          )
+        ).rowCount,
+      ).toBe(0);
     });
 
     // SPM-50 duplicate prevention: case and surrounding whitespace cannot create the same named venue twice.

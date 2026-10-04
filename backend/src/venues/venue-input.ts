@@ -44,7 +44,6 @@ export const venueFields = [
   'location',
   'capacity',
   'facilities',
-  'accessibility',
   'layouts',
   'operatingInformation',
   'operatingDays',
@@ -78,11 +77,12 @@ export function validateVenue(value: unknown): VenueInput {
       errors[key] = `Must be ${max} characters or fewer.`;
     return trimmed;
   };
-  const array = (key: string): string[] => {
+  const array = (key: string, required = true): string[] => {
     const input = body[key];
+    if (!required && input === undefined) return [];
     if (
       !Array.isArray(input) ||
-      input.length === 0 ||
+      (required && input.length === 0) ||
       input.some((item) => typeof item !== 'string' || !item.trim())
     ) {
       errors[key] = 'Enter at least one value.';
@@ -139,7 +139,7 @@ export function validateVenue(value: unknown): VenueInput {
   const facilities = array('facilities');
   if (facilities.some((facility) => !facilityNames.includes(facility)))
     errors.facilities = 'Choose one or more supported facilities.';
-  const accessibility = array('accessibility');
+  const accessibility = array('accessibility', false);
   if (accessibility.some((feature) => !accessibilityLabels.includes(feature)))
     errors.accessibility =
       'Choose one or more supported accessibility features.';

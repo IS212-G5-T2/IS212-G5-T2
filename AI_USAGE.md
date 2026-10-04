@@ -21,6 +21,39 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Codex (GPT-5) - Strengthen SPM-50 mutation-sensitive coverage
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, `frontend/src/store/`, `backend/src/venues/`, `backend/migrations/`, and `AI_USAGE.md`
+- Summary: Reviewed the SPM-50 branch history and added business-rule, malformed-input, Base64-padding boundary, API-failure isolation, and selected/empty accessibility relationship coverage. Removed obsolete unreachable duration branches from the form. Made migration 006 safe for both legacy databases with `operating_hours` and fresh schemas without it, and extended the venue E2E suite to verify selected and empty accessibility sets through HTTP and PostgreSQL.
+- AI contribution: Branch-history test-gap analysis, unit/integration test implementation, migration compatibility repair, and coverage verification.
+- Assumptions: An omitted or empty accessibility list is valid and persists no `venue_accessibility` rows. Database-backed E2E requires a caller-provided `DATABASE_URL`.
+- Checks run: Focused frontend venue/store tests — 39 passed; frontend TypeScript compilation passed. Focused backend validator/repository tests — 64 passed; backend build passed. Full frontend coverage — 376 passed, 1 todo; full backend coverage — 628 passed. Venue E2E discovered 3 tests but skipped because this process has no `DATABASE_URL`.
+- Follow-up/conflict notes: SPM-50 form and backend venue units reach 100% coverage across statements, branches, functions, and lines in full coverage reports. Repository-wide totals remain below 100% because unrelated legacy modules are included. Preserved the unrelated pre-existing `backend/src/app.module.ts` edit. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Make SPM-50 accessibility selections optional
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `backend/src/venues/`, `backend/README.md`, and `AI_USAGE.md`
+- Summary: Removed the requirement to select an accessibility feature. The form labels accessibility as optional and permits progression without a selection; the API accepts omitted or empty selections as an empty relationship set while still rejecting malformed or unsupported supplied values.
+- AI contribution: Client/server business-rule alignment, regression tests, and API documentation update.
+- Assumptions: A venue without selected accessibility features has no rows in `venue_accessibility`; facilities and room layouts remain required.
+- Checks run: Focused frontend `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation passed; backend `venue-input` suite — 55 passed; backend build passed.
+- Follow-up/conflict notes: Preserved unrelated pre-existing edits in `backend/src/app.module.ts` and SPM-50 frontend files. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Clarify SPM-50 venue duration fields
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, shared frontend form controls, and `AI_USAGE.md`
+- Summary: Placed required setup and turnaround duration inputs side by side on wider screens while retaining a single-column narrow-screen layout. Added a visible information icon beside each label with hover text and an accessible description explaining the before-event setup and post-event turnaround periods.
+- AI contribution: Focused responsive form layout and accessible label-accessory implementation, with component-test coverage.
+- Assumptions: Setup time is the preparation period before an event; turnaround time is the period after an event before the venue can be used again.
+- Checks run: Focused `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation (`npx tsc --noEmit`) passed.
+- Follow-up/conflict notes: Preserved an unrelated pre-existing edit in `backend/src/app.module.ts`. No commit, push, pull request, or Jira status change was made.
+
 ## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
 
 - Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`

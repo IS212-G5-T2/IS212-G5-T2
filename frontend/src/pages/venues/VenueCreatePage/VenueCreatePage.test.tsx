@@ -74,13 +74,16 @@ function renderRoutes(initial = "/venues/create") {
   );
 }
 
-async function fillVenueDetails(user: ReturnType<typeof userEvent.setup>) {
-  // Enter every required venue field and retain the existing accessibility selection style.
+async function fillVenueDetails(
+  user: ReturnType<typeof userEvent.setup>,
+  includeAccessibility = true,
+) {
+  // Enter every required venue field; accessibility is deliberately optional.
   for (const [label, value] of Object.entries(locationValues))
     await user.type(screen.getByLabelText(label, { exact: false }), value);
   for (const day of venue.operatingDays)
     await user.click(screen.getByLabelText(day));
-  await user.click(screen.getByLabelText("Wheelchair access"));
+  if (includeAccessibility) await user.click(screen.getByLabelText("Wheelchair access"));
 }
 
 async function continueToOptions(user: ReturnType<typeof userEvent.setup>) {
@@ -146,6 +149,15 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByLabelText("Operating start time", { exact: false }).closest(".grid")?.className).toContain(
       "sm:grid-cols-2",
     );
+    expect(screen.getByLabelText("Setup time (minutes)", { exact: false }).closest(".grid")?.className).toContain(
+      "sm:grid-cols-2",
+    );
+    expect(
+      screen.getByRole("img", { name: /time needed to prepare the venue before an event starts/i }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("img", { name: /time needed after an event ends before the venue is ready/i }),
+    ).toBeTruthy();
     expect(
       screen.getAllByLabelText("Location", { exact: false }),
     ).toHaveLength(1);
@@ -185,14 +197,14 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByLabelText("Monday")).toHaveProperty("checked", true);
   });
 
-  // SPM-50 / VEN-CRE-03-A: missing venue fields and accessibility block the next page.
+  // SPM-50 / VEN-CRE-03-A: missing required venue fields block the next page.
   it("reports every missing first-page value", async () => {
     const user = userEvent.setup();
     renderRoutes();
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getAllByRole("alert")).toHaveLength(10);
+    expect(screen.getAllByRole("alert")).toHaveLength(9);
     expect(screen.queryByRole("heading", { name: /facilities & room layouts/i })).toBeNull();
   });
 
@@ -211,16 +223,15 @@ describe("SPM-50 venue creation", () => {
     expect(screen.queryByRole("heading", { name: /facilities & room layouts/i })).toBeNull();
   });
 
-  // SPM-50 / VEN-CRE-03-A: accessibility remains a required first-page checkbox selection.
-  it("rejects a missing accessibility selection", async () => {
+  // SPM-50 business rule: a venue without accessibility features can continue to facilities and layouts.
+  it("allows a venue with no accessibility selection", async () => {
     const user = userEvent.setup();
     renderRoutes();
-    await fillVenueDetails(user);
-    await user.click(screen.getByLabelText("Wheelchair access"));
+    await fillVenueDetails(user, false);
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Choose at least one accessibility feature.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /facilities & room layouts/i })).toBeTruthy();
   });
 
   // SPM-50 / VEN-CRE-03-A: a schedule requires a selected day and an end time after its start.

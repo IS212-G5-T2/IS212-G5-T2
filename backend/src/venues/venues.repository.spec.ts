@@ -88,6 +88,41 @@ describe('VenuesRepository', () => {
     ]);
   });
 
+  // SPM-50 business rule: no accessibility selection creates no accessibility relationship without affecting other venue writes.
+  it('persists an empty accessibility relationship set', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...venue,
+            accessibility: [],
+            operating_information: venue.operatingInformation,
+            operating_days: venue.operatingDays,
+            operating_start_time: venue.operatingStartTime,
+            operating_end_time: venue.operatingEndTime,
+            setup_time_minutes: venue.setupTimeMinutes,
+            turnaround_time_minutes: venue.turnaroundTimeMinutes,
+          },
+        ],
+      })
+      .mockResolvedValue({ rows: [] });
+    const transaction = vi.fn(async (work) => work({ query }));
+    const repository = new VenuesRepository({
+      transaction,
+    } as unknown as DatabaseService);
+
+    await expect(
+      repository.create({ ...venueInput, accessibility: [] }),
+    ).resolves.toEqual({ ...venue, accessibility: [] });
+    expect(query.mock.calls[1]).toEqual([
+      expect.stringContaining('INSERT INTO venue_accessibility'),
+      [venue.id, []],
+    ]);
+    expect(query.mock.calls[2][0]).toContain('INSERT INTO venue_facilities');
+    expect(query.mock.calls[3][0]).toContain('INSERT INTO venue_layouts');
+  });
+
   // SPM-50 image follow-up: optional venue media participates in the same atomic creation transaction.
   it('inserts an optional venue image with the venue relationships', async () => {
     const image = {

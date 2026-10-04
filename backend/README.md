@@ -141,8 +141,8 @@ database-container E2E test for the event endpoints.
 
 `POST /api/venues` requires a valid local session and the RBAC `Venue:create`
 permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
-positive integer capacity, non-empty facilities,
-accessibility features, layouts, separate operating information and operating
+positive integer capacity, non-empty facilities and layouts, optional
+accessibility features, separate operating information and operating
 days with valid daily start/end times, and non-negative
 whole-minute setup and turnaround durations. Facilities and layouts must match
 the controlled lookup values; an optional image must be an image data URL no

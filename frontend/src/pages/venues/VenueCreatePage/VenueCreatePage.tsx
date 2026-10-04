@@ -32,6 +32,10 @@ const operatingDayOptions = [
 ];
 const MAX_DURATION_MINUTES = 2_147_483_647;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const durationHelp: Record<"setupTimeMinutes" | "turnaroundTimeMinutes", string> = {
+  setupTimeMinutes: "Time needed to prepare the venue before an event starts.",
+  turnaroundTimeMinutes: "Time needed after an event ends before the venue is ready for the next event.",
+};
 const labels: Record<Field, string> = {
   name: "Venue name",
   location: "Location",
@@ -89,8 +93,6 @@ export function VenueCreatePage() {
     for (const field of Object.keys(initial) as Field[]) {
       if (!values[field].trim()) next[field] = `${labels[field]} is required.`;
     }
-    if (!accessibility.length)
-      next.accessibility = "Choose at least one accessibility feature.";
     if (!operatingDays.length)
       next.operatingDays = "Choose at least one operating day.";
     if (
@@ -254,7 +256,10 @@ export function VenueCreatePage() {
                 {(Object.keys(initial) as Field[])
                   .filter(
                     (field) =>
-                      field !== "operatingStartTime" && field !== "operatingEndTime",
+                      field !== "operatingStartTime" &&
+                      field !== "operatingEndTime" &&
+                      field !== "setupTimeMinutes" &&
+                      field !== "turnaroundTimeMinutes",
                   )
                   .map((field) =>
                   field === "operatingInformation" ? (
@@ -272,20 +277,9 @@ export function VenueCreatePage() {
                       key={field}
                       label={labels[field]}
                       required
-                      type={
-                        field === "capacity" || field.endsWith("TimeMinutes")
-                          ? "number"
-                          : "text"
-                      }
-                      min={field === "capacity" ? 1 : field.endsWith("TimeMinutes") ? 0 : undefined}
-                      step={field.endsWith("TimeMinutes") ? 1 : undefined}
-                      max={
-                        field === "capacity"
-                          ? 1_000_000
-                          : field.endsWith("TimeMinutes")
-                            ? MAX_DURATION_MINUTES
-                            : undefined
-                      }
+                      type={field === "capacity" ? "number" : "text"}
+                      min={field === "capacity" ? 1 : undefined}
+                      max={field === "capacity" ? 1_000_000 : undefined}
                       maxLength={field === "location" ? 300 : 200}
                       value={values[field]}
                       error={errors[field]}
@@ -293,6 +287,32 @@ export function VenueCreatePage() {
                     />
                   ),
                 )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {(["setupTimeMinutes", "turnaroundTimeMinutes"] as const).map((field) => (
+                    <TextInput
+                      key={field}
+                      label={labels[field]}
+                      labelAccessory={
+                        <span
+                          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-400 text-[10px] font-bold text-gray-600 dark:border-gray-500 dark:text-gray-300"
+                          role="img"
+                          aria-label={`Information: ${durationHelp[field]}`}
+                          title={durationHelp[field]}
+                        >
+                          i
+                        </span>
+                      }
+                      required
+                      type="number"
+                      min={0}
+                      step={1}
+                      max={MAX_DURATION_MINUTES}
+                      value={values[field]}
+                      error={errors[field]}
+                      onChange={(event) => change(field, event.target.value)}
+                    />
+                  ))}
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   {(["operatingStartTime", "operatingEndTime"] as const).map((field) => (
                     <TextInput
@@ -321,7 +341,7 @@ export function VenueCreatePage() {
                   </p>
                 )}
                 <CheckboxGroup
-                  label="Accessibility"
+                  label="Accessibility (optional)"
                   options={accessibilityOptions}
                   values={accessibility}
                   onChange={(selected) => {
@@ -329,11 +349,6 @@ export function VenueCreatePage() {
                     clearError("accessibility");
                   }}
                 />
-                {errors.accessibility && (
-                  <p role="alert" className="-mt-2 mb-4 text-sm text-danger-600">
-                    {errors.accessibility}
-                  </p>
-                )}
                 <div className="flex justify-end gap-3">
                   <Button type="button" onClick={continueToOptions}>
                     Continue

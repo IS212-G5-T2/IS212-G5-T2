@@ -58,6 +58,14 @@ describe('SPM-50 venue input', () => {
     expect(venue).not.toHaveProperty('id');
   });
 
+  // SPM-50 business rule: accessibility is optional, while supplied selections remain validated.
+  it.each([undefined, []])('accepts accessibility=%j', (accessibility) => {
+    const input = { ...valid(), accessibility };
+    if (accessibility === undefined) delete input.accessibility;
+
+    expect(validateVenue(input).accessibility).toEqual([]);
+  });
+
   // SPM-50 / VEN-CRE-03-A: each required field independently prevents creation.
   it.each(venueFields)('rejects a missing %s', (field) => {
     // Arrange a complete fixture, then remove one field.
@@ -208,15 +216,27 @@ describe('SPM-50 venue input', () => {
     ).toBeTruthy();
   });
 
-  // SPM-50 image follow-up: one valid optional venue image preserves its upload metadata and data URL.
-  it('accepts a valid optional image', () => {
-    const image = {
+  // SPM-50 image follow-up: valid optional image bytes, including both Base64 padding forms, retain their metadata.
+  it.each([
+    {
       name: 'orchid-hall.png',
       type: 'image/png',
       size: 4,
       dataUrl: 'data:image/png;base64,dGVzdA==',
-    };
-
+    },
+    {
+      name: 'two-bytes.png',
+      type: 'image/png',
+      size: 2,
+      dataUrl: 'data:image/png;base64,YWE=',
+    },
+    {
+      name: 'three-bytes.png',
+      type: 'image/png',
+      size: 3,
+      dataUrl: 'data:image/png;base64,YWJj',
+    },
+  ])('accepts a valid optional image %#', (image) => {
     expect(validateVenue({ ...valid(), image })).toMatchObject({ image });
   });
 
@@ -252,6 +272,9 @@ describe('SPM-50 venue input', () => {
       size: 4,
       dataUrl: 'data:image/png;base64,dGVzdA==',
     },
+    'not-an-image-object',
+    [],
+    { name: 12, type: false, size: 4, dataUrl: null },
   ])('rejects an invalid optional image %#', (image) => {
     expect(fieldError({ ...valid(), image }).errors.image).toBeTruthy();
   });

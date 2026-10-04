@@ -149,4 +149,34 @@ describe("createVenue", () => {
     });
     expect(useAppStore.getState().venues).toEqual([existingVenue]);
   });
+
+  // SPM-50 / VEN-CRE-05-C: a failed create returns the API failure and never mutates the separate catalogue state.
+  it("propagates a venue-create failure without changing catalogue state", async () => {
+    const failure = new Error("Venue persistence failed");
+    apiMock.mockRejectedValueOnce(failure);
+    const existingVenue = { ...submittedEvent(), id: "not-a-venue" } as unknown as Venue;
+    useAppStore.setState({ venues: [existingVenue] });
+
+    await expect(
+      useAppStore.getState().createVenue(
+        venueCreateInput({
+          ...existingVenue,
+          id: "b9c6f700-85b1-4a79-96d8-5f5c3fd616fb",
+          name: "Orchid Hall Test",
+          location: "Test Building Level 3",
+          capacity: 120,
+          facilities: ["AV System"],
+          accessibility: [],
+          layouts: ["Classroom"],
+          operatingInformation: "Closed on public holidays",
+          operatingDays: ["Monday"],
+          operatingStartTime: "08:00",
+          operatingEndTime: "22:00",
+          setupTimeMinutes: 30,
+          turnaroundTimeMinutes: 45,
+        }),
+      ),
+    ).rejects.toBe(failure);
+    expect(useAppStore.getState().venues).toEqual([existingVenue]);
+  });
 });

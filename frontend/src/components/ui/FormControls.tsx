@@ -2,20 +2,22 @@ import { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttri
 import clsx from "clsx";
 
 interface FieldWrapperProps {
-  label: string;
+  label: ReactNode;
   htmlFor: string;
   required?: boolean;
   error?: string;
   hint?: string;
+  labelAccessory?: ReactNode;
   children: ReactNode;
 }
 
-function FieldWrapper({ label, htmlFor, required, error, hint, children }: FieldWrapperProps) {
+function FieldWrapper({ label, htmlFor, required, error, hint, labelAccessory, children }: FieldWrapperProps) {
   return (
     <div className="mb-4">
       <label htmlFor={htmlFor} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
         {label}
         {required && <span className="text-danger-600 dark:text-danger-400"> *</span>}
+        {labelAccessory}
       </label>
       {children}
       {hint && !error && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
@@ -32,12 +34,20 @@ interface TextInputProps extends InputHTMLAttributes<HTMLInputElement> {
   label: string;
   error?: string;
   hint?: string;
+  labelAccessory?: ReactNode;
 }
 
-export function TextInput({ label, error, hint, id, className, ...rest }: TextInputProps) {
+export function TextInput({ label, error, hint, labelAccessory, id, className, ...rest }: TextInputProps) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
-    <FieldWrapper label={label} htmlFor={fieldId} required={rest.required} error={error} hint={hint}>
+    <FieldWrapper
+      label={label}
+      htmlFor={fieldId}
+      required={rest.required}
+      error={error}
+      hint={hint}
+      labelAccessory={labelAccessory}
+    >
       <input
         id={fieldId}
         className={clsx(
