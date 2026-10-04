@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Codex (GPT-5) - Repair venue module duplicate imports
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/app.module.ts` and `AI_USAGE.md`
+- Summary: Removed the duplicated `VenuesController` and `VenuesModule` imports that prevented Vitest from transforming the Nest application and caused every E2E suite to fail before execution.
+- AI contribution: CI failure diagnosis and minimal compile repair.
+- Assumptions: One import of each venue symbol is sufficient; existing module imports, route middleware, and controller wiring remain unchanged.
+- Checks run: Backend build passed. Full E2E transform proceeded past the duplicate-import error; execution in the Codex sandbox is blocked from listening on HTTP ports and reaching local PostgreSQL.
+- Follow-up/conflict notes: This is a direct follow-up to the already-authorized SPM-50 commit/push. CI should rerun in its database-enabled environment after push.
+
 ## 2026-10-05 - Codex (GPT-5) - Strengthen SPM-50 mutation-sensitive coverage
 
 - Issue/PR: SPM-50 / PR #40

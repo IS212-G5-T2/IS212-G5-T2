@@ -19,8 +19,6 @@ import { CLOCK, systemClock } from './registrations/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
-import { VenuesController } from './venues/venues.controller.js';
-import { VenuesModule } from './venues/venues.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
 import { VenuesController } from './venues/venues.controller.js';
