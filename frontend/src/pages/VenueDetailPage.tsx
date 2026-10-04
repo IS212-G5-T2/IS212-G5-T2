@@ -28,6 +28,14 @@ export function VenueDetailPage() {
         }
       />
 
+      {venue.image && (
+        <img
+          src={venue.image.dataUrl}
+          alt={`${venue.name} venue`}
+          className="mb-4 h-64 w-full rounded-xl border border-gray-200 object-cover shadow-sm dark:border-gray-700"
+        />
+      )}
+
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
@@ -42,6 +50,14 @@ export function VenueDetailPage() {
               <div>
                 <dt className="text-gray-400 dark:text-gray-500">Operating hours</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.operatingHours}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Setup time</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.setupTimeMinutes} minutes</dd>
+              </div>
+              <div>
+                <dt className="text-gray-400 dark:text-gray-500">Turnaround time</dt>
+                <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.turnaroundTimeMinutes} minutes</dd>
               </div>
               <div className="sm:col-span-2">
                 <dt className="text-gray-400 dark:text-gray-500">Facilities</dt>

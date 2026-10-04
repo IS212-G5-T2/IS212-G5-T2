@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/utils/api";
 import { useAppStore } from "./useAppStore";
-import type { EventRecord } from "@/types";
+import type { EventRecord, Venue, VenueCreateInput } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -9,6 +9,20 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 }));
 
 const apiMock = vi.mocked(api);
+
+function venueCreateInput(venue: Venue): VenueCreateInput {
+  return {
+    name: venue.name,
+    location: venue.location,
+    capacity: venue.capacity,
+    facilities: venue.facilities,
+    accessibility: venue.accessibility,
+    layouts: venue.layouts,
+    operatingHours: venue.operatingHours,
+    setupTimeMinutes: venue.setupTimeMinutes,
+    turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
+  };
+}
 
 function submittedEvent(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
@@ -95,5 +109,38 @@ describe("assignCoordinator", () => {
       coordinatorId: "coord-9",
       status: "submitted",
     });
+  });
+});
+
+describe("createVenue", () => {
+  // SPM-50 / VEN-CRE-05-A: creation does not update the separate catalogue feature.
+  it("persists a venue and leaves catalogue state unchanged", async () => {
+    // Arrange the complete Confluence fixture returned by the API.
+    const venue: Venue = {
+      id: "b9c6f700-85b1-4a79-96d8-5f5c3fd616fb",
+      name: "Orchid Hall Test",
+      location: "Test Building Level 3",
+      capacity: 120,
+      facilities: ["AV System", "Wi-Fi"],
+      accessibility: ["Wheelchair access"],
+      layouts: ["Classroom", "Theatre"],
+      operatingHours: "08:00–22:00",
+      setupTimeMinutes: 30,
+      turnaroundTimeMinutes: 45,
+    };
+    apiMock.mockResolvedValueOnce({ venue, message: "Venue created successfully." });
+    const existingVenue: Venue = { ...venue, id: "existing-venue" };
+    useAppStore.setState({ venues: [existingVenue] });
+    // Act through the public store operation.
+    const input = venueCreateInput(venue);
+    await expect(useAppStore.getState().createVenue(input)).resolves.toBe(
+      "Venue created successfully.",
+    );
+    // Assert the exact backend payload without coupling creation to catalogue display.
+    expect(apiMock).toHaveBeenCalledWith("/venues", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    expect(useAppStore.getState().venues).toEqual([existingVenue]);
   });
 });

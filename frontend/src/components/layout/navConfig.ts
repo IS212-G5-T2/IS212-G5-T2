@@ -22,6 +22,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   venue_staff: [
     { label: "Venue Catalogue", to: "/venues", icon: "🏛️", feature: "Feature 7" },
+    { label: "Create Venue", to: "/venues/create", icon: "➕", feature: "SPM-50" },
     { label: "Availability Calendar", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Booking Requests", to: "/bookings", icon: "📝", feature: "Feature 10, 11" },
   ],

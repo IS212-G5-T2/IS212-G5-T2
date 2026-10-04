@@ -123,6 +123,23 @@ variable is absent. Firebase authentication is required for both draft and event
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
+## Creating venue records (SPM-50)
+
+Venue Staff can open **Create Venue** from the navigation, enter the
+required venue details, including one location and setup/turnaround durations in whole
+minutes), then continue to a second page to select facilities and room layouts.
+Accessibility remains a pill-style checkbox group on the first page. Staff may
+also attach one optional image of at most 5 MB; the image reader is shared with
+event creation/editing. The form rejects missing, negative, fractional, or
+non-numeric durations before sending `POST /api/venues`. Venue identifiers are
+not entered in the form; the backend returns a database-generated UUID.
+The same venue name and location cannot be created twice, ignoring surrounding
+spaces and letter case; the form displays the backend's field-level conflict.
+Successful responses redirect Venue Staff to the venue catalogue and display a
+confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
+convenience. Component tests live beside the page in
+`src/pages/venues/VenueCreatePage/`.
+
 ## Rejecting requests (SPM-83)
 
 Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.

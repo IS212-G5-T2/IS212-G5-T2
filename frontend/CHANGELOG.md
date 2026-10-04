@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added the SPM-50 Venue Staff creation route and form, including required-field
+  feedback, setup/turnaround duration validation, persistent catalogue refresh,
+  successful-creation confirmation, and server-generated venue UUIDs with no
+  identifier field exposed to staff. The form now separates venue details,
+  including one location, from controlled facility/layout selections and supports one optional venue
+  image using the event form's shared data-URL upload helper.
+
 - Hid the event status progression line (draft → submitted → approved → planning → confirmed → completed) from the attendee event view; it remains visible to organizers and coordinators.
 - Redesigned the attendee registration card around five states: opens on [date] SGT, closes in N days, closes today, closed, and fully booked. Dates use one format (12 Mar 2027, 23:59 SGT); N is the SGT calendar-day difference; the Register button appears only while open. The SPM-99 opens/closes/spots rows and "Registration Open/Full" status line are replaced (SPM-61).
 
