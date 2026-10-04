@@ -73,11 +73,22 @@ export function RegistrationSection({ event, currentUser, registration }: Props)
   let heading: string;
   let meta: { label: string; value: string }[] = [];
   if (registered) {
+    // SPM-62 AC3: full registration details, not just the ID. AC4: this
+    // branch is checked before any event-timing state, so it stays visible
+    // for a Completed or Cancelled event too.
     heading = "You're registered";
     meta = registration
       ? [
           { label: "Registration ID", value: registration.id },
+          { label: "Full name", value: registration.fullName || registration.attendeeName },
+          ...(registration.email ? [{ label: "Email", value: registration.email }] : []),
+          ...(registration.contactNumber
+            ? [{ label: "Contact number", value: registration.contactNumber }]
+            : []),
           { label: "Registered on", value: formatSgtDateTime(registration.registeredAt) },
+          ...(registration.specialRequirements
+            ? [{ label: "Special requirements", value: registration.specialRequirements }]
+            : []),
         ]
       : [];
   } else if (state === "not-yet-open" && event.registrationOpensAt) {
