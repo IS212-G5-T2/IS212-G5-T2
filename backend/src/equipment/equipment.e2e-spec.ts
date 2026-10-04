@@ -109,6 +109,26 @@ describe('Equipment records (SPM-111 e2e)', () => {
     });
   });
 
+  // SPM-111 EQUIP-CRE-03-BND-1: the PostgreSQL integer maximum is accepted end-to-end.
+  it('creates an equipment record at the maximum supported quantity', async () => {
+    // Arrange: authenticate a Technical Support user through the live session flow.
+    const technicalSupport = await createDatabaseUser(
+      'TECH_SUPPORT',
+      'Equipment Boundary Support',
+    );
+
+    // Act: submit the largest signed PostgreSQL integer through the public API.
+    const response = await request(app.getHttpServer())
+      .post('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .send({ ...validEquipment, quantity: 2_147_483_647 })
+      .expect(201);
+    createdEquipmentIds.push(response.body.equipment.id);
+
+    // Assert: the API validation constant and database column agree at their inclusive boundary.
+    expect(response.body.equipment.quantity).toBe(2_147_483_647);
+  });
+
   // SPM-111 EQUIP-CRE-02-C: the applied location migration supports distinct alphabetical location lookups.
   it('lists distinct saved locations alphabetically from the migrated equipment table', async () => {
     // Arrange: create two records with duplicate and alphabetically different locations.
@@ -174,18 +194,29 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
-  // SPM-111 migration contract: the running database contains the non-blank location constraint added for existing volumes.
-  it('has the equipment location migration constraint applied', async () => {
-    // Act: inspect PostgreSQL's applied table constraints, not the SQL file text.
-    const constraint = await pool.query<{ definition: string }>(
-      `SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'equipment_location_not_blank'`,
-    );
+  // SPM-111 migration contract: live PostgreSQL rejects invalid equipment rows independently of API validation.
+  it('rejects blank location, invalid type, and zero quantity at the database boundary', async () => {
+    // Arrange: a direct SQL helper bypasses application validation to exercise database constraints.
+    const insertDirectly = (overrides: Partial<typeof validEquipment>) =>
+      pool.query(
+        `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          `SPM-111 invalid ${randomUUID()}`,
+          overrides.type ?? validEquipment.type,
+          overrides.quantity ?? validEquipment.quantity,
+          overrides.maintenanceStatus ?? validEquipment.maintenanceStatus,
+          overrides.location ?? validEquipment.location,
+        ],
+      );
 
-    // Assert: existing installations reject blank location values after migration 006.
-    expect(constraint.rows[0]?.definition).toMatch(/CHECK.*btrim.*location/i);
+    // Act and assert: PostgreSQL itself protects the table even if an API is bypassed.
+    await expect(insertDirectly({ location: '   ' })).rejects.toThrow();
+    await expect(insertDirectly({ type: 'Projector' })).rejects.toThrow();
+    await expect(insertDirectly({ quantity: 0 })).rejects.toThrow();
   });
 
-  // SPM-111 RBAC seed: the local migration grants Technical Support the Equipment resource permissions.
+  // SPM-111 RBAC seed-only check: runtime authorization remains hardcoded.
   it('has the Equipment resource and Technical Support permissions seeded', async () => {
     // Act: inspect the live RBAC seed rows created by the local database initialisers.
     const permission = await pool.query<{

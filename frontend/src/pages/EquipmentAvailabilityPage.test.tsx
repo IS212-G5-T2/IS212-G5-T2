@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentAvailabilityPage } from "./EquipmentAvailabilityPage";
 
@@ -73,5 +74,21 @@ describe("EquipmentAvailabilityPage", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Unable to load equipment records. Please try again.",
     );
+  });
+
+  // SPM-111 EQUIP-CRE-01-A: the availability-page action opens the equipment creation form.
+  it("EQUIP-CRE-01-A navigates to the create-equipment form", async () => {
+    // Arrange: render an otherwise empty inventory and prepare a user interaction.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([]);
+    render(<EquipmentAvailabilityPage />);
+
+    // Act: select the page's creation action.
+    await user.click(
+      screen.getByRole("button", { name: /create equipment record/i }),
+    );
+
+    // Assert: navigation uses the intended protected route.
+    expect(navigate).toHaveBeenCalledWith("/equipment/create");
   });
 });

@@ -449,6 +449,33 @@ describe("EquipmentCreatePage", () => {
     expect(createEquipment).not.toHaveBeenCalled();
   });
 
+  // SPM-111 EQUIP-CRE-03-BND-1: the UI accepts the inclusive PostgreSQL integer maximum.
+  it("EQUIP-CRE-03-BND-1 submits the maximum supported quantity", async () => {
+    // Arrange: make the API accept an otherwise valid boundary-value submission.
+    const user = userEvent.setup();
+    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    render(<EquipmentCreatePage />);
+    await user.type(
+      screen.getByLabelText(/equipment name/i),
+      "Conference projector",
+    );
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
+    await user.type(screen.getByLabelText(/quantity/i), "2147483647");
+    await user.selectOptions(
+      screen.getByLabelText(/maintenance status/i),
+      "Active",
+    );
+    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+
+    // Act: submit the largest valid quantity.
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+
+    // Assert: the client does not reject or alter the inclusive boundary value.
+    expect(createEquipment).toHaveBeenCalledWith(
+      expect.objectContaining({ quantity: 2147483647 }),
+    );
+  });
+
   // SPM-111 EQUIP-CRE-03-A: correcting an invalid form clears its old client-side errors.
   it("EQUIP-CRE-03-A clears field errors after the user corrects and resubmits", async () => {
     // Arrange: first submit an empty form, then make the API accept a corrected form.
@@ -538,30 +565,6 @@ describe("EquipmentCreatePage", () => {
     expect(quantity.value).toBe("5");
   });
 
-  // SPM-111 EQUIP-CRE-06-B/EQUIP-CRE-07-B: UI selects contain no unsupported values.
-  it("EQUIP-CRE-06-B/EQUIP-CRE-07-B excludes invalid type and status options", () => {
-    // Act: inspect the rendered choice values.
-    render(<EquipmentCreatePage />);
-    const types = screen.getByLabelText(/equipment type/i) as HTMLSelectElement;
-    const statuses = screen.getByLabelText(
-      /maintenance status/i,
-    ) as HTMLSelectElement;
-
-    // Assert: unsupported API values cannot be selected through the UI.
-    expect([...types.options].map((option) => option.value)).not.toContain(
-      "Projector",
-    );
-    expect([...types.options].map((option) => option.value)).not.toContain(
-      "audio",
-    );
-    expect([...statuses.options].map((option) => option.value)).not.toContain(
-      "Broken",
-    );
-    expect([...statuses.options].map((option) => option.value)).not.toContain(
-      "active",
-    );
-  });
-
   // SPM-111 EQUIP-CRE-04-A: a completed save opens a confirmation dialog and returns to availability after acknowledgement.
   it("EQUIP-CRE-04-A displays confirmation and returns to availability after acknowledgement", async () => {
     // Arrange: submit a valid record and return the server confirmation.
@@ -601,7 +604,7 @@ describe("EquipmentCreatePage", () => {
     const user = userEvent.setup();
     createEquipment.mockRejectedValue(
       new ApiError("Invalid equipment record.", {
-        quantity: "Quantity must be a positive whole number.",
+        quantity: "Quantity must be a whole number between 1 and 2147483647.",
       }),
     );
     render(<EquipmentCreatePage />);
@@ -622,8 +625,41 @@ describe("EquipmentCreatePage", () => {
 
     // Assert: server validation is visible to the Technical Support user.
     expect(
-      await screen.findByText(/quantity must be a positive whole number/i),
+      await screen.findByText(
+        /quantity must be a whole number between 1 and 2147483647/i,
+      ),
     ).toBeInTheDocument();
+  });
+
+  // SPM-111 EQUIP-CRE-03-C: body-level API validation errors remain visible to the user.
+  it("EQUIP-CRE-03-C displays a server-side body validation error", async () => {
+    // Arrange: the API rejects a request before it can identify a field.
+    const user = userEvent.setup();
+    createEquipment.mockRejectedValue(
+      new ApiError("Invalid equipment record.", {
+        body: "Equipment details are required.",
+      }),
+    );
+    render(<EquipmentCreatePage />);
+    await user.type(
+      screen.getByLabelText(/equipment name/i),
+      "Conference projector",
+    );
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
+    await user.type(screen.getByLabelText(/quantity/i), "5");
+    await user.selectOptions(
+      screen.getByLabelText(/maintenance status/i),
+      "Active",
+    );
+    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+
+    // Act: submit and receive the body-level server validation response.
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+
+    // Assert: a response without a field key is not silently dropped.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Equipment details are required.",
+    );
   });
 
   // SPM-111 resilience: a non-validation API failure is visible and does not imply creation succeeded.

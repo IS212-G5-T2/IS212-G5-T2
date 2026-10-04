@@ -154,12 +154,12 @@ export function EquipmentCreatePage() {
               error={errors.location}
               hint="Choose a saved location or type a new one."
             />
-            {errors.form && (
+            {(errors.form || errors.body) && (
               <p
                 role="alert"
                 className="mb-4 text-sm text-danger-600 dark:text-danger-400"
               >
-                {errors.form}
+                {errors.form ?? errors.body}
               </p>
             )}
             <Button type="submit" disabled={submitting}>
