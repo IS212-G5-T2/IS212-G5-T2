@@ -9,9 +9,8 @@ if (!process.env.TEST_DATABASE_URL)
   );
 const name = `Draft browser ${randomUUID()}`;
 const approvalName = `SPM-40 approval functional ${randomUUID()}`;
-const frontend = fileURLToPath(
-  new URL('../../../frontend/', import.meta.url),
-);
+const equipmentName = `SPM-111 equipment browser ${randomUUID()}`;
+const frontend = fileURLToPath(new URL('../../../frontend/', import.meta.url));
 const db = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
 await db.connect();
 let code = 1;
@@ -27,6 +26,7 @@ try {
           ...process.env,
           SPM37_TEST_NAME: name,
           SPM40_TEST_NAME: approvalName,
+          SPM111_TEST_NAME: equipmentName,
         },
       },
     );
@@ -46,6 +46,9 @@ try {
   );
   await db.query('DELETE FROM events WHERE event_name LIKE $1', [
     `${approvalName}%`,
+  ]);
+  await db.query('DELETE FROM equipment WHERE equipment_name=$1', [
+    equipmentName,
   ]);
   await db.end();
 }

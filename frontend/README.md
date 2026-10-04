@@ -126,6 +126,14 @@ variable is absent. Firebase authentication is required for both draft and event
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
+## Equipment records
+
+Technical Support can create equipment records at `/equipment/create` and view
+them at `/equipment/availability`. Quantity must be a whole number from 1
+through `2,147,483,647`; the create form prevents values outside that database
+range before it sends the request. The location combobox accepts either a
+saved location or new free text.
+
 ## Rejecting requests (SPM-83)
 
 Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.

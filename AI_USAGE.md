@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-04 - Codex (GPT-5) - Strengthen SPM-111 equipment validation and evidence
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment`, `backend/scripts/testing`, `frontend/src/components/ui`, `frontend/src/pages`, component documentation, and `AI_USAGE.md`.
+- Summary: Added PostgreSQL-backed equipment API integration coverage, a browser create-to-inventory flow, explicit maximum-quantity validation, strict validated-input shaping, stronger role/error/UI tests, combobox tests, frontend name-trimming coverage, RBAC-seed verification, and a distinct inventory-load failure state.
+- AI contribution: Implementation, test hardening, integration/browser verification, and documentation.
+- Assumptions: The maximum valid quantity is PostgreSQL `integer` maximum `2,147,483,647`; name/location limits, duplicate policy, and dismissal behaviour remain product decisions and were not changed.
+- Checks run: Backend equipment units 84/84 passed and full backend suite 584/584 passed; equipment E2E 4/4 passed using local PostgreSQL; frontend equipment/component tests 34/34 passed and full frontend suite 338 passed with 1 existing todo; backend and frontend production builds passed; SPM-111 Playwright create-to-inventory passed. The combined browser run had one unrelated SPM-37 existing failure while four other browser flows passed.
+- Follow-up/conflict notes: Changes are local and uncommitted. The full browser-suite SPM-37 event-create failure is unrelated to these files. No push, pull request, or Jira status change was made.
+
 ## 2026-10-04 - Codex (GPT-5) - Correct SPM-111 test-step placement
 
 - Issue/PR: SPM-111 / follow-up pull request pending.
