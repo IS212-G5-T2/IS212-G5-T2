@@ -13,7 +13,10 @@ export interface VenueRecord {
   facilities: string[];
   accessibility: string[];
   layouts: string[];
-  operatingHours: string;
+  operatingInformation: string;
+  operatingDays: string[];
+  operatingStartTime: string;
+  operatingEndTime: string;
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImageInput;
@@ -22,9 +25,17 @@ export interface VenueRecord {
 type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
   VenueRecord,
-  'operatingHours' | 'setupTimeMinutes' | 'turnaroundTimeMinutes'
+  | 'operatingInformation'
+  | 'operatingDays'
+  | 'operatingStartTime'
+  | 'operatingEndTime'
+  | 'setupTimeMinutes'
+  | 'turnaroundTimeMinutes'
 > & {
-  operating_hours: string;
+  operating_information: string;
+  operating_days: string[];
+  operating_start_time: string;
+  operating_end_time: string;
   setup_time_minutes: number;
   turnaround_time_minutes: number;
   image_name?: string | null;
@@ -83,7 +94,10 @@ export class VenuesRepository {
       facilities: row.facilities,
       accessibility: row.accessibility,
       layouts: row.layouts,
-      operatingHours: row.operating_hours,
+      operatingInformation: row.operating_information,
+      operatingDays: row.operating_days,
+      operatingStartTime: row.operating_start_time,
+      operatingEndTime: row.operating_end_time,
       setupTimeMinutes: row.setup_time_minutes,
       turnaroundTimeMinutes: row.turnaround_time_minutes,
       ...(row.image_name &&
@@ -104,12 +118,15 @@ export class VenuesRepository {
 
   private async insertVenue(client: Queryable, venue: VenueInput) {
     const result = await client.query(
-      'INSERT INTO venues (name, location, capacity, operating_hours, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      'INSERT INTO venues (name, location, capacity, operating_information, operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *',
       [
         venue.name,
         venue.location,
         venue.capacity,
-        venue.operatingHours,
+        venue.operatingInformation,
+        venue.operatingDays,
+        venue.operatingStartTime,
+        venue.operatingEndTime,
         venue.setupTimeMinutes,
         venue.turnaroundTimeMinutes,
       ],

@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, frontend venue types/displays/tests, `backend/src/venues/`, `backend/migrations/`, database initializer, and component documentation
+- Summary: Corrected the revised AC2 so operating information remains a multiline field while operating hours are a structured schedule: selected operating days plus required start and end times. The time controls share a responsive two-column row on desktop and stack on narrow screens. All fields are validated, persisted, returned by the API, and retained in the existing catalogue displays.
+- AI contribution: Jira/Confluence requirement review, frontend/API/database contract update, backward-compatible migration, mutation-sensitive happy/negative/boundary/cross-dependency test updates, and documentation.
+- Assumptions: One daily start/end range applies to every selected operating day; overnight schedules are not supported because end time must follow start time. Migration 006 backfills legacy operating information from the former text schedule, and migration 007 supplies weekday/all-day defaults only for pre-existing development records.
+- Checks run: Full frontend suite — 375 passed, 1 todo; full backend suite — 620 passed. Focused schedule tests cover selected-day, malformed-time, duplicate-day, equal-time, inverted-time, and minute-boundary cases; backend validation is 100% statements/functions/lines in its focused coverage run. Backend build and frontend TypeScript compilation passed. Frontend focused coverage execution is blocked by an existing global `RequireRole` coverage threshold; Vite bundling remains blocked locally because `@tailwindcss/postcss` is missing from the installed dependencies.
+- Follow-up/conflict notes: Existing staged work was preserved. No commit, push, pull request, or Jira status change was made.
+
 ## 2026-10-04 - Codex (GPT-5) - Implement SPM-50 AC7 venue redirect
 
 - Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`

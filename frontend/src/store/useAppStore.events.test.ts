@@ -18,7 +18,10 @@ function venueCreateInput(venue: Venue): VenueCreateInput {
     facilities: venue.facilities,
     accessibility: venue.accessibility,
     layouts: venue.layouts,
-    operatingHours: venue.operatingHours,
+    operatingInformation: venue.operatingInformation,
+    operatingDays: venue.operatingDays,
+    operatingStartTime: venue.operatingStartTime,
+    operatingEndTime: venue.operatingEndTime,
     setupTimeMinutes: venue.setupTimeMinutes,
     turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
   };
@@ -124,7 +127,10 @@ describe("createVenue", () => {
       facilities: ["AV System", "Wi-Fi"],
       accessibility: ["Wheelchair access"],
       layouts: ["Classroom", "Theatre"],
-      operatingHours: "08:00–22:00",
+      operatingInformation: "Closed on public holidays",
+      operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+      operatingStartTime: "08:00",
+      operatingEndTime: "22:00",
       setupTimeMinutes: 30,
       turnaroundTimeMinutes: 45,
     };

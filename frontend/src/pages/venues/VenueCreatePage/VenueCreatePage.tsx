@@ -12,7 +12,7 @@ import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/utils/venueOptions";
 
 type Field = Exclude<
   keyof VenueCreateInput,
-  "accessibility" | "facilities" | "layouts" | "image"
+  "accessibility" | "facilities" | "layouts" | "image" | "operatingDays"
 >;
 
 const accessibilityOptions = [
@@ -21,13 +21,24 @@ const accessibilityOptions = [
   "Hearing loop",
   "Elevator access",
 ];
+const operatingDayOptions = [
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+  "Sunday",
+];
 const MAX_DURATION_MINUTES = 2_147_483_647;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const labels: Record<Field, string> = {
   name: "Venue name",
   location: "Location",
   capacity: "Capacity",
-  operatingHours: "Operating information",
+  operatingInformation: "Operating information",
+  operatingStartTime: "Operating start time",
+  operatingEndTime: "Operating end time",
   setupTimeMinutes: "Setup time (minutes)",
   turnaroundTimeMinutes: "Turnaround time (minutes)",
 };
@@ -35,7 +46,9 @@ const initial: Record<Field, string> = {
   name: "",
   location: "",
   capacity: "",
-  operatingHours: "",
+  operatingInformation: "",
+  operatingStartTime: "",
+  operatingEndTime: "",
   setupTimeMinutes: "",
   turnaroundTimeMinutes: "",
 };
@@ -48,6 +61,7 @@ export function VenueCreatePage() {
   const [values, setValues] = useState(initial);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [accessibility, setAccessibility] = useState<string[]>([]);
+  const [operatingDays, setOperatingDays] = useState<string[]>([]);
   const [facilities, setFacilities] = useState<string[]>([]);
   const [layouts, setLayouts] = useState<string[]>([]);
   const [image, setImage] = useState<VenueImage>();
@@ -77,6 +91,14 @@ export function VenueCreatePage() {
     }
     if (!accessibility.length)
       next.accessibility = "Choose at least one accessibility feature.";
+    if (!operatingDays.length)
+      next.operatingDays = "Choose at least one operating day.";
+    if (
+      values.operatingStartTime &&
+      values.operatingEndTime &&
+      values.operatingStartTime >= values.operatingEndTime
+    )
+      next.operatingEndTime = "End time must be after start time.";
 
     const capacity = Number(values.capacity);
     if (
@@ -159,7 +181,10 @@ export function VenueCreatePage() {
       facilities,
       accessibility,
       layouts,
-      operatingHours: values.operatingHours.trim(),
+      operatingInformation: values.operatingInformation.trim(),
+      operatingDays,
+      operatingStartTime: values.operatingStartTime,
+      operatingEndTime: values.operatingEndTime,
       setupTimeMinutes: Number(values.setupTimeMinutes),
       turnaroundTimeMinutes: Number(values.turnaroundTimeMinutes),
       ...(image ? { image } : {}),
@@ -178,7 +203,7 @@ export function VenueCreatePage() {
         setErrors(apiErrors);
         if (
           Object.keys(apiErrors).some((field) =>
-            [...Object.keys(initial), "accessibility"].includes(field),
+            [...Object.keys(initial), "accessibility", "operatingDays"].includes(field),
           )
         )
           setStep(0);
@@ -226,8 +251,13 @@ export function VenueCreatePage() {
                 <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
                   Each venue has one location. Its identifier is generated automatically when this record is saved.
                 </p>
-                {(Object.keys(initial) as Field[]).map((field) =>
-                  field === "operatingHours" ? (
+                {(Object.keys(initial) as Field[])
+                  .filter(
+                    (field) =>
+                      field !== "operatingStartTime" && field !== "operatingEndTime",
+                  )
+                  .map((field) =>
+                  field === "operatingInformation" ? (
                     <TextArea
                       key={field}
                       label={labels[field]}
@@ -262,6 +292,33 @@ export function VenueCreatePage() {
                       onChange={(event) => change(field, event.target.value)}
                     />
                   ),
+                )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {(["operatingStartTime", "operatingEndTime"] as const).map((field) => (
+                    <TextInput
+                      key={field}
+                      label={labels[field]}
+                      required
+                      type="time"
+                      value={values[field]}
+                      error={errors[field]}
+                      onChange={(event) => change(field, event.target.value)}
+                    />
+                  ))}
+                </div>
+                <CheckboxGroup
+                  label="Operating days"
+                  options={operatingDayOptions}
+                  values={operatingDays}
+                  onChange={(selected) => {
+                    setOperatingDays(selected);
+                    clearError("operatingDays");
+                  }}
+                />
+                {errors.operatingDays && (
+                  <p role="alert" className="-mt-2 mb-4 text-sm text-danger-600">
+                    {errors.operatingDays}
+                  </p>
                 )}
                 <CheckboxGroup
                   label="Accessibility"

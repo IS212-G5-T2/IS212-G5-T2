@@ -41,7 +41,10 @@ export function VenueCard({
             </span>
           ))}
         </div>
-        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">Hours: {venue.operatingHours}</p>
+        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+          Hours: {venue.operatingDays.join(", ")} · {venue.operatingStartTime}–{venue.operatingEndTime}
+        </p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Info: {venue.operatingInformation}</p>
         <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
           Setup: {venue.setupTimeMinutes} min · Turnaround: {venue.turnaroundTimeMinutes} min
         </p>

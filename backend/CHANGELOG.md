@@ -11,6 +11,10 @@
   Normalized venue name/location pairs are unique and duplicate attempts return
   a field-level conflict.
 
+- Split SPM-50 operating information from the operating schedule in the venue
+  creation contract and persistence model. Venue schedules require selected days
+  and valid start/end times; migrations 006 and 007 preserve existing records.
+
 - Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Registration now compares directly against the confirmed status, and attendee visibility reflects this distinction.
 
 - MSG-02 now formats the opening time as `12 Mar 2027, 23:59 SGT` (24-hour, SGT) to match the frontend (SPM-61).

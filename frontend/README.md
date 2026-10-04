@@ -129,8 +129,10 @@ Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this director
 ## Creating venue records (SPM-50)
 
 Venue Staff can open **Create Venue** from the navigation, enter the
-required venue details, including one location and setup/turnaround durations in whole
-minutes), then continue to a second page to select facilities and room layouts.
+required venue details, including one location, separate operating information
+(for example, public-holiday closures) and operating days with a daily start/end
+time, plus setup/turnaround
+durations in whole minutes, then continue to a second page to select facilities and room layouts.
 Accessibility remains a pill-style checkbox group on the first page. Staff may
 also attach one optional image of at most 5 MB; the image reader is shared with
 event creation/editing. The form rejects missing, negative, fractional, or

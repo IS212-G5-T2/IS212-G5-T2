@@ -116,7 +116,10 @@ export interface Venue {
   facilities: string[];
   accessibility: string[];
   layouts: string[];
-  operatingHours: string;
+  operatingInformation: string;
+  operatingDays: string[];
+  operatingStartTime: string;
+  operatingEndTime: string;
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImage;

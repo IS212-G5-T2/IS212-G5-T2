@@ -165,7 +165,10 @@ CREATE TABLE IF NOT EXISTS venues (
     name varchar(200) NOT NULL CHECK (length(btrim(name)) > 0),
     location varchar(300) NOT NULL CHECK (length(btrim(location)) > 0),
     capacity integer NOT NULL CHECK (capacity BETWEEN 1 AND 1000000),
-    operating_hours varchar(200) NOT NULL CHECK (length(btrim(operating_hours)) > 0),
+    operating_information varchar(200) NOT NULL CHECK (length(btrim(operating_information)) > 0),
+    operating_days varchar(9)[] NOT NULL CHECK (cardinality(operating_days) BETWEEN 1 AND 7),
+    operating_start_time time NOT NULL,
+    operating_end_time time NOT NULL CHECK (operating_start_time < operating_end_time),
     setup_time_minutes integer NOT NULL CHECK (setup_time_minutes >= 0),
     turnaround_time_minutes integer NOT NULL CHECK (turnaround_time_minutes >= 0),
     created_at timestamptz NOT NULL DEFAULT now()

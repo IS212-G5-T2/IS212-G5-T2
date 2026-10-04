@@ -142,7 +142,8 @@ database-container E2E test for the event endpoints.
 `POST /api/venues` requires a valid local session and the RBAC `Venue:create`
 permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
 positive integer capacity, non-empty facilities,
-accessibility features, layouts, operating information, and non-negative
+accessibility features, layouts, separate operating information and operating
+days with valid daily start/end times, and non-negative
 whole-minute setup and turnaround durations. Facilities and layouts must match
 the controlled lookup values; an optional image must be an image data URL no
 larger than 5 MB. Successful requests persist the venue, its normalized
@@ -153,7 +154,9 @@ return field-specific `400` errors. A case-insensitive, trimmed name/location
 pair must be unique; duplicates return a field-level `409` conflict while the
 UUID remains the stable identifier.
 
-Apply `migrations/005_venues.sql` to existing databases. Fresh local databases
+Apply `migrations/005_venues.sql` followed by
+`migrations/006_venue_operating_information.sql`, then
+`migrations/007_venue_operating_schedule.sql` to existing databases. Fresh local databases
 receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
 test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.

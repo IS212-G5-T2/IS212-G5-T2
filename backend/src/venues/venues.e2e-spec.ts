@@ -27,7 +27,10 @@ describe.skipIf(!databaseUrl)(
       facilities: ['AV System', 'Wi-Fi'],
       accessibility: ['Wheelchair access'],
       layouts: ['Classroom', 'Theatre'],
-      operatingHours: '08:00–22:00',
+      operatingInformation: 'Closed on public holidays',
+      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      operatingStartTime: '08:00',
+      operatingEndTime: '22:00',
       setupTimeMinutes: 30,
       turnaroundTimeMinutes: 45,
       image: {
@@ -53,6 +56,18 @@ describe.skipIf(!databaseUrl)(
       await pool.query(
         await readFile(
           new URL('../../migrations/005_venues.sql', import.meta.url),
+          'utf8',
+        ),
+      );
+      await pool.query(
+        await readFile(
+          new URL('../../migrations/006_venue_operating_information.sql', import.meta.url),
+          'utf8',
+        ),
+      );
+      await pool.query(
+        await readFile(
+          new URL('../../migrations/007_venue_operating_schedule.sql', import.meta.url),
           'utf8',
         ),
       );

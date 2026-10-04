@@ -9,7 +9,10 @@ const valid = () => ({
   facilities: ['AV System', 'Wi-Fi'],
   accessibility: ['Wheelchair access'],
   layouts: ['Classroom', 'Theatre'],
-  operatingHours: '08:00–22:00',
+  operatingInformation: 'Closed on public holidays',
+  operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+  operatingStartTime: '08:00',
+  operatingEndTime: '22:00',
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
 });
@@ -98,22 +101,66 @@ describe('SPM-50 venue input', () => {
     expect(validateVenue({ ...valid(), capacity }).capacity).toBe(capacity);
   });
 
-  // SPM-50 / AC6: setup and turnaround must be non-negative whole-minute durations.
+  // SPM-50 / VEN-CRE-02-A: selected days and a same-day time range form one operating schedule.
+  it('accepts a valid structured operating schedule', () => {
+    const venue = validateVenue(valid());
+
+    expect(venue).toMatchObject({
+      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+      operatingStartTime: '08:00',
+      operatingEndTime: '22:00',
+    });
+  });
+
+  // SPM-50 / AC2 boundary: the first and last minute values are valid when ordered.
+  it.each([
+    ['00:00', '00:01'],
+    ['23:58', '23:59'],
+  ])('accepts operating hours from %s to %s', (operatingStartTime, operatingEndTime) => {
+    expect(
+      validateVenue({ ...valid(), operatingStartTime, operatingEndTime }),
+    ).toMatchObject({ operatingStartTime, operatingEndTime });
+  });
+
+  // SPM-50 / VEN-CRE-03-A: schedules reject malformed values, duplicate days, and non-increasing ranges.
+  it.each([
+    [{ operatingDays: [] }, 'operatingDays'],
+    [{ operatingDays: ['Funday'] }, 'operatingDays'],
+    [{ operatingDays: ['Monday', 'Monday'] }, 'operatingDays'],
+    [{ operatingStartTime: '8:00' }, 'operatingStartTime'],
+    [{ operatingStartTime: '24:00' }, 'operatingStartTime'],
+    [{ operatingEndTime: '08:60' }, 'operatingEndTime'],
+    [{ operatingEndTime: '08:00' }, 'operatingEndTime'],
+    [{ operatingStartTime: '23:59', operatingEndTime: '00:00' }, 'operatingEndTime'],
+  ] as const)('rejects invalid operating schedule %#', (schedule, field) => {
+    expect(fieldError({ ...valid(), ...schedule }).errors[field]).toBeTruthy();
+  });
+
+  // SPM-50 / VEN-CRE-06-B, VEN-CRE-06-D: negative or malformed setup durations are rejected.
   it.each([
     ['setupTimeMinutes', -1],
     ['setupTimeMinutes', 1.5],
     ['setupTimeMinutes', '30'],
-    ['turnaroundTimeMinutes', -1],
-    ['turnaroundTimeMinutes', Number.NaN],
-    ['turnaroundTimeMinutes', '45'],
-    ['turnaroundTimeMinutes', 2_147_483_648],
-  ] as const)('rejects invalid duration %s=%s', (field, duration) => {
+    ['setupTimeMinutes', 2_147_483_648],
+  ] as const)('rejects invalid setup duration %s=%s', (field, duration) => {
     expect(
       fieldError({ ...valid(), [field]: duration }).errors[field],
     ).toBeTruthy();
   });
 
-  // SPM-50 / AC2 and AC6: zero and positive whole-minute durations are configurable values.
+  // SPM-50 / VEN-CRE-06-C, VEN-CRE-06-E: negative or malformed turnaround durations are rejected.
+  it.each([
+    ['turnaroundTimeMinutes', -1],
+    ['turnaroundTimeMinutes', Number.NaN],
+    ['turnaroundTimeMinutes', '45'],
+    ['turnaroundTimeMinutes', 2_147_483_648],
+  ] as const)('rejects invalid turnaround duration %s=%s', (field, duration) => {
+    expect(
+      fieldError({ ...valid(), [field]: duration }).errors[field],
+    ).toBeTruthy();
+  });
+
+  // SPM-50 / VEN-CRE-06-A: zero and positive whole-minute durations are configurable values.
   it.each([0, 1, 180])('accepts duration %s minutes', (duration) => {
     expect(
       validateVenue({
