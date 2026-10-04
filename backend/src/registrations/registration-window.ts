@@ -16,7 +16,7 @@ export type WindowState = 'open' | 'not_open' | 'closed';
 /** Classifies why registration is (not) available at the given instant. */
 export function registrationWindowState(event: RegistrationWindow, now: Date): WindowState {
   // Only published (Approved/Confirmed) events with registration enabled accept registrations.
-  if (!event.registrationEnabled || !(REGISTRABLE_STATUSES as readonly string[]).includes(event.status)) return 'closed';
+  if (!event.registrationEnabled || event.status !== 'Confirmed') return 'closed';
   const instant = now.getTime();
   if (event.opensAt && instant < event.opensAt.getTime()) return 'not_open';
   if (event.closesAt && instant >= event.closesAt.getTime()) return 'closed';
