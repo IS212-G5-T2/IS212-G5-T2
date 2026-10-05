@@ -211,6 +211,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
 - Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
 - Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
+## 2026-10-05 - Codex (GPT-5) / Claude Sonnet 5 - SPM-117 view-equipment search and sort
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/components/ui/DataTable.tsx`, Confluence (SPM-117 Matrix + Live Docs), and `AI_USAGE.md`.
+- Summary: Step A6 (EQUIP-VIEW-01/02/03 unit tests for AC3 search and AC5 sort, plus an explicit AC4 status-render test) was written directly by kirub, not an AI tool. Codex then implemented Step A8: case-insensitive type/location substring search (one check covers exact and partial terms), a search-specific empty state distinct from the inventory-empty state, and toggleable ascending/descending sort for type, numeric quantity, and location, via an optional backward-compatible `onHeaderClick` on `DataTable`'s `Column<T>`. Claude Code (Sonnet 5) authored the Confluence Test Case Matrix/Live Docs, linked them to the Jira story, and independently re-ran the full suite plus lint/build to verify Codex's implementation before this entry.
+- AI contribution: Codex — client-side React implementation, shared table header support. Claude — Confluence docs, Jira linking, independent verification (re-ran tests, lint, build), this log entry.
+- Assumptions: The user-supplied SPM-117 acceptance criteria and the human-written tests are authoritative; Jira and Confluence were not touched during the Codex coding session (handled separately by Claude Code per the story-to-PR workflow).
+- Checks run (independently re-verified by Claude after Codex's handoff): `npx vitest run src/pages/EquipmentAvailabilityPage.test.tsx` — 1 file, 11/11 passed; `npm test` — 29 files passed, 348 passed + 1 pre-existing todo (349 total), no regressions; `npm run lint` — 2 pre-existing errors in untouched files (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`), none new; `npm run build` — passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending explicit commit approval per AGENTS.md. No push, pull request, or Jira status change was made.
+
 ## 2026-10-04 - Codex (GPT-5) - Strengthen SPM-111 equipment validation and evidence
 
 - Issue/PR: SPM-111 / follow-up pull request pending.
