@@ -40,3 +40,8 @@ Git history retains the original incremental changes and their commits.
 
 - Added `postgresql/init/004_spm61_event_registration.sql`: nullable `full_name`, `email`, `contact_number` and `special_requirements` on `event_registrations`. Additive and idempotent; existing volumes must apply it manually because init scripts only run on an empty volume.
 - Added `postgresql/init/005_spm61_dev_seed_fixes.sql` (local data only): points the seeded events at the real coordinator accounts (002 used the literal ids `coordinator1`/`coordinator2`, which matched no user) and gives Alumni Networking Night and Inclusive Arts Workshop an open registration window. Idempotent; apply manually to existing volumes.
+
+## SPM-80 - Coordinator availability
+
+- Added `users.is_available boolean NOT NULL DEFAULT true` to `postgresql/init/001_schema.sql`: a coordinator's own setting for whether they can take new event assignments. It never changes events already assigned to them.
+- Added `postgresql/init/007_spm80_coordinator_availability.sql` so existing volumes can add the column without a reset. Additive and idempotent; apply it manually because init scripts only run on an empty volume. Every existing account starts as available.

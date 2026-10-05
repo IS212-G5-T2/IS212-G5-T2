@@ -35,6 +35,9 @@ CREATE TABLE IF NOT EXISTS users (
     display_name text NOT NULL CHECK (length(btrim(display_name)) > 0),
     password_hash text NOT NULL CHECK (length(password_hash) > 0),
     is_active boolean NOT NULL DEFAULT true,
+    -- SPM-80: a coordinator's own "can take new event assignments" setting.
+    -- It never changes events they are already assigned to.
+    is_available boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()
 );

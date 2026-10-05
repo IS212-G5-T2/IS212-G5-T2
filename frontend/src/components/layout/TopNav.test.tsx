@@ -1,31 +1,195 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+// Top bar profile menu.
+// SPM-30 (AC2: the signed-in user is correctly identified): USER-LOGIN-02-E/F/G.
+// SPM-80 (AC3: a coordinator can view their availability at any time): COOR-AVAIL-03-J/K/L/M/N.
+import { act, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/store/useAppStore";
+import { useThemeStore } from "@/store/useThemeStore";
+import type { User } from "@/types";
 import { TopNav } from "./TopNav";
 
-afterEach(cleanup);
+const { getMyAvailability } = vi.hoisted(() => ({ getMyAvailability: vi.fn() }));
+
+vi.mock("@/utils/availability-api", () => ({ getMyAvailability, saveMyAvailability: vi.fn() }));
+
+const coordinator: User = {
+  id: "coord-1",
+  name: "Coordinator 1",
+  email: "coordinator1@connectsphere.test",
+  role: "coordinator",
+  roles: ["coordinator"],
+};
+
+const organiser: User = {
+  id: "org-1",
+  name: "Organiser 1",
+  email: "organiser1@connectsphere.test",
+  role: "organiser",
+  roles: ["organiser"],
+};
+
+function renderTopNav(user: User = coordinator) {
+  useAppStore.setState({ currentUser: user });
+  return render(
+    <MemoryRouter>
+      <TopNav onMenuClick={vi.fn()} />
+    </MemoryRouter>,
+  );
+}
+
+// Opens the menu from the avatar and returns the menu panel.
+async function openMenu(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Open profile menu" }));
+  return screen.getByRole("region", { name: "Profile menu" });
+}
 
 beforeEach(() => {
-  useAppStore.setState({
-    currentUser: {
-      id: "organiser-1",
-      name: "Signed-in Organiser",
-      email: "organiser@example.test",
-      role: "organiser",
-    },
+  // Fresh mocks per test; coordinators are available unless a test says otherwise.
+  getMyAvailability.mockReset();
+  getMyAvailability.mockResolvedValue({ available: true });
+  useThemeStore.setState({ theme: "light" });
+});
+
+describe("SPM-30 AC2: the signed-in user is identified in the top bar", () => {
+  // The avatar shows the first letter of the first and last words of the display name.
+  it.each([
+    ["Coordinator 1", "C1"],
+    ["Ei Chaw Zin", "EZ"],
+    ["Coor_Venue", "CV"],
+    ["attendee", "A"],
+    ["", "?"],
+  ])("USER-LOGIN-02-E shows %j as the initials %s", (name, initials) => {
+    // Act: render the top bar for that user.
+    renderTopNav({ ...organiser, name });
+
+    // Assert: the avatar button shows the initials; the old "Signed in as" text is gone.
+    expect(screen.getByRole("button", { name: "Open profile menu" })).toHaveTextContent(initials);
+    expect(screen.queryByText(/signed in as/i)).not.toBeInTheDocument();
+  });
+
+  // The avatar opens a menu with the user's name, Settings and the theme switch.
+  it("USER-LOGIN-02-F opens a profile menu with the name, Settings and theme, and closes it", async () => {
+    // Arrange: an organiser's top bar.
+    const user = userEvent.setup();
+    renderTopNav(organiser);
+    const avatar = screen.getByRole("button", { name: "Open profile menu" });
+    expect(avatar).toHaveAttribute("aria-expanded", "false");
+
+    // Act: open the menu.
+    const menu = await openMenu(user);
+
+    // Assert: name, Settings link, theme switch; no role switching offered.
+    expect(avatar).toHaveAttribute("aria-expanded", "true");
+    expect(within(menu).getByText("Organiser 1")).toBeInTheDocument();
+    expect(within(menu).getByRole("link", { name: /Settings/ })).toHaveAttribute("href", "/settings");
+    expect(within(menu).getByRole("switch")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /switch mock user role/i })).not.toBeInTheDocument();
+
+    // Act + Assert: Escape closes it.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("region", { name: "Profile menu" })).not.toBeInTheDocument();
+
+    // Act + Assert: a click outside closes it too.
+    await openMenu(user);
+    await user.click(document.body);
+    expect(screen.queryByRole("region", { name: "Profile menu" })).not.toBeInTheDocument();
+  });
+
+  // Light/dark mode now lives in the profile menu.
+  it("USER-LOGIN-02-G switches between light and dark mode from the profile menu", async () => {
+    // Arrange: light mode, menu open.
+    const user = userEvent.setup();
+    renderTopNav(organiser);
+    const menu = await openMenu(user);
+    const toggle = within(menu).getByRole("switch");
+    expect(toggle).toHaveAttribute("aria-checked", "false");
+
+    // Act: flip the switch.
+    await user.click(toggle);
+
+    // Assert: dark mode is on.
+    expect(useThemeStore.getState().theme).toBe("dark");
+    expect(within(menu).getByRole("switch")).toHaveAttribute("aria-checked", "true");
   });
 });
 
-describe("TopNav", () => {
-  it("shows the local signed-in user without offering role switching", () => {
-    render(
-      <MemoryRouter>
-        <TopNav onMenuClick={vi.fn()} />
-      </MemoryRouter>,
-    );
+describe("SPM-80 AC3: a coordinator sees their availability in the profile menu", () => {
+  // Available is a green label in place of the email.
+  it("COOR-AVAIL-03-J shows a green Available label instead of the email", async () => {
+    // Arrange + Act: an available coordinator opens the menu.
+    const user = userEvent.setup();
+    renderTopNav();
+    const menu = await openMenu(user);
 
-    expect(screen.getByText(/signed in as/i)).toHaveTextContent("Signed-in Organiser");
-    expect(screen.queryByRole("button", { name: /switch mock user role/i })).not.toBeInTheDocument();
+    // Assert: green Available label, email not shown.
+    const label = await within(menu).findByText("Available");
+    expect(label).toHaveClass("bg-success-100");
+    expect(within(menu).queryByText("coordinator1@connectsphere.test")).not.toBeInTheDocument();
+  });
+
+  // Unavailable is a grey label.
+  it("COOR-AVAIL-03-K shows a grey Unavailable label", async () => {
+    // Arrange: the coordinator is saved as unavailable.
+    const user = userEvent.setup();
+    getMyAvailability.mockResolvedValue({ available: false });
+    renderTopNav();
+
+    // Act: open the menu.
+    const menu = await openMenu(user);
+
+    // Assert: grey Unavailable label, not green.
+    const label = await within(menu).findByText("Unavailable");
+    expect(label).toHaveClass("bg-gray-100");
+    expect(label).not.toHaveClass("bg-success-100");
+  });
+
+  // The label reflects what is saved now, e.g. after a change on Settings.
+  it("COOR-AVAIL-03-L shows the latest saved status each time the menu opens", async () => {
+    // Arrange: available at first, unavailable after a change saved elsewhere.
+    const user = userEvent.setup();
+    getMyAvailability
+      .mockResolvedValueOnce({ available: true })
+      .mockResolvedValueOnce({ available: false });
+    renderTopNav();
+    expect(await within(await openMenu(user)).findByText("Available")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    // Act: reopen the menu.
+    const menu = await openMenu(user);
+
+    // Assert: the new status is loaded and shown.
+    expect(await within(menu).findByText("Unavailable")).toBeInTheDocument();
+    expect(getMyAvailability).toHaveBeenCalledTimes(2);
+  });
+
+  // Other roles have no availability; they keep their email.
+  it("COOR-AVAIL-03-M shows a non-coordinator their email and never loads availability", async () => {
+    // Arrange + Act: an organiser opens the menu.
+    const user = userEvent.setup();
+    renderTopNav(organiser);
+    const menu = await openMenu(user);
+
+    // Assert: email shown, no label, nothing requested.
+    expect(within(menu).getByText("organiser1@connectsphere.test")).toBeInTheDocument();
+    expect(within(menu).queryByText(/^(Available|Unavailable)$/)).not.toBeInTheDocument();
+    expect(getMyAvailability).not.toHaveBeenCalled();
+  });
+
+  // If the status can't be loaded, show the email rather than guess.
+  it("COOR-AVAIL-03-N shows the email instead of guessing when the status cannot load", async () => {
+    // Arrange: loading fails.
+    const user = userEvent.setup();
+    getMyAvailability.mockRejectedValue(new Error("offline"));
+    renderTopNav();
+
+    // Act: open the menu and let the load fail.
+    const menu = await openMenu(user);
+    await act(async () => {});
+
+    // Assert: email shown, no status label.
+    expect(await within(menu).findByText("coordinator1@connectsphere.test")).toBeInTheDocument();
+    expect(within(menu).queryByText(/^(Available|Unavailable)$/)).not.toBeInTheDocument();
   });
 });

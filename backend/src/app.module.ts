@@ -16,6 +16,8 @@ import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
+import { CoordinatorAvailabilityController } from './coordinators/coordinator-availability.controller.js';
+import { CoordinatorAvailabilityService } from './coordinators/coordinator-availability.service.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule],
@@ -26,6 +28,7 @@ import { EquipmentService } from './equipment/equipment.service.js';
     DraftsController,
     RegistrationsController,
     EquipmentController,
+    CoordinatorAvailabilityController,
   ],
   providers: [
     AppService,
@@ -33,6 +36,7 @@ import { EquipmentService } from './equipment/equipment.service.js';
     DraftsService,
     RegistrationsService,
     EquipmentService,
+    CoordinatorAvailabilityService,
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -48,6 +52,7 @@ export class AppModule implements NestModule {
         RegistrationsController,
         EquipmentController,
         ClarificationsController,
+        CoordinatorAvailabilityController,
       );
   }
 }

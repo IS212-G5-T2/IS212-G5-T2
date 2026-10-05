@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added `GET` and `PUT /api/coordinators/me/availability` (SPM-80): a
+  coordinator reads or sets whether they can take new event assignments.
+  Coordinator-only, always scoped to the session's own account, and accepts
+  only `{ available: true | false }`. Saving never touches `events`, so current
+  assignments are unchanged.
+
 - Added SPM-111 equipment API/database integration coverage and reject
   quantities above PostgreSQL's integer maximum before persistence.
 
