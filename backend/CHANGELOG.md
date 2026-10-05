@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added PostgreSQL integration coverage for coordinator availability (SPM-80):
+  the saved value, untouched event assignments, 400/401/403 through the real
+  session middleware. Tightened COOR-AVAIL-02-B so it fails if no query runs.
+
 - Added `GET` and `PUT /api/coordinators/me/availability` (SPM-80): a
   coordinator reads or sets whether they can take new event assignments.
   Coordinator-only, always scoped to the session's own account, and accepts

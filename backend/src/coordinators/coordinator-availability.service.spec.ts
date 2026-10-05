@@ -113,11 +113,13 @@ describe('AC2: mark unavailable without affecting current assignments', () => {
     // Act: mark unavailable.
     await service.updateMine(coordinator, { available: false });
 
-    // Assert: no statement mentions the events table or its coordinator columns.
-    for (const { sql } of statements()) {
-      expect(sql).not.toMatch(/\bevents\b/i);
-      expect(sql).not.toMatch(/coordinator_(id|name)/i);
-    }
+    // Assert: exactly one statement ran, so the checks below can't pass vacuously,
+    // and it updates users without mentioning events or their coordinator columns.
+    const sent = statements();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].sql).toMatch(/^UPDATE users /);
+    expect(sent[0].sql).not.toMatch(/\bevents\b/i);
+    expect(sent[0].sql).not.toMatch(/coordinator_(id|name)/i);
   });
 
   // The account always comes from the session, never from the request body.
