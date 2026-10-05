@@ -171,3 +171,30 @@ export function formatWithdrawnAt(withdrawnAt: string | Date, now: Date): string
   if (sgtCalendarDayDiff(instant, now) === 0) return `Withdrawn today at ${time}`;
   return `Withdrawn on ${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")}, ${time}`;
 }
+
+/*
+ * Withdrawn registration card redesign (SPM-120 follow-up). The timeline always
+ * shows absolute SGT timestamps (formatSgtDateTime); nothing here renders a bare
+ * "today"/"just now" as the only time information.
+ */
+
+/** "today", "1 day" or "N days" until the given instant, in Singapore calendar days. */
+export function daysUntilLabel(target: string | Date, now: Date): string {
+  const days = sgtCalendarDayDiff(now, new Date(target));
+  if (days <= 0) return "today";
+  return `${days} ${days === 1 ? "day" : "days"}`;
+}
+
+/**
+ * Footer copy for the withdrawn-card "Register again" action. Release 1 has no
+ * waiting list (D25), so the full-but-no-waiting-list row of the state matrix
+ * is the only "full" case this app can produce.
+ */
+export const REREGISTER_FOOTER = {
+  changedYourMind: "Changed your mind?",
+  full: "This event is full.",
+  opensOn: (date: string) => `Registration opens ${date}.`,
+  closedOn: (date: string) => `Registration closed on ${date}.`,
+  closed: "Registration is closed.",
+  eventStarted: "Event has already started.",
+} as const;

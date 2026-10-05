@@ -290,10 +290,13 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
     expect(alerts.some((a) => within(a).queryByText("You are already registered for this event.") !== null || a.textContent?.includes("You are already registered"))).toBe(true);
     expect(apiMock).toHaveBeenCalledWith("/events/event-1/registrations/me");
   });
-  // 05-C: a withdrawn registration does not block registering again.
-  it("05-C withdrawn registration still shows the Register button", () => {
-    renderSection(baseEvent, { ...created, status: "withdrawn" });
-    expect(registerButton()).toBeInTheDocument();
+  // 05-C: a withdrawn registration does not block registering again. SPM-120 card redesign:
+  // the action is now the withdrawn card's "Register again" footer button, not the plain
+  // top-right "Register" button (which is hidden once withdrawn).
+  it("05-C withdrawn registration shows Register again, not the plain Register button", () => {
+    renderSection(baseEvent, { ...created, status: "withdrawn", withdrawnAt: iso(0) });
+    expect(registerButton()).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register again" })).toBeEnabled();
   });
 });
 
@@ -488,5 +491,21 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     // Assert: the section follows the reloaded store record
     expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  // Oracle (task spec, regression check for the withdrawn-card redesign): an active, non-withdrawn
+  // registration must render exactly as before - the new badge/timeline/disclosure/footer are
+  // specific to the withdrawn state and must never appear for a registered attendee.
+  // Mutants killed: the withdrawn-card branch rendered for a registered (not withdrawn) current state.
+  it("WITHDRAW-EVENT-REG-CARD-09: an active registration is unaffected by the withdrawn-card redesign", () => {
+    renderOwned(buildEvent());
+
+    expect(screen.getByText("You're registered")).toBeInTheDocument();
+    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(withdraw()).toBeEnabled();
+    expect(screen.queryByText("Registration withdrawn")).not.toBeInTheDocument();
+    expect(screen.queryByText("View previous registration details")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Register again" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });

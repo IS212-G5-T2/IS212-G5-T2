@@ -5,6 +5,8 @@ import { REGISTRATION_MESSAGES } from "@/utils/registration";
 interface Props {
   registration: Registration;
   eventName: string;
+  /** True when this registration follows a withdrawal on the same card (SPM-120 "Register again"). */
+  reregistered?: boolean;
   onDismiss: () => void;
 }
 
@@ -13,7 +15,7 @@ interface Props {
  * the page until dismissed (no timer, no redirect) and is announced politely
  * to assistive technology.
  */
-export function RegistrationConfirmation({ registration, eventName, onDismiss }: Props) {
+export function RegistrationConfirmation({ registration, eventName, reregistered, onDismiss }: Props) {
   return (
     <div
       role="status"
@@ -22,7 +24,7 @@ export function RegistrationConfirmation({ registration, eventName, onDismiss }:
     >
       <p className="font-medium">
         <span aria-hidden="true">✓ </span>
-        {REGISTRATION_MESSAGES.success(eventName)}
+        {reregistered ? `Registered again for ${eventName}.` : REGISTRATION_MESSAGES.success(eventName)}
       </p>
       <p className="mt-1">
         Registration ID: <span className="font-mono">{registration.id}</span>

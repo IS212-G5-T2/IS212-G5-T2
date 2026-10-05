@@ -1,5 +1,5 @@
 import type { EventRecord } from "@/types";
-import { isRegistrationOpen } from "@/utils/registration";
+import { hasEventStarted, isRegistrationOpen } from "@/utils/registration";
 
 export type RegistrationState = "not-yet-open" | "open" | "closed" | "full" | "disabled";
 
@@ -56,6 +56,39 @@ export function attendeeEventStatus(event: EventRecord, now: Date): string {
   }
   if (now.getTime() >= new Date(event.startDateTime).getTime()) return "In Progress";
   return "Upcoming";
+}
+
+export type WithdrawnCardFooterState =
+  | { kind: "open"; spots: number; closesAt?: string }
+  | { kind: "full" }
+  | { kind: "not-yet-open"; opensAt: string }
+  | { kind: "closed"; closesAt?: string }
+  | { kind: "event-started" };
+
+/**
+ * Eligibility for the "Register again" footer on a withdrawn registration card
+ * (SPM-120 card redesign). Built on `registrationState` so this can never
+ * disagree with the initial register action about whether registration is open;
+ * the event-start check is the same `hasEventStarted` predicate used to disable
+ * the Withdraw button in the first place.
+ *
+ * @param event The event, including its registration window and capacity.
+ * @param now The current instant.
+ * @returns Which footer row of the state matrix applies.
+ */
+export function withdrawnCardFooterState(event: EventRecord, now: Date): WithdrawnCardFooterState {
+  if (hasEventStarted(event, now)) return { kind: "event-started" };
+  const state = registrationState(event, now);
+  if (state === "open") {
+    return {
+      kind: "open",
+      spots: event.availableRegistrationSpots ?? event.expectedAttendance,
+      closesAt: event.registrationClosesAt,
+    };
+  }
+  if (state === "full") return { kind: "full" };
+  if (state === "not-yet-open") return { kind: "not-yet-open", opensAt: event.registrationOpensAt! };
+  return { kind: "closed", closesAt: event.registrationClosesAt };
 }
 
 export type AttendeeBrowseFilter = "upcoming" | "registered" | "past" | "cancelled";

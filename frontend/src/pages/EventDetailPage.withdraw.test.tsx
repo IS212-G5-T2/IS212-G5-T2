@@ -10,7 +10,7 @@
  * (suite clock T0 = 2026-10-04 12:00 SGT). The event-list badge and dashboard
  * card named in 08-A do not exist in this app, so they are not asserted (D19).
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -82,7 +82,8 @@ describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
 
     // Assert
     expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
-    expect(screen.getByText("Withdrawn today at 12:00")).toBeInTheDocument();
+    // SPM-120 card redesign: the timeline shows the absolute SGT timestamp, not a relative "today at".
+    expect(screen.getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
     expect(meCalls).toBe(2);
   });
@@ -114,11 +115,11 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
     // Act
     await withdrawThroughDialog();
 
-    // Assert
-    expect(await screen.findByRole("button", { name: "Register" })).toBeEnabled();
-    const available = screen.getByText("Available").parentElement!;
-    expect(within(available).getByText("1 spot")).toBeInTheDocument();
-    expect(screen.queryByText("This event is fully booked.")).not.toBeInTheDocument();
+    // Assert: SPM-120 card redesign, the withdrawn card's own footer carries this, not the
+    // generic "Available" meta row (which only renders for a non-withdrawn registration).
+    expect(await screen.findByRole("button", { name: "Register again" })).toBeEnabled();
+    expect(screen.getByText(/^1 spot left/)).toBeInTheDocument();
+    expect(screen.queryByText("This event is full.")).not.toBeInTheDocument();
   });
 });
 

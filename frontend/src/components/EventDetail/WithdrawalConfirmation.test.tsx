@@ -100,8 +100,10 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(apiMock).toHaveBeenCalledTimes(1);
     expect(apiMock).toHaveBeenCalledWith("/registrations/REG-9001/withdraw", expect.objectContaining({ method: "POST" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
-    expect(screen.getByText("Withdrawn today at 12:00")).toBeInTheDocument();
+    // SPM-120 card redesign: the withdrawal timeline entry shows the absolute SGT timestamp.
+    expect(screen.getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
   });
 
   // Oracle (SPEC 03-B + F12): Cancel closes the dialog with zero requests, badge stays, no message, focus returns.
@@ -237,6 +239,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(message.textContent).toBe(sentence);
     expect(message.textContent).not.toMatch(/\d{1,2}:\d{2}/);
     expect(screen.queryByText("SERVER MESSAGE THE UI MUST NOT ECHO")).not.toBeInTheDocument();
-    expect(screen.getByText("Withdrawn today at 14:30")).toBeInTheDocument();
+    // SPM-120 card redesign: the status area (not the banner) carries the absolute SGT timestamp.
+    expect(screen.getByText("4 Oct 2026, 14:30")).toBeInTheDocument();
   });
 });

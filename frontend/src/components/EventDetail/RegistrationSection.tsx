@@ -11,13 +11,13 @@ import {
   WITHDRAWAL_MESSAGES,
   formatSgt,
   formatSgtDateTime,
-  formatWithdrawnAt,
   hasEventStarted,
   registrationClosingHeading,
 } from "@/utils/registration";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationForm } from "./RegistrationForm";
 import { WithdrawalConfirmation, WithdrawalSuccessBanner } from "./WithdrawalConfirmation";
+import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
 
 interface Props {
   event: EventRecord;
@@ -50,12 +50,17 @@ function Meta({ label, value }: { label: string; value: string }) {
 export function RegistrationSection({ event, currentUser, registration, onWithdrawn }: Props) {
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
   const submitWithdrawal = useAppStore((s) => s.submitWithdrawal);
-  // The store holds the freshest copy (it is updated by a withdrawal); the prop is the fallback.
-  const stored = useAppStore((s) => s.registrations.find((r) => r.id === registration?.id));
+  // The store holds the freshest copy (it is updated by a withdrawal or a re-registration); matched by
+  // event + attendee, not the prop's id, because re-registering after a withdrawal creates a new row
+  // with a new id (registerForEvent replaces the old row for this event/attendee pair in the store).
+  const stored = useAppStore((s) =>
+    s.registrations.find((r) => r.eventId === event.id && r.attendeeId === currentUser.id),
+  );
   const current = stored ?? registration;
   const [now, setNow] = useState(() => new Date());
   const [formOpen, setFormOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<Registration | null>(null);
+  const [reregistering, setReregistering] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState("");
   // SPM-120 withdrawal state.
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -83,6 +88,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
 
   const state = registrationState(event, now);
   const registered = current?.status === "registered";
+  const withdrawn = current?.status === "withdrawn";
   // AC4: the cut-off is the event start. The server re-checks it; a 422 also sets serverSaysOccurred.
   const eventOccurred = hasEventStarted(event, now) || serverSaysOccurred;
   const closedWhileFormOpen = formOpen && state !== "open";
@@ -133,7 +139,8 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     if (closesAt && hasClosed) meta = [{ label: "Closed on", value: formatSgtDateTime(closesAt) }];
   }
 
-  const showRegister = !registered && !formOpen && state === "open";
+  // The withdrawn card has its own "Register again" action in its footer (SPM-120 redesign).
+  const showRegister = !registered && !withdrawn && !formOpen && state === "open";
 
   /** SPM-120 AC3: sends the withdrawal; the server decides, the UI mirrors the outcome. */
   const confirmWithdrawal = async () => {
@@ -171,56 +178,63 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     <Card className="lg:col-span-3">
       <CardBody className="space-y-3">
         <section aria-label="Registration" className="space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div role="status" className="space-y-2">
-              {current?.status === "withdrawn" && (
-                <div className="flex flex-wrap items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <StatusBadge status="withdrawn" />
-                  {current.withdrawnAt && <span>{formatWithdrawnAt(current.withdrawnAt, now)}</span>}
+          {withdrawn && current ? (
+            <WithdrawnRegistrationStatus
+              event={event}
+              registration={current}
+              now={now}
+              hideFooter={formOpen}
+              onRegisterAgain={() => {
+                setDuplicateNotice("");
+                setReregistering(true);
+                setFormOpen(true);
+              }}
+            />
+          ) : (
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div role="status" className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
+                  {registered && <StatusBadge status="registered" />}
                 </div>
-              )}
-              {current?.status === "withdrawn" && (
-                <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                  {detailRows.map((item) => (
-                    <Meta key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </dl>
-              )}
-              <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
-                {registered && <StatusBadge status="registered" />}
+                {meta.length > 0 && (
+                  <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                    {meta.map((item) => (
+                      <Meta key={item.label} label={item.label} value={item.value} />
+                    ))}
+                  </dl>
+                )}
               </div>
-              {meta.length > 0 && (
-                <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                  {meta.map((item) => (
-                    <Meta key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </dl>
+              {showRegister && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setReregistering(false);
+                    setFormOpen(true);
+                  }}
+                >
+                  Register
+                </Button>
+              )}
+              {registered && (
+                <section aria-label="Withdrawal" className="space-y-1">
+                  {eventOccurred ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{WITHDRAWAL_MESSAGES.eventAlreadyOccurred}</p>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setWithdrawError("");
+                        setDialogOpen(true);
+                      }}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                </section>
               )}
             </div>
-            {showRegister && (
-              <Button variant="secondary" onClick={() => setFormOpen(true)}>
-                Register
-              </Button>
-            )}
-            {registered && (
-              <section aria-label="Withdrawal" className="space-y-1">
-                {eventOccurred ? (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{WITHDRAWAL_MESSAGES.eventAlreadyOccurred}</p>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setWithdrawError("");
-                      setDialogOpen(true);
-                    }}
-                  >
-                    Withdraw
-                  </Button>
-                )}
-              </section>
-            )}
-          </div>
+          )}
           {withdrawalMessage && (
             <WithdrawalSuccessBanner message={withdrawalMessage} onDismiss={() => setWithdrawalMessage("")} />
           )}
@@ -237,7 +251,11 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
             <RegistrationConfirmation
               registration={confirmation}
               eventName={event.name}
-              onDismiss={() => setConfirmation(null)}
+              reregistered={reregistering}
+              onDismiss={() => {
+                setConfirmation(null);
+                setReregistering(false);
+              }}
             />
           )}
           {duplicateNotice && (
@@ -255,8 +273,9 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
           {!registered && formOpen && (
             <RegistrationForm
               eventId={event.id}
-              initialName={currentUser.name}
-              initialEmail={currentUser.email}
+              initialName={current?.fullName || currentUser.name}
+              initialEmail={current?.email || currentUser.email}
+              initialContactNumber={current?.contactNumber || ""}
               onRegistered={(created) => {
                 setConfirmation(created);
                 setFormOpen(false);
