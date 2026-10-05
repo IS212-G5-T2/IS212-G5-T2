@@ -22,6 +22,7 @@ import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
 import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
 
 function RootRedirect() {
   const role = useAppStore((state) => state.currentUser.role);
@@ -76,6 +77,9 @@ export default function App() {
           <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
           <Route path="/venues/:id" element={<VenueDetailPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
+          <Route path="/venues/create" element={<VenueCreatePage />} />
         </Route>
 
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
