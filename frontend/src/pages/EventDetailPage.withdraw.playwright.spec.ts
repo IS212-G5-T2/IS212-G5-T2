@@ -4,7 +4,7 @@ const email = process.env.SPM120_ATTENDEE_EMAIL ?? "attendee1@connectsphere.test
 const password = process.env.SPM120_TEST_PASSWORD ?? "P@55w0rd";
 const eventName = process.env.SPM120_TEST_NAME ?? "SPM-120 withdrawal browser";
 
-// SPM-120 WITHDRAW-EVENT-REG-08-A (story goal, end to end) plus the withdrawn-card redesign: a registered attendee
+// SPM-120 WITHDRAW-EVENT-REG-CAP-01 (story goal, end to end) plus the withdrawn-card redesign: a registered attendee
 // withdraws from a full event, sees the timeline card and the freed spot, and can register again. The harness seeds
 // the full event (capacity 2) and both registrations.
 test("withdrawing from a full event frees the spot, persists across a reload, and the attendee can register again", async ({ page }) => {

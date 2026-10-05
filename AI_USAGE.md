@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Claude (Sonnet 5.5) - Renumber SPM-120 test case IDs to the six-AC matrix
+
+- Issue/PR: SPM-120 / PR #42 (branch `feature/SPM-120-Withdraw-Registration`).
+- Human requester/operator: Wei Zhi.
+- Areas touched: SPM-120 test files under `frontend/src` and `backend/src/registrations` (names and comments only, no assertions), `docs/specs/SPM-120-test-results.md`, `backend/HANDOVER.md`, `AI_USAGE.md`.
+- Summary: Renumbered the `WITHDRAW-EVENT-REG-*` IDs to the requested matrix: old 06-A/B/C are now 05-C/D/E, old 07-A/B are 06-A/B, old 09-A/B are 07-A/B, old 10-A is 08-A. Cases 01 to 05-B are unchanged. The old 08-A (capacity freed, a story goal that is not one of the six ACs) has no slot in the matrix, so it is tagged `WITHDRAW-EVENT-REG-CAP-01` (same convention as `CARD-xx`). Short forms in comments and test titles were updated too; the older SPM-61 `EVENT-REG-*` IDs in `RegistrationSection.test.tsx` were left alone. The results doc has a numbering note, the corrected AC column and the `CAP-01` rows moved after 08-A. Corrected a stale count there (backend integration is 55 passed, 1 todo, not 2 todo).
+- AI contribution: scripted rename with per-replacement match counts, a before/after ID multiset check, test runs, documentation.
+- Assumptions: AC labels inside the code stay on the Jira numbering (for example 05-B is labelled AC4 because it asserts the "Event has already occurred" message), while the requested matrix files 05-A and 05-B under AC5. Not changed; the owner decides.
+- Checks run: frontend 413 passed, 1 todo; backend unit 582 passed; registrations e2e 55 passed, 1 todo on a throwaway PostgreSQL database (init 001 to 007), dropped afterwards, Compose `spm` database untouched; the 05-E block passes under TZ=UTC, Asia/Singapore, America/Los_Angeles (2/2 each); frontend `tsc` clean. Backend `tsc --noEmit` reports errors only in unrelated equipment, clarification and events test files. Playwright not re-run (only a comment changed in that spec).
+- Follow-up/conflict notes: not committed or pushed. PR #42's description still says "06-C passes under TZ=..." and should say 05-E. Confluence/Jira case pages still use the old numbering.
+
 ## 2026-10-05 - Claude (Sonnet 5.5) - Fix SPM-120 test-suite review findings
 
 - Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`; no PR yet).

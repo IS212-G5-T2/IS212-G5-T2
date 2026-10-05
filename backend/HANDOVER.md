@@ -164,7 +164,7 @@ Time comes from the `CLOCK` provider (`registrations/clock.ts`); e2e tests overr
 
 The cut-off is the event start instant, exclusive (`hasEventStarted`, assumption A7 pending Product Owner confirmation); the status label is never used because it can lag the clock. `withdrawn_at timestamptz` (`database/postgresql/init/007_spm120_withdraw_registration.sql`, apply manually to existing volumes) is written from the injected `CLOCK`, never `now()`. A registration keeps one row per attendee and event: re-registering reactivates it and clears `withdrawn_at`, so there is never more than one withdrawn row to order. `findMine` returns that row whatever its status.
 
-Run `registrations.withdraw.e2e-spec.ts` with `DATABASE_URL` set; to prove the UTC storage run its 06-C block under `TZ=UTC`, `TZ=Asia/Singapore` and `TZ=America/Los_Angeles`. Results and open items: `docs/specs/SPM-120-test-results.md`.
+Run `registrations.withdraw.e2e-spec.ts` with `DATABASE_URL` set; to prove the UTC storage run its 05-E block under `TZ=UTC`, `TZ=Asia/Singapore` and `TZ=America/Los_Angeles`. Results and open items: `docs/specs/SPM-120-test-results.md`.
 
 ## Coordinator availability (SPM-80)
 

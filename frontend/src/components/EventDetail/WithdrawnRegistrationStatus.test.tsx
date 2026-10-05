@@ -279,7 +279,7 @@ describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial regist
 });
 
 describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () => {
-  // Oracle (SPEC, mirrors the SPM-120 06-C convention): an instant whose UTC calendar day differs
+  // Oracle (SPEC, mirrors the SPM-120 05-E convention): an instant whose UTC calendar day differs
   // from its Singapore calendar day must still show the SGT day and time, not the UTC one.
   // Mutants killed: formatting in UTC or the browser's local zone instead of Asia/Singapore
   // (the day AND the hour differ, so either part of the output would catch it).

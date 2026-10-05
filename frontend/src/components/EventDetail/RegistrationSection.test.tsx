@@ -382,7 +382,7 @@ describe("D14: failed POST is not retried automatically", () => {
  * Story: SPM-120 Withdraw Registration (attendee), registration-details half.
  * ACs: AC1 (withdraw option), AC4 (not after the event date, error message),
  *      AC5 (status "Withdrawn", part of the overall flow). Test cases: WITHDRAW-EVENT-REG-01-A, 01-B, 04-A,
- *      04-A (boundary), 05-A, and an added 06-B frontend case. The 01-B, 04-A and 05-A cases share one
+ *      04-A (boundary), 05-A, and an added 05-D frontend case. The 01-B, 04-A and 05-A cases share one
  *      past-event fixture (document defect F5); each asserts its own focus. Note: test IDs are Confluence; AC numbers are Jira.
  * Suite clock T0 = 2026-10-04 12:00 SGT. "Confirmed" in the cases is the repo's "Registered".
  * The Withdraw control is not rendered for a past event (D11); there is no availability flag.
@@ -470,10 +470,10 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.getByText("Registered")).toBeInTheDocument();
   });
 
-  // Oracle (Added 06-B frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
+  // Oracle (Added 05-D frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
   // reloads the registration, so the page shows the withdrawn status instead of a stale Registered.
   // Mutants killed: stale status kept after an already-withdrawn conflict.
-  it("WITHDRAW-EVENT-REG-06-B (frontend, added): an already-withdrawn conflict reloads the registration", async () => {
+  it("WITHDRAW-EVENT-REG-05-D (frontend, added): an already-withdrawn conflict reloads the registration", async () => {
     // Arrange: the confirm is refused, and the reload returns the withdrawn registration.
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const withdrawn = buildRegistration({ status: "withdrawn", withdrawnAt: T0.toISOString() });
@@ -568,7 +568,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(screen.getByLabelText(/Contact number/)).toHaveValue("");
   });
 
-  // Oracle (brief + backend 06-A derived): submitting posts the prefilled details; the server reactivates the SAME
+  // Oracle (brief + backend 05-C derived): submitting posts the prefilled details; the server reactivates the SAME
   // row (same id, withdrawnAt cleared), and the card must flip from withdrawn to registered with the
   // "Registered again" wording (not the first-time message).
   // Mutants killed: card left withdrawn after a successful re-registration; first-time confirmation wording

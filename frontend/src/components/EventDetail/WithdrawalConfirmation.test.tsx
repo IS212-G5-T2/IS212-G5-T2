@@ -2,7 +2,7 @@
  * Story: SPM-120 Withdraw Registration (attendee), confirmation flow.
  * ACs: AC2 (prompt shows event name and consequences), AC3 (confirm or cancel),
  *      AC5 (status becomes Withdrawn), AC6 (on-screen confirmation message).
- * Test cases: WITHDRAW-EVENT-REG-02-A, 03-A (frontend half), 03-B, 07-A, 07-B.
+ * Test cases: WITHDRAW-EVENT-REG-02-A, 03-A (frontend half), 03-B, 06-A, 06-B.
  * Note: test IDs are from Confluence; AC numbers are Jira.
  *
  * The dialog is exercised through RegistrationSection, because the Withdraw
@@ -147,10 +147,10 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
 });
 
 describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
-  // Oracle (SPEC 07-A A + D13): Confirm disabled and aria-busy while pending, no success text early;
+  // Oracle (SPEC 06-A A + D13): Confirm disabled and aria-busy while pending, no success text early;
   // after 200 the dialog is gone within 500 ms and a persistent, dismissible success banner shows exactly MSG-11.
   // Mutants killed: M7 success shown before the response; auto-dismiss under 3 s; dialog lingers over 500 ms.
-  it("WITHDRAW-EVENT-REG-07-A (A): pending state, then a persistent dismissible success banner", async () => {
+  it("WITHDRAW-EVENT-REG-06-A (A): pending state, then a persistent dismissible success banner", async () => {
     // Arrange: the response is held back until we release it.
     const u = setup();
     let release!: (value: unknown) => void;
@@ -188,12 +188,12 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(banner()).not.toBeInTheDocument();
   });
 
-  // Oracle (Added 07-A B): a 5xx or network failure shows an error inside the dialog, never the success text.
+  // Oracle (Added 06-A B): a 5xx or network failure shows an error inside the dialog, never the success text.
   // Mutants killed: success shown on failure; Confirm left disabled; local status changed on failure.
   it.each([
     ["a 503 response", new ApiError("The service is temporarily unavailable. Please try again.", undefined, undefined, 503)],
     ["a network failure", new ApiError("Unable to reach the server. Check your connection and try again.")],
-  ])("WITHDRAW-EVENT-REG-07-A (B, added): %s -> error alert in the dialog and no success", async (_label, failure) => {
+  ])("WITHDRAW-EVENT-REG-06-A (B, added): %s -> error alert in the dialog and no success", async (_label, failure) => {
     // Arrange
     const u = setup();
     mockWithdraw(() => Promise.reject(failure));
@@ -212,7 +212,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(screen.getByText("Registered")).toBeInTheDocument();
   });
 
-  // Oracle (SPEC 07-B + D9 + F15): MSG-11 template per event name, built by the UI (the mock's text is different),
+  // Oracle (SPEC 06-B + D9 + F15): MSG-11 template per event name, built by the UI (the mock's text is different),
   // no timestamp in the banner; the Withdrawn timeline entry shows 4 Oct 2026, 14:30 (clock 14:30 SGT).
   // Mutants killed: hard-coded event name; name taken from another registration; template differing per event;
   // banner echoing the server message; a timestamp in the banner.
@@ -220,7 +220,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     ["REG-9001", "EVT-101", "Tech Talk: Cloud 101"],
     ["REG-9003", "EVT-103", "Annual Conference 2026"],
     ["REG-9005", "EVT-105", "Workshop: Docker Mastery"],
-  ])("WITHDRAW-EVENT-REG-07-B: %s names %s correctly", async (registrationId, eventId, eventName) => {
+  ])("WITHDRAW-EVENT-REG-06-B: %s names %s correctly", async (registrationId, eventId, eventName) => {
     // Arrange: clock 14:30 SGT; ATT-01 owns the registration.
     const at1430 = new Date("2026-10-04T14:30:00+08:00");
     vi.setSystemTime(at1430);

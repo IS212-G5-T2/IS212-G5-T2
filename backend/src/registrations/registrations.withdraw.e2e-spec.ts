@@ -1,9 +1,9 @@
 /*
  * Story: SPM-120 Withdraw Registration (attendee), backend half.
  * ACs: AC3 (confirm/cancel), AC4 (not after event date), AC5 (status "Withdrawn"), AC6 (message).
- * Story goal (08-A): the freed spot is available.
- * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 05-B, 06-A, 06-B, 06-C, 08-A,
- *             09-A, 09-B, 10-A. Note: test IDs are from Confluence case IDs; AC numbers are Jira.
+ * Story goal (CAP-01): the freed spot is available.
+ * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 05-B, 05-C, 05-D, 05-E, CAP-01,
+ *             07-A, 07-B, 08-A. Note: test IDs are from Confluence case IDs; AC numbers are Jira.
  *
  * Real Nest pipeline and real PostgreSQL; time comes from the injected CLOCK and
  * is never read from the wall clock. Oracles are literals taken from the AC text
@@ -253,8 +253,8 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-A (AC5: status "Withdrawn"): the withdrawn status is persisted', () => {
-    // Oracle (SPEC 06-A): fresh read shows withdrawn + instant; row kept with details; others untouched.
+  describe('WITHDRAW-EVENT-REG-05-C (AC5: status "Withdrawn"): the withdrawn status is persisted', () => {
+    // Oracle (SPEC 05-C): fresh read shows withdrawn + instant; row kept with details; others untouched.
     // Mutants killed: wrong value written; hard delete (M4); UPDATE without WHERE id; withdrawn_at from the client.
     it('keeps the row and details, sets status and withdrawn_at, and leaves other registrations alone', async () => {
       // Arrange
@@ -306,10 +306,10 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-B (AC5: concurrency): a registration can only be withdrawn once', () => {
-    // Oracle (SPEC 06-B + 10-A(A), same case, run once): 3 parallel -> one 200, two 422 with MSG-12; count -1.
+  describe('WITHDRAW-EVENT-REG-05-D (AC5: concurrency): a registration can only be withdrawn once', () => {
+    // Oracle (SPEC 05-D + 08-A(A), same case, run once): 3 parallel -> one 200, two 422 with MSG-12; count -1.
     // Mutants killed: M3 no state guard in the UPDATE; check-then-update race; capacity released twice.
-    it('A (also 10-A A): 3 parallel requests -> one 200 and two 422 "already been withdrawn"', async () => {
+    it('A (also 08-A A): 3 parallel requests -> one 200 and two 422 "already been withdrawn"', async () => {
       // Arrange
       const { eventId, att01, regId } = await seedEvt101();
 
@@ -344,7 +344,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-B (C, added): the compare-and-set decides, not the earlier read', () => {
+  describe('WITHDRAW-EVENT-REG-05-D (C, added): the compare-and-set decides, not the earlier read', () => {
     // Oracle (DERIVED, D14 / "one compare-and-set"): the request passes its read while the row still looks
     // Registered, but a competing withdrawal commits before its UPDATE runs. The loser must get 422 MSG-12,
     // must not overwrite withdrawn_at, and the spot must be released once.
@@ -385,9 +385,9 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-C (AC5: UTC storage): withdrawn_at is stored as UTC and does not depend on the process time zone', () => {
-    // Oracle (SPEC 06-C, T0 per F2/F14): API instant 04:00Z; DB read as UTC text 2026-10-04 04:00:00.
-    // Run this block under TZ=UTC, TZ=Asia/Singapore and TZ=America/Los_Angeles (06-C Subtest C): identical results.
+  describe('WITHDRAW-EVENT-REG-05-E (AC5: UTC storage): withdrawn_at is stored as UTC and does not depend on the process time zone', () => {
+    // Oracle (SPEC 05-E, T0 per F2/F14): API instant 04:00Z; DB read as UTC text 2026-10-04 04:00:00.
+    // Run this block under TZ=UTC, TZ=Asia/Singapore and TZ=America/Los_Angeles (05-E Subtest C): identical results.
     // Mutants killed: M11 local-time text written to the column; timestamp recalculated on read.
     it('A: the API instant and the stored UTC value both equal the injected clock', async () => {
       // Arrange
@@ -417,7 +417,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-A (derived): re-registering after a withdrawal', () => {
+  describe('WITHDRAW-EVENT-REG-05-C (derived): re-registering after a withdrawal', () => {
     // Oracle (DERIVED, SPM-61 A5 / D16): the same row is reactivated and withdrawn_at is cleared.
     // Mutant killed: a re-registered attendee still showing the old withdrawal time.
     it('reactivates the withdrawn row and clears withdrawn_at', async () => {
@@ -439,8 +439,8 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-08-A (story goal): the spot is freed', () => {
-    // Oracle (SPEC 08-A): EVT-105 capacity 2; 2 confirmed -> 0 spots; ATT-02 withdraws -> 1 spot, stable.
+  describe('WITHDRAW-EVENT-REG-CAP-01 (story goal): the spot is freed', () => {
+    // Oracle (CAP-01): EVT-105 capacity 2; 2 confirmed -> 0 spots; ATT-02 withdraws -> 1 spot, stable.
     // Mutants killed: spot not released; stale value; counter not decremented; wrong registration withdrawn.
     it('available spots go 0 -> 1 after ATT-02 withdraws, REG-9011 untouched', async () => {
       // Arrange: EVT-105 "Data Science Meetup" capacity 2, REG-9010 (ATT-02) and REG-9011 (ATT-04).
@@ -464,10 +464,10 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-09-A / 09-B (cross-cutting): ownership and authentication', () => {
-    // Oracle (SPEC 09-A A + D16): another attendee gets 404 "Registration not found." and nothing changes.
+  describe('WITHDRAW-EVENT-REG-07-A / 07-B (cross-cutting): ownership and authentication', () => {
+    // Oracle (SPEC 07-A A + D16): another attendee gets 404 "Registration not found." and nothing changes.
     // Mutants killed: M2 ownership scoping removed; M6 403 instead of 404.
-    it('09-A A: ATT-03 withdrawing ATT-01\'s registration -> 404 and the row stays Registered', async () => {
+    it('07-A A: ATT-03 withdrawing ATT-01\'s registration -> 404 and the row stays Registered', async () => {
       // Arrange
       const { eventId, regId } = await seedEvt101();
       const att03 = await createUser('ATTENDEE', 'Eve Tan');
@@ -482,9 +482,9 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(await registeredCount(eventId)).toBe(3);
     });
 
-    // Oracle (SPEC 09-A C): the owner baseline succeeds.
+    // Oracle (SPEC 07-A C): the owner baseline succeeds.
     // Mutant killed: ownership rule that rejects everyone.
-    it('09-A C (control): the owner ATT-01 -> 200', async () => {
+    it('07-A C (control): the owner ATT-01 -> 200', async () => {
       const { att01, regId } = await seedEvt101();
       await withdraw(regId, att01.cookie).expect(200);
     });
@@ -494,7 +494,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     it.each([
       ['an unknown registration id', randomUUID()],
       ['a malformed id (REG-NOTEXIST)', 'REG-NOTEXIST'],
-    ])('09-A D: %s -> 404 with the same body as a non-owner', async (_label, id) => {
+    ])('07-A D: %s -> 404 with the same body as a non-owner', async (_label, id) => {
       // Arrange: capture the non-owner response as the reference body.
       const { regId } = await seedEvt101();
       const att03 = await createUser('ATTENDEE', 'Eve Tan');
@@ -510,7 +510,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
 
     // Oracle (DERIVED, D16): a non-attendee role takes the same 404 path.
     // Mutant killed: role-specific 403 that reveals the route exists.
-    it('09-A (derived): an organiser attempting to withdraw -> 404, never 403', async () => {
+    it('07-A (derived): an organiser attempting to withdraw -> 404, never 403', async () => {
       const { regId } = await seedEvt101();
       const organiser = await createUser('ORGANISER', 'Olivia Lee');
       const res = await withdraw(regId, organiser.cookie);
@@ -518,9 +518,9 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect((await dbRow(regId)).status).toBe('Registered');
     });
 
-    // Oracle (SPEC 09-A B = 09-B, run once): no session -> 401 with the existing middleware message.
+    // Oracle (SPEC 07-A B = 07-B, run once): no session -> 401 with the existing middleware message.
     // Mutants killed: authentication checked after the lookup; unauthenticated withdrawal processed.
-    it('09-B (= 09-A B): no session -> 401 "Missing session" and the row stays Registered', async () => {
+    it('07-B (= 07-A B): no session -> 401 "Missing session" and the row stays Registered', async () => {
       const { regId } = await seedEvt101();
       const res = await withdraw(regId);
       expect(res.status).toBe(401);
@@ -529,9 +529,9 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-10-A (cross-cutting): concurrent withdrawals are safe', () => {
-    // Oracle (SPEC 10-A B): 100 parallel -> exactly one 200 and 99 422 (MSG-12), no 5xx, released once.
-    // 10-A A (3 parallel) is 06-B A and is run once there. Response-time limits are not asserted (not repeatable).
+  describe('WITHDRAW-EVENT-REG-08-A (cross-cutting): concurrent withdrawals are safe', () => {
+    // Oracle (SPEC 08-A B): 100 parallel -> exactly one 200 and 99 422 (MSG-12), no 5xx, released once.
+    // 08-A A (3 parallel) is 05-D A and is run once there. Response-time limits are not asserted (not repeatable).
     // Mutants killed: check-then-update race; deadlock surfacing as 500; capacity released twice.
     it('B: 100 parallel requests -> one 200, ninety-nine 422, zero 5xx, state set once', async () => {
       // Arrange: REG-9050 (ATT-02) on EVT-109 with two other registrations.

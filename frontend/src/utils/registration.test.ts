@@ -123,7 +123,7 @@ describe("SPM-61 registration heading helpers", () => {
 
 /*
  * Story: SPM-120 Withdraw Registration (attendee), frontend rules.
- * Test cases: WITHDRAW-EVENT-REG-04-C (unit), 06-C (formatter), 07-A/07-B (message literals).
+ * Test cases: WITHDRAW-EVENT-REG-04-C (unit), 05-E (formatter), 06-A/06-B (message literals).
  * Oracles are literals from the AC text and the Confluence pages.
  */
 describe("SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)", () => {
@@ -142,14 +142,14 @@ describe("SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)", (
 });
 
 describe("SPM-120 AC5: formatSgtDateTime (the timeline's absolute SGT timestamp)", () => {
-  // Oracle (SPEC 06-C, as amended by the card redesign): the timeline shows "D Mon YYYY, HH:mm" in Singapore
+  // Oracle (SPEC 05-E, as amended by the card redesign): the timeline shows "D Mon YYYY, HH:mm" in Singapore
   // time, with the SGT day, not the UTC day, deciding the date.
   // Mutants killed: UTC day or hour shown instead of SGT (the first row crosses midnight between the two zones).
   it.each([
     ["crosses midnight: 17:30Z is already the next SGT day", "2026-10-04T17:30:00.000Z", "5 Oct 2026, 01:30"],
     ["same SGT and UTC day", "2026-10-04T04:00:00.000Z", "4 Oct 2026, 12:00"],
     ["previous UTC day, same SGT day", "2026-09-28T16:30:00.000Z", "29 Sep 2026, 00:30"],
-  ])("WITHDRAW-EVENT-REG-06-C: %s", (_label, instant, expected) => {
+  ])("WITHDRAW-EVENT-REG-05-E: %s", (_label, instant, expected) => {
     expect(formatSgtDateTime(instant)).toBe(expected);
   });
 
@@ -161,7 +161,7 @@ describe("SPM-120 AC5: formatSgtDateTime (the timeline's absolute SGT timestamp)
     ["Apr", "2026-04-04T01:05:00.000Z"], ["May", "2026-05-04T01:05:00.000Z"], ["Jun", "2026-06-04T01:05:00.000Z"],
     ["Jul", "2026-07-04T01:05:00.000Z"], ["Aug", "2026-08-04T01:05:00.000Z"], ["Sep", "2026-09-04T01:05:00.000Z"],
     ["Oct", "2026-10-04T01:05:00.000Z"], ["Nov", "2026-11-04T01:05:00.000Z"], ["Dec", "2026-12-04T01:05:00.000Z"],
-  ])("WITHDRAW-EVENT-REG-06-C: %s uses the fixed three-letter month", (month, instant) => {
+  ])("WITHDRAW-EVENT-REG-05-E: %s uses the fixed three-letter month", (month, instant) => {
     expect(formatSgtDateTime(instant)).toBe(`4 ${month} 2026, 09:05`);
   });
 });
@@ -187,7 +187,7 @@ describe("SPM-120 redesign: daysUntilLabel (footer 'Closes ... (N days)')", () =
 describe("SPM-120 AC5/AC6: message literals", () => {
   // Oracle (SPEC AC5, D8): the blocked message has no full stop; MSG-11 is built from the event name.
   // Mutants killed: reworded blocked message; hard-coded event name in the success message.
-  it("WITHDRAW-EVENT-REG-05-A / 07-B: exact literals", () => {
+  it("WITHDRAW-EVENT-REG-05-A / 06-B: exact literals", () => {
     expect(WITHDRAWAL_MESSAGES.eventAlreadyOccurred).toBe("Event has already occurred");
     expect(WITHDRAWAL_MESSAGES.success("Workshop: Docker Mastery")).toBe(
       "Your withdrawal from Workshop: Docker Mastery has been processed.",

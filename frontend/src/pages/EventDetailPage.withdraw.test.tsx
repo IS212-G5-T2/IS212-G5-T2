@@ -1,14 +1,14 @@
 /*
  * Story: SPM-120 Withdraw Registration (attendee), page level.
  * ACs: AC5 (status persists across a reload), AC6 (message confirmation).
- * Story goal (08-A): the freed spot is reflected.
- * Test cases: WITHDRAW-EVENT-REG-06-A (frontend), 06-C (UI), 08-A (frontend), 09-B (frontend).
+ * Story goal (CAP-01): the freed spot is reflected.
+ * Test cases: WITHDRAW-EVENT-REG-05-C (frontend), 05-E (UI), CAP-01 (frontend), 07-B (frontend).
  * Note: test IDs are from Confluence; AC numbers are Jira.
  *
  * HTTP is mocked at the boundary; the store and router are real. Oracles are
  * literals from the AC text and the Confluence pages. Only Date is faked
  * (suite clock T0 = 2026-10-04 12:00 SGT). The event-list badge and dashboard
- * card named in 08-A do not exist in this app, so they are not asserted (D19).
+ * card named in CAP-01 do not exist in this app, so they are not asserted (D19).
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -55,11 +55,11 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
-  // Oracle (SPEC 06-A + 06-C UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
+  // Oracle (SPEC 05-C + 05-E UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
   // and shows the withdrawn card with the Withdrawn entry at 4 Oct 2026, 12:00 (SGT, not the UTC hour 04).
   // The store is emptied between the two mounts, so the only source of truth is the refetch.
   // Mutants killed: stale client state; UI showing the UTC hour; withdrawn status not shown on reload.
-  it("WITHDRAW-EVENT-REG-06-A / 06-C (frontend): remounting shows Withdrawn at 12:00", async () => {
+  it("WITHDRAW-EVENT-REG-05-C / 05-E (frontend): remounting shows Withdrawn at 12:00", async () => {
     // Arrange: /me answers Registered first, Withdrawn second.
     const registered = buildRegistration();
     const withdrawn = { ...registered, status: "withdrawn" as const, withdrawnAt: T0.toISOString() };
@@ -91,11 +91,11 @@ describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
 });
 
 describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
-  // Oracle (SPEC 08-A frontend): EVT-105 is full (0 spots); after ATT-02 withdraws, the refetched event shows
+  // Oracle (CAP-01 frontend): EVT-105 is full (0 spots); after ATT-02 withdraws, the refetched event shows
   // 1 spot and the Register button, in SPM-61's existing "Available 1 spot" format. The mock only returns the
   // freed count after the withdraw POST, so a missing refetch leaves the page on "fully booked".
   // Mutants killed: spot not released in the UI; stale cache; no refetch after withdrawal.
-  it("WITHDRAW-EVENT-REG-08-A (frontend): the refetched event shows 1 available spot", async () => {
+  it("WITHDRAW-EVENT-REG-CAP-01 (frontend): the refetched event shows 1 available spot", async () => {
     // Arrange
     useAppStore.setState({ currentUser: ATT_02 });
     const event = buildEvent({ id: "EVT-105", name: "Data Science Meetup", expectedAttendance: 2 });
@@ -125,10 +125,10 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
 });
 
 describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
-  // Oracle (Added 09-B frontend, 401 sign-out narrowed to this call): a 401 from the withdraw call clears the
+  // Oracle (Added 07-B frontend, 401 sign-out narrowed to this call): a 401 from the withdraw call clears the
   // session so the route guard redirects to /login, and no success banner appears.
   // Mutants killed: M13 withdraw bypassing the 401 handling; success shown after a 401.
-  it("WITHDRAW-EVENT-REG-09-B (frontend): a 401 signs the user out and redirects to login", async () => {
+  it("WITHDRAW-EVENT-REG-07-B (frontend): a 401 signs the user out and redirects to login", async () => {
     // Arrange
     const registered = buildRegistration();
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
@@ -152,7 +152,7 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
 
   // Oracle (DERIVED, narrow scope): only a 401 signs the user out; a 403 or other error does not.
   // Mutants killed: session cleared on any failure.
-  it("WITHDRAW-EVENT-REG-09-B (frontend): a 500 keeps the user signed in", async () => {
+  it("WITHDRAW-EVENT-REG-07-B (frontend): a 500 keeps the user signed in", async () => {
     const registered = buildRegistration();
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
       if (path === "/events/EVT-101") return Promise.resolve(buildEvent());
