@@ -377,10 +377,10 @@ describe("D14: failed POST is not retried automatically", () => {
 
 /*
  * Story: SPM-120 Withdraw Registration (attendee), registration-details half.
- * ACs: AC1 (withdraw option), AC4 (not after the event date), AC5 (the blocked message),
- *      AC6 (already-withdrawn conflict). Test cases: WITHDRAW-EVENT-REG-01-A, 01-B, 04-A,
- *      05-A, and an added 06-B frontend case. The 01-B, 04-A and 05-A cases share one
- *      past-event fixture (document defect F5); each asserts its own focus.
+ * ACs: AC1 (withdraw option), AC4 (not after the event date, error message),
+ *      AC5 (status "Withdrawn", part of the overall flow). Test cases: WITHDRAW-EVENT-REG-01-A, 01-B, 04-A,
+ *      04-A (boundary), 05-A, and an added 06-B frontend case. The 01-B, 04-A and 05-A cases share one
+ *      past-event fixture (document defect F5); each asserts its own focus. Note: test IDs are Confluence; AC numbers are Jira.
  * Suite clock T0 = 2026-10-04 12:00 SGT. "Confirmed" in the cases is the repo's "Registered".
  * The Withdraw control is not rendered for a past event (D11); there is no availability flag.
  */

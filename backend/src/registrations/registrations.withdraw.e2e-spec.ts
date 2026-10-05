@@ -1,9 +1,9 @@
 /*
  * Story: SPM-120 Withdraw Registration (attendee), backend half.
- * ACs: AC3 (confirm), AC4 (event passed), AC5 (message), AC6 (status), AC7
- *      (story goal: the spot is freed) and cross-cutting ownership/auth/concurrency.
+ * ACs: AC3 (confirm/cancel), AC4 (not after event date), AC5 (status "Withdrawn"), AC6 (message).
+ * Story goal (08-A): the freed spot is available.
  * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 05-B, 06-A, 06-B, 06-C, 08-A,
- *             09-A, 09-B, 10-A.
+ *             09-A, 09-B, 10-A. Note: test IDs are from Confluence case IDs; AC numbers are Jira.
  *
  * Real Nest pipeline and real PostgreSQL; time comes from the injected CLOCK and
  * is never read from the wall clock. Oracles are literals taken from the AC text
@@ -17,8 +17,6 @@
  *    stored 'Withdrawn'. SPEC status "Confirmed" maps to the repo's "Registered".
  *  - The "fresh GET /registrations/REG-9001" in the cases maps to the existing
  *    read route GET /api/events/:eventId/registrations/me.
- *  - 08-B, 08-C, 08-D and the promotion part of 10-A are Blocked: Jira AC7's
- *    waiting-list branch cannot occur in Release 1 (no waiting list exists).
  * Needs DATABASE_URL with database/postgresql/init 001 to 007 applied.
  */
 import { INestApplication } from '@nestjs/common';
@@ -154,7 +152,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     return { eventId, att01, regId, otherRegIds };
   }
 
-  describe('WITHDRAW-EVENT-REG-03-A (AC3): a confirmed withdrawal is processed server-side', () => {
+  describe('WITHDRAW-EVENT-REG-03-A (AC3: confirm/cancel): a confirmed withdrawal is processed server-side', () => {
     // Oracle (SPEC 03-A, F1 corrected): 200, status Withdrawn, withdrawnAt = injected clock,
     // MSG-11 text, DB row set, registered count 3 -> 2.
     // Mutants killed: 200 without state change; count not released; M10 SQL NOW() instead of the clock.
@@ -232,7 +230,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-05-B (AC5): the API message is exactly "Event has already occurred"', () => {
+  describe('WITHDRAW-EVENT-REG-05-B (AC4: error message): the API message is exactly "Event has already occurred"', () => {
     // Oracle (SPEC AC5 + D6): same literal however far past; error shape per SPM-61; no internals leaked.
     // Mutants killed: different wording; message varying by how far past; stack/SQL leaked.
     it.each([
@@ -255,7 +253,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-A (AC6): the withdrawn status is persisted', () => {
+  describe('WITHDRAW-EVENT-REG-06-A (AC5: status "Withdrawn"): the withdrawn status is persisted', () => {
     // Oracle (SPEC 06-A): fresh read shows withdrawn + instant; row kept with details; others untouched.
     // Mutants killed: wrong value written; hard delete (M4); UPDATE without WHERE id; withdrawn_at from the client.
     it('keeps the row and details, sets status and withdrawn_at, and leaves other registrations alone', async () => {
@@ -308,7 +306,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-B (AC6): a registration can only be withdrawn once', () => {
+  describe('WITHDRAW-EVENT-REG-06-B (AC5: concurrency): a registration can only be withdrawn once', () => {
     // Oracle (SPEC 06-B + 10-A(A), same case, run once): 3 parallel -> one 200, two 422 with MSG-12; count -1.
     // Mutants killed: M3 no state guard in the UPDATE; check-then-update race; capacity released twice.
     it('A (also 10-A A): 3 parallel requests -> one 200 and two 422 "already been withdrawn"', async () => {
@@ -387,7 +385,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-06-C (AC6): withdrawn_at is stored as UTC and does not depend on the process time zone', () => {
+  describe('WITHDRAW-EVENT-REG-06-C (AC5: UTC storage): withdrawn_at is stored as UTC and does not depend on the process time zone', () => {
     // Oracle (SPEC 06-C, T0 per F2/F14): API instant 04:00Z; DB read as UTC text 2026-10-04 04:00:00.
     // Run this block under TZ=UTC, TZ=Asia/Singapore and TZ=America/Los_Angeles (06-C Subtest C): identical results.
     // Mutants killed: M11 local-time text written to the column; timestamp recalculated on read.
@@ -441,7 +439,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-08-A (story goal, AC7 in Jira numbering): the spot is freed', () => {
+  describe('WITHDRAW-EVENT-REG-08-A (story goal): the spot is freed', () => {
     // Oracle (SPEC 08-A): EVT-105 capacity 2; 2 confirmed -> 0 spots; ATT-02 withdraws -> 1 spot, stable.
     // Mutants killed: spot not released; stale value; counter not decremented; wrong registration withdrawn.
     it('available spots go 0 -> 1 after ATT-02 withdraws, REG-9011 untouched', async () => {
@@ -560,7 +558,5 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(await registeredCount(eventId)).toBe(1);
     });
 
-    // Blocked: Jira AC7's waiting-list branch cannot occur in Release 1 (no waiting list). See the results doc.
-    it.todo('WITHDRAW-EVENT-REG-10-A (C), 08-B, 08-C, 08-D Blocked: waiting list is out of Release 1 scope (pending PO amendment of Jira AC7)');
   });
 });

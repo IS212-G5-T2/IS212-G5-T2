@@ -33,8 +33,8 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 06-A | AC6 | BE integration + FE page + unit | SPEC 06-A; Subtest C added (SPM-61 D15) | M4 hard delete; wrong value; withdrawn_at from the client; stale client state |
 | 06-B | AC6 | BE integration (real DB) | SPEC 06-B; Subtests B and C added | M3 no state guard; check-then-update race; second call overwrites withdrawn_at |
 | 06-C | AC6 | BE integration + FE | SPEC 06-C (T0 per F2/F14) | M11 local-time text; M8 UTC day; recalculated timestamp |
-| 07-A | AC7 | FE component | SPEC 07-A + D9/D13; Subtest B added | M7 success before response; auto-dismiss; dialog lingers |
-| 07-B | AC7 | FE component (table) | SPEC 07-B + D9 + F15 (banner has no timestamp) | hard-coded name; wrong name; banner echoes the server message |
+| 07-A | AC6 | FE component | SPEC 07-A + D9/D13; Subtest B added | M7 success before response; auto-dismiss; dialog lingers |
+| 07-B | AC6 | FE component (table) | SPEC 07-B + D9 + F15 (banner has no timestamp) | hard-coded name; wrong name; banner echoes the server message |
 | 08-A | story goal | BE integration + FE page + Playwright | SPEC 08-A; display per D17 (the repo's "Available N spot(s)") | spot not released; stale cache; no refetch |
 | 09-A | cross-cutting | BE integration | SPEC 09-A + D16 (404, never 403); Subtest D and organiser case added | M2 scoping removed; M6 403 instead of 404 |
 | 09-B | cross-cutting | BE integration + FE | SPEC 09-B + D16 ("Missing session"); FE case added | bypassing the 401 handling (M13); success after a 401 |
@@ -77,7 +77,6 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 08-A | frontend | `EventDetailPage.withdraw.test.tsx :: ...08-A (frontend)` | FE page | Pass | |
 | 08-A | browser | `EventDetailPage.withdraw.playwright.spec.ts` | Playwright | Pass | Run once on `spm_test` (see commands) |
 | 08-A | Register-button, event-list badge, dashboard card, attendee list | | | Not Automated | The Register button is covered; the badge, card and list do not exist in the app (D19). The attendee list is deliberately never built (privacy, F7) |
-| 08-B, 08-C, 08-D | all | `it.todo` in `registrations.withdraw.e2e-spec.ts` | | Blocked | Waiting list is out of Release 1 scope (D25) pending the Product Owner amending Jira AC7 |
 | 09-A | A, C, D (+ organiser) | `registrations.withdraw.e2e-spec.ts :: ...09-A` (5 tests) | BE integration | Pass | B is 09-B, run once |
 | 09-B | backend | `registrations.withdraw.e2e-spec.ts :: ...09-B (= 09-A B)` | BE integration | Pass | 401 "Missing session" |
 | 09-B | frontend (added) | `EventDetailPage.withdraw.test.tsx :: ...09-B (frontend)` (2) | FE page | Pass | 401 signs out and redirects; a 500 does not |
@@ -117,7 +116,7 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 
 ## Gap list
 
-- ACs with mostly a happy path: AC2 (the dialog's visual layout), AC7 (banner styling is a `data-variant` attribute, not a real colour check).
+- ACs with mostly a happy path: AC2 (the dialog's visual layout), AC6 (banner styling is a `data-variant` attribute, not a real colour check).
 - Check order (D15) is only exercised one violation at a time; the combined ordering is untested.
 - D14: another non-withdrawable status cannot exist (the table allows only `Registered` and `Withdrawn`), so that branch has no test and no code beyond the shared 422.
 - Coordinator and organiser attempts: an organiser is tested (404); coordinator, venue and tech roles take the same path and are not separately tested.
@@ -129,7 +128,7 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 
 ## Document-defect resolutions (F1 to F22) as applied
 
-F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked message is "Event has already occurred". F5 one past-event fixture, each ID asserts its own focus. F6 status mapping above. F7 attendee list, dashboard card and event-list badge not built. F8 04-C C added. F9 404, never 403. F10 label "Withdraw", no availability flag, styling Not Automated. F11 `withdrawn_at` from the injected clock. F12 backdrop ignored (ASSUMED). F13 422 with the 06-B wording. F15 the banner is exactly the MSG-11 sentence, the timestamp is in the status area. F16 API `withdrawnAt`, column `withdrawn_at`. F17/F18 dialog copy per 02-A; focus on Cancel. F19/F21/F22 Tier 2 blocked; no load tool; banner not toast. F20 09-B run once, tagged for both.
+F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked message is "Event has already occurred". F5 one past-event fixture, each ID asserts its own focus. F6 status mapping above. F7 attendee list, dashboard card and event-list badge not built. F8 04-C C added. F9 404, never 403. F10 label "Withdraw", no availability flag, styling Not Automated. F11 `withdrawn_at` from the injected clock. F12 backdrop ignored (ASSUMED). F13 422 with the 06-B wording. F15 the banner is exactly the MSG-11 sentence, the timestamp is in the status area. F16 API `withdrawnAt`, column `withdrawn_at`. F17/F18 dialog copy per 02-A; focus on Cancel. F20 09-B run once, tagged for both. AC7 waiting-list tests removed from Release 1 scope.
 
 ## Deviations from the brief and open items
 
@@ -145,7 +144,6 @@ F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked mess
 
 ## Amendments for Jira and Confluence (to apply after review)
 
-- **Jira AC7 (waiting list).** Suggested message to the Product Owner: "SPM-120 AC7 asks the system to offer a freed spot to the next waiting-list attendee. Release 1 has no waiting list (SPM-61 locks capacity as a hard limit and the Week 4 scope is register, view status and withdraw). Please amend AC7 so the waiting-list branch is out of Release 1 scope, so that Jira matches the delivered behaviour. We verify AC7 through case 08-A: the spot is freed and the available count rises." Relabel 08-A to 08-D from AC8 to AC7. If the waiting list returns, rewrite 08-C scenario 3 (it conflicts with SPM-61 A5 re-registration).
 - **Status wording.** Find and replace the registration status "Confirmed" with "Registered" across the SPM-120 pages ("Withdrawn" stays).
 - **01-B.** Delete the "Event has occurred" badge bullet. **04-A, 04-B, 05-A, 05-B:** the single blocked wording is "Event has already occurred" (no "Cannot withdraw - ..." variants); 05-A's "MSG-10" is a mislabel.
 - **09-A Subtest B / 09-B.** Expected text "Missing session" (401), replacing "Authentication required" / "Please log in". 09-A A: 404 only, text "Registration not found.".

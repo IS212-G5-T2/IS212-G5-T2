@@ -1,8 +1,9 @@
 /*
  * Story: SPM-120 Withdraw Registration (attendee), page level.
- * ACs: AC6 (status persists across a reload), AC7 / story goal (the freed spot is
- *      reflected), cross-cutting authentication.
+ * ACs: AC5 (status persists across a reload), AC6 (message confirmation).
+ * Story goal (08-A): the freed spot is reflected.
  * Test cases: WITHDRAW-EVENT-REG-06-A (frontend), 06-C (UI), 08-A (frontend), 09-B (frontend).
+ * Note: test IDs are from Confluence; AC numbers are Jira.
  *
  * HTTP is mocked at the boundary; the store and router are real. Oracles are
  * literals from the AC text and the Confluence pages. Only Date is faked
@@ -53,7 +54,7 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
-describe("SPM-120 AC6: the withdrawn status survives a reload", () => {
+describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
   // Oracle (SPEC 06-A + 06-C UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
   // and shows the grey Withdrawn badge and "Withdrawn today at 12:00" (SGT, not the UTC hour 04).
   // The store is emptied between the two mounts, so the only source of truth is the refetch.
@@ -87,7 +88,7 @@ describe("SPM-120 AC6: the withdrawn status survives a reload", () => {
   });
 });
 
-describe("SPM-120 AC7 (story goal): the freed spot shows on the event page", () => {
+describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
   // Oracle (SPEC 08-A frontend): EVT-105 is full (0 spots); after ATT-02 withdraws, the refetched event shows
   // 1 spot and the Register button, in SPM-61's existing "Available 1 spot" format. The mock only returns the
   // freed count after the withdraw POST, so a missing refetch leaves the page on "fully booked".

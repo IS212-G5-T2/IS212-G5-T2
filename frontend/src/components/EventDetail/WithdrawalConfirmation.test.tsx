@@ -1,8 +1,9 @@
 /*
  * Story: SPM-120 Withdraw Registration (attendee), confirmation flow.
  * ACs: AC2 (prompt shows event name and consequences), AC3 (confirm or cancel),
- *      AC6 (status becomes Withdrawn), AC7 (on-screen confirmation message).
+ *      AC5 (status becomes Withdrawn), AC6 (on-screen confirmation message).
  * Test cases: WITHDRAW-EVENT-REG-02-A, 03-A (frontend half), 03-B, 07-A, 07-B.
+ * Note: test IDs are from Confluence; AC numbers are Jira.
  *
  * The dialog is exercised through RegistrationSection, because the Withdraw
  * button, the badge, the banner and the focus return all live there. HTTP is
@@ -142,7 +143,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
   });
 });
 
-describe("SPM-120 AC7: an on-screen message confirms the withdrawal", () => {
+describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
   // Oracle (SPEC 07-A A + D13): Confirm disabled and aria-busy while pending, no success text early;
   // after 200 the dialog is gone within 500 ms and a persistent, dismissible success banner shows exactly MSG-11.
   // Mutants killed: M7 success shown before the response; auto-dismiss under 3 s; dialog lingers over 500 ms.
