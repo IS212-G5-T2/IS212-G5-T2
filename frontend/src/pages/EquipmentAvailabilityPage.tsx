@@ -7,17 +7,11 @@ import { TextInput } from "@/components/ui/FormControls";
 import type { EquipmentRecord } from "@/types";
 import { getEquipment } from "@/utils/equipment-api";
 
-type SortField = "type" | "quantity" | "location";
-type SortDirection = "ascending" | "descending";
-
 export function EquipmentAvailabilityPage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<EquipmentRecord[]>([]);
   const [loadError, setLoadError] = useState(false);
   const [searchText, setSearchText] = useState("");
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDirection, setSortDirection] =
-    useState<SortDirection>("ascending");
 
   useEffect(() => {
     void getEquipment()
@@ -31,41 +25,16 @@ export function EquipmentAvailabilityPage() {
       });
   }, []);
 
-  function sortBy(field: SortField) {
-    if (sortField === field) {
-      setSortDirection((current) =>
-        current === "ascending" ? "descending" : "ascending",
-      );
-      return;
-    }
-
-    setSortField(field);
-    setSortDirection("ascending");
-  }
-
   const visibleRecords = useMemo(() => {
     const query = searchText.trim().toLowerCase();
-    const filtered = query
+    return query
       ? records.filter(
           (record) =>
             record.type.toLowerCase().includes(query) ||
             record.location.toLowerCase().includes(query),
         )
       : records;
-
-    if (!sortField) {
-      return filtered;
-    }
-
-    return [...filtered].sort((left, right) => {
-      const comparison =
-        sortField === "quantity"
-          ? left.quantity - right.quantity
-          : left[sortField].localeCompare(right[sortField]);
-
-      return sortDirection === "ascending" ? comparison : -comparison;
-    });
-  }, [records, searchText, sortDirection, sortField]);
+  }, [records, searchText]);
 
   const columns: Column<EquipmentRecord>[] = [
     {
@@ -78,7 +47,6 @@ export function EquipmentAvailabilityPage() {
     },
     {
       header: "Equipment type",
-      onHeaderClick: () => sortBy("type"),
       render: (record) => (
         <span className="font-medium text-gray-900 dark:text-gray-100">
           {record.type}
@@ -87,7 +55,6 @@ export function EquipmentAvailabilityPage() {
     },
     {
       header: "Location",
-      onHeaderClick: () => sortBy("location"),
       render: (record) => record.location,
     },
     {
@@ -96,7 +63,6 @@ export function EquipmentAvailabilityPage() {
     },
     {
       header: "Quantity",
-      onHeaderClick: () => sortBy("quantity"),
       render: (record) => record.quantity,
     },
   ];

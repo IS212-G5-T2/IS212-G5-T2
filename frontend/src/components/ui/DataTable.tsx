@@ -4,7 +4,6 @@ export interface Column<T> {
   header: string;
   render: (row: T) => ReactNode;
   className?: string;
-  onHeaderClick?: () => void;
 }
 
 interface DataTableProps<T> {
@@ -33,19 +32,9 @@ export function DataTable<T>({ columns, rows, rowKey, emptyMessage, onRowClick }
               <th
                 key={col.header}
                 scope="col"
-                onClick={col.onHeaderClick}
                 className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
               >
-                {col.onHeaderClick ? (
-                  <button
-                    type="button"
-                    className="cursor-pointer font-semibold uppercase tracking-wide"
-                  >
-                    {col.header}
-                  </button>
-                ) : (
-                  col.header
-                )}
+                {col.header}
               </th>
             ))}
           </tr>
