@@ -11,6 +11,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import { formatSgt } from "@/utils/registration";
 import type { EventRecord, Registration, User } from "@/types";
+import { ATT_01, T0, buildEvent, buildPastEvent, buildRegistration } from "./withdrawal.fixtures";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -371,5 +372,121 @@ describe("D14: failed POST is not retried automatically", () => {
     await user.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText(/Registration successful/)).toBeInTheDocument();
     expect(calls).toBe(2);
+  });
+});
+
+/*
+ * Story: SPM-120 Withdraw Registration (attendee), registration-details half.
+ * ACs: AC1 (withdraw option), AC4 (not after the event date), AC5 (the blocked message),
+ *      AC6 (already-withdrawn conflict). Test cases: WITHDRAW-EVENT-REG-01-A, 01-B, 04-A,
+ *      05-A, and an added 06-B frontend case. The 01-B, 04-A and 05-A cases share one
+ *      past-event fixture (document defect F5); each asserts its own focus.
+ * Suite clock T0 = 2026-10-04 12:00 SGT. "Confirmed" in the cases is the repo's "Registered".
+ * The Withdraw control is not rendered for a past event (D11); there is no availability flag.
+ */
+describe("SPM-120 registration details: the withdraw option and the event-started rule", () => {
+  const section = () => screen.getByRole("region", { name: "Withdrawal" });
+  const withdraw = () => screen.queryByRole("button", { name: "Withdraw" });
+
+  /** Renders an owned, registered registration with the store holding the same record. */
+  function renderOwned(event: EventRecord, registration: Registration = buildRegistration({ eventId: event.id })) {
+    useAppStore.setState({ isAuthenticated: true, currentUser: ATT_01, registrations: [registration] });
+    return render(<RegistrationSection event={event} currentUser={ATT_01} registration={registration} />);
+  }
+
+  beforeEach(() => vi.setSystemTime(T0));
+
+  // Oracle (SPEC 01-A): REG-9001 on future EVT-101 shows an enabled button named "Withdraw" and no unavailable text.
+  // Not automated: styling prominence (visual). No availability flag exists (D11).
+  // Mutants killed: button absent or disabled for a future registered event; wrong label.
+  it("WITHDRAW-EVENT-REG-01-A: a future registered event offers an enabled Withdraw button", () => {
+    renderOwned(buildEvent());
+
+    expect(within(section()).getByRole("button", { name: "Withdraw" })).toBeEnabled();
+    expect(screen.queryByText("Event has already occurred")).not.toBeInTheDocument();
+  });
+
+  // Oracle (SPEC 01-B + D6): REG-9002 on started EVT-104 has no actionable control and shows the AC5 text.
+  // The "Event has occurred" badge bullet was removed from the case (no such badge in this app).
+  // Mutants killed: control active for a past event.
+  it("WITHDRAW-EVENT-REG-01-B: a started event has no Withdraw control and no dialog", () => {
+    renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
+
+    expect(screen.queryByRole("button", { name: /withdraw/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
+  });
+
+  // Oracle (SPEC 04-A + D11): nothing can start a withdrawal for REG-9002; no request is made.
+  // Mutants killed: past-event control opens the prompt.
+  it("WITHDRAW-EVENT-REG-04-A: nothing can start a withdrawal for a started event", () => {
+    renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
+
+    expect(withdraw()).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // Oracle (DERIVED from AC4/[A7]): the cut-off is the START, not the end. An event that started a minute
+  // ago and has not ended is already blocked.
+  // Mutants killed: boundary read from the event end instead of its start.
+  it("WITHDRAW-EVENT-REG-04-A (boundary): an in-progress event is already blocked", () => {
+    renderOwned(buildEvent({ startDateTime: new Date(T0.getTime() - 60_000).toISOString(), endDateTime: new Date(T0.getTime() + 3_600_000).toISOString() }));
+
+    expect(withdraw()).not.toBeInTheDocument();
+    expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
+  });
+
+  // Oracle (SPEC 05-A A + AC5): exactly "Event has already occurred", visible, in the withdrawal area.
+  // Mutants killed: wording differs from AC5; generic text.
+  it("WITHDRAW-EVENT-REG-05-A (A): the AC5 message is shown, exactly, for a started event", () => {
+    renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
+
+    const message = within(section()).getByText("Event has already occurred");
+    expect(message.textContent).toBe("Event has already occurred");
+    expect(message).toBeVisible();
+  });
+
+  // Oracle (Added 05-A B): the page loaded before the start; the server answers 422 on confirm.
+  // The dialog closes, the AC5 text appears, Withdraw disappears, the status stays Registered.
+  // Mutants killed: a 422 swallowed or shown as a generic error.
+  it("WITHDRAW-EVENT-REG-05-A (B, added): a 422 on confirm swaps Withdraw for the AC5 message", async () => {
+    // Arrange
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    apiMock.mockRejectedValue(new ApiError("Event has already occurred", undefined, "event_already_occurred", 422));
+    renderOwned(buildEvent());
+    await u.click(withdraw()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+
+    // Assert
+    expect(await within(section()).findByText("Event has already occurred")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(withdraw()).not.toBeInTheDocument();
+    expect(screen.getByText("Registered")).toBeInTheDocument();
+  });
+
+  // Oracle (Added 06-B frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
+  // reloads the registration, so the page shows the withdrawn status instead of a stale Registered.
+  // Mutants killed: stale status kept after an already-withdrawn conflict.
+  it("WITHDRAW-EVENT-REG-06-B (frontend, added): an already-withdrawn conflict reloads the registration", async () => {
+    // Arrange: the confirm is refused, and the reload returns the withdrawn registration.
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const withdrawn = buildRegistration({ status: "withdrawn", withdrawnAt: T0.toISOString() });
+    apiMock.mockImplementation((path: string) =>
+      path.endsWith("/withdraw")
+        ? Promise.reject(new ApiError("This registration has already been withdrawn.", undefined, "registration_already_withdrawn", 422))
+        : Promise.resolve({ registration: withdrawn }),
+    );
+    renderOwned(buildEvent());
+    await u.click(withdraw()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+
+    // Assert: the section follows the reloaded store record
+    expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

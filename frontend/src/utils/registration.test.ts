@@ -6,8 +6,11 @@
 import { describe, expect, it } from "vitest";
 import {
   REGISTRATION_LIMITS,
+  WITHDRAWAL_MESSAGES,
   formatSgt,
   formatSgtDateTime,
+  formatWithdrawnAt,
+  hasEventStarted,
   isRegistrationOpen,
   registrationClosingHeading,
   sgtCalendarDayDiff,
@@ -115,5 +118,50 @@ describe("SPM-61 registration heading helpers", () => {
   // The mock's example: 163 days before 12 Mar 2027.
   it("matches the design example of 163 days", () => {
     expect(registrationClosingHeading("2027-03-12T15:59:00.000Z", new Date("2026-09-30T04:00:00.000Z"))).toBe("Registration closes in 163 days");
+  });
+});
+
+/*
+ * Story: SPM-120 Withdraw Registration (attendee), frontend rules.
+ * Test cases: WITHDRAW-EVENT-REG-04-C (unit), 06-C (formatter), 07-A/07-B (message literals).
+ * Oracles are literals from the AC text and the Confluence pages.
+ */
+describe("SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)", () => {
+  // EVT-T5 starts 2026-11-01 09:00:00 SGT.
+  const event = { startDateTime: "2026-11-01T09:00:00+08:00" };
+
+  // Oracle (SPEC 04-C): not started 1 s before; started at the start; started 1 s after.
+  // Mutants killed: M1 `>=` -> `>` (middle row); `>=` -> `===` (last row); `<` / `<=` swap (first row).
+  it.each([
+    ["WITHDRAW-EVENT-REG-04-C A: 1 second before", "2026-11-01T08:59:59+08:00", false],
+    ["WITHDRAW-EVENT-REG-04-C B: exactly at the start", "2026-11-01T09:00:00+08:00", true],
+    ["WITHDRAW-EVENT-REG-04-C C (added): 1 second after", "2026-11-01T09:00:01+08:00", true],
+  ])("%s", (_label, clock, expected) => {
+    expect(hasEventStarted(event, new Date(clock))).toBe(expected);
+  });
+});
+
+describe("SPM-120 AC6: formatWithdrawnAt (SGT calendar day, time always shown)", () => {
+  // Oracle (SPEC 06-C / D12 as amended): same SGT day -> "Withdrawn today at HH:mm"; otherwise
+  // "Withdrawn on D Mon YYYY, HH:mm". The SGT day, not the UTC day, decides "today".
+  // Mutant killed: M8 the UTC day used instead of the SGT day (rows 2 and 3 differ between the two).
+  it.each([
+    ["same SGT day", "2026-10-04T12:00:00+08:00", "2026-10-04T12:05:00+08:00", "Withdrawn today at 12:00"],
+    ["previous SGT day, same UTC day", "2026-09-28T23:30:00+08:00", "2026-09-29T00:10:00+08:00", "Withdrawn on 28 Sep 2026, 23:30"],
+    ["same SGT day, previous UTC day", "2026-09-29T00:30:00+08:00", "2026-09-29T12:00:00+08:00", "Withdrawn today at 00:30"],
+    ["a September date uses the fixed short month", "2026-09-04T09:05:00+08:00", "2026-10-04T12:00:00+08:00", "Withdrawn on 4 Sep 2026, 09:05"],
+  ])("WITHDRAW-EVENT-REG-06-C: %s", (_label, withdrawnAt, now, expected) => {
+    expect(formatWithdrawnAt(withdrawnAt, new Date(now))).toBe(expected);
+  });
+});
+
+describe("SPM-120 AC5/AC7: message literals", () => {
+  // Oracle (SPEC AC5, D8): the blocked message has no full stop; MSG-11 is built from the event name.
+  // Mutants killed: reworded blocked message; hard-coded event name in the success message.
+  it("WITHDRAW-EVENT-REG-05-A / 07-B: exact literals", () => {
+    expect(WITHDRAWAL_MESSAGES.eventAlreadyOccurred).toBe("Event has already occurred");
+    expect(WITHDRAWAL_MESSAGES.success("Workshop: Docker Mastery")).toBe(
+      "Your withdrawal from Workshop: Docker Mastery has been processed.",
+    );
   });
 });

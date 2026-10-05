@@ -120,3 +120,54 @@ export function registrationClosingHeading(closesAt: string, now: Date): string 
   if (days <= 0) return "Registration closes today";
   return `Registration closes in ${days} ${days === 1 ? "day" : "days"}`;
 }
+
+/*
+ * SPM-120 withdrawal rules. The server is the authority (it re-checks the event
+ * start and ownership); these only drive what the page offers.
+ */
+
+/**
+ * Wording is locked by the AC text and the test cases. The blocked message has
+ * no full stop (AC5). The success message is the chosen MSG-11 wording and is
+ * built here from the event name the page already holds, never from the response.
+ */
+export const WITHDRAWAL_MESSAGES = {
+  eventAlreadyOccurred: "Event has already occurred",
+  success: (eventName: string) => `Your withdrawal from ${eventName} has been processed.`,
+} as const;
+
+/**
+ * The one client-side definition of "the event has already occurred": the cut-off
+ * is the event start instant, exclusive (at or after the start is blocked).
+ * Mirrors backend/src/registrations/event-start.ts.
+ */
+export function hasEventStarted(event: { startDateTime: string }, now: Date): boolean {
+  return now.getTime() >= new Date(event.startDateTime).getTime();
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Fixed month names: the "en-GB" short form of September is "Sept" in newer ICU data.
+const SGT_PARTS = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SGT_TIME_ZONE,
+  day: "numeric",
+  month: "numeric",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * "Withdrawn today at 12:00" when the withdrawal falls on the same Singapore
+ * calendar day as `now`, otherwise "Withdrawn on 28 Sep 2026, 23:30". The day is
+ * decided in Asia/Singapore explicitly, never in the browser's time zone, and the
+ * time is always shown so the UI can be compared with the API value (06-C).
+ */
+export function formatWithdrawnAt(withdrawnAt: string | Date, now: Date): string {
+  const instant = new Date(withdrawnAt);
+  const part = (type: string) => SGT_PARTS.formatToParts(instant).find((p) => p.type === type)?.value ?? "";
+  const time = `${part("hour")}:${part("minute")}`;
+  if (sgtCalendarDayDiff(instant, now) === 0) return `Withdrawn today at ${time}`;
+  return `Withdrawn on ${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")}, ${time}`;
+}

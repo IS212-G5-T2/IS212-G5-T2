@@ -207,6 +207,8 @@ export interface Registration {
   attendeeName: string;
   status: RegistrationStatus;
   registeredAt: string;
+  /** Instant of the withdrawal (SPM-120); set once by the server, absent while registered. */
+  withdrawnAt?: string;
   /** Details captured at registration (SPM-61); absent on older records. */
   fullName?: string;
   email?: string;

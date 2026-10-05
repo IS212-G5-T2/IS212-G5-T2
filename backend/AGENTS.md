@@ -52,5 +52,5 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 ## Registrations boundary
 
-- `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me`, and writes to `event_registrations`. It does not own event authoring or withdrawal.
-- Registration rules read time only from the injected `CLOCK`; tests freeze it. `src/registrations/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied.
+- `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me` (latest registration of any status), `POST /api/registrations/:registrationId/withdraw` (SPM-120), and writes to `event_registrations`. It does not own event authoring. The "event has already occurred" rule is one function, `event-start.ts` (`hasEventStarted`, exclusive at the start instant).
+- Registration rules read time only from the injected `CLOCK`; tests freeze it. `src/registrations/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied; `registrations.withdraw.e2e-spec.ts` (SPM-120) also needs `007` (`withdrawn_at`).

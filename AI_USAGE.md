@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Claude (Opus 5.5 for Phase 0, Sonnet 5.5 for implementation) - Implement SPM-120 Withdraw Registration (attendee)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, reused; no PR yet). Jira status was In Progress.
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations`, `backend/scripts/testing/run-browser.mjs`, `database/postgresql/init` (007), `frontend/src/components/EventDetail`, `frontend/src/pages`, `frontend/src/store`, `frontend/src/utils`, `frontend/src/types`, `frontend/package.json`, `docs/specs`, scoped AGENTS/CHANGELOG/HANDOVER files, `AI_USAGE.md`.
+- Summary: Added `POST /api/registrations/:registrationId/withdraw` (ownership-scoped 404, 422 at or after the event start, one compare-and-set UPDATE, `withdrawn_at` from the injected clock stored as UTC), a nullable `withdrawn_at` column, `/me` returning the latest registration of any status, the Withdraw button, accessible confirmation dialog, success banner, Withdrawn status line and capacity refetch in the registration card, and a narrow 401 sign-out for the withdraw call. Jira AC7's waiting-list branch is not built (no waiting list in Release 1).
+- AI contribution: Jira and Confluence reading (23 test cases), reconnaissance, test-first backend and component work, mutation spot-check (M1 to M13), a Playwright spec, documentation.
+- Assumptions: the Guide and the two spec files were absent, so Confluence supplied the cases and `AGENTS.md` plus the task prompt supplied the conventions; event start is an exclusive cut-off [A7, pending PO confirmation]; backdrop clicks are ignored; error code names are assumed; Confluence "Confirmed" means the repo's "Registered". Full list in `docs/specs/SPM-120-test-results.md`.
+- Checks run: backend unit 582 passed (baseline 579); registrations e2e on local PostgreSQL 55 passed, 2 todo (baseline 30); 06-C under TZ=UTC, Asia/Singapore, America/Los_Angeles 2/2 each; frontend 375 passed, 1 todo (baseline 341); tsc clean; frontend lint has the 2 pre-existing errors only; backend lint and both builds ok; Playwright SPM-120 spec 1/1 on a dedicated `spm_test` database with servers on spare ports (not on the Compose containers, which run older code). Mutation spot-check: 13/13 killed after strengthening 06-B (M3 survived the first run).
+- Follow-up/conflict notes: new dev dependency `vitest-axe`; two existing-test changes are not both permitted by the brief (only the `registrations.e2e-spec.ts:301` edit was needed). Page-level frontend tests and the Playwright spec were written after the implementation. The `withdrawRegistration` store stub is now dead code. Existing local databases need `007_spm120_withdraw_registration.sql` applied (done on the local `spm` and `spm_test` databases). Jira AC7 and the Confluence wording amendments still need the Product Owner and a human to apply (drafted in the results doc). Changes are local and uncommitted; nothing was pushed and no Jira status was changed.
+
 ## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
 
 - Issue/PR: SPM-117 / PR #44.

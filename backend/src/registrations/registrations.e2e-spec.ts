@@ -298,7 +298,9 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       const first = await post(id, cookie).expect(201);
       await pool.query(`UPDATE event_registrations SET status='Withdrawn' WHERE event_id=$1 AND attendee_id=$2`, [id, uid]);
       const mineWithdrawn = await request(app.getHttpServer()).get(`/api/events/${id}/registrations/me`).set('Cookie', cookie).expect(200);
-      expect(mineWithdrawn.body.registration).toBeNull();
+      // SPM-120 (06-A reload persistence): /me now returns the latest registration of any
+      // status, so a withdrawn one is visible; it was null before. Requirement-driven edit.
+      expect(mineWithdrawn.body.registration).toMatchObject({ id: first.body.registration.id, status: 'withdrawn' });
       const second = await post(id, cookie, { ...details, fullName: 'Alice T.' }).expect(201);
       expect(second.body.registration.id).toBe(first.body.registration.id);
       const stored = await rows(id);

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added attendee withdrawal on the registration card (SPM-120): a "Withdraw" button for an active registration before the event starts, an accessible confirmation dialog (event name, consequences, Cancel focused first, focus trap, Escape cancels, backdrop click ignored), a persistent dismissible success banner, a "Withdrawn" badge with "Withdrawn today at HH:mm" / "Withdrawn on D Mon YYYY, HH:mm" (Singapore time), and the message "Event has already occurred" once the event has started. Details stay visible after withdrawing; the event's available spots are refetched. A 401 from the withdraw call signs the user out. Added the `vitest-axe` dev dependency for the dialog accessibility test.
+
 - The top bar now has a profile avatar showing the user's initials (e.g. C1 for
   Coordinator 1) that opens a menu with the name, Settings and the light/dark
   switch; coordinators see a green Available or grey Unavailable label there
