@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- SPM-50 venue creation now stores the authenticated Venue Staff UUID in
+  `venues.owner_user_id`. Fresh schemas require the owner; migration 008
+  preserves unattributed legacy rows and protects new writes with a foreign
+  key and a future-row check.
+
+- Added authenticated venue creation and catalogue APIs for SPM-50, including
+  RBAC enforcement, field-level validation, atomic PostgreSQL persistence, and
+  required non-negative setup/turnaround durations in whole minutes. Venue IDs
+  are database-generated UUIDs rather than staff-entered values. Facilities
+  and room layouts now resolve through lookup/junction tables, and one optional
+  image of at most 5 MB is validated and stored with the venue transaction.
+  Normalized venue name/location pairs are unique and duplicate attempts return
+  a field-level conflict.
+
+- Split SPM-50 operating information from the operating schedule in the venue
+  creation contract and persistence model. Venue schedules require selected days
+  and valid start/end times; migrations 006 and 007 preserve existing records.
+
+- Attendees can now see only CONFIRMED events (not Approved). Approved is internal workflow state. Registration now compares directly against the confirmed status, and attendee visibility reflects this distinction.
 - Added SPM-111 equipment API/database integration coverage and reject
   quantities above PostgreSQL's integer maximum before persistence.
 

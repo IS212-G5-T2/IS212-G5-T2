@@ -12,3 +12,12 @@ describe("organiser navigation", () => {
     );
   });
 });
+
+describe("venue staff navigation", () => {
+  // SPM-50 / AC1: Venue Staff can discover the protected venue creation route in navigation.
+  it("links to Create Venue", () => {
+    expect(navByRole.venue_staff).toContainEqual(
+      expect.objectContaining({ label: "Create Venue", to: "/venues/create" }),
+    );
+  });
+});

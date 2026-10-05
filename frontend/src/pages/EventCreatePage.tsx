@@ -13,6 +13,8 @@ import { api, ApiError } from "@/utils/api";
 import type { EventAttachment, EventRecord } from "@/types";
 import { useAppStore } from "@/store/useAppStore";
 import type { DraftFields, DraftRecord } from "@/types/draft";
+import { readFileAsDataUrl } from "@/utils/uploads";
+import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/utils/venueOptions";
 
 const steps = [
   "Basic Information",
@@ -25,23 +27,6 @@ function todayInputValue() {
   const month = String(today.getMonth() + 1).padStart(2, "0");
   const day = String(today.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
-}
-
-function readAttachment(file: File): Promise<EventAttachment> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl: String(reader.result),
-      });
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 export function EventCreatePage() {
@@ -251,7 +236,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     setReadingFiles(true);
     try {
       const attachments = await Promise.all(
-        Array.from(files).map(readAttachment),
+        Array.from(files).map(readFileAsDataUrl),
       );
       setForm((f) => ({
         ...f,
@@ -478,25 +463,14 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     value={form.layout}
                     onChange={(e) => change("layout", e.target.value)}
                     error={errors.layout}
-                    options={[
-                      "Theatre",
-                      "Classroom",
-                      "Banquet",
-                      "Boardroom",
-                      "U-shape",
-                      "Standing",
-                    ].map((value) => ({ value, label: value }))}
+                    options={ROOM_LAYOUT_OPTIONS.map((value) => ({
+                      value,
+                      label: value,
+                    }))}
                   />
                   <CheckboxGroup
                     label="Required facilities"
-                    options={[
-                      "Catering",
-                      "AV System",
-                      "Parking",
-                      "Stage",
-                      "Projector",
-                      "Whiteboard",
-                    ]}
+                    options={[...FACILITY_OPTIONS]}
                     values={form.facilities}
                     onChange={(value) => change("facilities", value)}
                   />

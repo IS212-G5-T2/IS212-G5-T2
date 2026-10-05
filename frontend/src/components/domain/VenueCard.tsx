@@ -15,6 +15,13 @@ export function VenueCard({
   return (
     <Card className={highlightSuitable ? "border-success-300 dark:border-success-700 ring-1 ring-success-200 dark:ring-success-800" : undefined}>
       <CardBody>
+        {venue.image && (
+          <img
+            src={venue.image.dataUrl}
+            alt={`${venue.name} venue`}
+            className="mb-4 h-40 w-full rounded-lg object-cover"
+          />
+        )}
         <div className="flex items-start justify-between gap-3">
           <div>
             <h3 className="font-semibold text-gray-900 dark:text-gray-100">{venue.name}</h3>
@@ -34,7 +41,13 @@ export function VenueCard({
             </span>
           ))}
         </div>
-        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">Hours: {venue.operatingHours}</p>
+        <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+          Hours: {venue.operatingDays.join(", ")} · {venue.operatingStartTime}–{venue.operatingEndTime}
+        </p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Info: {venue.operatingInformation}</p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+          Setup: {venue.setupTimeMinutes} min · Turnaround: {venue.turnaroundTimeMinutes} min
+        </p>
         <div className="mt-3 flex items-center justify-between">
           <Link
             to={`/venues/${venue.id}`}

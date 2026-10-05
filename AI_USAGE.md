@@ -21,6 +21,181 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-05 - Codex (GPT-6) - Link SPM-50 venues to their creator
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/`, `backend/migrations/008_venue_owner_user_id.sql`, `database/postgresql/init/001_schema.sql`, backend/database documentation, and `AI_USAGE.md`
+- Summary: Added `venues.owner_user_id` as a UUID foreign key to the local `users` table. Venue creation stores the verified session user ID in the same transaction as the venue and its relationships. The request and response do not accept or expose an owner field. Fresh schemas require an owner; migration 008 preserves historical rows with unknown owners and enforces ownership for future writes.
+- AI contribution: Cross-boundary ownership implementation, legacy-safe migration, service/repository and HTTP/PostgreSQL test updates, and documentation.
+- Assumptions: Existing venues without a trustworthy creator remain unassigned; a later retrieval story will filter by verified owner ID. SPM-50 itself remains creation-only.
+- Checks run: Backend venue unit tests, full backend coverage suite, build, and lint passed. Database E2E cases cover two staff identities, spoofed owner fields, foreign key and required-owner constraints, migration idempotence, and legacy preservation; database execution was not available locally because `DATABASE_URL` was unset and Docker was inaccessible.
+- Follow-up/conflict notes: Jira SPM-50 was In Review with PR #40 open; this is the requester's change to that existing review. Do not attribute legacy venues to the seeded staff account without evidence.
+
+## 2026-10-05 - Codex (GPT-5) - Normalize venue operating-time API output
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/venues.repository.ts`, `backend/src/venues/venues.repository.spec.ts`, and `AI_USAGE.md`
+- Summary: Fixed the remaining CI E2E assertion by normalizing PostgreSQL `time` output from `HH:MM:SS` to the SPM-50 API contract's `HH:MM` format.
+- AI contribution: GitHub Actions log diagnosis, persistence-to-API normalization repair, and regression test.
+- Assumptions: Venue operating times are minute-granular throughout the frontend/API contract; PostgreSQL's seconds are a storage serialization detail, not part of the response contract.
+- Checks run: Focused venue repository/service tests — 12 passed; backend build passed; diff whitespace check passed.
+- Follow-up/conflict notes: The prior Actions transform error is resolved. This change addresses the one remaining venue E2E assertion shown in the post-fix CI run.
+
+## 2026-10-05 - Codex (GPT-5) - Repair venue module duplicate imports
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/app.module.ts` and `AI_USAGE.md`
+- Summary: Removed the duplicated `VenuesController` and `VenuesModule` imports that prevented Vitest from transforming the Nest application and caused every E2E suite to fail before execution.
+- AI contribution: CI failure diagnosis and minimal compile repair.
+- Assumptions: One import of each venue symbol is sufficient; existing module imports, route middleware, and controller wiring remain unchanged.
+- Checks run: Backend build passed. Full E2E transform proceeded past the duplicate-import error; execution in the Codex sandbox is blocked from listening on HTTP ports and reaching local PostgreSQL.
+- Follow-up/conflict notes: This is a direct follow-up to the already-authorized SPM-50 commit/push. CI should rerun in its database-enabled environment after push.
+
+## 2026-10-05 - Codex (GPT-5) - Strengthen SPM-50 mutation-sensitive coverage
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, `frontend/src/store/`, `backend/src/venues/`, `backend/migrations/`, and `AI_USAGE.md`
+- Summary: Reviewed the SPM-50 branch history and added business-rule, malformed-input, Base64-padding boundary, API-failure isolation, and selected/empty accessibility relationship coverage. Removed obsolete unreachable duration branches from the form. Made migration 006 safe for both legacy databases with `operating_hours` and fresh schemas without it, and extended the venue E2E suite to verify selected and empty accessibility sets through HTTP and PostgreSQL.
+- AI contribution: Branch-history test-gap analysis, unit/integration test implementation, migration compatibility repair, and coverage verification.
+- Assumptions: An omitted or empty accessibility list is valid and persists no `venue_accessibility` rows. Database-backed E2E requires a caller-provided `DATABASE_URL`.
+- Checks run: Focused frontend venue/store tests — 39 passed; frontend TypeScript compilation passed. Focused backend validator/repository tests — 64 passed; backend build passed. Full frontend coverage — 376 passed, 1 todo; full backend coverage — 628 passed. Venue E2E discovered 3 tests but skipped because this process has no `DATABASE_URL`.
+- Follow-up/conflict notes: SPM-50 form and backend venue units reach 100% coverage across statements, branches, functions, and lines in full coverage reports. Repository-wide totals remain below 100% because unrelated legacy modules are included. Preserved the unrelated pre-existing `backend/src/app.module.ts` edit. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Make SPM-50 accessibility selections optional
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `backend/src/venues/`, `backend/README.md`, and `AI_USAGE.md`
+- Summary: Removed the requirement to select an accessibility feature. The form labels accessibility as optional and permits progression without a selection; the API accepts omitted or empty selections as an empty relationship set while still rejecting malformed or unsupported supplied values.
+- AI contribution: Client/server business-rule alignment, regression tests, and API documentation update.
+- Assumptions: A venue without selected accessibility features has no rows in `venue_accessibility`; facilities and room layouts remain required.
+- Checks run: Focused frontend `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation passed; backend `venue-input` suite — 55 passed; backend build passed.
+- Follow-up/conflict notes: Preserved unrelated pre-existing edits in `backend/src/app.module.ts` and SPM-50 frontend files. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Clarify SPM-50 venue duration fields
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, shared frontend form controls, and `AI_USAGE.md`
+- Summary: Placed required setup and turnaround duration inputs side by side on wider screens while retaining a single-column narrow-screen layout. Added a visible information icon beside each label with hover text and an accessible description explaining the before-event setup and post-event turnaround periods.
+- AI contribution: Focused responsive form layout and accessible label-accessory implementation, with component-test coverage.
+- Assumptions: Setup time is the preparation period before an event; turnaround time is the period after an event before the venue can be used again.
+- Checks run: Focused `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation (`npx tsc --noEmit`) passed.
+- Follow-up/conflict notes: Preserved an unrelated pre-existing edit in `backend/src/app.module.ts`. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, frontend venue types/displays/tests, `backend/src/venues/`, `backend/migrations/`, database initializer, and component documentation
+- Summary: Corrected the revised AC2 so operating information remains a multiline field while operating hours are a structured schedule: selected operating days plus required start and end times. The time controls share a responsive two-column row on desktop and stack on narrow screens. All fields are validated, persisted, returned by the API, and retained in the existing catalogue displays.
+- AI contribution: Jira/Confluence requirement review, frontend/API/database contract update, backward-compatible migration, mutation-sensitive happy/negative/boundary/cross-dependency test updates, and documentation.
+- Assumptions: One daily start/end range applies to every selected operating day; overnight schedules are not supported because end time must follow start time. Migration 006 backfills legacy operating information from the former text schedule, and migration 007 supplies weekday/all-day defaults only for pre-existing development records.
+- Checks run: Full frontend suite — 375 passed, 1 todo; full backend suite — 620 passed. Focused schedule tests cover selected-day, malformed-time, duplicate-day, equal-time, inverted-time, and minute-boundary cases; backend validation is 100% statements/functions/lines in its focused coverage run. Backend build and frontend TypeScript compilation passed. Frontend focused coverage execution is blocked by an existing global `RequireRole` coverage threshold; Vite bundling remains blocked locally because `@tailwindcss/postcss` is missing from the installed dependencies.
+- Follow-up/conflict notes: Existing staged work was preserved. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Implement SPM-50 AC7 venue redirect
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `frontend/src/pages/VenuesPage.tsx`, frontend documentation, and `AI_USAGE.md`
+- Summary: Implemented the newly added AC7: after a successful venue POST, Venue Staff are redirected to the existing venue catalogue and receive the server confirmation there. Failed validation or persistence leaves the user in the creation form with its error state. The redirect does not restore the removed catalogue GET/refresh behavior.
+- AI contribution: Jira/Confluence source-of-truth review, redirect and confirmation implementation, AC7-positive/negative test coverage, and documentation update.
+- Assumptions: AC7 requires the catalogue destination, not a catalogue API reload or display of the new record. Router navigation state is sufficient for carrying the confirmation across the redirect.
+- Checks run: Focused `VenueCreatePage` suite — 28 passed; full frontend suite — 344 passed, 1 todo. Frontend build was attempted; the SPM-50 code compiles, but the command remains blocked by two unrelated pre-existing implicit-`this` TypeScript errors in `EventEditForm.test.tsx`.
+- Follow-up/conflict notes: Jira is read-only and unchanged by this work. No commit, push, or pull request was created.
+
+## 2026-10-04 - Codex (GPT-6.1) - Cover SPM-50 shared uploads and venue displays
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/utils/`, venue display components/pages, event edit form, and navigation tests
+- Summary: Added unit tests for shared FileReader success/failure behavior, event edit upload integration, optional venue images, setup/turnaround displays, and Venue Staff creation navigation.
+- AI contribution: Test analysis and implementation.
+- Assumptions: Existing staged tests already cover SPM-50 form rules, route access, API confirmation, validation, authorization, and persistence; this addition targets changed behavior that lacked direct assertions.
+- Checks run: Frontend full unit suite with coverage — 344 passed, 1 todo; 80.45% total line coverage. VenueCreatePage reached 100% lines and 98.83% branches. `git diff --cached --check` passed.
+- Follow-up/conflict notes: Frontend total coverage remains below 100% because this run includes the whole application, including unrelated components; no commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Remove SPM-50 catalogue coupling
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/src/venues/`, supporting tests and documentation, and `AI_USAGE.md`
+- Summary: Removed the SPM-50 `GET /api/venues` endpoint, backend/repository catalogue reads, frontend catalogue refresh, saved-venue store insertion, and creation-page catalogue links. Kept the pre-existing venue catalogue intact and exposed creation directly through the Venue Staff navigation. Changed Operating information from a single-line input to the shared multiline text control.
+- AI contribution: Scope correction, cross-boundary API/store/UI/test cleanup, documentation update, and verification.
+- Assumptions: The existing catalogue belongs to separate venue-planning functionality. SPM-50 owns creation and persistence only; it confirms a successful POST without requiring a retrieval or display workflow.
+- Checks run: Focused frontend tests — 32 passed, then 26 passed after the textarea update; focused backend venue tests — 12 passed; full frontend suite — 327 passed, 1 todo; full backend suite — 551 passed; frontend build, backend lint, backend build, and `git diff --check` passed. Frontend lint remains blocked by two unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: PostgreSQL E2E was not run because `DATABASE_URL` is unavailable. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-6.1) - Correct SPM-50 persistence test scope
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-05-B`, Confluence `VEN-CRE-05-C`, and `AI_USAGE.md`
+- Summary: Replaced the retrieval/display-dependent VEN-CRE-05-B scenario with direct PostgreSQL persistence verification by generated UUID, and replaced VEN-CRE-05-C with an atomic rollback scenario for failed venue creation. Both revised cases are marked Not Executed pending their new automation evidence.
+- AI contribution: Creation-only scope correction, targeted rich-content Confluence edits, and saved-page verification.
+- Assumptions: SPM-50 AC5 requires creation and persistence but does not require a GET endpoint, catalogue, search, or venue display. Direct database queries are test-only verification and not product functionality.
+- Checks run: Confluence dry-run validation passed; post-update Markdown read-back confirmed both new scenarios and statuses, removal of the old retrieval/catalogue wording from VEN-CRE-05-B/C, and preservation of VEN-CRE-05-A.
+- Follow-up/conflict notes: No Jira, source code, commit, push, or pull request change was made during this documentation correction.
+
+## 2026-10-04 - Codex (GPT-6.1) - Normalize SPM-50 venue options and add image step
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/catalogue/types/tests, shared frontend uploads, backend venue validation/repository/tests/migration, database initializer/seeds/docs, and `AI_USAGE.md`
+- Summary: Reworked venue creation into two pages: venue details with exactly one scalar location and the existing accessibility pills, followed by controlled facility and room-layout selections plus one optional image. Extracted the event form's FileReader/data-URL behavior into a shared upload helper. Normalized facilities and layouts into lookup/junction tables, added one-to-one venue image persistence, retained PostgreSQL-generated venue UUIDs, and rendered saved images in catalogue/detail views. Rechecked the supplied Week 4 project requirements and removed wording that implied a venue could contain child locations. Added a case-insensitive, trimmed unique index for `(name, location)` and a field-level `409` response so UUID identity does not permit duplicate venue records.
+- AI contribution: Cross-boundary schema/API/UI design, legacy-array migration, shared upload refactor, implementation, validation, unit/component/integration test updates, and documentation.
+- Assumptions: The project requirement's singular `location` is one attribute of a venue, not a child collection or separate location entity. UUID is the stable technical identity; trimmed, case-insensitive name plus location is the business uniqueness key. Facilities and layouts are controlled shared options; each new venue requires at least one of each. Images are optional, image MIME only, limited to 5 MB, and use the repository's existing data-URL upload convention. Accessibility behavior remains unchanged.
+- Checks run: Backend full unit suite — 557 passed; focused venue validation/service/repository suites — 55 passed; backend lint and build passed; frontend full unit suite — 330 passed and 1 todo; focused venue page suite — 27 passed; affected frontend ESLint and production build passed; `git diff --check` passed. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The unrelated `backend/src/registrations/registration-window.ts` repair was preserved without modification. No commit, push, pull request, Confluence update, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Generate SPM-50 venue UUIDs
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/store/types/tests, backend validation/service/repository/tests/migration, shared database schema/docs, Confluence `VEN-CRE-02` through `VEN-CRE-05`, and `AI_USAGE.md`
+- Summary: Removed the staff-entered venue identifier from the creation form and API contract. PostgreSQL now generates `venues.id` with `gen_random_uuid()`, the repository uses the returned UUID for accessibility links, and saved API/catalogue records retain the UUID. The migration converts any earlier local text IDs deterministically while preserving their accessibility relationships. Updated Confluence fixtures so identifiers are documented as system-generated outputs rather than user inputs.
+- AI contribution: Source-of-truth review, UUID contract refactor across frontend/backend/database, migration compatibility logic, automated-test updates, documentation updates, and Confluence read-modify-write verification.
+- Assumptions: Jira does not define an identifier field or generation strategy; the requester explicitly selected UUID generation. PostgreSQL is the identifier authority, and clients cannot supply or override a venue ID.
+- Checks run: Backend full unit suite — 546 passed (including 46 venue tests); frontend full unit suite — 328 passed and 1 todo (including 33 focused venue/store tests); backend lint and build passed; targeted frontend ESLint and production build passed; Confluence updates passed dry-run validation and HTML read-back with no stale `VEN-TC-*` fixture identifiers. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The separate `backend/src/registrations/registration-window.ts` repair was preserved and not edited as part of SPM-50. No commit, push, pull request, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Repair registration-window TypeScript build
+
+- Issue/PR: Unknown / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `backend/src/registrations`, `AI_USAGE.md`
+- Summary: Replaced the single-value readonly-tuple membership check with a direct `Confirmed` status comparison, resolving the TypeScript argument-narrowing error without changing registration behavior; corrected the adjacent stale comment.
+- AI contribution: TypeScript diagnosis, focused code repair, and regression verification.
+- Assumptions: Only `Confirmed` events are registrable, as already established by the registration tests and attendee visibility rules.
+- Checks run: Focused registration-window suite (11 passed); backend `npm run build` passed.
+- Follow-up/conflict notes: Existing staged SPM-50 work was preserved and not restaged; this repair remains unstaged for human review.
+
+## 2026-10-04 - Codex (GPT-6.1) - Record SPM-50 Confluence test evidence
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-01` through `VEN-CRE-06`, Create Venue Records Matrix, `AI_USAGE.md`
+- Summary: Refreshed the SPM-50 Confluence unit-test pages from the current Jira criteria and implementation, replaced placeholder module mappings, aligned the fixture to a 45-minute turnaround, and recorded all automated cases as passed with execution evidence dated 4 Oct 2026. Re-verified the later-restored `VEN-CRE-01-B`, corrected its heading, recorded its frontend and backend authorization evidence, added it to the traceability matrix, and labeled both associated automated-test comments with the exact test case ID.
+- AI contribution: Confluence discovery, source-to-test traceability review, rich-content-preserving page updates, execution-result recording, and read-back verification.
+- Assumptions: Confluence records automated Vitest evidence; the database-backed venue E2E remains separately unexecuted because `DATABASE_URL` is unavailable, and this limitation is stated on VEN-CRE-05.
+- Checks run: Backend venue suites (47 passed), including a focused `venues.service.spec.ts` rerun (9 passed); frontend SPM-50 route/form/store suites (38 passed), including a focused `VenueCreatePage.test.tsx` rerun (26 passed); Confluence dry-run validation and HTML/Markdown read-back confirmed pass states, execution dates, automation references, restored `VEN-CRE-01-B` traceability, and removal of all matrix placeholders.
+- Follow-up/conflict notes: Jira was read-only and unchanged. Confluence pages remain live docs in their existing draft state. No code behavior changed, and no commit, push, or PR was created.
+
+## 2026-10-03 - Codex (GPT-6.1) - Implement SPM-50 venue creation
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/`, `database/`, `AI_USAGE.md`
+- Summary: Added a Venue Staff-only creation route and form, authenticated/RBAC-protected venue APIs, PostgreSQL venue and accessibility persistence, durable catalogue refresh, success/error feedback, and required configurable setup and turnaround durations stored as non-negative whole minutes.
+- AI contribution: Fetched and checked Jira status/acceptance criteria; recovered prior SPM-50 work from the repository stash; reconciled it with current `dev`; completed missing duration behavior; updated unit/component/integration coverage and documentation.
+- Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
+- Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
+- Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
 ## 2026-10-04 - Codex (GPT-5) - Strengthen SPM-111 equipment validation and evidence
 
 - Issue/PR: SPM-111 / follow-up pull request pending.
@@ -96,6 +271,115 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: A withdrawn registration stays invisible to the attendee (`findMine` only returns `status='Registered'` rows, pinned by an existing SPM-61 e2e assertion) - AC2/AC4 for a withdrawn registration are a known gap, intentionally deferred to whichever future story implements the withdraw write path. No `cancelled` registration status exists or was added; Jira AC2's "(Confirmed, Cancelled, etc.)" wording is read as illustrative, not a requirement, since no feature in this repo produces that value for a registration (as opposed to an event).
 - Checks run: Frontend `npm test` (301 passed, 1 pre-existing todo, up from 296/296 baseline), `npx tsc --noEmit` (clean), `npm run lint` (2 pre-existing, unrelated failures in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, already noted in the 2026-09-26 SPM-99 entry above, untouched by this change). Backend `npm test` re-run unchanged at 500/500 (no backend files touched; registrations `.e2e-spec.ts` still skipped locally, no `DATABASE_URL`).
 - Follow-up/conflict notes: No existing branch/PR work was overwritten (the SPM-62 branch existed but had no commits ahead of `dev`). Staged for human review only; no commit, push, or PR created per instruction. If a future "withdraw" story persists withdrawals, `registrations.service.ts`'s `findMine` filter and this component's `registered` check will both need revisiting to surface Withdrawn status/details per AC2/AC4.
+## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, frontend venue types/displays/tests, `backend/src/venues/`, `backend/migrations/`, database initializer, and component documentation
+- Summary: Corrected the revised AC2 so operating information remains a multiline field while operating hours are a structured schedule: selected operating days plus required start and end times. The time controls share a responsive two-column row on desktop and stack on narrow screens. All fields are validated, persisted, returned by the API, and retained in the existing catalogue displays.
+- AI contribution: Jira/Confluence requirement review, frontend/API/database contract update, backward-compatible migration, mutation-sensitive happy/negative/boundary/cross-dependency test updates, and documentation.
+- Assumptions: One daily start/end range applies to every selected operating day; overnight schedules are not supported because end time must follow start time. Migration 006 backfills legacy operating information from the former text schedule, and migration 007 supplies weekday/all-day defaults only for pre-existing development records.
+- Checks run: Full frontend suite — 375 passed, 1 todo; full backend suite — 620 passed. Focused schedule tests cover selected-day, malformed-time, duplicate-day, equal-time, inverted-time, and minute-boundary cases; backend validation is 100% statements/functions/lines in its focused coverage run. Backend build and frontend TypeScript compilation passed. Frontend focused coverage execution is blocked by an existing global `RequireRole` coverage threshold; Vite bundling remains blocked locally because `@tailwindcss/postcss` is missing from the installed dependencies.
+- Follow-up/conflict notes: Existing staged work was preserved. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Implement SPM-50 AC7 venue redirect
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `frontend/src/pages/VenuesPage.tsx`, frontend documentation, and `AI_USAGE.md`
+- Summary: Implemented the newly added AC7: after a successful venue POST, Venue Staff are redirected to the existing venue catalogue and receive the server confirmation there. Failed validation or persistence leaves the user in the creation form with its error state. The redirect does not restore the removed catalogue GET/refresh behavior.
+- AI contribution: Jira/Confluence source-of-truth review, redirect and confirmation implementation, AC7-positive/negative test coverage, and documentation update.
+- Assumptions: AC7 requires the catalogue destination, not a catalogue API reload or display of the new record. Router navigation state is sufficient for carrying the confirmation across the redirect.
+- Checks run: Focused `VenueCreatePage` suite — 28 passed; full frontend suite — 344 passed, 1 todo. Frontend build was attempted; the SPM-50 code compiles, but the command remains blocked by two unrelated pre-existing implicit-`this` TypeScript errors in `EventEditForm.test.tsx`.
+- Follow-up/conflict notes: Jira is read-only and unchanged by this work. No commit, push, or pull request was created.
+
+## 2026-10-04 - Codex (GPT-6.1) - Cover SPM-50 shared uploads and venue displays
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/utils/`, venue display components/pages, event edit form, and navigation tests
+- Summary: Added unit tests for shared FileReader success/failure behavior, event edit upload integration, optional venue images, setup/turnaround displays, and Venue Staff creation navigation.
+- AI contribution: Test analysis and implementation.
+- Assumptions: Existing staged tests already cover SPM-50 form rules, route access, API confirmation, validation, authorization, and persistence; this addition targets changed behavior that lacked direct assertions.
+- Checks run: Frontend full unit suite with coverage — 344 passed, 1 todo; 80.45% total line coverage. VenueCreatePage reached 100% lines and 98.83% branches. `git diff --cached --check` passed.
+- Follow-up/conflict notes: Frontend total coverage remains below 100% because this run includes the whole application, including unrelated components; no commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Remove SPM-50 catalogue coupling
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/src/venues/`, supporting tests and documentation, and `AI_USAGE.md`
+- Summary: Removed the SPM-50 `GET /api/venues` endpoint, backend/repository catalogue reads, frontend catalogue refresh, saved-venue store insertion, and creation-page catalogue links. Kept the pre-existing venue catalogue intact and exposed creation directly through the Venue Staff navigation. Changed Operating information from a single-line input to the shared multiline text control.
+- AI contribution: Scope correction, cross-boundary API/store/UI/test cleanup, documentation update, and verification.
+- Assumptions: The existing catalogue belongs to separate venue-planning functionality. SPM-50 owns creation and persistence only; it confirms a successful POST without requiring a retrieval or display workflow.
+- Checks run: Focused frontend tests — 32 passed, then 26 passed after the textarea update; focused backend venue tests — 12 passed; full frontend suite — 327 passed, 1 todo; full backend suite — 551 passed; frontend build, backend lint, backend build, and `git diff --check` passed. Frontend lint remains blocked by two unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: PostgreSQL E2E was not run because `DATABASE_URL` is unavailable. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-6.1) - Correct SPM-50 persistence test scope
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-05-B`, Confluence `VEN-CRE-05-C`, and `AI_USAGE.md`
+- Summary: Replaced the retrieval/display-dependent VEN-CRE-05-B scenario with direct PostgreSQL persistence verification by generated UUID, and replaced VEN-CRE-05-C with an atomic rollback scenario for failed venue creation. Both revised cases are marked Not Executed pending their new automation evidence.
+- AI contribution: Creation-only scope correction, targeted rich-content Confluence edits, and saved-page verification.
+- Assumptions: SPM-50 AC5 requires creation and persistence but does not require a GET endpoint, catalogue, search, or venue display. Direct database queries are test-only verification and not product functionality.
+- Checks run: Confluence dry-run validation passed; post-update Markdown read-back confirmed both new scenarios and statuses, removal of the old retrieval/catalogue wording from VEN-CRE-05-B/C, and preservation of VEN-CRE-05-A.
+- Follow-up/conflict notes: No Jira, source code, commit, push, or pull request change was made during this documentation correction.
+
+## 2026-10-04 - Codex (GPT-6.1) - Normalize SPM-50 venue options and add image step
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/catalogue/types/tests, shared frontend uploads, backend venue validation/repository/tests/migration, database initializer/seeds/docs, and `AI_USAGE.md`
+- Summary: Reworked venue creation into two pages: venue details with exactly one scalar location and the existing accessibility pills, followed by controlled facility and room-layout selections plus one optional image. Extracted the event form's FileReader/data-URL behavior into a shared upload helper. Normalized facilities and layouts into lookup/junction tables, added one-to-one venue image persistence, retained PostgreSQL-generated venue UUIDs, and rendered saved images in catalogue/detail views. Rechecked the supplied Week 4 project requirements and removed wording that implied a venue could contain child locations. Added a case-insensitive, trimmed unique index for `(name, location)` and a field-level `409` response so UUID identity does not permit duplicate venue records.
+- AI contribution: Cross-boundary schema/API/UI design, legacy-array migration, shared upload refactor, implementation, validation, unit/component/integration test updates, and documentation.
+- Assumptions: The project requirement's singular `location` is one attribute of a venue, not a child collection or separate location entity. UUID is the stable technical identity; trimmed, case-insensitive name plus location is the business uniqueness key. Facilities and layouts are controlled shared options; each new venue requires at least one of each. Images are optional, image MIME only, limited to 5 MB, and use the repository's existing data-URL upload convention. Accessibility behavior remains unchanged.
+- Checks run: Backend full unit suite — 557 passed; focused venue validation/service/repository suites — 55 passed; backend lint and build passed; frontend full unit suite — 330 passed and 1 todo; focused venue page suite — 27 passed; affected frontend ESLint and production build passed; `git diff --check` passed. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The unrelated `backend/src/registrations/registration-window.ts` repair was preserved without modification. No commit, push, pull request, Confluence update, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Generate SPM-50 venue UUIDs
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/store/types/tests, backend validation/service/repository/tests/migration, shared database schema/docs, Confluence `VEN-CRE-02` through `VEN-CRE-05`, and `AI_USAGE.md`
+- Summary: Removed the staff-entered venue identifier from the creation form and API contract. PostgreSQL now generates `venues.id` with `gen_random_uuid()`, the repository uses the returned UUID for accessibility links, and saved API/catalogue records retain the UUID. The migration converts any earlier local text IDs deterministically while preserving their accessibility relationships. Updated Confluence fixtures so identifiers are documented as system-generated outputs rather than user inputs.
+- AI contribution: Source-of-truth review, UUID contract refactor across frontend/backend/database, migration compatibility logic, automated-test updates, documentation updates, and Confluence read-modify-write verification.
+- Assumptions: Jira does not define an identifier field or generation strategy; the requester explicitly selected UUID generation. PostgreSQL is the identifier authority, and clients cannot supply or override a venue ID.
+- Checks run: Backend full unit suite — 546 passed (including 46 venue tests); frontend full unit suite — 328 passed and 1 todo (including 33 focused venue/store tests); backend lint and build passed; targeted frontend ESLint and production build passed; Confluence updates passed dry-run validation and HTML read-back with no stale `VEN-TC-*` fixture identifiers. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The separate `backend/src/registrations/registration-window.ts` repair was preserved and not edited as part of SPM-50. No commit, push, pull request, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Repair registration-window TypeScript build
+
+- Issue/PR: Unknown / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `backend/src/registrations`, `AI_USAGE.md`
+- Summary: Replaced the single-value readonly-tuple membership check with a direct `Confirmed` status comparison, resolving the TypeScript argument-narrowing error without changing registration behavior; corrected the adjacent stale comment.
+- AI contribution: TypeScript diagnosis, focused code repair, and regression verification.
+- Assumptions: Only `Confirmed` events are registrable, as already established by the registration tests and attendee visibility rules.
+- Checks run: Focused registration-window suite (11 passed); backend `npm run build` passed.
+- Follow-up/conflict notes: Existing staged SPM-50 work was preserved and not restaged; this repair remains unstaged for human review.
+
+## 2026-10-04 - Codex (GPT-6.1) - Record SPM-50 Confluence test evidence
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-01` through `VEN-CRE-06`, Create Venue Records Matrix, `AI_USAGE.md`
+- Summary: Refreshed the SPM-50 Confluence unit-test pages from the current Jira criteria and implementation, replaced placeholder module mappings, aligned the fixture to a 45-minute turnaround, and recorded all automated cases as passed with execution evidence dated 4 Oct 2026. Re-verified the later-restored `VEN-CRE-01-B`, corrected its heading, recorded its frontend and backend authorization evidence, added it to the traceability matrix, and labeled both associated automated-test comments with the exact test case ID.
+- AI contribution: Confluence discovery, source-to-test traceability review, rich-content-preserving page updates, execution-result recording, and read-back verification.
+- Assumptions: Confluence records automated Vitest evidence; the database-backed venue E2E remains separately unexecuted because `DATABASE_URL` is unavailable, and this limitation is stated on VEN-CRE-05.
+- Checks run: Backend venue suites (47 passed), including a focused `venues.service.spec.ts` rerun (9 passed); frontend SPM-50 route/form/store suites (38 passed), including a focused `VenueCreatePage.test.tsx` rerun (26 passed); Confluence dry-run validation and HTML/Markdown read-back confirmed pass states, execution dates, automation references, restored `VEN-CRE-01-B` traceability, and removal of all matrix placeholders.
+- Follow-up/conflict notes: Jira was read-only and unchanged. Confluence pages remain live docs in their existing draft state. No code behavior changed, and no commit, push, or PR was created.
+
+## 2026-10-03 - Codex (GPT-6.1) - Implement SPM-50 venue creation
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/`, `database/`, `AI_USAGE.md`
+- Summary: Added a Venue Staff-only creation route and form, authenticated/RBAC-protected venue APIs, PostgreSQL venue and accessibility persistence, durable catalogue refresh, success/error feedback, and required configurable setup and turnaround durations stored as non-negative whole minutes.
+- AI contribution: Fetched and checked Jira status/acceptance criteria; recovered prior SPM-50 work from the repository stash; reconciled it with current `dev`; completed missing duration behavior; updated unit/component/integration coverage and documentation.
+- Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
+- Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
+- Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
 
 ## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
 
