@@ -4,6 +4,7 @@
  * ATT-01) so the request path in a test matches the case's literal.
  * Suite clock T0 = 2026-10-04T12:00:00+08:00 (= 04:00Z); fixtures are offsets from it.
  */
+import { screen, within } from "@testing-library/react";
 import type { EventRecord, Registration, User } from "@/types";
 
 export const T0 = new Date("2026-10-04T12:00:00+08:00");
@@ -79,3 +80,10 @@ export function withdrawalResponse(registration: Registration, withdrawnAt: Date
     message: "SERVER MESSAGE THE UI MUST NOT ECHO",
   };
 }
+
+/**
+ * Queries scoped to one timeline entry of the withdrawn card, so a test proves a
+ * timestamp sits under the right label (a swapped pair must fail).
+ */
+export const timelineEntry = (label: "Registered" | "Withdrawn") =>
+  within(screen.getByText(label, { selector: "p" }).closest("li")!);

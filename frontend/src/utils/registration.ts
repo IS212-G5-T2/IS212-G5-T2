@@ -77,23 +77,27 @@ export function validateRegistrationDetails(details: RegistrationDetails): Regis
 
 const SGT_TIME_ZONE = "Asia/Singapore";
 
-// One date-and-time format everywhere: 12 Mar 2027, 23:59 (24-hour, SGT).
-const SGT_FORMAT = new Intl.DateTimeFormat("en-GB", {
+// One date-and-time format everywhere: 12 Mar 2027, 23:59 (24-hour, SGT). Built from parts with a fixed
+// month table because the "en-GB" short form of September is "Sept" in newer ICU data.
+const SGT_PARTS = new Intl.DateTimeFormat("en-GB", {
   timeZone: SGT_TIME_ZONE,
   day: "numeric",
-  month: "short",
+  month: "numeric",
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
   hourCycle: "h23",
 });
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // en-CA yields an unambiguous YYYY-MM-DD calendar date in Singapore.
 const SGT_DAY_FORMAT = new Intl.DateTimeFormat("en-CA", { timeZone: SGT_TIME_ZONE });
 
 /** Formats an instant as "12 Mar 2027, 23:59" in Singapore time (D20). */
 export function formatSgtDateTime(value: string | Date): string {
-  return SGT_FORMAT.format(new Date(value));
+  const parts = SGT_PARTS.formatToParts(new Date(value));
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")}, ${part("hour")}:${part("minute")}`;
 }
 
 /** Same as formatSgtDateTime with the zone spelled out, for sentences like MSG-02. */
@@ -145,33 +149,6 @@ export function hasEventStarted(event: { startDateTime: string }, now: Date): bo
   return now.getTime() >= new Date(event.startDateTime).getTime();
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-// Fixed month names: the "en-GB" short form of September is "Sept" in newer ICU data.
-const SGT_PARTS = new Intl.DateTimeFormat("en-GB", {
-  timeZone: SGT_TIME_ZONE,
-  day: "numeric",
-  month: "numeric",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-/**
- * "Withdrawn today at 12:00" when the withdrawal falls on the same Singapore
- * calendar day as `now`, otherwise "Withdrawn on 28 Sep 2026, 23:30". The day is
- * decided in Asia/Singapore explicitly, never in the browser's time zone, and the
- * time is always shown so the UI can be compared with the API value (06-C).
- */
-export function formatWithdrawnAt(withdrawnAt: string | Date, now: Date): string {
-  const instant = new Date(withdrawnAt);
-  const part = (type: string) => SGT_PARTS.formatToParts(instant).find((p) => p.type === type)?.value ?? "";
-  const time = `${part("hour")}:${part("minute")}`;
-  if (sgtCalendarDayDiff(instant, now) === 0) return `Withdrawn today at ${time}`;
-  return `Withdrawn on ${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")}, ${time}`;
-}
-
 /*
  * Withdrawn registration card redesign (SPM-120 follow-up). The timeline always
  * shows absolute SGT timestamps (formatSgtDateTime); nothing here renders a bare
@@ -185,11 +162,7 @@ export function daysUntilLabel(target: string | Date, now: Date): string {
   return `${days} ${days === 1 ? "day" : "days"}`;
 }
 
-/**
- * Footer copy for the withdrawn-card "Register again" action. Release 1 has no
- * waiting list (D25), so the full-but-no-waiting-list row of the state matrix
- * is the only "full" case this app can produce.
- */
+/** Footer copy for the withdrawn-card "Register again" action, one line per blocked state. */
 export const REREGISTER_FOOTER = {
   changedYourMind: "Changed your mind?",
   full: "This event is full.",

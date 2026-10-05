@@ -509,3 +509,126 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 });
+
+/*
+ * Story: SPM-120 Withdraw Registration, withdrawn-card redesign: "Register again".
+ * Test cases: WITHDRAW-EVENT-REG-CARD-10 (prefill), CARD-11 (re-register replaces the withdrawn card),
+ * CARD-12 (a refused re-registration changes nothing). Oracles are literals from the redesign brief:
+ * the form is prefilled from the WITHDRAWN record (not the account), the card flips to the new
+ * registration even though it has a new id, and the confirmation reads "Registered again for {event}."
+ */
+describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
+  // Differs from ATT_01's account name and email on purpose, so a prefill from the account fails.
+  const withdrawn = buildRegistration({
+    id: "REG-9001",
+    status: "withdrawn",
+    withdrawnAt: T0.toISOString(),
+    fullName: "Alice Tan-Lim",
+    email: "alice.work@example.com",
+    contactNumber: "+65 9123 4567",
+  });
+
+  function renderWithdrawn(registration: Registration = withdrawn) {
+    useAppStore.setState({ isAuthenticated: true, currentUser: ATT_01, registrations: [registration] });
+    return render(<RegistrationSection event={buildEvent()} currentUser={ATT_01} registration={registration} />);
+  }
+  const registerAgain = () => screen.queryByRole("button", { name: "Register again" });
+
+  beforeEach(() => vi.setSystemTime(T0));
+
+  // Oracle (brief): Register again opens the form prefilled with the withdrawn record's name, email and
+  // contact number; the footer action is hidden while the form is open so there is one place to act.
+  // Mutants killed: prefill from the account instead of the withdrawn record; contact number not prefilled;
+  // footer (and a second Register again button) still shown under an open form.
+  it("WITHDRAW-EVENT-REG-CARD-10: opens a form prefilled from the withdrawn registration and hides the footer", async () => {
+    // Arrange
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithdrawn();
+
+    // Act
+    await u.click(registerAgain()!);
+
+    // Assert
+    expect(screen.getByLabelText(/Full name/)).toHaveValue("Alice Tan-Lim");
+    expect(screen.getByLabelText(/Email/)).toHaveValue("alice.work@example.com");
+    expect(screen.getByLabelText(/Contact number/)).toHaveValue("+65 9123 4567");
+    expect(registerAgain()).not.toBeInTheDocument();
+    expect(screen.queryByText("Changed your mind?")).not.toBeInTheDocument();
+    expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
+  });
+
+  // Oracle (brief): a withdrawn record with no contact number prefills an empty field, never "undefined".
+  // Mutant killed: an absent contact number rendered as text.
+  it("WITHDRAW-EVENT-REG-CARD-10 (no contact number): the contact field starts empty", async () => {
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderWithdrawn({ ...withdrawn, contactNumber: undefined });
+
+    await u.click(registerAgain()!);
+
+    expect(screen.getByLabelText(/Contact number/)).toHaveValue("");
+  });
+
+  // Oracle (brief + backend 06-A derived): submitting posts the prefilled details; the server reactivates the SAME
+  // row (same id, withdrawnAt cleared), and the card must flip from withdrawn to registered with the
+  // "Registered again" wording (not the first-time message).
+  // Mutants killed: card left withdrawn after a successful re-registration; first-time confirmation wording
+  // reused; the withdrawn card left on screen.
+  it("WITHDRAW-EVENT-REG-CARD-11: re-registering replaces the withdrawn card with the new registration", async () => {
+    // Arrange: the server reactivates the existing row, so the id stays REG-9001 and there is no withdrawnAt.
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const again = buildRegistration({
+      id: "REG-9001",
+      status: "registered",
+      registeredAt: T0.toISOString(),
+      fullName: "Alice Tan-Lim",
+      email: "alice.work@example.com",
+      contactNumber: "+65 9123 4567",
+    });
+    mockPost(() => Promise.resolve({ registration: again }));
+    renderWithdrawn();
+    await u.click(registerAgain()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Submit registration" }));
+
+    // Assert: the request carried the prefilled details
+    const [path, init] = apiMock.mock.calls[0];
+    expect(path).toBe("/events/EVT-101/registrations");
+    expect(JSON.parse(String(init?.body))).toMatchObject({
+      fullName: "Alice Tan-Lim",
+      email: "alice.work@example.com",
+      contactNumber: "+65 9123 4567",
+    });
+    // Assert: the card is now the active registration
+    expect(await screen.findByText("You're registered")).toBeInTheDocument();
+    expect(within(screen.getByText("Registered on").parentElement!).getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Withdraw" })).toBeEnabled();
+    expect(screen.queryByText("Registration withdrawn")).not.toBeInTheDocument();
+    expect(registerAgain()).not.toBeInTheDocument();
+    // Assert: the confirmation uses the re-register wording
+    expect(screen.getByText("Registered again for Tech Talk: Cloud 101.")).toBeInTheDocument();
+    expect(screen.queryByText(/Registration successful/)).not.toBeInTheDocument();
+  });
+
+  // Oracle (SPM-61 server rules apply to re-registration): the server refuses (window closed meanwhile); its
+  // message is shown, the typed values stay, and the card is still the withdrawn registration.
+  // Mutants killed: optimistic card flip before the server answers; refusal swallowed.
+  it("WITHDRAW-EVENT-REG-CARD-12: a refused re-registration shows the server message and changes nothing", async () => {
+    // Arrange
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockPost(() => Promise.reject(new ApiError("Registration has closed for this event.", undefined, "registration_closed", 422)));
+    renderWithdrawn();
+    await u.click(registerAgain()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Submit registration" }));
+
+    // Assert
+    expect(await screen.findByText("Registration has closed for this event.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Full name/)).toHaveValue("Alice Tan-Lim");
+    expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
+    expect(screen.queryByText("You're registered")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Registered again/)).not.toBeInTheDocument();
+    expect(useAppStore.getState().registrations).toEqual([withdrawn]);
+  });
+});

@@ -51,8 +51,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
   const submitWithdrawal = useAppStore((s) => s.submitWithdrawal);
   // The store holds the freshest copy (it is updated by a withdrawal or a re-registration); matched by
-  // event + attendee, not the prop's id, because re-registering after a withdrawal creates a new row
-  // with a new id (registerForEvent replaces the old row for this event/attendee pair in the store).
+  // event + attendee, which is what registerForEvent uses to replace the withdrawn row in the store.
   const stored = useAppStore((s) =>
     s.registrations.find((r) => r.eventId === event.id && r.attendeeId === currentUser.id),
   );

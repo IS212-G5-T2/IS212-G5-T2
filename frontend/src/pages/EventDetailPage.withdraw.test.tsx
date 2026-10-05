@@ -19,7 +19,7 @@ import { RequireAuth } from "@/components/auth/RequireAuth";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import type { User } from "@/types";
-import { ATT_01, T0, buildEvent, buildRegistration, withdrawalResponse } from "@/components/EventDetail/withdrawal.fixtures";
+import { ATT_01, T0, buildEvent, buildRegistration, timelineEntry, withdrawalResponse } from "@/components/EventDetail/withdrawal.fixtures";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -56,7 +56,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
   // Oracle (SPEC 06-A + 06-C UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
-  // and shows the grey Withdrawn badge and "Withdrawn today at 12:00" (SGT, not the UTC hour 04).
+  // and shows the withdrawn card with the Withdrawn entry at 4 Oct 2026, 12:00 (SGT, not the UTC hour 04).
   // The store is emptied between the two mounts, so the only source of truth is the refetch.
   // Mutants killed: stale client state; UI showing the UTC hour; withdrawn status not shown on reload.
   it("WITHDRAW-EVENT-REG-06-A / 06-C (frontend): remounting shows Withdrawn at 12:00", async () => {
@@ -82,8 +82,9 @@ describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
 
     // Assert
     expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
-    // SPM-120 card redesign: the timeline shows the absolute SGT timestamp, not a relative "today at".
-    expect(screen.getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
+    // SPM-120 card redesign: the timeline shows absolute SGT timestamps (12:00, not the UTC hour 04) under the right labels.
+    expect(timelineEntry("Registered").getByText("3 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
     expect(meCalls).toBe(2);
   });

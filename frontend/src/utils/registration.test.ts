@@ -7,9 +7,9 @@ import { describe, expect, it } from "vitest";
 import {
   REGISTRATION_LIMITS,
   WITHDRAWAL_MESSAGES,
+  daysUntilLabel,
   formatSgt,
   formatSgtDateTime,
-  formatWithdrawnAt,
   hasEventStarted,
   isRegistrationOpen,
   registrationClosingHeading,
@@ -141,21 +141,50 @@ describe("SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)", (
   });
 });
 
-describe("SPM-120 AC6: formatWithdrawnAt (SGT calendar day, time always shown)", () => {
-  // Oracle (SPEC 06-C / D12 as amended): same SGT day -> "Withdrawn today at HH:mm"; otherwise
-  // "Withdrawn on D Mon YYYY, HH:mm". The SGT day, not the UTC day, decides "today".
-  // Mutant killed: M8 the UTC day used instead of the SGT day (rows 2 and 3 differ between the two).
+describe("SPM-120 AC5: formatSgtDateTime (the timeline's absolute SGT timestamp)", () => {
+  // Oracle (SPEC 06-C, as amended by the card redesign): the timeline shows "D Mon YYYY, HH:mm" in Singapore
+  // time, with the SGT day, not the UTC day, deciding the date.
+  // Mutants killed: UTC day or hour shown instead of SGT (the first row crosses midnight between the two zones).
   it.each([
-    ["same SGT day", "2026-10-04T12:00:00+08:00", "2026-10-04T12:05:00+08:00", "Withdrawn today at 12:00"],
-    ["previous SGT day, same UTC day", "2026-09-28T23:30:00+08:00", "2026-09-29T00:10:00+08:00", "Withdrawn on 28 Sep 2026, 23:30"],
-    ["same SGT day, previous UTC day", "2026-09-29T00:30:00+08:00", "2026-09-29T12:00:00+08:00", "Withdrawn today at 00:30"],
-    ["a September date uses the fixed short month", "2026-09-04T09:05:00+08:00", "2026-10-04T12:00:00+08:00", "Withdrawn on 4 Sep 2026, 09:05"],
-  ])("WITHDRAW-EVENT-REG-06-C: %s", (_label, withdrawnAt, now, expected) => {
-    expect(formatWithdrawnAt(withdrawnAt, new Date(now))).toBe(expected);
+    ["crosses midnight: 17:30Z is already the next SGT day", "2026-10-04T17:30:00.000Z", "5 Oct 2026, 01:30"],
+    ["same SGT and UTC day", "2026-10-04T04:00:00.000Z", "4 Oct 2026, 12:00"],
+    ["previous UTC day, same SGT day", "2026-09-28T16:30:00.000Z", "29 Sep 2026, 00:30"],
+  ])("WITHDRAW-EVENT-REG-06-C: %s", (_label, instant, expected) => {
+    expect(formatSgtDateTime(instant)).toBe(expected);
+  });
+
+  // Oracle (DERIVED from the app's one date format, "12 Mar 2027"): every month is the fixed three-letter
+  // name. The "en-GB" short form of September is "Sept" in newer ICU data, which is not the app format.
+  // Mutants killed: month names taken from Intl instead of a fixed table (September fails on current ICU).
+  it.each([
+    ["Jan", "2026-01-04T01:05:00.000Z"], ["Feb", "2026-02-04T01:05:00.000Z"], ["Mar", "2026-03-04T01:05:00.000Z"],
+    ["Apr", "2026-04-04T01:05:00.000Z"], ["May", "2026-05-04T01:05:00.000Z"], ["Jun", "2026-06-04T01:05:00.000Z"],
+    ["Jul", "2026-07-04T01:05:00.000Z"], ["Aug", "2026-08-04T01:05:00.000Z"], ["Sep", "2026-09-04T01:05:00.000Z"],
+    ["Oct", "2026-10-04T01:05:00.000Z"], ["Nov", "2026-11-04T01:05:00.000Z"], ["Dec", "2026-12-04T01:05:00.000Z"],
+  ])("WITHDRAW-EVENT-REG-06-C: %s uses the fixed three-letter month", (month, instant) => {
+    expect(formatSgtDateTime(instant)).toBe(`4 ${month} 2026, 09:05`);
   });
 });
 
-describe("SPM-120 AC5/AC7: message literals", () => {
+describe("SPM-120 redesign: daysUntilLabel (footer 'Closes ... (N days)')", () => {
+  // Oracle (DERIVED from registrationClosingHeading / SPM-61: the SGT calendar-day difference, not hours / 24).
+  // Mutants killed: hours / 24 instead of calendar days (row 4 is two minutes apart but a day later); the UTC
+  // day instead of the SGT day (row 5); "1 days" plural; "today" shown as "0 days".
+  const closesAt = "2027-03-12T15:59:00.000Z"; // 23:59 SGT on 12 Mar 2027
+  it.each([
+    ["same SGT day, hours earlier", "2027-03-12T02:00:00.000Z", closesAt, "today"],
+    ["same SGT day, one minute earlier", "2027-03-12T15:58:00.000Z", closesAt, "today"],
+    ["exactly 24 hours earlier", "2027-03-11T15:59:00.000Z", closesAt, "1 day"],
+    ["two minutes apart across SGT midnight", "2027-03-12T15:59:00.000Z", "2027-03-12T16:01:00.000Z", "1 day"],
+    ["UTC day differs but the SGT day is the same", "2027-03-11T17:00:00.000Z", closesAt, "today"],
+    ["two days earlier", "2027-03-10T02:00:00.000Z", closesAt, "2 days"],
+    ["the design example (5 Oct 2026 to 12 Mar 2027)", "2026-10-05T07:53:00.000Z", closesAt, "158 days"],
+  ])("%s -> %s", (_label, now, target, expected) => {
+    expect(daysUntilLabel(target, new Date(now))).toBe(expected);
+  });
+});
+
+describe("SPM-120 AC5/AC6: message literals", () => {
   // Oracle (SPEC AC5, D8): the blocked message has no full stop; MSG-11 is built from the event name.
   // Mutants killed: reworded blocked message; hard-coded event name in the success message.
   it("WITHDRAW-EVENT-REG-05-A / 07-B: exact literals", () => {

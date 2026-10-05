@@ -19,7 +19,7 @@ import { RegistrationSection } from "./RegistrationSection";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import type { EventRecord, Registration } from "@/types";
-import { ATT_01, T0, buildEvent, buildRegistration, withdrawalResponse } from "./withdrawal.fixtures";
+import { ATT_01, T0, buildEvent, buildRegistration, timelineEntry, withdrawalResponse } from "./withdrawal.fixtures";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -83,7 +83,7 @@ describe("SPM-120 AC2: the confirmation prompt shows the event name and the cons
 
 describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => {
   // Oracle (SPEC 03-A frontend): exactly one POST to /registrations/REG-9001/withdraw; dialog closes;
-  // badge "Withdrawn"; "Withdrawn today at 12:00".
+  // withdrawn card with Registered 3 Oct 2026, 12:00 and Withdrawn 4 Oct 2026, 12:00 in its timeline.
   // Mutants killed: two requests per click; wrong registration id; local state not updated from the response.
   it("WITHDRAW-EVENT-REG-03-A (frontend): Confirm sends one POST and shows the withdrawn status", async () => {
     // Arrange
@@ -102,8 +102,9 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
-    // SPM-120 card redesign: the withdrawal timeline entry shows the absolute SGT timestamp.
-    expect(screen.getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
+    // SPM-120 card redesign: each timeline entry carries its own absolute SGT timestamp.
+    expect(timelineEntry("Registered").getByText("3 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
   });
 
   // Oracle (SPEC 03-B + F12): Cancel closes the dialog with zero requests, badge stays, no message, focus returns.
@@ -212,7 +213,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
   });
 
   // Oracle (SPEC 07-B + D9 + F15): MSG-11 template per event name, built by the UI (the mock's text is different),
-  // no timestamp in the banner; the status area shows "Withdrawn today at 14:30" (clock 14:30 SGT).
+  // no timestamp in the banner; the Withdrawn timeline entry shows 4 Oct 2026, 14:30 (clock 14:30 SGT).
   // Mutants killed: hard-coded event name; name taken from another registration; template differing per event;
   // banner echoing the server message; a timestamp in the banner.
   it.each([
@@ -239,7 +240,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(message.textContent).toBe(sentence);
     expect(message.textContent).not.toMatch(/\d{1,2}:\d{2}/);
     expect(screen.queryByText("SERVER MESSAGE THE UI MUST NOT ECHO")).not.toBeInTheDocument();
-    // SPM-120 card redesign: the status area (not the banner) carries the absolute SGT timestamp.
-    expect(screen.getByText("4 Oct 2026, 14:30")).toBeInTheDocument();
+    // SPM-120 card redesign: the Withdrawn timeline entry (not the banner) carries the absolute SGT timestamp.
+    expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 14:30")).toBeInTheDocument();
   });
 });

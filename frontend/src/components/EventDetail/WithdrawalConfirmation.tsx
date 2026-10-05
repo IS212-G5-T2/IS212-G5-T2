@@ -121,9 +121,9 @@ interface BannerProps {
 }
 
 /**
- * SPM-120 AC7: the on-screen confirmation after a successful withdrawal. A success
+ * SPM-120 AC6: the on-screen confirmation after a successful withdrawal. A success
  * (not error) variant that stays until dismissed, with no timer, and is announced
- * politely to assistive technology. It carries no timestamp: that sits in the status area.
+ * politely to assistive technology. It carries no timestamp: that sits in the withdrawn card's timeline.
  */
 export function WithdrawalSuccessBanner({ message, onDismiss }: BannerProps) {
   return (

@@ -11,7 +11,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
-import { HOUR, T0, buildEvent, buildRegistration, iso } from "./withdrawal.fixtures";
+import { HOUR, T0, buildEvent, buildRegistration, iso, timelineEntry } from "./withdrawal.fixtures";
 
 const noop = () => {};
 
@@ -21,7 +21,7 @@ afterEach(() => vi.useRealTimers());
 describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again button", () => {
   // Oracle (task spec): the badge, both timeline entries with correct absolute timestamps,
   // and the Register again button all render for an open, spots-available event.
-  // Mutants killed: badge text/icon missing; a timeline entry dropped; button missing.
+  // Mutants killed: badge text/icon missing; a timeline entry dropped; the two timestamps swapped; button missing.
   it("renders the withdrawn badge, both timeline entries and an enabled Register again button", () => {
     const registration = buildRegistration({ registeredAt: iso(-24 * HOUR), withdrawnAt: T0.toISOString() });
     render(
@@ -29,11 +29,10 @@ describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again but
     );
 
     expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
-    const list = screen.getByRole("list");
-    expect(within(list).getByText("Registered")).toBeInTheDocument();
-    expect(within(list).getByText("3 Oct 2026, 12:00")).toBeInTheDocument();
-    expect(within(list).getByText("Withdrawn")).toBeInTheDocument();
-    expect(within(list).getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
+    // Each timestamp is asserted inside its own entry, so swapped timestamps fail.
+    expect(timelineEntry("Registered").getByText("3 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Register again" })).toBeEnabled();
   });
 });
@@ -117,6 +116,25 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
     expect(onRegisterAgain).toHaveBeenCalledTimes(1);
   });
 
+  // Oracle (DERIVED, calendar-day rule shared with the SPM-61 heading): "today" on the closing day, "1 day" the next
+  // SGT day even when only minutes apart. Clock T0 is 4 Oct 12:00 SGT.
+  // Mutants killed: hours / 24 instead of SGT calendar days; "0 days" instead of "today".
+  it.each([
+    ["closes later today", "2026-10-04T23:59:00+08:00", "Closes 4 Oct 2026, 23:59 (today)"],
+    ["closes just after SGT midnight", "2026-10-05T00:01:00+08:00", "Closes 5 Oct 2026, 00:01 (1 day)"],
+  ])("footer day count: %s", (_label, closesAt, expected) => {
+    const event = buildEvent({ availableRegistrationSpots: 5, registrationClosesAt: closesAt });
+    render(
+      <WithdrawnRegistrationStatus
+        event={event}
+        registration={buildRegistration({ withdrawnAt: T0.toISOString() })}
+        now={T0}
+        onRegisterAgain={noop}
+      />,
+    );
+    expect(screen.getByText(`5 spots left \u00b7 ${expected}`)).toBeInTheDocument();
+  });
+
   // Singular "1 spot left", matching the plural rule used elsewhere on this card (SPM-61 D-series).
   it("uses the singular for exactly 1 spot", () => {
     const event = buildEvent({ availableRegistrationSpots: 1, registrationClosesAt: iso(24 * HOUR) });
@@ -132,9 +150,8 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
   });
 });
 
-describe("WITHDRAW-EVENT-REG-CARD-05: full, no waiting list", () => {
-  // Oracle (task spec state matrix, row 3): Release 1 has no waiting list (D25), so this is the
-  // only "spots = 0" row this app can produce. "This event is full.", button hidden.
+describe("WITHDRAW-EVENT-REG-CARD-05: full event", () => {
+  // Oracle (task spec state matrix, row 3): with no spots left the footer says "This event is full." and the button is hidden.
   // Mutants killed: button still shown when full; wrong wording.
   it("shows 'This event is full.' and hides the button", () => {
     const event = buildEvent({ availableRegistrationSpots: 0 });
@@ -264,16 +281,17 @@ describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial regist
 describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () => {
   // Oracle (SPEC, mirrors the SPM-120 06-C convention): an instant whose UTC calendar day differs
   // from its Singapore calendar day must still show the SGT day and time, not the UTC one.
-  // Mutants killed: formatting in UTC or the browser's local zone instead of Asia/Singapore.
+  // Mutants killed: formatting in UTC or the browser's local zone instead of Asia/Singapore
+  // (the day AND the hour differ, so either part of the output would catch it).
   it("shows the Singapore date and time even when the UTC day differs", () => {
-    // 2026-10-04T23:30:00+08:00 is 2026-10-04T15:30:00Z: same instant, different calendar day in UTC.
-    const withdrawnAt = "2026-10-04T23:30:00+08:00";
+    // 2026-10-05T01:30:00+08:00 is 2026-10-04T17:30:00Z: the same instant, but a different calendar day in UTC.
+    const withdrawnAt = "2026-10-05T01:30:00+08:00";
     const registration = buildRegistration({ registeredAt: iso(-24 * HOUR), withdrawnAt });
     render(
       <WithdrawnRegistrationStatus event={buildEvent()} registration={registration} now={T0} onRegisterAgain={noop} />,
     );
 
-    const withdrawnTime = screen.getByText("4 Oct 2026, 23:30");
+    const withdrawnTime = timelineEntry("Withdrawn").getByText("5 Oct 2026, 01:30");
     expect(withdrawnTime.tagName).toBe("TIME");
     expect(withdrawnTime).toHaveAttribute("datetime", withdrawnAt);
   });

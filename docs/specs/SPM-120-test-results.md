@@ -10,9 +10,9 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 
 - Backend unit: `cd backend && npm test` (582 passed; baseline 579).
 - Backend integration (real PostgreSQL, needs `database/postgresql/init` 001 to 007 applied): `cd backend && DATABASE_URL=postgres://spm:spm_dev_password@localhost:5432/spm npx vitest run --config ./vitest.config.e2e.ts src/registrations` (55 passed, 2 todo; baseline 30).
-- 06-C time zones: `TZ=UTC|Asia/Singapore|America/Los_Angeles npx vitest run --config ./vitest.config.e2e.ts src/registrations/registrations.withdraw -t "06-C"` (2 passed under each).
-- Frontend: `cd frontend && npm test` (375 passed, 1 todo; baseline 341 passed, 1 todo), `npx tsc -b --noEmit` (clean), `npm run lint` (2 errors, both pre-existing: `ClarificationThread.tsx:157` and `useAppStore.auth.test.ts:5`), `npm run build` (ok).
-- Browser (08-A): start a backend and a frontend against a dedicated database, then `cd backend && TEST_DATABASE_URL=<db> PLAYWRIGHT_BASE_URL=<frontend url> node scripts/testing/run-browser.mjs src/pages/EventDetailPage.withdraw.playwright.spec.ts`. Run once on `spm_test` with a backend on :8081 and Vite on :5174: 1 passed; the fixture and registrations were removed afterwards (checked).
+- 06-C time zones: `TZ=UTC|Asia/Singapore|America/Los_Angeles npx vitest run --config ./vitest.config.e2e.ts src/registrations/registrations.withdraw -t "06-C"` (2 passed under each). The frontend date tests (`registration.test.ts`, the withdrawn-card suite, the page test) also pass under all three (67 each).
+- Frontend: `cd frontend && npm test` (413 passed, 1 todo; baseline 341 passed, 1 todo), `npx tsc -b --noEmit` (clean), `npm run lint` (2 errors, both pre-existing: `ClarificationThread.tsx:157` and `useAppStore.auth.test.ts:5`), `npm run build` (ok).
+- Browser (08-A): start a backend and a frontend against a dedicated database, then `cd backend && TEST_DATABASE_URL=<db> PLAYWRIGHT_BASE_URL=<frontend url> node scripts/testing/run-browser.mjs src/pages/EventDetailPage.withdraw.playwright.spec.ts`. Re-run after the card redesign on a throwaway `spm_test` database (init 001 to 007 applied) with a backend on :8081 and Vite on :5174: 1 passed, covering withdraw, the timeline card, reload persistence and Register again. The database was then dropped and the Compose `spm` database was checked untouched. A fresh database lacks the SPM-37 `event_drafts` table, so the harness's own cleanup step errors after the test has passed; dropping the database made that harmless.
 - Mutation spot-check driver: kept in the session scratchpad only (not committed).
 
 ## Evidence table
@@ -23,7 +23,7 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 01-B | AC1 | FE component | SPEC 01-B + D6/D11 (the "Event has occurred" badge bullet was removed) | control active for a past event |
 | 02-A | AC2 | FE component | SPEC 02-A test data (title, two consequences, two buttons); added: no request on open | event name wrong; request on first click; consequence missing |
 | 02-B | AC2 | FE a11y (jsdom) | SPEC 02-B Subtest C subset; initial focus changed to Cancel (D10 B) | M12 trap removed; Escape ignored; focus not moved; unlabeled dialog |
-| 03-A | AC3 | BE integration + FE | SPEC 03-A (F1 count 3 to 2; F2 clock T0) | 200 without state change; two requests per click; wrong id; count not released; M4, M10 |
+| 03-A | AC3 | BE integration + FE | SPEC 03-A (F1 count 3 to 2; F2 clock T0) | 200 without state change; two requests per click; wrong id; count not released; M4, M10; FE: timeline timestamps swapped (M14) |
 | 03-B | AC3 | FE component | SPEC 03-B; backdrop ignored is ASSUMED (F12) | M9a/M9b Cancel or backdrop sends a request |
 | 04-A | AC4 | FE component | SPEC 04-A + D11; boundary case DERIVED from A7 | past-event control opens the prompt; boundary read from the end |
 | 04-B | AC4 | BE integration | SPEC 04-B + D6/D7 | M5 server-side check missing; status written before the check |
@@ -32,13 +32,16 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 05-B | AC5 | BE integration | SPEC AC5 + D6/D7; whole-body equality | different wording; message varies with distance; internals leaked |
 | 06-A | AC6 | BE integration + FE page + unit | SPEC 06-A; Subtest C added (SPM-61 D15) | M4 hard delete; wrong value; withdrawn_at from the client; stale client state |
 | 06-B | AC6 | BE integration (real DB) | SPEC 06-B; Subtests B and C added | M3 no state guard; check-then-update race; second call overwrites withdrawn_at |
-| 06-C | AC6 | BE integration + FE | SPEC 06-C (T0 per F2/F14) | M11 local-time text; M8 UTC day; recalculated timestamp |
+| 06-C | AC6 | BE integration + FE | SPEC 06-C (T0 per F2/F14) | M11 local-time text; M8 UTC day or hour (`formatSgtDateTime`, now the timeline's formatter); M21 "Sept" month; recalculated timestamp |
 | 07-A | AC6 | FE component | SPEC 07-A + D9/D13; Subtest B added | M7 success before response; auto-dismiss; dialog lingers |
 | 07-B | AC6 | FE component (table) | SPEC 07-B + D9 + F15 (banner has no timestamp) | hard-coded name; wrong name; banner echoes the server message |
 | 08-A | story goal | BE integration + FE page + Playwright | SPEC 08-A; display per D17 (the repo's "Available N spot(s)") | spot not released; stale cache; no refetch |
 | 09-A | cross-cutting | BE integration | SPEC 09-A + D16 (404, never 403); Subtest D and organiser case added | M2 scoping removed; M6 403 instead of 404 |
 | 09-B | cross-cutting | BE integration + FE | SPEC 09-B + D16 ("Missing session"); FE case added | bypassing the 401 handling (M13); success after a 401 |
 | 10-A | cross-cutting | BE integration (real DB) | SPEC 10-A (B); A is 06-B A | race, deadlock as 500, double release |
+| CARD-01 to 09 | redesign | FE component | Redesign brief (state matrix, timeline, disclosure); boundaries DERIVED from `registrationState` / `hasEventStarted`; CARD-09 regression | badge or entry missing; timestamps swapped (M14); blocked state still shows the button; footer disagrees with `registrationState`; withdrawn card shown for a registered attendee |
+| CARD-04 (day count) + `daysUntilLabel` | redesign | FE component + unit | DERIVED: SGT calendar-day difference, as in the SPM-61 heading | hours / 24 instead of calendar days; UTC day instead of SGT day; "0 days" instead of "today" |
+| CARD-10 to 12 | redesign | FE component | Redesign brief + backend 06-A derived (the same row is reactivated) | prefill from the account (M16) or no contact prefill (M17); first-time wording on re-register (M18); footer under the open form (M19); card left on the stale prop (M20); optimistic flip on a refused re-registration |
 
 ## Results
 
@@ -52,7 +55,7 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 02-B | B: 200% zoom, 44x44 px targets, 4.5:1 contrast | | | Not Automated | Needs a real browser and a contrast tool |
 | 02-B | C: screen-reader announcements | | | Not Automated | Needs NVDA/JAWS/VoiceOver. Visible-focus styling also needs a browser |
 | 03-A | backend | `registrations.withdraw.e2e-spec.ts :: WITHDRAW-EVENT-REG-03-A ...` (no body, `{}`) | BE integration | Pass | 200, body, DB row, fresh read, count 3 to 2 |
-| 03-A | frontend | `WithdrawalConfirmation.test.tsx :: WITHDRAW-EVENT-REG-03-A (frontend)` | FE component | Pass | One POST to `/registrations/REG-9001/withdraw`; "Withdrawn today at 12:00" |
+| 03-A | frontend | `WithdrawalConfirmation.test.tsx :: WITHDRAW-EVENT-REG-03-A (frontend)` | FE component | Pass | One POST to `/registrations/REG-9001/withdraw`; timeline Registered 3 Oct 2026, 12:00 and Withdrawn 4 Oct 2026, 12:00, each asserted inside its own entry |
 | 03-B | | `WithdrawalConfirmation.test.tsx :: WITHDRAW-EVENT-REG-03-B` (2 tests) | FE component | Pass | The GET / DB / capacity bullets follow from "zero requests" and are covered by that assertion |
 | 04-A | | `RegistrationSection.test.tsx :: WITHDRAW-EVENT-REG-04-A` (2 tests) | FE component | Pass | Includes an in-progress boundary case |
 | 04-B | | `registrations.withdraw.e2e-spec.ts :: WITHDRAW-EVENT-REG-04-B ...` (2) | BE integration | Pass | 422, state and count unchanged |
@@ -69,21 +72,23 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | 06-B | frontend (added) | `RegistrationSection.test.tsx :: ...06-B (frontend, added)` | FE component | Pass | Already-withdrawn conflict reloads the registration |
 | 06-C | A, B | `registrations.withdraw.e2e-spec.ts :: ...06-C` (2) | BE integration | Pass | |
 | 06-C | C: three time zones | same two tests under `TZ=UTC`, `Asia/Singapore`, `America/Los_Angeles` | BE integration | Pass | Identical results |
-| 06-C | UI | `registration.test.ts :: ...06-C` (4); page test | FE unit + page | Pass | Tolerance is the same minute; the API and DB are exact |
+| 06-C | UI | `registration.test.ts :: ...06-C` (3 day-crossing rows + 12 month rows, for `formatSgtDateTime`); page test | FE unit + page | Pass | The old `formatWithdrawnAt` ("Withdrawn today at") was removed with the redesign; the timeline shows absolute SGT times. The API and DB are exact |
 | 07-A | A | `WithdrawalConfirmation.test.tsx :: ...07-A (A)` | FE component | Pass | Fake timers: closed within 500 ms, still visible after 10 s |
 | 07-A | B (added) | same file (2 rows) | FE component | Pass | 503 and network failure |
 | 07-B | | `WithdrawalConfirmation.test.tsx :: ...07-B` (3 rows) | FE component | Pass | Banner has no timestamp (F15); the status area shows 14:30 |
 | 08-A | backend | `registrations.withdraw.e2e-spec.ts :: ...08-A` | BE integration | Pass | Uses `availableRegistrationSpots` 0 to 1 (D17); no `confirmedCount` was added |
 | 08-A | frontend | `EventDetailPage.withdraw.test.tsx :: ...08-A (frontend)` | FE page | Pass | |
-| 08-A | browser | `EventDetailPage.withdraw.playwright.spec.ts` | Playwright | Pass | Run once on `spm_test` (see commands) |
+| 08-A | browser | `EventDetailPage.withdraw.playwright.spec.ts` | Playwright | Pass | Re-run after the redesign on a throwaway `spm_test` (see commands); also covers Register again |
 | 08-A | Register-button, event-list badge, dashboard card, attendee list | | | Not Automated | The Register button is covered; the badge, card and list do not exist in the app (D19). The attendee list is deliberately never built (privacy, F7) |
 | 09-A | A, C, D (+ organiser) | `registrations.withdraw.e2e-spec.ts :: ...09-A` (5 tests) | BE integration | Pass | B is 09-B, run once |
 | 09-B | backend | `registrations.withdraw.e2e-spec.ts :: ...09-B (= 09-A B)` | BE integration | Pass | 401 "Missing session" |
 | 09-B | frontend (added) | `EventDetailPage.withdraw.test.tsx :: ...09-B (frontend)` (2) | FE page | Pass | 401 signs out and redirects; a 500 does not |
 | 10-A | A | = 06-B A | | Pass | |
 | 10-A | B | `registrations.withdraw.e2e-spec.ts :: ...10-A` | BE integration (real DB) | Pass | 100 parallel: one 200, 99 422, zero 5xx |
-| 10-A | C (promotion, notification) | | | Blocked | Needs the waiting list (D25) |
 | 10-A | response times (2 s, 5 s), k6 / Artillery | | | Not Automated | Not repeatable; no load tool added (D24) |
+| CARD-01 to 09 | | `WithdrawnRegistrationStatus.test.tsx` (15 tests); CARD-09 in `RegistrationSection.test.tsx` | FE component | Pass | Written after the implementation (not RED-first); proven by mutation (M14) |
+| CARD-10 to 12 | | `RegistrationSection.test.tsx :: ...CARD-10 / 11 / 12` (4 tests) | FE component | Pass | Prefill, re-register flip and a refused re-registration; mutants M16 to M20 |
+| `daysUntilLabel` | | `registration.test.ts :: SPM-120 redesign: daysUntilLabel` (7) | FE unit | Pass | The design example is 158 days |
 
 ## Review checklist
 
@@ -92,8 +97,8 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 - [x] Every sad-path test also asserts that nothing changed.
 - [x] Time comes from the injected clock (backend) or a frozen Date (frontend); no real waiting.
 - [x] Real PostgreSQL for the backend integration cases; only the HTTP boundary is mocked on the frontend.
-- [x] No `.only`, no skipped assertion, no `if`/loops inside a test (a few `expectedStatus` ternaries sit in 04-C).
-- [ ] RED before GREEN for every slice: **not met for the page-level frontend tests** (`EventDetailPage.withdraw.test.tsx`, the Playwright spec). They were written after the implementation and checked by mutation instead.
+- [ ] No `.only`, no skipped assertion, no `if`/loops inside a test: **not fully met**. Two `expectedStatus` ternaries sit in 04-C, and `for` loops over assertions sit in backend 06-A, 06-B (A) and 10-A (B). Not changed in this pass.
+- [ ] RED before GREEN for every slice: **not met for the page-level frontend tests** (`EventDetailPage.withdraw.test.tsx`, the Playwright spec) or for the card-redesign tests CARD-01 to 12. They were written after the implementation and checked by mutation instead. The `formatSgtDateTime` month tests and the `daysUntilLabel` tests were written first (the month rows failed on "Sept" before the fix).
 - [x] Mutation spot-check run, all mutants restored byte-identical.
 
 ## Mutation spot-check
@@ -113,22 +118,30 @@ Coverage is diagnostic only; it is not evidence that a behaviour is correct.
 | M11 | Local wall-clock text written to the column (PostgreSQL version of the MySQL mutant; run under `TZ=Asia/Singapore`) | Killed | 06-C A, B |
 | M12 | Dialog focus trap removed | Killed | 02-B trap |
 | M13 | 401 sign-out bypassed | Killed | 09-B frontend |
+| M14 | Swap the Registered and Withdrawn timestamps in the timeline | **Survived on the first run, then killed** | The tests only looked for the time strings anywhere in the card. Added `timelineEntry()` and scoped CARD-01, CARD-08, 03-A, 06-A and 07-B to each entry; 7 tests now fail under M14 |
+| M15 | Look the registration up by id (the original code) instead of event + attendee | **Survives, by design** | The backend reactivates the same row on re-registration (same id), so both lookups behave identically. The pair lookup is harmless but not required |
+| M16 | Prefill the name from the account, not the withdrawn record | Killed | CARD-10, 11, 12 |
+| M17 | Contact number not prefilled | Killed | CARD-10, 11 |
+| M18 | First-time confirmation wording on re-register | Killed | CARD-11 |
+| M19 | Footer left visible under the open form | Killed | CARD-10 |
+| M20 | Card follows the stale prop, not the store | Killed | CARD-11, 06-B (frontend) |
+| M21 | Month names taken from `Intl` ("Sept") | Killed | 06-C month rows (RED before the fix; a real defect in `formatSgtDateTime`) |
 
 ## Gap list
 
-- ACs with mostly a happy path: AC2 (the dialog's visual layout), AC6 (banner styling is a `data-variant` attribute, not a real colour check).
+- ACs with mostly a happy path: AC2 (the dialog's visual layout), AC6 (banner styling is a `data-variant` attribute, not a real colour check). The story's ACs are AC1 to AC6; the waiting-list AC was removed from the story.
 - Check order (D15) is only exercised one violation at a time; the combined ordering is untested.
 - D14: another non-withdrawable status cannot exist (the table allows only `Registered` and `Withdrawn`), so that branch has no test and no code beyond the shared 422.
 - Coordinator and organiser attempts: an organiser is tested (404); coordinator, venue and tech roles take the same path and are not separately tested.
 - 02-B: Subtests A, B and screen-reader checks (need a browser or assistive technology).
-- No load tooling (D24); Tier 2 cases blocked (D25); event-list badge and dashboard card do not exist (D19).
-- The "Register" button after withdrawal is covered; a re-registration after withdrawal in the browser is not.
+- No load tooling (D24); event-list badge and dashboard card do not exist (D19).
+- Re-registration after a withdrawal is now covered in the component tests (CARD-10 to 12) and in the browser spec. Real keyboard activation of the details disclosure (Enter and Space) is not automated: jsdom does not simulate it, so the unit test clicks and checks focus.
 - The in-memory `withdrawRegistration(eventId)` stub in `useAppStore.ts` is now dead code. It was left because an SPM-61 page test (`EventDetailPage.registration.test.tsx:246`) still calls it, and the brief allowed editing no further existing tests.
 - Added subtests beyond the Confluence cases: 02-A no request on open; 03-B backdrop; 04-C C; 04-A boundary; 05-A B; 06-A C and reactivation; 06-B B, C and frontend; 07-A B; 09-A D and organiser; 09-B frontend (2).
 
 ## Document-defect resolutions (F1 to F22) as applied
 
-F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked message is "Event has already occurred". F5 one past-event fixture, each ID asserts its own focus. F6 status mapping above. F7 attendee list, dashboard card and event-list badge not built. F8 04-C C added. F9 404, never 403. F10 label "Withdraw", no availability flag, styling Not Automated. F11 `withdrawn_at` from the injected clock. F12 backdrop ignored (ASSUMED). F13 422 with the 06-B wording. F15 the banner is exactly the MSG-11 sentence, the timestamp is in the status area. F16 API `withdrawnAt`, column `withdrawn_at`. F17/F18 dialog copy per 02-A; focus on Cancel. F20 09-B run once, tagged for both. AC7 waiting-list tests removed from Release 1 scope.
+F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked message is "Event has already occurred". F5 one past-event fixture, each ID asserts its own focus. F6 status mapping above. F7 attendee list, dashboard card and event-list badge not built. F8 04-C C added. F9 404, never 403. F10 label "Withdraw", no availability flag, styling Not Automated. F11 `withdrawn_at` from the injected clock. F12 backdrop ignored (ASSUMED). F13 422 with the 06-B wording. F15 the banner is exactly the MSG-11 sentence, the timestamp is in the status area. F16 API `withdrawnAt`, column `withdrawn_at`. F17/F18 dialog copy per 02-A; focus on Cancel. F20 09-B run once, tagged for both.
 
 ## Deviations from the brief and open items
 
@@ -148,6 +161,6 @@ F1 count 3 to 2. F2/F14 T0 = 2026-10-04 12:00 SGT. F3/F4 the single blocked mess
 - **01-B.** Delete the "Event has occurred" badge bullet. **04-A, 04-B, 05-A, 05-B:** the single blocked wording is "Event has already occurred" (no "Cannot withdraw - ..." variants); 05-A's "MSG-10" is a mislabel.
 - **09-A Subtest B / 09-B.** Expected text "Missing session" (401), replacing "Authentication required" / "Please log in". 09-A A: 404 only, text "Registration not found.".
 - **02-B Subtest C.** Focus lands on Cancel; Tab cycles Cancel, Confirm, Cancel; Escape cancels. Replace "Jest" and "jest-axe" with "Vitest" and "vitest-axe". Subtests A, B and screen reader stay manual.
-- **06-A / 03-A / 06-C.** Date 4 Oct 2026 (not 29 Sep); count 3 to 2; remove "success message should include timestamp"; compare the UI to the same minute, and the API and DB within 1 second; the reload step asserts `withdrawn_at` unchanged. The UI line is "Withdrawn today at HH:mm" or "Withdrawn on D Mon YYYY, HH:mm".
+- **06-A / 03-A / 06-C.** Date 4 Oct 2026 (not 29 Sep); count 3 to 2; remove "success message should include timestamp"; compare the UI to the same minute, and the API and DB within 1 second; the reload step asserts `withdrawn_at` unchanged. The UI shows a withdrawn card whose timeline lists Registered and Withdrawn with absolute Singapore times ("D Mon YYYY, HH:mm"); there is no relative "Withdrawn today at" line.
 - **07-B.** Remove the timestamp checks from the banner; the template wording is the chosen text "Your withdrawal from {eventName} has been processed." (record it in Jira and Confluence as chosen wording, it is not from the AC).
-- **10-A.** 3-parallel is 06-B A, run once. The fixture capacity must be 2 (it says 3 with 2 confirmed and 1 waiting); response-time limits and the load file are not automated.
+- **10-A.** 3-parallel is 06-B A, run once. The fixture capacity must be 2 with no waiting registration (the case's capacity 3 with 1 waiting predates the removal of the waiting list); response-time limits and the load file are not automated.
