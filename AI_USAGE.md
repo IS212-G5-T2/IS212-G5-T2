@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex (GPT-5) - Show navigation for every granted role
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `frontend/src/components/layout/`, `frontend/README.md`, and `AI_USAGE.md`
+- Summary: Fixed the sidebar so multi-role accounts combine navigation from every server-granted role, and so parent routes do not remain active on nested pages. Shared destinations are deduplicated while preserving the primary role's label and ordering, so a Coordinator/Venue Staff account can discover Create Venue and sees only Venue Availability selected at that page.
+- AI contribution: Root-cause analysis, sidebar/navigation implementation, and component regression tests.
+- Assumptions: The server-provided `roles` list is authoritative when present; its order defines the primary-navigation precedence.
+- Checks run: Focused Sidebar test — 3/3 passed; full frontend unit suite before the exact-route addition — 38 files, 444 passed, 1 todo; production build passed; `git diff --check` passed. Full frontend lint remains blocked by pre-existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Preserved the pre-existing uncommitted dual-role seed-account addition in `database/postgresql/init/002_seed_data.sql`.
+
 ## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
 
 - Issue/PR: SPM-117 / PR #44.
