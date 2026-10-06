@@ -1,10 +1,12 @@
 /*
- * SPM-61 attendee registration. Every rule (role, window, duplicate, capacity,
- * validation) is enforced here; the UI only mirrors them. Concurrency safety
- * comes from locking the event row plus the UNIQUE (event_id, attendee_id)
- * constraint on event_registrations.
+ * SPM-61 attendee registration and SPM-120 withdrawal. Every rule (role, window,
+ * duplicate, capacity, validation, ownership, event start) is enforced here; the
+ * UI only mirrors them. Registration concurrency safety comes from locking the
+ * event row plus the UNIQUE (event_id, attendee_id) constraint on
+ * event_registrations; withdrawal uses a single compare-and-set UPDATE.
  */
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -18,6 +20,7 @@ import type pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from './clock.js';
+import { hasEventStarted } from './event-start.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration-window.js';
 import { validateRegistration } from './validation.js';
@@ -101,7 +104,7 @@ export class RegistrationsService {
            SET status = 'Registered', full_name = EXCLUDED.full_name, email = EXCLUDED.email,
                contact_number = EXCLUDED.contact_number,
                special_requirements = EXCLUDED.special_requirements,
-               created_at = now(), updated_at = now()
+               withdrawn_at = NULL, created_at = now(), updated_at = now()
            WHERE event_registrations.status = 'Withdrawn'
          RETURNING *`,
         [eventId, attendee.uid, input.fullName, input.email, input.contactNumber ?? null, input.specialRequirements ?? null],
@@ -114,19 +117,76 @@ export class RegistrationsService {
     });
   }
 
-  /** The signed-in attendee's active registration for an event, or null. */
+  /**
+   * The signed-in attendee's latest registration for an event, of any status, or
+   * null. A withdrawn registration is returned so its status and withdrawal time
+   * survive a reload (SPM-120 AC6). The table keeps one row per attendee and
+   * event, so "latest" is unambiguous; the ordering makes that explicit.
+   */
   async findMine(identity: AuthenticatedUser | undefined, eventId: string) {
     const attendee = this.requireAttendee(identity);
     this.requireEventId(eventId);
     const result = await this.database.query(
       `SELECT r.*, e.event_name FROM event_registrations r
          JOIN events e ON e.id = r.event_id
-        WHERE r.event_id = $1 AND r.attendee_id = $2 AND r.status = 'Registered'
-          AND e.status = ANY($3::text[])`,
+        WHERE r.event_id = $1 AND r.attendee_id = $2
+          AND e.status = ANY($3::text[])
+        ORDER BY r.created_at DESC, r.id DESC
+        LIMIT 1`,
       [eventId, attendee.uid, ATTENDEE_VISIBLE],
     );
     const row = result.rows[0];
     return { registration: row ? this.record(row, row.event_name) : null };
+  }
+
+  /**
+   * SPM-120: the signed-in attendee withdraws their own registration. Order of
+   * checks: authentication (middleware, 401) -> body -> ownership (404) -> state
+   * (422) -> event start (422) -> mutate. The state change is one compare-and-set
+   * UPDATE, so concurrent or repeated requests produce one success and the rest
+   * "already withdrawn", and the spot is released once (capacity is computed from
+   * Registered rows). withdrawn_at comes from the injected clock, never SQL now().
+   */
+  async withdraw(identity: AuthenticatedUser | undefined, registrationId: string, body: unknown) {
+    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
+    this.requireEmptyBody(body);
+    // A malformed id cannot belong to anyone: same 404 as a missing registration.
+    if (!UUID.test(registrationId)) throw new NotFoundException(MESSAGES.registrationNotFound);
+
+    return this.database.transaction(async (client) => {
+      // Ownership-scoped lookup: another user's registration looks like a missing one.
+      const found = await client.query(
+        `SELECT r.id, r.status, e.event_name, e.start_date_time
+           FROM event_registrations r JOIN events e ON e.id = r.event_id
+          WHERE r.id = $1 AND r.attendee_id = $2`,
+        [registrationId, identity.uid],
+      );
+      const current = found.rows[0];
+      if (!current) throw new NotFoundException(MESSAGES.registrationNotFound);
+      if (current.status !== 'Registered') throw this.alreadyWithdrawn();
+
+      const now = this.clock.now();
+      if (hasEventStarted({ startDateTime: current.start_date_time }, now))
+        throw new UnprocessableEntityException({
+          statusCode: 422,
+          code: REGISTRATION_ERROR_CODES.eventAlreadyOccurred,
+          message: MESSAGES.eventAlreadyOccurred,
+        });
+
+      // Compare-and-set: only the request that still sees 'Registered' wins.
+      const updated = await client.query(
+        `UPDATE event_registrations
+            SET status = 'Withdrawn', withdrawn_at = $3, updated_at = $3
+          WHERE id = $1 AND attendee_id = $2 AND status = 'Registered'
+        RETURNING *`,
+        [registrationId, identity.uid, now],
+      );
+      if (!updated.rows[0]) throw this.alreadyWithdrawn();
+      return {
+        ...this.record(updated.rows[0], current.event_name),
+        message: MESSAGES.withdrawalSuccess(current.event_name),
+      };
+    });
   }
 
   private requireAttendee(identity: AuthenticatedUser | undefined): AuthenticatedUser {
@@ -138,6 +198,31 @@ export class RegistrationsService {
 
   private requireEventId(id: string): void {
     if (!UUID.test(id)) throw new NotFoundException(MESSAGES.eventNotFound);
+  }
+
+  /** The withdraw route takes no input: an empty or absent body only (D15 / D2). */
+  private requireEmptyBody(body: unknown): void {
+    if (body === undefined || body === null) return;
+    const isObject = typeof body === 'object' && !Array.isArray(body);
+    const keys = isObject ? Object.keys(body as object) : [];
+    if (isObject && keys.length === 0) return;
+    const errors: Record<string, string> = {};
+    if (isObject) for (const key of keys) errors[key] = 'This field is not accepted.';
+    else errors.form = 'This request does not accept a body.';
+    throw new BadRequestException({
+      statusCode: 400,
+      code: REGISTRATION_ERROR_CODES.validation,
+      message: MESSAGES.validation,
+      errors,
+    });
+  }
+
+  private alreadyWithdrawn(): UnprocessableEntityException {
+    return new UnprocessableEntityException({
+      statusCode: 422,
+      code: REGISTRATION_ERROR_CODES.alreadyWithdrawn,
+      message: MESSAGES.alreadyWithdrawn,
+    });
   }
 
   private duplicate(): ConflictException {
@@ -162,6 +247,8 @@ export class RegistrationsService {
       // Lower-cased to match the frontend RegistrationStatus type (D4).
       status: String(row.status).toLowerCase(),
       registeredAt: row.created_at.toISOString(),
+      // SPM-120: set once, by the withdrawal; absent while the registration is active.
+      withdrawnAt: row.withdrawn_at ? row.withdrawn_at.toISOString() : undefined,
     };
   }
 }

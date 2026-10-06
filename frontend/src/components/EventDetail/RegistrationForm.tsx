@@ -16,6 +16,8 @@ interface Props {
   eventId: string;
   initialName: string;
   initialEmail: string;
+  /** Prefills contact number, e.g. from a withdrawn registration being re-registered (SPM-120). */
+  initialContactNumber?: string;
   onRegistered: (registration: Registration) => void;
   /** Called when the server reports the attendee is already registered (409). */
   onAlreadyRegistered: () => void;
@@ -30,12 +32,19 @@ const FIELD_ORDER: (keyof RegistrationDetails)[] = ["fullName", "email", "contac
  * presses Retry so a request that already succeeded cannot surface as a
  * confusing duplicate.
  */
-export function RegistrationForm({ eventId, initialName, initialEmail, onRegistered, onAlreadyRegistered }: Props) {
+export function RegistrationForm({
+  eventId,
+  initialName,
+  initialEmail,
+  initialContactNumber = "",
+  onRegistered,
+  onAlreadyRegistered,
+}: Props) {
   const registerForEvent = useAppStore((s) => s.registerForEvent);
   const [values, setValues] = useState<RegistrationDetails>({
     fullName: initialName,
     email: initialEmail,
-    contactNumber: "",
+    contactNumber: initialContactNumber,
     specialRequirements: "",
   });
   const [errors, setErrors] = useState<RegistrationErrors>({});

@@ -9,6 +9,9 @@ export const REGISTRATION_ERROR_CODES = {
   notOpen: 'registration_not_open',
   full: 'registration_full',
   duplicate: 'already_registered',
+  // SPM-120 withdrawal. Code names are assumed (not fixed by the AC text).
+  eventAlreadyOccurred: 'event_already_occurred',
+  alreadyWithdrawn: 'registration_already_withdrawn',
 } as const;
 
 // Same format as the frontend: 12 Mar 2027, 23:59 (24-hour, SGT).
@@ -41,4 +44,11 @@ export const MESSAGES = {
   full: 'This event is fully booked.',
   attendeeOnly: 'Attendee access required.',
   eventNotFound: 'Event not found.',
+  // SPM-120. The AC5 literal has no full stop. MSG-11 is the chosen success
+  // wording; MSG-12 is the already-withdrawn wording from the test cases.
+  registrationNotFound: 'Registration not found.',
+  eventAlreadyOccurred: 'Event has already occurred',
+  alreadyWithdrawn: 'This registration has already been withdrawn.',
+  withdrawalSuccess: (eventName: string) =>
+    `Your withdrawal from ${eventName} has been processed.`,
 } as const;

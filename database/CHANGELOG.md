@@ -59,6 +59,10 @@ apply the backend migration sequence for the features it lacks—particularly
 `004_allow_rejected_event_status.sql` for the final rejection lifecycle.
 Git history retains the original incremental changes and their commits.
 
+## SPM-120 - Withdrawal timestamp
+
+- Added `postgresql/init/007_spm120_withdraw_registration.sql`: nullable `withdrawn_at timestamptz` on `event_registrations`, written by the backend from its injected clock. Additive and idempotent; existing volumes must apply it manually because init scripts only run on an empty volume. The `UNIQUE (event_id, attendee_id)` constraint is unchanged (a withdrawn row is reactivated, not duplicated).
+
 ## SPM-61 - Registration detail columns
 
 - Added `postgresql/init/004_spm61_event_registration.sql`: nullable `full_name`, `email`, `contact_number` and `special_requirements` on `event_registrations`. Additive and idempotent; existing volumes must apply it manually because init scripts only run on an empty volume.
