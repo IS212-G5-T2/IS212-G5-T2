@@ -40,6 +40,18 @@ npm run build
 npm test
 ```
 
+Venue Staff can open `/venues` to browse image-led venue cards, search
+their own persisted records by name or location, sort by name/capacity/location/status,
+and click any part of a card to open `/venues/:id` for
+accessibility, setup and turnaround details plus availability, bookings and
+tentative holds. The view uses the credentialed backend API configured by
+`VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
+must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
+fresh local database initializer creates them and also seeds two sample venues
+from `database/postgresql/init/008_spm124_sample_venues.sql`.
+The Coordinator's existing venue-planning view remains on the same routes for
+that role.
+
 No deployment command is configured for this repository.
 
 ## Testing

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added SPM-124 Venue Staff catalogue and detail views backed by the venue read
+  API. Image cards support search, sorting, availability reasons, bookings,
+  tentative holds, and whole-card navigation to venue details.
+
 - The top bar now has a profile avatar showing the user's initials (e.g. C1 for
   Coordinator 1) that opens a menu with the name, Settings and the light/dark
   switch; coordinators see a green Available or grey Unavailable label there

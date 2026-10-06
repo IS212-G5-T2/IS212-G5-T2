@@ -3,8 +3,8 @@
 This directory contains database initialization files shared by local development tooling.
 
 For the feature and schema evolution that led to the consolidated initializer,
-see [CHANGELOG.md](CHANGELOG.md). The init directory stays limited to one
-schema script and one seed-data script.
+see [CHANGELOG.md](CHANGELOG.md). The base schema and seed scripts are followed
+by additive feature init scripts in filename order.
 
 ## PostgreSQL
 
@@ -36,7 +36,10 @@ docker run --rm --name spm-postgresql \
 
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `docker-compose/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
-The PostgreSQL entrypoint runs two SQL files by filename order when it creates a fresh database: `001_schema.sql` creates all local tables, constraints, extensions, and indexes; `002_seed_data.sql` creates local RBAC, account, health-check, and fictional-event data:
+The PostgreSQL entrypoint runs the init files by filename order when it creates
+a fresh database: `001_schema.sql` creates the base and SPM-50 venue schema,
+`002_seed_data.sql` creates local RBAC, venue lookups, and sample data, and later
+numbered scripts apply additive feature changes:
 
 | Table | Purpose |
 | --- | --- |
@@ -111,7 +114,7 @@ schema is in `001_schema.sql` and the fictional Submitted event is part of
 `002_seed_data.sql`. Records persist in Docker's `postgres-data` volume.
 Dates/times use `timestamptz`; the API/browser handles local-time display.
 
-The two files create a fresh database only. For an existing volume, use the
+The init scripts run for a fresh database only. For an existing volume, use the
 backend migrations that correspond to the missing schema change; do not apply
 the schema file as a replacement migration or delete the volume merely to pick
 up initializer refactoring.
@@ -134,3 +137,20 @@ The Compose postgres service also mounts the backend-owned draft migration as `0
 ## Request rejection schema
 
 Fresh PostgreSQL images receive the final event lifecycle directly from `001_schema.sql`: `Submitted`, `Approved`, or `Rejected`. A rejected event needs a 10–500-character `rejection_reason`. Existing volumes must retain their migration history: apply `backend/migrations/003_event_rejection.sql`, then `backend/migrations/004_allow_rejected_event_status.sql`, with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. Existing events and notifications are retained; no volume reset is needed.
+
+## SPM-124 venue schedule
+
+The SPM-50 venue tables and lookup records are copied into `001_schema.sql`
+and `002_seed_data.sql` from `feature/SPM-50-Create-Venue-Records`. On a fresh
+volume, `007_spm124_venue_schedule.sql` then creates one `venue_bookings` table
+for event reservations and staff blockouts, followed by the local sample venues
+in `008_spm124_sample_venues.sql`.
+For an existing volume, apply backend migrations 005–008, then
+`backend/migrations/009_venue_availability.sql`; init scripts do not rerun on
+an existing volume.
+
+`008_spm124_sample_venues.sql` adds two clearly named local sample venues,
+small illustrative images, and one short blockout booking so the Venue Staff catalogue has records on a
+fresh development database. For an existing local volume, apply it manually
+after migration 009 if sample data is wanted. It is idempotent and does not
+replace staff-created venues.

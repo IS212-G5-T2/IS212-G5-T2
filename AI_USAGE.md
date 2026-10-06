@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex (GPT-5) - Rebase SPM-124 onto dev
+
+- Issue/PR: SPM-124 / no PR yet
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/`, component documentation, and `AI_USAGE.md`
+- Summary: Rebased SPM-124 after SPM-50 merged into `dev`. Kept SPM-50 venue creation and added SPM-124 owner-scoped catalogue/detail reads, schedule summaries, and card navigation.
+- AI contribution: Conflict resolution, focused test reconciliation, and documentation merge.
+- Assumptions: Venue Staff ownership scope remains the requester-confirmed rule; Coordinators retain the complete catalogue.
+- Checks run: Backend venue unit tests passed 18 cases; backend build passed during the rebase.
+- Follow-up/conflict notes: Rebase remains local and unpushed pending final frontend/documentation verification.
+
 ## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
 
 - Issue/PR: SPM-117 / PR #44.

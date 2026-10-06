@@ -59,6 +59,24 @@ filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 ## Continuity Notes
 
+SPM-124 adds read-only `GET /api/venues` and `GET /api/venues/:id` for Venue
+Staff and Coordinators. Venue Staff reads use the verified user ID to enforce
+`venues.owner_user_id`; Coordinator reads cover all venues. Another staff
+member's venue detail is returned as 404. `src/venues/` uses SPM-50's `VenuesModule`, controller, service, and
+repository names to read venue records and the single
+`venue_bookings` schedule table added by `migrations/009_venue_availability.sql`.
+Staff blockouts are `status = 'blocked'` rows with a reason and no event; the
+migration moves older `venue_unavailability` rows into that table. This branch copies the
+SPM-50 venue SQL into the fresh-volume initializer and migrations 005–008;
+apply those migrations before 009 on existing databases. Fresh database images
+create the schedule table through
+`database/postgresql/init/007_spm124_venue_schedule.sql`. The
+older frontend booking workflow remains in browser memory; it does not write
+the `venue_bookings` table. A future booking writer must own status and
+hold-expiry transitions. SPM-124 reads approved bookings, active pending
+holds, and staff blockouts, and reports overlaps against each booking's
+setup-to-turnaround occupied period.
+
 Equipment creation validates quantities from 1 through `2,147,483,647`, the
 PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
 the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a

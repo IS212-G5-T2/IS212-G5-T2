@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added SPM-124 venue catalogue and detail reads alongside SPM-50 venue
+  creation. Venue Staff reads are owner-scoped, Coordinator reads cover the
+  full catalogue, and responses include blockouts, approved bookings, active
+  holds, and setup/turnaround overlap markers from `venue_bookings`.
+
 - Added PostgreSQL integration coverage for coordinator availability (SPM-80):
   the saved value, untouched event assignments, 400/401/403 through the real
   session middleware. Tightened COOR-AVAIL-02-B so it fails if no query runs.

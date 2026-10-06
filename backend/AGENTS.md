@@ -54,3 +54,8 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 - `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me`, and writes to `event_registrations`. It does not own event authoring or withdrawal.
 - Registration rules read time only from the injected `CLOCK`; tests freeze it. `src/registrations/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied.
+
+## Venues boundary
+
+- `src/venues` owns `GET /api/venues` and `GET /api/venues/:id`, the SPM-50 venue read model, and the SPM-124 booking/blockout schedule read model. Venue Staff reads require the `Venue` read permission and are scoped by the verified user's `venues.owner_user_id`; Coordinator reads with that permission are unscoped. Venue creation is not implemented on this branch.
+- Venue schema upgrades live in `backend/migrations/005` through `009`; local fresh-volume initialization lives in `database/postgresql/init/`.
