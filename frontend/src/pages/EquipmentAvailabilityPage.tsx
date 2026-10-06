@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, type Column } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/Button";
+import { TextInput } from "@/components/ui/FormControls";
 import type { EquipmentRecord } from "@/types";
 import { getEquipment } from "@/utils/equipment-api";
 
@@ -10,6 +11,8 @@ export function EquipmentAvailabilityPage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<EquipmentRecord[]>([]);
   const [loadError, setLoadError] = useState(false);
+  const [typeSearch, setTypeSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
 
   useEffect(() => {
     void getEquipment()
@@ -22,6 +25,16 @@ export function EquipmentAvailabilityPage() {
         setLoadError(true);
       });
   }, []);
+
+  const visibleRecords = useMemo(() => {
+    const typeQuery = typeSearch.trim().toLowerCase();
+    const locationQuery = locationSearch.trim().toLowerCase();
+    return records.filter(
+      (record) =>
+        record.type.toLowerCase().includes(typeQuery) &&
+        record.location.toLowerCase().includes(locationQuery),
+    );
+  }, [records, typeSearch, locationSearch]);
 
   const columns: Column<EquipmentRecord>[] = [
     {
@@ -40,12 +53,18 @@ export function EquipmentAvailabilityPage() {
         </span>
       ),
     },
-    { header: "Location", render: (record) => record.location },
+    {
+      header: "Location",
+      render: (record) => record.location,
+    },
     {
       header: "Maintenance status",
       render: (record) => record.maintenanceStatus,
     },
-    { header: "Quantity", render: (record) => record.quantity },
+    {
+      header: "Quantity",
+      render: (record) => record.quantity,
+    },
   ];
 
   return (
@@ -67,12 +86,32 @@ export function EquipmentAvailabilityPage() {
           Unable to load equipment records. Please try again.
         </p>
       ) : (
-        <DataTable
-          columns={columns}
-          rows={records}
-          rowKey={(record) => record.id}
-          emptyMessage="No equipment records found."
-        />
+        <>
+          <div className="mb-4 grid max-w-2xl gap-4 sm:grid-cols-2">
+            <TextInput
+              type="search"
+              label="Search by type"
+              value={typeSearch}
+              onChange={(event) => setTypeSearch(event.target.value)}
+            />
+            <TextInput
+              type="search"
+              label="Search by location"
+              value={locationSearch}
+              onChange={(event) => setLocationSearch(event.target.value)}
+            />
+          </div>
+          <DataTable
+            columns={columns}
+            rows={visibleRecords}
+            rowKey={(record) => record.id}
+            emptyMessage={
+              records.length > 0 && (typeSearch.trim() || locationSearch.trim())
+                ? "No equipment records match your search."
+                : "No equipment records found."
+            }
+          />
+        </>
       )}
     </div>
   );

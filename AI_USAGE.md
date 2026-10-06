@@ -21,6 +21,116 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04` and `AI_USAGE.md`.
+- Summary: Rebuilt all 18 SPM-117 cases using the SPM-61 two-table structure. Every case now has a definition table with scenario, pre-conditions, steps, data, expected result, remarks, creator, and creation date, followed by an execution table with descriptive actual result, PASS/FAIL, automation remarks, executor, and execution date.
+- AI contribution: Reference-format comparison, Confluence restructuring, and consistency verification.
+- Assumptions: The latest verified runs remain authoritative: frontend 60/60, backend service 30/30, and equipment HTTP/PostgreSQL 8/8 passed on 06 Oct 2026.
+- Checks run: Read back all four published pages; confirmed 18 definition tables, 18 execution tables, and one complete set of required fields per case.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Rerun SPM-117 test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04`, SPM-117 matrix, and `AI_USAGE.md`.
+- Summary: Reran the frontend, backend service, and equipment HTTP/PostgreSQL suites cited by the SPM-117 cases. All documented outcomes remain PASS; added the fresh run commands and counts to each live case page and the matrix.
+- AI contribution: Test execution, evidence comparison, and Confluence results update.
+- Assumptions: The running local PostgreSQL Compose service is the intended database for the equipment e2e suite; the test cleans up its created records and users.
+- Checks run: Frontend 4/4 files and 60/60 tests passed; backend equipment service 1/1 file and 30/30 tests passed; equipment e2e 1/1 file and 8/8 tests passed. Read back all five Confluence documents and confirmed the rerun evidence and case result rows.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Describe SPM-117 test outcomes
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01`, `EQUIP-VIEW-03`, `EQUIP-VIEW-04`, and `AI_USAGE.md`.
+- Summary: Replaced generic Actual Result text with the observed UI, navigation, service, and HTTP outcomes for all affected cases. Corrected the AC3 location-only case to document its actual Visual Suite fixture and search term.
+- AI contribution: Test evidence review and Confluence documentation updates.
+- Assumptions: Existing PASS results and run dates remain authoritative; no tests were rerun for this wording change.
+- Checks run: Compared case wording to test assertions; read back all four SPM-117 pages and confirmed every Actual Result row describes an observed outcome.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Complete SPM-117 AC1 test-case documentation
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21495817) and `AI_USAGE.md`.
+- Summary: Reworked all six AC1 cases into the standard two-table layout: case definition (scenario, pre-conditions, steps, data, expected result) followed by execution evidence (actual result and PASS/FAIL).
+- AI contribution: Confluence test-case documentation and read-back verification.
+- Assumptions: Existing scenarios and PASS results remain authoritative; no code or test behaviour changed.
+- Checks run: Read back the published page and confirmed six each of Test Scenario, Pre-conditions, Test Steps, Test Data, Expected Result, and Actual Result.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Normalize SPM-117 test traceability IDs
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: SPM-117 Confluence matrix and EQUIP-VIEW-01 through EQUIP-VIEW-04 pages; frontend and backend equipment test traceability labels; `AI_USAGE.md`.
+- Summary: Renamed test IDs so the suite number matches its acceptance criterion: AC1 → EQUIP-VIEW-01, AC2 → EQUIP-VIEW-02, AC3 → EQUIP-VIEW-03, and AC4 → EQUIP-VIEW-04. Rebuilt the matrix links to point to the matching live page and included every current case.
+- AI contribution: Traceability refactor, Confluence cross-link repair, and unit-test verification.
+- Assumptions: This is identifier-only work; test behaviour, acceptance criteria, and existing PASS evidence are unchanged.
+- Checks run: Frontend affected suites — 4 files, 60/60 passed. Backend equipment service suite — 1 file, 30/30 passed. Read back every live Confluence page and matrix row to confirm the AC-aligned IDs.
+- Follow-up/conflict notes: The backend e2e case was renamed but not re-executed because only its test label changed. No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Reformat SPM-117 search test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21037164) and `AI_USAGE.md`.
+- Summary: Reorganized all eight AC3 search cases so each has a case-definition table containing the scenario, pre-conditions, test steps, test data, and expected result, followed by a separate execution-results table containing the actual result and PASS/FAIL outcome.
+- AI contribution: Confluence test-document restructuring and read-back verification.
+- Assumptions: Existing test scenarios and PASS evidence remain authoritative and were preserved; this change is documentation structure only.
+- Checks run: Read back the live document and confirmed eight Pre-conditions, eight Test Steps, and eight Actual Result rows.
+- Follow-up/conflict notes: The live document's Confluence page title remains `EQUIP-VIEW-03` despite its EQUIP-VIEW-01 body and URL history; title correction was not requested and is intentionally left untouched.
+
+## 2026-10-06 - Claude Sonnet 5 - Align SPM-117 suite with the test-development-learnings guide
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/App.test.tsx`, `frontend/src/components/auth/RouteAccess.test.tsx`, `frontend/src/components/layout/navConfig.test.ts`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `backend/src/equipment/equipment.service.spec.ts`, `backend/src/equipment/equipment.e2e-spec.ts`.
+- Summary: Evaluated the SPM-117 suite against `test-development-learnings.md` (shared by the requester; not previously in this repo). Fixed one real survivor the review's own mutation run found: `App.test.tsx`'s AC1 coverage only checked Technical Support (allowed) and Attendee (blocked) against the real route tree, so a mutation adding "coordinator" to the allowed-roles list passed CI. Extended to an `it.each` over all four non-Technical-Support roles (attendee, coordinator, organiser, venue_staff); mutation-verified it now catches that exact regression. Discovered and documented, but did not fix, a separate pre-existing App.tsx bug found while adding venue_staff: RequireRole's blocked-access fallback always redirects to `/events`, which venue_staff cannot reach either, landing on a blank page — out of scope for SPM-117. Adopted one consistent traceability ID scheme (EQUIP-VIEW-<NN>-<letter>) across every SPM-117 test, replacing the ad hoc "SPM-117 AC# ..." titles from the two prior commits; added a traceability map and an indexed assumption list (AND-vs-OR confirmed by the requester directly, not an open question) to the page test's file header; split the flat `describe` into one block per AC, with SPM-111's four pre-existing tests kept in their own clearly-labelled block rather than silently merged; added a `makeRecord()` factory to replace ~14 near-identical record literals; merged the two near-duplicate no-match tests and the two near-duplicate whitespace-trim tests into `it.each` pairs under single IDs (EQUIP-VIEW-01-C, EQUIP-VIEW-01-E); added a one-line `Kills:` comment to every SPM-117-authored test naming the mutant it catches. Did not retrofit `Kills:` lines or IDs onto the pre-existing SPM-111 tests in the same file - that is a larger, separately-scoped cleanup.
+- AI contribution: Verified two specific claims in my own draft comments before keeping them (that `Sidebar.test.tsx` already covered the nav-link render path - it does not, comment corrected; that `Sidebar.tsx` maps nav items generically with no tech_support branching - confirmed true by reading the component); empirically verified the venue_staff redirect behavior with a throwaway probe test before asserting it either way; implementation and mutation verification for the one real fix.
+- Assumptions: The reviewer's "§5B/§5C/§5E/§5F/§7" section references map to this guide's sections on traceability (2.3, 7), assumption tagging (2.2), anti-patterns/table-driven tests (5), and enumerated values (3) - the guide itself is informal prose without lettered subsections, and a companion "test-code-generation-prompt.md" mentioned in its header (which may hold the literal lettered scheme) was not supplied.
+- Checks run: Mutation-verified the coordinator-access fix (added "coordinator" to App.tsx's allowed roles in place, confirmed the new it.each fails, reverted, confirmed zero diff). `App.test.tsx` - 11/11 passed; `RouteAccess.test.tsx` + `navConfig.test.ts` - 32/32 passed; `EquipmentAvailabilityPage.test.tsx` - 14/14 passed (13 unique IDs, 2 parametrized); full frontend `npm test` - 38 files, 440 passed + 1 pre-existing todo; frontend build passed. `equipment.service.spec.ts` - 30/30 passed; full backend `npm test` - 30 files, 675/675 passed; `equipment.e2e-spec.ts` against local PostgreSQL - 8/8 passed.
+- Follow-up/conflict notes: Confluence (Matrix + EQUIP-VIEW-01/02 Live Docs) does not yet reflect the renamed/new IDs in this commit (EQUIP-VIEW-01-E/F, EQUIP-VIEW-02-B/C, and the new EQUIP-VIEW-04 AC1 bucket) - planned as an immediate follow-up, not done here to keep this commit's verified code change self-contained. Guide items explicitly left undone: no automated/scripted mutation harness was built (mutations were applied and reverted by hand per fix, as in the two prior commits); `Kills:` lines and IDs were not retrofitted onto the four pre-existing SPM-111 tests. Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Claude Sonnet 5 - Close SPM-117 mutation-tested survivors
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/App.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `backend/src/equipment/equipment.service.spec.ts`.
+- Summary: A follow-up mutation-testing pass on the previous review-fix commit found three concrete survivors. (1) `RouteAccess.test.tsx`'s positive AC1 test builds its own isolated route table, so a regression in App.tsx's real route guard would pass CI; two App.tsx mutations (letting attendees into tech_support routes, blocking tech_support entirely) both stayed green. Added two tests in `App.test.tsx` rendering the real `<App/>` at `/equipment/availability`, following the file's existing pattern for other roles/pages. (2) The new backend `list()` status test mocks `database.query`, so it cannot catch a SQL-level filter bug (confirmed: adding `WHERE maintenance_status = 'Active'` to the real query left all 30 unit tests green); reworded its comment to stop claiming it guards against that, and point to the e2e test which actually does. (3) The location search box had no whitespace-trim test (only the type box did); added the symmetric case.
+- AI contribution: Verified each claim by reproducing the reviewer's mutations directly (edited App.tsx and EquipmentAvailabilityPage.tsx in place, confirmed the new tests fail, reverted, confirmed zero diff) before treating any fix as done; implementation.
+- Assumptions: The review's other findings (test-ID scheme inconsistency between `EQUIP-VIEW-01-A` and `SPM-117 AC3 ...` naming, fixture duplication across the page test, and the nav-link test only checking `navConfig` rather than rendering `Sidebar`) are explicitly marked optional/low-risk by the review's own compliance table; not addressed here, left as a follow-up decision.
+- Checks run: Mutation-verified each fix individually (test fails with the bug present, passes once fixed, zero net diff on production files after revert). `App.test.tsx` + `EquipmentAvailabilityPage.test.tsx` — 21/21 passed; `equipment.service.spec.ts` — 30/30 passed; full frontend `npm test` — 38 files, 436 passed + 1 pre-existing todo; frontend build passed; full backend `npm test` — 30 files, 675/675 passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Claude Sonnet 5 - Address SPM-117 review findings on test coverage
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment/equipment.service.spec.ts`, `backend/src/equipment/equipment.e2e-spec.ts`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/components/auth/RouteAccess.test.tsx`, `frontend/src/components/layout/navConfig.test.ts`.
+- Summary: Addressed a review of the SPM-117 branch. Fixed `EQUIP-VIEW-02-A`, which was partly vacuous (record names "Active projector"/"Retired lighting rig" let `toHaveTextContent` pass from the name text alone) by renaming to neutral names. Closed the review's highest-risk gap — nothing proved the backend `list()` query returns non-Active records, since every unit and e2e fixture only ever used `Active`, and the frontend tests mock the API — by adding a service test and a real-HTTP/PostgreSQL e2e test asserting all three statuses come back. Added an e2e test for `GET /api/equipment` 401/403 (only `POST` had HTTP-level auth coverage). Closed three named frontend search gaps: whitespace-padded search terms, a location-only no-match message, and clearing a filter restoring all rows. Added a positive `tech_support` route-access test for `/equipment/availability` (only negative/blocking cases existed) and a nav-link test, giving AC1 its own traceable coverage. No production code changed — all findings were test-coverage gaps, not implementation bugs.
+- AI contribution: Verified each review claim against the actual code before fixing (confirmed `list()` has no status filter today — the gap is coverage, not a live bug); implementation, verification.
+- Assumptions: The review findings are from an external code-review pass on the branch (not GitHub PR comments — none were found via `gh pr view`). Did not restructure `RouteAccess.test.tsx` to import the real `App.tsx` route tree (the review's "ideally" suggestion) — that file is shared across many stories and a full refactor was judged out of scope for this fix; the new test reuses the file's existing isolated route-table helper.
+- Checks run: `equipment.service.spec.ts` — 30/30 passed; `equipment.e2e-spec.ts` against local PostgreSQL (`npm run test:e2e`) — 8/8 passed, including the two new cases; full backend `npm test` — 30 files, 675/675 passed; backend build passed. `EquipmentAvailabilityPage.test.tsx` — 13/13 passed; `RouteAccess.test.tsx` + `navConfig.test.ts` — 32/32 passed; full frontend `npm test` — 38 files, 433 passed + 1 pre-existing todo; frontend build passed.
+- Follow-up/conflict notes: Full backend e2e suite has 11 pre-existing failures in `coordinator-availability.e2e-spec.ts` (SPM-80) and `venues.e2e-spec.ts` (SPM-50), unrelated to this change — neither file was touched, and the equipment e2e file is fully green. Likely the local Postgres container is missing migrations 007/008; not fixed here as out of scope. Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Codex - Split SPM-117 equipment search controls
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, and `AI_USAGE.md`.
+- Summary: Replaced the combined equipment type/location search with dedicated type and location search boxes. Each supports trimmed, case-insensitive exact or substring matching; when both are populated, records must match both filters. Added explicit unit coverage for each box, the no-match state, and AND combination behavior.
+- AI contribution: React implementation review, test alignment, verification, and documentation. The refined unit-test cases were prepared before this implementation pass and preserved.
+- Assumptions: An empty search box imposes no constraint; two populated boxes combine with AND, as confirmed in the refined test design and Confluence matrix.
+- Checks run: Latest focused run `npm test -- --run src/pages/EquipmentAvailabilityPage.test.tsx --reporter=verbose` — 17/17 passed, including EQUIP-VIEW-01-A through 01-H, EQUIP-VIEW-02-A, and EQUIP-VIEW-03-A. Earlier full frontend verification passed (29 files, 347 passed + 1 pre-existing todo), and the frontend build passed.
+- Follow-up/conflict notes: Confluence EQUIP-VIEW-01/02/03 results and the Matrix were refreshed to the 17/17 run. The live EQUIP-VIEW-01 replacement page (ID 21037164) now contains cases 01-A through 01-H; the original page remains in trash. Changes are local and uncommitted pending human approval.
+
 ## 2026-10-05 - Claude (Opus 5.5) - SPM-80 coordinator updates availability
 
 - Issue/PR: SPM-80 (Jira status at start: To Do; no existing branch/PR) / branch `feature/SPM-80-Coordinator-Updates-Availability` from `dev` (4b8139d) / PR https://github.com/IS212-G5-T2/IS212-G5-T2/pull/43 into `dev`.
@@ -211,6 +321,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
 - Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
 - Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
+## 2026-10-05 - Codex (GPT-5) / Claude Sonnet 5 - SPM-117 view-equipment search and sort
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/components/ui/DataTable.tsx`, Confluence (SPM-117 Matrix + Live Docs), and `AI_USAGE.md`.
+- Summary: Step A6 (EQUIP-VIEW-01/02/03 unit tests for AC3 search and AC5 sort, plus an explicit AC4 status-render test) was written directly by kirub, not an AI tool. Codex then implemented Step A8: case-insensitive type/location substring search (one check covers exact and partial terms), a search-specific empty state distinct from the inventory-empty state, and toggleable ascending/descending sort for type, numeric quantity, and location, via an optional backward-compatible `onHeaderClick` on `DataTable`'s `Column<T>`. Claude Code (Sonnet 5) authored the Confluence Test Case Matrix/Live Docs, linked them to the Jira story, and independently re-ran the full suite plus lint/build to verify Codex's implementation before this entry.
+- AI contribution: Codex — client-side React implementation, shared table header support. Claude — Confluence docs, Jira linking, independent verification (re-ran tests, lint, build), this log entry.
+- Assumptions: The user-supplied SPM-117 acceptance criteria and the human-written tests are authoritative; Jira and Confluence were not touched during the Codex coding session (handled separately by Claude Code per the story-to-PR workflow).
+- Checks run (independently re-verified by Claude after Codex's handoff): `npx vitest run src/pages/EquipmentAvailabilityPage.test.tsx` — 1 file, 11/11 passed; `npm test` — 29 files passed, 348 passed + 1 pre-existing todo (349 total), no regressions; `npm run lint` — 2 pre-existing errors in untouched files (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`), none new; `npm run build` — passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending explicit commit approval per AGENTS.md. No push, pull request, or Jira status change was made.
+
 ## 2026-10-04 - Codex (GPT-5) - Strengthen SPM-111 equipment validation and evidence
 
 - Issue/PR: SPM-111 / follow-up pull request pending.
