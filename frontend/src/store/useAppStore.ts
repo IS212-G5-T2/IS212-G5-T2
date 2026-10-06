@@ -13,6 +13,7 @@ import type {
   Registration,
   User,
   Venue,
+  VenueCreateInput,
 } from "@/types";
 
 let idCounter = 1000;
@@ -50,6 +51,8 @@ interface AppState {
   authLoading: boolean;
   events: EventRecord[];
   venues: Venue[];
+  /** Creates a venue and returns the server confirmation message. */
+  createVenue: (venue: VenueCreateInput) => Promise<string>;
   bookings: Booking[];
   equipment: EquipmentItem[];
   equipmentRequests: EquipmentRequest[];
@@ -94,6 +97,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   authLoading: true,
   events: [],
   venues: [],
+  createVenue: async (venue) => {
+    const result = await api<{ venue: Venue; message: string }>("/venues", {
+      method: "POST",
+      body: JSON.stringify(venue),
+    });
+    return result.message;
+  },
   bookings: [],
   equipment: [],
   equipmentRequests: [],

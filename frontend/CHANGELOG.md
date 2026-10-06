@@ -14,6 +14,15 @@
   saved status, saves Available or Unavailable with a confirmation, and reports
   load or save failures with a retry. Other roles see Settings unchanged.
 
+- Added the SPM-50 Venue Staff creation route and form, including required-field
+  feedback, setup/turnaround duration validation, persistent catalogue refresh,
+  successful-creation confirmation, and server-generated venue UUIDs with no
+  identifier field exposed to staff. The form now separates venue details,
+  including one location, from controlled facility/layout selections and supports one optional venue
+  image using the event form's shared data-URL upload helper.
+
+- Split the required SPM-50 operating-information textarea from the operating
+  schedule controls: selected days plus start and end times.
 - Added SPM-111 quantity upper-bound validation, equipment-inventory load
   failure messaging, combobox interaction coverage, and a browser create-to-inventory check.
 

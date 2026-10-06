@@ -1,0 +1,28 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { Request } from 'express';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { VenuesController } from './venues.controller.js';
+import { VenuesService } from './venues.service.js';
+import { VenuesModule } from './venues.module.js';
+
+describe('SPM-50 venue route wiring', () => {
+  const identity: AuthenticatedUser = {
+    uid: 'staff-1',
+    roles: ['VENUE_STAFF'],
+  };
+  const request = { [CURRENT_USER_REQUEST_KEY]: identity } as Request;
+  const service = { create: vi.fn() };
+  const controller = new VenuesController(service as unknown as VenuesService);
+
+  // SPM-50 / VEN-CRE-04-A: creation forwards the body and verified caller.
+  it('forwards venue creation and keeps module wiring importable', () => {
+    // Arrange a body and service response.
+    const body = { name: 'Orchid Hall Test' };
+    service.create.mockReturnValue('created');
+    // Act and assert the creation call and module declaration.
+    expect(controller.create(request, body)).toBe('created');
+    expect(service.create).toHaveBeenCalledWith(identity, body);
+    expect(VenuesModule).toBeDefined();
+  });
+});

@@ -7,6 +7,8 @@ import {
 } from "@/components/ui/FormControls";
 import { Button } from "@/components/ui/Button";
 import type { EventRecord, EventAttachment } from "@/types";
+import { readFileAsDataUrl } from "@/utils/uploads";
+import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/utils/venueOptions";
 
 interface EventEditFormProps {
   event: EventRecord;
@@ -15,28 +17,11 @@ interface EventEditFormProps {
   isLoading?: boolean;
 }
 
-const FACILITY_OPTIONS = [
-  "Catering",
-  "AV System",
-  "Parking",
-  "Stage",
-  "Projector",
-  "Whiteboard",
-];
-
 const ACCESSIBILITY_OPTIONS = [
   "Wheelchair ramps",
   "Accessible restrooms",
   "Hearing loop",
   "Elevator access",
-];
-
-const ROOM_LAYOUT_OPTIONS = [
-  { value: "Banquet", label: "Banquet" },
-  { value: "Theater", label: "Theater" },
-  { value: "Classroom", label: "Classroom" },
-  { value: "U-Shape", label: "U-Shape" },
-  { value: "Boardroom", label: "Boardroom" },
 ];
 
 function toDateTimeLocal(isoString: string): string {
@@ -52,23 +37,6 @@ function fromDateTimeLocal(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString();
-}
-
-function readAttachment(file: File): Promise<EventAttachment> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      resolve({
-        id: crypto.randomUUID(),
-        name: file.name,
-        type: file.type || "application/octet-stream",
-        size: file.size,
-        dataUrl: String(reader.result),
-      });
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
 }
 
 export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditFormProps) {
@@ -99,7 +67,9 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
       return;
     }
     try {
-      const newAttachments = await Promise.all(Array.from(files).map(readAttachment));
+      const newAttachments = await Promise.all(
+        Array.from(files).map(readFileAsDataUrl),
+      );
       setAttachments((prev) => [...prev, ...newAttachments]);
     } catch {
       setUploadFailure("Unable to read the selected file. Please try again.");
@@ -168,7 +138,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           </div>
           <CheckboxGroup
             label=""
-            options={FACILITY_OPTIONS}
+            options={[...FACILITY_OPTIONS]}
             values={facilities}
             onChange={setFacilities}
           />
@@ -238,7 +208,10 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="Room layout"
-              options={ROOM_LAYOUT_OPTIONS}
+            options={ROOM_LAYOUT_OPTIONS.map((value) => ({
+              value,
+              label: value,
+            }))}
               value={layout}
               onChange={(e) => setLayout(e.target.value)}
             />
