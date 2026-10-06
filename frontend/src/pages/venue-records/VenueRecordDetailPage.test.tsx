@@ -1,6 +1,6 @@
 // frontend/src/pages/venue-records/VenueRecordDetailPage.test.tsx
 // SPM-124: AC4/6/7; VEN-VIEW-06-A/B, 07-A/B and detail error coverage.
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
@@ -145,8 +145,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getByText("45 minutes after an event")).toBeInTheDocument();
     expect(screen.getByText(/Maintenance/)).toBeInTheDocument();
     expect(
-      screen.getByText("Affected by an unavailable period"),
+      within(screen.getByText("Welcome Evening").closest("li")!).getByText("Affected by an unavailable period"),
     ).toBeInTheDocument();
+    expect(
+      within(screen.getByText("Workshop").closest("li")!).queryByText("Affected by an unavailable period"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(/Tentative hold/)).toBeInTheDocument();
   });
 
@@ -211,5 +214,33 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Venue not found.",
     );
+    expect(screen.queryByRole("heading", { name: "Conference Room" })).not.toBeInTheDocument();
+  });
+
+  // Non-404 failures must be actionable without being presented as a missing venue.
+  it("shows a retryable generic error for a failed detail request", async () => {
+    // Arrange: a transport failure has no HTTP 404 status.
+    apiMock.mockRejectedValue(new Error("offline"));
+
+    // Act: open the detail route.
+    renderPage();
+
+    // Assert: the generic failure and retry control replace all venue details.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load venue details.");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Conference Room" })).not.toBeInTheDocument();
+  });
+
+  // Empty schedule collections have explicit states instead of blank cards.
+  it("shows empty unavailable-period and reservation states", async () => {
+    // Arrange: the selected venue has no future schedule records.
+    apiMock.mockResolvedValue({ ...venue, unavailablePeriods: [], reservations: [] });
+
+    // Act: load the detail page.
+    renderPage();
+
+    // Assert: both schedule sections explain their independently empty state.
+    expect(await screen.findByText("No current or scheduled unavailable periods.")).toBeInTheDocument();
+    expect(screen.getByText("No upcoming bookings or active tentative holds.")).toBeInTheDocument();
   });
 });

@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex (GPT-5) - Strengthen SPM-124 venue-read coverage
+
+- Issue/PR: SPM-124 / no PR yet
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/`, `frontend/src/pages/venue-records/`, and `AI_USAGE.md`
+- Summary: Replaced schedule-read wall-clock predicates with the existing injectable clock pattern, added real HTTP/PostgreSQL coverage for owner scope, authorization, blockouts, hold expiry, and setup/turnaround-only impacts, and closed catalogue/detail/route test gaps.
+- AI contribution: Review remediation, deterministic integration-test design, frontend regression tests, and documentation.
+- Assumptions: Pending reservations are tentative until expired; availability status is alphabetical for display sorting; a search term must match name or location independently rather than spanning both fields. No Jira detail beyond the supplied SPM-124 review feedback was available.
+- Checks run: Focused frontend venue-record tests — 29 passed; focused backend venue tests — 21 passed; full frontend suite — 472 passed, 1 todo; full backend suite — 682 passed; backend lint and both builds passed; venue HTTP/PostgreSQL e2e — 9/9 passed against the local Compose database with the frozen-clock schedule cases.
+- Follow-up/conflict notes: Changes are local and uncommitted for review. The SPM-124 branch was clean before this follow-up.
+
 ## 2026-10-06 - Codex (GPT-5) - Rebase SPM-124 onto dev
 
 - Issue/PR: SPM-124 / no PR yet

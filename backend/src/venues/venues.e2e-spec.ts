@@ -6,12 +6,15 @@ import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../app.module.js';
+import { CLOCK } from '../registrations/clock.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const password = 'P@55w0rd';
 const staffEmail = 'venue_staff1@connectsphere.test';
 const secondStaffEmail = 'venue_staff2@connectsphere.test';
 const coordinatorEmail = 'coordinator1@connectsphere.test';
+const attendeeEmail = 'attendee1@connectsphere.test';
+const fixedNow = new Date('2030-01-10T12:00:00.000Z');
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -22,6 +25,7 @@ describe.skipIf(!databaseUrl)(
     let pool: pg.Pool;
     let ownerMigration: string;
     const venueIds: string[] = [];
+    const eventIds: string[] = [];
     const venueInput = {
       name: 'Orchid Hall Test',
       location: 'Test Building Level 3',
@@ -53,6 +57,30 @@ describe.skipIf(!databaseUrl)(
       return client;
     }
 
+    /** Creates an event required by the real booking foreign-key constraint. */
+    async function createScheduleEvent(name: string) {
+      const result = await pool.query(
+        `INSERT INTO events
+          (id, organiser_id, organiser_name, organiser_email, event_name, purpose,
+           start_date_time, end_date_time, expected_attendance, submission_key)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, $7, $8, gen_random_uuid())
+         RETURNING id`,
+        [
+          'spm-124-test-owner',
+          'SPM-124 Test Owner',
+          'spm-124-test-owner@example.test',
+          name,
+          'Schedule test fixture',
+          new Date(fixedNow.getTime() + 24 * 60 * 60 * 1000),
+          new Date(fixedNow.getTime() + 25 * 60 * 60 * 1000),
+          1,
+        ],
+      );
+      const id = result.rows[0].id as string;
+      eventIds.push(id);
+      return id;
+    }
+
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
       await pool.query(
@@ -79,9 +107,18 @@ describe.skipIf(!databaseUrl)(
       );
       await pool.query(ownerMigration);
       await pool.query(ownerMigration);
+      await pool.query(
+        await readFile(
+          new URL('../../migrations/009_venue_availability.sql', import.meta.url),
+          'utf8',
+        ),
+      );
       const moduleFixture: TestingModule = await Test.createTestingModule({
         imports: [AppModule],
-      }).compile();
+      })
+        .overrideProvider(CLOCK)
+        .useValue({ now: () => fixedNow })
+        .compile();
       app = moduleFixture.createNestApplication();
       await app.init();
     });
@@ -91,6 +128,8 @@ describe.skipIf(!databaseUrl)(
       if (pool) {
         if (venueIds.length)
           await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [venueIds]);
+        if (eventIds.length)
+          await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds]);
         await pool.end();
       }
     });
@@ -332,6 +371,93 @@ describe.skipIf(!databaseUrl)(
           location: 'Use a different venue name or location.',
         },
       });
+    });
+
+    // SPM-124 read contract: real SQL determines ownership, holds, blockouts and schedule impact at a frozen instant.
+    it('reads scoped venue schedules with active, expired and buffer-only records', async () => {
+      // Arrange: create two owners' venues and all schedule variants around the injected clock.
+      const staff = await authenticate(staffEmail);
+      const otherStaff = await authenticate(secondStaffEmail);
+      const coordinator = await authenticate(coordinatorEmail);
+      const attendee = await authenticate(attendeeEmail);
+      const mine = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, name: 'SPM-124 Schedule Owner Venue', image: undefined })
+        .expect(201);
+      const other = await otherStaff
+        .post('/api/venues')
+        .send({ ...venueInput, name: 'SPM-124 Schedule Other Venue', image: undefined })
+        .expect(201);
+      const mineId = mine.body.venue.id as string;
+      const otherId = other.body.venue.id as string;
+      venueIds.push(mineId, otherId);
+      const currentEvent = await createScheduleEvent('Current booking');
+      const activeHoldEvent = await createScheduleEvent('Active hold');
+      const setupEvent = await createScheduleEvent('Setup-buffer booking');
+      const turnaroundEvent = await createScheduleEvent('Turnaround-buffer booking');
+      const at = (hours: number, minutes = 0) =>
+        new Date(Date.UTC(2030, 0, 10, hours, minutes));
+      await pool.query(
+        `INSERT INTO venue_bookings
+          (venue_id, event_id, start_at, end_at, status, hold_expires_at)
+         VALUES
+          ($1, $2, $3, $4, 'approved', NULL),
+          ($1, $5, $6, $7, 'pending', $8),
+          ($1, $5, $9, $10, 'pending', $11),
+          ($1, $12, $13, $14, 'approved', NULL),
+          ($1, $15, $16, $17, 'approved', NULL)`,
+        [
+          mineId, currentEvent, at(11), at(13),
+          activeHoldEvent, at(14), at(15), at(13),
+          at(16), at(17), at(11),
+          setupEvent, at(18), at(19),
+          turnaroundEvent, at(20), at(21),
+        ],
+      );
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+         VALUES
+          ($1, $2, $3, 'blocked', 'Active maintenance'),
+          ($1, $4, $5, 'blocked', 'Scheduled maintenance'),
+          ($1, $6, $7, 'blocked', 'Expired maintenance'),
+          ($1, $8, $9, 'blocked', 'Setup-only blockout'),
+          ($1, $10, $11, 'blocked', 'Turnaround-only blockout')`,
+        [mineId, at(10), at(13), at(22), at(23), at(8), at(9), at(17, 40), at(17, 45), at(21, 15), at(21, 45)],
+      );
+
+      // Act: read anonymously, as a denied attendee, as each staff owner, and as a coordinator.
+      await request(app.getHttpServer()).get('/api/venues').expect(401);
+      await attendee.get('/api/venues').expect(403);
+      const staffList = await staff.get('/api/venues').expect(200);
+      const coordinatorList = await coordinator.get('/api/venues').expect(200);
+      const detail = await staff.get(`/api/venues/${mineId}`).expect(200);
+      await staff.get(`/api/venues/${otherId}`).expect(404);
+      await staff.get('/api/venues/00000000-0000-4000-8000-000000000999').expect(404);
+
+      // Assert: owner scope and the SQL-derived schedule rules are all visible through HTTP.
+      expect(staffList.body.some((record: { id: string }) => record.id === mineId)).toBe(true);
+      expect(staffList.body.some((record: { id: string }) => record.id === otherId)).toBe(false);
+      expect(coordinatorList.body.map((record: { id: string }) => record.id)).toEqual(
+        expect.arrayContaining([mineId, otherId]),
+      );
+      expect(detail.body).toMatchObject({
+        id: mineId,
+        availabilityStatus: 'unavailable',
+        unavailablePeriods: expect.arrayContaining([
+          expect.objectContaining({ reason: 'Active maintenance' }),
+          expect.objectContaining({ reason: 'Scheduled maintenance' }),
+          expect.objectContaining({ reason: 'Setup-only blockout' }),
+          expect.objectContaining({ reason: 'Turnaround-only blockout' }),
+        ]),
+        reservations: expect.arrayContaining([
+          expect.objectContaining({ eventName: 'Current booking', status: 'booked' }),
+          expect.objectContaining({ eventName: 'Active hold', status: 'tentative' }),
+          expect.objectContaining({ eventName: 'Setup-buffer booking', affectedByUnavailablePeriod: true }),
+          expect.objectContaining({ eventName: 'Turnaround-buffer booking', affectedByUnavailablePeriod: true }),
+        ]),
+      });
+      expect(detail.body.unavailablePeriods.map((period: { reason: string }) => period.reason)).not.toContain('Expired maintenance');
+      expect(detail.body.reservations.map((reservation: { start: string }) => reservation.start)).not.toContain(at(16).toISOString());
     });
   },
 );

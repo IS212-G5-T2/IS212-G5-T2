@@ -48,9 +48,8 @@ export function visibleVenues(
     .filter(
       (venue) =>
         !normalized ||
-        `${venue.name} ${venue.location}`
-          .toLocaleLowerCase()
-          .includes(normalized),
+        venue.name.toLocaleLowerCase().includes(normalized) ||
+        venue.location.toLocaleLowerCase().includes(normalized),
     )
     .sort((a, b) => {
       const comparison =

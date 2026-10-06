@@ -1,6 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type pg from 'pg';
 import { DatabaseService } from '../database/database.service.js';
+import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import { accessibilityOptions } from './accessibility-options.js';
 import type { VenueImageInput, VenueInput } from './venue-input.js';
 
@@ -113,7 +114,10 @@ const venueSelect = `
 /** Persists a venue and its accessibility selections atomically. */
 export class VenuesRepository {
   /* v8 ignore stop */
-  constructor(private readonly database: DatabaseService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
+  ) {}
 
   /**
    * Inserts one venue and its accessibility selections in one transaction.
@@ -210,17 +214,18 @@ export class VenuesRepository {
   private async withSchedules(venues: VenueReadRecord[]): Promise<VenueReadRecord[]> {
     if (!venues.length) return venues;
     const ids = venues.map((venue) => venue.id);
+    const now = this.clock.now();
     const periods = await this.database.query<UnavailableRow>(
       `SELECT id, venue_id, start_at, end_at, reason,
-         start_at <= now() AND end_at > now() AS current
+         start_at <= $2::timestamptz AND end_at > $2::timestamptz AS current
        FROM venue_bookings
-       WHERE venue_id = ANY($1::uuid[]) AND status = 'blocked' AND end_at > now()
+       WHERE venue_id = ANY($1::uuid[]) AND status = 'blocked' AND end_at > $2::timestamptz
        ORDER BY start_at, id`,
-      [ids],
+      [ids, now],
     );
     const bookings = await this.database.query<BookingRow>(
       `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
-         b.start_at <= now() AND b.end_at > now() AS current,
+         b.start_at <= $2::timestamptz AND b.end_at > $2::timestamptz AS current,
          EXISTS (
            SELECT 1 FROM venue_bookings blockout
            WHERE blockout.venue_id = b.venue_id
@@ -231,11 +236,11 @@ export class VenuesRepository {
        FROM venue_bookings b
        JOIN events e ON e.id = b.event_id
        JOIN venues v ON v.id = b.venue_id
-       WHERE b.venue_id = ANY($1::uuid[]) AND b.end_at > now()
+       WHERE b.venue_id = ANY($1::uuid[]) AND b.end_at > $2::timestamptz
          AND (b.status = 'approved' OR
-           (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > now())))
+           (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz)))
        ORDER BY b.start_at, b.id`,
-      [ids],
+      [ids, now],
     );
     const byId = new Map(venues.map((venue) => [venue.id, venue]));
     for (const row of periods.rows) {

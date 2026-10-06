@@ -210,7 +210,13 @@ describe('SPM-124 venue reads', () => {
 
     expect(readQuery.mock.calls[0][0]).toContain('v.owner_user_id = $1::uuid');
     expect(readQuery.mock.calls[0][1]).toEqual([owner]);
-    expect(record).toMatchObject({ id, availabilityStatus: 'available', reservations: [] });
+    expect(record).toEqual({
+      ...venue,
+      id,
+      availabilityStatus: 'available',
+      unavailablePeriods: [],
+      reservations: [],
+    });
   });
 
   // SPM-124: a current blockout is reflected in the catalogue response.
@@ -227,10 +233,48 @@ describe('SPM-124 venue reads', () => {
 
     const [record] = await repository.list();
 
-    expect(record).toMatchObject({
+    expect(record).toEqual({
+      ...venue,
+      id,
       availabilityStatus: 'unavailable',
-      unavailablePeriods: [{ reason: 'Maintenance' }],
-      reservations: [{ eventName: 'Workshop', status: 'tentative' }],
+      unavailablePeriods: [{
+        id: 'blockout',
+        start: '2026-10-05T00:00:00.000Z',
+        end: '2026-10-07T00:00:00.000Z',
+        reason: 'Maintenance',
+      }],
+      reservations: [{
+        id: 'hold',
+        eventName: 'Workshop',
+        start: '2026-10-08T00:00:00.000Z',
+        end: '2026-10-08T02:00:00.000Z',
+        status: 'tentative',
+        affectedByUnavailablePeriod: false,
+      }],
     });
+  });
+
+  // SPM-124: detail reads apply the same owner predicate and return no fabricated record.
+  it('gets one owner-scoped record or undefined when SQL finds none', async () => {
+    readQuery
+      .mockResolvedValueOnce({ rows: [{ ...row, id }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+
+    const record = await repository.get(id, owner);
+    const missing = await repository.get('00000000-0000-4000-8000-000000000999', owner);
+
+    expect(record).toEqual({
+      ...venue,
+      id,
+      availabilityStatus: 'available',
+      unavailablePeriods: [],
+      reservations: [],
+    });
+    expect(missing).toBeUndefined();
+    expect(readQuery.mock.calls[0][0]).toContain('v.id = $1::uuid AND v.owner_user_id = $2::uuid');
+    expect(readQuery.mock.calls[0][1]).toEqual([id, owner]);
   });
 });

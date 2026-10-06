@@ -27,7 +27,17 @@ vi.mock("@/pages/VenueDetailPage", () => ({
   VenueDetailPage: () => <p>Coordinator planning detail</p>,
 }));
 
-afterEach(cleanup);
+const initialAuthState = useAppStore.getState();
+
+afterEach(() => {
+  cleanup();
+  useAppStore.setState({
+    currentUser: initialAuthState.currentUser,
+    isAuthenticated: initialAuthState.isAuthenticated,
+    authLoading: initialAuthState.authLoading,
+    restoreAuthSession: initialAuthState.restoreAuthSession,
+  });
+});
 
 function renderRoute(role: UserRole, path: string) {
   useAppStore.setState({
@@ -100,4 +110,16 @@ describe("venue routes (SPM-124)", () => {
       screen.getByText("Coordinator planning catalogue"),
     ).toBeInTheDocument();
   });
+
+  // AC1 security: roles outside the venue read policy cannot render staff records.
+  it.each(["organiser", "attendee"] as const)(
+    "denies %s access to the persisted venue catalogue",
+    (role) => {
+      // Arrange and act: a signed-in non-venue role opens the protected route.
+      renderRoute(role, "/venues");
+
+      // Assert: no staff catalogue data is mounted after the route guard redirects.
+      expect(screen.queryByText("Persistent staff catalogue")).not.toBeInTheDocument();
+    },
+  );
 });

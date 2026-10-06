@@ -476,18 +476,65 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ]);
   });
 
-  // VEN-VIEW-05-D (AC5): visible status strings sort consistently in both directions.
-  it("VEN-VIEW-05-D: sorts status without losing venue rows", async () => {
-    // Arrange: one available and one unavailable venue have distinct visible states.
+  // VEN-VIEW-05-D (AC5): status ordering must differ from the alphabetical name order.
+  it("VEN-VIEW-05-D: sorts an asymmetric three-venue status fixture", async () => {
+    // Arrange: names and statuses deliberately produce different orderings.
     const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce([
+      { ...base, id: "00000000-0000-4000-8000-000000000129", name: "Alpha Hall", availabilityStatus: "unavailable" },
+      { ...second, id: "00000000-0000-4000-8000-000000000127", name: "Zulu Room", availabilityStatus: "available" },
+      { ...second, id: "00000000-0000-4000-8000-000000000128", name: "Mike Studio", availabilityStatus: "available" },
+    ]);
     renderPage();
-    await screen.findByRole("link", { name: "Conference Room" });
+    await screen.findByRole("link", { name: "Alpha Hall" });
 
-    // Act and assert: ascending and descending status orders retain both records.
+    // Act and assert: status order is independent from the default name order.
+    expect(namesInCards()).toEqual(["Alpha Hall", "Mike Studio", "Zulu Room"]);
     await user.click(screen.getByRole("button", { name: /^Status/ }));
-    expect(namesInCards()).toEqual(["Auditorium", "Conference Room"]);
+    expect(namesInCards()).toEqual(["Zulu Room", "Mike Studio", "Alpha Hall"]);
     await user.click(screen.getByRole("button", { name: /^Status/ }));
-    expect(namesInCards()).toEqual(["Conference Room", "Auditorium"]);
+    expect(namesInCards()).toEqual(["Alpha Hall", "Mike Studio", "Zulu Room"]);
+  });
+
+  // M3: surrounding whitespace is ignored, but name/location terms cannot be joined across fields.
+  it("trims partial searches without allowing a cross-field false match", async () => {
+    // Arrange: the two query fragments occur only in separate venue fields.
+    const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce([{ ...base, name: "Hall", location: "Test Building" }]);
+    renderPage();
+    await screen.findByRole("link", { name: "Hall" });
+    const search = screen.getByRole("textbox", { name: "Search by name or location" });
+
+    // Act: first prove a padded partial term works, then join the two fields.
+    await user.type(search, "  hall  ");
+    expect(namesInCards()).toEqual(["Hall"]);
+    await user.clear(search);
+    await user.type(search, "Hall Test Building");
+
+    // Assert: no record matches a phrase split between name and location.
+    expect(screen.getByText("No venues match your search.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Hall" })).not.toBeInTheDocument();
+  });
+
+  // M5: changing sort keys after descending order starts the new key ascending.
+  it("resets a newly selected sort key to ascending after a descending sort", async () => {
+    // Arrange: name and capacity orders are intentionally different.
+    const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce([
+      { ...base, name: "Alpha", capacity: 300 },
+      { ...second, name: "Zulu", capacity: 20 },
+    ]);
+    renderPage();
+    await screen.findByRole("link", { name: "Alpha" });
+
+    // Act: reverse names, then select capacity once.
+    await user.click(screen.getByRole("button", { name: /^Name/ }));
+    expect(namesInCards()).toEqual(["Zulu", "Alpha"]);
+    await user.click(screen.getByRole("button", { name: /^Capacity/ }));
+
+    // Assert: capacity begins ascending rather than inheriting descending state.
+    expect(namesInCards()).toEqual(["Zulu", "Alpha"]);
+    expect(screen.getByRole("button", { name: /^Capacity/ })).toHaveTextContent("↑");
   });
 
   // AC1: failed loading is distinguishable from a genuine empty catalogue.
@@ -509,5 +556,6 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(
       await screen.findByRole("link", { name: "Conference Room" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText("No venue records yet.")).not.toBeInTheDocument();
   });
 });
