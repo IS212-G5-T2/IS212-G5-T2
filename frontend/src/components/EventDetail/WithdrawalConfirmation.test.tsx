@@ -3,7 +3,7 @@
  * ACs: AC2 (prompt shows event name and consequences), AC3 (confirm or cancel),
  *      AC5 (status becomes Withdrawn), AC6 (on-screen confirmation message).
  * Test cases: WITHDRAW-EVENT-REG-02-A, 03-A (frontend half), 03-B, 06-A, 06-B.
- * Note: test IDs are from Confluence; AC numbers are Jira.
+ * Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  *
  * The dialog is exercised through RegistrationSection, because the Withdraw
  * button, the badge, the banner and the focus return all live there. HTTP is
@@ -244,3 +244,13 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 14:30")).toBeInTheDocument();
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  F12  a click on the dialog backdrop is ignored, ASSUMED -> 03-B (backdrop)
+ *  D9   the banner text is built by the UI from the event name, never echoed from the response -> 06-B
+ *  D13  the banner stays until dismissed (no timer); the dialog closes within 500 ms of the 200 -> 06-A (A)
+ *  F15  the banner carries no timestamp; the time is in the withdrawn card's timeline -> 06-B
+ *  MAP  SPEC "Confirmed" is the repo's "Registered" -> every test
+ */

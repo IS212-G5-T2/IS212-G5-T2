@@ -2,8 +2,9 @@
  * Story: SPM-120 Withdraw Registration (attendee), backend half.
  * ACs: AC3 (confirm/cancel), AC4 (not after event date), AC5 (status "Withdrawn"), AC6 (message).
  * Story goal (CAP-01): the freed spot is available.
- * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 05-B, 05-C, 05-D, 05-E, CAP-01,
- *             07-A, 07-B, 08-A. Note: test IDs are from Confluence case IDs; AC numbers are Jira.
+ * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 05-B, 05-C, 05-D, 05-E, 05-F,
+ *             07-A, 07-B, 07-INT-1 to 07-INT-5, 08-A, CAP-01.
+ * Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  *
  * Real Nest pipeline and real PostgreSQL; time comes from the injected CLOCK and
  * is never read from the wall clock. Oracles are literals taken from the AC text
@@ -46,6 +47,12 @@ const details = {
 const BODY_VARIANTS: [string, object | undefined][] = [
   ['no body', undefined],
   ['empty object body', {}],
+];
+const NO_BODY_ALLOWED = 'This request does not accept a body.';
+const BAD_BODIES: [string, object, Record<string, string>][] = [
+  ['an empty array', [], { form: NO_BODY_ALLOWED }],
+  ['a non-empty array', ['x'], { form: NO_BODY_ALLOWED }],
+  ['an unknown key only', { note: 'hi' }, { note: 'This field is not accepted.' }],
 ];
 
 describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', () => {
@@ -304,6 +311,25 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
       expect(stored.withdrawn_at).toBeNull();
       expect(await registeredCount(eventId)).toBe(3);
     });
+
+    // Oracle (DERIVED from the service's body rule and SPM-61 D15, "no body or {} only"): any other body shape is a
+    // 400; an object gets a per-key "not accepted" error, a non-object a form-level error. Nothing changes.
+    // Mutants killed: an array body treated like {} and accepted; an unknown key ignored; wrong error shape.
+    it.each(BAD_BODIES)('Added C (body shapes): %s -> 400 and no change', async (_label, body, errors) => {
+      // Arrange
+      const { eventId, att01, regId } = await seedEvt101();
+
+      // Act
+      const res = await withdraw(regId, att01.cookie, body);
+
+      // Assert: the exact error shape, and nothing changed
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({ statusCode: 400, code: 'validation_error', message: 'Please correct the highlighted fields.', errors });
+      const stored = await dbRow(regId);
+      expect(stored.status).toBe('Registered');
+      expect(stored.withdrawn_at).toBeNull();
+      expect(await registeredCount(eventId)).toBe(3);
+    });
   });
 
   describe('WITHDRAW-EVENT-REG-05-D (AC5: concurrency): a registration can only be withdrawn once', () => {
@@ -417,7 +443,7 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  describe('WITHDRAW-EVENT-REG-05-C (derived): re-registering after a withdrawal', () => {
+  describe('WITHDRAW-EVENT-REG-05-F (derived): re-registering after a withdrawal', () => {
     // Oracle (DERIVED, SPM-61 A5 / D16): the same row is reactivated and withdrawn_at is cleared.
     // Mutant killed: a re-registered attendee still showing the old withdrawal time.
     it('reactivates the withdrawn row and clears withdrawn_at', async () => {
@@ -529,6 +555,84 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
+  describe('WITHDRAW-EVENT-REG-07-INT (rule order): authentication -> body -> ownership -> state -> event start', () => {
+    // Oracle (DERIVED from the order documented on RegistrationsService.withdraw: authentication -> body ->
+    // ownership 404 -> state 422 -> event start 422 -> update). Each test breaks two adjacent rules at once, so
+    // a wrong order gives a different, observable answer. Nothing may change in any of them.
+    const ALREADY_WITHDRAWN = 'This registration has already been withdrawn.';
+
+    // Mutants killed: the body checked before the session (an anonymous caller learns the body rules: 400, not 401).
+    it('07-INT-1 (authentication before body): no session and a bad body -> 401, not 400', async () => {
+      // Arrange
+      const { regId } = await seedEvt101();
+
+      // Act
+      const res = await withdraw(regId, undefined, { status: 'registered' });
+
+      // Assert
+      expect(res.status).toBe(401);
+      expect(res.body.message).toBe('Missing session');
+      expect((await dbRow(regId)).status).toBe('Registered');
+    });
+
+    // Mutants killed: the body validated only after the ownership lookup (a non-owner would get 404, not 400).
+    it('07-INT-2 (body before ownership): a non-owner with a bad body -> 400, not 404', async () => {
+      // Arrange
+      const { regId } = await seedEvt101();
+      const att03 = await createUser('ATTENDEE', 'Eve Tan');
+
+      // Act
+      const res = await withdraw(regId, att03.cookie, { status: 'registered' });
+
+      // Assert
+      expect(res.status).toBe(400);
+      expect(res.body).toMatchObject({ code: 'validation_error', errors: { status: 'This field is not accepted.' } });
+      expect((await dbRow(regId)).status).toBe('Registered');
+    });
+
+    // Mutants killed: ownership checked after the state or the event start (a non-owner would learn that
+    // someone else's registration is withdrawn, or that its event has started, instead of a plain 404).
+    it.each([
+      ['07-INT-3 (ownership before state): the registration is already withdrawn', EVT_101_START, 'Withdrawn'],
+      ['07-INT-4 (ownership before event start): the event has already started', EVT_104_START, 'Registered'],
+    ] as const)('%s -> a non-owner gets 404 and no hint', async (_label, start, status) => {
+      // Arrange: ATT-01 owns the registration; ATT-03 is a different attendee.
+      const eventId = await seedEvent({ name: 'Rule Order Event', start });
+      const att01 = await createUser('ATTENDEE');
+      const regId = await seedRegistration(eventId, att01.uid, status);
+      const att03 = await createUser('ATTENDEE', 'Eve Tan');
+
+      // Act
+      const res = await withdraw(regId, att03.cookie);
+
+      // Assert
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Registration not found.');
+      const stored = await dbRow(regId);
+      expect(stored.status).toBe(status);
+      expect(stored.withdrawn_at).toBeNull();
+    });
+
+    // Mutants killed: the event-start check moved before the state check (the owner of a withdrawn registration
+    // on a past event would get "Event has already occurred" instead of "already been withdrawn").
+    it('07-INT-5 (state before event start): the owner of a withdrawn registration on a past event -> already withdrawn', async () => {
+      // Arrange: ATT-01 already withdrew from EVT-104, which started 5 days ago.
+      const eventId = await seedEvent({ name: 'Startup Pitch Day', start: EVT_104_START });
+      const att01 = await createUser('ATTENDEE');
+      const regId = await seedRegistration(eventId, att01.uid, 'Withdrawn');
+
+      // Act
+      const res = await withdraw(regId, att01.cookie);
+
+      // Assert
+      expect(res.status).toBe(422);
+      expect(res.body).toMatchObject({ code: 'registration_already_withdrawn', message: ALREADY_WITHDRAWN });
+      const stored = await dbRow(regId);
+      expect(stored.status).toBe('Withdrawn');
+      expect(stored.withdrawn_at).toBeNull();
+    });
+  });
+
   describe('WITHDRAW-EVENT-REG-08-A (cross-cutting): concurrent withdrawals are safe', () => {
     // Oracle (SPEC 08-A B): 100 parallel -> exactly one 200 and 99 422 (MSG-12), no 5xx, released once.
     // 08-A A (3 parallel) is 05-D A and is run once there. Response-time limits are not asserted (not repeatable).
@@ -560,3 +664,15 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
 
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  A7   event start is an exclusive cut-off, ASSUMED pending the Product Owner -> 04-B, 04-C, 05-B, 07-INT-4, 07-INT-5
+ *  A5   re-registering reactivates the same row and clears withdrawn_at (SPM-61) -> 05-F
+ *  D14  one compare-and-set UPDATE decides concurrent withdrawals -> 05-D (A, B, C), 08-A (B)
+ *  D15  the route accepts no body or {}; any other body is a 400 -> 05-C (Added C, body shapes), 07-INT-1, 07-INT-2
+ *  D16  another attendee's, unknown, malformed and non-attendee requests all get the same 404, never 403 -> 07-A, 07-INT-3, 07-INT-4
+ *  ORDER rule order is authentication -> body -> ownership -> state -> event start -> update (documented on RegistrationsService.withdraw), DERIVED -> 07-INT-1 to 07-INT-5
+ *  MAP  SPEC "Confirmed" is the repo's "Registered"; API values are lower-case -> every test
+ */

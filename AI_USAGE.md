@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Claude (Sonnet 5.5) - Close the SPM-120 test-guide review findings (rule order, traceability, assumptions, coverage)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, rebased onto the latest `dev`; PR #42 not yet updated).
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations` (withdraw e2e spec, event-start spec), `frontend/src/components/EventDetail` (tests), `frontend/src/pages` (`EventView.ts`, page test), `frontend/src/utils/registration.test.ts`, `frontend/CHANGELOG.md`, `docs/specs/SPM-120-test-results.md`, `AI_USAGE.md`.
+- Summary: Reviewed the suite against the test-code-generation guide and fixed four findings. (1) Added rule-order tests (07-INT-1 to 5) and body-shape tests; three mutants that had survived (state vs event-start order, body vs ownership order, array body accepted) are now killed. (2) Fixed traceability: corrected stale "IDs are from Confluence" headers, gave the re-register test its own ID (05-F, 05-C was used twice), and added a Test ID map, a "Tests without an AC" list and a decision table (the D/A/F IDs cited by the tests were defined nowhere in the repository). (3) Added an assumption index at the end of every SPM-120 test file. (4) Covered the dialog's two untested focus-trap branches, the footer variants (no close time, cancelled event, no availability figure, legacy withdrawal row) and the 409-on-re-register path. One production fix came out of it: `withdrawnCardFooterState` showed "Registration closed on <future date>" for a cancelled event, found by a test that failed first.
+- AI contribution: review, tests, the footer fix, mutation checks (M22 to M33), documentation.
+- Assumptions: the rule order documented on `RegistrationsService.withdraw` is the intended one (DERIVED, not stated by the Jira AC); the decision table restates what the tests assert because the original Phase 0 notes are not in the repository.
+- Checks run: frontend 524 passed, 1 todo; `tsc` clean; lint has the same 2 pre-existing errors; build ok; date tests 72 passed under TZ=UTC, Asia/Singapore, America/Los_Angeles; backend unit 678 passed; backend integration (`src/registrations`) 63 passed, 1 todo on a throwaway `spm_test` database with all init scripts applied, then dropped. Coverage (diagnostic): service branches 88.4% to 91.3%, dialog 76.9% to 92.3%, status card 90.3% to 100%. Mutants M22 to M33 all killed; two survived their first test and were strengthened. Playwright spec not re-run this pass (no browser-facing change besides the footer text it does not assert).
+- Follow-up/conflict notes: not done: loops/ternaries in backend tests, event status values and non-attendee roles, scalar request bodies. Mutation driver still not committed. Changes are staged locally; nothing committed or pushed.
+
 ## 2026-10-05 - Claude (Sonnet 5.5) - Renumber SPM-120 test case IDs to the six-AC matrix
 
 - Issue/PR: SPM-120 / PR #42 (branch `feature/SPM-120-Withdraw-Registration`).

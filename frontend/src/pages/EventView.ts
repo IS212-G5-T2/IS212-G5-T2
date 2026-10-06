@@ -88,7 +88,10 @@ export function withdrawnCardFooterState(event: EventRecord, now: Date): Withdra
   }
   if (state === "full") return { kind: "full" };
   if (state === "not-yet-open") return { kind: "not-yet-open", opensAt: event.registrationOpensAt! };
-  return { kind: "closed", closesAt: event.registrationClosesAt };
+  // "Closed on" is only true once the closing time has passed; a cancelled event can still carry a future one.
+  const closesAt = event.registrationClosesAt;
+  const hasClosed = Boolean(closesAt) && now.getTime() >= new Date(closesAt as string).getTime();
+  return { kind: "closed", closesAt: hasClosed ? closesAt : undefined };
 }
 
 export type AttendeeBrowseFilter = "upcoming" | "registered" | "past" | "cancelled";

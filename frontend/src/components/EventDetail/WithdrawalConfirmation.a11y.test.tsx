@@ -87,6 +87,52 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 
+  // Oracle (D10 B + the trap's own rule, "pull focus back in if it ever left the dialog"): with focus on the page
+  // behind, Tab lands on the first dialog button (Cancel) and Shift+Tab on the last (Confirm).
+  // Starting points are chosen so the browser's own tab order would give a different answer: from <body> Tab would
+  // reach the Withdraw button, and from Withdraw Shift+Tab would wrap to the extra button after the dialog.
+  // Mutants killed: the "focus left the dialog" branch removed (focus stays on the page behind the modal).
+  it("WITHDRAW-EVENT-REG-02-B: Tab and Shift+Tab from outside the dialog pull focus back in", async () => {
+    // Arrange: an extra tabbable element after the dialog, and focus on <body>.
+    const { u } = await openDialog();
+    const outsider = document.body.appendChild(document.createElement("button"));
+    try {
+      (document.activeElement as HTMLElement).blur();
+
+      // Act + Assert: forward
+      await u.tab();
+      expect(cancelButton()).toHaveFocus();
+
+      // Act + Assert: backward, starting from the page's Withdraw button
+      withdrawButton().focus();
+      await u.tab({ shift: true });
+      expect(confirmButton()).toHaveFocus();
+    } finally {
+      outsider.remove();
+    }
+  });
+
+  // Oracle (the component's own contract: "while the request is pending both buttons are disabled" and focus must
+  // not escape to the page): with nothing focusable inside, focus stays on the dialog for Tab and Shift+Tab.
+  // Mutants killed: the "no focusable buttons" branch removed (Tab leaves the dialog while a withdrawal is pending).
+  it("WITHDRAW-EVENT-REG-02-B: while the withdrawal is pending, Tab and Shift+Tab keep focus on the dialog", async () => {
+    // Arrange: the request never answers, so both buttons stay disabled.
+    const { u } = await openDialog();
+    apiMock.mockImplementation(() => new Promise(() => {}));
+    await u.click(confirmButton());
+    const dialog = screen.getByRole("dialog");
+    expect(confirmButton()).toBeDisabled();
+    expect(cancelButton()).toBeDisabled();
+    expect(dialog).toHaveFocus();
+
+    // Act + Assert
+    await u.tab();
+    expect(dialog).toHaveFocus();
+    await u.tab({ shift: true });
+    expect(dialog).toHaveFocus();
+    expect(apiMock).toHaveBeenCalledTimes(1);
+  });
+
   // Oracle (SPEC 02-B C, Escape = Cancel): closes with zero requests and focus returns to "Withdraw".
   // Mutants killed: Escape ignored; Escape confirms; focus lost after close.
   it("WITHDRAW-EVENT-REG-02-B: Escape closes the dialog, sends nothing and restores focus", async () => {
@@ -110,3 +156,10 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(results.violations).toEqual([]);
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  D10  initial focus is on Cancel (amends the Confluence case) -> initial focus, Tab cycle
+ *  TRAP the dialog's documented focus rule (pull focus back in; keep it on the dialog while both buttons are disabled), DERIVED from the component's contract -> outside-focus and pending-focus tests
+ */

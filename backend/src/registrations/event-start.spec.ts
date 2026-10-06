@@ -32,3 +32,9 @@ describe('SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)', (
     expect(hasEventStarted(event, new Date('2026-11-01T09:00:01+08:00'))).toBe(true);
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  A7   event start is an exclusive cut-off, ASSUMED pending the Product Owner -> all three tests
+ */

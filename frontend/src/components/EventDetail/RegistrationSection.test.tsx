@@ -11,7 +11,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import { formatSgt } from "@/utils/registration";
 import type { EventRecord, Registration, User } from "@/types";
-import { ATT_01, T0, buildEvent, buildPastEvent, buildRegistration } from "./withdrawal.fixtures";
+import { ATT_01, T0, buildEvent, buildPastEvent, buildRegistration, withdrawalResponse } from "./withdrawal.fixtures";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -383,7 +383,7 @@ describe("D14: failed POST is not retried automatically", () => {
  * ACs: AC1 (withdraw option), AC4 (not after the event date, error message),
  *      AC5 (status "Withdrawn", part of the overall flow). Test cases: WITHDRAW-EVENT-REG-01-A, 01-B, 04-A,
  *      04-A (boundary), 05-A, and an added 05-D frontend case. The 01-B, 04-A and 05-A cases share one
- *      past-event fixture (document defect F5); each asserts its own focus. Note: test IDs are Confluence; AC numbers are Jira.
+ *      past-event fixture (document defect F5); each asserts its own focus. Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  * Suite clock T0 = 2026-10-04 12:00 SGT. "Confirmed" in the cases is the repo's "Registered".
  * The Withdraw control is not rendered for a past event (D11); there is no availability flag.
  */
@@ -513,7 +513,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 /*
  * Story: SPM-120 Withdraw Registration, withdrawn-card redesign: "Register again".
  * Test cases: WITHDRAW-EVENT-REG-CARD-10 (prefill), CARD-11 (re-register replaces the withdrawn card),
- * CARD-12 (a refused re-registration changes nothing). Oracles are literals from the redesign brief:
+ * CARD-12 (a refused re-registration changes nothing), CARD-13 (a 409 reloads the registration and closes the form). Oracles are literals from the redesign brief:
  * the form is prefilled from the WITHDRAWN record (not the account), the card flips to the new
  * registration even though it has a new id, and the confirmation reads "Registered again for {event}."
  */
@@ -631,4 +631,73 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(screen.queryByText(/Registered again/)).not.toBeInTheDocument();
     expect(useAppStore.getState().registrations).toEqual([withdrawn]);
   });
+
+  // Oracle (SPM-61 duplicate rule, via the server): re-registering while the attendee is already registered
+  // (for example from another tab) answers 409; the card reloads the real registration, shows the duplicate
+  // notice, and the form closes.
+  // Mutants killed: the registration not reloaded after a 409 (the card stays on "withdrawn"); the form left open.
+  it("WITHDRAW-EVENT-REG-CARD-13: a 409 on re-register reloads the registration and closes the form", async () => {
+    // Arrange: the POST is refused as a duplicate, and the reload returns the active registration.
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const active = buildRegistration({ id: "REG-9001", status: "registered", registeredAt: T0.toISOString() });
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith("/registrations") && init?.method === "POST")
+        return Promise.reject(new ApiError("You are already registered for this event.", undefined, "already_registered", 409));
+      if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: active });
+      return Promise.resolve({ registration: null });
+    });
+    renderWithdrawn();
+    await u.click(registerAgain()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Submit registration" }));
+
+    // Assert
+    expect(await screen.findByText("You're registered")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Event registration" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Registration withdrawn")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("You are already registered for this event.");
+    expect(useAppStore.getState().registrations).toEqual([active]);
+  });
+
+  // Oracle (DERIVED from the same flow): once a 409 has shown the active registration, the form is closed for good;
+  // if the attendee then withdraws, the withdrawn card appears with its Register again footer and no form.
+  // Mutants killed: the form still flagged open after a 409 (it reappears, and hides the footer, after the next withdrawal).
+  it("WITHDRAW-EVENT-REG-CARD-13 (b): after a 409 the form does not come back when the attendee withdraws", async () => {
+    // Arrange: 409 on re-register, the reload shows the active registration, then a withdrawal succeeds.
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const active = buildRegistration({ id: "REG-9001", status: "registered", registeredAt: T0.toISOString() });
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith("/withdraw") && init?.method === "POST") return Promise.resolve(withdrawalResponse(active));
+      if (path.endsWith("/registrations") && init?.method === "POST")
+        return Promise.reject(new ApiError("You are already registered for this event.", undefined, "already_registered", 409));
+      if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: active });
+      return Promise.resolve({ registration: null });
+    });
+    renderWithdrawn();
+    await u.click(registerAgain()!);
+    await u.click(screen.getByRole("button", { name: "Submit registration" }));
+    await screen.findByText("You're registered");
+
+    // Act: withdraw through the dialog
+    await u.click(screen.getByRole("button", { name: "Withdraw" }));
+    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+
+    // Assert
+    expect(await screen.findByText("Registration withdrawn")).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: "Event registration" })).not.toBeInTheDocument();
+    expect(registerAgain()).toBeEnabled();
+  });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  SPM-120 tests in this file only:
+ *  D11  no Withdraw control for a past event, no availability flag -> 01-A, 01-B, 04-A
+ *  A7   event start is an exclusive cut-off, ASSUMED -> 01-B, 04-A (boundary), 05-A
+ *  D6/D7 the only blocked message is "Event has already occurred" -> 01-B, 04-A, 05-A (A, B)
+ *  A5   re-registering reactivates the same row (same id, no withdrawnAt) -> CARD-11
+ *  BRIEF the form is prefilled from the withdrawn registration; the footer steps aside while it is open -> CARD-10 to CARD-13
+ *  409  an already-registered answer reloads the real registration (SPM-61 rule) -> CARD-13
+ */

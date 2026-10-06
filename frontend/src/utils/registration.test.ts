@@ -194,3 +194,14 @@ describe("SPM-120 AC5/AC6: message literals", () => {
     );
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  SPM-120 tests in this file only:
+ *  A7   event start is an exclusive cut-off, ASSUMED -> 04-C (unit)
+ *  D8   the blocked message has no full stop -> message literals
+ *  SGT  timestamps are shown in Asia/Singapore -> 05-E (formatSgtDateTime)
+ *  MONTHS every month is a fixed three-letter name, DERIVED from the app's date format -> 05-E (months)
+ *  DAYS the footer day count is the SGT calendar-day difference, DERIVED from the SPM-61 heading -> daysUntilLabel
+ */

@@ -3,7 +3,7 @@
  * ACs: AC5 (status persists across a reload), AC6 (message confirmation).
  * Story goal (CAP-01): the freed spot is reflected.
  * Test cases: WITHDRAW-EVENT-REG-05-C (frontend), 05-E (UI), CAP-01 (frontend), 07-B (frontend).
- * Note: test IDs are from Confluence; AC numbers are Jira.
+ * Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  *
  * HTTP is mocked at the boundary; the store and router are real. Oracles are
  * literals from the AC text and the Confluence pages. Only Date is faked
@@ -171,3 +171,11 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
     expect(screen.queryByText("Login screen")).not.toBeInTheDocument();
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  D19  the event-list badge and dashboard card in the case do not exist in this app, so they are not asserted -> CAP-01 (frontend)
+ *  BRIEF the withdrawn card's footer ("N spots left", Register again) replaces the generic Available row -> CAP-01 (frontend)
+ *  401  only a 401 from the withdraw call signs the user out, DERIVED -> 07-B (frontend), both tests
+ */

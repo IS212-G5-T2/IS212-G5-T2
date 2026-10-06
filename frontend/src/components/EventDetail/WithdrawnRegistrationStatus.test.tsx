@@ -1,8 +1,9 @@
 /*
  * Withdrawn registration card redesign (SPM-120 follow-up: timeline + action
  * footer, Option A). Test cases use the WITHDRAW-EVENT-REG-CARD-0X convention
- * requested for this UI task, distinct from the Confluence-sourced
- * WITHDRAW-EVENT-REG-0X-Y ids already used elsewhere in this suite.
+ * requested for this UI task, distinct from the six-AC matrix IDs (01-A to 08-A, CAP-01)
+ * used elsewhere in this suite. CARD tests trace to the redesign brief, not to an AC (see
+ * "Tests without an AC" in docs/specs/SPM-120-test-results.md).
  *
  * This component is pure and prop-driven (no store, no network), so these are
  * plain component tests. Suite clock T0 = 2026-10-04 12:00 SGT (shared fixture).
@@ -11,6 +12,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
+import type { EventRecord } from "@/types";
 import { HOUR, T0, buildEvent, buildRegistration, iso, timelineEntry } from "./withdrawal.fixtures";
 
 const noop = () => {};
@@ -34,6 +36,22 @@ describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again but
     expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
     expect(screen.getAllByRole("listitem")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Register again" })).toBeEnabled();
+  });
+});
+
+describe("WITHDRAW-EVENT-REG-CARD-01 (legacy row): a withdrawal with no recorded time", () => {
+  // Oracle (DERIVED from database migration 007: "rows withdrawn before this change have no timestamp"): the
+  // timeline shows only the Registered entry; it must not invent a withdrawal time.
+  // Mutants killed: the Withdrawn entry always rendered (with an invalid or copied timestamp).
+  it("shows only the Registered entry when withdrawnAt is missing", () => {
+    const registration = buildRegistration({ status: "withdrawn", withdrawnAt: undefined });
+    render(
+      <WithdrawnRegistrationStatus event={buildEvent()} registration={registration} now={T0} onRegisterAgain={noop} />,
+    );
+
+    expect(screen.getAllByRole("listitem")).toHaveLength(1);
+    expect(timelineEntry("Registered").getByText("3 Oct 2026, 12:00")).toBeInTheDocument();
+    expect(screen.queryByText("Withdrawn", { selector: "p" })).not.toBeInTheDocument();
   });
 });
 
@@ -116,6 +134,42 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
     expect(onRegisterAgain).toHaveBeenCalledTimes(1);
   });
 
+  // Oracle (DERIVED: SPM-61 treats a missing close time as unbounded): with no close time there is nothing to
+  // count down to, so the footer shows the spots only.
+  // Mutants killed: "Closes ..." printed for a missing close time (an invalid date).
+  it("footer without a close time: just the spots left", () => {
+    const event = buildEvent({ availableRegistrationSpots: 5, registrationClosesAt: undefined });
+    render(
+      <WithdrawnRegistrationStatus
+        event={event}
+        registration={buildRegistration({ withdrawnAt: T0.toISOString() })}
+        now={T0}
+        onRegisterAgain={noop}
+      />,
+    );
+
+    expect(screen.getByText("5 spots left")).toBeInTheDocument();
+    expect(screen.queryByText(/Closes/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Register again" })).toBeEnabled();
+  });
+
+  // Oracle (DERIVED from the main card, which treats the expected attendance as the capacity when the API gives no
+  // availability figure): the footer shows that number rather than "undefined".
+  // Mutants killed: the fallback removed (the footer reads "undefined spots left").
+  it("footer without an availability figure: falls back to the expected attendance", () => {
+    const event = buildEvent({ availableRegistrationSpots: undefined, expectedAttendance: 7 });
+    render(
+      <WithdrawnRegistrationStatus
+        event={event}
+        registration={buildRegistration({ withdrawnAt: T0.toISOString() })}
+        now={T0}
+        onRegisterAgain={noop}
+      />,
+    );
+
+    expect(screen.getByText(/^7 spots left/)).toBeInTheDocument();
+  });
+
   // Oracle (DERIVED, calendar-day rule shared with the SPM-61 heading): "today" on the closing day, "1 day" the next
   // SGT day even when only minutes apart. Clock T0 is 4 Oct 12:00 SGT.
   // Mutants killed: hours / 24 instead of SGT calendar days; "0 days" instead of "today".
@@ -196,6 +250,27 @@ describe("WITHDRAW-EVENT-REG-CARD-06: not yet open, closed, and event started", 
       />,
     );
     expect(screen.getByText("Registration closed on 4 Oct 2026, 11:00.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Register/ })).not.toBeInTheDocument();
+  });
+
+  // Oracle (DERIVED from the SPM-61 rule the main card already follows: "Closed on" is true only once the closing
+  // time has passed, and a cancelled event can still carry a future scheduled close): the footer says plainly that
+  // registration is closed and never prints a future date after "closed on".
+  // Mutants killed: "Registration closed on <future date>." for a cancelled event; an invalid date with no close time.
+  it.each<[string, Partial<EventRecord>]>([
+    ["a cancelled event whose scheduled close is still in the future", { status: "cancelled", registrationClosesAt: iso(9 * 24 * HOUR) }],
+    ["a cancelled event with no close time at all", { status: "cancelled", registrationClosesAt: undefined }],
+  ])("closed: %s -> 'Registration is closed.' and no button", (_label, overrides) => {
+    render(
+      <WithdrawnRegistrationStatus
+        event={buildEvent(overrides)}
+        registration={buildRegistration({ withdrawnAt: T0.toISOString() })}
+        now={T0}
+        onRegisterAgain={noop}
+      />,
+    );
+    expect(screen.getByText("Registration is closed.")).toBeInTheDocument();
+    expect(screen.queryByText(/closed on/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Register/ })).not.toBeInTheDocument();
   });
 
@@ -296,3 +371,15 @@ describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () =
     expect(withdrawnTime).toHaveAttribute("datetime", withdrawnAt);
   });
 });
+
+/*
+ * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
+ * "Decision and assumption IDs". assumption -> tests that rely on it:
+ *  BRIEF  the redesign brief (not in the repository) is the oracle for badge, timeline, disclosure and footer -> CARD-01 to 09
+ *  RULES  footer eligibility is DERIVED from registrationState and hasEventStarted -> CARD-04 to CARD-07
+ *  DAYS   the day count is the SGT calendar-day difference, as in the SPM-61 heading -> CARD-04 (day count)
+ *  CAPACITY with no availability figure the expected attendance is the capacity, as on the main card -> CARD-04 (fallback)
+ *  CLOSED "closed on" is only true once the close time has passed (the main card's hasClosed rule) -> CARD-06 (cancelled)
+ *  LEGACY rows withdrawn before migration 007 have no withdrawal time -> CARD-01 (legacy row)
+ *  SGT    timestamps are shown in Asia/Singapore (the 05-E convention) -> CARD-01, CARD-08
+ */
