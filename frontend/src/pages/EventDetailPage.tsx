@@ -65,6 +65,12 @@ export function EventDetailPage() {
     }).catch(e => { if (active) setLoadError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]);
+  // SPM-120: a withdrawal frees a spot, so the event's capacity is refetched rather than guessed.
+  const refreshEvent = useCallback(() => {
+    api<EventRecord>(`/events/${id}`)
+      .then((event) => useAppStore.setState((s) => ({ events: [event, ...s.events.filter((e) => e.id !== event.id)] })))
+      .catch(() => undefined);
+  }, [id]);
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
@@ -142,8 +148,9 @@ export function EventDetailPage() {
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
 
+  // The latest registration of any status: a withdrawn one still shows its status and time (SPM-120).
   const myRegistration = registrations.find(
-    (r) => r.eventId === event.id && r.attendeeId === currentUser.id && r.status === "registered"
+    (r) => r.eventId === event.id && r.attendeeId === currentUser.id
   );
   // Registration is attendee-facing only after an organiser has configured
   // both boundaries; an incomplete period is not useful information to show.
@@ -471,7 +478,12 @@ export function EventDetailPage() {
         </Card>
 
         {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
-          <RegistrationSection event={event} currentUser={currentUser} registration={myRegistration} />
+          <RegistrationSection
+            event={event}
+            currentUser={currentUser}
+            registration={myRegistration}
+            onWithdrawn={refreshEvent}
+          />
         )}
 
         {(isOwner || isAssignedCoordinator) && (
