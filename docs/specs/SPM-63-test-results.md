@@ -71,14 +71,14 @@ All results are from runs of the commands under "Run commands". **Pass** = every
 
 | Test Case ID | Subtest | file :: test name | Layer | Result | Notes |
 |---|---|---|---|---|---|
-| 01-A | BE | `registrations.report.e2e-spec.ts` :: 01-A | Integration | Pass | Fixture also has REG-EXTRA-01 (shared with 01-B/02-A/03-A) |
+| 01-A | BE | `registrations.report.e2e-spec.ts` :: 01-A | Integration | Pass | The case's own fixture: exactly REG-9007 and REG-9001 plus the Withdrawn REG-9003 (no REG-EXTRA-01) |
 | 01-A | FE | `RegistrationReportPage.test.tsx` :: 01-A; `EventListPage.registrations.test.tsx` :: 01-A | FE page | Pass | Link on the existing list (D14 / Q11) |
 | 01-B | BE, FE, race | `registrations.report.e2e-spec.ts` :: 01-B; `RegistrationReportPage.test.tsx` :: 01-B, 01-B-RACE, 01-B-POLL | Integration + FE | Pass | Race and polling-stop are added subtests |
 | 01-C | BE, FE | e2e :: 01-C; page :: 01-C; list :: 01-C | Integration + FE | Pass | |
 | 02-A | BE, unit, FE | e2e :: 02-A, 02-A-BND; `report-format.spec.ts`; `ReportHeader.test.tsx` | Integration + unit + FE | Pass | Cancelled fixture: **Not Automated** (Q8) |
 | 02-B | A and B | e2e :: 02-B (x2); page :: 02-B; `ReportHeader.test.tsx` :: 02-B | Integration + FE | Pass | Independent fixtures (F6) |
 | 03-A | BE, FE | e2e :: 03-A, -BND, -NULL; `ReportTable.test.tsx` :: 03-A; helper specs | Integration + unit + FE | Pass | Also run under TZ=UTC, Asia/Singapore, America/Los_Angeles |
-| 04-A | BE, unit, FE | e2e :: 04-A, -BND, -FMT; `export.service.spec.ts`; page :: 04-A (+ -BUSY, -ERR) | Integration + unit + FE | Pass | |
+| 04-A | BE, unit, FE | e2e :: 04-A, -BND, -FMT (unknown, repeated, upper-case, empty and missing format); `export.service.spec.ts`; page :: 04-A (+ -BUSY, -ERR) | Integration + unit + FE | Pass | |
 | 04-B | BE | e2e :: 04-B, 04-B-LONG; `export.service.spec.ts` :: 04-B-PAGES; page :: 04-B | Integration + FE | Pass | Visual layout: **Not Automated** |
 | 04-C | BE, FE | e2e :: 04-C; `export.service.spec.ts`; `ReportTable.test.tsx`; page :: 04-C | Integration + unit + FE | Pass | EVT-106 seeded as Confirmed (Q9) |
 | 04-D | BE | `export.service.spec.ts` :: 04-D; e2e :: 04-D | Unit + integration | Pass | Opening in a spreadsheet: **Not Automated** |
@@ -88,7 +88,7 @@ All results are from runs of the commands under "Run commands". **Pass** = every
 | 05-C | A and B | e2e :: 05-C, 05-C-TOKEN, 05-D-ORDER | Integration | Pass | Logger spied only here |
 | 05-D | A and B | e2e :: 05-D (x6); page :: 05-D (x2); list :: 05-D | Integration + FE | Pass | |
 | 06-A | BE, FE | e2e :: 06-A, 06-A-CACHE (x3); page :: 06-A and the -UNMOUNT / -REVOKE / -SESSION / -BLIP / -INFLIGHT cases | Integration + FE | Pass | 06-A/06-B FE live on the page, not on `ReportTable` (the page owns the lifecycle) |
-| 06-B | BE, FE | e2e :: 06-B; page :: 06-B | Integration + FE | Pass | |
+| 06-B | BE, FE | e2e :: 06-B, 06-B-REREG (withdraw then register again); page :: 06-B | Integration + FE | Pass | The re-registration date is stamped by the database clock, so only its order and difference from the original are asserted |
 | EVENT-REG-03-SEC-1 (coordinator report) | add-on | `ReportTable.test.tsx` | FE component | Pass | |
 
 ## Review checklist (Guide 10C)
@@ -108,7 +108,7 @@ All results are from runs of the commands under "Run commands". **Pass** = every
 - [x] Happy, sad and boundary coverage per rule; each role (coordinator, organiser, attendee, no session) and each door (report, CSV, PDF) covered.
 - [x] Every output field asserted (the row and event key sets are asserted exactly in 01-C and 03-A).
 - [x] Oracles are literals; assumptions tagged `// ASSUMPTION An:` and indexed once at the end of each file.
-- [x] No loops computing expectations; `it.each` tables are literal; no snapshots; no real `Date.now()`, timers or `Math.random()` in tests.
+- [x] No loops computing expectations; `it.each` tables are literal; no snapshots; no real `Date.now()`, timers or `Math.random()` in tests (the event-list spec was corrected after review to use a faked `Date` and fixed instants). The one loop with `expect` inside (04-B text order) walks a literal list and computes nothing.
 - [x] Sad-path "no side effect / no leak" claims are real: refusals assert no attendee data in the body, no log PII, and (04-E) an unchanged registrations row count.
 - [x] Rule-order interactions covered: 401 -> 404 -> 403 (05-D-ORDER), access before format (05-A-FMT), neutralise before quote (04-E-INT).
 - [x] Non-default parameters and paired fields: dates use three different instants, capacity 2 vs 50, high/low ids for the tie.
@@ -118,6 +118,10 @@ All results are from runs of the commands under "Run commands". **Pass** = every
 
 Coverage (diagnostic only): frontend SPM-63 files 97.3% statements / 88.7% branches; backend integration run: `export.service.ts` 94% statements (the page-break path was then covered by the added pagination test), `registrations.controller.ts` 93%, `report-format.ts` 96% (the remaining branch is the `?? ''` fallback after `find`, which `Intl` never triggers).
 
+## Review follow-up
+
+After a review against the Guide, three defects were fixed (the 01-A backend fixture now matches the case exactly; the event-list spec no longer reads the real clock; a stale file header was corrected) and these tests were added: 04-A-FMT for a repeated, upper-case, empty and missing `format`, and 06-B-REREG for withdraw-then-register-again. Probe mutants for them (lenient format parsing, a default format, the original date kept) were killed and are now X15 to X17. Open review points: the oracle wording choices (F3, A4, A5, the 5 s poll) were made by the same author as the tests, so they need an independent check; the SQL "row count unchanged" assertion in 04-E is spec-required but can hardly fail.
+
 ## Gap list
 
 **Not Automated**
@@ -125,6 +129,7 @@ Coverage (diagnostic only): frontend SPM-63 files 97.3% statements / 88.7% branc
 - Visual PDF layout review (04-B): the text content, order, completeness and page continuation are automated.
 - Reading `Content-Disposition` across origins in a real browser: the server sends `Access-Control-Expose-Headers: Content-Disposition` (checked against the built server with `curl`, below) but no browser test exists.
 - A Cancelled registration (02-A added fixture): the schema forbids the status (Q8).
+- Exact value of a re-registration date (06-B-REREG): `created_at` is reset by SQL `now()` in the SPM-61 code, not the injected clock.
 - Real WebSocket / push: not chosen (Q5).
 
 **Blocked**: none. The link steps of 01-A/B/C and 05-A/B are automated on the existing event list (D14 holds: no separate dashboards exist).
@@ -188,7 +193,7 @@ Tool: the repo's own harness (`scripts/testing/mutation/run.mjs --mutants spm63.
 | M19 PDF from the wrong rows | killed (empty-state and summary-count variants; "all statuses" cannot occur because the PDF only receives the one report) |
 | M20 plural always | killed (backend and frontend) |
 
-Backend: 34 mutants, **32 killed, 2 equivalent** (M1, M6a), 0 survived. Frontend: 25 mutants, **25 killed**, 0 survived. Extra mutants (X1 to X14 backend, X1 to X21 frontend) cover the clamp, no-store header, BOM, CRLF, tie-break, denial log, access-before-format, unknown-format fallback, UTC rendering, wrong column compared, AND instead of OR, page breaks, 403/401/in-flight/unmount handling, the download (cookie, filename, revoke, disabled buttons), link visibility and HTML rendering.
+Backend: 37 mutants, **35 killed, 2 equivalent** (M1, M6a), 0 survived. Frontend: 25 mutants, **25 killed**, 0 survived. Extra mutants (X1 to X17 backend, X1 to X21 frontend) cover the clamp, no-store header, BOM, CRLF, tie-break, denial log, access-before-format, unknown-format fallback, UTC rendering, wrong column compared, AND instead of OR, page breaks, 403/401/in-flight/unmount handling, the download (cookie, filename, revoke, disabled buttons), link visibility and HTML rendering.
 
 Time zones: the date-sensitive suites (backend `report-format.spec.ts`, `export.service.spec.ts`, `registrations.report.e2e-spec.ts`; frontend helper, table, page and list suites) pass under `TZ=UTC`, `TZ=Asia/Singapore` and `TZ=America/Los_Angeles`.
 
@@ -196,7 +201,7 @@ Real-server check: the built backend (`node dist/main.js` on :8081 against `spm_
 
 ## Regression (SPM-61, SPM-62, SPM-120)
 
-- Backend unit: 748 passed (baseline 688; +60 new). Backend integration `src/registrations`: 109 passed, 1 todo (baseline 70 + 1 todo; +39 new); the SPM-61 and SPM-120 suites are unchanged and green.
+- Backend unit: 748 passed (baseline 688; +60 new). Backend integration `src/registrations`: 114 passed, 1 todo (baseline 70 + 1 todo; +44 new); the SPM-61 and SPM-120 suites are unchanged and green.
 - Frontend: 592 passed, 1 todo (baseline 532; +60 new). `EventListPage.test.tsx` and the SPM-61/62/120 page and component suites are unchanged and green. `tsc -b --noEmit` clean; `npm run build` ok; lint shows the same 2 pre-existing errors (`ClarificationThread.tsx:157`, `useAppStore.auth.test.ts:5`).
 - Backend `npm run build` ok; `npm run lint` clean. Backend `tsc --noEmit` shows the pre-existing errors in `test/events-assign.e2e-spec.ts` and `vitest.spm37.config.ts` only.
 
@@ -205,7 +210,7 @@ Real-server check: the built backend (`node dist/main.js` on :8081 against `spm_
 Coverage is diagnostic only: it does not show that a behaviour is correct.
 
 - Backend unit: `cd backend && npm test`.
-- Backend integration (real PostgreSQL, init `001` to `007` applied): `cd backend && DATABASE_URL=postgres://spm:spm_dev_password@localhost:5432/spm_test npx vitest run --config ./vitest.config.e2e.ts src/registrations/registrations.report` (39 tests; use `src/registrations` for the SPM-61, SPM-120 and SPM-63 files together).
+- Backend integration (real PostgreSQL, init `001` to `007` applied): `cd backend && DATABASE_URL=postgres://spm:spm_dev_password@localhost:5432/spm_test npx vitest run --config ./vitest.config.e2e.ts src/registrations/registrations.report` (44 tests; use `src/registrations` for the SPM-61, SPM-120 and SPM-63 files together).
 - Time zones: prefix either command with `TZ=UTC`, `TZ=Asia/Singapore` or `TZ=America/Los_Angeles`.
 - Frontend: `cd frontend && npm test`; subset `npx vitest run src/utils/registrationReport.test.ts src/components/registrations src/pages/RegistrationReportPage.test.tsx src/pages/EventListPage.registrations.test.tsx`; `npx tsc -b --noEmit`; `npm run lint`; `npm run build`.
 - Mutation: `cd backend && DATABASE_URL=<db> node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs` (about 3 minutes) and `cd frontend && node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs` (about 5 minutes). Add `--only M2,X6` for a subset, `--list` to list.

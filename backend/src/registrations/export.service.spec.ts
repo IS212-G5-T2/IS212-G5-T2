@@ -2,8 +2,9 @@
  * Story: SPM-63 View Registration Information (Organiser and Coordinator), CSV and PDF writers.
  * ACs: AC4 (export as CSV or PDF).
  * Test cases: VIEW-REG-INFO-04-A (CSV body and filename), 04-C (empty CSV), 04-D (RFC 4180 and UTF-8),
- *             04-E (formula neutralisation, neutralise-then-quote).
- * (The PDF cases 04-B, 04-C and 04-E for PDF are in the PDF describe blocks at the end of this file.)
+ *             04-E (formula neutralisation, neutralise-then-quote), 04-B-PAGES (PDF continues on further pages).
+ * The PDF content cases (04-B text, order and non-ASCII, 04-C empty message, 04-E literal payloads) need the real
+ * report endpoint and are in registrations.report.e2e-spec.ts.
  *
  * Pure serializer tests: no database, no clock (the "generated" instant is part of the input). Oracles are
  * literals from the Confluence cases and the prompt's resolved specs (2.5); the CSV dialect is D9:

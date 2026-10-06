@@ -24,9 +24,12 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 }));
 const apiMock = vi.mocked(api);
 
-/** A confirmed event, a week from the real clock so attendee "Upcoming" filters keep it. */
+// Suite clock T0 = 2026-09-29T12:00:00+08:00. Only Date is faked, so user-event and promises run normally; the attendee
+// "Upcoming" filter reads the faked clock, and every instant below is a fixed literal (never derived from the real clock).
+const T0 = new Date("2026-09-29T12:00:00+08:00");
+
+/** A confirmed event on 9 Oct 2026 (ten days after T0), so attendee "Upcoming" filters keep it. */
 function buildEvent(overrides: Partial<EventRecord>): EventRecord {
-  const start = new Date(Date.now() + 7 * 24 * 3_600_000);
   return {
     id: "EVT-101",
     name: "Tech Talk: Cloud 101",
@@ -36,15 +39,15 @@ function buildEvent(overrides: Partial<EventRecord>): EventRecord {
     organiserName: "Farid Rahman",
     coordinatorId: "COO-01",
     status: "confirmed",
-    startDateTime: start.toISOString(),
-    endDateTime: new Date(start.getTime() + 3 * 3_600_000).toISOString(),
+    startDateTime: "2026-10-09T10:00:00.000Z",
+    endDateTime: "2026-10-09T13:00:00.000Z",
     expectedAttendance: 50,
     venueRequirements: { minCapacity: 50, layout: "", facilities: [], accessibility: [] },
     equipmentNeeds: "",
     registrationEnabled: true,
     changeRequests: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -67,8 +70,14 @@ function renderList(user: User, events: EventRecord[]) {
   );
 }
 
-beforeEach(() => apiMock.mockReset());
-afterEach(() => vi.restoreAllMocks());
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"], now: T0 });
+  apiMock.mockReset();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("SPM-63 AC1: a manager reaches the report from the event list", () => {
   // Oracle (SPEC 01-A): COO-01 sees "View Registrations" on EVT-101 and clicking goes to

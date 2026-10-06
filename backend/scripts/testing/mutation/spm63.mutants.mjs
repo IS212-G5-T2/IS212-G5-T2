@@ -107,4 +107,10 @@ export const MUTANTS = [
     edits: [['return `${formatReportDateTime(value)} SGT`;', 'return formatReportDateTime(value);']], suites: ['unit', 'e2e'] },
   { id: 'X14', name: 'PDF page-break handling removed (no repeated headings on continuation pages)', file: EXPORT,
     edits: [['if (doc.y + rowHeight > bottom) {', 'if (false) {']], suites: ['unit'] },
+  { id: 'X15', name: 'lenient export format parsing (first value of a repeated parameter, any case)', file: CONTROLLER,
+    edits: [["if (format !== 'csv' && format !== 'pdf') throw", "if (!['csv', 'pdf'].includes(String(format).toLowerCase().split(',')[0])) throw"]], suites: ['e2e'] },
+  { id: 'X16', name: 'a missing or unknown export format no longer rejected', file: CONTROLLER,
+    edits: [["if (format !== 'csv' && format !== 'pdf') throw", "if (format === 'xlsx') throw"]], suites: ['e2e'] },
+  { id: 'X17', name: 're-registration keeps the original registration date (SPM-61 reactivation no longer resets created_at)', file: SERVICE,
+    edits: [['withdrawn_at = NULL, created_at = now(), updated_at = now()', 'withdrawn_at = NULL, updated_at = now()']], suites: ['e2e'] },
 ];

@@ -179,18 +179,22 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
   /**
    * EVT-101 with COO-01 assigned and ORG-01 owning it; REG-9007 Dev Patel, REG-9001 Alice Tan (ATT-01, can log in),
-   * REG-EXTRA-01 Chloe Ng Confirmed, and REG-9003 Ben Lim Withdrawn (03-A: absent from every channel).
+   * REG-EXTRA-01 Chloe Ng Confirmed (left out with `withChloe: false`, the 01-A fixture), and REG-9003 Ben Lim
+   * Withdrawn (absent from every channel).
    */
-  async function seedEvt101() {
+  async function seedEvt101(options: { withChloe?: boolean } = {}) {
+    const { withChloe = true } = options;
     const coo01 = await createUser('COORDINATOR', 'Daniel Koh');
     const org01 = await createUser('ORGANISER', 'Farid Rahman');
     const eventId = await seedEvent({ name: 'Tech Talk: Cloud 101', organiserId: org01.uid, coordinatorId: coo01.uid });
     const dev = await addRegistration(eventId, { fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
     const att01 = await createUser('ATTENDEE', 'Alice Tan');
     const aliceReg = await seedRegistration(eventId, att01.uid, { fullName: 'Alice Tan', email: 'alice.tan@example.com', contact: '98765432', at: ALICE_AT });
-    const chloe = await addRegistration(eventId, { fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contact: '91234567', at: CHLOE_AT });
+    const chloe = withChloe
+      ? await addRegistration(eventId, { fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contact: '91234567', at: CHLOE_AT })
+      : undefined;
     await addRegistration(eventId, { fullName: 'Ben Lim', email: 'ben.lim@example.com', contact: '90001111', at: BEN_AT, status: 'Withdrawn' });
-    return { eventId, coo01, org01, att01, regs: { dev: dev.registrationId, alice: aliceReg, chloe: chloe.registrationId } };
+    return { eventId, coo01, org01, att01, regs: { dev: dev.registrationId, alice: aliceReg, chloe: chloe?.registrationId as string } };
   }
 
   /** GET a path with an optional session; the body is always buffered so binary exports can be inspected. */
@@ -212,13 +216,12 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     pool.query<{ count: number }>('SELECT COUNT(*)::integer AS count FROM event_registrations').then((r) => r.rows[0].count);
 
   describe('AC1: a manager can view the registration report', () => {
-    // Oracle (SPEC 01-A): COO-01 assigned to EVT-101 gets 200 with exactly REG-9007 then REG-9001 ... plus REG-EXTRA-01;
-    // the Withdrawn REG-9003 is absent. (01-A lists REG-9001 and REG-9007; REG-EXTRA-01 is the third Confirmed row of
-    // the shared fixture, per 01-B / 02-A / 03-A.)
+    // Oracle (SPEC 01-A): COO-01 assigned to EVT-101 gets 200 with exactly REG-9007 then REG-9001, in registration-date
+    // order; REG-9003 (Withdrawn) is absent. This is the case's own fixture: two Confirmed rows and one Withdrawn.
     // Kills: assignment lookup on the wrong column (the real coordinator is refused); Withdrawn row included.
-    it('VIEW-REG-INFO-01-A: the assigned coordinator gets 200 and the three Confirmed rows in date order', async () => {
-      // Arrange
-      const { eventId, coo01, regs } = await seedEvt101();
+    it('VIEW-REG-INFO-01-A: the assigned coordinator gets 200 and exactly REG-9007 and REG-9001 in date order', async () => {
+      // Arrange: no REG-EXTRA-01 here, so the report holds exactly the rows the case names.
+      const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
 
       // Act
       const res = await call(reportPath(eventId), coo01.cookie);
@@ -226,8 +229,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert
       expect(res.status).toBe(200);
       const body = JSON.parse(res.text);
-      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice, regs.chloe]);
-      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).not.toContain('Ben Lim');
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice]);
+      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Alice Tan']); // Ben Lim (REG-9003) absent
+      expect(body.totalConfirmed).toBe(2);
     });
 
     // Oracle (SPEC 01-B): EVT-101 shows 3 rows; EVT-105 (Data Science Meetup, capacity 2) shows Ben Lim and Dev Patel;
@@ -452,6 +456,28 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       // Assert
       expect(res.status).toBe(400);
+      expect(res.text).not.toContain('dev.patel@example.com');
+    });
+
+    // Oracle (ASSUMED A11, D2 + Guide 5C near-miss inputs): only the exact lower-case values csv and pdf are formats. A repeated
+    // parameter (Express parses it as an array), a different case, an empty value and a missing parameter are all 400 with the
+    // format message, and no attendee data is returned.
+    // Kills: a lenient parser that takes the first of a repeated value or lower-cases the input; a default format when none is given.
+    it.each([
+      ['a repeated format', 'format=csv&format=pdf'],
+      ['an upper-case format', 'format=CSV'],
+      ['an empty format', 'format='],
+      ['a missing format', ''],
+    ])('VIEW-REG-INFO-04-A-FMT: %s is rejected with 400', async (_name, query) => {
+      // Arrange
+      const { eventId, coo01 } = await seedEvt101();
+
+      // Act
+      const res = await call(`${reportPath(eventId)}/export?${query}`, coo01.cookie);
+
+      // Assert
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.text).message).toBe('Export format must be csv or pdf.');
       expect(res.text).not.toContain('dev.patel@example.com');
     });
 
@@ -775,6 +801,34 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect([afterFirst.totalConfirmed, afterSecond.totalConfirmed]).toEqual([4, 5]);
     });
 
+    // Oracle (derived from SPM-120: a withdrawn registration is reactivated in place and its registration date is reset): after
+    // ATT-01 withdraws REG-9001 and registers again, the report lists Alice exactly once, last (her new date is later than
+    // everyone's), with a registration date different from the original, and the count is back to 3.
+    // Kills: the reactivated row dropped or duplicated; the old registration date or position kept; the count not restored.
+    it('VIEW-REG-INFO-06-B-REREG: registering again after a withdrawal puts the attendee back once, at the new date', async () => {
+      // Arrange: Alice withdraws at T0.
+      const { eventId, coo01, att01, regs } = await seedEvt101();
+      await request(app.getHttpServer()).post(`/api/registrations/${regs.alice}/withdraw`).set('Cookie', att01.cookie).expect(200);
+      expect((await reportJson(eventId, coo01.cookie)).totalConfirmed).toBe(2);
+
+      // Act: she registers again an hour later (the registration date itself is stamped by the database, so only its order
+      // and difference from the original are asserted).
+      now = new Date(T0.getTime() + 3_600_000);
+      await request(app.getHttpServer())
+        .post(`/api/events/${eventId}/registrations`)
+        .set('Cookie', att01.cookie)
+        .send({ fullName: 'Alice Tan', email: 'alice.tan@example.com', contactNumber: '98765432' })
+        .expect(201);
+      const body = await reportJson(eventId, coo01.cookie);
+
+      // Assert
+      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Chloe Ng', 'Alice Tan']);
+      expect(body.registrations[2].registrationId).toBe(regs.alice); // same row, reactivated in place
+      expect(body.registrations[2].registeredAt).not.toBe(ALICE_AT);
+      expect(new Date(body.registrations[2].registeredAt).getTime()).toBeGreaterThan(new Date(CHLOE_AT).getTime());
+      expect([body.totalConfirmed, body.availableSpots]).toEqual([3, 47]);
+    });
+
     // Oracle (derived from AC6, R13): personal data that changes minute to minute must not be stored by browsers or proxies,
     // so the report and both exports are sent with Cache-Control: no-store.
     // Kills: a cacheable response that a browser or proxy could replay after a registration or withdrawal.
@@ -812,7 +866,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 // A7: SQL payload placed in the Full Name column (D6 excludes Special Requirements) -> 04-E
 // A8: a missing contact number is returned as an empty string               -> 03-A-NULL
 // A10: availableSpots = max(capacity - n, 0)                                 -> 02-A-BND
-// A11: unknown export format -> 400                                          -> 04-A-FMT, 05-A-FMT
+// A11: a missing, empty, repeated or non-lower-case export format -> 400   -> 04-A-FMT, 05-A-FMT
+// (06-B-REREG: the re-registration date is stamped by the database clock, so only its order and difference are asserted)
 // A12: denial log shape {message, userId, eventId, reason: "not_assigned_or_owner"} at warn level -> 05-C
 // Not Automated (Q8/Q9 and prompt 2.5): a Cancelled registration (CHECK constraint forbids it), opening the CSV in Excel,
 // visual PDF layout review.
