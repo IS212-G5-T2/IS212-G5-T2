@@ -19,3 +19,7 @@ Scope: `frontend`, within the [global policy](../AGENTS.md).
 Use `npm test` for Vitest/jsdom component interaction checks, `npm run lint`, and `npm run build`. CI entrypoint: `scripts/ci/unit-test.sh`. Event create/list/detail pages use `/api/events`; drafts and My Requests use `/api/requests`. Keep both contracts aligned with `backend/`. Real account/organisation integration and email delivery are separate work.
 
 Keep unit tests beside pages as `.test.tsx` and browser tests as `.playwright.spec.ts`. Playwright tests are excluded from the frontend production TypeScript build and Vitest discovery. Use the backend `scripts/testing/run-browser.mjs` harness with a dedicated test database for browser checks and record cleanup.
+
+Dialog accessibility is checked with `vitest-axe` (colour-contrast rule disabled: jsdom cannot compute colour). Layout, zoom, target-size and contrast checks need a real browser and are recorded as manual.
+
+The SPM-120 fault-injection check is `node scripts/testing/mutation/run.mjs` (mutants in `spm120.mutants.mjs`, about 10 minutes; `--only M14,M30` for a subset). It mutates a scratch copy and exits 1 if a non-equivalent mutant survives.
