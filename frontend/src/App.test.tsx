@@ -75,3 +75,63 @@ describe("App venue creation route", () => {
     expect(screen.getByRole("heading", { name: destination })).toBeTruthy();
   });
 });
+
+describe("App equipment availability route", () => {
+  // SPM-117 AC1: proves the real RequireRole wiring in App.tsx itself, unlike
+  // RouteAccess.test.tsx's hand-maintained route table, which cannot catch a
+  // regression introduced directly in App.tsx's route configuration.
+  it("SPM-117 AC1 renders the equipment inventory for Technical Support", () => {
+    // Arrange a signed-in Technical Support user at the protected route.
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "tech-support-1",
+        name: "Technical Support",
+        email: "support@example.test",
+        role: "tech_support",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/equipment/availability"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    // Assert the real route tree renders the inventory page, not a redirect.
+    expect(
+      screen.getByRole("heading", { name: "Equipment Availability" }),
+    ).toBeTruthy();
+  });
+
+  // SPM-117 AC1 regression: an Attendee must not reach the equipment inventory
+  // through App.tsx's real route guard.
+  it("SPM-117 AC1 blocks an Attendee from the equipment inventory route", () => {
+    // Arrange a signed-in Attendee at the same protected URL.
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "attendee-1",
+        name: "Attendee",
+        email: "attendee@example.test",
+        role: "attendee",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/equipment/availability"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    // Assert the guard redirects away instead of rendering the inventory page.
+    expect(
+      screen.queryByRole("heading", { name: "Equipment Availability" }),
+    ).toBeNull();
+    expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
+  });
+});

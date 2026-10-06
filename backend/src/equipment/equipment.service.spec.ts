@@ -280,9 +280,12 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
-  // SPM-117 AC4: list() must not silently drop non-Active records (e.g. a stray
-  // WHERE maintenance_status = 'Active' would pass every other list() test here).
-  it('SPM-117 AC4 returns records of every maintenance status, not only Active', async () => {
+  // SPM-117 AC4: list() correctly maps every stored status through the
+  // row-to-DTO translation. This mocks database.query, so it cannot catch a
+  // SQL-level filter (e.g. a stray WHERE maintenance_status = 'Active') that
+  // would always return exactly the rows this mock is told to return; that
+  // guarantee comes from the real-SQL case in equipment.e2e-spec.ts.
+  it('SPM-117 AC4 maps every maintenance status to its equipment record', async () => {
     // Arrange: the database holds one record per supported maintenance status.
     database.query.mockResolvedValue({
       rows: [

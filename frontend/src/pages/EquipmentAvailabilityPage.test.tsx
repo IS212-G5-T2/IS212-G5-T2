@@ -263,6 +263,35 @@ describe("EquipmentAvailabilityPage", () => {
     expect(screen.getByText("Conference projector")).toBeInTheDocument();
   });
 
+  // SPM-117 AC3: the location box independently trims whitespace-padded terms too.
+  it("SPM-117 AC3 trims whitespace-padded terms in the location box before matching", async () => {
+    // Arrange: load a record and prepare a user interaction.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      {
+        id: "equipment-1",
+        name: "Conference projector",
+        type: "Visual",
+        quantity: 10,
+        maintenanceStatus: "Active",
+        location: "Storage Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Conference projector")).toBeInTheDocument();
+
+    // Act: surround the otherwise-matching location with leading/trailing spaces.
+    await user.type(
+      screen.getByRole("searchbox", { name: /search by location/i }),
+      "  Storage Room A  ",
+    );
+
+    // Assert: the padded term still matches, rather than failing the padded whole-string compare.
+    expect(screen.getByText("Conference projector")).toBeInTheDocument();
+  });
+
   // SPM-117 AC3: a location-only term with no match shows the search-specific empty state too.
   it("SPM-117 AC3 shows a distinct message when only the location box has no match", async () => {
     // Arrange: load a non-empty inventory and prepare a user interaction.

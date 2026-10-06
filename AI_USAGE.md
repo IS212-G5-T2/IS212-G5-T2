@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Claude Sonnet 5 - Close SPM-117 mutation-tested survivors
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/App.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `backend/src/equipment/equipment.service.spec.ts`.
+- Summary: A follow-up mutation-testing pass on the previous review-fix commit found three concrete survivors. (1) `RouteAccess.test.tsx`'s positive AC1 test builds its own isolated route table, so a regression in App.tsx's real route guard would pass CI; two App.tsx mutations (letting attendees into tech_support routes, blocking tech_support entirely) both stayed green. Added two tests in `App.test.tsx` rendering the real `<App/>` at `/equipment/availability`, following the file's existing pattern for other roles/pages. (2) The new backend `list()` status test mocks `database.query`, so it cannot catch a SQL-level filter bug (confirmed: adding `WHERE maintenance_status = 'Active'` to the real query left all 30 unit tests green); reworded its comment to stop claiming it guards against that, and point to the e2e test which actually does. (3) The location search box had no whitespace-trim test (only the type box did); added the symmetric case.
+- AI contribution: Verified each claim by reproducing the reviewer's mutations directly (edited App.tsx and EquipmentAvailabilityPage.tsx in place, confirmed the new tests fail, reverted, confirmed zero diff) before treating any fix as done; implementation.
+- Assumptions: The review's other findings (test-ID scheme inconsistency between `EQUIP-VIEW-01-A` and `SPM-117 AC3 ...` naming, fixture duplication across the page test, and the nav-link test only checking `navConfig` rather than rendering `Sidebar`) are explicitly marked optional/low-risk by the review's own compliance table; not addressed here, left as a follow-up decision.
+- Checks run: Mutation-verified each fix individually (test fails with the bug present, passes once fixed, zero net diff on production files after revert). `App.test.tsx` + `EquipmentAvailabilityPage.test.tsx` — 21/21 passed; `equipment.service.spec.ts` — 30/30 passed; full frontend `npm test` — 38 files, 436 passed + 1 pre-existing todo; frontend build passed; full backend `npm test` — 30 files, 675/675 passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending human approval.
+
 ## 2026-10-06 - Claude Sonnet 5 - Address SPM-117 review findings on test coverage
 
 - Issue/PR: SPM-117 / PR #44.
