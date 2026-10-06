@@ -280,12 +280,13 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
-  // SPM-117 AC4: list() correctly maps every stored status through the
-  // row-to-DTO translation. This mocks database.query, so it cannot catch a
-  // SQL-level filter (e.g. a stray WHERE maintenance_status = 'Active') that
-  // would always return exactly the rows this mock is told to return; that
-  // guarantee comes from the real-SQL case in equipment.e2e-spec.ts.
-  it('SPM-117 AC4 maps every maintenance status to its equipment record', async () => {
+  // EQUIP-VIEW-02-B (AC4, service layer). Kills: toEquipment() hard-coding
+  // maintenanceStatus, swapping it with another field, or dropping a row during
+  // mapping. This mocks database.query, so it cannot catch a SQL-level filter
+  // (e.g. a stray WHERE maintenance_status = 'Active') that would always return
+  // exactly the rows this mock is told to return; that guarantee comes from the
+  // real-SQL case in equipment.e2e-spec.ts (EQUIP-VIEW-02-C).
+  it('EQUIP-VIEW-02-B maps every maintenance status to its equipment record', async () => {
     // Arrange: the database holds one record per supported maintenance status.
     database.query.mockResolvedValue({
       rows: [

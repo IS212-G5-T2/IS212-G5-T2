@@ -216,11 +216,15 @@ describe("restricted organiser routes", () => {
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 
-  // SPM-117 AC1: Technical Support reaches the equipment inventory list itself, not just
-  // the creation route. The route table above mirrors App.tsx's RequireRole wrapping for
-  // /equipment/availability; the negative side (other roles blocked) is covered above by
-  // the "/equipment/availability" case in the restricted-operational-route table.
-  it("SPM-117 AC1 allows Technical Support to reach the equipment inventory list", () => {
+  // EQUIP-VIEW-04-E (AC1, supplementary). Kills: RequireRole wiring for
+  // /equipment/availability in this file's isolated route table. Fast, but NOT
+  // authoritative for App.tsx itself, since this table is hand-maintained rather
+  // than imported from App.tsx (confirmed by mutation testing: editing App.tsx's
+  // real route config leaves this test green). EQUIP-VIEW-04-A/B in App.test.tsx
+  // are the authoritative regression guard, rendering the real <App/>; the negative
+  // side of this isolated table is covered above by the "/equipment/availability"
+  // case in the restricted-operational-route table.
+  it("EQUIP-VIEW-04-E allows Technical Support to reach the equipment inventory list", () => {
     useAppStore.setState({ currentUser: technicalSupport });
 
     renderRoutes("/equipment/availability");

@@ -76,11 +76,14 @@ describe("App venue creation route", () => {
   });
 });
 
+// Traceability: AC1 (access the equipment inventory list) -> EQUIP-VIEW-04-A..D.
+// EQUIP-VIEW-04-A/B live here because they exercise App.tsx's real route tree;
+// see RouteAccess.test.tsx for the faster, non-authoritative isolated-table check,
+// and navConfig.test.ts for EQUIP-VIEW-04-C (sidebar link discoverability).
 describe("App equipment availability route", () => {
-  // SPM-117 AC1: proves the real RequireRole wiring in App.tsx itself, unlike
-  // RouteAccess.test.tsx's hand-maintained route table, which cannot catch a
-  // regression introduced directly in App.tsx's route configuration.
-  it("SPM-117 AC1 renders the equipment inventory for Technical Support", () => {
+  // EQUIP-VIEW-04-A. Kills: a RequireRole allowedRoles list missing "tech_support",
+  // or a wrong path/element wiring for /equipment/availability in App.tsx.
+  it("EQUIP-VIEW-04-A renders the equipment inventory for Technical Support", () => {
     // Arrange a signed-in Technical Support user at the protected route.
     useAppStore.setState({
       authLoading: false,
@@ -106,10 +109,54 @@ describe("App equipment availability route", () => {
     ).toBeTruthy();
   });
 
-  // SPM-117 AC1 regression: an Attendee must not reach the equipment inventory
-  // through App.tsx's real route guard.
-  it("SPM-117 AC1 blocks an Attendee from the equipment inventory route", () => {
-    // Arrange a signed-in Attendee at the same protected URL.
+  // EQUIP-VIEW-04-B. Kills: App.tsx's RequireRole allowedRoles list for
+  // /equipment/availability gaining any role beyond "tech_support" (e.g. a copy-paste
+  // that adds "coordinator", as found by review mutation testing on this branch).
+  // Every non-Technical-Support role is checked, not just one, so a mutation that
+  // only widens access for a single role cannot hide behind the others still failing.
+  it.each([
+    ["attendee", "attendee-1", "Attendee"],
+    ["coordinator", "coordinator-1", "Coordinator"],
+    ["organiser", "organiser-1", "Organiser"],
+    ["venue_staff", "venue-staff-1", "Venue Staff"],
+  ] as const)(
+    "EQUIP-VIEW-04-B blocks %s from the equipment inventory route",
+    (role, id, name) => {
+      // Arrange a signed-in user of a role with no equipment access, at the protected URL.
+      useAppStore.setState({
+        authLoading: false,
+        isAuthenticated: true,
+        currentUser: {
+          id,
+          name,
+          email: `${role}@example.test`,
+          role,
+        },
+        restoreAuthSession: vi.fn(),
+      });
+
+      render(
+        <MemoryRouter initialEntries={["/equipment/availability"]}>
+          <App />
+        </MemoryRouter>,
+      );
+
+      // Assert the guard redirects away instead of rendering the inventory page.
+      // Deliberately does not assert which page each role lands on: venue_staff's
+      // redirect target (/events) is itself role-gated to
+      // ["coordinator", "organiser", "attendee"], so venue_staff lands on a blank
+      // AppShell rather than a titled page. That is a pre-existing gap in App.tsx's
+      // single hardcoded RequireRole fallback target, unrelated to SPM-117 and out
+      // of scope here; this test only needs to prove the equipment page is unreachable.
+      expect(
+        screen.queryByRole("heading", { name: "Equipment Availability" }),
+      ).toBeNull();
+    },
+  );
+
+  // EQUIP-VIEW-04-D. Kills: RequireRole's fallback Navigate target changing away
+  // from "/events" for a role that can actually reach it.
+  it("EQUIP-VIEW-04-D redirects a blocked Attendee specifically to Browse Events", () => {
     useAppStore.setState({
       authLoading: false,
       isAuthenticated: true,
@@ -128,10 +175,6 @@ describe("App equipment availability route", () => {
       </MemoryRouter>,
     );
 
-    // Assert the guard redirects away instead of rendering the inventory page.
-    expect(
-      screen.queryByRole("heading", { name: "Equipment Availability" }),
-    ).toBeNull();
     expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
   });
 });

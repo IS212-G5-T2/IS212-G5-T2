@@ -23,8 +23,12 @@ describe("venue staff navigation", () => {
 });
 
 describe("technical support navigation", () => {
-  // SPM-117 AC1: Technical Support can discover the equipment inventory list in navigation.
-  it("links to Equipment Availability", () => {
+  // EQUIP-VIEW-04-C (AC1). Kills: the nav config entry for tech_support being
+  // removed, relabeled, or pointed at the wrong route. This checks the config
+  // data only; no test anywhere renders Sidebar to prove it turns this entry
+  // into a clickable link. Lower risk (Sidebar.tsx maps every navByRole entry
+  // generically, with no tech_support-specific branching) but not yet proven.
+  it("EQUIP-VIEW-04-C links to Equipment Availability", () => {
     expect(navByRole.tech_support).toContainEqual(
       expect.objectContaining({
         label: "Equipment Availability",
