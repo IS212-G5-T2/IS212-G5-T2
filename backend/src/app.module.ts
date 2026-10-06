@@ -58,6 +58,7 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,
         VenuesController,

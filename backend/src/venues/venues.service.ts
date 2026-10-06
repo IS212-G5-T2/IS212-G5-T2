@@ -2,6 +2,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import type {
@@ -13,6 +14,7 @@ import { validateVenue } from './venue-input.js';
 import { VenuesRepository } from './venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Identifies the PostgreSQL constraint that protects venue natural-key uniqueness. */
 function isDuplicateVenue(error: unknown): boolean {
@@ -89,5 +91,25 @@ export class VenuesService {
         });
       throw error;
     }
+  }
+
+  async list(user: AuthenticatedUser | undefined) {
+    const ownerId = await this.authorizeRead(user);
+    return this.repository.list(ownerId);
+  }
+
+  async get(user: AuthenticatedUser | undefined, id: string) {
+    const ownerId = await this.authorizeRead(user);
+    if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    const venue = await this.repository.get(id, ownerId);
+    if (!venue) throw new NotFoundException('Venue not found.');
+    return venue;
+  }
+
+  private async authorizeRead(
+    user: AuthenticatedUser | undefined,
+  ): Promise<string | undefined> {
+    const identity = await this.authorize(user, 'read');
+    return identity.roles.includes('VENUE_STAFF') ? identity.uid : undefined;
   }
 }

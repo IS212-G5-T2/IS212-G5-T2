@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DatabaseService } from '../database/database.service.js';
 import { VenuesRepository } from './venues.repository.js';
 
@@ -175,5 +175,62 @@ describe('VenuesRepository', () => {
     } as unknown as DatabaseService);
 
     await expect(repository.create(ownerUserId, venueInput)).rejects.toBe(failure);
+  });
+});
+
+describe('SPM-124 venue reads', () => {
+  const readQuery = vi.fn();
+  const id = '00000000-0000-4000-8000-000000000124';
+  const owner = '00000000-0000-4000-8000-000000000001';
+  const row = {
+    ...venue,
+    operating_information: venue.operatingInformation,
+    operating_days: venue.operatingDays,
+    operating_start_time: '08:00:00',
+    operating_end_time: '22:00:00',
+    setup_time_minutes: venue.setupTimeMinutes,
+    turnaround_time_minutes: venue.turnaroundTimeMinutes,
+    image_name: null,
+    image_type: null,
+    image_size: null,
+    image_data_url: null,
+  };
+
+  beforeEach(() => vi.resetAllMocks());
+
+  // SPM-124: staff list queries are owner-scoped and include schedule data.
+  it('scopes lists by owner and maps schedule information', async () => {
+    readQuery
+      .mockResolvedValueOnce({ rows: [{ ...row, id }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+
+    const [record] = await repository.list(owner);
+
+    expect(readQuery.mock.calls[0][0]).toContain('v.owner_user_id = $1::uuid');
+    expect(readQuery.mock.calls[0][1]).toEqual([owner]);
+    expect(record).toMatchObject({ id, availabilityStatus: 'available', reservations: [] });
+  });
+
+  // SPM-124: a current blockout is reflected in the catalogue response.
+  it('maps current blockouts and active holds', async () => {
+    readQuery
+      .mockResolvedValueOnce({ rows: [{ ...row, id }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 'blockout', venue_id: id, start_at: new Date('2026-10-05T00:00:00Z'), end_at: new Date('2026-10-07T00:00:00Z'), reason: 'Maintenance', current: true }],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ id: 'hold', venue_id: id, event_name: 'Workshop', start_at: new Date('2026-10-08T00:00:00Z'), end_at: new Date('2026-10-08T02:00:00Z'), status: 'pending', current: false, affected: false }],
+      });
+    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+
+    const [record] = await repository.list();
+
+    expect(record).toMatchObject({
+      availabilityStatus: 'unavailable',
+      unavailablePeriods: [{ reason: 'Maintenance' }],
+      reservations: [{ eventName: 'Workshop', status: 'tentative' }],
+    });
   });
 });

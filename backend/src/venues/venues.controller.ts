@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
@@ -14,6 +14,17 @@ type AuthenticatedRequest = Request & {
 export class VenuesController {
   /* v8 ignore stop */
   constructor(private readonly venues: VenuesService) {}
+
+  @Get()
+  list(@Req() request: AuthenticatedRequest) {
+    return this.venues.list(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
+  @Get(':id')
+  get(@Req() request: AuthenticatedRequest, @Param('id') id: string) {
+    return this.venues.get(request[CURRENT_USER_REQUEST_KEY], id);
+  }
+
   /**
    * Delegates a venue creation request with the server-verified identity.
    *
