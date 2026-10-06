@@ -70,7 +70,8 @@ export function VenueRecordCard({ venue }: { venue: VenueRecord }) {
               {venue.operatingEndTime}
             </p>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {bookings} bookings · {holds} tentative holds
+              {bookings} {bookings === 1 ? "booking" : "bookings"} · {holds}{" "}
+              tentative {holds === 1 ? "hold" : "holds"}
             </p>
             {venue.unavailablePeriods.map((period) => (
               <p

@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex (GPT-6) - Close SPM-124 review gaps
+
+- Issue/PR: SPM-124 / no PR yet
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/` tests, `frontend/src/pages/venue-records/`, `frontend/README.md`, `backend/AGENTS.md`, and `AI_USAGE.md`
+- Summary: Added assertions for malformed venue IDs, load-error exclusivity, and status-sort ID ties; added a PostgreSQL HTTP case for name and ID order with deliberately opposing IDs and insertion order. Reset the complete route-test store, traced supplemental frontend tests to ACs without presenting them as published case IDs, and corrected singular booking/hold counts. Updated stale venue and registration ownership guidance after the SPM-50 rebase.
+- AI contribution: Review remediation, tests, small UI copy fix, and documentation.
+- Assumptions: Status sorting uses alphabetical availability labels and ID as a stable tie break; active pending bookings are presented as tentative holds after the API filters expired holds.
+- Checks run: Focused venue frontend 30/30 and backend unit 19/19 passed; full frontend 562 passed with 1 todo, full backend 695/695 passed; venue HTTP/PostgreSQL 10/10 passed on a disposable fresh database whose container and image were removed; both builds, backend lint, affected-file frontend ESLint, and `git diff --check` passed. Repository-wide frontend lint still reports two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Changes remain local for review; no commit or push. The remaining repository-wide frontend lint errors are outside SPM-124.
+
 ## 2026-10-06 - Codex (GPT-5) - Strengthen SPM-124 venue-read coverage
 
 - Issue/PR: SPM-124 / no PR yet

@@ -1,5 +1,6 @@
 // frontend/src/pages/venue-records/VenueRoutes.test.tsx
 // SPM-124: AC1/7; VEN-VIEW-01-A/B and staff detail-route access.
+// SPM-124-REG-* IDs are local compatibility and access cases beyond the published IDs.
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -31,12 +32,7 @@ const initialAuthState = useAppStore.getState();
 
 afterEach(() => {
   cleanup();
-  useAppStore.setState({
-    currentUser: initialAuthState.currentUser,
-    isAuthenticated: initialAuthState.isAuthenticated,
-    authLoading: initialAuthState.authLoading,
-    restoreAuthSession: initialAuthState.restoreAuthSession,
-  });
+  useAppStore.setState(initialAuthState, true);
 });
 
 function renderRoute(role: UserRole, path: string) {
@@ -92,7 +88,7 @@ describe("venue routes (SPM-124)", () => {
   });
 
   // AC7 supplementary route-access check: Venue Staff detail links resolve.
-  it("opens the persisted detail route for Venue Staff", () => {
+  it("SPM-124-REG-AC7-A: opens the persisted detail route for Venue Staff", () => {
     // Arrange and act: enter a venue detail URL as signed-in staff.
     renderRoute("venue_staff", "/venues/00000000-0000-4000-8000-000000000124");
 
@@ -101,7 +97,7 @@ describe("venue routes (SPM-124)", () => {
   });
 
   // Existing coordinator planning remains reachable for its permitted role.
-  it("keeps the coordinator planning catalogue on the same path", () => {
+  it("SPM-124-REG-AC1-A: keeps the coordinator planning catalogue on the same path", () => {
     // Arrange and act: enter the venue route as a Coordinator.
     renderRoute("coordinator", "/venues");
 
@@ -113,7 +109,7 @@ describe("venue routes (SPM-124)", () => {
 
   // AC1 security: roles outside the venue read policy cannot render staff records.
   it.each(["organiser", "attendee"] as const)(
-    "denies %s access to the persisted venue catalogue",
+    "SPM-124-REG-AC1-B: denies %s access to the persisted venue catalogue",
     (role) => {
       // Arrange and act: a signed-in non-venue role opens the protected route.
       renderRoute(role, "/venues");

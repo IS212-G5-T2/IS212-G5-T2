@@ -44,7 +44,8 @@ Venue Staff can open `/venues` to browse image-led venue cards, search
 their own persisted records by name or location, sort by name/capacity/location/status,
 and click any part of a card to open `/venues/:id` for
 accessibility, setup and turnaround details plus availability, bookings and
-tentative holds. The view uses the credentialed backend API configured by
+tentative holds. Each card shows counts of bookings and active tentative holds.
+The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
 fresh local database initializer creates them and also seeds two sample venues

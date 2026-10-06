@@ -199,6 +199,7 @@ describe('SPM-50 venue service', () => {
     get.mockResolvedValue(undefined);
 
     await expect(service.get(staff, 'invalid')).rejects.toMatchObject({ status: 404 });
+    expect(get).not.toHaveBeenCalled();
     await expect(
       service.get(staff, '00000000-0000-4000-8000-000000000124'),
     ).rejects.toMatchObject({ status: 404 });

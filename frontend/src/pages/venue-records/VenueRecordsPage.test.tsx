@@ -1,5 +1,8 @@
 // frontend/src/pages/venue-records/VenueRecordsPage.test.tsx
 // SPM-124: AC2/3/4/5/6; VEN-VIEW-02-A/B, 03-A/B/C, 04-A/C, 05-A/B/C/D.
+// SPM-124-REG-* IDs are local regression cases; VEN-VIEW-* IDs refer to published cases.
+// ASSUMPTION A1 (AC5): statuses sort alphabetically and equal values use venue ID.
+// ASSUMPTION A2 (AC2): card counts use singular wording for one booking or hold.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -168,7 +171,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
   });
 
   // AC4/6: the staff catalogue shows persistent schedule summaries.
-  it("shows availability reasons, booking counts and tentative hold counts", async () => {
+  it("SPM-124-REG-AC2-A: shows availability reasons, booking counts and tentative hold counts", async () => {
     // Arrange: two records include a closure, a booking and a tentative hold.
     renderPage();
 
@@ -189,10 +192,10 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByText("No venue image")).toBeInTheDocument();
     expect(screen.getByText(/Maintenance/)).toBeInTheDocument();
     expect(
-      screen.getByText("1 bookings · 0 tentative holds"),
+      screen.getByText("1 booking · 0 tentative holds"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("0 bookings · 1 tentative holds"),
+      screen.getByText("0 bookings · 1 tentative hold"),
     ).toBeInTheDocument();
   });
 
@@ -240,7 +243,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
   });
 
   // SPM-124: selecting any part of a venue card opens that venue's details.
-  it("opens the venue detail route when the card image is clicked", async () => {
+  it("SPM-124-REG-AC7-D: opens the venue detail route when the card image is clicked", async () => {
     // Arrange: render the catalogue with a detail route for the selected venue.
     const user = userEvent.setup();
     render(
@@ -497,7 +500,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
   });
 
   // M3: surrounding whitespace is ignored, but name/location terms cannot be joined across fields.
-  it("trims partial searches without allowing a cross-field false match", async () => {
+  it("SPM-124-REG-AC3-A: trims partial searches without a cross-field false match", async () => {
     // Arrange: the two query fragments occur only in separate venue fields.
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce([{ ...base, name: "Hall", location: "Test Building" }]);
@@ -517,7 +520,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
   });
 
   // M5: changing sort keys after descending order starts the new key ascending.
-  it("resets a newly selected sort key to ascending after a descending sort", async () => {
+  it("SPM-124-REG-AC5-B: resets a newly selected sort key to ascending", async () => {
     // Arrange: name and capacity orders are intentionally different.
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce([
@@ -537,8 +540,26 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByRole("button", { name: /^Capacity/ })).toHaveTextContent("↑");
   });
 
+  // SPM-124-REG-AC5-A: equal sort values resolve consistently by venue ID.
+  it("SPM-124-REG-AC5-A: sorts equal-status venues by ID in both directions", async () => {
+    // Arrange: API order deliberately differs from ID order for equal statuses.
+    const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce([
+      { ...second, id: "00000000-0000-4000-8000-000000000129", name: "First" },
+      { ...second, id: "00000000-0000-4000-8000-000000000127", name: "Second" },
+    ]);
+    renderPage();
+    await screen.findByRole("link", { name: "First" });
+
+    // Act and assert: status ties use ascending IDs, then descending IDs.
+    await user.click(screen.getByRole("button", { name: /^Status/ }));
+    expect(namesInCards()).toEqual(["Second", "First"]);
+    await user.click(screen.getByRole("button", { name: /^Status/ }));
+    expect(namesInCards()).toEqual(["First", "Second"]);
+  });
+
   // AC1: failed loading is distinguishable from a genuine empty catalogue.
-  it("retries a failed catalogue load for Venue Staff", async () => {
+  it("SPM-124-REG-AC2-B: retries a failed catalogue load for Venue Staff", async () => {
     // Arrange: the first request fails and the retry succeeds.
     const user = userEvent.setup();
     apiMock
@@ -550,6 +571,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Unable to load venue records.",
     );
+    expect(screen.queryByText("No venue records yet.")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
     // Assert: the retry displays the persisted record.

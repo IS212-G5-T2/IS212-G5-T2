@@ -1,5 +1,7 @@
 // frontend/src/pages/venue-records/VenueRecordDetailPage.test.tsx
 // SPM-124: AC4/6/7; VEN-VIEW-06-A/B, 07-A/B and detail error coverage.
+// SPM-124-REG-* IDs are local regression cases; VEN-VIEW-* IDs refer to published cases.
+// ASSUMPTION A3 (AC6): the API excludes expired holds and maps active pending holds to tentative.
 import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -99,8 +101,8 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.queryByText(/Tentative hold/)).not.toBeInTheDocument();
   });
 
-  // VEN-VIEW-06-B (AC6): the view shows active holds returned by the API only.
-  it("VEN-VIEW-06-B: shows HOLD-A without inventing expired HOLD-X", async () => {
+  // VEN-VIEW-06-B (AC6): the view renders active holds returned by the API; expiry is checked in the backend HTTP suite.
+  it("VEN-VIEW-06-B: renders the API-provided HOLD-A as tentative", async () => {
     // Arrange: the API excludes expired HOLD-X at the specified fixed-time state.
     apiMock.mockResolvedValue({
       ...venue,
@@ -201,7 +203,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   // AC7: a missing record has a clear not-found state.
-  it("shows not found for an unknown venue", async () => {
+  it("SPM-124-REG-AC7-B: shows not found for an unknown venue", async () => {
     // Arrange: the API responds 404 for the selected identifier.
     apiMock.mockRejectedValue(
       new ApiError("Venue not found.", undefined, undefined, 404),
@@ -218,7 +220,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   // Non-404 failures must be actionable without being presented as a missing venue.
-  it("shows a retryable generic error for a failed detail request", async () => {
+  it("SPM-124-REG-AC7-C: shows a retryable generic error for a failed detail request", async () => {
     // Arrange: a transport failure has no HTTP 404 status.
     apiMock.mockRejectedValue(new Error("offline"));
 
@@ -232,7 +234,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   // Empty schedule collections have explicit states instead of blank cards.
-  it("shows empty unavailable-period and reservation states", async () => {
+  it("SPM-124-REG-AC4-A: shows empty unavailable-period and reservation states", async () => {
     // Arrange: the selected venue has no future schedule records.
     apiMock.mockResolvedValue({ ...venue, unavailablePeriods: [], reservations: [] });
 

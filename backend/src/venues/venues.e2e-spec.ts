@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import { readFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import type { INestApplication } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import pg from 'pg';
@@ -458,6 +459,47 @@ describe.skipIf(!databaseUrl)(
       });
       expect(detail.body.unavailablePeriods.map((period: { reason: string }) => period.reason)).not.toContain('Expired maintenance');
       expect(detail.body.reservations.map((reservation: { start: string }) => reservation.start)).not.toContain(at(16).toISOString());
+    });
+
+    // SPM-124 AC5: API ordering uses venue name, then ID for identical names.
+    it('orders venue reads by name and ID despite opposite insertion order', async () => {
+      // Arrange: IDs and insertion order deliberately disagree with the required order.
+      const ids = [randomUUID(), randomUUID(), randomUUID()].sort();
+      const owner = await pool.query<{ id: string }>(
+        'SELECT id FROM users WHERE email = $1',
+        [staffEmail],
+      );
+      const names = [
+        'SPM-124 Order Zulu',
+        'SPM-124 Order Alpha',
+        'SPM-124 Order Alpha',
+      ];
+      const inserted = [
+        { id: ids[0], name: names[0], location: 'Order Location 1' },
+        { id: ids[2], name: names[1], location: 'Order Location 2' },
+        { id: ids[1], name: names[2], location: 'Order Location 3' },
+      ];
+      for (const row of inserted) {
+        await pool.query(
+          `INSERT INTO venues (id, owner_user_id, name, location, capacity,
+             operating_information, operating_days, operating_start_time,
+             operating_end_time, setup_time_minutes, turnaround_time_minutes)
+           VALUES ($1, $2, $3, $4, 10, 'Order test', ARRAY['Monday'],
+             '09:00', '18:00', 0, 0)`,
+          [row.id, owner.rows[0].id, row.name, row.location],
+        );
+        venueIds.push(row.id);
+      }
+
+      // Act: read through the authenticated HTTP API and retain these three fixtures.
+      const coordinator = await authenticate(coordinatorEmail);
+      const response = await coordinator.get('/api/venues').expect(200);
+      const orderedIds = response.body
+        .filter((record: { id: string }) => ids.includes(record.id))
+        .map((record: { id: string }) => record.id);
+
+      // Assert: Alpha rows use ID order; Zulu follows both regardless of its lower ID.
+      expect(orderedIds).toEqual([ids[1], ids[2], ids[0]]);
     });
   },
 );
