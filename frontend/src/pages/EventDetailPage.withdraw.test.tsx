@@ -58,7 +58,7 @@ describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
   // Oracle (SPEC 05-C + 05-E UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
   // and shows the withdrawn card with the Withdrawn entry at 4 Oct 2026, 12:00 (SGT, not the UTC hour 04).
   // The store is emptied between the two mounts, so the only source of truth is the refetch.
-  // Mutants killed: stale client state; UI showing the UTC hour; withdrawn status not shown on reload.
+  // Kills: stale client state; UI showing the UTC hour; withdrawn status not shown on reload.
   it("WITHDRAW-EVENT-REG-05-C / 05-E (frontend): remounting shows Withdrawn at 12:00", async () => {
     // Arrange: /me answers Registered first, Withdrawn second.
     const registered = buildRegistration();
@@ -94,7 +94,7 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
   // Oracle (CAP-01 frontend): EVT-105 is full (0 spots); after ATT-02 withdraws, the refetched event shows
   // 1 spot and the Register button, in SPM-61's existing "Available 1 spot" format. The mock only returns the
   // freed count after the withdraw POST, so a missing refetch leaves the page on "fully booked".
-  // Mutants killed: spot not released in the UI; stale cache; no refetch after withdrawal.
+  // Kills: spot not released in the UI; stale cache; no refetch after withdrawal.
   it("WITHDRAW-EVENT-REG-CAP-01 (frontend): the refetched event shows 1 available spot", async () => {
     // Arrange
     useAppStore.setState({ currentUser: ATT_02 });
@@ -127,7 +127,7 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
 describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
   // Oracle (Added 07-B frontend, 401 sign-out narrowed to this call): a 401 from the withdraw call clears the
   // session so the route guard redirects to /login, and no success banner appears.
-  // Mutants killed: M13 withdraw bypassing the 401 handling; success shown after a 401.
+  // Kills: M13 withdraw bypassing the 401 handling; success shown after a 401.
   it("WITHDRAW-EVENT-REG-07-B (frontend): a 401 signs the user out and redirects to login", async () => {
     // Arrange
     const registered = buildRegistration();
@@ -151,7 +151,7 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
   });
 
   // Oracle (DERIVED, narrow scope): only a 401 signs the user out; a 403 or other error does not.
-  // Mutants killed: session cleared on any failure.
+  // Kills: session cleared on any failure.
   it("WITHDRAW-EVENT-REG-07-B (frontend): a 500 keeps the user signed in", async () => {
     const registered = buildRegistration();
     apiMock.mockImplementation((path: string, init?: RequestInit) => {

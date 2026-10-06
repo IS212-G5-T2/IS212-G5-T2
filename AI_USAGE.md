@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Claude (Sonnet 5.5) - Make the SPM-120 tests meet the guide's remaining rows (no-side-effect proof, enumerated inputs, anti-patterns, mutation process, branch coverage)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, PR #42; these changes are after commit `837f2e3`).
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations` (new unit spec, integration spec, event-start spec), `backend/scripts/testing/mutation` (new), `frontend/scripts/testing/mutation` (new), `frontend/src/components/EventDetail` and `frontend/src/pages` and `frontend/src/utils` (tests only), both CHANGELOGs and AGENTS files, `docs/specs/SPM-120-test-results.md`, `AI_USAGE.md`.
+- Summary: A re-evaluation found that the "row unchanged" assertions on refused withdrawals cannot fail: `withdraw()` runs in a transaction that rolls back, so mutant M34 (the UPDATE issued before the event-start check) survived all 33 integration tests. Added `registrations.withdraw.spec.ts`, a unit spec with a fake database that records every statement, which kills it; corrected the false 04-B claim and the checklist tick in the results doc. Also: every non-attendee role and the Confirmed, Cancelled and Completed event statuses are now tested (the cancelled-event rule is tagged ASSUMPTION A8); the 04-C ternary moved into the table; the 100-request concurrency test is now 5; "Mutants killed:" is now "Kills:". Added tests for Escape while pending, the double-activation guard, unexpected failures, a failed reload after a 409 and a registration with no stored details. Committed a re-runnable mutation harness for both components and recorded every mutant (M1 to M44) in the results doc.
+- AI contribution: analysis, tests, harness, documentation. No production code changed in this pass.
+- Assumptions: A8 (the event status label never blocks a withdrawal), A9 (a failed reload after a 409 is swallowed), A10 (a registration with no stored details answers empty strings), A11 (the generic wording for an unexpected failure). All are listed for the Product Owner in the results doc; none is confirmed.
+- Checks run: backend unit 688 passed; backend integration (`src/registrations`) 70 passed, 1 todo (the SPM-120 file is 40) on a throwaway `spm_test` database, then dropped; frontend 532 passed, 1 todo; `tsc` clean; lint has the same 2 pre-existing errors; backend `oxlint` clean on `src/registrations`; the 05-E UTC tests pass under TZ=UTC, Asia/Singapore, America/Los_Angeles, and the frontend date tests (72) pass under the same three. Mutation harness: backend 16 of 16 killed; frontend 28 killed and 1 equivalent (M15). Branch arms: service 97.1%, status card 100%, dialog 96.2%; every remaining uncovered arm is unreachable or SPM-61 code (listed in the results doc).
+- Follow-up/conflict notes: Playwright was not re-run (nothing it asserts changed). Prettier flags two backend specs that were already unformatted at `HEAD`; left alone (a 1,200-line reformat). Not committed or pushed.
+
 ## 2026-10-06 - Claude (Sonnet 5.5) - Close the SPM-120 test-guide review findings (rule order, traceability, assumptions, coverage)
 
 - Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, rebased onto the latest `dev`; PR #42 not yet updated).

@@ -61,7 +61,7 @@ afterEach(() => {
 describe("SPM-120 AC2: the confirmation prompt shows the event name and the consequences", () => {
   // Oracle (SPEC 02-A): dialog named "Withdraw from Tech Talk: Cloud 101?", both consequences, two buttons.
   // Added: opening the dialog sends no request.
-  // Mutants killed: event name missing/wrong; request fired on the first click; consequence text missing.
+  // Kills: event name missing/wrong; request fired on the first click; consequence text missing.
   it("WITHDRAW-EVENT-REG-02-A: clicking Withdraw opens the prompt and sends nothing", async () => {
     // Arrange
     const u = setup();
@@ -84,7 +84,7 @@ describe("SPM-120 AC2: the confirmation prompt shows the event name and the cons
 describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => {
   // Oracle (SPEC 03-A frontend): exactly one POST to /registrations/REG-9001/withdraw; dialog closes;
   // withdrawn card with Registered 3 Oct 2026, 12:00 and Withdrawn 4 Oct 2026, 12:00 in its timeline.
-  // Mutants killed: two requests per click; wrong registration id; local state not updated from the response.
+  // Kills: two requests per click; wrong registration id; local state not updated from the response.
   it("WITHDRAW-EVENT-REG-03-A (frontend): Confirm sends one POST and shows the withdrawn status", async () => {
     // Arrange
     const u = setup();
@@ -107,8 +107,30 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
   });
 
+  // Oracle (SPEC 03-A: exactly one POST): two activations of Confirm before React re-renders (a fast double click)
+  // still send a single request; the second would be refused as "already withdrawn" and show a false error.
+  // Kills: M40 the in-flight guard (`withdrawInFlight`) removed, so a double activation sends two requests.
+  it("WITHDRAW-EVENT-REG-03-A (double activation): two Confirm clicks in one tick send one POST", async () => {
+    // Arrange: the first request stays in flight.
+    const u = setup();
+    mockWithdraw(() => new Promise(() => {}));
+    renderSection();
+    await u.click(withdrawButton()!);
+    const confirm = confirmButton();
+
+    // Act: both clicks land before any re-render can disable the button.
+    act(() => {
+      confirm.click();
+      confirm.click();
+    });
+    await flush();
+
+    // Assert
+    expect(apiMock).toHaveBeenCalledTimes(1);
+  });
+
   // Oracle (SPEC 03-B + F12): Cancel closes the dialog with zero requests, badge stays, no message, focus returns.
-  // Mutants killed: M9 Cancel sends the request; local state mutated on cancel.
+  // Kills: M9 Cancel sends the request; local state mutated on cancel.
   it("WITHDRAW-EVENT-REG-03-B: Cancel closes the prompt with no request and no change", async () => {
     // Arrange
     const u = setup();
@@ -129,7 +151,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
   });
 
   // Oracle (ASSUMED, F12): a click on the dimmed backdrop is ignored; the dialog stays and nothing is sent.
-  // Mutants killed: M9 backdrop click closes or confirms.
+  // Kills: M9 backdrop click closes or confirms.
   it("WITHDRAW-EVENT-REG-03-B (backdrop, ASSUMED F12): clicking outside the dialog does nothing", async () => {
     // Arrange
     const u = setup();
@@ -149,7 +171,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
 describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
   // Oracle (SPEC 06-A A + D13): Confirm disabled and aria-busy while pending, no success text early;
   // after 200 the dialog is gone within 500 ms and a persistent, dismissible success banner shows exactly MSG-11.
-  // Mutants killed: M7 success shown before the response; auto-dismiss under 3 s; dialog lingers over 500 ms.
+  // Kills: M7 success shown before the response; auto-dismiss under 3 s; dialog lingers over 500 ms.
   it("WITHDRAW-EVENT-REG-06-A (A): pending state, then a persistent dismissible success banner", async () => {
     // Arrange: the response is held back until we release it.
     const u = setup();
@@ -189,11 +211,17 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
   });
 
   // Oracle (Added 06-A B): a 5xx or network failure shows an error inside the dialog, never the success text.
-  // Mutants killed: success shown on failure; Confirm left disabled; local status changed on failure.
+  // Kills: success shown on failure; Confirm left disabled; local status changed on failure.
+  // ASSUMPTION A11: a failure that is not an ApiError shows its own message, and a rejection that is not an Error at all
+  // (here: no value) shows the generic wording "We couldn't process your withdrawal. Please try again." There is no spec
+  // for these two; the wording is the code's own. Unconfirmed by the Product Owner.
+  // Kills: M41/M42 error handling that assumes an ApiError (a TypeError, so the failure never reaches the dialog).
   it.each([
-    ["a 503 response", new ApiError("The service is temporarily unavailable. Please try again.", undefined, undefined, 503)],
-    ["a network failure", new ApiError("Unable to reach the server. Check your connection and try again.")],
-  ])("WITHDRAW-EVENT-REG-06-A (B, added): %s -> error alert in the dialog and no success", async (_label, failure) => {
+    ["a 503 response", new ApiError("The service is temporarily unavailable. Please try again.", undefined, undefined, 503), "The service is temporarily unavailable. Please try again."],
+    ["a network failure", new ApiError("Unable to reach the server. Check your connection and try again."), "Unable to reach the server. Check your connection and try again."],
+    ["a plain Error (ASSUMED A11)", new Error("Something broke"), "Something broke"],
+    ["a rejection with no value (ASSUMED A11)", undefined, "We couldn't process your withdrawal. Please try again."],
+  ])("WITHDRAW-EVENT-REG-06-A (B, added): %s -> error alert in the dialog and no success", async (_label, failure, expectedText) => {
     // Arrange
     const u = setup();
     mockWithdraw(() => Promise.reject(failure));
@@ -206,7 +234,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
 
     // Assert
     const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByRole("alert")).toHaveTextContent(failure.message);
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(expectedText);
     expect(confirmButton()).toBeEnabled();
     expect(screen.queryByText(/has been processed/)).not.toBeInTheDocument();
     expect(screen.getByText("Registered")).toBeInTheDocument();
@@ -214,7 +242,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
 
   // Oracle (SPEC 06-B + D9 + F15): MSG-11 template per event name, built by the UI (the mock's text is different),
   // no timestamp in the banner; the Withdrawn timeline entry shows 4 Oct 2026, 14:30 (clock 14:30 SGT).
-  // Mutants killed: hard-coded event name; name taken from another registration; template differing per event;
+  // Kills: hard-coded event name; name taken from another registration; template differing per event;
   // banner echoing the server message; a timestamp in the banner.
   it.each([
     ["REG-9001", "EVT-101", "Tech Talk: Cloud 101"],
@@ -250,6 +278,8 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
  * "Decision and assumption IDs". assumption -> tests that rely on it:
  *  F12  a click on the dialog backdrop is ignored, ASSUMED -> 03-B (backdrop)
  *  D9   the banner text is built by the UI from the event name, never echoed from the response -> 06-B
+ *  A11  a non-ApiError failure shows its own message; a rejection that is not an Error shows the generic wording (ASSUMED,
+ *       pending the Product Owner) -> 06-A (B, the last two rows)
  *  D13  the banner stays until dismissed (no timer); the dialog closes within 500 ms of the 200 -> 06-A (A)
  *  F15  the banner carries no timestamp; the time is in the withdrawn card's timeline -> 06-B
  *  MAP  SPEC "Confirmed" is the repo's "Registered" -> every test

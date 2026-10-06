@@ -23,7 +23,7 @@ afterEach(() => vi.useRealTimers());
 describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again button", () => {
   // Oracle (task spec): the badge, both timeline entries with correct absolute timestamps,
   // and the Register again button all render for an open, spots-available event.
-  // Mutants killed: badge text/icon missing; a timeline entry dropped; the two timestamps swapped; button missing.
+  // Kills: badge text/icon missing; a timeline entry dropped; the two timestamps swapped; button missing.
   it("renders the withdrawn badge, both timeline entries and an enabled Register again button", () => {
     const registration = buildRegistration({ registeredAt: iso(-24 * HOUR), withdrawnAt: T0.toISOString() });
     render(
@@ -42,7 +42,7 @@ describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again but
 describe("WITHDRAW-EVENT-REG-CARD-01 (legacy row): a withdrawal with no recorded time", () => {
   // Oracle (DERIVED from database migration 007: "rows withdrawn before this change have no timestamp"): the
   // timeline shows only the Registered entry; it must not invent a withdrawal time.
-  // Mutants killed: the Withdrawn entry always rendered (with an invalid or copied timestamp).
+  // Kills: the Withdrawn entry always rendered (with an invalid or copied timestamp).
   it("shows only the Registered entry when withdrawnAt is missing", () => {
     const registration = buildRegistration({ status: "withdrawn", withdrawnAt: undefined });
     render(
@@ -58,7 +58,7 @@ describe("WITHDRAW-EVENT-REG-CARD-01 (legacy row): a withdrawal with no recorded
 describe("WITHDRAW-EVENT-REG-CARD-02: the old layout is gone", () => {
   // Oracle (task spec): the old relative "Withdrawn today at ..." line and the old plain
   // "Register" button must not be rendered anywhere in the new card.
-  // Mutants killed: the old relative-time line left in; the plain Register label kept.
+  // Kills: the old relative-time line left in; the plain Register label kept.
   it("does not render the old relative timestamp line or a plain Register button", () => {
     const registration = buildRegistration({ withdrawnAt: T0.toISOString() });
     render(
@@ -75,7 +75,7 @@ describe("WITHDRAW-EVENT-REG-CARD-02: the old layout is gone", () => {
 describe("WITHDRAW-EVENT-REG-CARD-03: the detail disclosure is collapsed by default", () => {
   // Oracle (task spec): collapsed by default, keyboard-operable, expands to show exactly
   // Registration ID, Full name, Email, Contact number.
-  // Mutants killed: expanded by default; details missing a field; not keyboard operable.
+  // Kills: expanded by default; details missing a field; not keyboard operable.
   it("is collapsed by default and shows ID, name, email and contact number once opened", async () => {
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const registration = buildRegistration({
@@ -111,7 +111,7 @@ describe("WITHDRAW-EVENT-REG-CARD-03: the detail disclosure is collapsed by defa
 describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
   // Oracle (task spec state matrix, row 1): "Changed your mind?" + availability line, button enabled,
   // one click calls the handler once.
-  // Mutants killed: button disabled when it should be enabled; handler called more than once.
+  // Kills: button disabled when it should be enabled; handler called more than once.
   it("shows the availability footer and calls the handler once per click", async () => {
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     const onRegisterAgain = vi.fn();
@@ -136,7 +136,7 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
 
   // Oracle (DERIVED: SPM-61 treats a missing close time as unbounded): with no close time there is nothing to
   // count down to, so the footer shows the spots only.
-  // Mutants killed: "Closes ..." printed for a missing close time (an invalid date).
+  // Kills: "Closes ..." printed for a missing close time (an invalid date).
   it("footer without a close time: just the spots left", () => {
     const event = buildEvent({ availableRegistrationSpots: 5, registrationClosesAt: undefined });
     render(
@@ -155,7 +155,7 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
 
   // Oracle (DERIVED from the main card, which treats the expected attendance as the capacity when the API gives no
   // availability figure): the footer shows that number rather than "undefined".
-  // Mutants killed: the fallback removed (the footer reads "undefined spots left").
+  // Kills: the fallback removed (the footer reads "undefined spots left").
   it("footer without an availability figure: falls back to the expected attendance", () => {
     const event = buildEvent({ availableRegistrationSpots: undefined, expectedAttendance: 7 });
     render(
@@ -172,7 +172,7 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
 
   // Oracle (DERIVED, calendar-day rule shared with the SPM-61 heading): "today" on the closing day, "1 day" the next
   // SGT day even when only minutes apart. Clock T0 is 4 Oct 12:00 SGT.
-  // Mutants killed: hours / 24 instead of SGT calendar days; "0 days" instead of "today".
+  // Kills: hours / 24 instead of SGT calendar days; "0 days" instead of "today".
   it.each([
     ["closes later today", "2026-10-04T23:59:00+08:00", "Closes 4 Oct 2026, 23:59 (today)"],
     ["closes just after SGT midnight", "2026-10-05T00:01:00+08:00", "Closes 5 Oct 2026, 00:01 (1 day)"],
@@ -206,7 +206,7 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
 
 describe("WITHDRAW-EVENT-REG-CARD-05: full event", () => {
   // Oracle (task spec state matrix, row 3): with no spots left the footer says "This event is full." and the button is hidden.
-  // Mutants killed: button still shown when full; wrong wording.
+  // Kills: button still shown when full; wrong wording.
   it("shows 'This event is full.' and hides the button", () => {
     const event = buildEvent({ availableRegistrationSpots: 0 });
     render(
@@ -224,7 +224,7 @@ describe("WITHDRAW-EVENT-REG-CARD-05: full event", () => {
 
 describe("WITHDRAW-EVENT-REG-CARD-06: not yet open, closed, and event started", () => {
   // Oracle (task spec state matrix, rows 4-6): each state hides the button and shows its own message.
-  // Mutants killed: button shown in a blocked state; wrong message for the state.
+  // Kills: button shown in a blocked state; wrong message for the state.
   it("not yet open: shows the opening time, no button", () => {
     const event = buildEvent({ registrationOpensAt: iso(2 * HOUR), registrationClosesAt: iso(10 * 24 * HOUR) });
     render(
@@ -256,7 +256,7 @@ describe("WITHDRAW-EVENT-REG-CARD-06: not yet open, closed, and event started", 
   // Oracle (DERIVED from the SPM-61 rule the main card already follows: "Closed on" is true only once the closing
   // time has passed, and a cancelled event can still carry a future scheduled close): the footer says plainly that
   // registration is closed and never prints a future date after "closed on".
-  // Mutants killed: "Registration closed on <future date>." for a cancelled event; an invalid date with no close time.
+  // Kills: "Registration closed on <future date>." for a cancelled event; an invalid date with no close time.
   it.each<[string, Partial<EventRecord>]>([
     ["a cancelled event whose scheduled close is still in the future", { status: "cancelled", registrationClosesAt: iso(9 * 24 * HOUR) }],
     ["a cancelled event with no close time at all", { status: "cancelled", registrationClosesAt: undefined }],
@@ -298,7 +298,7 @@ describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial regist
   // Oracle (DERIVED from SPM-61 D6 + SPM-120 hasEventStarted): closing is exclusive (closed AT the
   // instant), the event start is inclusive (started AT the instant) - the same rules
   // registrationState/hasEventStarted already enforce for the initial register action.
-  // Mutants killed: boundary off by one in either direction; footer disagrees with registrationState.
+  // Kills: boundary off by one in either direction; footer disagrees with registrationState.
   it("exactly at registrationClosesAt: closed, no button", () => {
     const event = buildEvent({ registrationOpensAt: iso(-48 * HOUR), registrationClosesAt: T0.toISOString() });
     render(
@@ -356,7 +356,7 @@ describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial regist
 describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () => {
   // Oracle (SPEC, mirrors the SPM-120 05-E convention): an instant whose UTC calendar day differs
   // from its Singapore calendar day must still show the SGT day and time, not the UTC one.
-  // Mutants killed: formatting in UTC or the browser's local zone instead of Asia/Singapore
+  // Kills: formatting in UTC or the browser's local zone instead of Asia/Singapore
   // (the day AND the hour differ, so either part of the output would catch it).
   it("shows the Singapore date and time even when the UTC day differs", () => {
     // 2026-10-05T01:30:00+08:00 is 2026-10-04T17:30:00Z: the same instant, but a different calendar day in UTC.

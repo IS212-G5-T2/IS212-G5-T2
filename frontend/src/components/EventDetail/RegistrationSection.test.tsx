@@ -401,7 +401,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   // Oracle (SPEC 01-A): REG-9001 on future EVT-101 shows an enabled button named "Withdraw" and no unavailable text.
   // Not automated: styling prominence (visual). No availability flag exists (D11).
-  // Mutants killed: button absent or disabled for a future registered event; wrong label.
+  // Kills: button absent or disabled for a future registered event; wrong label.
   it("WITHDRAW-EVENT-REG-01-A: a future registered event offers an enabled Withdraw button", () => {
     renderOwned(buildEvent());
 
@@ -409,9 +409,23 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.queryByText("Event has already occurred")).not.toBeInTheDocument();
   });
 
+  // ASSUMPTION A8: only the start instant decides, never the event status label (see the backend 04-D). A registered
+  // attendee of a Cancelled event that has not started can still withdraw (it only frees a spot), and a Completed label
+  // on a future start changes nothing. Unconfirmed by the Product Owner; Confirmed is the SPEC baseline (01-A).
+  // Kills: the Withdraw control hidden for a Cancelled or Completed event because of its status label.
+  it.each<EventRecord["status"]>(["confirmed", "cancelled", "completed"])(
+    "WITHDRAW-EVENT-REG-04-D (ASSUMED A8): a %s event that has not started still offers Withdraw",
+    (status) => {
+      renderOwned(buildEvent({ status }));
+
+      expect(within(section()).getByRole("button", { name: "Withdraw" })).toBeEnabled();
+      expect(screen.queryByText("Event has already occurred")).not.toBeInTheDocument();
+    },
+  );
+
   // Oracle (SPEC 01-B + D6): REG-9002 on started EVT-104 has no actionable control and shows the AC5 text.
   // The "Event has occurred" badge bullet was removed from the case (no such badge in this app).
-  // Mutants killed: control active for a past event.
+  // Kills: control active for a past event.
   it("WITHDRAW-EVENT-REG-01-B: a started event has no Withdraw control and no dialog", () => {
     renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
 
@@ -421,7 +435,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
   });
 
   // Oracle (SPEC 04-A + D11): nothing can start a withdrawal for REG-9002; no request is made.
-  // Mutants killed: past-event control opens the prompt.
+  // Kills: past-event control opens the prompt.
   it("WITHDRAW-EVENT-REG-04-A: nothing can start a withdrawal for a started event", () => {
     renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
 
@@ -432,7 +446,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   // Oracle (DERIVED from AC4/[A7]): the cut-off is the START, not the end. An event that started a minute
   // ago and has not ended is already blocked.
-  // Mutants killed: boundary read from the event end instead of its start.
+  // Kills: boundary read from the event end instead of its start.
   it("WITHDRAW-EVENT-REG-04-A (boundary): an in-progress event is already blocked", () => {
     renderOwned(buildEvent({ startDateTime: new Date(T0.getTime() - 60_000).toISOString(), endDateTime: new Date(T0.getTime() + 3_600_000).toISOString() }));
 
@@ -441,7 +455,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
   });
 
   // Oracle (SPEC 05-A A + AC5): exactly "Event has already occurred", visible, in the withdrawal area.
-  // Mutants killed: wording differs from AC5; generic text.
+  // Kills: wording differs from AC5; generic text.
   it("WITHDRAW-EVENT-REG-05-A (A): the AC5 message is shown, exactly, for a started event", () => {
     renderOwned(buildPastEvent(), buildRegistration({ id: "REG-9002", eventId: "EVT-104" }));
 
@@ -452,7 +466,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   // Oracle (Added 05-A B): the page loaded before the start; the server answers 422 on confirm.
   // The dialog closes, the AC5 text appears, Withdraw disappears, the status stays Registered.
-  // Mutants killed: a 422 swallowed or shown as a generic error.
+  // Kills: a 422 swallowed or shown as a generic error.
   it("WITHDRAW-EVENT-REG-05-A (B, added): a 422 on confirm swaps Withdraw for the AC5 message", async () => {
     // Arrange
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -472,7 +486,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   // Oracle (Added 05-D frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
   // reloads the registration, so the page shows the withdrawn status instead of a stale Registered.
-  // Mutants killed: stale status kept after an already-withdrawn conflict.
+  // Kills: stale status kept after an already-withdrawn conflict.
   it("WITHDRAW-EVENT-REG-05-D (frontend, added): an already-withdrawn conflict reloads the registration", async () => {
     // Arrange: the confirm is refused, and the reload returns the withdrawn registration.
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -496,7 +510,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
   // Oracle (task spec, regression check for the withdrawn-card redesign): an active, non-withdrawn
   // registration must render exactly as before - the new badge/timeline/disclosure/footer are
   // specific to the withdrawn state and must never appear for a registered attendee.
-  // Mutants killed: the withdrawn-card branch rendered for a registered (not withdrawn) current state.
+  // Kills: the withdrawn-card branch rendered for a registered (not withdrawn) current state.
   it("WITHDRAW-EVENT-REG-CARD-09: an active registration is unaffected by the withdrawn-card redesign", () => {
     renderOwned(buildEvent());
 
@@ -538,7 +552,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
 
   // Oracle (brief): Register again opens the form prefilled with the withdrawn record's name, email and
   // contact number; the footer action is hidden while the form is open so there is one place to act.
-  // Mutants killed: prefill from the account instead of the withdrawn record; contact number not prefilled;
+  // Kills: prefill from the account instead of the withdrawn record; contact number not prefilled;
   // footer (and a second Register again button) still shown under an open form.
   it("WITHDRAW-EVENT-REG-CARD-10: opens a form prefilled from the withdrawn registration and hides the footer", async () => {
     // Arrange
@@ -558,7 +572,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
   });
 
   // Oracle (brief): a withdrawn record with no contact number prefills an empty field, never "undefined".
-  // Mutant killed: an absent contact number rendered as text.
+  // Kills: an absent contact number rendered as text.
   it("WITHDRAW-EVENT-REG-CARD-10 (no contact number): the contact field starts empty", async () => {
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     renderWithdrawn({ ...withdrawn, contactNumber: undefined });
@@ -571,7 +585,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
   // Oracle (brief + backend 05-C derived): submitting posts the prefilled details; the server reactivates the SAME
   // row (same id, withdrawnAt cleared), and the card must flip from withdrawn to registered with the
   // "Registered again" wording (not the first-time message).
-  // Mutants killed: card left withdrawn after a successful re-registration; first-time confirmation wording
+  // Kills: card left withdrawn after a successful re-registration; first-time confirmation wording
   // reused; the withdrawn card left on screen.
   it("WITHDRAW-EVENT-REG-CARD-11: re-registering replaces the withdrawn card with the new registration", async () => {
     // Arrange: the server reactivates the existing row, so the id stays REG-9001 and there is no withdrawnAt.
@@ -612,7 +626,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
 
   // Oracle (SPM-61 server rules apply to re-registration): the server refuses (window closed meanwhile); its
   // message is shown, the typed values stay, and the card is still the withdrawn registration.
-  // Mutants killed: optimistic card flip before the server answers; refusal swallowed.
+  // Kills: optimistic card flip before the server answers; refusal swallowed.
   it("WITHDRAW-EVENT-REG-CARD-12: a refused re-registration shows the server message and changes nothing", async () => {
     // Arrange
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -635,7 +649,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
   // Oracle (SPM-61 duplicate rule, via the server): re-registering while the attendee is already registered
   // (for example from another tab) answers 409; the card reloads the real registration, shows the duplicate
   // notice, and the form closes.
-  // Mutants killed: the registration not reloaded after a 409 (the card stays on "withdrawn"); the form left open.
+  // Kills: the registration not reloaded after a 409 (the card stays on "withdrawn"); the form left open.
   it("WITHDRAW-EVENT-REG-CARD-13: a 409 on re-register reloads the registration and closes the form", async () => {
     // Arrange: the POST is refused as a duplicate, and the reload returns the active registration.
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -660,9 +674,36 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(useAppStore.getState().registrations).toEqual([active]);
   });
 
+  // ASSUMPTION A9: if the reload after a 409 itself fails, the failure is swallowed (SPM-61 behaviour, no spec): the
+  // attendee stays on the form with the duplicate message, the card stays withdrawn and nothing is thrown. A 404 is used
+  // for the failure because the store retries 5xx and network errors with real delays. Unconfirmed by the Product Owner.
+  // Kills: the swallowed reload failure removed (an unhandled rejection); the form closed or the card flipped without data.
+  it("WITHDRAW-EVENT-REG-CARD-13 (c, ASSUMED A9): a failed reload after a 409 leaves the form open and the card withdrawn", async () => {
+    // Arrange: the POST is refused as a duplicate, and the reload fails.
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith("/registrations") && init?.method === "POST")
+        return Promise.reject(new ApiError("You are already registered for this event.", undefined, "already_registered", 409));
+      if (path.endsWith("/registrations/me")) return Promise.reject(new ApiError("Registration not found.", undefined, undefined, 404));
+      return Promise.resolve({ registration: null });
+    });
+    renderWithdrawn();
+    await u.click(registerAgain()!);
+
+    // Act
+    await u.click(screen.getByRole("button", { name: "Submit registration" }));
+
+    // Assert
+    expect((await screen.findAllByText(/You are already registered for this event\./)).length).toBeGreaterThan(0);
+    expect(screen.getByRole("form", { name: "Event registration" })).toBeInTheDocument();
+    expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
+    expect(screen.queryByText("You're registered")).not.toBeInTheDocument();
+    expect(useAppStore.getState().registrations).toEqual([withdrawn]);
+  });
+
   // Oracle (DERIVED from the same flow): once a 409 has shown the active registration, the form is closed for good;
   // if the attendee then withdraws, the withdrawn card appears with its Register again footer and no form.
-  // Mutants killed: the form still flagged open after a 409 (it reappears, and hides the footer, after the next withdrawal).
+  // Kills: the form still flagged open after a 409 (it reappears, and hides the footer, after the next withdrawal).
   it("WITHDRAW-EVENT-REG-CARD-13 (b): after a 409 the form does not come back when the attendee withdraws", async () => {
     // Arrange: 409 on re-register, the reload shows the active registration, then a withdrawal succeeds.
     const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -697,7 +738,9 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
  *  D11  no Withdraw control for a past event, no availability flag -> 01-A, 01-B, 04-A
  *  A7   event start is an exclusive cut-off, ASSUMED -> 01-B, 04-A (boundary), 05-A
  *  D6/D7 the only blocked message is "Event has already occurred" -> 01-B, 04-A, 05-A (A, B)
+ *  A8   only the start instant decides; the event status label never hides Withdraw (ASSUMED, pending the Product Owner) -> 04-D
  *  A5   re-registering reactivates the same row (same id, no withdrawnAt) -> CARD-11
+ *  A9   a failed reload after a 409 is swallowed: the form stays open, the card stays withdrawn (ASSUMED, SPM-61 behaviour) -> CARD-13 (c)
  *  BRIEF the form is prefilled from the withdrawn registration; the footer steps aside while it is open -> CARD-10 to CARD-13
  *  409  an already-registered answer reloads the real registration (SPM-61 rule) -> CARD-13
  */

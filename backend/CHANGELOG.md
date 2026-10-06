@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a re-runnable mutation check for the SPM-120 withdraw code (`scripts/testing/mutation`) and a recording-client unit spec, `registrations.withdraw.spec.ts`, proving a refused withdrawal issues no UPDATE: the integration suite cannot see that, because the transaction rolls a refusal back. Added integration cases for every non-attendee role, for Confirmed, Cancelled and Completed events, and for a registration with no stored details. Tests and tooling only; no behaviour change.
+
 - Added attendee withdrawal: `POST /api/registrations/:registrationId/withdraw` (SPM-120). Ownership-scoped (another user's or a missing registration is 404 "Registration not found."), refused at or after the event start (422 `event_already_occurred`, "Event has already occurred"), and one compare-and-set `UPDATE` so repeated or concurrent requests give one 200 and the rest 422 `registration_already_withdrawn`. `withdrawn_at` comes from the injected clock and is stored as UTC. The 200 body is the registration plus `message`. `GET .../registrations/me` now returns the latest registration of any status (a withdrawn one is no longer `null`); registering again clears `withdrawn_at`.
 
 - Added PostgreSQL integration coverage for coordinator availability (SPM-80):
