@@ -84,3 +84,7 @@ must stay aligned with the backend/database lookup seeds.
 Duplicate name/location pairs are enforced by PostgreSQL and returned as
 field-level errors; the form already routes those errors back to Venue details.
 The backend remains the authorization and persistence authority.
+
+## SPM-63 registration report
+
+`RegistrationReportPage` (route `/events/:id/registrations/report`, inside the authenticated shell but deliberately without a role guard) shows the report to whoever the server allows; a 403 shows MSG-08 and no data, so an attendee is never redirected to the attendee view. `useRegistrationReport` owns the 5 s polling (replace, never append; stop on unmount, event change, 401, 403; keep rows through a transient failure; no overlapping requests). The export buttons call `downloadReportExport` (a credentialed `fetch`, not `api()`, because the body is a file) and save the Blob under the `Content-Disposition` filename, which needs the backend's CORS `exposedHeaders`. The "View Registrations" link on `EventListPage` is a convenience from `canViewRegistrationReport`; the server enforces access. Wording and date formats in `utils/registrationReport.ts` mirror `backend/src/registrations/report-format.ts` and differ from the SPM-61/62 formatter on purpose (no comma after the year). Mutation check: `node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs`.

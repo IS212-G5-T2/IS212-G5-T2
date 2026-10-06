@@ -23,3 +23,5 @@ Keep unit tests beside pages as `.test.tsx` and browser tests as `.playwright.sp
 Dialog accessibility is checked with `vitest-axe` (colour-contrast rule disabled: jsdom cannot compute colour). Layout, zoom, target-size and contrast checks need a real browser and are recorded as manual.
 
 The SPM-120 fault-injection check is `node scripts/testing/mutation/run.mjs` (mutants in `spm120.mutants.mjs`, about 10 minutes; `--only M14,M30` for a subset). It mutates a scratch copy and exits 1 if a non-equivalent mutant survives.
+
+The SPM-63 registration report lives in `src/pages/RegistrationReportPage.tsx`, `src/components/registrations/` and `src/utils/registrationReport.ts`; it depends on `GET /api/events/:eventId/registrations/report` and `.../report/export?format=csv|pdf` in `backend/`. Do not add a client role redirect to that route (the server answers 403 and the page shows MSG-08). Fault-injection check: `node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs`.

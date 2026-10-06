@@ -18,6 +18,7 @@
   but not selectable. A refused assignment reloads the queue as well as the
   coordinators. Coordinators see new assignments on their events page, refreshed
   on focus and every 30 seconds. Removed the unused store `assignCoordinator`.
+- Added the registration report page for organisers and coordinators (SPM-63) at `/events/:id/registrations/report`: heading "{event} - Registration Report", "N Attendees Registered (N / capacity)" and "K spots available", a table of name, email, contact number, registration date (Singapore time) and status, "Export as CSV" and "Export as PDF" buttons (authenticated download under the server's filename, disabled while downloading, errors shown in the page), and the empty state "No registrations yet". The report refreshes every 5 seconds without user action, replacing the rows, and polling stops on leaving the page, changing event, 401 (back to login) and 403 (rows cleared, "You do not have access to this event's registrations." shown). Event cards now have a "View Registrations" link for the assigned coordinator or owning organiser only. Added `apiBaseUrl()` to `utils/api.ts`. Added a re-runnable mutation check (`scripts/testing/mutation/spm63.mutants.mjs`).
 
 - Added a re-runnable mutation check for the SPM-120 withdraw UI (`scripts/testing/mutation`) and tests for the dialog's Escape-while-pending and double-activation paths, unexpected withdrawal failures, a failed reload after a 409, and Withdraw on a cancelled event. Tests and tooling only; no behaviour change.
 

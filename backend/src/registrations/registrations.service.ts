@@ -11,6 +11,7 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   Optional,
   UnauthorizedException,
@@ -23,6 +24,8 @@ import { CLOCK, systemClock, type Clock } from './clock.js';
 import { hasEventStarted } from './event-start.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration-window.js';
+import { canViewEventRegistrations } from './report-access.js';
+import type { RegistrationReport } from './report-types.js';
 import { validateRegistration } from './validation.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -32,6 +35,8 @@ const ATTENDEE_VISIBLE = ATTENDEE_VISIBLE_STATUSES;
 
 @Injectable()
 export class RegistrationsService {
+  private readonly logger = new Logger(RegistrationsService.name);
+
   constructor(
     @Inject(DatabaseService) private readonly database: DatabaseService,
     @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
@@ -187,6 +192,65 @@ export class RegistrationsService {
         message: MESSAGES.withdrawalSuccess(current.event_name),
       };
     });
+  }
+
+  /**
+   * SPM-63: the registration report for an event the caller manages. This one method guards the report and both
+   * exports (the controller calls it for every door). Order of checks: authentication (middleware, 401 here as
+   * a backstop) -> event exists (404) -> assigned coordinator or owning organiser (403, logged) -> data. Identity
+   * comes from the verified session only. Count, rows, CSV and PDF all derive from the one Registered-status query,
+   * ordered by registration date then id; nothing is cached, so a registration or withdrawal shows on the next call.
+   */
+  async getReport(identity: AuthenticatedUser | undefined, eventId: string): Promise<RegistrationReport> {
+    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
+    this.requireEventId(eventId);
+
+    const found = await this.database.query(
+      `SELECT id, event_name, start_date_time, end_date_time, registration_limit, organiser_id, coordinator_id
+         FROM events WHERE id = $1`,
+      [eventId],
+    );
+    const event = found.rows[0];
+    if (!event) throw new NotFoundException(MESSAGES.eventNotFound);
+
+    if (!canViewEventRegistrations(identity, { coordinatorId: event.coordinator_id, organiserId: event.organiser_id })) {
+      // User and event ids only: attendee names, emails and contact numbers never reach a log line.
+      this.logger.warn({
+        message: `${identity.uid} does not manage ${eventId}`,
+        userId: identity.uid,
+        eventId,
+        reason: 'not_assigned_or_owner',
+      });
+      throw new ForbiddenException(MESSAGES.reportForbidden);
+    }
+
+    const registered = await this.database.query(
+      `SELECT id, full_name, email, contact_number, created_at FROM event_registrations
+        WHERE event_id = $1 AND status = 'Registered'
+        ORDER BY created_at ASC, id ASC`,
+      [eventId],
+    );
+    const registrations = registered.rows.map((row) => ({
+      registrationId: row.id as string,
+      fullName: (row.full_name ?? '') as string,
+      email: (row.email ?? '') as string,
+      contactNumber: (row.contact_number ?? '') as string,
+      registeredAt: (row.created_at as Date).toISOString(),
+      status: 'Confirmed' as const,
+    }));
+    return {
+      event: {
+        id: event.id,
+        name: event.event_name,
+        startDateTime: event.start_date_time.toISOString(),
+        endDateTime: event.end_date_time.toISOString(),
+        capacity: event.registration_limit,
+      },
+      totalConfirmed: registrations.length,
+      availableSpots: Math.max(event.registration_limit - registrations.length, 0),
+      generatedAt: this.clock.now().toISOString(),
+      registrations,
+    };
   }
 
   private requireAttendee(identity: AuthenticatedUser | undefined): AuthenticatedUser {
