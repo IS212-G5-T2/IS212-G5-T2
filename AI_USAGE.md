@@ -23,7 +23,7 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## 2026-10-06 - Codex (GPT-5) - Show navigation for every granted role
 
-- Issue/PR: Unknown
+- Issue/PR: [PR #46](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/46); no Jira key supplied.
 - Human requester/operator: swr
 - Areas touched: `frontend/src/components/layout/`, `frontend/README.md`, and `AI_USAGE.md`
 - Summary: Fixed the sidebar so multi-role accounts combine navigation from every server-granted role, and so parent routes do not remain active on nested pages. Shared destinations are deduplicated while preserving the primary role's label and ordering, so a Coordinator/Venue Staff account can discover Create Venue and sees only Venue Availability selected at that page.
