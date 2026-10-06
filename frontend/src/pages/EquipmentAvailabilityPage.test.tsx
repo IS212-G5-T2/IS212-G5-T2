@@ -234,6 +234,109 @@ describe("EquipmentAvailabilityPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  // SPM-117 AC3: a whitespace-padded search term still matches, via trimming.
+  it("SPM-117 AC3 trims whitespace-padded search terms before matching", async () => {
+    // Arrange: load a record and prepare a user interaction.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      {
+        id: "equipment-1",
+        name: "Conference projector",
+        type: "Visual",
+        quantity: 10,
+        maintenanceStatus: "Active",
+        location: "Storage Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Conference projector")).toBeInTheDocument();
+
+    // Act: surround the otherwise-matching term with leading/trailing spaces.
+    await user.type(
+      screen.getByRole("searchbox", { name: /search by type/i }),
+      "  Visual  ",
+    );
+
+    // Assert: the padded term still matches, rather than failing the padded whole-string compare.
+    expect(screen.getByText("Conference projector")).toBeInTheDocument();
+  });
+
+  // SPM-117 AC3: a location-only term with no match shows the search-specific empty state too.
+  it("SPM-117 AC3 shows a distinct message when only the location box has no match", async () => {
+    // Arrange: load a non-empty inventory and prepare a user interaction.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      {
+        id: "equipment-1",
+        name: "Conference projector",
+        type: "Visual",
+        quantity: 10,
+        maintenanceStatus: "Active",
+        location: "Storage Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Conference projector")).toBeInTheDocument();
+
+    // Act: in the location box only, enter a term that matches no record.
+    await user.type(
+      screen.getByRole("searchbox", { name: /search by location/i }),
+      "nonexistent location",
+    );
+
+    // Assert: the search-specific empty state is shown instead of the inventory-empty message.
+    expect(
+      screen.getByText("No equipment records match your search."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("No equipment records found."),
+    ).not.toBeInTheDocument();
+  });
+
+  // SPM-117 AC3: clearing both search boxes restores every row.
+  it("SPM-117 AC3 restores all rows once the search boxes are cleared", async () => {
+    // Arrange: load two records of different types and prepare a user interaction.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      {
+        id: "equipment-1",
+        name: "Conference projector",
+        type: "Visual",
+        quantity: 10,
+        maintenanceStatus: "Active",
+        location: "Storage Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+      {
+        id: "equipment-2",
+        name: "Wireless mic",
+        type: "Audio",
+        quantity: 25,
+        maintenanceStatus: "Active",
+        location: "Storage Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Conference projector")).toBeInTheDocument();
+    const typeSearch = screen.getByRole("searchbox", { name: /search by type/i });
+
+    // Act: filter down to one record, then clear the box again.
+    await user.type(typeSearch, "Visual");
+    expect(screen.queryByText("Wireless mic")).not.toBeInTheDocument();
+    await user.clear(typeSearch);
+
+    // Assert: every record is visible again once the filter is removed.
+    expect(screen.getByText("Conference projector")).toBeInTheDocument();
+    expect(screen.getByText("Wireless mic")).toBeInTheDocument();
+  });
+
   // SPM-117 EQUIP-VIEW-01-D: the type and location boxes combine with AND.
   it("EQUIP-VIEW-01-D combines the type and location boxes with AND", async () => {
     // Arrange: load records that overlap on type and on location so AND is distinguishable from OR.
@@ -290,12 +393,14 @@ describe("EquipmentAvailabilityPage", () => {
   });
 
   // SPM-117 EQUIP-VIEW-02-A: every supported maintenance status is paired with its record.
+  // Record names are deliberately neutral (no status word in the name itself) so the
+  // Active/Retired assertions can only pass via the actual status column, not the name text.
   it("EQUIP-VIEW-02-A renders Active, Under Maintenance, and Retired statuses", async () => {
     // Arrange: load one equipment record in each supported maintenance status.
     getEquipment.mockResolvedValue([
       {
         id: "equipment-1",
-        name: "Active projector",
+        name: "Projector unit A",
         type: "Visual",
         quantity: 3,
         maintenanceStatus: "Active",
@@ -305,7 +410,7 @@ describe("EquipmentAvailabilityPage", () => {
       },
       {
         id: "equipment-2",
-        name: "Microphone under repair",
+        name: "Microphone unit B",
         type: "Audio",
         quantity: 25,
         maintenanceStatus: "Under Maintenance",
@@ -315,7 +420,7 @@ describe("EquipmentAvailabilityPage", () => {
       },
       {
         id: "equipment-3",
-        name: "Retired lighting rig",
+        name: "Lighting rig unit C",
         type: "Lighting",
         quantity: 10,
         maintenanceStatus: "Retired",
@@ -327,15 +432,15 @@ describe("EquipmentAvailabilityPage", () => {
 
     // Act: load the Technical Support equipment inventory.
     render(<EquipmentAvailabilityPage />);
-    expect(await screen.findByText("Active projector")).toBeInTheDocument();
+    expect(await screen.findByText("Projector unit A")).toBeInTheDocument();
 
     // Assert: each record row displays its corresponding maintenance status.
     const rows = screen.getAllByRole("row");
-    expect(rows[1]).toHaveTextContent("Active projector");
+    expect(rows[1]).toHaveTextContent("Projector unit A");
     expect(rows[1]).toHaveTextContent("Active");
-    expect(rows[2]).toHaveTextContent("Microphone under repair");
+    expect(rows[2]).toHaveTextContent("Microphone unit B");
     expect(rows[2]).toHaveTextContent("Under Maintenance");
-    expect(rows[3]).toHaveTextContent("Retired lighting rig");
+    expect(rows[3]).toHaveTextContent("Lighting rig unit C");
     expect(rows[3]).toHaveTextContent("Retired");
   });
 

@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Claude Sonnet 5 - Address SPM-117 review findings on test coverage
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment/equipment.service.spec.ts`, `backend/src/equipment/equipment.e2e-spec.ts`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/components/auth/RouteAccess.test.tsx`, `frontend/src/components/layout/navConfig.test.ts`.
+- Summary: Addressed a review of the SPM-117 branch. Fixed `EQUIP-VIEW-02-A`, which was partly vacuous (record names "Active projector"/"Retired lighting rig" let `toHaveTextContent` pass from the name text alone) by renaming to neutral names. Closed the review's highest-risk gap — nothing proved the backend `list()` query returns non-Active records, since every unit and e2e fixture only ever used `Active`, and the frontend tests mock the API — by adding a service test and a real-HTTP/PostgreSQL e2e test asserting all three statuses come back. Added an e2e test for `GET /api/equipment` 401/403 (only `POST` had HTTP-level auth coverage). Closed three named frontend search gaps: whitespace-padded search terms, a location-only no-match message, and clearing a filter restoring all rows. Added a positive `tech_support` route-access test for `/equipment/availability` (only negative/blocking cases existed) and a nav-link test, giving AC1 its own traceable coverage. No production code changed — all findings were test-coverage gaps, not implementation bugs.
+- AI contribution: Verified each review claim against the actual code before fixing (confirmed `list()` has no status filter today — the gap is coverage, not a live bug); implementation, verification.
+- Assumptions: The review findings are from an external code-review pass on the branch (not GitHub PR comments — none were found via `gh pr view`). Did not restructure `RouteAccess.test.tsx` to import the real `App.tsx` route tree (the review's "ideally" suggestion) — that file is shared across many stories and a full refactor was judged out of scope for this fix; the new test reuses the file's existing isolated route-table helper.
+- Checks run: `equipment.service.spec.ts` — 30/30 passed; `equipment.e2e-spec.ts` against local PostgreSQL (`npm run test:e2e`) — 8/8 passed, including the two new cases; full backend `npm test` — 30 files, 675/675 passed; backend build passed. `EquipmentAvailabilityPage.test.tsx` — 13/13 passed; `RouteAccess.test.tsx` + `navConfig.test.ts` — 32/32 passed; full frontend `npm test` — 38 files, 433 passed + 1 pre-existing todo; frontend build passed.
+- Follow-up/conflict notes: Full backend e2e suite has 11 pre-existing failures in `coordinator-availability.e2e-spec.ts` (SPM-80) and `venues.e2e-spec.ts` (SPM-50), unrelated to this change — neither file was touched, and the equipment e2e file is fully green. Likely the local Postgres container is missing migrations 007/008; not fixed here as out of scope. Changes are local and uncommitted pending human approval.
+
 ## 2026-10-06 - Codex - Split SPM-117 equipment search controls
 
 - Issue/PR: SPM-117 / no pull request yet.

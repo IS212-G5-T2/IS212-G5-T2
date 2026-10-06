@@ -21,3 +21,15 @@ describe("venue staff navigation", () => {
     );
   });
 });
+
+describe("technical support navigation", () => {
+  // SPM-117 AC1: Technical Support can discover the equipment inventory list in navigation.
+  it("links to Equipment Availability", () => {
+    expect(navByRole.tech_support).toContainEqual(
+      expect.objectContaining({
+        label: "Equipment Availability",
+        to: "/equipment/availability",
+      }),
+    );
+  });
+});

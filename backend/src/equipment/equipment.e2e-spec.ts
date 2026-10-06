@@ -194,6 +194,64 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
+  // SPM-117 AC1: GET /api/equipment itself (not just POST) rejects anonymous and
+  // non-Technical-Support callers at the real HTTP boundary.
+  it('returns 401 and 403 for anonymous and non-Technical-Support inventory reads', async () => {
+    // Arrange: a session belonging to a role without equipment access.
+    const organiser = await createDatabaseUser(
+      'ORGANISER',
+      'Equipment Read Organiser',
+    );
+
+    // Act and assert: no session is unauthenticated; another role is forbidden.
+    await request(app.getHttpServer()).get('/api/equipment').expect(401);
+    await request(app.getHttpServer())
+      .get('/api/equipment')
+      .set('Cookie', organiser.cookie)
+      .expect(403);
+  });
+
+  // SPM-117 AC4: the real SQL path (not a mocked frontend) must return records of
+  // every maintenance status, proving the inventory is not implicitly Active-only.
+  it('returns records of every maintenance status through the real inventory query', async () => {
+    // Arrange: persist one record per status through the public API.
+    const technicalSupport = await createDatabaseUser(
+      'TECH_SUPPORT',
+      'Equipment Status Support',
+    );
+    const created = await Promise.all(
+      (['Active', 'Under Maintenance', 'Retired'] as const).map(
+        async (maintenanceStatus) => {
+          const response = await request(app.getHttpServer())
+            .post('/api/equipment')
+            .set('Cookie', technicalSupport.cookie)
+            .send({
+              ...validEquipment,
+              name: `SPM-117 Status ${maintenanceStatus}`,
+              maintenanceStatus,
+            })
+            .expect(201);
+          return response.body.equipment.id as string;
+        },
+      ),
+    );
+    createdEquipmentIds.push(...created);
+
+    // Act: retrieve the inventory through the public API.
+    const inventory = await request(app.getHttpServer())
+      .get('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .expect(200);
+
+    // Assert: all three statuses are present, not only Active.
+    const returned = inventory.body.filter((record: { id: string }) =>
+      created.includes(record.id),
+    );
+    expect(
+      returned.map((record: { maintenanceStatus: string }) => record.maintenanceStatus).sort(),
+    ).toEqual(['Active', 'Retired', 'Under Maintenance']);
+  });
+
   // SPM-111 migration contract: live PostgreSQL rejects invalid equipment rows independently of API validation.
   it('rejects blank location, invalid type, and zero quantity at the database boundary', async () => {
     // Arrange: a direct SQL helper bypasses application validation to exercise database constraints.

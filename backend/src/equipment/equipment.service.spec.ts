@@ -280,6 +280,33 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
+  // SPM-117 AC4: list() must not silently drop non-Active records (e.g. a stray
+  // WHERE maintenance_status = 'Active' would pass every other list() test here).
+  it('SPM-117 AC4 returns records of every maintenance status, not only Active', async () => {
+    // Arrange: the database holds one record per supported maintenance status.
+    database.query.mockResolvedValue({
+      rows: [
+        { ...createdRow, id: 'equipment-active', maintenance_status: 'Active' },
+        {
+          ...createdRow,
+          id: 'equipment-maintenance',
+          maintenance_status: 'Under Maintenance',
+        },
+        { ...createdRow, id: 'equipment-retired', maintenance_status: 'Retired' },
+      ],
+    });
+
+    // Act: retrieve the full inventory.
+    const inventory = await service.list(technicalSupportUser);
+
+    // Assert: every status reaches the caller, not just Active.
+    expect(inventory.map((record) => record.maintenanceStatus)).toEqual([
+      'Active',
+      'Under Maintenance',
+      'Retired',
+    ]);
+  });
+
   // SPM-111 EQUIP-CRE-02-C: the locations lookup returns distinct stored locations for the dropdown.
   it('EQUIP-CRE-02-C returns distinct stored locations for the dropdown', async () => {
     // Arrange: the database returns distinct location rows.

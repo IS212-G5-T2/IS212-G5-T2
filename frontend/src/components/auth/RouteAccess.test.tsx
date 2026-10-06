@@ -216,6 +216,18 @@ describe("restricted organiser routes", () => {
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 
+  // SPM-117 AC1: Technical Support reaches the equipment inventory list itself, not just
+  // the creation route. The route table above mirrors App.tsx's RequireRole wrapping for
+  // /equipment/availability; the negative side (other roles blocked) is covered above by
+  // the "/equipment/availability" case in the restricted-operational-route table.
+  it("SPM-117 AC1 allows Technical Support to reach the equipment inventory list", () => {
+    useAppStore.setState({ currentUser: technicalSupport });
+
+    renderRoutes("/equipment/availability");
+
+    expect(screen.getByText("Equipment availability")).toBeInTheDocument();
+  });
+
   // SPM-111 EQUIP-CRE-01-B: only Technical Support reaches the create-record route.
   it("allows Technical Support and blocks every other role from the equipment creation route", () => {
     useAppStore.setState({ currentUser: technicalSupport });
