@@ -76,14 +76,14 @@ describe("App venue creation route", () => {
   });
 });
 
-// Traceability: AC1 (access the equipment inventory list) -> EQUIP-VIEW-04-A..D.
-// EQUIP-VIEW-04-A/B live here because they exercise App.tsx's real route tree;
+// Traceability: AC1 (access the equipment inventory list) -> EQUIP-VIEW-01-A..D.
+// EQUIP-VIEW-01-A/B live here because they exercise App.tsx's real route tree;
 // see RouteAccess.test.tsx for the faster, non-authoritative isolated-table check,
-// and navConfig.test.ts for EQUIP-VIEW-04-C (sidebar link discoverability).
+// and navConfig.test.ts for EQUIP-VIEW-01-C (sidebar link discoverability).
 describe("App equipment availability route", () => {
-  // EQUIP-VIEW-04-A. Kills: a RequireRole allowedRoles list missing "tech_support",
+  // EQUIP-VIEW-01-A. Kills: a RequireRole allowedRoles list missing "tech_support",
   // or a wrong path/element wiring for /equipment/availability in App.tsx.
-  it("EQUIP-VIEW-04-A renders the equipment inventory for Technical Support", () => {
+  it("EQUIP-VIEW-01-A renders the equipment inventory for Technical Support", () => {
     // Arrange a signed-in Technical Support user at the protected route.
     useAppStore.setState({
       authLoading: false,
@@ -109,7 +109,7 @@ describe("App equipment availability route", () => {
     ).toBeTruthy();
   });
 
-  // EQUIP-VIEW-04-B. Kills: App.tsx's RequireRole allowedRoles list for
+  // EQUIP-VIEW-01-B. Kills: App.tsx's RequireRole allowedRoles list for
   // /equipment/availability gaining any role beyond "tech_support" (e.g. a copy-paste
   // that adds "coordinator", as found by review mutation testing on this branch).
   // Every non-Technical-Support role is checked, not just one, so a mutation that
@@ -120,7 +120,7 @@ describe("App equipment availability route", () => {
     ["organiser", "organiser-1", "Organiser"],
     ["venue_staff", "venue-staff-1", "Venue Staff"],
   ] as const)(
-    "EQUIP-VIEW-04-B blocks %s from the equipment inventory route",
+    "EQUIP-VIEW-01-B blocks %s from the equipment inventory route",
     (role, id, name) => {
       // Arrange a signed-in user of a role with no equipment access, at the protected URL.
       useAppStore.setState({
@@ -154,9 +154,9 @@ describe("App equipment availability route", () => {
     },
   );
 
-  // EQUIP-VIEW-04-D. Kills: RequireRole's fallback Navigate target changing away
+  // EQUIP-VIEW-01-D. Kills: RequireRole's fallback Navigate target changing away
   // from "/events" for a role that can actually reach it.
-  it("EQUIP-VIEW-04-D redirects a blocked Attendee specifically to Browse Events", () => {
+  it("EQUIP-VIEW-01-D redirects a blocked Attendee specifically to Browse Events", () => {
     useAppStore.setState({
       authLoading: false,
       isAuthenticated: true,

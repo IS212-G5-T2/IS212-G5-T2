@@ -194,10 +194,10 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
-  // EQUIP-VIEW-04-F (AC1, HTTP boundary). Kills: an @Get() route handler missing
+  // EQUIP-VIEW-01-F (AC1, HTTP boundary). Kills: an @Get() route handler missing
   // its guard, or a guard present only on POST. Only POST had HTTP-level 401/403
   // coverage before this case.
-  it('EQUIP-VIEW-04-F returns 401 and 403 for anonymous and non-Technical-Support inventory reads', async () => {
+  it('EQUIP-VIEW-01-F returns 401 and 403 for anonymous and non-Technical-Support inventory reads', async () => {
     // Arrange: a session belonging to a role without equipment access.
     const organiser = await createDatabaseUser(
       'ORGANISER',
@@ -212,12 +212,12 @@ describe('Equipment records (SPM-111 e2e)', () => {
       .expect(403);
   });
 
-  // EQUIP-VIEW-02-C (AC4, real SQL). Kills: a stray WHERE maintenance_status =
+  // EQUIP-VIEW-04-C (AC4, real SQL). Kills: a stray WHERE maintenance_status =
   // 'Active' (or equivalent) in the real list() query. This is the one case in
   // the whole suite that actually proves the inventory is not implicitly
-  // Active-only: the frontend mocks the API, and EQUIP-VIEW-02-B mocks the
+  // Active-only: the frontend mocks the API, and EQUIP-VIEW-04-B mocks the
   // database, so neither touches the real SQL this test runs against.
-  it('EQUIP-VIEW-02-C returns records of every maintenance status through the real inventory query', async () => {
+  it('EQUIP-VIEW-04-C returns records of every maintenance status through the real inventory query', async () => {
     // Arrange: persist one record per status through the public API.
     const technicalSupport = await createDatabaseUser(
       'TECH_SUPPORT',

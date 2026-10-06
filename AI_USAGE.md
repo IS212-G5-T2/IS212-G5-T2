@@ -21,6 +21,72 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04` and `AI_USAGE.md`.
+- Summary: Rebuilt all 18 SPM-117 cases using the SPM-61 two-table structure. Every case now has a definition table with scenario, pre-conditions, steps, data, expected result, remarks, creator, and creation date, followed by an execution table with descriptive actual result, PASS/FAIL, automation remarks, executor, and execution date.
+- AI contribution: Reference-format comparison, Confluence restructuring, and consistency verification.
+- Assumptions: The latest verified runs remain authoritative: frontend 60/60, backend service 30/30, and equipment HTTP/PostgreSQL 8/8 passed on 06 Oct 2026.
+- Checks run: Read back all four published pages; confirmed 18 definition tables, 18 execution tables, and one complete set of required fields per case.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Rerun SPM-117 test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04`, SPM-117 matrix, and `AI_USAGE.md`.
+- Summary: Reran the frontend, backend service, and equipment HTTP/PostgreSQL suites cited by the SPM-117 cases. All documented outcomes remain PASS; added the fresh run commands and counts to each live case page and the matrix.
+- AI contribution: Test execution, evidence comparison, and Confluence results update.
+- Assumptions: The running local PostgreSQL Compose service is the intended database for the equipment e2e suite; the test cleans up its created records and users.
+- Checks run: Frontend 4/4 files and 60/60 tests passed; backend equipment service 1/1 file and 30/30 tests passed; equipment e2e 1/1 file and 8/8 tests passed. Read back all five Confluence documents and confirmed the rerun evidence and case result rows.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Describe SPM-117 test outcomes
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01`, `EQUIP-VIEW-03`, `EQUIP-VIEW-04`, and `AI_USAGE.md`.
+- Summary: Replaced generic Actual Result text with the observed UI, navigation, service, and HTTP outcomes for all affected cases. Corrected the AC3 location-only case to document its actual Visual Suite fixture and search term.
+- AI contribution: Test evidence review and Confluence documentation updates.
+- Assumptions: Existing PASS results and run dates remain authoritative; no tests were rerun for this wording change.
+- Checks run: Compared case wording to test assertions; read back all four SPM-117 pages and confirmed every Actual Result row describes an observed outcome.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Complete SPM-117 AC1 test-case documentation
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21495817) and `AI_USAGE.md`.
+- Summary: Reworked all six AC1 cases into the standard two-table layout: case definition (scenario, pre-conditions, steps, data, expected result) followed by execution evidence (actual result and PASS/FAIL).
+- AI contribution: Confluence test-case documentation and read-back verification.
+- Assumptions: Existing scenarios and PASS results remain authoritative; no code or test behaviour changed.
+- Checks run: Read back the published page and confirmed six each of Test Scenario, Pre-conditions, Test Steps, Test Data, Expected Result, and Actual Result.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Normalize SPM-117 test traceability IDs
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: SPM-117 Confluence matrix and EQUIP-VIEW-01 through EQUIP-VIEW-04 pages; frontend and backend equipment test traceability labels; `AI_USAGE.md`.
+- Summary: Renamed test IDs so the suite number matches its acceptance criterion: AC1 → EQUIP-VIEW-01, AC2 → EQUIP-VIEW-02, AC3 → EQUIP-VIEW-03, and AC4 → EQUIP-VIEW-04. Rebuilt the matrix links to point to the matching live page and included every current case.
+- AI contribution: Traceability refactor, Confluence cross-link repair, and unit-test verification.
+- Assumptions: This is identifier-only work; test behaviour, acceptance criteria, and existing PASS evidence are unchanged.
+- Checks run: Frontend affected suites — 4 files, 60/60 passed. Backend equipment service suite — 1 file, 30/30 passed. Read back every live Confluence page and matrix row to confirm the AC-aligned IDs.
+- Follow-up/conflict notes: The backend e2e case was renamed but not re-executed because only its test label changed. No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Reformat SPM-117 search test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21037164) and `AI_USAGE.md`.
+- Summary: Reorganized all eight AC3 search cases so each has a case-definition table containing the scenario, pre-conditions, test steps, test data, and expected result, followed by a separate execution-results table containing the actual result and PASS/FAIL outcome.
+- AI contribution: Confluence test-document restructuring and read-back verification.
+- Assumptions: Existing test scenarios and PASS evidence remain authoritative and were preserved; this change is documentation structure only.
+- Checks run: Read back the live document and confirmed eight Pre-conditions, eight Test Steps, and eight Actual Result rows.
+- Follow-up/conflict notes: The live document's Confluence page title remains `EQUIP-VIEW-03` despite its EQUIP-VIEW-01 body and URL history; title correction was not requested and is intentionally left untouched.
+
 ## 2026-10-06 - Claude Sonnet 5 - Align SPM-117 suite with the test-development-learnings guide
 
 - Issue/PR: SPM-117 / PR #44.
@@ -62,8 +128,8 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Summary: Replaced the combined equipment type/location search with dedicated type and location search boxes. Each supports trimmed, case-insensitive exact or substring matching; when both are populated, records must match both filters. Added explicit unit coverage for each box, the no-match state, and AND combination behavior.
 - AI contribution: React implementation review, test alignment, verification, and documentation. The refined unit-test cases were prepared before this implementation pass and preserved.
 - Assumptions: An empty search box imposes no constraint; two populated boxes combine with AND, as confirmed in the refined test design and Confluence matrix.
-- Checks run (independently re-verified by Claude Sonnet 5): `npx vitest run src/pages/EquipmentAvailabilityPage.test.tsx` — 10/10 passed; full `npm test` — 29 files passed, 347 passed + 1 pre-existing todo (348 total), no regressions; `npm run lint` — 2 pre-existing errors in untouched files (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`), none new; `npm run build` — passed.
-- Follow-up/conflict notes: Confluence Matrix and all four SPM-117 Live Doc pages (EQUIP-VIEW-01 through 03) were updated to PASS with this run's evidence; the earlier EQUIP-VIEW-01 collaborative-draft lock was resolved by publishing a replacement page and deleting the stale original. Changes are local and uncommitted pending human approval.
+- Checks run: Latest focused run `npm test -- --run src/pages/EquipmentAvailabilityPage.test.tsx --reporter=verbose` — 17/17 passed, including EQUIP-VIEW-01-A through 01-H, EQUIP-VIEW-02-A, and EQUIP-VIEW-03-A. Earlier full frontend verification passed (29 files, 347 passed + 1 pre-existing todo), and the frontend build passed.
+- Follow-up/conflict notes: Confluence EQUIP-VIEW-01/02/03 results and the Matrix were refreshed to the 17/17 run. The live EQUIP-VIEW-01 replacement page (ID 21037164) now contains cases 01-A through 01-H; the original page remains in trash. Changes are local and uncommitted pending human approval.
 
 ## 2026-10-05 - Claude (Opus 5.5) - SPM-80 coordinator updates availability
 
