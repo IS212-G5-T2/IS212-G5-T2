@@ -15,6 +15,9 @@ import { EventEditPage } from "@/pages/EventEditPage";
 import { EventChangeRequestsPage } from "@/pages/EventChangeRequestsPage";
 import { VenuesPage } from "@/pages/VenuesPage";
 import { VenueDetailPage } from "@/pages/VenueDetailPage";
+import { VenueRecordsPage } from "@/pages/venue-records/VenueRecordsPage";
+import { VenueRecordDetailPage } from "@/pages/venue-records/VenueRecordDetailPage";
+import { hasRole } from "@/types";
 import { VenueAvailabilityPage } from "@/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
@@ -33,6 +36,16 @@ function RootRedirect() {
     return <Navigate to="/equipment/requests" replace />;
   }
   return <Navigate to="/events" replace />;
+}
+
+function VenueCatalogueRoute() {
+  const user = useAppStore((state) => state.currentUser);
+  return hasRole(user, "venue_staff") ? <VenueRecordsPage /> : <VenuesPage />;
+}
+
+function VenueDetailRoute() {
+  const user = useAppStore((state) => state.currentUser);
+  return hasRole(user, "venue_staff") ? <VenueRecordDetailPage /> : <VenueDetailPage />;
 }
 
 export default function App() {
@@ -73,9 +86,9 @@ export default function App() {
         </Route>
 
         <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
-          <Route path="/venues" element={<VenuesPage />} />
+          <Route path="/venues" element={<VenueCatalogueRoute />} />
           <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
-          <Route path="/venues/:id" element={<VenueDetailPage />} />
+          <Route path="/venues/:id" element={<VenueDetailRoute />} />
           <Route path="/bookings" element={<BookingsPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
