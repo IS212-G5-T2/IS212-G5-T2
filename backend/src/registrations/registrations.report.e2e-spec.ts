@@ -14,11 +14,14 @@
  *    is 'Withdrawn'. Q8: a Cancelled registration cannot exist (CHECK constraint), so that fixture is Not Automated.
  *  - Q9: EVT-106 "Planning" is not an allowed event status, so the empty event is seeded as Confirmed.
  *  - The three "doors" (report, CSV export, PDF export) share one authorization rule; the AC5 tests run over all three.
+ *  - Every fixture id is deterministic (Guide 3E: fixed ids): a per-test counter feeds uuid() below, nothing calls randomUUID.
+ *    The three main registrations have fixed ids chosen so that sorting by id gives a different order from sorting by
+ *    registration date, so the date-order tests fail for an id-only sort on every run, not by luck. Rows added without an id
+ *    get descending ids for the same reason.
  * Needs DATABASE_URL with database/postgresql/init 001 to 007 applied.
  */
 import { INestApplication, Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
 import { PDFParse } from 'pdf-parse';
 import pg from 'pg';
 import request from 'supertest';
@@ -38,6 +41,16 @@ const ALICE_AT = '2026-09-28T02:30:00.000Z';
 const CHLOE_AT = '2026-09-29T01:00:00.000Z';
 const BEN_AT = '2026-09-28T04:00:00.000Z';
 const SENTINEL = 'SENTINEL-INTERNAL';
+// Fixed registration ids. Id order (Alice < Chloe < Ben < Dev) differs from date order (Dev, Alice, Chloe), and from the
+// two-row order of the 01-A fixture (Dev, Alice).
+const REG_DEV = 'cccccccc-0000-4000-8000-000000009007';
+const REG_ALICE = 'aaaaaaaa-0000-4000-8000-000000009001';
+const REG_CHLOE = 'bbbbbbbb-0000-4000-8000-0000000000e1';
+const REG_BEN = 'dddddddd-0000-4000-8000-000000009003';
+// An event id that no fixture ever creates (05-D-ORDER).
+const UNKNOWN_EVENT = '63e00000-0000-4000-8000-00000000ffff';
+const EVENT_PREFIX = '63e00000';
+const uuid = (prefix: string, n: number) => `${prefix}-0000-4000-8000-${n.toString(16).padStart(12, '0')}`;
 const ATTENDEE_DETAILS = { fullName: 'Farhan Rahman', email: 'farhan.rahman@example.com', contactNumber: '81234567' };
 
 type Door = [name: string, path: (eventId: string) => string];
@@ -70,14 +83,19 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   const eventIds: string[] = [];
   const userIds: string[] = [];
 
-  beforeAll(() => {
+  let seq = 0;
+  beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    // Deterministic ids and emails would collide with rows a crashed earlier run left behind, so clear them first.
+    await pool.query('DELETE FROM events WHERE id::text LIKE $1', [`${EVENT_PREFIX}-%`]);
+    await pool.query("DELETE FROM users WHERE email LIKE 'spm63-%@example.com'");
   });
   afterAll(async () => {
     await pool.end();
   });
   beforeEach(async () => {
     now = T0;
+    seq = 0;
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
@@ -94,11 +112,12 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
   /** Creates a user with one role; logs in (session cookie) unless told not to. */
   async function createUser(role: string, name: string, options: { login?: boolean } = {}) {
-    const email = `spm63-${randomUUID()}@example.com`;
+    seq += 1;
+    const email = `spm63-${seq}@example.com`;
     const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
-      [email, name],
+      `INSERT INTO users (id, email, display_name, password_hash)
+       VALUES ($1, $2, $3, crypt('password123', gen_salt('bf', 4))) RETURNING id`,
+      [uuid('63b00000', seq), email, name],
     );
     const uid = created.rows[0].id;
     userIds.push(uid);
@@ -119,7 +138,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     limit?: number;
     status?: string;
   }) {
-    const id = randomUUID();
+    const id = uuid(EVENT_PREFIX, ++seq);
     eventIds.push(id);
     await pool.query(
       `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
@@ -136,14 +155,14 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         options.limit ?? 50,
         options.status ?? 'Confirmed',
         options.coordinatorId ?? null,
-        randomUUID(),
+        uuid('63d00000', ++seq),
       ],
     );
     // A coordinator clarification note stands for "coordinator notes": it must never reach the report.
     await pool.query(
       `INSERT INTO event_comments (id, event_id, type, author_id, author_name, author_role, message)
        VALUES ($1, $2, 'clarification', $3, 'Coordinator Sentinel', 'coordinator', $4)`,
-      [randomUUID(), id, options.coordinatorId ?? options.organiserId, SENTINEL],
+      [uuid('63c00000', ++seq), id, options.coordinatorId ?? options.organiserId, SENTINEL],
     );
     return id;
   }
@@ -158,7 +177,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
       [
-        options.id ?? randomUUID(),
+        options.id ?? uuid('63a00000', 4095 - ++seq),
         eventId,
         attendeeId,
         options.status ?? 'Registered',
@@ -187,13 +206,13 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     const coo01 = await createUser('COORDINATOR', 'Daniel Koh');
     const org01 = await createUser('ORGANISER', 'Farid Rahman');
     const eventId = await seedEvent({ name: 'Tech Talk: Cloud 101', organiserId: org01.uid, coordinatorId: coo01.uid });
-    const dev = await addRegistration(eventId, { fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
+    const dev = await addRegistration(eventId, { id: REG_DEV, fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
     const att01 = await createUser('ATTENDEE', 'Alice Tan');
-    const aliceReg = await seedRegistration(eventId, att01.uid, { fullName: 'Alice Tan', email: 'alice.tan@example.com', contact: '98765432', at: ALICE_AT });
+    const aliceReg = await seedRegistration(eventId, att01.uid, { id: REG_ALICE, fullName: 'Alice Tan', email: 'alice.tan@example.com', contact: '98765432', at: ALICE_AT });
     const chloe = withChloe
-      ? await addRegistration(eventId, { fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contact: '91234567', at: CHLOE_AT })
+      ? await addRegistration(eventId, { id: REG_CHLOE, fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contact: '91234567', at: CHLOE_AT })
       : undefined;
-    await addRegistration(eventId, { fullName: 'Ben Lim', email: 'ben.lim@example.com', contact: '90001111', at: BEN_AT, status: 'Withdrawn' });
+    await addRegistration(eventId, { id: REG_BEN, fullName: 'Ben Lim', email: 'ben.lim@example.com', contact: '90001111', at: BEN_AT, status: 'Withdrawn' });
     return { eventId, coo01, org01, att01, regs: { dev: dev.registrationId, alice: aliceReg, chloe: chloe?.registrationId as string } };
   }
 
@@ -754,7 +773,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       const warn = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 
       // Act
-      const missing = await call(reportPath(randomUUID()), att01.cookie);
+      const missing = await call(reportPath(UNKNOWN_EVENT), att01.cookie);
       const malformed = await call(reportPath('not-a-uuid'), att01.cookie);
 
       // Assert
