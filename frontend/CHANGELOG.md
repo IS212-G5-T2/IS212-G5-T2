@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- The top bar now has a profile avatar showing the user's initials (e.g. C1 for
+  Coordinator 1) that opens a menu with the name, Settings and the light/dark
+  switch; coordinators see a green Available or grey Unavailable label there
+  instead of their email (SPM-80). Log out moved to the bottom of the sidebar,
+  where Settings and the theme switch used to be, and the "Signed in as" text
+  was removed.
+
+- Settings now has an Availability section for coordinators, including
+  multi-role accounts such as Coordinator + Venue Staff (SPM-80). It shows the
+  saved status, saves Available or Unavailable with a confirmation, and reports
+  load or save failures with a retry. Other roles see Settings unchanged.
+
 - Added the SPM-50 Venue Staff creation route and form, including required-field
   feedback, setup/turnaround duration validation, persistent catalogue refresh,
   successful-creation confirmation, and server-generated venue UUIDs with no
