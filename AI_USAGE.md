@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-06 - Codex - Split SPM-117 equipment search controls
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, and `AI_USAGE.md`.
+- Summary: Replaced the combined equipment type/location search with dedicated type and location search boxes. Each supports trimmed, case-insensitive exact or substring matching; when both are populated, records must match both filters. Added explicit unit coverage for each box, the no-match state, and AND combination behavior.
+- AI contribution: React implementation review, test alignment, verification, and documentation. The refined unit-test cases were prepared before this implementation pass and preserved.
+- Assumptions: An empty search box imposes no constraint; two populated boxes combine with AND, as confirmed in the refined test design and Confluence matrix.
+- Checks run (independently re-verified by Claude Sonnet 5): `npx vitest run src/pages/EquipmentAvailabilityPage.test.tsx` — 10/10 passed; full `npm test` — 29 files passed, 347 passed + 1 pre-existing todo (348 total), no regressions; `npm run lint` — 2 pre-existing errors in untouched files (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`), none new; `npm run build` — passed.
+- Follow-up/conflict notes: Confluence Matrix and all four SPM-117 Live Doc pages (EQUIP-VIEW-01 through 03) were updated to PASS with this run's evidence; the earlier EQUIP-VIEW-01 collaborative-draft lock was resolved by publishing a replacement page and deleting the stale original. Changes are local and uncommitted pending human approval.
+
 ## 2026-10-05 - Claude (Opus 5.5) - SPM-80 coordinator updates availability
 
 - Issue/PR: SPM-80 (Jira status at start: To Do; no existing branch/PR) / branch `feature/SPM-80-Coordinator-Updates-Availability` from `dev` (4b8139d) / PR https://github.com/IS212-G5-T2/IS212-G5-T2/pull/43 into `dev`.

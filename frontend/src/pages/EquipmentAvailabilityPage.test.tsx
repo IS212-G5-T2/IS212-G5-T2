@@ -92,7 +92,7 @@ describe("EquipmentAvailabilityPage", () => {
     expect(navigate).toHaveBeenCalledWith("/equipment/create");
   });
 
-  // SPM-117 EQUIP-VIEW-01-A: equipment type search supports exact and partial case-insensitive terms.
+  // SPM-117 EQUIP-VIEW-01-A: the dedicated type box filters by type on exact and partial case-insensitive terms.
   it("EQUIP-VIEW-01-A searches equipment records by exact or partial equipment type", async () => {
     // Arrange: load records with distinct equipment types and prepare a user interaction.
     const user = userEvent.setup();
@@ -130,12 +130,12 @@ describe("EquipmentAvailabilityPage", () => {
     ]);
     render(<EquipmentAvailabilityPage />);
     expect(await screen.findByText("Conference projector")).toBeInTheDocument();
-    const search = screen.getByRole("searchbox", {
-      name: /search by type or location/i,
+    const typeSearch = screen.getByRole("searchbox", {
+      name: /search by type/i,
     });
 
-    // Act: search first by the exact type, then by a partial lowercase substring.
-    await user.type(search, "Visual");
+    // Act: in the type box, search first by the exact type, then by a partial lowercase substring.
+    await user.type(typeSearch, "Visual");
 
     // Assert: the exact type search returns only the matching record.
     expect(screen.getByText("Conference projector")).toBeInTheDocument();
@@ -143,8 +143,8 @@ describe("EquipmentAvailabilityPage", () => {
     expect(screen.queryByText("Folding table")).not.toBeInTheDocument();
 
     // Act: replace the exact term with its partial lowercase equivalent.
-    await user.clear(search);
-    await user.type(search, "vis");
+    await user.clear(typeSearch);
+    await user.type(typeSearch, "vis");
 
     // Assert: the partial case-insensitive search produces the same filtered result.
     expect(screen.getByText("Conference projector")).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe("EquipmentAvailabilityPage", () => {
     expect(screen.queryByText("Folding table")).not.toBeInTheDocument();
   });
 
-  // SPM-117 EQUIP-VIEW-01-B: location search supports exact and partial case-insensitive terms.
+  // SPM-117 EQUIP-VIEW-01-B: the dedicated location box filters by location on exact and partial case-insensitive terms.
   it("EQUIP-VIEW-01-B searches equipment records by exact or partial location", async () => {
     // Arrange: load records in distinct locations and prepare a user interaction.
     const user = userEvent.setup();
@@ -180,20 +180,20 @@ describe("EquipmentAvailabilityPage", () => {
     ]);
     render(<EquipmentAvailabilityPage />);
     expect(await screen.findByText("Portable screen")).toBeInTheDocument();
-    const search = screen.getByRole("searchbox", {
-      name: /search by type or location/i,
+    const locationSearch = screen.getByRole("searchbox", {
+      name: /search by location/i,
     });
 
-    // Act: search first by the exact location, then by a partial lowercase substring.
-    await user.type(search, "Storage Room B");
+    // Act: in the location box, search first by the exact location, then by a partial lowercase substring.
+    await user.type(locationSearch, "Storage Room B");
 
     // Assert: the exact location search returns only the matching record.
     expect(screen.getByText("Portable screen")).toBeInTheDocument();
     expect(screen.queryByText("Mixing console")).not.toBeInTheDocument();
 
     // Act: replace the exact term with its partial lowercase equivalent.
-    await user.clear(search);
-    await user.type(search, "room b");
+    await user.clear(locationSearch);
+    await user.type(locationSearch, "room b");
 
     // Assert: the partial case-insensitive search produces the same filtered result.
     expect(screen.getByText("Portable screen")).toBeInTheDocument();
@@ -219,10 +219,10 @@ describe("EquipmentAvailabilityPage", () => {
     render(<EquipmentAvailabilityPage />);
     expect(await screen.findByText("Conference projector")).toBeInTheDocument();
 
-    // Act: enter a term that matches neither equipment type nor location.
+    // Act: in the type box, enter a term that matches no record.
     await user.type(
-      screen.getByRole("searchbox", { name: /search by type or location/i }),
-      "nonexistent location",
+      screen.getByRole("searchbox", { name: /search by type/i }),
+      "nonexistent",
     );
 
     // Assert: the search-specific empty state is shown instead of the inventory-empty message.
@@ -232,6 +232,61 @@ describe("EquipmentAvailabilityPage", () => {
     expect(
       screen.queryByText("No equipment records found."),
     ).not.toBeInTheDocument();
+  });
+
+  // SPM-117 EQUIP-VIEW-01-D: the type and location boxes combine with AND.
+  it("EQUIP-VIEW-01-D combines the type and location boxes with AND", async () => {
+    // Arrange: load records that overlap on type and on location so AND is distinguishable from OR.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      {
+        id: "equipment-1",
+        name: "Projector",
+        type: "Visual",
+        quantity: 4,
+        maintenanceStatus: "Active",
+        location: "Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+      {
+        id: "equipment-2",
+        name: "Screen",
+        type: "Visual",
+        quantity: 2,
+        maintenanceStatus: "Active",
+        location: "Room B",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+      {
+        id: "equipment-3",
+        name: "Microphone",
+        type: "Audio",
+        quantity: 8,
+        maintenanceStatus: "Active",
+        location: "Room A",
+        createdAt: "2026-10-03T00:00:00.000Z",
+        updatedAt: "2026-10-03T00:00:00.000Z",
+      },
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Projector")).toBeInTheDocument();
+
+    // Act: constrain type to Visual and location to Room A in their respective boxes.
+    await user.type(
+      screen.getByRole("searchbox", { name: /search by type/i }),
+      "Visual",
+    );
+    await user.type(
+      screen.getByRole("searchbox", { name: /search by location/i }),
+      "Room A",
+    );
+
+    // Assert: only the record matching BOTH constraints remains; the type-only and location-only matches are hidden.
+    expect(screen.getByText("Projector")).toBeInTheDocument();
+    expect(screen.queryByText("Screen")).not.toBeInTheDocument();
+    expect(screen.queryByText("Microphone")).not.toBeInTheDocument();
   });
 
   // SPM-117 EQUIP-VIEW-02-A: every supported maintenance status is paired with its record.

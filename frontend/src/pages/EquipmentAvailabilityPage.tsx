@@ -11,7 +11,8 @@ export function EquipmentAvailabilityPage() {
   const navigate = useNavigate();
   const [records, setRecords] = useState<EquipmentRecord[]>([]);
   const [loadError, setLoadError] = useState(false);
-  const [searchText, setSearchText] = useState("");
+  const [typeSearch, setTypeSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
 
   useEffect(() => {
     void getEquipment()
@@ -26,15 +27,14 @@ export function EquipmentAvailabilityPage() {
   }, []);
 
   const visibleRecords = useMemo(() => {
-    const query = searchText.trim().toLowerCase();
-    return query
-      ? records.filter(
-          (record) =>
-            record.type.toLowerCase().includes(query) ||
-            record.location.toLowerCase().includes(query),
-        )
-      : records;
-  }, [records, searchText]);
+    const typeQuery = typeSearch.trim().toLowerCase();
+    const locationQuery = locationSearch.trim().toLowerCase();
+    return records.filter(
+      (record) =>
+        record.type.toLowerCase().includes(typeQuery) &&
+        record.location.toLowerCase().includes(locationQuery),
+    );
+  }, [records, typeSearch, locationSearch]);
 
   const columns: Column<EquipmentRecord>[] = [
     {
@@ -87,12 +87,18 @@ export function EquipmentAvailabilityPage() {
         </p>
       ) : (
         <>
-          <div className="mb-4 max-w-sm">
+          <div className="mb-4 grid max-w-2xl gap-4 sm:grid-cols-2">
             <TextInput
               type="search"
-              label="Search by type or location"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+              label="Search by type"
+              value={typeSearch}
+              onChange={(event) => setTypeSearch(event.target.value)}
+            />
+            <TextInput
+              type="search"
+              label="Search by location"
+              value={locationSearch}
+              onChange={(event) => setLocationSearch(event.target.value)}
             />
           </div>
           <DataTable
@@ -100,7 +106,7 @@ export function EquipmentAvailabilityPage() {
             rows={visibleRecords}
             rowKey={(record) => record.id}
             emptyMessage={
-              records.length > 0 && searchText.trim()
+              records.length > 0 && (typeSearch.trim() || locationSearch.trim())
                 ? "No equipment records match your search."
                 : "No equipment records found."
             }
