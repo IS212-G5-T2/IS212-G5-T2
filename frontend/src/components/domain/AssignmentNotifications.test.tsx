@@ -1,9 +1,9 @@
 // SPM-123 AC9: the assigned coordinator is told a new request awaits their review.
-// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I.
+// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I, 09-J, 09-K, 09-L.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/store/useAppStore";
 import { AssignmentNotifications } from "./AssignmentNotifications";
 
@@ -152,5 +152,90 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
     expect(screen.queryByText('New event request "Welcome Evening" is awaiting your review.')).not.toBeInTheDocument();
     expect(screen.getByText('New event request "Spring Gala" is awaiting your review.')).toBeInTheDocument();
+  });
+
+  // Anyone who isn't a coordinator (here the Lead) gets no panel and no request for notifications.
+  it("LEAD-ASN-09-J shows nothing and loads nothing for a user who is not a coordinator", () => {
+    // Arrange: the signed-in user is the Event Coordinator Lead; the feed would return an assignment.
+    useAppStore.setState({
+      currentUser: { id: "lead-1", name: "Coordinator Lead", email: "lead@example.test", role: "coordinator_lead", roles: ["coordinator_lead"] },
+    });
+    api.mockResolvedValue([assignment]);
+
+    // Act: render the panel.
+    render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+
+    // Assert: no notifications request is made and no panel is shown.
+    expect(api).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "New assigned requests" })).not.toBeInTheDocument();
+  });
+
+  // A notification the coordinator already read stays hidden; only unread ones are listed.
+  it("LEAD-ASN-09-K lists only unread assignments and keeps already-read ones hidden", async () => {
+    // Arrange: the feed returns one read and one unread assignment.
+    const alreadyRead = { ...assignment, id: "notif-0", relatedEventId: "event-0", message: 'New event request "Old Picnic" is awaiting your review.', read: true };
+    api.mockResolvedValue([alreadyRead, assignment]);
+
+    // Act: render the panel.
+    render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+
+    // Assert: the unread one is shown with its single Mark as read; the read one is not.
+    expect(await screen.findByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
+    expect(screen.queryByText('New event request "Old Picnic" is awaiting your review.')).not.toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Mark as read" })).toHaveLength(1);
+  });
+});
+
+describe("SPM-123 AC9: periodic refresh while the page stays open", () => {
+  afterEach(() => {
+    // Restore real timers so other tests are unaffected.
+    vi.useRealTimers();
+  });
+
+  // Flush the pending fetch promise and the state update it triggers.
+  async function flush() {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
+  // A coordinator who leaves the tab open sees a new assignment after 30 seconds, without focus or reload.
+  it("LEAD-ASN-09-L fetches again every 30 seconds and shows an assignment that arrived meanwhile", async () => {
+    // Arrange: fake timers; the first load has nothing, later loads return one unread assignment.
+    vi.useFakeTimers();
+    api.mockResolvedValueOnce([]).mockResolvedValue([assignment]);
+    render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+    await flush();
+    expect(api).toHaveBeenCalledTimes(1);
+
+    // Act: just under 30 seconds pass.
+    act(() => {
+      vi.advanceTimersByTime(29_999);
+    });
+
+    // Assert: no second fetch yet.
+    expect(api).toHaveBeenCalledTimes(1);
+
+    // Act: the 30-second mark is reached.
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    await flush();
+
+    // Assert: the feed was fetched again and the new assignment is shown.
+    expect(api).toHaveBeenCalledTimes(2);
+    expect(screen.getByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
   });
 });
