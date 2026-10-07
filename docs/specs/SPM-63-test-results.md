@@ -11,7 +11,7 @@
 | # | Decision |
 |---|---|
 | Q1 / D2 | `GET /api/events/:eventId/registrations/report` and `GET /api/events/:eventId/registrations/report/export?format=csv\|pdf`; unknown format is 400, checked only after access. Body: `{ event: { id, name, startDateTime, endDateTime, capacity }, totalConfirmed, availableSpots, generatedAt, registrations: [{ registrationId, fullName, email, contactNumber, registeredAt, status: "Confirmed" }] }`, ISO UTC. |
-| Q2 / D6 | Columns: Name, Email, Contact Number, Registration Date, Status. Special Requirements excluded; the SQL payload of 04-E is in Full Name. |
+| Q2 / D6 | Columns: Name, Email, Contact Number, Registration Date, Status. Special Requirements excluded; the SQL payload of 04-E is in Full Name. **Superseded 2026-10-07 (user request):** the CSV and PDF now also have a Special Requirements column, between Contact Number and Registration Date. |
 | Q3 / D9 | UTF-8 with BOM, RFC 4180 minimal quoting, CRLF after every record including the last. |
 | Q4 / D11 | `pdfkit` (dependency), `pdf-parse` (dev dependency), bundled Noto Sans Regular (SIL OFL) in `backend/assets/fonts`. No CJK font: CJK in a PDF is a known gap. |
 | Q5 / D12 | Polling every 5 s; each response replaces the report; stops on unmount, event change, 401 and 403. |
@@ -158,7 +158,7 @@ After a review against the Guide, three defects were fixed (the 01-A backend fix
 | F5 | Special Requirements is not exported (Q2); the payloads moved to Full Name. |
 | F6 | 02-B subtests use independent fixtures. |
 | F7 | Withdrawn rows are excluded entirely; there is no separate section. |
-| F8 | Filename `<id>_registrations_<date>.<ext>` (the id is the event UUID, Q10). |
+| F8 | Filename `<id>_registrations_<date>.<ext>` (the id is the event UUID, Q10). **Superseded 2026-10-07 (user request):** `<event_name>_registrations.<ext>`, lowercase with spaces as underscores. |
 | F9 | Only doubled quotes (`O"Brien` becomes `"O""Brien"`). |
 | F10 | BOM included (Q3). |
 | F11 | Per-test fixtures; this suite uses 04-B's EVT-101 times (9 Oct 18:00-21:00 SGT). |
@@ -185,13 +185,15 @@ Tool: the repo's own harness (`scripts/testing/mutation/run.mjs --mutants spm63.
 | M6 authorization before authentication | M6a (service backstop 401 to 403) **equivalent** because the middleware answers first; M6b (middleware removed from the routes) **killed** |
 | M7 attendee allowed | killed |
 | M8 sort descending / by id | killed (M8, M8b) |
-| M9 UTC filename date | killed |
+| M9 UTC filename date | killed when run; removed 2026-10-07 together with the filename date (see the notes after this table) |
 | M10 / M11 / M12 / M13 | killed (M12 both the removed and the wrong-order variants) |
 | M14 event row spread | killed |
 | M15 / M16 / M17 (frontend) | killed |
 | M18 header dropped on empty CSV | killed |
 | M19 PDF from the wrong rows | killed (empty-state and summary-count variants; "all statuses" cannot occur because the PDF only receives the one report) |
 | M20 plural always | killed (backend and frontend) |
+
+Later changes (2026-10-07, on the user's request): the export files gained a Special Requirements column (CSV and an A4 landscape PDF) and are named `<event_name>_registrations.<csv|pdf>`, so M9 and the `sgtCalendarDate` helper were removed. The mutation counts below predate those changes and were not re-run.
 
 Backend: 37 mutants, **35 killed, 2 equivalent** (M1, M6a), 0 survived. Frontend: 25 mutants, **25 killed**, 0 survived. Extra mutants (X1 to X17 backend, X1 to X21 frontend) cover the clamp, no-store header, BOM, CRLF, tie-break, denial log, access-before-format, unknown-format fallback, UTC rendering, wrong column compared, AND instead of OR, page breaks, 403/401/in-flight/unmount handling, the download (cookie, filename, revoke, disabled buttons), link visibility and HTML rendering.
 

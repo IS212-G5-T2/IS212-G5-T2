@@ -439,8 +439,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
   describe('AC4: export as CSV or PDF', () => {
     // VIEW-REG-INFO-04-A
-    // Oracle (SPEC 04-A, D2/D9): 200; text/csv; attachment filename <id>_registrations_2026-09-29.csv; body is the header
-    // and the three rows in date order, BOM first, CRLF endings, the Withdrawn row absent.
+    // Oracle (SPEC 04-A, D2/D9, plus the user's filename and column requests): 200; text/csv; attachment named after the
+    // event, lowercase with underscores (tech_talk_cloud_101_registrations.csv); body is the header (including Special
+    // Requirements) and the three rows in date order, BOM first, CRLF endings, the Withdrawn row absent.
     // Kills: Withdrawn row exported; LF endings; header text drift; UTC hour; wrong filename or disposition.
     it('VIEW-REG-INFO-04-A: the CSV export has the right headers and body', async () => {
       // Arrange
@@ -452,19 +453,21 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toBe('text/csv; charset=utf-8');
-      expect(res.headers['content-disposition']).toBe(`attachment; filename="${eventId}_registrations_2026-09-29.csv"`);
+      expect(res.headers['content-disposition']).toBe(
+        `attachment; filename="tech_talk_cloud_101_registrations.csv"; filename*=UTF-8''tech_talk_cloud_101_registrations.csv`,
+      );
       expect(res.text).toBe(
-        '﻿Name,Email,Contact Number,Registration Date,Status\r\n' +
-          'Dev Patel,dev.patel@example.com,87654321,27 Sep 2026 15:00,Confirmed\r\n' +
-          'Alice Tan,alice.tan@example.com,98765432,28 Sep 2026 10:30,Confirmed\r\n' +
-          'Chloe Ng,chloe.ng@example.com,91234567,29 Sep 2026 09:00,Confirmed\r\n',
+        '﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status\r\n' +
+          'Dev Patel,dev.patel@example.com,87654321,,27 Sep 2026 15:00,Confirmed\r\n' +
+          'Alice Tan,alice.tan@example.com,98765432,,28 Sep 2026 10:30,Confirmed\r\n' +
+          'Chloe Ng,chloe.ng@example.com,91234567,,29 Sep 2026 09:00,Confirmed\r\n',
       );
     });
 
     // VIEW-REG-INFO-04-A-BND
-    // Oracle (SPEC 2.5 added BND): at 2026-09-30 00:30 SGT (still 29 Sep in UTC) the filename date is 2026-09-30.
-    // Kills: M9 filename date from UTC.
-    it('VIEW-REG-INFO-04-A-BND: the filename date is the SGT date of generation', async () => {
+    // Oracle (user request): the filename is the event name only, so it is the same whatever day the file is generated.
+    // Kills: a generation date, or the event id, creeping back into the filename.
+    it('VIEW-REG-INFO-04-A-BND: the filename does not change with the generation date', async () => {
       // Arrange
       const { eventId, coo01 } = await seedEvt101();
       now = new Date('2026-09-30T00:30:00+08:00');
@@ -473,7 +476,39 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       const res = await call(exportPath(eventId, 'csv'), coo01.cookie);
 
       // Assert
-      expect(res.headers['content-disposition']).toBe(`attachment; filename="${eventId}_registrations_2026-09-30.csv"`);
+      expect(res.headers['content-disposition']).toContain('filename="tech_talk_cloud_101_registrations.csv"');
+    });
+
+    // VIEW-REG-INFO-04-A-SPECIAL
+    // Oracle (user request): an attendee who registers with special requirements through the real SPM-61 endpoint has the
+    // exact text in the report JSON, in its own CSV column and in the PDF, so the coordinator can plan for it.
+    // Kills: the column missing from the CSV or PDF; the text dropped by the report query; text altered on the way.
+    it('VIEW-REG-INFO-04-A-SPECIAL: special requirements reach the report, the CSV and the PDF', async () => {
+      // Arrange
+      const { eventId, coo01 } = await seedEvt101();
+      const attendee = await createUser('ATTENDEE', 'Attendee One');
+      const needs = 'I am wheelchair bound';
+      await request(app.getHttpServer())
+        .post(`/api/events/${eventId}/registrations`)
+        .set('Cookie', attendee.cookie)
+        .send({ fullName: 'Attendee One', email: 'attendee1@example.com', contactNumber: '91234500', specialRequirements: needs })
+        .expect(201);
+
+      // Act
+      const json = await reportJson(eventId, coo01.cookie);
+      const csv = await call(exportPath(eventId, 'csv'), coo01.cookie);
+      const pdf = await call(exportPath(eventId, 'pdf'), coo01.cookie);
+
+      // Assert: JSON carries it only for the attendee who gave it
+      const withNeeds = json.registrations.filter((r: { specialRequirements?: string }) => r.specialRequirements);
+      expect(withNeeds.map((r: { fullName: string }) => r.fullName)).toEqual(['Attendee One']);
+      expect(withNeeds[0].specialRequirements).toBe(needs);
+      // Assert: CSV column between the contact number and the date
+      expect(csv.text).toContain(`Attendee One,attendee1@example.com,91234500,${needs},`);
+      // Assert: PDF has the heading and the text
+      const pdfSquashed = squash(await pdfText(pdf.bytes));
+      expect(pdfSquashed).toContain(squash('Special Requirements'));
+      expect(pdfSquashed).toContain(squash(needs));
     });
 
     // VIEW-REG-INFO-04-A-FMT
@@ -528,7 +563,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert: transport
       expect(res.status).toBe(200);
       expect(res.headers['content-type']).toBe('application/pdf');
-      expect(res.headers['content-disposition']).toBe(`attachment; filename="${eventId}_registrations_2026-09-29.pdf"`);
+      expect(res.headers['content-disposition']).toBe(
+        `attachment; filename="tech_talk_cloud_101_registrations.pdf"; filename*=UTF-8''tech_talk_cloud_101_registrations.pdf`,
+      );
       expect(res.bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
       // Assert: text, in order
       const text = await pdfText(res.bytes);
@@ -537,7 +574,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         '9 Oct 2026 18:00-21:00 SGT',
         'Generated 29 Sep 2026 12:00 SGT',
         '3 Attendees Registered (3 / 50)',
-        'Name', 'Email', 'Contact Number', 'Registration Date', 'Status',
+        'Name', 'Email', 'Contact Number', 'Special Requirements', 'Registration Date', 'Status',
         'Dev Patel', 'Alice Tan', 'Chloe Ng',
       ];
       let cursor = 0;
@@ -587,7 +624,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert
       expect([report.totalConfirmed, report.registrations]).toEqual([0, []]);
       expect(csv.status).toBe(200);
-      expect(csv.text).toBe('﻿Name,Email,Contact Number,Registration Date,Status\r\n');
+      expect(csv.text).toBe('﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status\r\n');
       expect(pdf.status).toBe(200);
       expect(pdf.bytes.subarray(0, 5).toString('latin1')).toBe('%PDF-');
       expect(await pdfText(pdf.bytes)).toContain('No registrations to display');
@@ -611,11 +648,11 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       // Assert
       expect(res.text).toBe(
-        '﻿Name,Email,Contact Number,Registration Date,Status\r\n' +
-          '"Smith, John",smith@example.com,91110001,27 Sep 2026 15:00,Confirmed\r\n' +
-          'Plus Tag,test+tag@example.com,91110002,28 Sep 2026 10:30,Confirmed\r\n' +
-          '"O""Brien",obrien@example.com,91110003,29 Sep 2026 09:00,Confirmed\r\n' +
-          '"Ann\nLee",ann@example.com,91110004,29 Sep 2026 10:00,Confirmed\r\n',
+        '﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status\r\n' +
+          '"Smith, John",smith@example.com,91110001,,27 Sep 2026 15:00,Confirmed\r\n' +
+          'Plus Tag,test+tag@example.com,91110002,,28 Sep 2026 10:30,Confirmed\r\n' +
+          '"O""Brien",obrien@example.com,91110003,,29 Sep 2026 09:00,Confirmed\r\n' +
+          '"Ann\nLee",ann@example.com,91110004,,29 Sep 2026 10:00,Confirmed\r\n',
       );
     });
 

@@ -1,7 +1,7 @@
 /*
  * Story: SPM-63 View Registration Information (Organiser and Coordinator), report formatters.
- * ACs: AC2 (count wording), AC3 (dates in SGT), AC4 (filename date, CSV date).
- * Test cases: VIEW-REG-INFO-02-A (count lines, BND singular), 03-A (SGT dates), 04-A (filename date BND),
+ * ACs: AC2 (count wording), AC3 (dates in SGT), AC4 (CSV date).
+ * Test cases: VIEW-REG-INFO-02-A (count lines, BND singular), 03-A (SGT dates), 04-A (CSV date),
  *             04-B (event range, generated line).
  *
  * Pure functions: no clock, no database. Every expected value is a literal worked out by hand from the
@@ -15,7 +15,6 @@ import {
   formatReportDateTimeSgt,
   formatReportEventRange,
   formatReportGenerated,
-  sgtCalendarDate,
   spotsLine,
 } from './report-format.js';
 
@@ -67,44 +66,6 @@ describe('SPM-63 AC3: registration dates are shown in Singapore time, never the 
 
     // Assert
     expect(shown).toBe('1 Jan 2027 00:30 SGT');
-  });
-});
-
-describe('SPM-63 AC4: the export filename date is the SGT calendar date of generation', () => {
-  // VIEW-REG-INFO-04-A
-  // Oracle (SPEC 04-A / 2.5): T0 = 2026-09-29 12:00 SGT -> 2026-09-29.
-  // Kills: wrong separator or order.
-  it('VIEW-REG-INFO-04-A: noon SGT on 29 Sep is 2026-09-29', () => {
-    // Arrange / Act
-    const date = sgtCalendarDate(new Date('2026-09-29T04:00:00Z'));
-
-    // Assert
-    expect(date).toBe('2026-09-29');
-  });
-
-  // VIEW-REG-INFO-04-A-BND
-  // Oracle (SPEC 2.5 added BND): 2026-09-30 00:30 SGT is still 29 Sep in UTC (16:30Z) -> filename date 2026-09-30.
-  // Kills: M9 filename date taken from UTC.
-  it('VIEW-REG-INFO-04-A-BND: half past midnight SGT is the next calendar day', () => {
-    // Arrange / Act
-    const date = sgtCalendarDate(new Date('2026-09-29T16:30:00Z'));
-
-    // Assert
-    expect(date).toBe('2026-09-30');
-  });
-
-  // VIEW-REG-INFO-04-A-BND
-  // Oracle (derived): the last second of 29 Sep SGT is 15:59:59Z; one second later is 30 Sep SGT.
-  // Kills: an off-by-one at the midnight boundary (the UTC boundary is 8 hours earlier).
-  it.each([
-    ['2026-09-29T15:59:59Z', '2026-09-29'],
-    ['2026-09-29T16:00:00Z', '2026-09-30'],
-  ])('VIEW-REG-INFO-04-A-BND: %s falls on %s in Singapore', (iso, expected) => {
-    // Arrange / Act
-    const date = sgtCalendarDate(new Date(iso));
-
-    // Assert
-    expect(date).toBe(expected);
   });
 });
 

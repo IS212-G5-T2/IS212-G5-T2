@@ -25,7 +25,14 @@ const FONT_PATH = fileURLToPath(new URL('../../assets/fonts/NotoSans-Regular.ttf
 
 const BOM = '﻿';
 const CRLF = '\r\n';
-export const CSV_HEADER = ['Name', 'Email', 'Contact Number', 'Registration Date', 'Status'] as const;
+export const CSV_HEADER = [
+  'Name',
+  'Email',
+  'Contact Number',
+  'Special Requirements',
+  'Registration Date',
+  'Status',
+] as const;
 
 /** Neutralise a formula, then quote per RFC 4180 (comma, quote, CR or LF force quotes; inner quotes double). */
 export function toCsvCell(value: string): string {
@@ -40,6 +47,7 @@ export function buildCsv(report: RegistrationReport): Buffer {
       row.fullName,
       row.email,
       row.contactNumber,
+      row.specialRequirements ?? '',
       formatReportDateTime(new Date(row.registeredAt)),
       row.status,
     ]
@@ -68,12 +76,14 @@ export function reportContentDisposition(filename: string): string {
 }
 
 const PDF_MARGIN = 40;
+// A4 landscape: 842 - 2 x 40 margin = 762 pt of table width, so the six columns below must sum to at most 762.
 const PDF_COLUMNS = [
-  { title: 'Name', width: 105 },
-  { title: 'Email', width: 135 },
-  { title: 'Contact Number', width: 90 },
-  { title: 'Registration Date', width: 115 },
-  { title: 'Status', width: 65 },
+  { title: 'Name', width: 110 },
+  { title: 'Email', width: 155 },
+  { title: 'Contact Number', width: 85 },
+  { title: 'Special Requirements', width: 205 },
+  { title: 'Registration Date', width: 135 },
+  { title: 'Status', width: 70 },
 ] as const;
 const CELL_GAP = 0;
 
@@ -84,6 +94,7 @@ export function buildPdf(report: RegistrationReport): Promise<Buffer> {
     // Metadata dates come from the report's own instant so two runs of the same report are byte-comparable.
     const doc = new PDFDocument({
       size: 'A4',
+      layout: 'landscape',
       margin: PDF_MARGIN,
       info: { Title: `${report.event.name} - Registration Report`, CreationDate: generatedAt, ModDate: generatedAt },
     });
@@ -132,7 +143,14 @@ export function buildPdf(report: RegistrationReport): Promise<Buffer> {
 
     drawRow(PDF_COLUMNS.map((c) => c.title));
     for (const row of report.registrations) {
-      drawRow([row.fullName, row.email, row.contactNumber, formatReportDateTimeSgt(new Date(row.registeredAt)), row.status]);
+      drawRow([
+        row.fullName,
+        row.email,
+        row.contactNumber,
+        row.specialRequirements ?? '',
+        formatReportDateTimeSgt(new Date(row.registeredAt)),
+        row.status,
+      ]);
     }
     doc.end();
   });

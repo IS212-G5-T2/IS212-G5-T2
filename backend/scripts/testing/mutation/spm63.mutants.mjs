@@ -45,8 +45,6 @@ export const MUTANTS = [
     edits: [['ORDER BY created_at ASC, id ASC', 'ORDER BY created_at DESC, id ASC']], suites: ['e2e'] },
   { id: 'M8b', name: 'rows sorted by registration id only', file: SERVICE,
     edits: [['ORDER BY created_at ASC, id ASC', 'ORDER BY id ASC']], suites: ['e2e'] },
-  { id: 'M9', name: 'filename date from the UTC calendar date', file: FORMAT,
-    edits: [["const SGT_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: SGT_TIME_ZONE });", "const SGT_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'UTC' });"]], suites: both },
   { id: 'M10', name: 'comma no longer forces quoting', file: EXPORT,
     edits: [['/[",\\r\\n]/.test(cell)', '/["\\r\\n]/.test(cell)']], suites: both },
   { id: 'M11', name: 'inner quote escaped as \\" instead of ""', file: EXPORT,

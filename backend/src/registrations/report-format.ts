@@ -64,14 +64,6 @@ export function formatReportGenerated(value: Date): string {
   return `Generated ${formatReportDateTimeSgt(value)}`;
 }
 
-// en-CA yields an unambiguous YYYY-MM-DD calendar date in Singapore.
-const SGT_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: SGT_TIME_ZONE });
-
-/** The Singapore calendar date, "2026-09-29": the export filename date. */
-export function sgtCalendarDate(value: Date): string {
-  return SGT_DAY.format(value);
-}
-
 /** "3 Attendees Registered (3 / 50)"; singular "1 Attendee Registered (1 / 50)". */
 export function attendeeCountLine(count: number, capacity: number): string {
   const noun = count === 1 ? 'Attendee' : 'Attendees';

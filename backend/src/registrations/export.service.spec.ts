@@ -17,7 +17,7 @@ import { buildCsv, buildPdf, reportContentDisposition, reportFilename, toCsvCell
 import { ALICE_TAN, makeReport, makeRow } from './report.fixtures.js';
 
 const BOM = '﻿';
-const HEADER = 'Name,Email,Contact Number,Registration Date,Status';
+const HEADER = 'Name,Email,Contact Number,Special Requirements,Registration Date,Status';
 const csvText = (buffer: Buffer) => buffer.toString('utf8');
 
 describe('SPM-63 AC4: the CSV file matches the report', () => {
@@ -36,9 +36,9 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
     // Assert: literal body
     expect(body).toBe(
       `${BOM}${HEADER}\r\n` +
-        'Dev Patel,dev.patel@example.com,87654321,27 Sep 2026 15:00,Confirmed\r\n' + // 07:00Z + 8h
-        'Alice Tan,alice.tan@example.com,98765432,28 Sep 2026 10:30,Confirmed\r\n' + // 02:30Z + 8h
-        'Chloe Ng,chloe.ng@example.com,91234567,29 Sep 2026 09:00,Confirmed\r\n', // 01:00Z + 8h
+        'Dev Patel,dev.patel@example.com,87654321,,27 Sep 2026 15:00,Confirmed\r\n' + // 07:00Z + 8h
+        'Alice Tan,alice.tan@example.com,98765432,,28 Sep 2026 10:30,Confirmed\r\n' + // 02:30Z + 8h
+        'Chloe Ng,chloe.ng@example.com,91234567,,29 Sep 2026 09:00,Confirmed\r\n', // 01:00Z + 8h
     );
   });
 
@@ -166,7 +166,7 @@ describe('SPM-63 AC4: CSV is RFC 4180 safe and UTF-8', () => {
     const body = csvText(buildCsv(report));
 
     // Assert: the quoted multi-line cell is intact, and records are counted by their CRLF terminators.
-    expect(body).toContain('"Ann\nLee",dev.patel@example.com,87654321,27 Sep 2026 15:00,Confirmed\r\n');
+    expect(body).toContain('"Ann\nLee",dev.patel@example.com,87654321,,27 Sep 2026 15:00,Confirmed\r\n');
     expect(body.split('\r\n')).toHaveLength(4); // header, 2 records, then the empty tail after the final CRLF
   });
 
@@ -286,12 +286,12 @@ describe('SPM-63 AC4: every cell of a row goes through the writer', () => {
     const body = csvText(buildCsv(report));
 
     // Assert
-    expect(body).toContain("Dev Patel,'=cmd@evil.example,'+6591234567,27 Sep 2026 15:00,Confirmed\r\n");
+    expect(body).toContain("Dev Patel,'=cmd@evil.example,'+6591234567,,27 Sep 2026 15:00,Confirmed\r\n");
   });
 
   // VIEW-REG-INFO-04-A
-  // Oracle (SPM-61 AC: contact number optional): a missing contact number is an empty cell, keeping five columns.
-  // Kills: the cell omitted (four columns) or "undefined"/"null" written.
+  // Oracle (SPM-61 AC: contact number optional): a missing contact number is an empty cell, keeping six columns.
+  // Kills: the cell omitted (five columns) or "undefined"/"null" written.
   it('VIEW-REG-INFO-04-A: an empty contact number keeps the column', () => {
     // Arrange
     const report = makeReport({ registrations: [makeRow({ contactNumber: '' })] });
@@ -300,7 +300,64 @@ describe('SPM-63 AC4: every cell of a row goes through the writer', () => {
     const body = csvText(buildCsv(report));
 
     // Assert
-    expect(body).toContain('Dev Patel,dev.patel@example.com,,27 Sep 2026 15:00,Confirmed\r\n');
+    expect(body).toContain('Dev Patel,dev.patel@example.com,,,27 Sep 2026 15:00,Confirmed\r\n');
+  });
+});
+
+describe('SPM-63 AC4: special requirements are part of the exported registration details', () => {
+  // The coordinator needs the exact text to plan for it, so it is written in its own column, between the contact
+  // number and the registration date (the same order as the registrations modal).
+  it('writes the special requirements in their own column', () => {
+    // Arrange
+    const report = makeReport({ registrations: [makeRow({ specialRequirements: 'I am wheelchair bound' })] });
+
+    // Act
+    const body = csvText(buildCsv(report));
+
+    // Assert
+    expect(body).toContain('Dev Patel,dev.patel@example.com,87654321,I am wheelchair bound,27 Sep 2026 15:00,Confirmed\r\n');
+  });
+
+  // Free text can hold commas, quotes and line breaks: it is quoted per RFC 4180 and stays inside one record.
+  it('quotes special requirements that contain a comma, a quote or a line break', () => {
+    // Arrange
+    const report = makeReport({
+      registrations: [makeRow({ specialRequirements: 'Vegan, no nuts\nSays "gluten free"' })],
+    });
+
+    // Act
+    const body = csvText(buildCsv(report));
+
+    // Assert
+    expect(body).toContain('87654321,"Vegan, no nuts\nSays ""gluten free""",27 Sep 2026 15:00,Confirmed\r\n');
+    expect(body.split('\r\n')).toHaveLength(3); // header, one record, then the empty tail after the final CRLF
+  });
+
+  // Attendee-typed text is the likeliest place for a formula payload, so this column is neutralised like the others.
+  it('neutralises a formula typed into the special requirements', () => {
+    // Arrange
+    const report = makeReport({ registrations: [makeRow({ specialRequirements: '=HYPERLINK("http://evil.example")' })] });
+
+    // Act
+    const body = csvText(buildCsv(report));
+
+    // Assert
+    expect(body).toContain(`87654321,"'=HYPERLINK(""http://evil.example"")",27 Sep 2026 15:00,Confirmed\r\n`);
+  });
+
+  // The PDF carries the same column heading and the same text as the CSV.
+  it('shows the special requirements column and text in the PDF', async () => {
+    // Arrange
+    const report = makeReport({ registrations: [makeRow({ specialRequirements: 'I am wheelchair bound' })] });
+
+    // Act
+    const parser = new PDFParse({ data: new Uint8Array(await buildPdf(report)) });
+    const text = (await parser.getText()).text.replace(/\s+/g, ' ');
+    await parser.destroy();
+
+    // Assert
+    expect(text).toContain('Special Requirements');
+    expect(text).toContain('I am wheelchair bound');
   });
 });
 
