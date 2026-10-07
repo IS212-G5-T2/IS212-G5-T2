@@ -158,6 +158,11 @@ Successful responses redirect Venue Staff to the venue catalogue and display a
 confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
 convenience. Component tests live beside the page in
 `src/pages/venues/VenueCreatePage/`.
+
+Accounts with more than one server-granted role receive the combined navigation
+for all their roles. Shared destinations appear once, following the primary
+role's navigation label and order; role-specific entries such as **Create Venue**
+remain available.
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view

@@ -41,7 +41,7 @@ function baseEvent(overrides: Partial<EventRecord> = {}): EventRecord {
 afterEach(cleanup);
 
 describe("EventCard", () => {
-  // A round-robin-assigned coordinator's email is long and unbroken, which
+  // An assigned coordinator's email is long and unbroken, which
   // previously overflowed the card's fixed-width grid cell.
   it("truncates a long coordinator email instead of overflowing the card", () => {
     render(

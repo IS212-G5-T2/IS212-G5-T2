@@ -168,8 +168,12 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       setupTimeMinutes: 15,
       turnaroundTimeMinutes: 20,
     };
-    apiMock.mockImplementation(async (path) =>
-      path === `/venues/${id}` ? venue : secondVenue,
+    let resolveSecond!: (record: VenueRecord) => void;
+    const secondRequest = new Promise<VenueRecord>((resolve) => {
+      resolveSecond = resolve;
+    });
+    apiMock.mockImplementation((path) =>
+      path === `/venues/${id}` ? Promise.resolve(venue) : secondRequest,
     );
     render(
       <MemoryRouter initialEntries={[`/venues/${id}`]}>
@@ -185,6 +189,13 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     await user.click(
       screen.getByRole("link", { name: "Select Seminar Room 2 Test" }),
     );
+
+    // Assert: loading replaces the first venue immediately while the second request is pending.
+    expect(screen.getByRole("status")).toHaveTextContent("Loading venue details…");
+    expect(
+      screen.queryByRole("heading", { name: "Conference Room" }),
+    ).not.toBeInTheDocument();
+    resolveSecond(secondVenue);
 
     // Assert: only the selected venue's accessibility and time values remain.
     expect(

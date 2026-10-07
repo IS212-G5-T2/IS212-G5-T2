@@ -51,4 +51,44 @@ describe("SPM-30: signing out from the sidebar", () => {
     expect(logout).toHaveBeenCalledTimes(1);
     expect(await screen.findByText("Login page")).toBeInTheDocument();
   });
+
+  // Every server-granted role contributes navigation without duplicating shared routes.
+  it("shows venue staff navigation to a coordinator who also has the venue staff role", () => {
+    // Arrange: the primary coordinator role also has the server-granted venue staff role.
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-venue-staff-1",
+        name: "Coordinator Venue Staff",
+        email: "coordinator_venuestaff@connectsphere.test",
+        role: "coordinator",
+        roles: ["coordinator", "venue_staff"],
+      },
+    });
+
+    // Act: render the actual sidebar that maps the navigation configuration to links.
+    render(
+      <MemoryRouter>
+        <Sidebar mobileOpen={false} onCloseMobile={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    // Assert: staff-only creation is discoverable and shared venue routes remain one link.
+    expect(screen.getByRole("link", { name: "Create Venue" })).toHaveAttribute("href", "/venues/create");
+    expect(screen.getAllByRole("link", { name: "Venues" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "Venue Availability" })).toHaveLength(1);
+  });
+
+  // Parent venue links must not look selected while a more-specific venue page is open.
+  it("marks only Venue Availability active at the venue availability page", () => {
+    // Arrange + Act: render a coordinator's sidebar at the nested availability URL.
+    render(
+      <MemoryRouter initialEntries={["/venues/availability"]}>
+        <Sidebar mobileOpen={false} onCloseMobile={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    // Assert: the exact page is highlighted and the /venues prefix route is not.
+    expect(screen.getByRole("link", { name: "Venue Availability" })).toHaveClass("bg-primary-50");
+    expect(screen.getByRole("link", { name: "Venues" })).not.toHaveClass("bg-primary-50");
+  });
 });

@@ -60,7 +60,9 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create(ownerUserId, venueInput)).resolves.toEqual(venue);
+    await expect(repository.create(ownerUserId, venueInput)).resolves.toEqual(
+      venue,
+    );
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]).toEqual([
       expect.stringContaining('INSERT INTO venues (owner_user_id,'),
@@ -155,7 +157,9 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create(ownerUserId, { ...venueInput, image })).resolves.toEqual({
+    await expect(
+      repository.create(ownerUserId, { ...venueInput, image }),
+    ).resolves.toEqual({
       ...venue,
       image,
     });
@@ -174,7 +178,9 @@ describe('VenuesRepository', () => {
       transaction,
     } as unknown as DatabaseService);
 
-    await expect(repository.create(ownerUserId, venueInput)).rejects.toBe(failure);
+    await expect(repository.create(ownerUserId, venueInput)).rejects.toBe(
+      failure,
+    );
   });
 });
 
@@ -204,7 +210,9 @@ describe('SPM-124 venue reads', () => {
       .mockResolvedValueOnce({ rows: [{ ...row, id }] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
-    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+    const repository = new VenuesRepository({
+      query: readQuery,
+    } as unknown as DatabaseService);
 
     const [record] = await repository.list(owner);
 
@@ -224,12 +232,34 @@ describe('SPM-124 venue reads', () => {
     readQuery
       .mockResolvedValueOnce({ rows: [{ ...row, id }] })
       .mockResolvedValueOnce({
-        rows: [{ id: 'blockout', venue_id: id, start_at: new Date('2026-10-05T00:00:00Z'), end_at: new Date('2026-10-07T00:00:00Z'), reason: 'Maintenance', current: true }],
+        rows: [
+          {
+            id: 'blockout',
+            venue_id: id,
+            start_at: new Date('2026-10-05T00:00:00Z'),
+            end_at: new Date('2026-10-07T00:00:00Z'),
+            reason: 'Maintenance',
+            current: true,
+          },
+        ],
       })
       .mockResolvedValueOnce({
-        rows: [{ id: 'hold', venue_id: id, event_name: 'Workshop', start_at: new Date('2026-10-08T00:00:00Z'), end_at: new Date('2026-10-08T02:00:00Z'), status: 'pending', current: false, affected: false }],
+        rows: [
+          {
+            id: 'hold',
+            venue_id: id,
+            event_name: 'Workshop',
+            start_at: new Date('2026-10-08T00:00:00Z'),
+            end_at: new Date('2026-10-08T02:00:00Z'),
+            status: 'pending',
+            current: false,
+            affected: false,
+          },
+        ],
       });
-    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+    const repository = new VenuesRepository({
+      query: readQuery,
+    } as unknown as DatabaseService);
 
     const [record] = await repository.list();
 
@@ -237,21 +267,31 @@ describe('SPM-124 venue reads', () => {
       ...venue,
       id,
       availabilityStatus: 'unavailable',
-      unavailablePeriods: [{
-        id: 'blockout',
-        start: '2026-10-05T00:00:00.000Z',
-        end: '2026-10-07T00:00:00.000Z',
-        reason: 'Maintenance',
-      }],
-      reservations: [{
-        id: 'hold',
-        eventName: 'Workshop',
-        start: '2026-10-08T00:00:00.000Z',
-        end: '2026-10-08T02:00:00.000Z',
-        status: 'tentative',
-        affectedByUnavailablePeriod: false,
-      }],
+      unavailablePeriods: [
+        {
+          id: 'blockout',
+          start: '2026-10-05T00:00:00.000Z',
+          end: '2026-10-07T00:00:00.000Z',
+          reason: 'Maintenance',
+        },
+      ],
+      reservations: [
+        {
+          id: 'hold',
+          eventName: 'Workshop',
+          start: '2026-10-08T00:00:00.000Z',
+          end: '2026-10-08T02:00:00.000Z',
+          status: 'tentative',
+          affectedByUnavailablePeriod: false,
+        },
+      ],
     });
+    expect(readQuery.mock.calls[2][0]).toContain(
+      'b.start_at - make_interval(mins => v.setup_time_minutes) <= $2::timestamptz',
+    );
+    expect(readQuery.mock.calls[2][0]).toContain(
+      'b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz',
+    );
   });
 
   // SPM-124: a readable venue detail is not restricted merely because the reader also owns venues.
@@ -261,10 +301,14 @@ describe('SPM-124 venue reads', () => {
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
-    const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
+    const repository = new VenuesRepository({
+      query: readQuery,
+    } as unknown as DatabaseService);
 
     const record = await repository.get(id);
-    const missing = await repository.get('00000000-0000-4000-8000-000000000999');
+    const missing = await repository.get(
+      '00000000-0000-4000-8000-000000000999',
+    );
 
     expect(record).toEqual({
       ...venue,

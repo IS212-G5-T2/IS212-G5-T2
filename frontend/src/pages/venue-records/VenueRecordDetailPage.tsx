@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ApiError, api } from "@/utils/api";
-import { formatDateRange } from "@/utils/format";
+import { formatDateTimeRange } from "@/utils/format";
 import type { VenueRecord } from "./venue-records";
 
 export function VenueRecordDetailPage() {
@@ -17,6 +17,9 @@ export function VenueRecordDetailPage() {
   useEffect(() => {
     let active = true;
     if (!id) return;
+    setLoading(true);
+    setVenue(undefined);
+    setError("");
     api<VenueRecord>(`/venues/${encodeURIComponent(id)}`).then(
       (record) => {
         if (active) {
@@ -137,7 +140,7 @@ export function VenueRecordDetailPage() {
                 <ul className="space-y-2">
                   {venue.unavailablePeriods.map((period) => (
                     <li key={period.id}>
-                      {formatDateRange(period.start, period.end)} —{" "}
+                      {formatDateTimeRange(period.start, period.end)} —{" "}
                       {period.reason}
                     </li>
                   ))}
@@ -163,7 +166,7 @@ export function VenueRecordDetailPage() {
                         ? "Booked"
                         : "Tentative hold"}
                       <br />
-                      {formatDateRange(reservation.start, reservation.end)}
+                      {formatDateTimeRange(reservation.start, reservation.end)}
                       {reservation.affectedByUnavailablePeriod && (
                         <p className="text-danger-700 dark:text-danger-300">
                           Affected by an unavailable period

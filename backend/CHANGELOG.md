@@ -2,11 +2,22 @@
 
 ## Unreleased
 
-- Added SPM-124 venue catalogue and detail reads alongside SPM-50 venue
-  creation. Authorized readers receive the shared catalogue by default and
-  may request their session-derived **My venues** scope with `?mine=true`.
-  Responses include blockouts, approved bookings, active holds, and
-  setup/turnaround overlap markers from `venue_bookings`.
+- SPM-124 venue reads now use setup and turnaround buffers when determining
+  whether an approved booking currently makes a venue unavailable. Removed the
+  duplicate venue authentication-middleware registration.
+
+- SPM-123: submitted requests are no longer auto-assigned (SPM-38's round-robin
+  and `coordinator-roster.ts` removed). Added the Event Coordinator Lead's
+  `GET /api/lead/queue`, `GET /api/lead/coordinators` and
+  `POST /api/lead/queue/:eventId/assign` (Lead-only; availability re-checked at
+  assignment; assignment notifies the coordinator). Removed the open
+  `POST /api/events/:id/assign`. Coordinators can now read their
+  `coordinator_assignment` notifications. The coordinator's row is share-locked
+  while assigning, and an unassigned request that is no longer Submitted gets
+  409 "This event request is no longer awaiting assignment." An account holding
+  both COORDINATOR_LEAD and COORDINATOR is refused on the Lead endpoints (403)
+  and is never listed or assignable as a coordinator.
+
 - Added a re-runnable mutation check for the SPM-120 withdraw code (`scripts/testing/mutation`) and a recording-client unit spec, `registrations.withdraw.spec.ts`, proving a refused withdrawal issues no UPDATE: the integration suite cannot see that, because the transaction rolls a refusal back. Added integration cases for every non-attendee role, for Confirmed, Cancelled and Completed events, and for a registration with no stored details. Tests and tooling only; no behaviour change.
 
 - Added attendee withdrawal: `POST /api/registrations/:registrationId/withdraw` (SPM-120). Ownership-scoped (another user's or a missing registration is 404 "Registration not found."), refused at or after the event start (422 `event_already_occurred`, "Event has already occurred"), and one compare-and-set `UPDATE` so repeated or concurrent requests give one 200 and the rest 422 `registration_already_withdrawn`. `withdrawn_at` comes from the injected clock and is stored as UTC. The 200 body is the registration plus `message`. `GET .../registrations/me` now returns the latest registration of any status (a withdrawn one is no longer `null`); registering again clears `withdrawn_at`.

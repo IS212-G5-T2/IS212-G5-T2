@@ -156,10 +156,10 @@ export class VenuesRepository {
     return this.withSchedules(result.rows.map((row) => this.toReadRecord(row)));
   }
 
-  async get(id: string, ownerUserId?: string): Promise<VenueReadRecord | undefined> {
+  async get(id: string): Promise<VenueReadRecord | undefined> {
     const result = await this.database.query<VenueRow>(
-      `${venueSelect} WHERE v.id = $1::uuid${ownerUserId ? ' AND v.owner_user_id = $2::uuid' : ''}`,
-      ownerUserId ? [id, ownerUserId] : [id],
+      `${venueSelect} WHERE v.id = $1::uuid`,
+      [id],
     );
     if (!result.rows[0]) return undefined;
     return (await this.withSchedules([this.toReadRecord(result.rows[0])]))[0];
@@ -211,7 +211,9 @@ export class VenuesRepository {
     };
   }
 
-  private async withSchedules(venues: VenueReadRecord[]): Promise<VenueReadRecord[]> {
+  private async withSchedules(
+    venues: VenueReadRecord[],
+  ): Promise<VenueReadRecord[]> {
     if (!venues.length) return venues;
     const ids = venues.map((venue) => venue.id);
     const now = this.clock.now();
@@ -225,7 +227,8 @@ export class VenuesRepository {
     );
     const bookings = await this.database.query<BookingRow>(
       `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
-         b.start_at <= $2::timestamptz AND b.end_at > $2::timestamptz AS current,
+         b.start_at - make_interval(mins => v.setup_time_minutes) <= $2::timestamptz
+           AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz AS current,
          EXISTS (
            SELECT 1 FROM venue_bookings blockout
            WHERE blockout.venue_id = b.venue_id
@@ -236,7 +239,8 @@ export class VenuesRepository {
        FROM venue_bookings b
        JOIN events e ON e.id = b.event_id
        JOIN venues v ON v.id = b.venue_id
-       WHERE b.venue_id = ANY($1::uuid[]) AND b.end_at > $2::timestamptz
+       WHERE b.venue_id = ANY($1::uuid[])
+         AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz
          AND (b.status = 'approved' OR
            (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz)))
        ORDER BY b.start_at, b.id`,
@@ -265,12 +269,17 @@ export class VenuesRepository {
         status: row.status === 'approved' ? 'booked' : 'tentative',
         affectedByUnavailablePeriod: row.affected,
       });
-      if (row.current && row.status === 'approved') venue.availabilityStatus = 'unavailable';
+      if (row.current && row.status === 'approved')
+        venue.availabilityStatus = 'unavailable';
     }
     return venues;
   }
 
-  private async insertVenue(client: Queryable, ownerUserId: string, venue: VenueInput) {
+  private async insertVenue(
+    client: Queryable,
+    ownerUserId: string,
+    venue: VenueInput,
+  ) {
     const result = await client.query(
       'INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
       [

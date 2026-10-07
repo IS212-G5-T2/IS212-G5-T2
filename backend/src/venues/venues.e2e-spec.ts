@@ -92,25 +92,37 @@ describe.skipIf(!databaseUrl)(
       );
       await pool.query(
         await readFile(
-          new URL('../../migrations/006_venue_operating_information.sql', import.meta.url),
+          new URL(
+            '../../migrations/006_venue_operating_information.sql',
+            import.meta.url,
+          ),
           'utf8',
         ),
       );
       await pool.query(
         await readFile(
-          new URL('../../migrations/007_venue_operating_schedule.sql', import.meta.url),
+          new URL(
+            '../../migrations/007_venue_operating_schedule.sql',
+            import.meta.url,
+          ),
           'utf8',
         ),
       );
       ownerMigration = await readFile(
-        new URL('../../migrations/008_venue_owner_user_id.sql', import.meta.url),
+        new URL(
+          '../../migrations/008_venue_owner_user_id.sql',
+          import.meta.url,
+        ),
         'utf8',
       );
       await pool.query(ownerMigration);
       await pool.query(ownerMigration);
       await pool.query(
         await readFile(
-          new URL('../../migrations/009_venue_availability.sql', import.meta.url),
+          new URL(
+            '../../migrations/009_venue_availability.sql',
+            import.meta.url,
+          ),
           'utf8',
         ),
       );
@@ -128,9 +140,13 @@ describe.skipIf(!databaseUrl)(
       await app?.close();
       if (pool) {
         if (venueIds.length)
-          await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [venueIds]);
+          await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [
+            venueIds,
+          ]);
         if (eventIds.length)
-          await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds]);
+          await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [
+            eventIds,
+          ]);
         await pool.end();
       }
     });
@@ -164,7 +180,10 @@ describe.skipIf(!databaseUrl)(
         [venueId],
       );
       expect(owner.rows).toEqual([
-        { owner_user_id: expect.stringMatching(uuidPattern), email: staffEmail },
+        {
+          owner_user_id: expect.stringMatching(uuidPattern),
+          email: staffEmail,
+        },
       ]);
       expect(
         (
@@ -257,7 +276,9 @@ describe.skipIf(!databaseUrl)(
 
       // Fresh schemas reject ownerless rows; repeating the migration creates no duplicate constraint.
       expect(column.rows).toEqual([{ data_type: 'uuid', is_nullable: 'NO' }]);
-      expect(constraint.rows).toEqual([{ conname: 'venues_owner_user_id_fkey' }]);
+      expect(constraint.rows).toEqual([
+        { conname: 'venues_owner_user_id_fkey' },
+      ]);
       expect(required.rows).toEqual([
         { conname: 'venues_owner_user_id_required', convalidated: false },
       ]);
@@ -301,31 +322,34 @@ describe.skipIf(!databaseUrl)(
     it.each([
       [null, '23502'],
       ['00000000-0000-4000-8000-000000000001', '23503'],
-    ])('rejects direct SQL inserts with owner %s', async (ownerUserId, code) => {
-      // Arrange otherwise valid venue columns, then bypass the API to exercise database constraints.
-      const insert = pool.query(
-        `INSERT INTO venues
+    ])(
+      'rejects direct SQL inserts with owner %s',
+      async (ownerUserId, code) => {
+        // Arrange otherwise valid venue columns, then bypass the API to exercise database constraints.
+        const insert = pool.query(
+          `INSERT INTO venues
            (owner_user_id, name, location, capacity, operating_information,
             operating_days, operating_start_time, operating_end_time,
             setup_time_minutes, turnaround_time_minutes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
-        [
-          ownerUserId,
-          `Invalid Owner ${code}`,
-          'Test Building Level 3',
-          venueInput.capacity,
-          venueInput.operatingInformation,
-          venueInput.operatingDays,
-          venueInput.operatingStartTime,
-          venueInput.operatingEndTime,
-          venueInput.setupTimeMinutes,
-          venueInput.turnaroundTimeMinutes,
-        ],
-      );
+          [
+            ownerUserId,
+            `Invalid Owner ${code}`,
+            'Test Building Level 3',
+            venueInput.capacity,
+            venueInput.operatingInformation,
+            venueInput.operatingDays,
+            venueInput.operatingStartTime,
+            venueInput.operatingEndTime,
+            venueInput.setupTimeMinutes,
+            venueInput.turnaroundTimeMinutes,
+          ],
+        );
 
-      // Assert the database refuses the write before it can become a venue record.
-      await expect(insert).rejects.toMatchObject({ code });
-    });
+        // Assert the database refuses the write before it can become a venue record.
+        await expect(insert).rejects.toMatchObject({ code });
+      },
+    );
 
     // SPM-50 business rule: accessibility is optional, so a valid venue can persist with no accessibility links.
     it('creates a venue with no accessibility selection', async () => {
@@ -383,19 +407,41 @@ describe.skipIf(!databaseUrl)(
       const attendee = await authenticate(attendeeEmail);
       const mine = await staff
         .post('/api/venues')
-        .send({ ...venueInput, name: 'SPM-124 Schedule Owner Venue', image: undefined })
+        .send({
+          ...venueInput,
+          name: 'SPM-124 Schedule Owner Venue',
+          image: undefined,
+        })
         .expect(201);
       const other = await otherStaff
         .post('/api/venues')
-        .send({ ...venueInput, name: 'SPM-124 Schedule Other Venue', image: undefined })
+        .send({
+          ...venueInput,
+          name: 'SPM-124 Schedule Other Venue',
+          image: undefined,
+        })
+        .expect(201);
+      const setupCurrent = await staff
+        .post('/api/venues')
+        .send({
+          ...venueInput,
+          name: 'SPM-124 Setup Current Venue',
+          image: undefined,
+        })
         .expect(201);
       const mineId = mine.body.venue.id as string;
       const otherId = other.body.venue.id as string;
-      venueIds.push(mineId, otherId);
+      const setupCurrentId = setupCurrent.body.venue.id as string;
+      venueIds.push(mineId, otherId, setupCurrentId);
       const currentEvent = await createScheduleEvent('Current booking');
       const activeHoldEvent = await createScheduleEvent('Active hold');
       const setupEvent = await createScheduleEvent('Setup-buffer booking');
-      const turnaroundEvent = await createScheduleEvent('Turnaround-buffer booking');
+      const turnaroundEvent = await createScheduleEvent(
+        'Turnaround-buffer booking',
+      );
+      const setupCurrentEvent = await createScheduleEvent(
+        'Setup-current booking',
+      );
       const at = (hours: number, minutes = 0) =>
         new Date(Date.UTC(2030, 0, 10, hours, minutes));
       await pool.query(
@@ -408,11 +454,23 @@ describe.skipIf(!databaseUrl)(
           ($1, $12, $13, $14, 'approved', NULL),
           ($1, $15, $16, $17, 'approved', NULL)`,
         [
-          mineId, currentEvent, at(11), at(13),
-          activeHoldEvent, at(14), at(15), at(13),
-          at(16), at(17), at(11),
-          setupEvent, at(18), at(19),
-          turnaroundEvent, at(20), at(21),
+          mineId,
+          currentEvent,
+          at(11),
+          at(13),
+          activeHoldEvent,
+          at(14),
+          at(15),
+          at(13),
+          at(16),
+          at(17),
+          at(11),
+          setupEvent,
+          at(18),
+          at(19),
+          turnaroundEvent,
+          at(20),
+          at(21),
         ],
       );
       await pool.query(
@@ -423,27 +481,63 @@ describe.skipIf(!databaseUrl)(
           ($1, $6, $7, 'blocked', 'Expired maintenance'),
           ($1, $8, $9, 'blocked', 'Setup-only blockout'),
           ($1, $10, $11, 'blocked', 'Turnaround-only blockout')`,
-        [mineId, at(10), at(13), at(22), at(23), at(8), at(9), at(17, 40), at(17, 45), at(21, 15), at(21, 45)],
+        [
+          mineId,
+          at(10),
+          at(13),
+          at(22),
+          at(23),
+          at(8),
+          at(9),
+          at(17, 40),
+          at(17, 45),
+          at(21, 15),
+          at(21, 45),
+        ],
+      );
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'approved')`,
+        [setupCurrentId, setupCurrentEvent, at(12, 30), at(13)],
       );
 
       // Act: read anonymously, as a denied attendee, and through shared and My venues staff views.
       await request(app.getHttpServer()).get('/api/venues').expect(401);
       await attendee.get('/api/venues').expect(403);
       const staffList = await staff.get('/api/venues').expect(200);
-      const staffMineList = await staff.get('/api/venues?mine=true').expect(200);
+      const staffMineList = await staff
+        .get('/api/venues?mine=true')
+        .expect(200);
       const coordinatorList = await coordinator.get('/api/venues').expect(200);
       const detail = await staff.get(`/api/venues/${mineId}`).expect(200);
+      const setupCurrentDetail = await staff
+        .get(`/api/venues/${setupCurrentId}`)
+        .expect(200);
       await staff.get(`/api/venues/${otherId}`).expect(200);
-      await staff.get('/api/venues/00000000-0000-4000-8000-000000000999').expect(404);
+      await staff
+        .get('/api/venues/00000000-0000-4000-8000-000000000999')
+        .expect(404);
 
       // Assert: the catalogue is shared by default; My venues alone is restricted by the server session.
-      expect(staffList.body.some((record: { id: string }) => record.id === mineId)).toBe(true);
-      expect(staffList.body.some((record: { id: string }) => record.id === otherId)).toBe(true);
-      expect(staffMineList.body.some((record: { id: string }) => record.id === mineId)).toBe(true);
-      expect(staffMineList.body.some((record: { id: string }) => record.id === otherId)).toBe(false);
-      expect(coordinatorList.body.map((record: { id: string }) => record.id)).toEqual(
-        expect.arrayContaining([mineId, otherId]),
-      );
+      expect(
+        staffList.body.some((record: { id: string }) => record.id === mineId),
+      ).toBe(true);
+      expect(
+        staffList.body.some((record: { id: string }) => record.id === otherId),
+      ).toBe(true);
+      expect(
+        staffMineList.body.some(
+          (record: { id: string }) => record.id === mineId,
+        ),
+      ).toBe(true);
+      expect(
+        staffMineList.body.some(
+          (record: { id: string }) => record.id === otherId,
+        ),
+      ).toBe(false);
+      expect(
+        coordinatorList.body.map((record: { id: string }) => record.id),
+      ).toEqual(expect.arrayContaining([mineId, otherId]));
       expect(detail.body).toMatchObject({
         id: mineId,
         availabilityStatus: 'unavailable',
@@ -454,14 +548,43 @@ describe.skipIf(!databaseUrl)(
           expect.objectContaining({ reason: 'Turnaround-only blockout' }),
         ]),
         reservations: expect.arrayContaining([
-          expect.objectContaining({ eventName: 'Current booking', status: 'booked' }),
-          expect.objectContaining({ eventName: 'Active hold', status: 'tentative' }),
-          expect.objectContaining({ eventName: 'Setup-buffer booking', affectedByUnavailablePeriod: true }),
-          expect.objectContaining({ eventName: 'Turnaround-buffer booking', affectedByUnavailablePeriod: true }),
+          expect.objectContaining({
+            eventName: 'Current booking',
+            status: 'booked',
+          }),
+          expect.objectContaining({
+            eventName: 'Active hold',
+            status: 'tentative',
+          }),
+          expect.objectContaining({
+            eventName: 'Setup-buffer booking',
+            affectedByUnavailablePeriod: true,
+          }),
+          expect.objectContaining({
+            eventName: 'Turnaround-buffer booking',
+            affectedByUnavailablePeriod: true,
+          }),
         ]),
       });
-      expect(detail.body.unavailablePeriods.map((period: { reason: string }) => period.reason)).not.toContain('Expired maintenance');
-      expect(detail.body.reservations.map((reservation: { start: string }) => reservation.start)).not.toContain(at(16).toISOString());
+      expect(setupCurrentDetail.body).toMatchObject({
+        availabilityStatus: 'unavailable',
+        reservations: expect.arrayContaining([
+          expect.objectContaining({
+            eventName: 'Setup-current booking',
+            status: 'booked',
+          }),
+        ]),
+      });
+      expect(
+        detail.body.unavailablePeriods.map(
+          (period: { reason: string }) => period.reason,
+        ),
+      ).not.toContain('Expired maintenance');
+      expect(
+        detail.body.reservations.map(
+          (reservation: { start: string }) => reservation.start,
+        ),
+      ).not.toContain(at(16).toISOString());
     });
 
     // SPM-124 AC5: API ordering uses venue name, then ID for identical names.

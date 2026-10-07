@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Card, CardBody } from "@/components/ui/Card";
-import { formatDateRange } from "@/utils/format";
+import { formatDateTimeRange } from "@/utils/format";
 import type { VenueRecord } from "./venue-records";
 
 /** SPM-50 style venue card enriched with the SPM-124 schedule summary. */
@@ -78,7 +78,7 @@ export function VenueRecordCard({ venue }: { venue: VenueRecord }) {
                 key={period.id}
                 className="mt-2 text-xs text-danger-700 dark:text-danger-300"
               >
-                Unavailable {formatDateRange(period.start, period.end)}: {period.reason}
+                Unavailable {formatDateTimeRange(period.start, period.end)}: {period.reason}
               </p>
             ))}
           </CardBody>
