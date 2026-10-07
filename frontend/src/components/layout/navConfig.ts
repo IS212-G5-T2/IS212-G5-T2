@@ -30,6 +30,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   tech_support: [
     { label: "Equipment Requests", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },
     { label: "Equipment Availability", to: "/equipment/availability", icon: "🗓️", feature: "Feature 13" },
+    { label: "Audit Trail", to: "/equipment/audit-trail", icon: "📜", feature: "SPM-119" },
     { label: "Reservations", to: "/equipment", icon: "📦", feature: "Feature 14" },
   ],
   attendee: [

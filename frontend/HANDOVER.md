@@ -27,6 +27,18 @@ failed fetch. `EquipmentCreatePage.playwright.spec.ts` covers the browser
 create-to-inventory flow; the backend browser harness removes its uniquely
 named equipment fixture afterward.
 
+SPM-119: `EquipmentAvailabilityPage` filters unavailable records out of its
+default view and toggles between `getEquipment()` and
+`getEquipment({ includeUnavailable: true })` — filtering stays client-side
+too, since the component must also behave correctly against a backend that
+hasn't applied the server-side filter. While the Mark-unavailable or
+Reactivate dialog is open, the rest of the page is wrapped in
+`aria-hidden` so the row's own trigger button (same label text as the
+dialog's confirm button, e.g. both read "Mark unavailable") is excluded from
+the accessible tree and queries like `getByRole("button", { name:
+/^mark unavailable$/i })` resolve uniquely to the dialog. `AuditTrailPage`
+(`/equipment/audit-trail`) is read-only and has no dedicated unit test yet.
+
 My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
 
 - Keep setup, development, test, build, and environment instructions in `README.md` aligned with the implemented frontend.

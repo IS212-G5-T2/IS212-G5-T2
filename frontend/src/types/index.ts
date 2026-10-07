@@ -176,8 +176,25 @@ export interface EquipmentRecord {
   quantity: number;
   maintenanceStatus: 'Active' | 'Under Maintenance' | 'Retired';
   location: string;
+  /** SPM-119: booking availability, independent of maintenanceStatus. Defaults to true. */
+  isAvailable?: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+/** SPM-119 AC5/AC7: one row of the shared equipment availability audit trail. */
+export interface EquipmentAuditEntry {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  equipmentType: EquipmentRecord['type'];
+  location: string;
+  maintenanceStatus: EquipmentRecord['maintenanceStatus'];
+  quantity: number;
+  changeType: 'Marked unavailable' | 'Reactivated';
+  reason: string | null;
+  changedBy: string;
+  timestamp: string;
 }
 
 export type EquipmentRequestStatus =

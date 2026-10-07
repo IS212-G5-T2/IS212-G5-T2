@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { CURRENT_USER_REQUEST_KEY, type AuthenticatedUser } from '../auth/models/auth.models.js';
 import { EquipmentService } from './equipment.service.js';
@@ -21,8 +21,24 @@ export class EquipmentController {
     return this.equipment.listLocations(request[CURRENT_USER_REQUEST_KEY]);
   }
 
+  @Get('audit-trail')
+  getAuditTrail(@Req() request: AuthenticatedRequest) {
+    return this.equipment.getAuditTrail(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
   @Get()
-  list(@Req() request: AuthenticatedRequest) {
-    return this.equipment.list(request[CURRENT_USER_REQUEST_KEY]);
+  list(@Query('includeUnavailable') includeUnavailable: string | undefined, @Req() request: AuthenticatedRequest) {
+    return this.equipment.list(request[CURRENT_USER_REQUEST_KEY], {
+      includeUnavailable: includeUnavailable === 'true',
+    });
+  }
+
+  @Patch(':id/availability')
+  updateAvailability(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.equipment.updateAvailability(request[CURRENT_USER_REQUEST_KEY], id, body);
   }
 }

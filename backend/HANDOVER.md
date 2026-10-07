@@ -82,6 +82,35 @@ PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
 the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a
 database with the local initialisers applied.
 
+SPM-119 "Mark Equipment as Unavailable" adds `EquipmentService.updateAvailability()`
+and `getAuditTrail()`. Availability (`is_available`) is deliberately orthogonal
+to `maintenance_status`: a record can be Active and unavailable, or Under
+Maintenance and still bookable — the two flags are never conflated.
+`updateAvailability()` locks the row (`SELECT ... FOR UPDATE`) inside
+`DatabaseService.transaction()`, updates `is_available`, and inserts the audit
+row in the same transaction, so a failed audit insert rolls the availability
+change back with it (`src/equipment/equipment-availability.e2e-spec.ts`
+EQUIP-UNAVAIL-07-A proves this with a Postgres trigger that forces the insert
+to fail). Reactivating never requires a reason; marking unavailable always
+does (`equipment-availability-input.ts`). `list()` filters out unavailable
+records by default; `includeUnavailable=true` opts back in. The audit trail is
+shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
+Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
+Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
+for a database with `database/postgresql/init/001` through `009` applied.
+**Known test-fixture bug** (not an implementation defect): that e2e file's
+`createUser(role, email)` helper stores the caller's email with a random UUID
+spliced in (`email.replace('@', '-${randomUUID()}@')`) for cross-run
+uniqueness, then four tests (`EQUIP-UNAVAIL-01-A`, `05-A`, `05-C`, `07-B`)
+assert `changedBy` against the original, unmangled literal (e.g.
+`'techsupport1@connectsphere.com'`). The authenticated session's real email is
+necessarily the mangled one, so these four assertions cannot pass regardless
+of implementation; the other 7 of 11 cases in that file pass, including the
+07-A rollback and both 07-SEC-1 role-guard cases. Fix belongs with whoever
+owns that test file — either generate the unique email upfront (matching the
+pattern already used in every other `*.e2e-spec.ts` helper in this codebase)
+and assert against that, or stop mangling it.
+
 Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
 - Start backend feature work from Jira acceptance criteria.
