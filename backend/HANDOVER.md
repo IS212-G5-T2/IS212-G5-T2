@@ -98,18 +98,17 @@ shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
 Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
 Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
 for a database with `database/postgresql/init/001` through `009` applied.
-**Known test-fixture bug** (not an implementation defect): that e2e file's
-`createUser(role, email)` helper stores the caller's email with a random UUID
-spliced in (`email.replace('@', '-${randomUUID()}@')`) for cross-run
-uniqueness, then four tests (`EQUIP-UNAVAIL-01-A`, `05-A`, `05-C`, `07-B`)
-assert `changedBy` against the original, unmangled literal (e.g.
-`'techsupport1@connectsphere.com'`). The authenticated session's real email is
-necessarily the mangled one, so these four assertions cannot pass regardless
-of implementation; the other 7 of 11 cases in that file pass, including the
-07-A rollback and both 07-SEC-1 role-guard cases. Fix belongs with whoever
-owns that test file — either generate the unique email upfront (matching the
-pattern already used in every other `*.e2e-spec.ts` helper in this codebase)
-and assert against that, or stop mangling it.
+`createUser(role, emailPrefix)` generates its unique email upfront
+(`${emailPrefix}-${randomUUID()}@example.test`) and returns it for callers to
+assert against, matching the pattern every other `*.e2e-spec.ts` helper in
+this codebase already uses. (An earlier version instead mangled a
+caller-supplied literal email after insertion, so the session's real email
+never matched the literal four tests asserted against; fixed.) All 11 of 11
+cases in that file pass against a real database, including the 07-A rollback
+and both 07-SEC-1 role-guard cases. `EQUIP-UNAVAIL-01-A` and `05-A`'s equipment
+fixtures use the exact Confluence literals (`'Lighting'`, quantity `50`) via
+`createEquipment`'s optional overrides, rather than that helper's generic
+defaults (`'Visual'`, quantity `1`) used by every other case in the file.
 
 Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
