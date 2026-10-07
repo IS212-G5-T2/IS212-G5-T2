@@ -29,4 +29,18 @@ export class LeadAssignmentController {
   ) {
     return this.lead.assign(request[CURRENT_USER_REQUEST_KEY], eventId, body);
   }
+
+  @Get('assigned')
+  assigned(@Req() request: AuthenticatedRequest) {
+    return this.lead.assigned(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
+  @Post('events/:eventId/reassign')
+  reassign(
+    @Param('eventId') eventId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.lead.reassign(request[CURRENT_USER_REQUEST_KEY], eventId, body);
+  }
 }

@@ -1,10 +1,13 @@
 // SPM-123 Assign Event Requests to Coordinators (Lead): Assignment Queue page tests.
 // ACs: AC2 (view the queue), AC3 (availability and workload), AC5 (assign),
 // AC6 (unavailable refused), AC7 (none available), AC8 (confirmation).
-// Test cases: LEAD-ASN-02-B, 02-C, 02-E, 03-D, 05-C, 05-BND-1, 06-C, 06-D, 06-F, 07-A, 08-A, 08-B.
+// Test cases: LEAD-ASN-02-B, 02-C, 02-E, 03-D, 05-C, 05-BND-1, 06-C, 06-D, 06-F, 07-A, 08-A, 08-B;
+// SPM-47 LEAD-REASN-10-H.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useAppStore } from "@/store/useAppStore";
 import { ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
 import { AssignmentQueuePage } from "./AssignmentQueuePage";
@@ -16,6 +19,10 @@ const { getLeadQueue, getLeadCoordinators, assignRequest } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/utils/lead-api", () => ({ getLeadQueue, getLeadCoordinators, assignRequest }));
+
+// SPM-47: the Lead's notifications panel on this page reads /notifications through api().
+const { api } = vi.hoisted(() => ({ api: vi.fn() }));
+vi.mock("@/utils/api", async (importOriginal) => ({ ...(await importOriginal<object>()), api }));
 
 const welcome = {
   id: "event-1",
@@ -52,6 +59,9 @@ beforeEach(() => {
   assignRequest.mockReset();
   getLeadQueue.mockResolvedValue([welcome]);
   getLeadCoordinators.mockResolvedValue([available, unavailable]);
+  // No Lead notifications unless a test adds some.
+  api.mockReset();
+  api.mockResolvedValue([]);
 });
 
 describe("AC2: the unassigned queue", () => {
@@ -274,5 +284,36 @@ describe("AC6 and AC7: unavailable coordinators", () => {
     ).toBeInTheDocument();
     const request = within(screen.getByRole("article", { name: "Welcome Evening" }));
     expect(request.getByRole("button", { name: "Assign" })).toBeDisabled();
+  });
+});
+
+describe("SPM-47 AC10: the Lead's notifications on the Assignment Queue page", () => {
+  // The Lead sees coordinator-unavailable notices on the page they land on.
+  it("LEAD-REASN-10-H shows the Lead's coordinator-unavailable notifications on the Assignment Queue page", async () => {
+    // Arrange: the Lead is signed in and has one unread notice.
+    useAppStore.setState({
+      currentUser: { id: "lead-1", name: "Coordinator Lead", email: "lead@example.test", role: "coordinator_lead", roles: ["coordinator_lead"] },
+    });
+    api.mockResolvedValue([
+      {
+        id: "notif-3",
+        audienceRole: "coordinator_lead",
+        type: "coordinator_unavailable",
+        message: "Coordinator 1 is now unavailable and has 3 active events that may need reassignment.",
+        read: false,
+        createdAt: "2026-10-07T09:00:00.000Z",
+      },
+    ]);
+
+    // Act: open the page.
+    render(
+      <MemoryRouter>
+        <AssignmentQueuePage />
+      </MemoryRouter>,
+    );
+
+    // Assert: the page includes the panel with the notice.
+    const panel = await screen.findByRole("region", { name: "Coordinator availability" });
+    expect(panel).toHaveTextContent("Coordinator 1 is now unavailable and has 3 active events that may need reassignment.");
   });
 });

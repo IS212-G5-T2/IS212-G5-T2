@@ -1,7 +1,7 @@
 // SPM-123: the frontend side of the Lead API contract.
-// Test cases: LEAD-ASN-02-F, 03-E, 05-F.
+// Test cases: LEAD-ASN-02-F, 03-E, 05-F; SPM-47 LEAD-REASN-01-F, 03-E.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { assignRequest, getLeadCoordinators, getLeadQueue } from "./lead-api";
+import { assignRequest, getAssignedEvents, getLeadCoordinators, getLeadQueue, reassignEvent } from "./lead-api";
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -55,5 +55,35 @@ describe("SPM-123 Lead API", () => {
     expect(init.method).toBe("POST");
     expect(JSON.parse(String(init.body))).toEqual({ coordinatorId: "c1" });
     expect(result).toEqual({ message: "Assigned." });
+  });
+});
+
+describe("SPM-47 Lead reassignment API", () => {
+  // The reassignment list is a plain GET.
+  it("LEAD-REASN-01-F loads assigned events from GET /api/lead/assigned", async () => {
+    // Act: load the list.
+    await getAssignedEvents();
+
+    // Assert: a GET (no method override, no body) to the list route.
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://api.test/api/lead/assigned");
+    expect(init.method).toBeUndefined();
+    expect(init.body).toBeUndefined();
+  });
+
+  // Reassigning sends the chosen coordinator and the one the page showed.
+  it("LEAD-REASN-03-E reassigns with POST /api/lead/events/:id/reassign and { coordinatorId, currentCoordinatorId }", async () => {
+    // Arrange: the server confirms.
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ message: "Event \"Welcome Evening\" reassigned to Coordinator 2." }), { status: 201 }));
+
+    // Act: reassign event-1 from c1 to c2.
+    const result = await reassignEvent("event-1", "c2", "c1");
+
+    // Assert: a POST to the event's reassign route with exactly those two ids, and the server's reply returned.
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://api.test/api/lead/events/event-1/reassign");
+    expect(init.method).toBe("POST");
+    expect(JSON.parse(String(init.body))).toEqual({ coordinatorId: "c2", currentCoordinatorId: "c1" });
+    expect(result).toEqual({ message: 'Event "Welcome Evening" reassigned to Coordinator 2.' });
   });
 });
