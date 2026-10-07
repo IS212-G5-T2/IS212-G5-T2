@@ -123,6 +123,18 @@ variable is absent. Firebase authentication is required for both draft and event
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
+## Event planning (SPM-97, SPM-49, SPM-85)
+
+Once an event is Approved, its detail page shows a read-only **Planning information** panel to the owning organiser and the assigned coordinator; it refreshes every 15 seconds. Access uses every role the account holds, so a user who is both an organiser and the assigned coordinator gets the coordinator's editing tools.
+
+The assigned coordinator also gets **Update event information**. Each field is labelled:
+
+- **Applies immediately**: name, purpose, description and accessibility needs.
+- **Review if it affects bookings**: the rule is shown under the field (for example "up to 200 attendees", a time window, or "removing facilities applies immediately"), and once you edit the field the form says whether that value will apply immediately or be sent for review.
+- **Needs review**: any change is held, e.g. room layout while a venue is booked.
+
+A change that stays compatible with the existing venue bookings and equipment arrangements applies at once. A change that would affect one is listed under **Changes awaiting review** with the impacted bookings; the form keeps showing the current value, shows the proposal under the field, and locks that field until you confirm or reject it. Rules and assumptions are in `../backend/HANDOVER.md`.
+
 ## Reviewing requests (SPM-83)
 
 Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request and choose **Review Event**. Approve persists the event as Approved; Reject requires a trimmed 10–500-character reason with at least three words and letters. Invalid rejection input blocks submission. The saved decision leaves the Submitted pending view; rejected requests retain their reason and remain available through the Rejected filter.

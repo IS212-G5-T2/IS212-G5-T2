@@ -1,4 +1,5 @@
 import { api } from "@/utils/api";
+import { hasRole } from "@/types";
 import type {
   ChangeHistoryEntry,
   EventComment,
@@ -110,14 +111,19 @@ export function EventDetailPage() {
   const [planningView, setPlanningView] = useState<PlanningView | null>(null);
   const [planningError, setPlanningError] = useState("");
   const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  // Users can hold several roles (e.g. organiser + coordinator), so check every
+  // granted role with hasRole rather than the primary display role; the
+  // backend authorises the same way (SPM-49 AC1, SPM-97 AC1).
   const isPlanningCoordinator =
-    currentUser.role === "coordinator" && !!event && event.coordinatorId === currentUser.id;
+    hasRole(currentUser, "coordinator") && !!event && event.coordinatorId === currentUser.id;
+  const isPlanningOwner =
+    hasRole(currentUser, "organiser") && !!event && event.organiserId === currentUser.id;
   const planningEnabled =
     !!event &&
     !loading &&
     !loadError &&
     PLANNING_STATUSES.includes(event.status) &&
-    (currentUser.role === "organiser" || isPlanningCoordinator);
+    (isPlanningOwner || isPlanningCoordinator);
 
   const loadPlanning = useCallback(async () => {
     if (!id) return;
@@ -184,13 +190,13 @@ export function EventDetailPage() {
   useEffect(() => {
     if (loading || loadError || !event) return;
     const canView =
-      currentUser.role === "organiser" ||
-      (currentUser.role === "coordinator" && event.coordinatorId === currentUser.id);
+      hasRole(currentUser, "organiser") ||
+      (hasRole(currentUser, "coordinator") && event.coordinatorId === currentUser.id);
     if (canView) refreshComments();
     // Only re-run when the values that decide *whether* we can view change;
     // refreshComments itself is called explicitly after posting/replying.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
+  }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.roles, currentUser.id]);
 
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
@@ -220,7 +226,7 @@ export function EventDetailPage() {
   }
 
   const isOwner = currentUser.role === "organiser";
-  const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
+  const isAssignedCoordinator = hasRole(currentUser, "coordinator") && event.coordinatorId === currentUser.id;
 
   const myRegistration = registrations.find(
     (r) => r.eventId === event.id && r.attendeeId === currentUser.id
@@ -442,15 +448,19 @@ export function EventDetailPage() {
             <CardHeader>
               <h2 className="font-semibold text-gray-900 dark:text-gray-100">Update event information</h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Fields marked “Needs review” affect existing bookings, so changes to them are held until you review the impact.
+                Changes that stay compatible with existing bookings apply immediately. A change that would affect a
+                booking is held under “Changes awaiting review” until you confirm it; the form keeps showing the
+                current value meanwhile.
               </p>
             </CardHeader>
             <CardBody>
               <PlanningUpdateForm
-                key={planningView.lastUpdatedAt}
                 event={planningView.event}
                 editableFields={planningView.editableFields}
                 lastUpdatedAt={planningView.lastUpdatedAt}
+                pendingChanges={planningView.pendingChanges.filter(
+                  (change): change is FlaggedChange => change.kind === "booking_conflict",
+                )}
                 onSave={savePlanning}
               />
             </CardBody>

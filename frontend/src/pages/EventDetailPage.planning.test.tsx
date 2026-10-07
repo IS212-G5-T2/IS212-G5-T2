@@ -6,6 +6,7 @@ import { EventDetailPage } from "@/pages/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import { PLANNING_REFRESH_MS } from "@/utils/planning";
+import { formatDateTime } from "@/utils/format";
 import type { ChangeHistoryEntry, EventRecord, FlaggedChange, PlanningView } from "@/types";
 
 /**
@@ -292,14 +293,15 @@ describe("EventDetailPage planning information (coordinator)", () => {
     const form = await screen.findByRole("form", { name: /update event information/i });
     const before = planningCalls().length;
 
-    await user.clear(within(form).getByLabelText(/expected attendance/i));
-    await user.type(within(form).getByLabelText(/expected attendance/i), "120");
+    // Attendance has a change awaiting review in this fixture, so it is locked;
+    // edit a field that is free to change.
+    await user.type(within(form).getByLabelText(/event name/i), " 2");
     await user.click(within(form).getByRole("button", { name: /save changes/i }));
 
     await waitFor(() => expect(callsTo("/planning", "PATCH")).toHaveLength(1));
     expect(callsTo("/planning", "PATCH")[0][0]).toBe(`/events/${EVENT_ID}/planning`);
     expect(JSON.parse(String((callsTo("/planning", "PATCH")[0][1] as RequestInit).body))).toEqual({
-      expectedAttendance: 120,
+      name: "Welcome Evening 2",
     });
     await waitFor(() => expect(planningCalls().length).toBeGreaterThan(before + 1));
   });
@@ -454,5 +456,155 @@ describe("EventDetailPage planning information (coordinator)", () => {
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Planning information could not be read.");
     expect(screen.getByText("Event Details")).toBeInTheDocument();
+  });
+});
+
+describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
+  // Primary (display) role is organiser, but the account also holds coordinator.
+  const ORGANISER_AND_COORDINATOR = {
+    id: "coordinator-1",
+    name: "Dual Role User",
+    email: "dual@example.test",
+    role: "organiser" as const,
+    roles: ["organiser" as const, "coordinator" as const],
+  };
+
+  // EVENT-UPDATE-01-D: an assigned coordinator who is also an organiser gets the
+  // editing UI, exactly as the backend allows.
+  it("EVENT-UPDATE-01-D shows the update form to an assigned coordinator whose primary role is organiser", async () => {
+    asCoordinator();
+    useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
+    renderPage();
+    // The form and the review panel both render for the dual-role account.
+    expect(await screen.findByRole("form", { name: /update event information/i })).toBeInTheDocument();
+    expect(await screen.findByRole("article", { name: /expected attendance/i })).toBeInTheDocument();
+    // History is coordinator-only, so it is loaded for this account too.
+    await waitFor(() => expect(callsTo("/planning/history")).toHaveLength(1));
+  });
+
+  // EVENT-UPDATE-01-D: holding the coordinator role is not enough; the account
+  // must be the assigned coordinator, and an organiser who does not own the
+  // event does not load planning data either.
+  it("EVENT-UPDATE-01-D does not show the form to a dual-role account that is neither assigned nor owner", async () => {
+    asCoordinator({ event: eventRecord({ coordinatorId: "someone-else", organiserId: "someone-else" }) });
+    useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
+    renderPage();
+    await screen.findByText("Event Details");
+    expect(planningCalls()).toHaveLength(0);
+    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
+  });
+
+  // EVENT-VIEW-01-A: the same dual-role account still gets the read-only view
+  // for an event it owns but does not coordinate.
+  it("EVENT-VIEW-01-A shows a dual-role owner the read-only view of an event they do not coordinate", async () => {
+    asCoordinator({
+      event: eventRecord({ coordinatorId: "someone-else", organiserId: "coordinator-1" }),
+      readOnly: true,
+      editableFields: [],
+    });
+    useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
+    renderPage();
+    expect(await planningRegion()).toBeInTheDocument();
+    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("EventDetailPage planning: the form shows authoritative values after a save (SPM-49 / SPM-85)", () => {
+  const LAYOUT_CHANGE: FlaggedChange = {
+    id: "chg-layout",
+    kind: "booking_conflict",
+    field: "layout",
+    currentValue: "Banquet",
+    proposedValue: "Theatre",
+    status: "Needs Review",
+    impacts: [
+      { bookingId: "bk-1", venueName: "Hall A", impacted: true, conflicts: [{ kind: "requirements", detail: "Check that Hall A supports the Theatre layout" }] },
+    ],
+    equipmentImpacts: [],
+  };
+
+  // Server double: the PATCH flags the layout change and leaves the event
+  // untouched; the next GET reports it as pending.
+  function flagLayoutOnSave() {
+    const route = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/planning") && init?.method === "PATCH") {
+        currentView = { ...currentView, pendingChanges: [...currentView.pendingChanges, LAYOUT_CHANGE] };
+        return { event: currentView.event, applied: [], flagged: [LAYOUT_CHANGE], updatedAt: currentView.lastUpdatedAt };
+      }
+      return route(path, init);
+    }) as typeof api);
+  }
+
+  // EVENT-FLAG-01-E: after a flagged-only save the form goes back to the current
+  // value, shows the proposal separately and locks the field so it cannot be
+  // re-submitted by accident.
+  it("EVENT-FLAG-01-E resets a flagged field to its current value and shows the proposal separately", async () => {
+    asCoordinator({ pendingChanges: [] });
+    flagLayoutOnSave();
+    const user = userEvent.setup();
+    renderPage();
+    const form = await screen.findByRole("form", { name: /update event information/i });
+
+    // Act: propose a layout that needs review.
+    await user.selectOptions(within(form).getByLabelText(/room layout/i), "Theatre");
+    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+
+    // Assert: the field shows the real current value again and is locked...
+    await waitFor(() => expect(within(form).getByLabelText(/room layout/i)).toHaveValue("Banquet"));
+    expect(within(form).getByLabelText(/room layout/i)).toBeDisabled();
+    // ...the proposal is shown separately, and the outcome is explained.
+    expect(within(form).getByTestId("pending-layout")).toHaveTextContent("proposed: Theatre");
+    expect(within(form).getByRole("status")).toHaveTextContent(/sent for review/i);
+    expect(within(form).getByRole("status")).toHaveTextContent(/current values stay in place/i);
+  });
+
+  // EVENT-FLAG-01-E: a second save does not resend the proposal that is awaiting review.
+  it("EVENT-FLAG-01-E does not resend a flagged proposal on the next save", async () => {
+    asCoordinator({ pendingChanges: [] });
+    flagLayoutOnSave();
+    const user = userEvent.setup();
+    renderPage();
+    const form = await screen.findByRole("form", { name: /update event information/i });
+    await user.selectOptions(within(form).getByLabelText(/room layout/i), "Theatre");
+    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(within(form).getByLabelText(/room layout/i)).toBeDisabled());
+
+    // Act: save again without touching anything.
+    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+
+    // Assert: nothing to send, so only the first PATCH ever went out.
+    expect(within(form).getByRole("alert")).toHaveTextContent("No changes to save.");
+    expect(callsTo("/planning", "PATCH")).toHaveLength(1);
+  });
+
+  // EVENT-UPDATE-05-A: when a save applies a change, the refreshed view has a new
+  // lastUpdatedAt; the form updates in place and keeps the confirmation visible.
+  it("EVENT-UPDATE-05-A keeps the confirmation and shows the saved value after the view refreshes", async () => {
+    asCoordinator({ pendingChanges: [] });
+    const route = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/planning") && init?.method === "PATCH") {
+        const event = eventRecord({ name: "Orientation Night", updatedAt: "2026-10-05T08:00:00.000Z" });
+        currentView = { ...currentView, event, lastUpdatedAt: event.updatedAt };
+        return { event, applied: ["name"], flagged: [], updatedAt: event.updatedAt };
+      }
+      return route(path, init);
+    }) as typeof api);
+    const user = userEvent.setup();
+    renderPage();
+    const form = await screen.findByRole("form", { name: /update event information/i });
+
+    await user.clear(within(form).getByLabelText(/event name/i));
+    await user.type(within(form).getByLabelText(/event name/i), "Orientation Night");
+    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+
+    // The confirmation survives the refresh, and the field holds the saved value.
+    expect(await within(form).findByRole("status")).toHaveTextContent("Changes saved.");
+    await waitFor(() =>
+      expect(within(form).getByText((content) => content.includes(formatDateTime("2026-10-05T08:00:00.000Z")))).toBeInTheDocument(),
+    );
+    expect(within(form).getByRole("status")).toHaveTextContent("Changes saved.");
+    expect(within(form).getByLabelText(/event name/i)).toHaveValue("Orientation Night");
   });
 });

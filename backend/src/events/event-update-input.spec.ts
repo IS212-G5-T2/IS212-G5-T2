@@ -1,5 +1,5 @@
 import { BadRequestException } from '@nestjs/common';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   FIELD_POLICY,
   classifyUpdate,
@@ -197,54 +197,66 @@ describe('classifyUpdate / FIELD_POLICY', () => {
     'accessibility',
   ];
 
-  // EVENT-UPDATE-02-A: every field is labelled as direct or review-if-booked.
+  const ALWAYS = () => true;
+  const NEVER = () => false;
+
+  // EVENT-UPDATE-02-A: every field is labelled as direct or review-if-impacting.
   it('EVENT-UPDATE-02-A labels each editable field with its edit policy', () => {
     for (const field of DIRECT_FIELDS)
       expect(FIELD_POLICY[field]).toBe('direct');
     for (const field of REVIEW_FIELDS)
-      expect(FIELD_POLICY[field]).toBe('review_if_booked');
+      expect(FIELD_POLICY[field]).toBe('review_if_impacting');
   });
 
-  // EVENT-FLAG-01-A: these fields need review once a booking exists.
+  // EVENT-FLAG-01-A: these fields need review when the change affects a booking.
   it.each(REVIEW_FIELDS)(
-    'EVENT-FLAG-01-A %s needs review when bookings exist',
+    'EVENT-FLAG-01-A %s needs review when the change affects an arrangement',
     (field) => {
-      expect(classifyUpdate([field], true)).toEqual({
+      expect(classifyUpdate([field], ALWAYS)).toEqual({
         immediate: [],
         needsReview: [field],
       });
     },
   );
 
-  // EVENT-FLAG-01-C: with nothing booked, the same fields apply immediately.
+  // EVENT-UPDATE-05-B: the same fields apply immediately when the change is
+  // compatible with every arrangement (or nothing is booked).
   it.each(REVIEW_FIELDS)(
-    'EVENT-FLAG-01-C %s applies immediately when nothing is booked',
+    'EVENT-UPDATE-05-B %s applies immediately when the change affects no arrangement',
     (field) => {
-      expect(classifyUpdate([field], false)).toEqual({
+      expect(classifyUpdate([field], NEVER)).toEqual({
         immediate: [field],
         needsReview: [],
       });
     },
   );
 
-  // EVENT-UPDATE-03-A: fields that cannot affect a booking never need review.
+  // EVENT-UPDATE-03-A: fields that cannot affect a booking never need review,
+  // and the impact check is not even consulted for them.
   it.each(DIRECT_FIELDS)(
-    'EVENT-UPDATE-03-A %s is always immediate, even with bookings',
+    'EVENT-UPDATE-03-A %s is always immediate, even when everything is impacted',
     (field) => {
-      expect(classifyUpdate([field], true)).toEqual({
+      const isImpacting = vi.fn(ALWAYS);
+      expect(classifyUpdate([field], isImpacting)).toEqual({
         immediate: [field],
         needsReview: [],
       });
+      expect(isImpacting).not.toHaveBeenCalled();
     },
   );
 
-  // EVENT-FLAG-01-A: a mixed update is split, keeping input order.
-  it('EVENT-FLAG-01-A splits a mixed update into immediate and needs-review fields', () => {
+  // EVENT-FLAG-01-A: the decision is per field, keeping input order; only
+  // the field whose change is impacting is held back.
+  it('EVENT-FLAG-01-A holds back only the impacting fields of a mixed update', () => {
+    const impacting = new Set<EventFieldKey>(['layout']);
     expect(
-      classifyUpdate(['name', 'expectedAttendance', 'accessibility'], true),
+      classifyUpdate(
+        ['name', 'expectedAttendance', 'layout', 'accessibility'],
+        (field) => impacting.has(field),
+      ),
     ).toEqual({
-      immediate: ['name', 'accessibility'],
-      needsReview: ['expectedAttendance'],
+      immediate: ['name', 'expectedAttendance', 'accessibility'],
+      needsReview: ['layout'],
     });
   });
 });

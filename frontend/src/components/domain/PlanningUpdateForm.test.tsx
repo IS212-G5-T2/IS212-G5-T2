@@ -270,7 +270,7 @@ describe("PlanningUpdateForm: saving feedback", () => {
     await user.type(screen.getByLabelText(/event name/i), " 2");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Saved. 1 change(s) applied; 1 sent for review because bookings already exist.",
+      "Saved. 1 change(s) applied; 1 sent for review because they affect existing bookings.",
     );
   });
 
@@ -313,5 +313,143 @@ describe("PlanningUpdateForm: saving feedback", () => {
     expect(screen.queryByText("boom")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
     expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
+  });
+});
+
+describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () => {
+  // A booking for 10:00–13:00 UTC in a 200-seat hall; equipment is reserved.
+  const CONDITIONAL_FIELDS = [
+    ...["name", "purpose", "description", "accessibility"].map((field) => ({ field, mode: "direct" as const })),
+    ...(["startDateTime", "endDateTime"] as const).map((field) => ({
+      field,
+      mode: "conditional" as const,
+      condition: { kind: "within_window" as const, start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z" },
+    })),
+    { field: "expectedAttendance", mode: "conditional" as const, condition: { kind: "max_attendance" as const, max: 200 } },
+    { field: "layout", mode: "needs_review" as const },
+    { field: "facilities", mode: "conditional" as const, condition: { kind: "remove_only" as const } },
+    { field: "equipmentNeeds", mode: "needs_review" as const },
+  ];
+  const renderConditional = (onSave = vi.fn().mockResolvedValue(undefined)) =>
+    render(<PlanningUpdateForm event={eventRecord()} editableFields={CONDITIONAL_FIELDS} lastUpdatedAt={LAST_UPDATED} onSave={onSave} />);
+
+  // EVENT-UPDATE-02-B: three labels distinguish always-direct, conditional and always-review fields.
+  it("EVENT-UPDATE-02-B labels direct, conditional and review fields differently", () => {
+    renderConditional();
+    expect(screen.getAllByText("Applies immediately")).toHaveLength(4);
+    expect(screen.getAllByText("Review if it affects bookings")).toHaveLength(4);
+    expect(screen.getAllByText("Needs review")).toHaveLength(2);
+  });
+
+  // EVENT-UPDATE-02-B: each conditional field states its rule.
+  it("EVENT-UPDATE-02-B explains when a conditional change applies immediately", () => {
+    renderConditional();
+    expect(screen.getByText(/applies immediately up to 200 attendees/i)).toBeInTheDocument();
+    expect(screen.getByText(/removing facilities applies immediately/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/applies immediately while the event stays within/i)).toHaveLength(2);
+  });
+
+  // EVENT-UPDATE-05-B: the form predicts the outcome of an attendance edit before saving.
+  it.each([
+    ["70", "This change will apply immediately."],
+    ["200", "This change will apply immediately."],
+    ["250", "This change will be sent for review."],
+  ])("EVENT-UPDATE-05-B predicts the outcome for attendance %s", (value, message) => {
+    renderConditional();
+    fireEvent.change(screen.getByLabelText(/expected attendance/i), { target: { value } });
+    expect(screen.getByText(message)).toBeInTheDocument();
+  });
+
+  // EVENT-UPDATE-05-B: removing a facility is predicted to apply; adding one is not.
+  it("EVENT-UPDATE-05-B predicts facility removals apply and additions need review", async () => {
+    const user = userEvent.setup();
+    renderConditional();
+    await user.click(screen.getByRole("checkbox", { name: "Catering" }));
+    expect(screen.getByText("This change will apply immediately.")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Stage" }));
+    expect(screen.getByText("This change will be sent for review.")).toBeInTheDocument();
+  });
+
+  // EVENT-UPDATE-05-B: nothing is predicted for an untouched field.
+  it("EVENT-UPDATE-05-B shows no prediction until the field is edited", () => {
+    renderConditional();
+    expect(screen.queryByText(/this change will/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49 / SPM-85)", () => {
+  const PENDING = {
+    id: "chg-1",
+    kind: "booking_conflict" as const,
+    field: "expectedAttendance",
+    currentValue: 80,
+    proposedValue: 250,
+    status: "Needs Review" as const,
+  };
+
+  // EVENT-FLAG-01-E: a field awaiting review shows the current value, the
+  // proposal separately, and cannot be edited.
+  it("EVENT-FLAG-01-E locks a field awaiting review and shows its proposal separately", () => {
+    render(
+      <PlanningUpdateForm event={eventRecord()} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} pendingChanges={[PENDING]} onSave={vi.fn()} />,
+    );
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(80);
+    expect(screen.getByLabelText(/expected attendance/i)).toBeDisabled();
+    expect(screen.getByTestId("pending-expectedAttendance")).toHaveTextContent("proposed: 250");
+    // Other fields stay editable.
+    expect(screen.getByLabelText(/room layout/i)).toBeEnabled();
+  });
+
+  // EVENT-FLAG-01-E: a locked checkbox field disables every option.
+  it("EVENT-FLAG-01-E disables every facility option while facilities await review", () => {
+    render(
+      <PlanningUpdateForm
+        event={eventRecord()}
+        editableFields={EDITABLE_FIELDS}
+        lastUpdatedAt={LAST_UPDATED}
+        pendingChanges={[{ ...PENDING, field: "facilities", proposedValue: ["Catering", "Stage"] }]}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("checkbox", { name: "Catering" })).toBeDisabled();
+    expect(screen.getByRole("checkbox", { name: "Stage" })).toBeDisabled();
+    // Accessibility is a separate field and stays editable.
+    expect(screen.getByRole("checkbox", { name: "Hearing loop" })).toBeEnabled();
+  });
+
+  // EVENT-FLAG-01-E: after a flagged-only save, the field returns to the event the server returned.
+  it("EVENT-FLAG-01-E resets to the server's event after a flagged-only save", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockResolvedValue({ event: eventRecord(), applied: [], flagged: [{ ...PENDING }] }));
+    await user.clear(screen.getByLabelText(/expected attendance/i));
+    await user.type(screen.getByLabelText(/expected attendance/i), "250");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "1 change(s) sent for review because they affect existing bookings (Expected attendance). The current values stay in place until you confirm.",
+    );
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(80);
+  });
+
+  // EVENT-FLAG-01-E: without the server's event, flagged fields still revert and applied ones keep the saved value.
+  it("EVENT-FLAG-01-E reverts only the flagged fields when the response has no event", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockResolvedValue({ applied: ["name"], flagged: [{ ...PENDING }] }));
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.clear(screen.getByLabelText(/expected attendance/i));
+    await user.type(screen.getByLabelText(/expected attendance/i), "250");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await screen.findByRole("status");
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(80);
+    expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
+  });
+
+  // EVENT-VIEW-05-A: a newer event from the parent updates untouched fields
+  // without losing an edit in progress.
+  it("EVENT-VIEW-05-A takes newer values for untouched fields and keeps edits in progress", () => {
+    const { rerender, props } = renderForm();
+    fireEvent.change(screen.getByLabelText(/^purpose/i), { target: { value: "Typed purpose" } });
+    rerender(<PlanningUpdateForm {...props} event={{ ...eventRecord(), expectedAttendance: 150, purpose: "Server purpose" }} />);
+    expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(150);
+    expect(screen.getByLabelText(/^purpose/i)).toHaveValue("Typed purpose");
   });
 });

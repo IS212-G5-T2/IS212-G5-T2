@@ -203,11 +203,46 @@ describe.skipIf(!database)(
           }>;
         }
       ).impacts;
-      expect(impacts.map((i) => [i.bookingId, i.impacted])).toEqual([
-        [hallA, false],
-        [hallB, true],
+      // Each hall is assessed on its own: both bookings end at the old end
+      // time and must be extended ('window'), but only Hall B also runs into
+      // the next event's setup time.
+      expect(
+        impacts.map((i) => [
+          i.bookingId,
+          i.impacted,
+          i.conflicts.map((c) => c.kind),
+        ]),
+      ).toEqual([
+        [hallA, true, ['window']],
+        [hallB, true, ['window', 'turnaround']],
       ]);
-      expect(impacts[1].conflicts.map((c) => c.kind)).toEqual(['turnaround']);
+    });
+
+    // SPM-49 AC3/AC5: a change that stays compatible with every booking and
+    // arrangement is applied immediately even though bookings exist.
+    it('EVENT-UPDATE-05-B applies a lower attendance and an earlier end immediately despite existing bookings', async () => {
+      const result = await service.updateEvent(coordinator, eventId, {
+        // 70 fits both Hall A (200) and Hall B (100).
+        expectedAttendance: 70,
+        // Ending earlier stays inside both bookings and the equipment period.
+        endDateTime: at(END, -30),
+      });
+      expect([...result.applied].sort()).toEqual([
+        'endDateTime',
+        'expectedAttendance',
+      ]);
+      expect(result.flagged).toEqual([]);
+      const stored = await db.query(
+        'SELECT expected_attendance, end_date_time FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(stored.rows[0].expected_attendance).toBe(70);
+      expect(stored.rows[0].end_date_time.toISOString()).toBe(at(END, -30));
+      const pending = await db.query(
+        "SELECT count(*)::int AS n FROM event_flagged_changes WHERE event_id = $1 AND status = 'Needs Review'",
+        [eventId],
+      );
+      expect(pending.rows[0].n).toBe(0);
     });
 
     // SPM-85: the partial unique index allows one pending change per field.

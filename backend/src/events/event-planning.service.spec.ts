@@ -374,28 +374,115 @@ describe('SPM-49 coordinator update', () => {
     ).toEqual(new Set(['direct']));
   });
 
-  // EVENT-UPDATE-02-A: AC2 — once a booking exists, booking-affecting fields need review.
-  it('EVENT-UPDATE-02-A labels booking-affecting fields as needs_review once a booking exists', async () => {
-    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+  const modesOf = async () => {
     const view = await service.getPlanningView(coordinator(), EVENT_ID);
-    const modes = Object.fromEntries(
-      view.editableFields.map((f: { field: string; mode: string }) => [
-        f.field,
-        f.mode,
-      ]),
+    return Object.fromEntries(
+      view.editableFields.map(
+        (f: { field: string; mode: string; condition?: unknown }) => [
+          f.field,
+          f.condition ? { mode: f.mode, condition: f.condition } : f.mode,
+        ],
+      ),
     );
-    expect(modes).toMatchObject({
+  };
+
+  // EVENT-UPDATE-02-A: AC2 — with a venue booking, each booking-sensitive
+  // field says exactly when a change applies directly and when it needs review.
+  it('EVENT-UPDATE-02-A labels each field with the condition under which it applies immediately', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    expect(await modesOf()).toEqual({
       name: 'direct',
       purpose: 'direct',
       description: 'direct',
       accessibility: 'direct',
-      startDateTime: 'needs_review',
-      endDateTime: 'needs_review',
-      expectedAttendance: 'needs_review',
+      startDateTime: {
+        mode: 'conditional',
+        condition: { kind: 'within_window', start: START, end: END },
+      },
+      endDateTime: {
+        mode: 'conditional',
+        condition: { kind: 'within_window', start: START, end: END },
+      },
+      expectedAttendance: {
+        mode: 'conditional',
+        condition: { kind: 'max_attendance', max: 200 },
+      },
       layout: 'needs_review',
-      facilities: 'needs_review',
+      facilities: {
+        mode: 'conditional',
+        condition: { kind: 'remove_only' },
+      },
+      // No equipment is arranged, so equipment requirements cannot affect anything.
+      equipmentNeeds: 'direct',
+    });
+  });
+
+  // EVENT-UPDATE-02-A: with only equipment arranged, venue fields stay direct.
+  it('EVENT-UPDATE-02-A labels only equipment-sensitive fields when only equipment is arranged', async () => {
+    repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
+    expect(await modesOf()).toMatchObject({
+      startDateTime: {
+        mode: 'conditional',
+        condition: { kind: 'within_window', start: START, end: END },
+      },
+      expectedAttendance: 'direct',
+      layout: 'direct',
+      facilities: 'direct',
       equipmentNeeds: 'needs_review',
     });
+  });
+
+  // EVENT-UPDATE-02-A: with several bookings, the limits are the strictest of them.
+  it('EVENT-UPDATE-02-A uses the smallest capacity and the shared window across bookings', async () => {
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({
+        capacity: 120,
+        start: '2026-11-10T09:00:00.000Z',
+        end: END,
+      }),
+      venueBooking({
+        id: 'bk-2',
+        capacity: 300,
+        start: START,
+        end: '2026-11-10T14:00:00.000Z',
+      }),
+    ]);
+    expect(await modesOf()).toMatchObject({
+      startDateTime: {
+        mode: 'conditional',
+        condition: { kind: 'within_window', start: START, end: END },
+      },
+      expectedAttendance: {
+        mode: 'conditional',
+        condition: { kind: 'max_attendance', max: 120 },
+      },
+    });
+  });
+
+  // EVENT-UPDATE-02-A: bookings that share no common window leave no time
+  // change that fits them all, so every time change needs review.
+  it('EVENT-UPDATE-02-A labels date and time needs_review when the bookings share no window', async () => {
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({ end: '2026-11-10T11:00:00.000Z' }),
+      venueBooking({ id: 'bk-2', start: '2026-11-10T12:00:00.000Z' }),
+    ]);
+    expect(await modesOf()).toMatchObject({
+      startDateTime: 'needs_review',
+      endDateTime: 'needs_review',
+    });
+  });
+
+  // EVENT-UPDATE-02-A: inactive bookings and arrangements hold nothing, so everything stays direct.
+  it('EVENT-UPDATE-02-A ignores inactive bookings and arrangements when labelling fields', async () => {
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({ status: 'Cancelled' }),
+    ]);
+    repo.listEquipmentArrangements.mockResolvedValue([
+      equipment({ status: 'Released' }),
+    ]);
+    expect(new Set(Object.values(await modesOf()))).toEqual(
+      new Set(['direct']),
+    );
   });
 
   // EVENT-UPDATE-03-A: AC3 — fields that cannot affect a booking apply even when bookings exist.
@@ -461,17 +548,21 @@ describe('SPM-85 flagged changes', () => {
   const REVIEW_PATCHES: Array<[string, Record<string, unknown>]> = [
     ['startDateTime', { startDateTime: '2026-11-10T09:00:00.000Z' }],
     ['endDateTime', { endDateTime: '2026-11-10T14:00:00.000Z' }],
-    ['expectedAttendance', { expectedAttendance: 150 }],
+    // Hall A seats 200, so 250 no longer fits.
+    ['expectedAttendance', { expectedAttendance: 250 }],
     ['layout', { layout: 'Theatre' }],
-    ['facilities', { facilities: ['AV System'] }],
+    // Adds a facility the venue has not been checked for.
+    ['facilities', { facilities: ['Catering', 'AV System'] }],
     ['equipmentNeeds', { equipmentNeeds: 'Four microphones' }],
   ];
 
-  // EVENT-FLAG-01-A: AC1 — with a venue booking, these changes become Needs Review.
+  // EVENT-FLAG-01-A: AC1 — a change incompatible with an existing venue
+  // booking or equipment arrangement becomes Needs Review.
   it.each(REVIEW_PATCHES)(
-    'EVENT-FLAG-01-A flags a change to %s as Needs Review when a venue booking exists',
+    'EVENT-FLAG-01-A flags a change to %s as Needs Review when it affects an existing arrangement',
     async (field, patch) => {
       repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+      repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
       const result = await service.updateEvent(coordinator(), EVENT_ID, patch);
       expect(repo.applyFields).not.toHaveBeenCalled();
       expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
@@ -496,7 +587,7 @@ describe('SPM-85 flagged changes', () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
     const result = await service.updateEvent(coordinator(), EVENT_ID, {
       name: 'Renamed Evening',
-      expectedAttendance: 150,
+      expectedAttendance: 250,
     });
     expect(repo.applyFields).toHaveBeenCalledWith(
       EVENT_ID,
@@ -509,14 +600,25 @@ describe('SPM-85 flagged changes', () => {
     ]);
   });
 
-  // EVENT-FLAG-01-B: AC1 — an equipment arrangement alone is enough to require review.
-  it('EVENT-FLAG-01-B flags the change when only an equipment arrangement exists', async () => {
+  // EVENT-FLAG-01-B: AC1 — an equipment arrangement alone is enough to require
+  // review of a change that affects it.
+  it('EVENT-FLAG-01-B flags an equipment change when only an equipment arrangement exists', async () => {
+    repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      equipmentNeeds: 'Four microphones',
+    });
+    expect(repo.applyFields).not.toHaveBeenCalled();
+    expect(result.flagged).toHaveLength(1);
+  });
+
+  // EVENT-UPDATE-05-B: an equipment arrangement cannot be affected by attendance.
+  it('EVENT-UPDATE-05-B applies an attendance change immediately when only equipment is arranged', async () => {
     repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
     const result = await service.updateEvent(coordinator(), EVENT_ID, {
       expectedAttendance: 150,
     });
-    expect(repo.applyFields).not.toHaveBeenCalled();
-    expect(result.flagged).toHaveLength(1);
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+    expect(result.applied).toEqual(['expectedAttendance']);
   });
 
   // EVENT-FLAG-01-C: AC1 — no bookings or arrangements means no flag.
@@ -579,6 +681,9 @@ describe('SPM-85 flagged changes', () => {
         bookingId: 'bk-1',
         impacted: true,
         conflicts: [
+          // The earlier start leaves the window the booking holds...
+          expect.objectContaining({ kind: 'window' }),
+          // ...and lands within the setup buffer of the neighbour.
           expect.objectContaining({
             kind: 'turnaround',
             withBookingId: 'nb-1',
@@ -591,7 +696,8 @@ describe('SPM-85 flagged changes', () => {
   // EVENT-FLAG-06-A: AC6 — with two venue bookings, impacts are listed per booking.
   it('EVENT-FLAG-06-A stores one impact entry per venue booking', async () => {
     repo.listVenueBookings.mockResolvedValue([
-      venueBooking(),
+      // Hall A already holds the venue until 16:00, so a 15:00 end fits it.
+      venueBooking({ end: '2026-11-10T16:00:00.000Z' }),
       venueBooking({
         id: 'bk-2',
         venueName: 'Hall B',
@@ -1101,9 +1207,10 @@ describe('SPM-85 flagging: which bookings count', () => {
     ]);
     for (const [, created] of repo.createFlaggedChange.mock.calls) {
       expect(
-        (created as { impacts: Array<{ conflicts: Array<{ kind: string }> }> })
-          .impacts[0].conflicts[0].kind,
-      ).toBe('overlap');
+        (
+          created as { impacts: Array<{ conflicts: Array<{ kind: string }> }> }
+        ).impacts[0].conflicts.map((c) => c.kind),
+      ).toEqual(['window', 'overlap']);
     }
   });
 
@@ -1164,7 +1271,37 @@ describe('SPM-85 flagging: which bookings count', () => {
         await equipmentImpactsOf({ endDateTime: '2026-11-10T14:00:00.000Z' })
       ).map((i) => i.name),
     ).toEqual(['Projector']);
-    expect(await equipmentImpactsOf({ expectedAttendance: 150 })).toEqual([]);
+    // Attendance beyond Hall A's capacity is flagged for the venue only.
+    expect(await equipmentImpactsOf({ expectedAttendance: 250 })).toEqual([]);
+  });
+
+  // EVENT-UPDATE-05-B: an earlier end stays inside the period the equipment is
+  // held for, so no reservation is affected and the change applies at once.
+  it('EVENT-UPDATE-05-B applies a shorter event immediately when venue and equipment still cover it', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      endDateTime: '2026-11-10T12:00:00.000Z',
+    });
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+    expect(result.applied).toEqual(['endDateTime']);
+  });
+
+  // EVENT-FLAG-02-A: with only equipment arranged, a later end is flagged for
+  // the equipment alone; no venue booking is listed.
+  it('EVENT-FLAG-02-A flags a longer event for equipment when only equipment is arranged', async () => {
+    repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      endDateTime: '2026-11-10T14:00:00.000Z',
+    });
+    expect(result.flagged).toHaveLength(1);
+    expect(repo.createFlaggedChange).toHaveBeenCalledWith(
+      EVENT_ID,
+      expect.objectContaining({
+        impacts: [],
+        equipmentImpacts: [expect.objectContaining({ arrangementId: 'eq-1' })],
+      }),
+    );
   });
 });
 
@@ -1208,7 +1345,7 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
   it('EVENT-FLAG-02-C reports the clash when the start is moved into the neighbouring event', async () => {
     expect(
       await conflictKindsFor({ startDateTime: '2026-11-10T09:40:00.000Z' }),
-    ).toEqual(['overlap']);
+    ).toEqual(['window', 'overlap']);
   });
 });
 
@@ -1516,8 +1653,130 @@ describe('SPM-49 / SPM-85 atomicity', () => {
     await expect(
       service.updateEvent(coordinator(), EVENT_ID, {
         name: 'Renamed',
-        expectedAttendance: 150,
+        expectedAttendance: 250,
       }),
     ).rejects.toThrow('db down');
+  });
+});
+
+describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag what is not', () => {
+  // EVENT-UPDATE-05-B: the reviewer's example — lowering attendance from 80 to
+  // 70 with a confirmed 200-seat venue cannot affect the booking.
+  it('EVENT-UPDATE-05-B applies a lower attendance immediately when it still fits every booked venue', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking({ capacity: 200 })]);
+    repo.listEquipmentArrangements.mockResolvedValue([equipment()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 70,
+    });
+    expect(repo.applyFields).toHaveBeenCalledWith(
+      EVENT_ID,
+      { expectedAttendance: 70 },
+      NOW,
+    );
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+    expect(result).toMatchObject({
+      applied: ['expectedAttendance'],
+      flagged: [],
+    });
+  });
+
+  // EVENT-UPDATE-05-B: attendance equal to the smallest venue's capacity still fits.
+  it('EVENT-UPDATE-05-B applies attendance equal to the capacity immediately', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking({ capacity: 200 })]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 200,
+    });
+    expect(result.applied).toEqual(['expectedAttendance']);
+  });
+
+  // EVENT-UPDATE-05-B: removing a facility cannot make a booked venue unsuitable.
+  it('EVENT-UPDATE-05-B applies a facility removal immediately', async () => {
+    repo.findEvent.mockResolvedValue(
+      eventRow({ facilities: ['Catering', 'Stage'] }),
+    );
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      facilities: ['Catering'],
+    });
+    expect(result.applied).toEqual(['facilities']);
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-05-B: equipment requirements cannot affect a venue booking.
+  it('EVENT-UPDATE-05-B applies an equipment change immediately when only a venue is booked', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      equipmentNeeds: 'Four microphones',
+    });
+    expect(result.applied).toEqual(['equipmentNeeds']);
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-05-B: start and end moved inward together stay inside the booking.
+  it('EVENT-UPDATE-05-B applies a time change inside the booked window immediately', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      startDateTime: '2026-11-10T10:30:00.000Z',
+      endDateTime: '2026-11-10T12:30:00.000Z',
+    });
+    expect(result.applied).toEqual(['startDateTime', 'endDateTime']);
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+  });
+
+  // EVENT-FLAG-01-A: in one update, the compatible field applies and only the
+  // incompatible one is held for review.
+  it('EVENT-FLAG-01-A applies a compatible change and flags an incompatible one in the same update', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 70,
+      layout: 'Theatre',
+    });
+    expect(repo.applyFields).toHaveBeenCalledWith(
+      EVENT_ID,
+      { expectedAttendance: 70 },
+      NOW,
+    );
+    expect(result.applied).toEqual(['expectedAttendance']);
+    expect(result.flagged.map((c: { field: string }) => c.field)).toEqual([
+      'layout',
+    ]);
+  });
+
+  // EVENT-FLAG-06-A: only the venue the new attendance does not fit is marked
+  // impacted; the larger venue is listed as unaffected.
+  it('EVENT-FLAG-06-A marks only the bookings the change is incompatible with', async () => {
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({ id: 'bk-1', venueName: 'Hall A', capacity: 100 }),
+      venueBooking({ id: 'bk-2', venueName: 'Hall B', capacity: 300 }),
+    ]);
+    await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 150,
+    });
+    const [, created] = repo.createFlaggedChange.mock.calls[0];
+    expect(
+      (
+        created as { impacts: Array<{ bookingId: string; impacted: boolean }> }
+      ).impacts.map((i) => [i.bookingId, i.impacted]),
+    ).toEqual([
+      ['bk-1', true],
+      ['bk-2', false],
+    ]);
+  });
+
+  // EVENT-FLAG-01-A: a field awaiting review stays locked even for a value that
+  // would otherwise apply immediately, so the pending original stays accurate.
+  it('EVENT-FLAG-01-A refuses a compatible change to a field that is awaiting review', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    repo.listPendingChanges.mockResolvedValue([
+      flaggedChange({ field: 'expectedAttendance', proposedValue: 250 }),
+    ]);
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { expectedAttendance: 70 }),
+    ).rejects.toMatchObject({
+      response: {
+        errors: { expectedAttendance: 'A change is already awaiting review.' },
+      },
+    });
+    expect(repo.applyFields).not.toHaveBeenCalled();
   });
 });

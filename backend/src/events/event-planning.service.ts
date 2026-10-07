@@ -21,7 +21,12 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
-import { assessVenueBookings, type ProposedChange } from './event-impact.js';
+import {
+  assessVenueBookings,
+  withinWindow,
+  type BookingImpact,
+  type ProposedChange,
+} from './event-impact.js';
 import {
   EventPlanningRepository,
   type EquipmentArrangementRow,
@@ -33,6 +38,7 @@ import {
 } from './event-planning.repository.js';
 import {
   EDITABLE_FIELDS,
+  FIELD_POLICY,
   classifyUpdate,
   validateEventUpdate,
   type EventFieldKey,
@@ -52,14 +58,31 @@ const INACTIVE_EQUIPMENT_STATUSES = new Set([
   'cancelled',
   'released',
 ]);
-/** Fields whose change also affects equipment reservations. */
-const EQUIPMENT_FIELDS = new Set<EventFieldKey>([
-  'startDateTime',
-  'endDateTime',
-  'equipmentNeeds',
-]);
+/**
+ * How a coordinator's change to a field will be handled (SPM-49 AC2):
+ * - 'direct': always applied immediately.
+ * - 'conditional': applied immediately while it stays within `condition`,
+ *   otherwise flagged for review.
+ * - 'needs_review': any change is flagged, because it cannot be verified
+ *   against the existing arrangements automatically.
+ */
+export type FieldMode = 'direct' | 'conditional' | 'needs_review';
 
-export type FieldMode = 'direct' | 'needs_review';
+export type FieldCondition =
+  | { kind: 'within_window'; start: string; end: string }
+  | { kind: 'max_attendance'; max: number }
+  | { kind: 'remove_only' };
+
+export interface EditableField {
+  field: EventFieldKey;
+  mode: FieldMode;
+  condition?: FieldCondition;
+}
+
+interface FieldAssessment {
+  impacts: BookingImpact[];
+  equipmentImpacts: EquipmentImpact[];
+}
 
 type Access = {
   user: AuthenticatedUser;
@@ -96,7 +119,6 @@ export class EventPlanningService {
     ]);
     const editable =
       isCoordinator && EDITABLE_STATUSES.has(event.status.toLowerCase());
-    const hasArrangements = this.hasArrangements(bookings, equipment);
 
     return {
       event: this.toEventRecord(event),
@@ -123,12 +145,11 @@ export class EventPlanningService {
       // SPM-97 AC4: the organiser view is read-only, enforced again on write.
       readOnly: !editable,
       editableFields: editable
-        ? EDITABLE_FIELDS.map((field) => ({
-            field,
-            mode: (classifyUpdate([field], hasArrangements).needsReview.length
-              ? 'needs_review'
-              : 'direct') as FieldMode,
-          }))
+        ? fieldModes(
+            event,
+            activeOnly(bookings),
+            activeEquipmentOnly(equipment),
+          )
         : [],
       // SPM-49 AC6.
       lastUpdatedAt: event.updatedAt,
@@ -138,9 +159,11 @@ export class EventPlanningService {
   // ---------------------------------------------------------------- SPM-49 / SPM-85 AC1
 
   /**
-   * Applies fields that cannot affect bookings immediately and flags the rest
-   * as "Needs Review" when the event already has a venue booking or equipment
-   * arrangement. Everything happens in one transaction.
+   * Applies every change that stays compatible with the event's existing
+   * venue bookings and equipment arrangements immediately (SPM-49 AC3, AC5)
+   * and flags only the changes that are incompatible with at least one of them
+   * as "Needs Review" (SPM-85 AC1). Each flagged change lists only the
+   * arrangements it actually affects. Everything happens in one transaction.
    */
   async updateEvent(
     identity: AuthenticatedUser | undefined,
@@ -165,37 +188,58 @@ export class EventPlanningService {
           updatedAt: event.updatedAt,
         };
 
+      // One pending change per field: a field awaiting review cannot be
+      // changed again (even compatibly) until it is resolved, so the pending
+      // change's original → confirmed values stay unambiguous.
+      const pendingFields = new Set(
+        (await this.repository.listPendingChanges(eventId)).map((c) => c.field),
+      );
+      const blocked = changed.filter((field) => pendingFields.has(field));
+      if (blocked.length)
+        throw new ConflictException({
+          message:
+            'A change to this field is already awaiting review. Resolve it first.',
+          errors: Object.fromEntries(
+            blocked.map((field) => [
+              field,
+              'A change is already awaiting review.',
+            ]),
+          ),
+        });
+
       const window = { start: patch.startDateTime, end: patch.endDateTime };
       const [bookings, equipment] = await Promise.all([
         this.repository.listVenueBookings(eventId, window),
         this.repository.listEquipmentArrangements(eventId),
       ]);
-      const { immediate, needsReview } = classifyUpdate(
-        changed,
-        this.hasArrangements(bookings, equipment),
-      );
+      const activeBookings = activeOnly(bookings);
+      const activeEquipment = activeEquipmentOnly(equipment);
 
-      if (needsReview.length) {
-        // One pending change per field: a second proposal must wait until the
-        // first is resolved, so original → confirmed values stay unambiguous.
-        const pendingFields = new Set(
-          (await this.repository.listPendingChanges(eventId)).map(
-            (c) => c.field,
+      // Assess each booking-sensitive field against each active arrangement.
+      const assessments = new Map<EventFieldKey, FieldAssessment>();
+      for (const field of changed) {
+        if (FIELD_POLICY[field] !== 'review_if_impacting') continue;
+        assessments.set(field, {
+          impacts: assessVenueBookings(
+            proposalFor(field, patch, event),
+            activeBookings,
           ),
-        );
-        const blocked = needsReview.filter((field) => pendingFields.has(field));
-        if (blocked.length)
-          throw new ConflictException({
-            message:
-              'A change to this field is already awaiting review. Resolve it first.',
-            errors: Object.fromEntries(
-              blocked.map((field) => [
-                field,
-                'A change is already awaiting review.',
-              ]),
-            ),
-          });
+          equipmentImpacts: equipmentImpacts(
+            field,
+            patch,
+            event,
+            activeEquipment,
+          ),
+        });
       }
+      const { immediate, needsReview } = classifyUpdate(changed, (field) => {
+        const assessment = assessments.get(field);
+        return (
+          !!assessment &&
+          (assessment.impacts.some((impact) => impact.impacted) ||
+            assessment.equipmentImpacts.length > 0)
+        );
+      });
 
       let current = event;
       if (immediate.length)
@@ -205,27 +249,17 @@ export class EventPlanningService {
           new Date(),
         );
 
-      const activeBookings = bookings.filter(
-        (b) => !INACTIVE_BOOKING_STATUSES.has(b.status.toLowerCase()),
-      );
-      const activeEquipment = equipment.filter(
-        (e) => !INACTIVE_EQUIPMENT_STATUSES.has(e.status.toLowerCase()),
-      );
       const flagged: FlaggedChangeRow[] = [];
       for (const field of needsReview) {
+        const assessment = assessments.get(field)!;
         flagged.push(
           await this.repository.createFlaggedChange(eventId, {
             kind: 'booking_conflict',
             field,
             originalValue: event[field],
             proposedValue: patch[field],
-            impacts: assessVenueBookings(
-              proposalFor(field, patch),
-              activeBookings,
-            ),
-            equipmentImpacts: EQUIPMENT_FIELDS.has(field)
-              ? equipmentImpacts(field, activeEquipment)
-              : [],
+            impacts: assessment.impacts,
+            equipmentImpacts: assessment.equipmentImpacts,
             proposedBy: displayName(user),
             proposedById: user.uid,
           }),
@@ -426,20 +460,6 @@ export class EventPlanningService {
       });
   }
 
-  private hasArrangements(
-    bookings: VenueBookingRow[],
-    equipment: EquipmentArrangementRow[],
-  ) {
-    return (
-      bookings.some(
-        (b) => !INACTIVE_BOOKING_STATUSES.has(b.status.toLowerCase()),
-      ) ||
-      equipment.some(
-        (e) => !INACTIVE_EQUIPMENT_STATUSES.has(e.status.toLowerCase()),
-      )
-    );
-  }
-
   private toPendingChange(
     change: FlaggedChangeRow,
     event: PlanningEventRow,
@@ -581,13 +601,29 @@ function sameValue(
   return stored === proposed;
 }
 
+function activeOnly(bookings: VenueBookingRow[]): VenueBookingRow[] {
+  return bookings.filter(
+    (b) => !INACTIVE_BOOKING_STATUSES.has(b.status.toLowerCase()),
+  );
+}
+
+function activeEquipmentOnly(
+  equipment: EquipmentArrangementRow[],
+): EquipmentArrangementRow[] {
+  return equipment.filter(
+    (e) => !INACTIVE_EQUIPMENT_STATUSES.has(e.status.toLowerCase()),
+  );
+}
+
 /**
- * What to assess for one flagged field. Date/time fields use every time field
+ * What to assess for one changed field. Date/time fields use every time field
  * in this update so a shifted event is assessed as one move, not two halves.
+ * Facilities carry the current list so only additions need a venue check.
  */
 function proposalFor(
   field: EventFieldKey,
   patch: EventUpdatePatch,
+  event: PlanningEventRow,
 ): ProposedChange {
   switch (field) {
     case 'startDateTime':
@@ -601,24 +637,118 @@ function proposalFor(
     case 'layout':
       return { layout: patch.layout };
     case 'facilities':
-      return { facilities: patch.facilities };
+      return {
+        facilities: patch.facilities,
+        currentFacilities: event.facilities,
+      };
     default:
       return {};
   }
 }
 
+/**
+ * Equipment arrangements a change actually affects:
+ * - Equipment requirements are free text that cannot be matched to the
+ *   reservations automatically, so a change re-checks every active one.
+ * - A date/time change affects reservations only when the event would run
+ *   outside its current window, which is the period the equipment is held
+ *   for (reservations carry no window of their own yet). Shortening or
+ *   shifting inside that window keeps every reservation valid.
+ * - No other field touches equipment.
+ */
 function equipmentImpacts(
   field: EventFieldKey,
+  patch: EventUpdatePatch,
+  event: PlanningEventRow,
   equipment: EquipmentArrangementRow[],
 ): EquipmentImpact[] {
-  const detail =
-    field === 'equipmentNeeds'
-      ? 'Check this reservation still matches the new equipment requirements'
-      : 'Reservation period must move with the new event time';
+  let detail: string;
+  if (field === 'equipmentNeeds')
+    detail =
+      'Check this reservation still matches the new equipment requirements';
+  else if (field === 'startDateTime' || field === 'endDateTime') {
+    const inside = withinWindow(
+      Date.parse(patch.startDateTime ?? event.startDateTime),
+      Date.parse(patch.endDateTime ?? event.endDateTime),
+      Date.parse(event.startDateTime),
+      Date.parse(event.endDateTime),
+    );
+    if (inside) return [];
+    detail = 'Reservation period must move with the new event time';
+  } else return [];
   return equipment.map((item) => ({
     arrangementId: item.id,
     name: item.name,
     quantity: item.quantity,
     detail,
   }));
+}
+
+/**
+ * Per-field edit mode for the coordinator's form (SPM-49 AC2), derived from
+ * the same compatibility rules updateEvent applies, so the label always
+ * matches what will happen on save.
+ */
+function fieldModes(
+  event: PlanningEventRow,
+  bookings: VenueBookingRow[],
+  equipment: EquipmentArrangementRow[],
+): EditableField[] {
+  const hasVenues = bookings.length > 0;
+  const hasEquipment = equipment.length > 0;
+
+  // The window every arrangement still covers: each venue booking's held
+  // window and, for equipment, the event's current window.
+  const starts = bookings.map((b) => Date.parse(b.start));
+  const ends = bookings.map((b) => Date.parse(b.end));
+  if (hasEquipment) {
+    starts.push(Date.parse(event.startDateTime));
+    ends.push(Date.parse(event.endDateTime));
+  }
+  const windowStart = Math.max(...starts);
+  const windowEnd = Math.min(...ends);
+  const timeEntry = (field: EventFieldKey): EditableField => {
+    if (!hasVenues && !hasEquipment) return { field, mode: 'direct' };
+    // Arrangements that share no common window: every move needs review.
+    if (!(windowStart < windowEnd)) return { field, mode: 'needs_review' };
+    return {
+      field,
+      mode: 'conditional',
+      condition: {
+        kind: 'within_window',
+        start: new Date(windowStart).toISOString(),
+        end: new Date(windowEnd).toISOString(),
+      },
+    };
+  };
+
+  return EDITABLE_FIELDS.map((field): EditableField => {
+    if (FIELD_POLICY[field] === 'direct') return { field, mode: 'direct' };
+    switch (field) {
+      case 'startDateTime':
+      case 'endDateTime':
+        return timeEntry(field);
+      case 'expectedAttendance':
+        return hasVenues
+          ? {
+              field,
+              mode: 'conditional',
+              condition: {
+                kind: 'max_attendance',
+                max: Math.min(...bookings.map((b) => b.capacity)),
+              },
+            }
+          : { field, mode: 'direct' };
+      case 'layout':
+        return { field, mode: hasVenues ? 'needs_review' : 'direct' };
+      case 'facilities':
+        return hasVenues
+          ? { field, mode: 'conditional', condition: { kind: 'remove_only' } }
+          : { field, mode: 'direct' };
+      case 'equipmentNeeds':
+        return { field, mode: hasEquipment ? 'needs_review' : 'direct' };
+      default:
+        return { field, mode: 'direct' };
+    }
+  });
 }

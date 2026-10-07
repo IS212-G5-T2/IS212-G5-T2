@@ -1,15 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/utils/api";
-import { formatDateTime } from "@/utils/format";
+import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import {
   PLANNING_REFRESH_MS,
   PLANNING_STATUSES,
+  describeCondition,
   fetchChangeHistory,
   fetchPlanningView,
   fieldLabel,
   formatFieldValue,
   isPlanningView,
   resolvePlanningChange,
+  satisfiesCondition,
   updatePlanning,
 } from "@/utils/planning";
 
@@ -134,5 +136,63 @@ describe("planning labels and values", () => {
     expect(formatFieldValue("startDateTime", iso)).toBe(formatDateTime(iso));
     expect(formatFieldValue("endDateTime", iso)).toBe(formatDateTime(iso));
     expect(formatFieldValue("description", iso)).toBe(iso);
+  });
+});
+
+describe("describeCondition (SPM-49 AC2)", () => {
+  // EVENT-UPDATE-02-B: each conditional rule reads as a plain sentence.
+  it("EVENT-UPDATE-02-B describes each kind of condition", () => {
+    const start = "2026-11-10T10:00:00.000Z";
+    const end = "2026-11-10T13:00:00.000Z";
+    expect(describeCondition({ kind: "within_window", start, end })).toContain(formatDateTimeRange(start, end));
+    expect(describeCondition({ kind: "max_attendance", max: 200 })).toBe(
+      "Applies immediately up to 200 attendees; more needs review.",
+    );
+    expect(describeCondition({ kind: "remove_only" })).toBe(
+      "Removing facilities applies immediately; adding any needs review.",
+    );
+  });
+});
+
+describe("satisfiesCondition (mirrors the backend compatibility rules)", () => {
+  const window = { kind: "within_window" as const, start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z" };
+
+  // EVENT-UPDATE-05-B: the window allows times inside it, edges included.
+  it.each([
+    ["the same window", "10:00", "13:00", true],
+    ["a shorter event inside it", "10:30", "12:00", true],
+    ["an earlier start", "09:59", "13:00", false],
+    ["a later end", "10:00", "13:01", false],
+    ["an end before the start", "12:00", "11:00", false],
+  ])("EVENT-UPDATE-05-B within_window accepts %s: %s–%s → %s", (_label, from, to, expected) => {
+    expect(
+      satisfiesCondition(window, { startDateTime: `2026-11-10T${from}:00.000Z`, endDateTime: `2026-11-10T${to}:00.000Z` }),
+    ).toBe(expected);
+  });
+
+  // EVENT-UPDATE-05-B: an unreadable time cannot be confirmed as compatible.
+  it("EVENT-UPDATE-05-B treats a missing time as needing review", () => {
+    expect(satisfiesCondition(window, { startDateTime: window.start })).toBe(false);
+  });
+
+  // EVENT-UPDATE-05-B: attendance up to the capacity applies immediately.
+  it.each([
+    [70, true],
+    [200, true],
+    [201, false],
+    [undefined, false],
+  ])("EVENT-UPDATE-05-B max_attendance 200 with %s → %s", (attendance, expected) => {
+    expect(satisfiesCondition({ kind: "max_attendance", max: 200 }, { expectedAttendance: attendance })).toBe(expected);
+  });
+
+  // EVENT-UPDATE-05-B: only removals keep every venue suitable.
+  it.each([
+    [["Catering"], true],
+    [[], true],
+    [["Catering", "Stage"], false],
+  ])("EVENT-UPDATE-05-B remove_only with %j → %s", (facilities, expected) => {
+    expect(
+      satisfiesCondition({ kind: "remove_only" }, { facilities, currentFacilities: ["Catering", "Projector"] }),
+    ).toBe(expected);
   });
 });

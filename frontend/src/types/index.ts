@@ -198,7 +198,25 @@ export interface Notification {
 // SPM-97 / SPM-49 / SPM-85: event information during the planning phase.
 // Mirrors backend/src/events/event-planning.service.ts responses.
 
-export type PlanningFieldMode = "direct" | "needs_review";
+/**
+ * How a coordinator's change to a field is handled (SPM-49 AC2):
+ * - "direct": always applied immediately.
+ * - "conditional": applied immediately while it satisfies `condition` (stays
+ *   compatible with every existing booking/arrangement); otherwise flagged.
+ * - "needs_review": any change is flagged for review.
+ */
+export type PlanningFieldMode = "direct" | "conditional" | "needs_review";
+
+export type PlanningFieldCondition =
+  | { kind: "within_window"; start: string; end: string }
+  | { kind: "max_attendance"; max: number }
+  | { kind: "remove_only" };
+
+export interface PlanningEditableField {
+  field: string;
+  mode: PlanningFieldMode;
+  condition?: PlanningFieldCondition;
+}
 
 export interface PlanningVenueBooking {
   id: string;
@@ -219,8 +237,12 @@ export interface PlanningEquipmentArrangement {
 }
 
 export interface BookingImpactConflict {
-  /** "requirements": layout/facility suitability must be re-checked by hand. */
-  kind: "overlap" | "turnaround" | "capacity" | "requirements";
+  /**
+   * "window": the new time falls outside what the booking holds, so the
+   * booking must change. "requirements": layout/facility suitability must be
+   * re-checked by hand.
+   */
+  kind: "window" | "overlap" | "turnaround" | "capacity" | "requirements";
   withBookingId?: string;
   detail: string;
 }
@@ -288,7 +310,7 @@ export interface PlanningView {
   pendingChanges: PendingChange[];
   /** True for the organiser, and for everyone once the event is confirmed. */
   readOnly: boolean;
-  editableFields: Array<{ field: string; mode: PlanningFieldMode }>;
+  editableFields: PlanningEditableField[];
   lastUpdatedAt: string;
 }
 

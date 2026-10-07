@@ -32,30 +32,34 @@ export const EDITABLE_FIELDS = [
 export type EventFieldKey = (typeof EDITABLE_FIELDS)[number];
 
 /**
- * 'direct'           – never affects a venue booking or equipment arrangement,
- *                      so it is applied immediately (SPM-49 AC3).
- * 'review_if_booked' – may invalidate an existing booking/arrangement. Applied
- *                      immediately while nothing is booked (SPM-49 AC5) and
- *                      flagged "Needs Review" once something is (SPM-85 AC1).
+ * 'direct'              – can never affect a venue booking or equipment
+ *                         arrangement, so it is always applied immediately.
+ * 'review_if_impacting' – may affect an existing booking/arrangement. Applied
+ *                         immediately when the proposed value stays compatible
+ *                         with every active arrangement (SPM-49 AC3/AC5);
+ *                         flagged "Needs Review" only when it is incompatible
+ *                         with at least one (SPM-85 AC1). Compatibility is
+ *                         decided per arrangement by event-impact.ts and
+ *                         EventPlanningService, not by whether anything is
+ *                         booked at all.
  *
  * Accessibility needs are 'direct' because SPM-85 AC1 lists only date, time,
  * attendance, venue requirements and equipment requirements as review fields.
  * Venue requirements map to `layout` and `facilities`.
  */
-export const FIELD_POLICY: Record<
-  EventFieldKey,
-  'direct' | 'review_if_booked'
-> = {
+export type FieldPolicy = 'direct' | 'review_if_impacting';
+
+export const FIELD_POLICY: Record<EventFieldKey, FieldPolicy> = {
   name: 'direct',
   purpose: 'direct',
   description: 'direct',
   accessibility: 'direct',
-  startDateTime: 'review_if_booked',
-  endDateTime: 'review_if_booked',
-  expectedAttendance: 'review_if_booked',
-  layout: 'review_if_booked',
-  facilities: 'review_if_booked',
-  equipmentNeeds: 'review_if_booked',
+  startDateTime: 'review_if_impacting',
+  endDateTime: 'review_if_impacting',
+  expectedAttendance: 'review_if_impacting',
+  layout: 'review_if_impacting',
+  facilities: 'review_if_impacting',
+  equipmentNeeds: 'review_if_impacting',
 };
 
 /** Fields the server owns. Sending any of them is a client error. */
@@ -224,16 +228,19 @@ export function validateEventUpdate(input: unknown): EventUpdatePatch {
 
 /**
  * Splits the changed fields into those applied now and those that must be
- * reviewed first, preserving the caller's field order.
+ * reviewed first, preserving the caller's field order. A 'direct' field is
+ * always immediate; a 'review_if_impacting' field is held for review only when
+ * `isImpacting(field)` reports that its proposed value is incompatible with an
+ * existing booking or arrangement.
  */
 export function classifyUpdate(
   fields: EventFieldKey[],
-  hasBookings: boolean,
+  isImpacting: (field: EventFieldKey) => boolean,
 ): { immediate: EventFieldKey[]; needsReview: EventFieldKey[] } {
   const immediate: EventFieldKey[] = [];
   const needsReview: EventFieldKey[] = [];
   for (const field of fields) {
-    if (hasBookings && FIELD_POLICY[field] === 'review_if_booked')
+    if (FIELD_POLICY[field] === 'review_if_impacting' && isImpacting(field))
       needsReview.push(field);
     else immediate.push(field);
   }

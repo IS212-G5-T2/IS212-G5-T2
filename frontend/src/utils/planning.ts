@@ -9,10 +9,11 @@
  *   GET   /events/:id/planning/history                    ChangeHistoryEntry[]
  */
 import { api } from "@/utils/api";
-import { formatDateTime } from "@/utils/format";
+import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import type {
   ChangeHistoryEntry,
   EventStatus,
+  PlanningFieldCondition,
   PlanningUpdatePatch,
   PlanningUpdateResult,
   PlanningView,
@@ -60,6 +61,52 @@ export function formatFieldValue(field: string, value: unknown): string {
   if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
   if (typeof value === "string") return value.trim() ? value : "None";
   return String(value);
+}
+
+/**
+ * SPM-49 AC2: plain-English rule for a "conditional" field, i.e. when a change
+ * to it applies immediately and when it is held for review.
+ */
+export function describeCondition(condition: PlanningFieldCondition): string {
+  switch (condition.kind) {
+    case "within_window":
+      return `Applies immediately while the event stays within ${formatDateTimeRange(condition.start, condition.end)}; moving outside it needs review.`;
+    case "max_attendance":
+      return `Applies immediately up to ${condition.max} attendees; more needs review.`;
+    case "remove_only":
+      return "Removing facilities applies immediately; adding any needs review.";
+  }
+}
+
+/** The values being proposed, with the stored facilities for comparison. */
+export interface ConditionProposal {
+  startDateTime?: string;
+  endDateTime?: string;
+  expectedAttendance?: number;
+  facilities?: string[];
+  currentFacilities?: string[];
+}
+
+/**
+ * Mirrors the backend's compatibility rules (event-impact.ts /
+ * event-planning.service.ts) so the form can say, before saving, whether a
+ * change will apply immediately. The server decides authoritatively.
+ */
+export function satisfiesCondition(condition: PlanningFieldCondition, proposal: ConditionProposal): boolean {
+  switch (condition.kind) {
+    case "within_window": {
+      const start = Date.parse(proposal.startDateTime ?? "");
+      const end = Date.parse(proposal.endDateTime ?? "");
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+      return start < end && start >= Date.parse(condition.start) && end <= Date.parse(condition.end);
+    }
+    case "max_attendance":
+      return proposal.expectedAttendance !== undefined && proposal.expectedAttendance <= condition.max;
+    case "remove_only": {
+      const current = proposal.currentFacilities ?? [];
+      return (proposal.facilities ?? []).every((facility) => current.includes(facility));
+    }
+  }
 }
 
 /** Guards against a malformed response so the page never crashes on it. */

@@ -98,8 +98,8 @@ Routes (all behind `AuthenticationMiddleware`; the service checks role, ownershi
 
 | Route | Who | Purpose |
 | --- | --- | --- |
-| `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes |
-| `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields; booking-affecting fields are flagged "Needs Review" once something is booked |
+| `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`) |
+| `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
 | `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | `{ decision: 'confirm' \| 'reject', bookingId? }` |
 | `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Resolved changes, newest first |
 
