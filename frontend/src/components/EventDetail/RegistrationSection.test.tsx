@@ -279,6 +279,7 @@ describe("EVENT-REG-03-SEC-1: escape on output", () => {
 // EVENT-REG-05-A, EVENT-REG-05-C
 describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
   // EVENT-REG-05-A
+  // VIEW-REG-DET-02-A
   // 05-A: "I cannot register twice for the same event": no button when registered.
   it("05-A registered attendee sees status and ID, no Register button", () => {
     renderSection(baseEvent, created);
@@ -312,7 +313,6 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
   });
 });
 
-// SPM-62 AC2/AC3
 describe("SPM-62 AC2/AC3: registered attendee sees their registration details", () => {
   // AC3: "I can see my registration details" - full name, email, contact
   // number and special requirements captured at registration, alongside the
@@ -325,6 +325,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     specialRequirements: "Wheelchair access",
   };
 
+  // VIEW-REG-DET-03-A
   it("AC3 shows full name, email, contact number and special requirements", () => {
     renderSection(baseEvent, full);
     expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
@@ -333,6 +334,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(within(screen.getByText("Special requirements").parentElement!).getByText("Wheelchair access")).toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-03-B
   // Optional fields captured at registration (contact number, special
   // requirements) must never render as blank rows when absent.
   it("AC3 omits contact number and special requirements rows when absent", () => {
@@ -341,6 +343,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(screen.queryByText("Special requirements")).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-03-C
   // Older records may lack fullName (SPM-61 comment on the Registration
   // type); the attendee's stored name is still shown via the fallback.
   it("AC3 falls back to attendeeName when fullName is absent on older records", () => {
@@ -349,7 +352,6 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
   });
 });
 
-// SPM-62 AC4
 describe("SPM-62 AC4: registration details stay visible before and after the event", () => {
   // AC4: "I can view my registration at any time before or after the
   // event" - the registered branch is checked before any event-timing
@@ -360,12 +362,14 @@ describe("SPM-62 AC4: registration details stay visible before and after the eve
     email: "alice@example.com",
   };
 
+  // VIEW-REG-DET-04-A
   it("shows full registration details once the event has completed", () => {
     renderSection({ ...baseEvent, status: "completed" }, full);
     expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
     expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-04-B
   it("shows full registration details for a cancelled event", () => {
     renderSection({ ...baseEvent, status: "cancelled" }, full);
     expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
