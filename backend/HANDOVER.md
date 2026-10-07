@@ -82,6 +82,42 @@ PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
 the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a
 database with the local initialisers applied.
 
+SPM-119 "Mark Equipment as Unavailable" adds `EquipmentService.updateAvailability()`
+and `getAuditTrail()`. Availability (`is_available`) is deliberately orthogonal
+to `maintenance_status`: a record can be Active and unavailable, or Under
+Maintenance and still bookable — the two flags are never conflated.
+`updateAvailability()` locks the row (`SELECT ... FOR UPDATE`) inside
+`DatabaseService.transaction()`, updates `is_available`, and inserts the audit
+row in the same transaction, so a failed audit insert rolls the availability
+change back with it (`src/equipment/equipment-availability.e2e-spec.ts`
+EQUIP-UNAVAIL-07-A proves this with a Postgres trigger that forces the insert
+to fail). Reactivating never requires a reason; marking unavailable always
+does (`equipment-availability-input.ts`). `list()` filters out unavailable
+records by default; `includeUnavailable=true` opts back in. The audit trail is
+shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
+The availability route authorizes before validating its body, derives
+`changed_by` only from the verified session, and validates the path ID before
+querying PostgreSQL: malformed IDs are 400 and unknown UUIDs are 404. A request
+for the equipment's current availability is rejected with 409 and creates no
+audit row, because the history represents actual state transitions. Audit API
+rows expose the resulting `isAvailable` value. Availability remains independent
+of maintenance status, so Retired and Under Maintenance records can still have
+their separate availability changed and audited.
+Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
+Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
+for a database with `database/postgresql/init/001` through `010` applied.
+`createUser(role, emailPrefix)` generates its unique email upfront
+(`${emailPrefix}-${randomUUID()}@example.test`) and returns it for callers to
+assert against, matching the pattern every other `*.e2e-spec.ts` helper in
+this codebase already uses. (An earlier version instead mangled a
+caller-supplied literal email after insertion, so the session's real email
+never matched the literal four tests asserted against; fixed.) All 17 of 17
+cases in that file pass against a real database, including the 07-A rollback
+and both 07-SEC-1 role-guard cases. `EQUIP-UNAVAIL-01-A` and `05-A`'s equipment
+fixtures use the exact Confluence literals (`'Lighting'`, quantity `50`) via
+`createEquipment`'s optional overrides, rather than that helper's generic
+defaults (`'Visual'`, quantity `1`) used by every other case in the file.
+
 Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
 - Start backend feature work from Jira acceptance criteria.

@@ -34,6 +34,12 @@ existing databases must use backend migrations for upgrades.
   taken over by the venue-booking and equipment-reservation stories.
 - Added `event_flagged_changes` (pending review and change history) with a
   partial unique index allowing one pending change per event field.
+## 2026-10-07 - SPM-119 equipment availability and audit trail
+
+- Added `010_spm119_equipment_availability.sql`: `equipment.is_available`
+  (boolean, default `true`), the `equipment_audit_trail` table, and their
+  indexes. Additive and idempotent; applied to the shared local Compose
+  volume without a reset.
 
 ## 2026-09-22 - Two-file initializer consolidation
 
