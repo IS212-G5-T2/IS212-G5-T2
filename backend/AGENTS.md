@@ -52,8 +52,8 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 ## Lead boundary
 
-- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123) and reassignment (SPM-47), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment`, `coordinator_reassignment` and `coordinator_unassignment` notifications. It does not own approval/rejection.
-- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `009` applied.
+- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123) and reassignment (SPM-47), and writes `events.coordinator_id`/`coordinator_name`, the `event_reassignments` history row (SPM-46), plus the `coordinator_assignment`, `coordinator_reassignment` and `coordinator_unassignment` notifications. It does not own approval/rejection.
+- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `010` applied.
 
 ## Registrations boundary
 

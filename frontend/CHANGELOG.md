@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- SPM-46: a reassigned event shows a "Reassigned" label and "from <coordinator>"
+  on its card, and the assigned coordinator sees "Reassigned to you from
+  <coordinator> on <date>" on the event page, plus a "Change requests (N)" link.
+  A previous coordinator sees why they can no longer open the event. The
+  coordinator's notification panel is now headed "Assignment updates" (it also
+  lists events reassigned away).
+
 - SPM-47: added the Lead's Reassign Events page (`/lead/reassign`): assigned
   events soonest first with their current coordinator and a "Coordinator
   unavailable" label, a picker showing availability and workload (current and

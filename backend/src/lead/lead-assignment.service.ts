@@ -211,7 +211,7 @@ export class LeadAssignmentService {
   // clarifications and decisions stay with the event; both coordinators are
   // notified in the same transaction.
   async reassign(identity: AuthenticatedUser | undefined, eventId: string, body: unknown) {
-    requireLead(identity);
+    const lead = requireLead(identity);
     if (!UUID.test(eventId)) throw new NotFoundException('Event not found.');
     const coordinatorId = parseCoordinatorId(body);
     const shownCoordinatorId = (body as { currentCoordinatorId?: unknown }).currentCoordinatorId;
@@ -237,6 +237,22 @@ export class LeadAssignmentService {
             SET coordinator_id = $2, coordinator_name = $3, updated_at = now()
           WHERE id = $1`,
         [eventId, coordinator.id, coordinator.display_name],
+      );
+      // SPM-46: record the move so the new coordinator sees where it came from
+      // and the previous one is told it was reassigned.
+      await client.query(
+        `INSERT INTO event_reassignments
+           (id, event_id, from_coordinator_id, from_coordinator_name, to_coordinator_id, to_coordinator_name, reassigned_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [
+          randomUUID(),
+          eventId,
+          event.coordinator_id,
+          event.coordinator_name,
+          coordinator.id,
+          coordinator.display_name,
+          lead.uid,
+        ],
       );
       // The original coordinator's unread notices saying the event is theirs
       // (first assignment, or an earlier reassignment to them) no longer apply.

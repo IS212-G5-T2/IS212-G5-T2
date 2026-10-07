@@ -1,8 +1,9 @@
 // SPM-123 AC9: the assigned coordinator is told a new request awaits their review.
-// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I, 09-J, 09-K, 09-L; SPM-47 LEAD-REASN-08-E.
+// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I, 09-J, 09-K, 09-L; SPM-47 LEAD-REASN-08-E;
+// SPM-46 REASN-VIEW-01-B.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/store/useAppStore";
 import { AssignmentNotifications } from "./AssignmentNotifications";
@@ -108,7 +109,7 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
       </MemoryRouter>,
     );
     await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
-    expect(screen.queryByRole("region", { name: "New assigned requests" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Assignment updates" })).not.toBeInTheDocument();
 
     // Act: the coordinator returns to the window.
     act(() => {
@@ -171,7 +172,7 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
 
     // Assert: no notifications request is made and no panel is shown.
     expect(api).not.toHaveBeenCalled();
-    expect(screen.queryByRole("region", { name: "New assigned requests" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Assignment updates" })).not.toBeInTheDocument();
   });
 
   // A notification the coordinator already read stays hidden; only unread ones are listed.
@@ -216,6 +217,31 @@ describe("SPM-47 AC8: reassignment notifications", () => {
     const links = screen.getAllByRole("link", { name: "View request" });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/events/event-2");
+  });
+});
+
+describe("SPM-46 AC1: the reassignment notice opens the event", () => {
+  // Clicking the notice's link takes the coordinator to that event's page.
+  it("REASN-VIEW-01-B opens the reassigned event's page from the notice", async () => {
+    // Arrange: one unread "reassigned to you" notice for event-2, inside a router with the event route.
+    const user = userEvent.setup();
+    api.mockResolvedValue([
+      { ...assignment, id: "notif-r", type: "coordinator_reassignment", relatedEventId: "event-2", message: 'Event "Spring Gala" has been reassigned to you.' },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<AssignmentNotifications />} />
+          <Route path="/events/:id" element={<p>Event page for event-2</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Act: follow the notice's link.
+    await user.click(await screen.findByRole("link", { name: "View request" }));
+
+    // Assert: the event's page is open.
+    expect(screen.getByText("Event page for event-2")).toBeInTheDocument();
   });
 });
 

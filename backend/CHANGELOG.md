@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- SPM-46: each reassignment is recorded in `event_reassignments`. Events now
+  carry `reassignedFrom { coordinatorName, reassignedAt }`, sent only to the
+  coordinator who received them (never organisers or attendees), and a previous coordinator opening the event gets 403
+  "This event has been reassigned to another Coordinator." instead of 404.
+
 - SPM-47: the Event Coordinator Lead can reassign an assigned event.
   `GET /api/lead/assigned` lists active events with a coordinator (soonest first,
   with the coordinator's availability) and `POST /api/lead/events/:eventId/reassign`

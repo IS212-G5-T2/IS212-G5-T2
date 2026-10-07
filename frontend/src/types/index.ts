@@ -84,6 +84,8 @@ export interface EventRecord {
   availableRegistrationSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
+  /** SPM-46: who the current coordinator received the event from, and when. */
+  reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];

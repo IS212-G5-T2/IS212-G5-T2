@@ -6,6 +6,7 @@
  * 11-A, 11-SEC-3, 11-SEC-5, 11-SEC-7.
  * SPM-47 (reassignment): LEAD-REASN-01-B, 03-F, 04-B, 05-B, 06-A, 08-D,
  * 09-SEC-3, 09-SEC-6, 10-F.
+ * SPM-46 (viewing a reassigned event): REASN-VIEW-01-A, 02-E, 03-C, 04-B.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -474,7 +475,10 @@ describe('Lead assignment (SPM-123 e2e)', () => {
 
     // Act: the original coordinator tries the list, the detail, approving, rejecting, the history and replying.
     const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', original.cookie).expect(200);
-    await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', original.cookie).expect(404);
+    // Refused without any event data; SPM-46 (REASN-VIEW-04-B) owns the exact reassigned message.
+    const detail = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', original.cookie);
+    expect([403, 404]).toContain(detail.status);
+    expect(JSON.stringify(detail.body)).not.toContain('Event moved away');
     const approve = await request(app.getHttpServer()).post(`/api/events/${eventId}/approve`).set('Cookie', original.cookie).expect(403);
     const reject = await request(app.getHttpServer())
       .post(`/api/events/${eventId}/reject`)
@@ -598,6 +602,108 @@ describe('Lead assignment (SPM-123 e2e)', () => {
 
     // Assert: the notice is now read.
     expect(await leadNotice()).toEqual([expect.objectContaining({ type: 'coordinator_unavailable', read: true })]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // SPM-46 View a Reassigned Event
+  // ---------------------------------------------------------------------------
+
+  // SPM-46 AC1: the new coordinator's notice points to an event they can actually open.
+  it('REASN-VIEW-01-A gives the new coordinator a notice that links to an event they can open', async () => {
+    // Arrange: an approved event reassigned from the original to the replacement.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const original = await createDatabaseUser('COORDINATOR', 'Lead E2E Original');
+    const replacement = await createDatabaseUser('COORDINATOR', 'Lead E2E Replacement');
+    const eventId = await seedEvent({ name: 'Event to follow from a notice', status: 'Approved', coordinator: original });
+    await reassign(lead, eventId, replacement, original).expect(201);
+
+    // Act: the replacement reads their notifications, then opens the linked event.
+    const notices = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', replacement.cookie).expect(200);
+    const notice = notices.body.find((n: { type: string; relatedEventId: string }) => n.type === 'coordinator_reassignment' && n.relatedEventId === eventId);
+    const opened = await request(app.getHttpServer()).get(`/api/events/${notice.relatedEventId}`).set('Cookie', replacement.cookie).expect(200);
+
+    // Assert: the notice names the event and the link opens it, showing them as its coordinator.
+    expect(notice.message).toBe('Event "Event to follow from a notice" has been reassigned to you.');
+    expect(opened.body).toMatchObject({ id: eventId, coordinatorId: replacement.id, coordinatorName: 'Lead E2E Replacement' });
+  });
+
+  // SPM-46 AC2: the current coordinator's list and event data say who it came from and when, after two moves.
+  it('REASN-VIEW-02-E records every reassignment and shows the current coordinator the most recent previous one', async () => {
+    // Arrange: the event moves first -> second -> third.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const first = await createDatabaseUser('COORDINATOR', 'Lead E2E First');
+    const second = await createDatabaseUser('COORDINATOR', 'Lead E2E Second');
+    const third = await createDatabaseUser('COORDINATOR', 'Lead E2E Third');
+    const eventId = await seedEvent({ name: 'Event moved twice', status: 'Approved', coordinator: first });
+    const before = Date.now();
+    await reassign(lead, eventId, second, first).expect(201);
+    await reassign(lead, eventId, third, second).expect(201);
+
+    // Act: the third coordinator loads their list and the event.
+    const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', third.cookie).expect(200);
+    const detail = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', third.cookie).expect(200);
+
+    // Assert: both name the second coordinator with a time from this test; two history rows were saved in order.
+    const listed = list.body.find((e: { id: string }) => e.id === eventId);
+    for (const event of [listed, detail.body]) {
+      expect(event.reassignedFrom.coordinatorName).toBe('Lead E2E Second');
+      expect(Date.parse(event.reassignedFrom.reassignedAt)).toBeGreaterThanOrEqual(before - 1000);
+    }
+    const history = await pool.query(
+      'SELECT from_coordinator_name, to_coordinator_name, reassigned_by FROM event_reassignments WHERE event_id = $1 ORDER BY reassigned_at',
+      [eventId],
+    );
+    expect(history.rows).toEqual([
+      { from_coordinator_name: 'Lead E2E First', to_coordinator_name: 'Lead E2E Second', reassigned_by: lead.id },
+      { from_coordinator_name: 'Lead E2E Second', to_coordinator_name: 'Lead E2E Third', reassigned_by: lead.id },
+    ]);
+  });
+
+  // SPM-46 AC3: the new coordinator sees the status and the existing clarification history.
+  it('REASN-VIEW-03-C lets the new coordinator read the event status and its existing clarification history', async () => {
+    // Arrange: the original asks a clarification on an approved event, then it is reassigned.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const original = await createDatabaseUser('COORDINATOR', 'Lead E2E Original');
+    const replacement = await createDatabaseUser('COORDINATOR', 'Lead E2E Replacement');
+    const eventId = await seedEvent({ name: 'Approved event with history', status: 'Approved', coordinator: original });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', original.cookie)
+      .send({ message: 'Is the stage still needed?' })
+      .expect(201);
+    await reassign(lead, eventId, replacement, original).expect(201);
+
+    // Act: the replacement opens the event and its history.
+    const detail = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', replacement.cookie).expect(200);
+    const history = await request(app.getHttpServer()).get(`/api/events/${eventId}/comments`).set('Cookie', replacement.cookie).expect(200);
+
+    // Assert: the approval decision and the original coordinator's question are both visible.
+    expect(detail.body.status).toBe('approved');
+    expect(history.body).toEqual([
+      expect.objectContaining({ type: 'clarification', message: 'Is the stage still needed?', authorName: 'Lead E2E Original' }),
+    ]);
+  });
+
+  // SPM-46 AC4: the original coordinator is told it moved; a stranger still gets "not found".
+  it('REASN-VIEW-04-B tells the original coordinator the event was reassigned and keeps "not found" for others', async () => {
+    // Arrange: an event reassigned away from the original; another coordinator never had it.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const original = await createDatabaseUser('COORDINATOR', 'Lead E2E Original');
+    const replacement = await createDatabaseUser('COORDINATOR', 'Lead E2E Replacement');
+    const stranger = await createDatabaseUser('COORDINATOR', 'Lead E2E Stranger');
+    const eventId = await seedEvent({ name: 'Event that moved on', status: 'Approved', coordinator: original });
+    await reassign(lead, eventId, replacement, original).expect(201);
+
+    // Act: the original checks their list and opens the event; the stranger opens it too.
+    const list = await request(app.getHttpServer()).get('/api/events').set('Cookie', original.cookie).expect(200);
+    const moved = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', original.cookie).expect(403);
+    const unknown = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', stranger.cookie).expect(404);
+
+    // Assert: gone from the list; a clear message that names nobody; the stranger learns nothing.
+    expect(list.body.map((e: { id: string }) => e.id)).not.toContain(eventId);
+    expect(moved.body.message).toBe('This event has been reassigned to another Coordinator.');
+    expect(JSON.stringify(moved.body)).not.toContain('Lead E2E Replacement');
+    expect(unknown.body.message).toBe('Event not found.');
   });
 
   async function seedEvent(options: {

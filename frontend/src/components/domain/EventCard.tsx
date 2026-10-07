@@ -19,10 +19,18 @@ export function EventCard({ event, registered = false }: EventCardProps) {
             <div>
               <h3 className="font-semibold text-gray-900 dark:text-gray-100">{event.name}</h3>
               <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{event.purpose}</p>
+              {event.reassignedFrom && (
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{`from ${event.reassignedFrom.coordinatorName}`}</p>
+              )}
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <StatusBadge status={event.status} />
               {registered && <StatusBadge status="registered" />}
+              {event.reassignedFrom && (
+                <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                  Reassigned
+                </span>
+              )}
             </div>
           </div>
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 sm:grid-cols-4">

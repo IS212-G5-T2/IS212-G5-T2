@@ -427,7 +427,8 @@ describe('EventsService', () => {
 
     it('EVE-REV-04-B hides the event from a coordinator it is not assigned to', async () => {
       const row = savedEventRow();
-      db.query.mockResolvedValue({ rows: [row] });
+      // The event, then no reassignment history for this coordinator (SPM-46 checks it before "not found").
+      db.query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });
 
       await expect(
         service.get(coordinatorUser({ uid: 'coord-other', name: 'Coord Other' }), row.id),
@@ -478,7 +479,8 @@ describe('EventsService', () => {
 
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
       const row = { ...savedEventRow(), coordinator_id: null, coordinator_name: null };
-      db.query.mockResolvedValue({ rows: [row] });
+      // The event, then no reassignment history for this coordinator (SPM-46 checks it before "not found").
+      db.query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });
 
       await expect(
         service.get(coordinatorUser(), row.id),
@@ -544,5 +546,111 @@ describe('EventsService', () => {
     expect(sql[0]).toBe('BEGIN');
     expect(sql[1]).toMatch(/^INSERT INTO events/);
     expect(sql[2]).toBe('COMMIT');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SPM-46 View a Reassigned Event (backend): the event data says who the
+// current coordinator received it from and when (AC2), and a previous
+// coordinator is told the event moved instead of "not found" (AC4).
+// Test cases: REASN-VIEW-02-C, 02-D, 02-I, 04-A, 04-D.
+// ---------------------------------------------------------------------------
+describe('SPM-46: reassignment context on events', () => {
+  // The latest reassignment as the query returns it (Postgres JSON uses an offset, not Z).
+  const latestToCoord9 = { coordinatorName: 'Coordinator 1', reassignedAt: '2026-10-07T06:05:00+00:00', toCoordinatorId: 'coord-9' };
+
+  // The current coordinator sees who it came from and when; an event never reassigned has nothing.
+  it('REASN-VIEW-02-C includes reassignedFrom for a reassigned event and leaves it out otherwise', async () => {
+    // Arrange: one reassigned event, then one never reassigned.
+    db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), latest_reassignment: latestToCoord9 }] });
+    db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), latest_reassignment: null }] });
+
+    // Act: the current coordinator opens each.
+    const reassigned = await service.get(coordinatorUser(), savedEventRow().id);
+    const original = await service.get(coordinatorUser(), savedEventRow().id);
+
+    // Assert: the name and an ISO time for the reassigned one; nothing for the other; the query reads the history.
+    expect(reassigned.reassignedFrom).toEqual({ coordinatorName: 'Coordinator 1', reassignedAt: '2026-10-07T06:05:00.000Z' });
+    expect(original.reassignedFrom).toBeUndefined();
+    expect(String(db.query.mock.calls[0][0])).toContain('event_reassignments');
+  });
+
+  // The list carries it too, from the most recent reassignment, and only if it was to the current coordinator.
+  it('REASN-VIEW-02-D takes the most recent reassignment, for the list too, and only when it was to the current coordinator', async () => {
+    // Arrange: the coordinator's list has one event reassigned to them and one whose latest reassignment went elsewhere.
+    db.query.mockResolvedValueOnce({
+      rows: [
+        { ...savedEventRow(), latest_reassignment: latestToCoord9 },
+        { ...savedEventRow(), id: 'other-event', latest_reassignment: { ...latestToCoord9, toCoordinatorId: 'coord-2' } },
+      ],
+    });
+
+    // Act: load the list.
+    const [first, second] = await service.list(coordinatorUser());
+
+    // Assert: shown for the first only; the query picks the latest reassignment per event.
+    expect(first.reassignedFrom).toEqual({ coordinatorName: 'Coordinator 1', reassignedAt: '2026-10-07T06:05:00.000Z' });
+    expect(second.reassignedFrom).toBeUndefined();
+    const sql = String(db.query.mock.calls[0][0]).replace(/\s+/g, ' ');
+    expect(sql).toMatch(/event_reassignments/);
+    expect(sql).toMatch(/ORDER BY \w+\.reassigned_at DESC/);
+    expect(sql).toMatch(/LIMIT 1/);
+  });
+
+  // Staffing history is only for the coordinator who now holds the event, not the organiser or attendees.
+  it('REASN-VIEW-02-I sends reassignedFrom only to the current coordinator, never to the organiser or an attendee', async () => {
+    // Arrange: the same reassigned, attendee-visible event, read by its organiser, then an attendee, then the organiser's list.
+    const row = { ...savedEventRow(), status: 'Confirmed', latest_reassignment: latestToCoord9 };
+    db.query
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [row] });
+
+    // Act: the organiser and an attendee open it; the organiser loads their list.
+    const forOrganiser = await service.get(organiserUser(), row.id);
+    const forAttendee = await service.get(attendeeUser(), row.id);
+    const [inOrganiserList] = await service.list(organiserUser());
+
+    // Assert: none of them receive the previous coordinator's name or the time.
+    expect(forOrganiser.reassignedFrom).toBeUndefined();
+    expect(forAttendee.reassignedFrom).toBeUndefined();
+    expect(inOrganiserList.reassignedFrom).toBeUndefined();
+  });
+
+  // A previous coordinator is told the event moved, without naming who has it; anyone else still gets "not found".
+  it('REASN-VIEW-04-A tells a previous coordinator the event was reassigned, and keeps "not found" for everyone else', async () => {
+    // Arrange: the event now belongs to coord-9; coord-1 held it before, coord-5 never did.
+    const formerHolder = coordinatorUser({ uid: 'coord-1', name: 'Coordinator 1' });
+    const stranger = coordinatorUser({ uid: 'coord-5', name: 'Coordinator 5' });
+    db.query
+      .mockResolvedValueOnce({ rows: [savedEventRow()] })
+      .mockResolvedValueOnce({ rows: [{ held: 1 }] })
+      .mockResolvedValueOnce({ rows: [savedEventRow()] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    // Act + Assert: the former holder gets 403 with the reassigned message, which does not name the new coordinator.
+    const refusal = await service.get(formerHolder, savedEventRow().id).catch((error: unknown) => error);
+    expect(refusal).toEqual(new ForbiddenException('This event has been reassigned to another Coordinator.'));
+    expect(JSON.stringify((refusal as ForbiddenException).getResponse())).not.toContain('Coord Nine');
+    const historyCheck = db.query.mock.calls[1];
+    expect(String(historyCheck[0])).toMatch(/from_coordinator_id/);
+    expect(historyCheck[1]).toEqual(expect.arrayContaining([savedEventRow().id, 'coord-1']));
+
+    // Act + Assert: a coordinator who never held it still gets the generic not found.
+    await expect(service.get(stranger, savedEventRow().id)).rejects.toThrow(new NotFoundException('Event not found.'));
+  });
+
+  // Someone who lost the event and later got it back sees it normally.
+  it('REASN-VIEW-04-D shows the event normally to a coordinator who lost it and later got it back', async () => {
+    // Arrange: coord-9 is the current coordinator again; the latest reassignment was back to them.
+    db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), latest_reassignment: { ...latestToCoord9, coordinatorName: 'Coordinator 2' } }] });
+
+    // Act: open the event.
+    const event = await service.get(coordinatorUser(), savedEventRow().id);
+
+    // Assert: shown, with the latest previous coordinator, and no "reassigned away" check was needed.
+    expect(event.coordinatorId).toBe('coord-9');
+    expect(event.reassignedFrom?.coordinatorName).toBe('Coordinator 2');
+    expect(db.query).toHaveBeenCalledTimes(1);
   });
 });
