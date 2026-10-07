@@ -19,6 +19,28 @@ import {
   isRegistrationOpen,
 } from '../registrations/registration-window.js';
 
+// SPM-46: the event's most recent reassignment, read with each event so the
+// current coordinator can see who it came from and when.
+const LATEST_REASSIGNMENT = `(SELECT json_build_object(
+           'coordinatorName', r.from_coordinator_name,
+           'reassignedAt', r.reassigned_at,
+           'toCoordinatorId', r.to_coordinator_id)
+         FROM event_reassignments r
+        WHERE r.event_id = events.id
+        ORDER BY r.reassigned_at DESC, r.id DESC
+        LIMIT 1) AS latest_reassignment`;
+
+type LatestReassignment = { coordinatorName: string; reassignedAt: string; toCoordinatorId: string };
+
+// Only the event's current coordinator sees how they got it, and only from a
+// reassignment that was to them; organisers and attendees never receive it.
+function reassignedFrom(row: pg.QueryResultRow, viewerUid?: string) {
+  const latest = row.latest_reassignment as LatestReassignment | null | undefined;
+  if (!viewerUid || viewerUid !== row.coordinator_id) return undefined;
+  if (!latest || latest.toCoordinatorId !== row.coordinator_id) return undefined;
+  return { coordinatorName: latest.coordinatorName, reassignedAt: new Date(latest.reassignedAt).toISOString() };
+}
+
 // Who a stored notification is for, as the frontend labels it.
 function audienceRoleFor(type: string) {
   if (type === 'coordinator_unavailable') return 'coordinator_lead';
@@ -48,7 +70,7 @@ export class EventsService {
     return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
   }
 
-  private record(row: pg.QueryResultRow) {
+  private record(row: pg.QueryResultRow, viewerUid?: string) {
     return {
       id: row.id,
       name: row.event_name,
@@ -58,6 +80,7 @@ export class EventsService {
       organiserName: row.organiser_name,
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
+      reassignedFrom: reassignedFrom(row, viewerUid),
       status: row.status.toLowerCase(),
       rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
@@ -125,7 +148,7 @@ export class EventsService {
         )
       : user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          'SELECT * FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC',
+          `SELECT events.*, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
@@ -139,7 +162,7 @@ export class EventsService {
     // tens of MB per attached file and make the page time out; the detail
     // endpoint (get) still returns the full attachments including dataUrl.
     return result.rows.map((row) => {
-      const record = this.record(row);
+      const record = this.record(row, user.uid);
       return {
         ...record,
         attachments: (record.attachments as EventAttachment[]).map(
@@ -166,7 +189,8 @@ export class EventsService {
            SELECT COUNT(*)::integer FROM event_registrations
             WHERE event_id = events.id AND status = 'Registered'
          )
-       )::integer AS available_registration_spots
+       )::integer AS available_registration_spots,
+       ${LATEST_REASSIGNMENT}
          FROM events WHERE id = $1`,
       [id],
     );
@@ -179,9 +203,20 @@ export class EventsService {
     const isAttendeeViewable =
       user.roles.includes('ATTENDEE') &&
       ATTENDEE_VISIBLE_STATUSES.includes(row.status);
-    if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable)
+    if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable) {
+      // SPM-46 AC4: someone who held the event before is told it moved (without
+      // naming who has it now); anyone else still learns nothing.
+      if (user.roles.includes('COORDINATOR')) {
+        const held = await this.database.query(
+          'SELECT 1 AS held FROM event_reassignments WHERE event_id = $1 AND from_coordinator_id = $2 LIMIT 1',
+          [id, user.uid],
+        );
+        if (held.rows.length)
+          throw new ForbiddenException('This event has been reassigned to another Coordinator.');
+      }
       throw new NotFoundException('Event not found.');
-    return this.record(row);
+    }
+    return this.record(row, user.uid);
   }
   private requireCoordinator(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);

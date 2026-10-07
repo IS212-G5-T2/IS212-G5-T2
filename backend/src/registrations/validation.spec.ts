@@ -28,6 +28,7 @@ function errorsFor(body: unknown): Record<string, string> {
   throw new Error('Expected validation to fail');
 }
 
+// EVENT-REG-03-B
 describe('EVENT-REG-03-B: required fields (AC3: "I can enter my details and submit my registration")', () => {
   // Missing or blank required fields are rejected with a per-field error.
   it.each([
@@ -45,6 +46,7 @@ describe('EVENT-REG-03-B: required fields (AC3: "I can enter my details and subm
   });
 });
 
+// EVENT-REG-03-C
 describe('EVENT-REG-03-C: invalid formats (table-driven)', () => {
   // Bad email, name and contact formats each produce a field error.
   it.each([
@@ -70,6 +72,7 @@ describe('EVENT-REG-03-C: invalid formats (table-driven)', () => {
   });
 });
 
+// EVENT-REG-03-BND-1
 describe('EVENT-REG-03-BND-1: field length limits (table-driven)', () => {
   const { fullNameMax, emailMax, specialRequirementsMax, contactDigitsMin, contactDigitsMax } =
     REGISTRATION_LIMITS;
@@ -115,6 +118,7 @@ describe('EVENT-REG-03-BND-1: field length limits (table-driven)', () => {
   });
 });
 
+// EVENT-REG-03-D
 describe('EVENT-REG-03-D: server-controlled fields (D15 strict schema)', () => {
   // Unknown or server-controlled keys are rejected, never silently ignored.
   it.each(['status', 'attendeeId', 'eventId', 'id', 'registeredAt', 'extra'])(
@@ -125,6 +129,7 @@ describe('EVENT-REG-03-D: server-controlled fields (D15 strict schema)', () => {
   );
 });
 
+// EVENT-REG-03-SEC-1
 describe('EVENT-REG-03-SEC-1: store literal, escape on output', () => {
   // Markup and SQL text are kept exactly as typed; only control characters go.
   it('[A] keeps HTML and SQL text literally', () => {

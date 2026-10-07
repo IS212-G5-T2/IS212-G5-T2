@@ -203,29 +203,17 @@ export class ClarificationsService {
     });
   }
 
-  async listComments(eventId: string, user: AuthenticatedUser | undefined): Promise<CommentDto[]> {
+  async listComments(eventId: string, user: AuthenticatedUser): Promise<CommentDto[]> {
     this.requireValidEventId(eventId);
     const event = await this.repository.findEvent(eventId);
     if (!event) throw new NotFoundException('Event not found.');
 
-    // In demo mode without auth, skip authorization checks
-    if (user) {
-      const isOrganiser =
-        user.roles.includes('ORGANISER') && (
-          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
-          event.organiser_id === user.uid
-        );
-      const isAssignedCoordinator =
-        user.roles.includes('COORDINATOR') && (
-          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
-          event.coordinator_id === user.uid
-        );
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
+    const isAssignedCoordinator =
+      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
 
-      if (!isOrganiser && !isAssignedCoordinator) {
-        throw new ForbiddenException(
-          "You don't have access to this event's comment history.",
-        );
-      }
+    if (!isOrganiser && !isAssignedCoordinator) {
+      throw new ForbiddenException("You don't have access to this event's comment history.");
     }
 
     const rows = await this.repository.listComments(eventId);
@@ -252,8 +240,7 @@ export class ClarificationsService {
       );
     }
 
-    // In demo mode, allow any coordinator; strict uid matching doesn't work with mixed identities
-    if (process.env.DEMO_ORGANISER_ENABLED !== 'true' && event.coordinator_id !== user.uid) {
+    if (event.coordinator_id !== user.uid) {
       throw new ForbiddenException(
         'Only the coordinator assigned to this event can request clarification.',
       );
@@ -271,17 +258,13 @@ export class ClarificationsService {
     event: EventForReview,
     user: AuthenticatedUser,
   ): 'organiser' | 'coordinator' {
-    const demo = process.env.DEMO_ORGANISER_ENABLED === 'true';
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
 
-    // Check organiser: must either be in demo mode or match the event's organiser_id
-    const isOrganiser =
-      user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
-
-    // Check coordinator: must either be in demo mode, match assigned coordinator_id,
-    // or have the COORDINATOR role when no coordinator is assigned yet
+    // Check coordinator: must match the assigned coordinator_id, or have the COORDINATOR role when no coordinator
+    // is assigned yet
     const isCoordinator =
       user.roles.includes('COORDINATOR') &&
-      (demo || event.coordinator_id === user.uid || !event.coordinator_id);
+      (event.coordinator_id === user.uid || !event.coordinator_id);
 
     // If both checks pass, prioritize coordinator (since they initiiate clarifications)
     if (isCoordinator) return 'coordinator';

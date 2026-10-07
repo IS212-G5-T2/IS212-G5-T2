@@ -12,6 +12,8 @@ import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 import { attendeeEventStatus } from "./EventView";
 import { RegistrationSection } from "@/components/EventDetail/RegistrationSection";
+import { RegistrationsModal } from "@/components/registrations/RegistrationsModal";
+import { canViewRegistrationReport } from "@/utils/registrationReport";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
@@ -88,6 +90,7 @@ export function EventDetailPage() {
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
 
+  const [registrationsOpen, setRegistrationsOpen] = useState(false);
   const [reviewNotice, setReviewNotice] = useState("");
   const [showReviewControls, setShowReviewControls] = useState(false);
   const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | "">("");
@@ -200,6 +203,12 @@ export function EventDetailPage() {
   return (
     <div>
       {location.state?.submitted && <div role="status" className="mb-6 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900"><strong>Your event request was submitted successfully.</strong><p className="mt-1">You can find it in My Events.</p><Link className="mt-2 inline-block underline" to="/events">View My Events</Link></div>}
+      {/* SPM-46 AC2: the coordinator sees who handed the event over, and when. */}
+      {isAssignedCoordinator && event.reassignedFrom && (
+        <p role="note" className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-100">
+          {`Reassigned to you from ${event.reassignedFrom.coordinatorName} on ${formatDateTime(event.reassignedFrom.reassignedAt)}`}
+        </p>
+      )}
       <PageHeader
         title={event.name}
         description={event.purpose}
@@ -474,6 +483,11 @@ export function EventDetailPage() {
               <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
               <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
             </div>
+            {canViewRegistrationReport(currentUser, event) && (
+              <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
+                View registrations
+              </Button>
+            )}
           </CardBody>
         </Card>
 
@@ -500,6 +514,15 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
+
+      {registrationsOpen && (
+        <RegistrationsModal
+          eventId={event.id}
+          registrationOpensAt={event.registrationOpensAt}
+          registrationClosesAt={event.registrationClosesAt}
+          onClose={() => setRegistrationsOpen(false)}
+        />
+      )}
 
       {/* Straight after submitting, "back" would return to the submitted form;
           the success banner's "View My Events" link is the way on instead. */}

@@ -20,9 +20,8 @@ still enforce relationship-level record checks separately from role permissions.
 
 ## Event requests
 
-The backend uses `DATABASE_URL` for event persistence and
-`DEMO_ORGANISER_ENABLED` for the account-free event sample. That event identity
-is separate from the real Firebase configuration used for sign-in and
-`/auth/me`; it is not authorization. Apply the additive events SQL scripts
+The backend uses `DATABASE_URL` for event persistence. Event and clarification
+routes require a signed-in session; there is no account-free demo identity.
+Apply the additive events SQL scripts
 using README instructions for existing volumes. Email delivery is deferred.
 Preserve existing database data when testing.

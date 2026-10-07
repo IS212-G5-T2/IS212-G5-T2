@@ -91,4 +91,23 @@ describe("EventCard", () => {
 
     expect(screen.getByText("Not booked")).toBeTruthy();
   });
+
+  // SPM-46 AC2: a reassigned event is labelled in the coordinator's list, with who it came from.
+  // Kills: F1 ("Reassigned" label on every card).
+  it("REASN-VIEW-02-F labels a reassigned event \"Reassigned\" with the coordinator it came from, and nothing else", () => {
+    // Arrange + Act: one reassigned event and one that never was.
+    render(
+      <MemoryRouter>
+        <EventCard event={baseEvent({ id: "reassigned", name: "Moved event", coordinatorName: "Coordinator 2", reassignedFrom: { coordinatorName: "Coordinator 1", reassignedAt: "2026-10-07T06:05:00.000Z" } })} />
+        <EventCard event={baseEvent({ id: "original", name: "Untouched event", coordinatorName: "Coordinator 2" })} />
+      </MemoryRouter>,
+    );
+
+    // Assert: only the moved event shows the label and where it came from.
+    const moved = screen.getByText("Moved event").closest("a, article, div[class]") as HTMLElement;
+    expect(screen.getAllByText("Reassigned")).toHaveLength(1);
+    expect(screen.getByText("from Coordinator 1")).toBeInTheDocument();
+    expect(moved.textContent).toContain("Reassigned");
+    expect((screen.getByText("Untouched event").closest("a, article, div[class]") as HTMLElement).textContent).not.toContain("Reassigned");
+  });
 });

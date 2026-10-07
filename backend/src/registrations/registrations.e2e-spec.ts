@@ -85,6 +85,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
   const rows = (eventId: string) =>
     pool.query('SELECT * FROM event_registrations WHERE event_id = $1', [eventId]).then((r) => r.rows);
 
+  // EVENT-REG-01-A
   describe('EVENT-REG-01-A: registration open (AC1: "registration button only if the period is open")', () => {
     // Expected: the event API reports registrationOpen=true while the window is open.
     it('event detail reports registrationOpen=true', async () => {
@@ -133,6 +134,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-01-B
   describe('EVENT-REG-01-B: not yet open', () => {
     // Expected: registrationOpen=false and a POST is refused with the "opens on" message.
     it('reports registrationOpen=false and POST -> 422 registration_not_open (MSG-02)', async () => {
@@ -147,6 +149,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-01-C, EVENT-REG-02-A
   describe('EVENT-REG-01-C / EVENT-REG-02-A: closed (AC2: "error message if I register after the period has closed")', () => {
     // [A] time-based close: registrationOpen=false and POST -> 422 MSG-01, nothing stored.
     it('[A] time-based close: POST -> 422 registration_closed (MSG-01) and no row', async () => {
@@ -168,6 +171,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
   describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants (injected clock)', () => {
     // Expected: inclusive at open, exclusive at close, driven only by the injected clock.
     it('[A] 1s before open: registrationOpen=false, POST -> 422 MSG-02', async () => {
@@ -204,6 +208,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-03-A, EVENT-REG-04-A
   describe('EVENT-REG-03-A / EVENT-REG-04-A: successful registration (AC3, AC4: "confirmation message")', () => {
     // Expected: 201, MSG-06 with the event name, details stored, status registered.
     it('creates a registration and returns MSG-06', async () => {
@@ -222,6 +227,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-03-B, EVENT-REG-03-C
   describe('EVENT-REG-03-B / 03-C: server-side validation (AC3)', () => {
     // Expected: 400 with per-field errors and nothing persisted.
     it.each([
@@ -238,6 +244,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-03-D
   describe('EVENT-REG-03-D: server-controlled fields are rejected (D15)', () => {
     // Expected: 400 and no row when the client tries to set status or attendee.
     it('body with status/attendeeId -> 400 and nothing stored', async () => {
@@ -251,6 +258,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-03-SEC-1
   describe('EVENT-REG-03-SEC-1: literal storage', () => {
     // Expected: the exact literal string is stored; SQL text does no harm.
     it('stores script and SQL text literally', async () => {
@@ -264,6 +272,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-05-A
   describe('EVENT-REG-05-A: duplicate registration (AC5: "cannot register twice")', () => {
     // Expected: second POST -> 409 MSG-05 and still exactly one row.
     it('second registration -> 409 already_registered (MSG-05)', async () => {
@@ -276,6 +285,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-05-B
   describe('EVENT-REG-05-B: concurrent duplicates (real database)', () => {
     // Expected: exactly one 201, remaining four 409, exactly one Registered row.
     it('five simultaneous POSTs -> one 201 and four 409', async () => {
@@ -290,6 +300,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-05-C
   describe('EVENT-REG-05-C: withdrawn and capacity (D16; capacity is a locked hard limit, no waitlist in R1)', () => {
     // Expected: a withdrawn attendee can register again; the same row is reactivated.
     it('re-registration after withdrawal -> 201 reusing the registration id', async () => {
@@ -320,6 +331,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
+  // EVENT-REG-05-SEC-1
   describe('EVENT-REG-05-SEC-1: authentication and roles (cross-cutting)', () => {
     // Expected: no session -> 401.
     it('[A] no session -> 401 and nothing stored', async () => {

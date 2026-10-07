@@ -16,6 +16,13 @@ existing databases must use backend migrations for upgrades.
   blockout booking so the card catalogue has visible records in a fresh
   development database.
 
+## 2026-10-07 - SPM-119 equipment availability and audit trail
+
+- Added `010_spm119_equipment_availability.sql`: `equipment.is_available`
+  (boolean, default `true`), the `equipment_audit_trail` table, and their
+  indexes. Additive and idempotent; applied to the shared local Compose
+  volume without a reset.
+
 ## 2026-09-22 - Two-file initializer consolidation
 
 - Combined every extension, table, column, constraint, and index into
@@ -99,3 +106,7 @@ Git history retains the original incremental changes and their commits.
 ## SPM-47 - Lead reassignment
 
 - Added `postgresql/init/009_spm47_notification_related_user.sql`: a nullable `notifications.related_user_id` (references `users`, cascade on delete) so the Lead's "coordinator unavailable" notice records which coordinator it is about. Idempotent; fresh volumes run it, existing volumes apply it manually.
+
+## SPM-46 - Reassignment history
+
+- Added `postgresql/init/010_spm46_event_reassignments.sql`: an `event_reassignments` table (event, from/to coordinator id and name, the Lead, time; cascades with the event) recording each reassignment. Idempotent; fresh volumes run it, existing volumes apply it manually.

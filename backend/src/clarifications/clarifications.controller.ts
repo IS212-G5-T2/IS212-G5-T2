@@ -2,7 +2,7 @@
  * SPM-39: HTTP surface for the coordinator clarification/amendment thread.
  * Protected by the PostgreSQL local-session middleware in AppModule.
  */
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
@@ -22,12 +22,12 @@ export class ClarificationsController {
     @Req() request: AuthenticatedRequest,
     @Body() body: unknown,
   ) {
-    return this.clarifications.createClarification(id, this.getDemoOrAuthedUser(request), body);
+    return this.clarifications.createClarification(id, this.requireUser(request), body);
   }
 
   @Get('events/:id/comments')
   list(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.clarifications.listComments(id, this.getDemoOrAuthedUser(request));
+    return this.clarifications.listComments(id, this.requireUser(request));
   }
 
   @Post('events/:id/clarifications/:clarificationId/reply')
@@ -37,7 +37,7 @@ export class ClarificationsController {
     @Req() request: AuthenticatedRequest,
     @Body() body: unknown,
   ) {
-    return this.clarifications.reply(id, clarificationId, this.getDemoOrAuthedUser(request), body);
+    return this.clarifications.reply(id, clarificationId, this.requireUser(request), body);
   }
 
   @Post('events/:id/clarifications/:clarificationId/resolve')
@@ -46,23 +46,12 @@ export class ClarificationsController {
     @Param('clarificationId') clarificationId: string,
     @Req() request: AuthenticatedRequest,
   ) {
-    return this.clarifications.resolve(id, clarificationId, this.getDemoOrAuthedUser(request));
+    return this.clarifications.resolve(id, clarificationId, this.requireUser(request));
   }
 
-  private getDemoOrAuthedUser(request: AuthenticatedRequest): AuthenticatedUser {
-    const authed = request[CURRENT_USER_REQUEST_KEY];
-    if (authed) return authed;
-
-    // Demo mode fallback: return a stub coordinator or organiser based on the operation
-    if (process.env.DEMO_ORGANISER_ENABLED === 'true') {
-      return {
-        uid: 'current-user',
-        roles: ['COORDINATOR', 'ORGANISER'],
-        name: 'Demo User',
-        email: 'demo@example.test',
-      };
-    }
-
-    throw new Error('Authentication required');
+  private requireUser(request: AuthenticatedRequest): AuthenticatedUser {
+    const user = request[CURRENT_USER_REQUEST_KEY];
+    if (!user) throw new UnauthorizedException('Authentication required.');
+    return user;
   }
 }

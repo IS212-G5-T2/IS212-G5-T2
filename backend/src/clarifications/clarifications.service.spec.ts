@@ -429,3 +429,42 @@ describe('ClarificationsService.listComments', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });
+
+// The retired DEMO_ORGANISER_ENABLED switch must not widen access any more: with it set, ownership is still strict.
+describe('ClarificationsService ownership with the retired demo flag set', () => {
+  beforeEach(() => vi.stubEnv('DEMO_ORGANISER_ENABLED', 'true'));
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('still rejects an unassigned coordinator asking for clarification', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+
+    await expect(
+      service.createClarification(EVENT_ID, coordinator({ uid: 'someone-else' }), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  it('still rejects a non-owning organiser and an unassigned coordinator reading the thread', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEvent).mockResolvedValue(eventRow());
+
+    await expect(
+      service.listComments(EVENT_ID, organiser({ uid: 'someone-else' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.listComments(EVENT_ID, coordinator({ uid: 'someone-else' })),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.listComments).not.toHaveBeenCalled();
+  });
+
+  it('still rejects a non-owning organiser replying on an assigned event', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, organiser({ uid: 'someone-else' }), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+});

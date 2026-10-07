@@ -18,7 +18,10 @@ export interface User {
 }
 
 /** Checks every server-granted role, with a legacy fallback for test fixtures. */
-export function hasRole(user: Pick<User, "role"> & Partial<Pick<User, "roles">>, role: UserRole): boolean {
+export function hasRole(
+  user: Pick<User, "role"> & Partial<Pick<User, "roles">>,
+  role: UserRole,
+): boolean {
   return user.roles?.includes(role) ?? user.role === role;
 }
 
@@ -84,6 +87,8 @@ export interface EventRecord {
   availableRegistrationSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
+  /** SPM-46: who the current coordinator received the event from, and when. */
+  reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];
@@ -172,19 +177,34 @@ export interface EquipmentItem {
 export interface EquipmentRecord {
   id: string;
   name: string;
-  type: 'Audio' | 'Visual' | 'Furniture' | 'Lighting' | 'Other';
+  type: "Audio" | "Visual" | "Furniture" | "Lighting" | "Other";
   quantity: number;
-  maintenanceStatus: 'Active' | 'Under Maintenance' | 'Retired';
+  maintenanceStatus: "Active" | "Under Maintenance" | "Retired";
   location: string;
+  /** SPM-119: booking availability, independent of maintenanceStatus. Defaults to true. */
+  isAvailable?: boolean;
   createdAt: string;
   updatedAt: string;
 }
 
+/** SPM-119 AC5/AC7: one row of the shared equipment availability audit trail. */
+export interface EquipmentAuditEntry {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  equipmentType: EquipmentRecord["type"];
+  location: string;
+  maintenanceStatus: EquipmentRecord["maintenanceStatus"];
+  quantity: number;
+  isAvailable: boolean;
+  changeType: "Marked unavailable" | "Reactivated";
+  reason: string | null;
+  changedBy: string;
+  timestamp: string;
+}
+
 export type EquipmentRequestStatus =
-  | "requested"
-  | "checking"
-  | "reserved"
-  | "unavailable";
+  "requested" | "checking" | "reserved" | "unavailable";
 
 export interface EquipmentRequest {
   id: string;

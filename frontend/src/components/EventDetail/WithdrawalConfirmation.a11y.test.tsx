@@ -48,6 +48,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02-B Subtest C)", () => {
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (SPEC 02-B C): role dialog, aria-modal, accessible name = title; buttons expose role button + names.
   // Kills: dialog unlabeled; no modal semantics; button without a name.
   it("WITHDRAW-EVENT-REG-02-B: dialog semantics and button names", async () => {
@@ -59,6 +60,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(cancelButton().tagName).toBe("BUTTON");
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (D10 B, amends 02-B C): on open, focus is on Cancel.
   // Kills: focus not moved into the dialog (stays on the Withdraw button).
   it("WITHDRAW-EVENT-REG-02-B: initial focus is on Cancel", async () => {
@@ -67,6 +69,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(cancelButton()).toHaveFocus();
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (D10 B): Tab cycles Cancel -> Confirm -> Cancel; Shift+Tab reverses; focus never leaves the dialog.
   // Kills: M12 focus trap removed (focus escapes to the page behind).
   it("WITHDRAW-EVENT-REG-02-B: Tab and Shift+Tab are trapped inside the dialog", async () => {
@@ -87,6 +90,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(dialog).toContainElement(document.activeElement as HTMLElement);
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (D10 B + the trap's own rule, "pull focus back in if it ever left the dialog"): with focus on the page
   // behind, Tab lands on the first dialog button (Cancel) and Shift+Tab on the last (Confirm).
   // Starting points are chosen so the browser's own tab order would give a different answer: from <body> Tab would
@@ -112,6 +116,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     }
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (the component's own contract: "while the request is pending both buttons are disabled" and focus must
   // not escape to the page): with nothing focusable inside, focus stays on the dialog for Tab and Shift+Tab.
   // Kills: the "no focusable buttons" branch removed (Tab leaves the dialog while a withdrawal is pending).
@@ -133,6 +138,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (the component's contract: "while the request is pending both buttons are disabled and Escape does nothing"):
   // the withdrawal is in flight, so Escape must not close the dialog or start a second request.
   // Kills: M39 Escape cancelling the dialog while the withdrawal is still in flight.
@@ -151,6 +157,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (SPEC 02-B C, Escape = Cancel): closes with zero requests and focus returns to "Withdraw".
   // Kills: Escape ignored; Escape confirms; focus lost after close.
   it("WITHDRAW-EVENT-REG-02-B: Escape closes the dialog, sends nothing and restores focus", async () => {
@@ -163,6 +170,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
     expect(withdrawButton()).toHaveFocus();
   });
 
+  // WITHDRAW-EVENT-REG-02-B
   // Oracle (SPEC 02-B C): axe finds no violations in the open dialog (colour-contrast disabled for jsdom).
   // Kills: missing label, missing roles or names that axe can detect.
   it("WITHDRAW-EVENT-REG-02-B: axe reports no violations in the open dialog", async () => {

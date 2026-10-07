@@ -23,6 +23,7 @@ const period = { opensAt, closesAt };
 const at = (iso: string, offsetMs: number) => new Date(new Date(iso).getTime() + offsetMs);
 const valid = { fullName: "Alice Tan", email: "alice@example.com", contactNumber: "", specialRequirements: "" };
 
+// EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
 describe("EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants (period util)", () => {
   // [A] one second before opening, registration is not open.
   it("[A] 1s before open: not open", () => {
@@ -47,6 +48,7 @@ describe("EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants 
   });
 });
 
+// EVENT-REG-03-B, EVENT-REG-03-C
 describe("EVENT-REG-03-B / 03-C: client-side validation (AC3)", () => {
   // Required and malformed fields each produce a field message.
   it.each([
@@ -64,6 +66,7 @@ describe("EVENT-REG-03-B / 03-C: client-side validation (AC3)", () => {
   });
 });
 
+// EVENT-REG-03-BND-1
 describe("EVENT-REG-03-BND-1: shared limits", () => {
   // The frontend mirror must equal the backend constants (pinned on both sides).
   it("limit values match the backend mirror", () => {
@@ -142,6 +145,7 @@ describe("SPM-120 AC4: hasEventStarted (event start is an exclusive cut-off)", (
 });
 
 describe("SPM-120 AC5: formatSgtDateTime (the timeline's absolute SGT timestamp)", () => {
+  // WITHDRAW-EVENT-REG-05-E
   // Oracle (SPEC 05-E, as amended by the card redesign): the timeline shows "D Mon YYYY, HH:mm" in Singapore
   // time, with the SGT day, not the UTC day, deciding the date.
   // Kills: UTC day or hour shown instead of SGT (the first row crosses midnight between the two zones).
@@ -153,6 +157,7 @@ describe("SPM-120 AC5: formatSgtDateTime (the timeline's absolute SGT timestamp)
     expect(formatSgtDateTime(instant)).toBe(expected);
   });
 
+  // WITHDRAW-EVENT-REG-05-E
   // Oracle (DERIVED from the app's one date format, "12 Mar 2027"): every month is the fixed three-letter
   // name. The "en-GB" short form of September is "Sept" in newer ICU data, which is not the app format.
   // Kills: month names taken from Intl instead of a fixed table (September fails on current ICU).
@@ -185,6 +190,7 @@ describe("SPM-120 redesign: daysUntilLabel (footer 'Closes ... (N days)')", () =
 });
 
 describe("SPM-120 AC5/AC6: message literals", () => {
+  // WITHDRAW-EVENT-REG-05-A, WITHDRAW-EVENT-REG-06-B
   // Oracle (SPEC AC5, D8): the blocked message has no full stop; MSG-11 is built from the event name.
   // Kills: reworded blocked message; hard-coded event name in the success message.
   it("WITHDRAW-EVENT-REG-05-A / 06-B: exact literals", () => {

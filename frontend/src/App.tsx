@@ -9,6 +9,7 @@ import { RequireRole } from "@/components/auth/RequireRole";
 import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
+import { RegistrationReportPage } from "@/pages/RegistrationReportPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
 import { MyRequestsPage } from "@/pages/MyRequestsPage";
 import { EventEditPage } from "@/pages/EventEditPage";
@@ -22,6 +23,7 @@ import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
+import { AuditTrailPage } from "@/pages/AuditTrailPage";
 import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
@@ -67,6 +69,8 @@ export default function App() {
           </Route>
         </Route>
         <Route path="/events/:id" element={<EventDetailPage />} />
+        {/* SPM-63: access is decided by the server (MSG-08 on refusal), so no client role redirect here. */}
+        <Route path="/events/:id/registrations/report" element={<RegistrationReportPage />} />
         <Route element={<RequireAssignedCoordinator />}>
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
@@ -88,6 +92,7 @@ export default function App() {
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<EquipmentPage />} />
           <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+          <Route path="/equipment/audit-trail" element={<AuditTrailPage />} />
           <Route path="/equipment/create" element={<EquipmentCreatePage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
