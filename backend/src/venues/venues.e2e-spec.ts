@@ -898,5 +898,37 @@ describe.skipIf(!databaseUrl)(
         periods.rows.find((row) => row.id === unrelated.body.period.id),
       ).toMatchObject({ end_at: new Date(at(12, 13)), reason: 'Renovation' });
     });
+
+    // SPM-122 / VEN-UNAVAIL-05-A/B: ending one of two active periods must not restore availability.
+    it('keeps the venue unavailable while a second overlapping period remains active', async () => {
+      // Arrange two independently persisted blockouts that both contain the fixed clock.
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Overlapping Early End Venue' }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const at = (hour: number) => new Date(Date.UTC(2030, 0, 10, hour)).toISOString();
+      const first = await staff.post(`/api/venues/${id}/unavailable-periods`)
+        .send({ start: at(10), end: at(14), reason: 'Lighting repair' }).expect(201);
+      const second = await staff.post(`/api/venues/${id}/unavailable-periods`)
+        .send({ start: at(11), end: at(15), reason: 'Audio repair' }).expect(201);
+      const before = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(before.body.unavailablePeriods.filter((period: { current: boolean }) => period.current)).toHaveLength(2);
+
+      // Act: end only the first period through the real authenticated HTTP route.
+      await staff.post(`/api/venues/${id}/unavailable-periods/${first.body.period.id}/end`).expect(201);
+      const after = await staff.get(`/api/venues/${id}`).expect(200);
+      const persisted = await pool.query(
+        'SELECT id, end_at FROM venue_bookings WHERE venue_id = $1 AND status = $2',
+        [id, 'blocked'],
+      );
+
+      // Assert the second period still controls the venue's availability and retains its end.
+      expect(after.body.availabilityStatus).toBe('unavailable');
+      expect(after.body.unavailablePeriods).toEqual([
+        expect.objectContaining({ id: second.body.period.id, current: true, end: at(15) }),
+      ]);
+      expect(persisted.rows.find((row) => row.id === first.body.period.id)?.end_at).toEqual(fixedNow);
+      expect(persisted.rows.find((row) => row.id === second.body.period.id)?.end_at).toEqual(new Date(at(15)));
+    });
   },
 );

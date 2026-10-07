@@ -50,6 +50,33 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(onSaved).toHaveBeenCalledOnce();
   });
 
+  // SPM-122 / VEN-UNAVAIL-01-A/04-A: local date-time fields must preserve the user's time outside UTC.
+  it("sends Singapore local date-times as the corresponding UTC instants", async () => {
+    // Arrange a non-UTC runner timezone and a reviewed local afternoon interval.
+    vi.stubEnv("TZ", "Asia/Singapore");
+    try {
+      const user = userEvent.setup();
+      apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
+      renderPanel();
+      await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+      await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T15:00");
+      await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T18:00");
+      await user.type(screen.getByLabelText(/Reason/), "Maintenance");
+
+      // Act: confirm the displayed local interval and submit it.
+      await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+      expect(screen.getByText("Confirm unavailability for this venue from 12 Jan 2030, 3:00pm – 6:00pm. Reason: Maintenance")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
+
+      // Assert exact instants, including the eight-hour offset, rather than local getHours().
+      const sent = JSON.parse(apiMock.mock.calls[0][1]?.body as string) as { start: string; end: string };
+      expect(sent.start).toBe("2030-01-12T07:00:00.000Z");
+      expect(sent.end).toBe("2030-01-12T10:00:00.000Z");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   // VEN-UNAVAIL-03-A: cancellation before confirmation causes no write.
   it("cancels a reviewed period without saving", async () => {
     // Arrange a fully entered period.

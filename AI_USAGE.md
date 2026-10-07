@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-08 - Codex (GPT-6) - SPM-122 technical test gaps
+
+- Issue/PR: SPM-122 / [PR #53](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/53).
+- Human requester/operator: swr.
+- Areas touched: `frontend/src/pages/venue-records`, `frontend/playwright.config.ts`, `backend/src/venues`, `backend/scripts/testing`, and this ledger.
+- Summary: Added a real browser test for reviewing, confirming, saving, and reloading an unavailable period; an HTTP/PostgreSQL test for ending one of two simultaneously active periods; and a Singapore-timezone unit test for exact UTC payloads. The browser harness now cleans its unique venue fixture and tolerates a dedicated database without the unrelated `event_drafts` table. An optional Chrome path lets local runs use an installed browser when Playwright's bundled binary is absent.
+- AI contribution: Tests, fixture cleanup, local verification, and review.
+- Assumptions: The browser run uses a dedicated test database and seeded Venue Staff account. Overlapping periods remain permitted by the current story; ending one must leave the venue unavailable while another is active.
+- Checks run: Frontend venue-records 53/53 (including panel 16/16), venue HTTP/PostgreSQL 17/17, browser workflow 1/1, frontend/backend lint and builds passed; `git diff --check` passed.
+- Follow-up/conflict notes: This extends existing PR #53; no production behavior was changed and no mutation-test file was added.
+
 ## 2026-10-08 - Codex (GPT-6) - SPM-122 PR review fixes
 
 - Issue/PR: SPM-122 / [PR #53](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/53).
