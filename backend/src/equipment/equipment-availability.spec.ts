@@ -2,6 +2,15 @@
  * Story: SPM-119 Mark Equipment as Unavailable
  * ACs: AC1, AC2, AC5, AC6, AC7
  * Test cases: EQUIP-UNAVAIL-01-A, 02-A, 02-B, 05-A, 05-B, 07-A, 07-B, 07-SEC-1
+ * Hardening cases: EQUIP-UNAVAIL-02-VAL-01..05, 07-SEC-02..06
+ *
+ * Assumption index:
+ * - A1: Availability is independent of maintenance status. This follows the
+ *   SPM-119 migration, which models is_available separately from
+ *   maintenance_status; Retired and Under Maintenance are not rejected here.
+ * - A2: Repeating the same availability request remains an auditable action.
+ *   The story requires a history of availability changes but specifies no
+ *   conflict/no-op behaviour, so duplicate requests write distinct audit rows.
  *
  * RED tests: the availability service contract does not exist yet. The expected
  * values below come from the approved SPM-119 Confluence test cases, not the
@@ -22,6 +31,7 @@ const technician: AuthenticatedUser = {
   email: 'techsupport1@connectsphere.com',
   name: 'Technical Support 1',
 };
+const EQUIPMENT_ID = '11111111-1111-4111-8111-111111111119';
 const activeEquipment = {
   id: 'equipment-119',
   equipment_name: 'Light bulbs',
@@ -70,7 +80,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     // Act: a Technical Support user confirms the supplied unavailability reason.
     const result = await service.updateAvailability(
       technician,
-      'equipment-119',
+      EQUIPMENT_ID,
       {
         isAvailable: false,
         reason: 'Damaged during transport',
@@ -85,12 +95,12 @@ describe('SPM-119 EquipmentService availability changes', () => {
     expect(client.query).toHaveBeenNthCalledWith(
       1,
       expect.stringMatching(/FROM equipment[\s\S]*FOR UPDATE/i),
-      ['equipment-119'],
+      [EQUIPMENT_ID],
     );
     expect(client.query).toHaveBeenNthCalledWith(
       2,
       expect.stringMatching(/UPDATE equipment[\s\S]*is_available/i),
-      ['equipment-119', false],
+      [EQUIPMENT_ID, false],
     );
   });
 
@@ -105,7 +115,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
       .mockResolvedValueOnce({ rows: [] });
 
     // Act: submit the literal valid reason.
-    await service.updateAvailability(technician, 'equipment-119', {
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
       isAvailable: false,
       reason: 'Broken lens, sent for repair',
     });
@@ -129,7 +139,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
       .mockResolvedValueOnce({ rows: [] });
 
     // Act: mark it unavailable with the audit-case reason.
-    await service.updateAvailability(technician, 'equipment-119', {
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
       isAvailable: false,
       reason: 'Under repair',
     });
@@ -161,7 +171,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
       .mockResolvedValueOnce({ rows: [] });
 
     // Act: confirm a valid unavailability change.
-    await service.updateAvailability(technician, 'equipment-119', {
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
       isAvailable: false,
       reason: 'Faulty wiring detected',
     });
@@ -183,7 +193,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
       .mockResolvedValueOnce({ rows: [] });
 
     // Act: submit the case's known reason.
-    await service.updateAvailability(technician, 'equipment-119', {
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
       isAvailable: false,
       reason: 'Screen cracked',
     });
@@ -214,7 +224,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     // Act: reactivate the equipment using the PATCH payload specified by the case.
     const result = await service.updateAvailability(
       technician,
-      'equipment-119',
+      EQUIPMENT_ID,
       { isAvailable: true },
     );
 
@@ -238,7 +248,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
       .mockResolvedValueOnce({ rows: [] });
 
     // Act: reactivate it.
-    await service.updateAvailability(technician, 'equipment-119', {
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
       isAvailable: true,
     });
 
@@ -250,6 +260,81 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
+  // EQUIP-UNAVAIL-ASSUMP-01. Assumption A1: Retired equipment may still have an availability change recorded.
+  it('EQUIP-UNAVAIL-ASSUMP-01 records an availability change for Retired equipment', async () => {
+    // Arrange: a Retired item remains available but needs an auditably distinct availability state.
+    const retired = { ...activeEquipment, maintenance_status: 'Retired' };
+    client.query
+      .mockResolvedValueOnce({ rows: [retired] })
+      .mockResolvedValueOnce({ rows: [{ ...retired, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    // Act: mark the Retired equipment unavailable.
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
+      isAvailable: false,
+      reason: 'Removed from booking',
+    });
+
+    // Assert: maintenance status remains a recorded snapshot rather than an eligibility guard.
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/INSERT INTO equipment_audit_trail/i),
+      expect.arrayContaining(['Retired', 'Marked unavailable']),
+    );
+  });
+
+  // EQUIP-UNAVAIL-ASSUMP-02. Assumption A1: Under Maintenance uses the same independent availability model.
+  it('EQUIP-UNAVAIL-ASSUMP-02 records an availability change for Under Maintenance equipment', async () => {
+    // Arrange: an Under Maintenance item remains available but needs an auditably distinct availability state.
+    const underMaintenance = {
+      ...activeEquipment,
+      maintenance_status: 'Under Maintenance',
+    };
+    client.query
+      .mockResolvedValueOnce({ rows: [underMaintenance] })
+      .mockResolvedValueOnce({ rows: [{ ...underMaintenance, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    // Act: mark the Under Maintenance equipment unavailable.
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
+      isAvailable: false,
+      reason: 'Removed from booking',
+    });
+
+    // Assert: maintenance status remains a recorded snapshot rather than an eligibility guard.
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/INSERT INTO equipment_audit_trail/i),
+      expect.arrayContaining(['Under Maintenance', 'Marked unavailable']),
+    );
+  });
+
+  // EQUIP-UNAVAIL-ASSUMP-03. Assumption A2: repeated actions are separately auditable requests.
+  it('EQUIP-UNAVAIL-ASSUMP-03 records two audit events for repeated unavailable requests', async () => {
+    // Arrange: two otherwise identical actions target equipment that is already unavailable after the first.
+    client.query
+      .mockResolvedValueOnce({ rows: [activeEquipment] })
+      .mockResolvedValueOnce({ rows: [{ ...activeEquipment, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ ...activeEquipment, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [{ ...activeEquipment, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    // Act: submit the same mark-unavailable request twice.
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
+      isAvailable: false,
+      reason: 'Repeated availability update',
+    });
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
+      isAvailable: false,
+      reason: 'Repeated availability update',
+    });
+
+    // Assert: each requested change creates its own auditable event.
+    expect(client.query).toHaveBeenCalledTimes(6);
+    expect(client.query.mock.calls.filter(([query]) => /INSERT INTO equipment_audit_trail/i.test(query)).length).toBe(2);
+  });
+
   // EQUIP-UNAVAIL-02-B: both empty forms of the required reason are rejected before an update or audit write can occur.
   it.each(['', '   '])(
     'EQUIP-UNAVAIL-02-B rejects a %j unavailability reason without side effects',
@@ -258,7 +343,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
 
       // Act and assert: the validation boundary rejects the exact invalid value.
       await expect(
-        service.updateAvailability(technician, 'equipment-119', {
+        service.updateAvailability(technician, EQUIPMENT_ID, {
           isAvailable: false,
           reason,
         }),
@@ -267,6 +352,86 @@ describe('SPM-119 EquipmentService availability changes', () => {
       expect(client.query).not.toHaveBeenCalled();
     },
   );
+
+  // EQUIP-UNAVAIL-02-VAL-01: omitting a reason from an unavailable request is invalid.
+  it('EQUIP-UNAVAIL-02-VAL-01 rejects a missing unavailability reason', async () => {
+    // Arrange: an authenticated Technical Support user submits an incomplete request.
+
+    // Act and assert: validation rejects the request before persistence work starts.
+    await expect(
+      service.updateAvailability(technician, EQUIPMENT_ID, { isAvailable: false }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // EQUIP-UNAVAIL-02-VAL-02: an unavailability reason must be text.
+  it('EQUIP-UNAVAIL-02-VAL-02 rejects a non-string unavailability reason', async () => {
+    // Arrange: an authenticated Technical Support user submits a numeric reason.
+
+    // Act and assert: validation rejects the request before persistence work starts.
+    await expect(
+      service.updateAvailability(technician, EQUIPMENT_ID, { isAvailable: false, reason: 42 }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // EQUIP-UNAVAIL-02-VAL-03: availability must be an explicit boolean.
+  it('EQUIP-UNAVAIL-02-VAL-03 rejects a non-boolean availability flag', async () => {
+    // Arrange: an authenticated Technical Support user submits a string flag.
+
+    // Act and assert: validation rejects the request before persistence work starts.
+    await expect(
+      service.updateAvailability(technician, EQUIPMENT_ID, { isAvailable: 'false' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // EQUIP-UNAVAIL-02-VAL-04: the request body must be an object.
+  it('EQUIP-UNAVAIL-02-VAL-04 rejects a non-object availability payload', async () => {
+    // Arrange: an authenticated Technical Support user submits no object body.
+
+    // Act and assert: validation rejects the request before persistence work starts.
+    await expect(
+      service.updateAvailability(technician, EQUIPMENT_ID, null),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // EQUIP-UNAVAIL-02-VAL-05: reactivation ignores a reason because the action needs no explanation.
+  it('EQUIP-UNAVAIL-02-VAL accepts a reason with reactivation without storing it', async () => {
+    // Arrange: the selected equipment is currently unavailable.
+    client.query
+      .mockResolvedValueOnce({ rows: [{ ...activeEquipment, is_available: false }] })
+      .mockResolvedValueOnce({ rows: [{ ...activeEquipment, is_available: true }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    // Act: reactivate while sending an irrelevant reason.
+    await service.updateAvailability(technician, EQUIPMENT_ID, {
+      isAvailable: true,
+      reason: 'No longer relevant',
+    });
+
+    // Assert: the audit event is a reactivation and records no unavailability reason.
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/INSERT INTO equipment_audit_trail/i),
+      expect.arrayContaining(['Reactivated', null]),
+    );
+  });
+
+  // EQUIP-UNAVAIL-07-SEC-06: malformed IDs receive a client error before a database query.
+  it('EQUIP-UNAVAIL-07-SEC-06 rejects a malformed equipment ID without a transaction', async () => {
+    // Arrange: an otherwise valid Technical Support request targets a malformed ID.
+
+    // Act and assert: the API contract rejects it before touching PostgreSQL.
+    await expect(
+      service.updateAvailability(technician, 'not-a-uuid', {
+        isAvailable: false,
+        reason: 'Damaged during transport',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
 
   // EQUIP-UNAVAIL-07-SEC-1: no role other than Technical Support may change availability or write audit history.
   it.each(['ATTENDEE', 'ORGANISER'] as const)(
@@ -281,7 +446,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
 
       // Act and assert: authorization occurs before any transaction can begin.
       await expect(
-        service.updateAvailability(user, 'equipment-119', {
+        service.updateAvailability(user, EQUIPMENT_ID, {
           isAvailable: false,
           reason: 'test',
         }),
@@ -294,7 +459,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
   it('EQUIP-UNAVAIL-07-SEC-1 rejects an unauthenticated availability update without side effects', async () => {
     // Act and assert: the unauthenticated request cannot start a transaction.
     await expect(
-      service.updateAvailability(undefined, 'equipment-119', {
+      service.updateAvailability(undefined, EQUIPMENT_ID, {
         isAvailable: false,
         reason: 'test',
       }),

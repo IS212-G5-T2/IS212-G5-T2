@@ -7,7 +7,10 @@ import {
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEquipmentInput } from './equipment-input.js';
-import { validateAvailabilityInput } from './equipment-availability-input.js';
+import {
+  validateAvailabilityInput,
+  validateEquipmentAvailabilityId,
+} from './equipment-availability-input.js';
 
 type EquipmentRow = {
   id: string;
@@ -119,8 +122,11 @@ export class EquipmentService {
     equipmentId: string,
     body: unknown,
   ) {
+    // Authorization deliberately precedes input validation so rejected roles
+    // cannot use validation responses to probe this protected route.
     const actor = requireTechnicalSupport(user);
     const input = validateAvailabilityInput(body);
+    validateEquipmentAvailabilityId(equipmentId);
 
     return this.database.transaction(async (client) => {
       const current = await client.query<EquipmentRow>(

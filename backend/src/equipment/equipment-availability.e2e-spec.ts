@@ -12,11 +12,21 @@ describe('SPM-119 equipment availability (e2e)', () => {
   let userIds: string[];
   let equipmentIds: string[];
   let auditFailureTriggerInstalled: boolean;
+  let testCreatedCoordinatorLeadRole: boolean;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+    // Fresh SPM-119 databases may predate the SPM-123 Lead migration; create
+    // the role only for this test and remove it after the suite if we created it.
+    const result = await pool.query(
+      "INSERT INTO roles (id, name, description) VALUES (6, 'COORDINATOR_LEAD', 'SPM-119 integration-test role') ON CONFLICT DO NOTHING",
+    );
+    testCreatedCoordinatorLeadRole = result.rowCount === 1;
   });
   afterAll(async () => {
+    if (testCreatedCoordinatorLeadRole) {
+      await pool.query('DELETE FROM roles WHERE id = 6');
+    }
     await pool.end();
   });
   beforeEach(async () => {
@@ -131,6 +141,32 @@ describe('SPM-119 equipment availability (e2e)', () => {
         changedBy: actor.email,
       }),
     );
+  });
+
+  // EQUIP-UNAVAIL-02-B: invalid unavailability reasons return HTTP 400 without changing equipment or history.
+  it('EQUIP-UNAVAIL-02-B rejects an empty reason without persisting an equipment or audit change', async () => {
+    // Arrange: record the persisted state before an invalid Technical Support request.
+    const actor = await createUser('TECH_SUPPORT', 'empty-reason');
+    const equipmentId = await createEquipment(true, 'Reason validation projector');
+
+    // Act: omit the required reason while marking the equipment unavailable.
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: '' })
+      .expect(400);
+
+    // Assert: the failed input leaves both tables unchanged.
+    const equipment = await pool.query<{ is_available: boolean }>(
+      'SELECT is_available FROM equipment WHERE id = $1',
+      [equipmentId],
+    );
+    const audit = await pool.query(
+      'SELECT id FROM equipment_audit_trail WHERE equipment_id = $1',
+      [equipmentId],
+    );
+    expect(equipment.rows).toEqual([{ is_available: true }]);
+    expect(audit.rows).toEqual([]);
   });
 
   // EQUIP-UNAVAIL-04-C: opting in with includeUnavailable reveals unavailable equipment.
@@ -357,6 +393,136 @@ describe('SPM-119 equipment availability (e2e)', () => {
     },
   );
 
+  // EQUIP-UNAVAIL-07-SEC-02: every non-Technical-Support role is denied before state changes.
+  it('EQUIP-UNAVAIL-07-SEC-02 denies every other defined role', async () => {
+    // Arrange: each forbidden account targets its own available record.
+    const roles = [
+      'ATTENDEE',
+      'ORGANISER',
+      'COORDINATOR',
+      'VENUE_STAFF',
+      'COORDINATOR_LEAD',
+    ] as const;
+    const actors = await Promise.all(
+      roles.map((role, index) => createUser(role, `forbidden-${index}`)),
+    );
+    const equipment = await Promise.all(
+      actors.map((_, index) => createEquipment(true, `Forbidden role ${index}`)),
+    );
+
+    // Act: each non-Technical-Support account attempts the protected mutation.
+    await Promise.all(
+      actors.map((actor, index) =>
+        request(app.getHttpServer())
+          .patch(`/api/equipment/${equipment[index]}/availability`)
+          .set('Cookie', actor.cookie)
+          .send({ isAvailable: false, reason: 'test' })
+          .expect(403),
+      ),
+    );
+
+    // Assert: no rejected request changes availability or creates audit history.
+    const state = await pool.query<{ id: string; is_available: boolean }>(
+      'SELECT id, is_available FROM equipment WHERE id = ANY($1::uuid[]) ORDER BY id',
+      [equipment],
+    );
+    const audit = await pool.query(
+      'SELECT id FROM equipment_audit_trail WHERE equipment_id = ANY($1::uuid[])',
+      [equipment],
+    );
+    expect(state.rows).toHaveLength(equipment.length);
+    expect(state.rows.every((row) => row.is_available)).toBe(true);
+    expect(audit.rows).toEqual([]);
+
+    // Assert: a role-less account cannot obtain a session for the protected route.
+    const password = 'password123';
+    const email = `no-role-${randomUUID()}@example.test`;
+    const created = await pool.query<{ id: string }>(
+      "INSERT INTO users (email, display_name, password_hash) VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id",
+      [email, 'No role', password],
+    );
+    userIds.push(created.rows[0].id);
+
+    await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email, password })
+      .expect(401);
+  });
+
+  // EQUIP-UNAVAIL-07-SEC-03: audit history requires the same Technical Support authorization as mutation routes.
+  it('EQUIP-UNAVAIL-07-SEC-03 rejects unauthenticated and forbidden audit-trail reads', async () => {
+    // Arrange: a non-Technical-Support user has a valid session.
+    const forbidden = await createUser('COORDINATOR', 'audit-forbidden');
+
+    // Act and assert: absent and insufficient credentials receive distinct HTTP responses.
+    await request(app.getHttpServer()).get('/api/equipment/audit-trail').expect(401);
+    await request(app.getHttpServer())
+      .get('/api/equipment/audit-trail')
+      .set('Cookie', forbidden.cookie)
+      .expect(403);
+  });
+
+  // EQUIP-UNAVAIL-07-SEC-04: authorization is evaluated before malformed input is disclosed.
+  it('EQUIP-UNAVAIL-07-SEC-04 returns authorization errors before validation errors', async () => {
+    // Arrange: one forbidden session and one unauthenticated request target valid equipment.
+    const forbidden = await createUser('COORDINATOR', 'authorization-order');
+    const equipmentId = await createEquipment(true, 'Authorization order projector');
+
+    // Act and assert: the invalid payload cannot turn an authorization failure into a 400.
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', forbidden.cookie)
+      .send({ isAvailable: 'not-a-boolean' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .send({ isAvailable: 'not-a-boolean' })
+      .expect(401);
+  });
+
+  // EQUIP-UNAVAIL-07-SEC-05: client-controlled audit actor fields cannot forge the stored actor.
+  it('EQUIP-UNAVAIL-07-SEC-05 ignores a forged changedBy field and records the session user', async () => {
+    // Arrange: a valid Technical Support session targets available equipment.
+    const actor = await createUser('TECH_SUPPORT', 'forged-actor');
+    const equipmentId = await createEquipment(true, 'Forged actor projector');
+
+    // Act: submit a request body containing an untrusted actor value.
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({
+        isAvailable: false,
+        reason: 'Damaged during transport',
+        changedBy: 'attacker@example.test',
+      })
+      .expect(200);
+
+    // Assert: the persisted entry is attributed only to the authenticated session.
+    const audit = await pool.query<{ changed_by: string }>(
+      'SELECT changed_by FROM equipment_audit_trail WHERE equipment_id = $1',
+      [equipmentId],
+    );
+    expect(audit.rows).toEqual([{ changed_by: actor.email }]);
+  });
+
+  // EQUIP-UNAVAIL-07-SEC-06: malformed and unknown IDs have deliberate client-facing errors.
+  it('EQUIP-UNAVAIL-07-SEC-06 returns 400 for a malformed ID and 404 for an unknown UUID', async () => {
+    // Arrange: an authorized actor targets nonexistent identifiers.
+    const actor = await createUser('TECH_SUPPORT', 'missing-equipment');
+
+    // Act and assert: neither invalid target is forwarded to an availability write.
+    await request(app.getHttpServer())
+      .patch('/api/equipment/not-a-uuid/availability')
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Damaged during transport' })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${randomUUID()}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Damaged during transport' })
+      .expect(404);
+  });
+
   async function createEquipment(
     isAvailable: boolean,
     name: string,
@@ -385,7 +551,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
   // fact, which would make the account's real email diverge from whatever
   // the caller later hard-codes in an assertion. Matches the pattern already
   // used by every other `*.e2e-spec.ts` helper in this codebase.
-  async function createUser(role: string, emailPrefix: string) {
+  async function createUser(role: string | string[], emailPrefix: string) {
     const password = 'password123';
     const email = `${emailPrefix}-${randomUUID()}@example.test`;
     const created = await pool.query<{ id: string }>(
@@ -394,8 +560,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
     userIds.push(created.rows[0].id);
     await pool.query(
-      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2',
-      [created.rows[0].id, role],
+      'INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])',
+      [created.rows[0].id, Array.isArray(role) ? role : [role]],
     );
     const login = await request(app.getHttpServer())
       .post('/api/auth/login')

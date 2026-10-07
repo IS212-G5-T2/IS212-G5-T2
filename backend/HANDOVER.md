@@ -95,6 +95,13 @@ to fail). Reactivating never requires a reason; marking unavailable always
 does (`equipment-availability-input.ts`). `list()` filters out unavailable
 records by default; `includeUnavailable=true` opts back in. The audit trail is
 shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
+The availability route authorizes before validating its body, derives
+`changed_by` only from the verified session, and validates the path ID before
+querying PostgreSQL: malformed IDs are 400 and unknown UUIDs are 404. The
+explicit SPM-119 assumption index in `equipment-availability.spec.ts` records
+that availability remains independent of maintenance status and that repeated
+same-state requests remain separately auditable; neither behaviour is defined
+by the Jira story as a conflict/no-op rule.
 Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
 Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
 for a database with `database/postgresql/init/001` through `009` applied.
@@ -103,7 +110,7 @@ for a database with `database/postgresql/init/001` through `009` applied.
 assert against, matching the pattern every other `*.e2e-spec.ts` helper in
 this codebase already uses. (An earlier version instead mangled a
 caller-supplied literal email after insertion, so the session's real email
-never matched the literal four tests asserted against; fixed.) All 11 of 11
+never matched the literal four tests asserted against; fixed.) All 17 of 17
 cases in that file pass against a real database, including the 07-A rollback
 and both 07-SEC-1 role-guard cases. `EQUIP-UNAVAIL-01-A` and `05-A`'s equipment
 fixtures use the exact Confluence literals (`'Lighting'`, quantity `50`) via
