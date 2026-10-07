@@ -199,6 +199,26 @@ describe("VenueRecordsPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // SPM-124: all venues remains the default, while My venues is an explicit server-derived scope.
+  it("SPM-124-REG-AC1-C: switches between the shared catalogue and My venues", async () => {
+    apiMock
+      .mockResolvedValueOnce([base, second])
+      .mockResolvedValueOnce([base]);
+    const user = userEvent.setup();
+
+    renderPage();
+    await screen.findByRole("link", { name: "Conference Room" });
+
+    expect(screen.getByLabelText("Catalogue")).toHaveValue("all");
+    expect(apiMock).toHaveBeenCalledWith("/venues");
+
+    await user.selectOptions(screen.getByLabelText("Catalogue"), "mine");
+
+    expect(await screen.findByRole("link", { name: "Conference Room" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Auditorium" })).not.toBeInTheDocument();
+    expect(apiMock).toHaveBeenLastCalledWith("/venues?mine=true");
+  });
+
   // VEN-VIEW-04-A (AC4): an active blockout makes its venue unavailable with a reason.
   it("VEN-VIEW-04-A: shows the current unavailable period and Maintenance reason", async () => {
     // Arrange: the API has already classified the fixed-time active period.

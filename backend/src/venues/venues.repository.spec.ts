@@ -198,8 +198,8 @@ describe('SPM-124 venue reads', () => {
 
   beforeEach(() => vi.resetAllMocks());
 
-  // SPM-124: staff list queries are owner-scoped and include schedule data.
-  it('scopes lists by owner and maps schedule information', async () => {
+  // SPM-124: My venues queries are owner-scoped and include schedule data.
+  it('scopes an explicit My venues query by owner and maps schedule information', async () => {
     readQuery
       .mockResolvedValueOnce({ rows: [{ ...row, id }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -254,8 +254,8 @@ describe('SPM-124 venue reads', () => {
     });
   });
 
-  // SPM-124: detail reads apply the same owner predicate and return no fabricated record.
-  it('gets one owner-scoped record or undefined when SQL finds none', async () => {
+  // SPM-124: a readable venue detail is not restricted merely because the reader also owns venues.
+  it('gets one shared-catalogue record or undefined when SQL finds none', async () => {
     readQuery
       .mockResolvedValueOnce({ rows: [{ ...row, id }] })
       .mockResolvedValueOnce({ rows: [] })
@@ -263,8 +263,8 @@ describe('SPM-124 venue reads', () => {
       .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository({ query: readQuery } as unknown as DatabaseService);
 
-    const record = await repository.get(id, owner);
-    const missing = await repository.get('00000000-0000-4000-8000-000000000999', owner);
+    const record = await repository.get(id);
+    const missing = await repository.get('00000000-0000-4000-8000-000000000999');
 
     expect(record).toEqual({
       ...venue,
@@ -274,7 +274,8 @@ describe('SPM-124 venue reads', () => {
       reservations: [],
     });
     expect(missing).toBeUndefined();
-    expect(readQuery.mock.calls[0][0]).toContain('v.id = $1::uuid AND v.owner_user_id = $2::uuid');
-    expect(readQuery.mock.calls[0][1]).toEqual([id, owner]);
+    expect(readQuery.mock.calls[0][0]).toContain('v.id = $1::uuid');
+    expect(readQuery.mock.calls[0][0]).not.toContain('v.owner_user_id');
+    expect(readQuery.mock.calls[0][1]).toEqual([id]);
   });
 });

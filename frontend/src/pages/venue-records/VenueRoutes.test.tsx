@@ -107,6 +107,31 @@ describe("venue routes (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  // A dual-role account must retain the coordinator booking flow instead of being downgraded to staff records.
+  it("SPM-124-REG-AC1-C: keeps the coordinator catalogue for a Coordinator and Venue Staff account", () => {
+    useAppStore.setState({
+      isAuthenticated: true,
+      authLoading: false,
+      currentUser: {
+        id: "test-dual-role",
+        name: "dual-role",
+        email: "dual-role@example.test",
+        role: "coordinator",
+        roles: ["coordinator", "venue_staff"],
+      },
+      restoreAuthSession: vi.fn().mockResolvedValue(undefined),
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/venues"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Coordinator planning catalogue")).toBeInTheDocument();
+    expect(screen.queryByText("Persistent staff catalogue")).not.toBeInTheDocument();
+  });
+
   // AC1 security: roles outside the venue read policy cannot render staff records.
   it.each(["organiser", "attendee"] as const)(
     "SPM-124-REG-AC1-B: denies %s access to the persisted venue catalogue",

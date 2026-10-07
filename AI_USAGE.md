@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-07 - Codex (GPT-5) - Align SPM-124 catalogue scope with Jira AC1
+
+- Issue/PR: SPM-124 / branch `feature/SPM-124-View-Venue-Records-Venue-Staff`.
+- Human requester/operator: swr.
+- Areas touched: `backend/src/venues/`, `frontend/src/pages/venue-records/`, `frontend/src/App.tsx`, component documentation, changelogs, and `AI_USAGE.md`.
+- Summary: Changed Venue Staff reads from implicit owner-only access to a shared catalogue by default. Added the session-derived `?mine=true` API scope and the **All venues/My venues** selector. Direct venue details now follow the shared read permission, and Coordinator + Venue Staff accounts retain the coordinator booking flow.
+- AI contribution: Cross-boundary API/UI contract implementation, unit/component/integration-test updates, and documentation.
+- Assumptions: “My venues” means venues owned by the authenticated user; it is an optional filter, not an authorization boundary. All roles granted `Venue:read` may access the shared catalogue.
+- Checks run: backend venue unit suites — 21/21 passed; frontend SPM-124 venue-record suites — 25/25 passed; full backend unit suite — 695/695 passed; full frontend unit suite — 564 passed, 1 existing todo; backend and frontend production builds passed. Venue HTTP/PostgreSQL E2E was discovered but skipped because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: No commit, push, pull request, Jira, or Confluence update was made.
+
 ## 2026-10-06 - Codex (GPT-6) - Close SPM-124 review gaps
 
 - Issue/PR: SPM-124 / no PR yet

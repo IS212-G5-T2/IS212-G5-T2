@@ -93,23 +93,17 @@ export class VenuesService {
     }
   }
 
-  async list(user: AuthenticatedUser | undefined) {
-    const ownerId = await this.authorizeRead(user);
-    return this.repository.list(ownerId);
+  /** Lists every readable venue, or only the session user's venues when requested. */
+  async list(user: AuthenticatedUser | undefined, mine = false) {
+    const identity = await this.authorize(user, 'read');
+    return this.repository.list(mine ? identity.uid : undefined);
   }
 
   async get(user: AuthenticatedUser | undefined, id: string) {
-    const ownerId = await this.authorizeRead(user);
+    await this.authorize(user, 'read');
     if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
-    const venue = await this.repository.get(id, ownerId);
+    const venue = await this.repository.get(id);
     if (!venue) throw new NotFoundException('Venue not found.');
     return venue;
-  }
-
-  private async authorizeRead(
-    user: AuthenticatedUser | undefined,
-  ): Promise<string | undefined> {
-    const identity = await this.authorize(user, 'read');
-    return identity.roles.includes('VENUE_STAFF') ? identity.uid : undefined;
   }
 }

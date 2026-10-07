@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
@@ -16,8 +16,8 @@ export class VenuesController {
   constructor(private readonly venues: VenuesService) {}
 
   @Get()
-  list(@Req() request: AuthenticatedRequest) {
-    return this.venues.list(request[CURRENT_USER_REQUEST_KEY]);
+  list(@Req() request: AuthenticatedRequest, @Query('mine') mine?: string) {
+    return this.venues.list(request[CURRENT_USER_REQUEST_KEY], mine === 'true');
   }
 
   @Get(':id')

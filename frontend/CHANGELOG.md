@@ -3,7 +3,8 @@
 ## Unreleased
 
 - Added SPM-124 Venue Staff catalogue and detail views backed by the venue read
-  API. Image cards support search, sorting, availability reasons, bookings,
+  API. The catalogue defaults to all readable venues and offers a **My venues**
+  filter. Image cards support search, sorting, availability reasons, bookings,
   tentative holds, and whole-card navigation to venue details.
 - Added a re-runnable mutation check for the SPM-120 withdraw UI (`scripts/testing/mutation`) and tests for the dialog's Escape-while-pending and double-activation paths, unexpected withdrawal failures, a failed reload after a 409, and Withdraw on a cancelled event. Tests and tooling only; no behaviour change.
 

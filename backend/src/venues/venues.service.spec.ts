@@ -174,24 +174,26 @@ describe('SPM-50 venue service', () => {
     expect(create).toHaveBeenCalledWith('both', venueInput);
   });
 
-  // SPM-124: Venue Staff reads are restricted to the verified owner ID.
-  it('scopes Venue Staff catalogue reads to their verified user ID', async () => {
+  // SPM-124: the normal catalogue is shared; My venues alone derives an owner scope from the session.
+  it('returns the shared catalogue by default and scopes only an explicit My venues request', async () => {
     const records = [{ id: venue.id }];
     list.mockResolvedValue(records);
 
     await expect(service.list(staff)).resolves.toBe(records);
+    await expect(service.list(staff, true)).resolves.toBe(records);
 
-    expect(list).toHaveBeenCalledWith(staff.uid);
+    expect(list).toHaveBeenNthCalledWith(1, undefined);
+    expect(list).toHaveBeenNthCalledWith(2, staff.uid);
     expect(hasPermission).toHaveBeenCalledWith('VENUE_STAFF', 'Venue', 'read');
   });
 
-  // SPM-124: Coordinators retain full read access and a staff role takes precedence on dual-role accounts.
-  it('gives Coordinators the full catalogue while dual-role staff remain scoped', async () => {
+  // SPM-124: a second role must never reduce a Coordinator's read access.
+  it('keeps the shared catalogue for Coordinators and dual-role accounts', async () => {
     await service.list(coordinator);
     await service.list({ uid: 'dual-role', roles: ['COORDINATOR', 'VENUE_STAFF'] });
 
     expect(list).toHaveBeenNthCalledWith(1, undefined);
-    expect(list).toHaveBeenNthCalledWith(2, 'dual-role');
+    expect(list).toHaveBeenNthCalledWith(2, undefined);
   });
 
   // SPM-124: malformed and missing detail identifiers use the same not-found result.
@@ -203,6 +205,6 @@ describe('SPM-50 venue service', () => {
     await expect(
       service.get(staff, '00000000-0000-4000-8000-000000000124'),
     ).rejects.toMatchObject({ status: 404 });
-    expect(get).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000124', staff.uid);
+    expect(get).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000124');
   });
 });

@@ -374,8 +374,8 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
-    // SPM-124 read contract: real SQL determines ownership, holds, blockouts and schedule impact at a frozen instant.
-    it('reads scoped venue schedules with active, expired and buffer-only records', async () => {
+    // SPM-124 read contract: real SQL supplies the shared catalogue, with an explicit session-derived My venues filter.
+    it('reads shared venue schedules and supports My venues with active, expired and buffer-only records', async () => {
       // Arrange: create two owners' venues and all schedule variants around the injected clock.
       const staff = await authenticate(staffEmail);
       const otherStaff = await authenticate(secondStaffEmail);
@@ -426,18 +426,21 @@ describe.skipIf(!databaseUrl)(
         [mineId, at(10), at(13), at(22), at(23), at(8), at(9), at(17, 40), at(17, 45), at(21, 15), at(21, 45)],
       );
 
-      // Act: read anonymously, as a denied attendee, as each staff owner, and as a coordinator.
+      // Act: read anonymously, as a denied attendee, and through shared and My venues staff views.
       await request(app.getHttpServer()).get('/api/venues').expect(401);
       await attendee.get('/api/venues').expect(403);
       const staffList = await staff.get('/api/venues').expect(200);
+      const staffMineList = await staff.get('/api/venues?mine=true').expect(200);
       const coordinatorList = await coordinator.get('/api/venues').expect(200);
       const detail = await staff.get(`/api/venues/${mineId}`).expect(200);
-      await staff.get(`/api/venues/${otherId}`).expect(404);
+      await staff.get(`/api/venues/${otherId}`).expect(200);
       await staff.get('/api/venues/00000000-0000-4000-8000-000000000999').expect(404);
 
-      // Assert: owner scope and the SQL-derived schedule rules are all visible through HTTP.
+      // Assert: the catalogue is shared by default; My venues alone is restricted by the server session.
       expect(staffList.body.some((record: { id: string }) => record.id === mineId)).toBe(true);
-      expect(staffList.body.some((record: { id: string }) => record.id === otherId)).toBe(false);
+      expect(staffList.body.some((record: { id: string }) => record.id === otherId)).toBe(true);
+      expect(staffMineList.body.some((record: { id: string }) => record.id === mineId)).toBe(true);
+      expect(staffMineList.body.some((record: { id: string }) => record.id === otherId)).toBe(false);
       expect(coordinatorList.body.map((record: { id: string }) => record.id)).toEqual(
         expect.arrayContaining([mineId, otherId]),
       );

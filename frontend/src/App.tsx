@@ -40,12 +40,12 @@ function RootRedirect() {
 
 function VenueCatalogueRoute() {
   const user = useAppStore((state) => state.currentUser);
-  return hasRole(user, "venue_staff") ? <VenueRecordsPage /> : <VenuesPage />;
+  return hasRole(user, "coordinator") ? <VenuesPage /> : <VenueRecordsPage />;
 }
 
 function VenueDetailRoute() {
   const user = useAppStore((state) => state.currentUser);
-  return hasRole(user, "venue_staff") ? <VenueRecordDetailPage /> : <VenueDetailPage />;
+  return hasRole(user, "coordinator") ? <VenueDetailPage /> : <VenueRecordDetailPage />;
 }
 
 export default function App() {

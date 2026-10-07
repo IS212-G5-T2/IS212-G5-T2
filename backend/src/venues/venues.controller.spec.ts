@@ -26,19 +26,19 @@ describe('SPM-50 venue route wiring', () => {
     expect(VenuesModule).toBeDefined();
   });
 
-  // SPM-124: both read routes forward only the verified identity and requested ID.
-  it('forwards catalogue and detail reads to the service', () => {
+  // SPM-124: catalogue scope is an explicit flag; identity stays server-verified.
+  it('forwards catalogue scope and detail reads to the service', () => {
     // Arrange: service results make each delegated read distinguishable.
     service.list.mockReturnValue(['catalogue']);
     service.get.mockReturnValue('detail');
     const id = '00000000-0000-4000-8000-000000000124';
 
     // Act: invoke the controller methods used by the protected HTTP routes.
-    expect(controller.list(request)).toEqual(['catalogue']);
+    expect(controller.list(request, 'true')).toEqual(['catalogue']);
     expect(controller.get(request, id)).toBe('detail');
 
     // Assert: no caller-controlled identity is substituted.
-    expect(service.list).toHaveBeenCalledWith(identity);
+    expect(service.list).toHaveBeenCalledWith(identity, true);
     expect(service.get).toHaveBeenCalledWith(identity, id);
   });
 });

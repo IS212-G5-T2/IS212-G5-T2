@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { TextInput } from "@/components/ui/FormControls";
+import { Select, TextInput } from "@/components/ui/FormControls";
 import { api } from "@/utils/api";
 import { VenueRecordCard } from "./VenueRecordCard";
 import {
@@ -22,13 +22,18 @@ export function VenueRecordsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [revision, setRevision] = useState(0);
+  const [catalogueScope, setCatalogueScope] = useState<"all" | "mine">("all");
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<VenueSortKey>("name");
   const [descending, setDescending] = useState(false);
 
   useEffect(() => {
     let active = true;
-    api<VenueRecord[]>("/venues").then(
+    setLoading(true);
+    setError(false);
+    api<VenueRecord[]>(
+      catalogueScope === "mine" ? "/venues?mine=true" : "/venues",
+    ).then(
       (records) => {
         if (active) {
           setVenues(records);
@@ -46,7 +51,7 @@ export function VenueRecordsPage() {
     return () => {
       active = false;
     };
-  }, [revision]);
+  }, [revision, catalogueScope]);
 
   const displayed = useMemo(
     () => visibleVenues(venues, query, sortKey, descending),
@@ -67,7 +72,16 @@ export function VenueRecordsPage() {
         title="Venue Catalogue"
         description="View venue details, availability, bookings, and tentative holds."
       />
-      <div className="mb-4 max-w-md">
+      <div className="mb-4 grid max-w-2xl gap-4 sm:grid-cols-2">
+        <Select
+          label="Catalogue"
+          value={catalogueScope}
+          onChange={(event) => setCatalogueScope(event.target.value as "all" | "mine")}
+          options={[
+            { value: "all", label: "All venues" },
+            { value: "mine", label: "My venues" },
+          ]}
+        />
         <TextInput
           label="Search by name or location"
           value={query}

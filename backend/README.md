@@ -177,9 +177,10 @@ test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
 ### Venue Staff catalogue (SPM-124)
 
-`GET /api/venues` and `GET /api/venues/:id` require `Venue:read`. Venue Staff
-receive only venues whose `owner_user_id` matches their verified session;
-Coordinators receive the full catalogue. Responses include venue fields, image,
+`GET /api/venues` and `GET /api/venues/:id` require `Venue:read` and return the
+shared catalogue to every authorized reader. `GET /api/venues?mine=true` narrows
+the list to venues whose `owner_user_id` matches the verified session; no client
+owner ID is accepted. Responses include venue fields, image,
 current and scheduled staff blockouts, approved bookings, and active pending
 holds. A booking is marked affected when a blockout overlaps its occupied
 setup-to-turnaround period. Apply migration `009_venue_availability.sql` after
