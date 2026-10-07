@@ -35,12 +35,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentAvailabilityPage } from "./EquipmentAvailabilityPage";
 import type { EquipmentRecord } from "@/types";
 
-const { getEquipment, navigate } = vi.hoisted(() => ({
-  getEquipment: vi.fn(),
-  navigate: vi.fn(),
-}));
+const { getEquipment, updateEquipmentAvailability, navigate } = vi.hoisted(
+  () => ({
+    getEquipment: vi.fn(),
+    updateEquipmentAvailability: vi.fn(),
+    navigate: vi.fn(),
+  }),
+);
 
-vi.mock("@/utils/equipment-api", () => ({ getEquipment }));
+vi.mock("@/utils/equipment-api", () => ({
+  getEquipment,
+  updateEquipmentAvailability,
+}));
 vi.mock("react-router-dom", () => ({ useNavigate: () => navigate }));
 
 /**
@@ -64,6 +70,7 @@ function makeRecord(overrides: Partial<EquipmentRecord> & { id: string }): Equip
 
 beforeEach(() => {
   getEquipment.mockReset();
+  updateEquipmentAvailability.mockReset();
   navigate.mockReset();
 });
 
@@ -466,5 +473,306 @@ describe("EquipmentAvailabilityPage: AC2 see all record fields", () => {
     expect(screen.getByText("10")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("Storage Room A")).toBeInTheDocument();
+  });
+});
+
+/*
+ * SPM-119 Mark Equipment as Unavailable — RED component tests.
+ * Covers: AC1–AC4 and AC6.
+ * Test cases: EQUIP-UNAVAIL-01-A, 01-B, 02-A, 02-B, 03-A, 04-A, 04-B, 04-C, 06-A, 06-B.
+ * The literals below are the approved Confluence test-case oracles. This file
+ * intentionally fails until the SPM-119 availability UI and API client exist.
+ */
+type AvailabilityRecord = EquipmentRecord & { isAvailable: boolean };
+function availableRecord(
+  overrides: Partial<AvailabilityRecord> & { id: string },
+): AvailabilityRecord {
+  return { ...makeRecord(overrides), isAvailable: true, ...overrides };
+}
+
+describe("SPM-119 EquipmentAvailabilityPage", () => {
+  // EQUIP-UNAVAIL-01-B: an available row exposes only the unavailable action.
+  it("EQUIP-UNAVAIL-01-B renders Mark unavailable only for an available row", async () => {
+    // Arrange: the opt-in availability list contains one row in each state.
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "available-light", name: "Light bulbs" }),
+      availableRecord({
+        id: "unavailable-projector",
+        name: "Broken projector",
+        isAvailable: false,
+      }),
+    ]);
+
+    // Act: reveal unavailable records.
+    const user = userEvent.setup();
+    render(<EquipmentAvailabilityPage />);
+    await user.click(
+      await screen.findByRole("checkbox", { name: /show unavailable/i }),
+    );
+
+    // Assert: the available row has its permitted action and no reactivation action.
+    const availableRow = screen.getByText("Light bulbs").closest("tr");
+    const unavailableRow = screen.getByText("Broken projector").closest("tr");
+    expect(availableRow).toHaveTextContent("Mark unavailable");
+    expect(availableRow).not.toHaveTextContent("Reactivate");
+    expect(unavailableRow).toBeInTheDocument();
+  });
+
+  // EQUIP-UNAVAIL-06-B: an unavailable row exposes only the reactivation action.
+  it("EQUIP-UNAVAIL-06-B renders Reactivate only for an unavailable row", async () => {
+    // Arrange: the opt-in list contains an unavailable equipment row.
+    getEquipment.mockResolvedValue([availableRecord({ id: "broken-projector", name: "Broken projector", isAvailable: false })]);
+
+    // Act: reveal unavailable equipment.
+    const user = userEvent.setup();
+    render(<EquipmentAvailabilityPage />);
+    await user.click(await screen.findByRole("checkbox", { name: /show unavailable/i }));
+
+    // Assert: the unavailable row shows only Reactivate.
+    const unavailableRow = screen.getByText("Broken projector").closest("tr");
+    expect(unavailableRow).toHaveTextContent("Reactivate");
+    expect(unavailableRow).not.toHaveTextContent("Mark unavailable");
+  });
+
+  // EQUIP-UNAVAIL-01-A: confirmation changes an available row and removes it from the default list.
+  it("EQUIP-UNAVAIL-01-A marks Light bulbs unavailable after confirmation", async () => {
+    // Arrange: an available Light bulbs record can be changed successfully.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({
+        id: "light-bulbs",
+        name: "Light bulbs",
+        type: "Lighting",
+        location: "Tampines",
+      }),
+    ]);
+    updateEquipmentAvailability.mockResolvedValue({
+      equipment: availableRecord({
+        id: "light-bulbs",
+        name: "Light bulbs",
+        isAvailable: false,
+      }),
+    });
+    render(<EquipmentAvailabilityPage />);
+
+    // Act: open the confirmation dialog and provide the specified reason.
+    await user.click(
+      await screen.findByRole("button", { name: /mark unavailable/i }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: /reason/i }),
+      "Damaged during transport",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /^mark unavailable$/i }),
+    );
+
+    // Assert: the API receives the literal payload and the default list no longer contains the record.
+    expect(updateEquipmentAvailability).toHaveBeenCalledWith("light-bulbs", {
+      isAvailable: false,
+      reason: "Damaged during transport",
+    });
+    expect(screen.queryByText("Light bulbs")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Equipment marked unavailable.",
+    );
+  });
+
+  // EQUIP-UNAVAIL-02-A: the dialog passes the supplied reason through unchanged.
+  it("EQUIP-UNAVAIL-02-A submits the specified unavailability reason", async () => {
+    // Arrange: an available projector is ready for a valid reason.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "projector", name: "Projector" }),
+    ]);
+    updateEquipmentAvailability.mockResolvedValue({
+      equipment: availableRecord({
+        id: "projector",
+        name: "Projector",
+        isAvailable: false,
+      }),
+    });
+    render(<EquipmentAvailabilityPage />);
+
+    // Act: submit the exact reason from the Confluence case.
+    await user.click(
+      await screen.findByRole("button", { name: /mark unavailable/i }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: /reason/i }),
+      "Broken lens, sent for repair",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /^mark unavailable$/i }),
+    );
+
+    // Assert: the API contract preserves the literal reason text.
+    expect(updateEquipmentAvailability).toHaveBeenCalledWith("projector", {
+      isAvailable: false,
+      reason: "Broken lens, sent for repair",
+    });
+  });
+
+  // EQUIP-UNAVAIL-02-B: the client stops empty and whitespace-only reasons before making an API call.
+  it.each(["", "   "])(
+    "EQUIP-UNAVAIL-02-B shows the exact validation error for a %j reason and does not submit",
+    async (reason) => {
+      // Arrange: an available record is selected for an invalid submission.
+      const user = userEvent.setup();
+      getEquipment.mockResolvedValue([
+        availableRecord({ id: "light-bulbs", name: "Light bulbs" }),
+      ]);
+      render(<EquipmentAvailabilityPage />);
+      await user.click(
+        await screen.findByRole("button", { name: /mark unavailable/i }),
+      );
+      if (reason)
+        await user.type(
+          screen.getByRole("textbox", { name: /reason/i }),
+          reason,
+        );
+
+      // Act: confirm without a substantive reason.
+      await user.click(
+        screen.getByRole("button", { name: /^mark unavailable$/i }),
+      );
+
+      // Assert: the defined client-side message appears and persistence is untouched.
+      expect(screen.getByText("Enter a reason first")).toBeInTheDocument();
+      expect(updateEquipmentAvailability).not.toHaveBeenCalled();
+    },
+  );
+
+  // EQUIP-UNAVAIL-03-A: cancellation is a pure UI operation and discards its draft input.
+  it("EQUIP-UNAVAIL-03-A closes Cancel without an API call and reopens with an empty reason", async () => {
+    // Arrange: an operator has typed but not confirmed an unavailability reason.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "light-bulbs", name: "Light bulbs" }),
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    await user.click(
+      await screen.findByRole("button", { name: /mark unavailable/i }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: /reason/i }),
+      "Damaged",
+    );
+
+    // Act: cancel then reopen the dialog.
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    await user.click(screen.getByRole("button", { name: /mark unavailable/i }));
+
+    // Assert: nothing was persisted, the record remains visible, and the draft is cleared.
+    expect(updateEquipmentAvailability).not.toHaveBeenCalled();
+    expect(screen.getByText("Light bulbs")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: /reason/i })).toHaveValue("");
+  });
+
+  // EQUIP-UNAVAIL-04-A: default discovery excludes unavailable equipment.
+  it("EQUIP-UNAVAIL-04-A hides unavailable equipment from the default list", async () => {
+    // Arrange: the inventory contains one record in each availability state.
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "light-bulbs", name: "Light bulbs" }),
+      availableRecord({ id: "broken-projector", name: "Broken projector", isAvailable: false }),
+    ]);
+
+    // Act: load the page without changing its default toggle state.
+    render(<EquipmentAvailabilityPage />);
+
+    // Assert: only available equipment is initially discoverable.
+    expect(await screen.findByText("Light bulbs")).toBeInTheDocument();
+    expect(screen.queryByText("Broken projector")).not.toBeInTheDocument();
+  });
+
+  // EQUIP-UNAVAIL-04-B: a matching type filter cannot reveal an unavailable result.
+  it("EQUIP-UNAVAIL-04-B excludes unavailable Visual equipment from type-search results", async () => {
+    // Arrange: an available record and unavailable decoy share the Visual type.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "harini", name: "Harini", type: "Visual", location: "Tampines" }),
+      availableRecord({ id: "broken-projector", name: "Broken projector", type: "Visual", location: "Tampines", isAvailable: false }),
+    ]);
+    render(<EquipmentAvailabilityPage />);
+
+    // Act: filter by the shared type.
+    await user.type(await screen.findByRole("searchbox", { name: /search by type/i }), "Visual");
+
+    // Assert: only the available matching record remains visible.
+    expect(screen.getByText("Harini")).toBeInTheDocument();
+    expect(screen.queryByText("Broken projector")).not.toBeInTheDocument();
+  });
+
+  // EQUIP-UNAVAIL-04-C: explicit opt-in reveals unavailable rows with their distinct state affordances.
+  it("EQUIP-UNAVAIL-04-C reveals unavailable equipment with Show unavailable", async () => {
+    // Arrange: a real Visual match and an unavailable Visual decoy share the same location.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({
+        id: "harini",
+        name: "Harini",
+        type: "Visual",
+        location: "Tampines",
+      }),
+      availableRecord({
+        id: "broken-projector",
+        name: "Broken projector",
+        type: "Visual",
+        location: "Tampines",
+        isAvailable: false,
+      }),
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    // Act: turn on the unavailable opt-in.
+    await user.click(
+      screen.getByRole("checkbox", { name: /show unavailable/i }),
+    );
+
+    // Assert: the previously excluded row returns as a clearly unavailable, reactivateable row.
+    const unavailableRow = screen.getByText("Broken projector").closest("tr");
+    expect(unavailableRow).toHaveTextContent("No");
+    expect(unavailableRow).toHaveTextContent("Reactivate");
+    expect(unavailableRow).toHaveClass(/opacity-/);
+    expect(getEquipment).toHaveBeenLastCalledWith({ includeUnavailable: true });
+  });
+
+  // EQUIP-UNAVAIL-06-A: reactivation returns the record to the default list and swaps its action.
+  it("EQUIP-UNAVAIL-06-A reactivates Broken projector and restores Mark unavailable", async () => {
+    // Arrange: the unavailable record is visible only through the opt-in toggle.
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({
+        id: "broken-projector",
+        name: "Broken projector",
+        isAvailable: false,
+      }),
+    ]);
+    updateEquipmentAvailability.mockResolvedValue({
+      equipment: availableRecord({
+        id: "broken-projector",
+        name: "Broken projector",
+        isAvailable: true,
+      }),
+    });
+    render(<EquipmentAvailabilityPage />);
+    await user.click(
+      await screen.findByRole("checkbox", { name: /show unavailable/i }),
+    );
+
+    // Act: confirm reactivation.
+    await user.click(screen.getByRole("button", { name: /reactivate/i }));
+    await user.click(screen.getByRole("button", { name: /^reactivate$/i }));
+
+    // Assert: the resulting availability state makes it a normal default-list row again.
+    expect(updateEquipmentAvailability).toHaveBeenCalledWith(
+      "broken-projector",
+      { isAvailable: true },
+    );
+    expect(
+      screen.getByText("Broken projector").closest("tr"),
+    ).toHaveTextContent("Mark unavailable");
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Equipment reactivated.",
+    );
   });
 });
