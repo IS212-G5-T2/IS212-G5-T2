@@ -4,7 +4,7 @@
 
 - SPM-46: a reassigned event shows a "Reassigned" label and "from <coordinator>"
   on its card, and the assigned coordinator sees "Reassigned to you from
-  <coordinator> on <date>" on the event page, plus a "Change requests (N)" link.
+  <coordinator> on <date>" on the event page.
   A previous coordinator sees why they can no longer open the event. The
   coordinator's notification panel is now headed "Assignment updates" (it also
   lists events reassigned away).

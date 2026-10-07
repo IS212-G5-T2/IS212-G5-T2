@@ -1,7 +1,7 @@
 // SPM-46 View a Reassigned Event: the event page for a coordinator who received
 // an event by reassignment, and for one who lost it.
 // ACs: AC2 (from whom and when), AC3 (full context), AC4 (clear message after it moves away).
-// Test cases: REASN-VIEW-02-G, 02-H, 03-A, 03-B, 04-C.
+// Test cases: REASN-VIEW-02-G, 02-H, 03-A, 04-C.
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -142,39 +142,6 @@ describe("SPM-46 AC3: the full context", () => {
     expect(within(screen.getByLabelText("Event status timeline")).getByText(/Approved/i)).toBeInTheDocument();
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/events/event-1/comments"));
     expect(await screen.findAllByText("Is the stage still needed?")).not.toHaveLength(0);
-  });
-
-  // The page points the assigned coordinator to the event's change requests.
-  it("REASN-VIEW-03-B shows the assigned coordinator the number of change requests with a link, and not the organiser", async () => {
-    // Arrange: the event carries two change requests; Coordinator 2 opens it.
-    const changeRequests = ["cr-1", "cr-2"].map((id) => ({
-      id,
-      eventId: "event-1",
-      requestedBy: "organiser-1",
-      summary: "Move the start",
-      fields: ["date_time" as const],
-      reason: "Clash",
-      status: "pending" as const,
-      createdAt: "2026-10-02T09:00:00.000Z",
-    }));
-    serve(reassignedEvent({ changeRequests }));
-    const { unmount } = renderPage();
-
-    // Assert: a link with the count, to the change-requests page.
-    expect(await screen.findByRole("link", { name: "Change requests (2)" })).toHaveAttribute(
-      "href",
-      "/events/event-1/change-requests",
-    );
-    unmount();
-
-    // Arrange + Act: the organiser opens the same event.
-    useAppStore.setState({ currentUser: organiser });
-    serve(reassignedEvent({ changeRequests }));
-    renderPage();
-
-    // Assert: no change-requests link for them.
-    await screen.findByRole("heading", { name: "Community Welcome Evening" });
-    expect(screen.queryByRole("link", { name: /Change requests/ })).not.toBeInTheDocument();
   });
 });
 

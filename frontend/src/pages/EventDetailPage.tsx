@@ -224,12 +224,6 @@ export function EventDetailPage() {
                 Review Event
               </Button>
             )}
-            {/* SPM-46 AC3: the coordinator can reach the event's change requests. */}
-            {isAssignedCoordinator && (
-              <Link to={`/events/${event.id}/change-requests`}>
-                <Button variant="secondary">{`Change requests (${event.changeRequests.length})`}</Button>
-              </Link>
-            )}
             {isAssignedCoordinator && ["approved", "planning"].includes(event.status) && (
               <Link to={`/venues?eventId=${event.id}`}>
                 <Button variant="secondary">Search Venues</Button>
