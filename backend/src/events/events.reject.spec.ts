@@ -108,7 +108,6 @@ let service: EventsService;
 
 beforeEach(async () => {
   vi.resetAllMocks();
-  vi.stubEnv('DEMO_ORGANISER_ENABLED', 'true');
   db.transaction.mockResolvedValue({ rows: [] });
   database.transaction.mockImplementation(async (work) => {
     await db.transaction('BEGIN');

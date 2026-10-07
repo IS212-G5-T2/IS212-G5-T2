@@ -109,9 +109,8 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
 
 `src/events` owns submission validation and the API. Local schema initialization
 belongs to `database/`; production migrations remain outside this
-ticket. The `DEMO_ORGANISER_ENABLED` switch must be replaced by authenticated
-server identity integration before multi-user use. Never trust an organiser ID
-or status supplied by the client. Keep the nested TypeScript 5 lock entry when
+ticket. Identity always comes from the signed-in session (`request.currentUser`);
+there is no demo identity. Never trust an organiser ID or status supplied by the client. Keep the nested TypeScript 5 lock entry when
 using local npm 11; Docker npm 10 requires it.
 
 ## Coordinator clarification/amendment requests (SPM-39)
@@ -132,15 +131,12 @@ Known gaps to close before this is fully production-ready:
 - Coordinators are assigned by the Event Coordinator Lead (SPM-123, see
   below); the old open `POST /api/events/:id/assign` and the store's mock
   `assignCoordinator` were removed.
-- **`EventsService.identity()` still returns a single hardcoded demo
-  organiser** (`DEMO_ORGANISER_ENABLED`) for every caller regardless of the
-  real authenticated Firebase user, and every event created today has
-  `organiser_id = 'current-user'`. The clarification reply endpoint's
-  ownership check (`events.organiser_id === currentUser.uid`) is real and
-  correct, but it will only match a real Firebase-authenticated organiser
-  once `EventsService` is migrated off that demo identity — see the
-  "Event persistence" note above. Until then, only rows seeded/updated with a
-  real uid as `organiser_id` can exercise the reply endpoint end-to-end.
+- **Seeded events are owned by `organiser_id = 'current-user'`**, a leftover
+  of the pre-login demo identity (`002_seed_data.sql`), so no real organiser
+  sees them and the ownership checks (`events.organiser_id === currentUser.uid`,
+  `events.coordinator_id === currentUser.uid`) never match for them. Events
+  created through the API carry the real session uid. Re-point seeded rows
+  at a real account to exercise those flows locally.
 - The `notifications` table is new and intentionally minimal (insert +
   per-recipient read), scoped to clarification/clarification-reply events
   only. It does not replace the frontend's broader mock notification system
