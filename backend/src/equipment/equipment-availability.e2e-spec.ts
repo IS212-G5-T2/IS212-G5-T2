@@ -147,7 +147,10 @@ describe('SPM-119 equipment availability (e2e)', () => {
   it('EQUIP-UNAVAIL-02-B rejects an empty reason without persisting an equipment or audit change', async () => {
     // Arrange: record the persisted state before an invalid Technical Support request.
     const actor = await createUser('TECH_SUPPORT', 'empty-reason');
-    const equipmentId = await createEquipment(true, 'Reason validation projector');
+    const equipmentId = await createEquipment(
+      true,
+      'Reason validation projector',
+    );
 
     // Act: omit the required reason while marking the equipment unavailable.
     await request(app.getHttpServer())
@@ -254,6 +257,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       location: 'Tampines',
       maintenanceStatus: 'Active',
       quantity: 50,
+      isAvailable: false,
       changeType: 'Marked unavailable',
       reason: 'Under repair',
       changedBy: actor.email,
@@ -264,6 +268,45 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(new Date(entry.timestamp).getTime()).toBeLessThanOrEqual(
       Date.now() + 5_000,
     );
+  });
+
+  // EQUIP-UNAVAIL-ASSUMP-03: same-state requests are conflicts and are not audit events.
+  it('EQUIP-UNAVAIL-ASSUMP-03 returns 409 for repeated availability states without duplicate audit rows', async () => {
+    // Arrange: one record starts available and another starts unavailable.
+    const actor = await createUser('TECH_SUPPORT', 'same-state');
+    const availableId = await createEquipment(
+      true,
+      'Already available projector',
+    );
+    const unavailableId = await createEquipment(
+      false,
+      'Already unavailable projector',
+    );
+
+    // Act and assert: neither same-state request is accepted as a change.
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${availableId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: true })
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.message).toBe('Equipment is already available.'),
+      );
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${unavailableId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Repeated request' })
+      .expect(409)
+      .expect(({ body }) =>
+        expect(body.message).toBe('Equipment is already unavailable.'),
+      );
+
+    // Assert: rejected repeats do not create misleading audit history.
+    const audit = await pool.query(
+      'SELECT id FROM equipment_audit_trail WHERE equipment_id = ANY($1::uuid[])',
+      [[availableId, unavailableId]],
+    );
+    expect(audit.rows).toEqual([]);
   });
 
   // EQUIP-UNAVAIL-05-B: reactivation appends a distinct event after the original mark-unavailable event.
@@ -393,6 +436,110 @@ describe('SPM-119 equipment availability (e2e)', () => {
     },
   );
 
+  // M1: Reactivation always writes false -> Stored availability after reactivating
+  it('EQUIP-UNAVAIL-01-C stores true when reactivating', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'm1-test');
+    const equipmentId = await createEquipment(false, 'M1 Test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: true })
+      .expect(200);
+    const state = await pool.query(
+      'SELECT is_available FROM equipment WHERE id = $1',
+      [equipmentId],
+    );
+    expect(state.rows[0].is_available).toBe(true);
+  });
+
+  // M2: Audit is_available column always true -> The API doesn't expose the column, and nothing queries it
+  it('EQUIP-UNAVAIL-01-D stores false in the audit trail when marking unavailable', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'm2-test');
+    const equipmentId = await createEquipment(true, 'M2 Test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Test' })
+      .expect(200);
+    const audit = await pool.query(
+      'SELECT is_available FROM equipment_audit_trail WHERE equipment_id = $1',
+      [equipmentId],
+    );
+    expect(audit.rows[0].is_available).toBe(false);
+  });
+
+  // M6: Reason saved untrimmed -> A padded reason such as "  Under repair  "
+  it('EQUIP-UNAVAIL-02-B trims a padded reason before saving', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'm6-test');
+    const equipmentId = await createEquipment(true, 'M6 Test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: '  Under repair  ' })
+      .expect(200);
+    const audit = await pool.query(
+      'SELECT reason FROM equipment_audit_trail WHERE equipment_id = $1',
+      [equipmentId],
+    );
+    expect(audit.rows[0].reason).toBe('Under repair');
+  });
+
+  // M9: Reactivation stores a submitted reason -> Reactivation audit has a null reason
+  it('EQUIP-UNAVAIL-02-C stores a null reason when reactivating even if one was submitted', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'm9-test');
+    const equipmentId = await createEquipment(false, 'M9 Test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: true, reason: 'Should be ignored' })
+      .expect(200);
+    const audit = await pool.query(
+      'SELECT reason FROM equipment_audit_trail WHERE equipment_id = $1',
+      [equipmentId],
+    );
+    expect(audit.rows[0].reason).toBeNull();
+  });
+
+  // M11: Missing reason field accepted -> Missing or non-string reason
+  it('EQUIP-UNAVAIL-02-D rejects a missing or non-string reason when marking unavailable', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'm11-test');
+    const equipmentId = await createEquipment(true, 'M11 Test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false })
+      .expect(400);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 123 })
+      .expect(400);
+  });
+
+  // Retired records can be marked unavailable -> no test pins it
+  it('EQUIP-UNAVAIL-03-A allows marking a Retired record as unavailable', async () => {
+    const actor = await createUser('TECH_SUPPORT', 'retired-test');
+    const equipmentId = await createEquipment(true, 'Retired Test', {
+      maintenanceStatus: 'Retired',
+    });
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Retired item broken' })
+      .expect(200);
+  });
+
+  // M5: Validate before authorise -> Forbidden user sending an invalid body gets 403, not 400
+  // M7: Unknown-ID check removed -> 404 for an unknown ID
+  it('EQUIP-UNAVAIL-07-SEC-07 returns 403 for a forbidden user sending a malformed ID', async () => {
+    const forbidden = await createUser('COORDINATOR', 'm5-id-test');
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/not-a-uuid/availability`)
+      .set('Cookie', forbidden.cookie)
+      .send({ isAvailable: false, reason: 'test' })
+      .expect(403);
+  });
+
   // EQUIP-UNAVAIL-07-SEC-02: every non-Technical-Support role is denied before state changes.
   it('EQUIP-UNAVAIL-07-SEC-02 denies every other defined role', async () => {
     // Arrange: each forbidden account targets its own available record.
@@ -407,7 +554,9 @@ describe('SPM-119 equipment availability (e2e)', () => {
       roles.map((role, index) => createUser(role, `forbidden-${index}`)),
     );
     const equipment = await Promise.all(
-      actors.map((_, index) => createEquipment(true, `Forbidden role ${index}`)),
+      actors.map((_, index) =>
+        createEquipment(true, `Forbidden role ${index}`),
+      ),
     );
 
     // Act: each non-Technical-Support account attempts the protected mutation.
@@ -455,7 +604,9 @@ describe('SPM-119 equipment availability (e2e)', () => {
     const forbidden = await createUser('COORDINATOR', 'audit-forbidden');
 
     // Act and assert: absent and insufficient credentials receive distinct HTTP responses.
-    await request(app.getHttpServer()).get('/api/equipment/audit-trail').expect(401);
+    await request(app.getHttpServer())
+      .get('/api/equipment/audit-trail')
+      .expect(401);
     await request(app.getHttpServer())
       .get('/api/equipment/audit-trail')
       .set('Cookie', forbidden.cookie)
@@ -466,7 +617,10 @@ describe('SPM-119 equipment availability (e2e)', () => {
   it('EQUIP-UNAVAIL-07-SEC-04 returns authorization errors before validation errors', async () => {
     // Arrange: one forbidden session and one unauthenticated request target valid equipment.
     const forbidden = await createUser('COORDINATOR', 'authorization-order');
-    const equipmentId = await createEquipment(true, 'Authorization order projector');
+    const equipmentId = await createEquipment(
+      true,
+      'Authorization order projector',
+    );
 
     // Act and assert: the invalid payload cannot turn an authorization failure into a 400.
     await request(app.getHttpServer())

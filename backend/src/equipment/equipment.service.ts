@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -32,6 +33,7 @@ type AuditTrailRow = {
   location: string;
   maintenance_status: string;
   quantity: number;
+  is_available: boolean;
   change_type: string;
   reason: string | null;
   changed_by: string;
@@ -69,6 +71,7 @@ function toAuditEntry(row: AuditTrailRow) {
     location: row.location,
     maintenanceStatus: row.maintenance_status,
     quantity: row.quantity,
+    isAvailable: row.is_available,
     changeType: row.change_type,
     reason: row.reason,
     changedBy: row.changed_by,
@@ -89,14 +92,28 @@ export class EquipmentService {
       `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location)
        VALUES ($1, $2, $3, $4, $5)
        RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at`,
-      [input.name, input.type, input.quantity, input.maintenanceStatus, input.location],
+      [
+        input.name,
+        input.type,
+        input.quantity,
+        input.maintenanceStatus,
+        input.location,
+      ],
     );
-    return { equipment: toEquipment(result.rows[0]), message: 'Equipment record created.' };
+    return {
+      equipment: toEquipment(result.rows[0]),
+      message: 'Equipment record created.',
+    };
   }
 
-  async list(user: AuthenticatedUser | undefined, options?: { includeUnavailable?: boolean }) {
+  async list(
+    user: AuthenticatedUser | undefined,
+    options?: { includeUnavailable?: boolean },
+  ) {
     requireTechnicalSupport(user);
-    const availabilityClause = options?.includeUnavailable ? '' : 'WHERE is_available = true';
+    const availabilityClause = options?.includeUnavailable
+      ? ''
+      : 'WHERE is_available = true';
     const result = await this.database.query<EquipmentRow>(
       `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at
        FROM equipment ${availabilityClause} ORDER BY created_at DESC`,
@@ -136,6 +153,13 @@ export class EquipmentService {
       );
       const before = current.rows[0];
       if (!before) throw new NotFoundException('Equipment record not found.');
+      if (before.is_available === input.isAvailable) {
+        throw new ConflictException(
+          input.isAvailable
+            ? 'Equipment is already available.'
+            : 'Equipment is already unavailable.',
+        );
+      }
 
       const updated = await client.query<EquipmentRow>(
         `UPDATE equipment SET is_available = $2, updated_at = now()
@@ -144,7 +168,9 @@ export class EquipmentService {
         [equipmentId, input.isAvailable],
       );
 
-      const changeType = input.isAvailable ? 'Reactivated' : 'Marked unavailable';
+      const changeType = input.isAvailable
+        ? 'Reactivated'
+        : 'Marked unavailable';
       await client.query(
         `INSERT INTO equipment_audit_trail
            (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by)
@@ -171,7 +197,7 @@ export class EquipmentService {
   async getAuditTrail(user: AuthenticatedUser | undefined) {
     requireTechnicalSupport(user);
     const result = await this.database.query<AuditTrailRow>(
-      `SELECT id, equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, change_type, reason, changed_by, changed_at
+      `SELECT id, equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by, changed_at
        FROM equipment_audit_trail ORDER BY changed_at DESC`,
     );
     return result.rows.map(toAuditEntry);

@@ -24,6 +24,7 @@ function makeEntry(
     location: "Tampines",
     maintenanceStatus: "Active",
     quantity: 50,
+    isAvailable: false,
     changeType: "Marked unavailable",
     reason: "Under repair",
     changedBy: "techsupport1@connectsphere.com",
@@ -51,9 +52,12 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(screen.getByText("Tampines")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
     expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getByText("Marked unavailable")).toBeInTheDocument();
     expect(screen.getByText("Under repair")).toBeInTheDocument();
-    expect(screen.getByText("techsupport1@connectsphere.com")).toBeInTheDocument();
+    expect(
+      screen.getByText("techsupport1@connectsphere.com"),
+    ).toBeInTheDocument();
   });
 
   // EQUIP-UNAVAIL-05-B: a reactivation is visibly distinct from marking unavailable.
@@ -64,6 +68,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
         id: "audit-05-b",
         equipmentName: "Broken projector",
         changeType: "Reactivated",
+        isAvailable: true,
         reason: null,
       }),
     ]);
@@ -74,6 +79,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     // Assert: the event label and intentionally absent reason are both rendered.
     expect(await screen.findByText("Broken projector")).toBeInTheDocument();
     expect(screen.getByText("Reactivated")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
@@ -81,7 +87,10 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
   it("EQUIP-UNAVAIL-05-C displays audit entries created by different technicians", async () => {
     // Arrange: the API returns shared history containing two distinct actors.
     getEquipmentAuditTrail.mockResolvedValue([
-      makeEntry({ id: "audit-author", changedBy: "techsupport1@connectsphere.com" }),
+      makeEntry({
+        id: "audit-author",
+        changedBy: "techsupport1@connectsphere.com",
+      }),
       makeEntry({
         id: "audit-reader",
         equipmentId: "equipment-120",
@@ -94,8 +103,12 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     render(<AuditTrailPage />);
 
     // Assert: no client-side actor filter hides another technician's history.
-    expect(await screen.findByText("techsupport1@connectsphere.com")).toBeInTheDocument();
-    expect(screen.getByText("techsupport2@connectsphere.com")).toBeInTheDocument();
+    expect(
+      await screen.findByText("techsupport1@connectsphere.com"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("techsupport2@connectsphere.com"),
+    ).toBeInTheDocument();
     expect(screen.getByText("Shared projector")).toBeInTheDocument();
   });
 });

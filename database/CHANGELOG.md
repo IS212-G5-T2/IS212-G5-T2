@@ -18,7 +18,7 @@ existing databases must use backend migrations for upgrades.
 
 ## 2026-10-07 - SPM-119 equipment availability and audit trail
 
-- Added `009_spm119_equipment_availability.sql`: `equipment.is_available`
+- Added `010_spm119_equipment_availability.sql`: `equipment.is_available`
   (boolean, default `true`), the `equipment_audit_trail` table, and their
   indexes. Additive and idempotent; applied to the shared local Compose
   volume without a reset.

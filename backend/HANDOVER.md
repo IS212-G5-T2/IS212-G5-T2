@@ -97,14 +97,15 @@ records by default; `includeUnavailable=true` opts back in. The audit trail is
 shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
 The availability route authorizes before validating its body, derives
 `changed_by` only from the verified session, and validates the path ID before
-querying PostgreSQL: malformed IDs are 400 and unknown UUIDs are 404. The
-explicit SPM-119 assumption index in `equipment-availability.spec.ts` records
-that availability remains independent of maintenance status and that repeated
-same-state requests remain separately auditable; neither behaviour is defined
-by the Jira story as a conflict/no-op rule.
+querying PostgreSQL: malformed IDs are 400 and unknown UUIDs are 404. A request
+for the equipment's current availability is rejected with 409 and creates no
+audit row, because the history represents actual state transitions. Audit API
+rows expose the resulting `isAvailable` value. Availability remains independent
+of maintenance status, so Retired and Under Maintenance records can still have
+their separate availability changed and audited.
 Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
 Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
-for a database with `database/postgresql/init/001` through `009` applied.
+for a database with `database/postgresql/init/001` through `010` applied.
 `createUser(role, emailPrefix)` generates its unique email upfront
 (`${emailPrefix}-${randomUUID()}@example.test`) and returns it for callers to
 assert against, matching the pattern every other `*.e2e-spec.ts` helper in

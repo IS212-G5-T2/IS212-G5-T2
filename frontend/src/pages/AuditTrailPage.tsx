@@ -8,7 +8,11 @@ function formatTimestamp(value: string): string {
   return new Date(value).toLocaleString();
 }
 
-function ChangeTypeBadge({ changeType }: { changeType: EquipmentAuditEntry["changeType"] }) {
+function ChangeTypeBadge({
+  changeType,
+}: {
+  changeType: EquipmentAuditEntry["changeType"];
+}) {
   const isReactivated = changeType === "Reactivated";
   return (
     <span
@@ -44,7 +48,11 @@ export function AuditTrailPage() {
   const columns: Column<EquipmentAuditEntry>[] = [
     {
       header: "Timestamp",
-      render: (entry) => <span className="whitespace-nowrap">{formatTimestamp(entry.timestamp)}</span>,
+      render: (entry) => (
+        <span className="whitespace-nowrap">
+          {formatTimestamp(entry.timestamp)}
+        </span>
+      ),
     },
     {
       header: "Equipment name",
@@ -71,6 +79,10 @@ export function AuditTrailPage() {
       render: (entry) => entry.quantity,
     },
     {
+      header: "Availability",
+      render: (entry) => (entry.isAvailable ? "Available" : "Unavailable"),
+    },
+    {
       header: "Change",
       render: (entry) => <ChangeTypeBadge changeType={entry.changeType} />,
     },
@@ -80,7 +92,9 @@ export function AuditTrailPage() {
     },
     {
       header: "Changed by",
-      render: (entry) => <span className="whitespace-nowrap">{entry.changedBy}</span>,
+      render: (entry) => (
+        <span className="whitespace-nowrap">{entry.changedBy}</span>
+      ),
     },
   ];
 
@@ -91,7 +105,10 @@ export function AuditTrailPage() {
         description="History of all equipment availability changes."
       />
       {loadError ? (
-        <p role="alert" className="text-sm text-danger-600 dark:text-danger-400">
+        <p
+          role="alert"
+          className="text-sm text-danger-600 dark:text-danger-400"
+        >
           Unable to load the audit trail. Please try again.
         </p>
       ) : (
