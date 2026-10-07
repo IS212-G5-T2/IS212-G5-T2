@@ -235,6 +235,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     pool.query<{ count: number }>('SELECT COUNT(*)::integer AS count FROM event_registrations').then((r) => r.rows[0].count);
 
   describe('AC1: a manager can view the registration report', () => {
+    // VIEW-REG-INFO-01-A
     // Oracle (SPEC 01-A): COO-01 assigned to EVT-101 gets 200 with exactly REG-9007 then REG-9001, in registration-date
     // order; REG-9003 (Withdrawn) is absent. This is the case's own fixture: two Confirmed rows and one Withdrawn.
     // Kills: assignment lookup on the wrong column (the real coordinator is refused); Withdrawn row included.
@@ -253,6 +254,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(body.totalConfirmed).toBe(2);
     });
 
+    // VIEW-REG-INFO-01-B
     // Oracle (SPEC 01-B): EVT-101 shows 3 rows; EVT-105 (Data Science Meetup, capacity 2) shows Ben Lim and Dev Patel;
     // EVT-101 again shows 3. The event name and capacity come from each event.
     // Kills: report not keyed by event id (a stale or shared result); capacity not read per event.
@@ -278,6 +280,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect([third.event.name, third.registrations.length]).toEqual(['Tech Talk: Cloud 101', 3]);
     });
 
+    // VIEW-REG-INFO-01-C
     // Oracle (SPEC 01-C): the owning organiser gets the same 200 body as the coordinator; no sentinel internal data;
     // the event keys are exactly the D16 allowlist and the registration keys exactly the six of D2.
     // Kills: M14 the event row spread into the response; ownership not honoured; a registration key added (idempotency
@@ -305,6 +308,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC2: the report states how many attendees are registered', () => {
+    // VIEW-REG-INFO-02-A
     // Oracle (SPEC 02-A, R5): 3 Confirmed + 1 Withdrawn, capacity 50 -> totalConfirmed 3, availableSpots 47, 3 rows.
     // Kills: count taken from all rows (4); capacity arithmetic wrong; Withdrawn counted.
     it('VIEW-REG-INFO-02-A: counts Confirmed only and derives the available spots', async () => {
@@ -321,6 +325,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(body.event.capacity).toBe(50);
     });
 
+    // VIEW-REG-INFO-02-A-BND
     // Oracle (ASSUMED A10, D5): availableSpots never goes below zero. Two registrations on a capacity-1 event
     // (inserted directly, as a data fix could) still report 0 available, not -1.
     // Kills: the clamp removed.
@@ -338,6 +343,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect([body.totalConfirmed, body.availableSpots]).toEqual([2, 0]);
     });
 
+    // VIEW-REG-INFO-02-B
     // Oracle (SPEC 02-B A, 06-A BE): ATT-05 registers through the SPM-61 endpoint; the very next GET shows 4 and the new row.
     // Kills: a server-side report cache that is not invalidated.
     it('VIEW-REG-INFO-02-B: a new registration is counted on the next request', async () => {
@@ -356,6 +362,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(after.registrations.map((r: { fullName: string }) => r.fullName)).toContain('Farhan Rahman');
     });
 
+    // VIEW-REG-INFO-02-B
     // Oracle (SPEC 02-B B, fresh fixture per F6): REG-9001 is withdrawn through the SPM-120 endpoint -> 3 becomes 2 and Alice is gone.
     // Kills: Withdrawn still counted; the row kept until a manual refresh.
     it('VIEW-REG-INFO-02-B: a withdrawal is reflected on the next request', async () => {
@@ -373,6 +380,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC3: each row carries name, email, contact number, registration date and status', () => {
+    // VIEW-REG-INFO-03-A
     // Oracle (SPEC 03-A, F2/D7): rows in date order Dev, Alice, Chloe; values and instants as seeded; status "Confirmed".
     // Kills: M8 sorted descending or by id; two fields swapped; the Withdrawn row listed; UTC hour confusion
     //        (checked under three process time zones in Phase 4).
@@ -393,6 +401,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(body.event.startDateTime).toBe('2026-10-09T10:00:00.000Z');
     });
 
+    // VIEW-REG-INFO-03-A-BND
     // Oracle (D7): rows registered at the same instant are ordered by registration id ascending.
     // Kills: ties left to database order (insert the higher id first, so physical order is the wrong answer).
     it('VIEW-REG-INFO-03-A-BND: ties on the registration date are ordered by registration id', async () => {
@@ -411,6 +420,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([low, high]);
     });
 
+    // VIEW-REG-INFO-03-A-NULL
     // Oracle (ASSUMED A8): a registration without a contact number (SPM-99 rows) is returned with an empty string.
     // Kills: null leaking into the contract (the screen and CSV would show "null").
     it('VIEW-REG-INFO-03-A-NULL: a missing contact number is an empty string', async () => {
@@ -428,6 +438,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC4: export as CSV or PDF', () => {
+    // VIEW-REG-INFO-04-A
     // Oracle (SPEC 04-A, D2/D9): 200; text/csv; attachment filename <id>_registrations_2026-09-29.csv; body is the header
     // and the three rows in date order, BOM first, CRLF endings, the Withdrawn row absent.
     // Kills: Withdrawn row exported; LF endings; header text drift; UTC hour; wrong filename or disposition.
@@ -450,6 +461,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       );
     });
 
+    // VIEW-REG-INFO-04-A-BND
     // Oracle (SPEC 2.5 added BND): at 2026-09-30 00:30 SGT (still 29 Sep in UTC) the filename date is 2026-09-30.
     // Kills: M9 filename date from UTC.
     it('VIEW-REG-INFO-04-A-BND: the filename date is the SGT date of generation', async () => {
@@ -464,6 +476,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.headers['content-disposition']).toBe(`attachment; filename="${eventId}_registrations_2026-09-30.csv"`);
     });
 
+    // VIEW-REG-INFO-04-A-FMT
     // Oracle (ASSUMED A11, D2): an unknown format is a 400 for a manager, and nothing else is returned.
     // Kills: falling through to a default format; a 500.
     it('VIEW-REG-INFO-04-A-FMT: an unknown export format is rejected with 400', async () => {
@@ -478,6 +491,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.text).not.toContain('dev.patel@example.com');
     });
 
+    // VIEW-REG-INFO-04-A-FMT
     // Oracle (ASSUMED A11, D2 + Guide 5C near-miss inputs): only the exact lower-case values csv and pdf are formats. A repeated
     // parameter (Express parses it as an array), a different case, an empty value and a missing parameter are all 400 with the
     // format message, and no attendee data is returned.
@@ -500,6 +514,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.text).not.toContain('dev.patel@example.com');
     });
 
+    // VIEW-REG-INFO-04-B
     // Oracle (SPEC 04-B): 200 application/pdf, filename .pdf, body starts %PDF-; text in order: title, event range,
     // generated line, count line, the five headings, the three names; Ben Lim (Withdrawn) absent.
     // Kills: M19 PDF built from all statuses; summary count from all rows; headings missing; rows out of order.
@@ -534,6 +549,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(text).not.toContain('Ben Lim');
     });
 
+    // VIEW-REG-INFO-04-B-LONG
     // Oracle (SPEC 2.5 added): a 100-character name and "Zoë Ångström" appear complete in the extracted text
     // (whitespace ignored, because long names wrap onto several lines).
     // Kills: standard font dropping non-ASCII glyphs; long name clipped.
@@ -554,6 +570,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(text).toContain('ZoëÅngström');
     });
 
+    // VIEW-REG-INFO-04-C
     // Oracle (SPEC 04-C): an event with no registrations: report 200 with total 0 and [], screen empty state is FE;
     // CSV is the header row only; PDF is valid and says "No registrations to display".
     // Kills: M18 header dropped on empty CSV; a 500 on empty input; PDF table code throwing on an empty array.
@@ -576,6 +593,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(await pdfText(pdf.bytes)).toContain('No registrations to display');
     });
 
+    // VIEW-REG-INFO-04-D
     // Oracle (SPEC 04-D): comma, plus sign and quote in real stored data reach the file RFC 4180 correct; an embedded
     // newline stays inside one record. Names are stored literally (SPM-61), so they are seeded directly.
     // Kills: M10 no comma quoting; M11 backslash escaping; a newline splitting a record.
@@ -601,6 +619,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       );
     });
 
+    // VIEW-REG-INFO-04-E
     // Oracle (SPEC 04-E, A6/A7): the formula payload registers through the real SPM-61 endpoint and is stored and shown
     // literally; only the CSV neutralises it; the PDF shows the raw text; the SQL payload is literal everywhere and
     // the registrations table is untouched by the exports.
@@ -646,6 +665,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC5: nobody but the assigned coordinator and the owning organiser can reach the report', () => {
+    // VIEW-REG-INFO-05-D
     // Oracle (SPEC 05-D B): no session -> 401 on every door (never 403 or 404), with no attendee data.
     // Kills: M6 authorization before authentication.
     it.each(DOORS)('VIEW-REG-INFO-05-D: %s without a session is 401', async (_name, path) => {
@@ -661,6 +681,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.text).not.toContain('dev.patel@example.com');
     });
 
+    // VIEW-REG-INFO-05-D
     // Oracle (SPEC 05-D A): ATT-01 registered on EVT-101 still gets 403 MSG-08 on every door and no data.
     // Kills: M7 a registered attendee granted access; the 403 body leaking attendee data.
     it.each(DOORS)('VIEW-REG-INFO-05-D: a registered attendee gets 403 MSG-08 on the %s', async (_name, path) => {
@@ -677,6 +698,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.text).not.toContain('@example.com');
     });
 
+    // VIEW-REG-INFO-05-A
     // Oracle (SPEC 05-A): COO-02 (assigned to EVT-103 only) gets 403 MSG-08 on the report and both exports; no EVT-101 data.
     // Kills: M2 the assignment check removed; M5 exports skipping the access check; coordinator role alone granting access.
     it.each(DOORS)('VIEW-REG-INFO-05-A: an unassigned coordinator gets 403 MSG-08 on the %s', async (_name, path) => {
@@ -694,6 +716,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.text).not.toMatch(/Alice Tan|Dev Patel|Chloe Ng|@example\.com/);
     });
 
+    // VIEW-REG-INFO-05-B
     // Oracle (SPEC 05-B): ORG-01 against EVT-102 (owned by ORG-02) gets 403 MSG-08 on every door; control: ORG-01 on EVT-101 is 200.
     // Kills: M3 the ownership check removed (any organiser); ownership compared to the wrong column.
     it.each(DOORS)('VIEW-REG-INFO-05-B: a non-owning organiser gets 403 MSG-08 on the %s, and still reaches their own event', async (_name, path) => {
@@ -714,6 +737,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(control.status).toBe(200);
     });
 
+    // VIEW-REG-INFO-05-C
     // Oracle (SPEC 05-C A/B): query parameters that name another identity change nothing: the unassigned coordinator and the
     // non-owning organiser still get 403 MSG-08; identity comes from the session only. One warn log per denied call, with
     // user id, event id and reason, and no attendee personal data.
@@ -749,6 +773,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(JSON.stringify(warn.mock.calls)).not.toMatch(/Dev Patel|Alice Tan|Chloe Ng|@example\.com|Evelyn|Farid/);
     });
 
+    // VIEW-REG-INFO-05-C-TOKEN
     // Oracle (SPEC 05-C: identity and role come from the token only): a manager who adds a query parameter naming someone else
     // is still served as themselves.
     // Kills: M4 variant where a query value overrides the token identity (the manager would be refused or someone else served).
@@ -764,6 +789,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.status).toBe(200);
     });
 
+    // VIEW-REG-INFO-05-D-ORDER
     // Oracle (D3 order 401 -> 404 -> 403): an event that does not exist is 404 "Event not found." for any signed-in user;
     // a malformed id is the same 404 (SPM-61 convention). A refusal for an existing event logs, a 404 does not.
     // Kills: 403 for a missing event (reveals nothing but breaks the documented order); a 500 on a malformed id.
@@ -782,6 +808,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(warn).not.toHaveBeenCalled();
     });
 
+    // VIEW-REG-INFO-05-A-FMT
     // Oracle (D3): authorization is decided before the format is looked at, so an outsider cannot learn anything from a 400.
     // Kills: format validated before authorization.
     it('VIEW-REG-INFO-05-A-FMT: an unassigned coordinator asking for an unknown format still gets 403', async () => {
@@ -798,6 +825,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC6: the report is never served stale', () => {
+    // VIEW-REG-INFO-06-A
     // Oracle (SPEC 06-A BE): right after an SPM-61 registration, the organiser session also sees ATT-05; a second registration
     // appears on the next call (no caching between calls).
     // Kills: a response cache keyed by event; a cache that serves the first answer forever.
@@ -820,6 +848,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect([afterFirst.totalConfirmed, afterSecond.totalConfirmed]).toEqual([4, 5]);
     });
 
+    // VIEW-REG-INFO-06-B-REREG
     // Oracle (derived from SPM-120: a withdrawn registration is reactivated in place and its registration date is reset): after
     // ATT-01 withdraws REG-9001 and registers again, the report lists Alice exactly once, last (her new date is later than
     // everyone's), with a registration date different from the original, and the count is back to 3.
@@ -848,6 +877,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect([body.totalConfirmed, body.availableSpots]).toEqual([3, 47]);
     });
 
+    // VIEW-REG-INFO-06-A-CACHE
     // Oracle (derived from AC6, R13): personal data that changes minute to minute must not be stored by browsers or proxies,
     // so the report and both exports are sent with Cache-Control: no-store.
     // Kills: a cacheable response that a browser or proxy could replay after a registration or withdrawal.
@@ -863,6 +893,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(res.headers['cache-control']).toBe('no-store');
     });
 
+    // VIEW-REG-INFO-06-B
     // Oracle (SPEC 06-B BE): the report excludes REG-9001 immediately after the SPM-120 call, for the organiser session as well.
     // Kills: only the count updating (rows kept); withdrawn row kept until a refresh.
     it('VIEW-REG-INFO-06-B: a withdrawal removes the row immediately for the organiser', async () => {

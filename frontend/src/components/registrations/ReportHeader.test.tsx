@@ -20,6 +20,7 @@ const renderHeader = (totalConfirmed: number, availableSpots: number) =>
   );
 
 describe("SPM-63 AC2: the header shows the Confirmed count against capacity", () => {
+  // VIEW-REG-INFO-02-A
   // Oracle (SPEC 01-A heading, F1 hyphen; SPEC 02-A): title "Tech Talk: Cloud 101 - Registration Report",
   // "3 Attendees Registered (3 / 50)" and "47 spots available" (50 - 3 = 47).
   // Kills: title wording drift; count and spots swapped; capacity omitted.
@@ -33,6 +34,7 @@ describe("SPM-63 AC2: the header shows the Confirmed count against capacity", ()
     expect(screen.getByText("47 spots available")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-02-A-BND
   // Oracle (ASSUMED A4): exactly one attendee reads "1 Attendee Registered (1 / 50)".
   // Kills: M20 plural always "Attendees".
   it("VIEW-REG-INFO-02-A-BND: one attendee is singular", () => {
@@ -44,6 +46,7 @@ describe("SPM-63 AC2: the header shows the Confirmed count against capacity", ()
     expect(screen.getByText("49 spots available")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-02-A-BND
   // Oracle (derived): zero is plural and nothing is hidden.
   // Kills: the count line dropped when the count is falsy.
   it("VIEW-REG-INFO-02-A-BND: zero attendees still shows the line", () => {
@@ -54,6 +57,7 @@ describe("SPM-63 AC2: the header shows the Confirmed count against capacity", ()
     expect(screen.getByText("0 Attendees Registered (0 / 50)")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-02-B
   // Oracle (SPEC 02-B): a fresh mount with 4 then with 2 shows "4 Attendees Registered (4 / 50)" and "2 ... (2 / 50)".
   // Kills: the count frozen from a first render; the capacity arithmetic done in the header with stale props.
   it("VIEW-REG-INFO-02-B: remounting with new counts shows the new count", () => {

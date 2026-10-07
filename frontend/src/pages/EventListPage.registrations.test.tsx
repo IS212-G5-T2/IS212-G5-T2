@@ -80,6 +80,7 @@ afterEach(() => {
 });
 
 describe("SPM-63 AC1: a manager reaches the report from the event list", () => {
+  // VIEW-REG-INFO-01-A
   // Oracle (SPEC 01-A): COO-01 sees "View Registrations" on EVT-101 and clicking goes to
   // /events/EVT-101/registrations/report. (The coordinator list defaults to Submitted requests, so Confirmed is selected.)
   // Kills: link missing for the assigned coordinator; link built with the wrong event id.
@@ -99,6 +100,7 @@ describe("SPM-63 AC1: a manager reaches the report from the event list", () => {
     expect(await screen.findByText("Report page for EVT-101")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-01-C
   // Oracle (SPEC 01-C): ORG-01 sees the same link on the event they own, under "My Events".
   // Kills: the link built for coordinators only.
   it("VIEW-REG-INFO-01-C: the owning organiser gets a working View Registrations link", async () => {
@@ -114,6 +116,7 @@ describe("SPM-63 AC1: a manager reaches the report from the event list", () => {
     expect(await screen.findByText("Report page for EVT-101")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-01-B
   // Oracle (derived from 01-B: "dashboard must list all assigned events"): each managed event has its own link, to its own id.
   // Kills: one link for the whole list; every link pointing at the first event.
   it("VIEW-REG-INFO-01-B: every managed event has a link to its own report", async () => {
@@ -135,6 +138,7 @@ describe("SPM-63 AC1: a manager reaches the report from the event list", () => {
 });
 
 describe("SPM-63 AC5: nobody else is offered the link", () => {
+  // VIEW-REG-INFO-05-A
   // Oracle (SPEC 05-A FE): COO-02's list does not offer "View Registrations" for EVT-101 (managed by COO-01), even if
   // that event were somehow present in the list.
   // Kills: any coordinator getting the link.
@@ -153,6 +157,7 @@ describe("SPM-63 AC5: nobody else is offered the link", () => {
     expect(screen.queryByRole("link", { name: "View Registrations" })).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-05-B
   // Oracle (SPEC 05-B FE): ORG-01 gets no link on EVT-102 (owned by ORG-02) but does on EVT-101.
   // Kills: any organiser getting the link; ownership compared to the wrong column.
   it("VIEW-REG-INFO-05-B: a non-owning organiser gets no link for that event", async () => {
@@ -171,6 +176,7 @@ describe("SPM-63 AC5: nobody else is offered the link", () => {
     expect(within(networking.parentElement!).queryByRole("link", { name: "View Registrations" })).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D): an attendee browsing events is never offered the link, even for an event they registered for.
   // Kills: the link shown to attendees.
   it("VIEW-REG-INFO-05-D: an attendee gets no link", async () => {

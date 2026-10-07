@@ -2143,3 +2143,12 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Follow-up 2 (Claude Sonnet 5.5, same day): made every fixture id in `registrations.report.e2e-spec.ts` deterministic (per-test counter, fixed registration ids whose id order differs from date order, cleanup of leftovers before the suite) so an id-only sort fails seven tests on every run. Checks: registrations integration 114 passed, 1 todo, under three time zones; sort and re-registration mutants killed on repeated runs; full backend mutation re-run 35 killed, 2 equivalent. Staged for review; no commit.
 - Follow-up 3 (Haiku 4.5): verified that integration tests ARE already in CI (the `backend-e2e-tests` workflow job spins up Postgres, runs `npm run test:e2e`, and the 44 SPM-63 tests are included). Updated backend HANDOVER.md to clarify this and close the finding. No code changes needed.
 
+## 2026-10-07 - Claude (Sonnet 5.5) - Add searchable test-case ID comments (SPM-61, SPM-62, SPM-63, SPM-120)
+
+- Issue/PR: SPM-61, SPM-62, SPM-63, SPM-120 (comment-only change on `feature/SPM-63-View-Registration-Information`); no PR.
+- Human requester/operator: Wei Zhi.
+- Areas touched: 21 backend and frontend test files for the four stories (see `git diff --stat`); `AI_USAGE.md`.
+- Summary: Added 236 one-line `// <TEST-CASE-ID>` comments above the test (or the `describe`, when the ID is only in the describe name) that belongs to each case, so a project-wide search for an ID finds its portion. Short forms are expanded ("01-A open" under `EVENT-REG-01-A/B/C` is tagged `EVENT-REG-01-A`; `05-A / 06-B` gives two IDs). SPM-62 has no case-ID document (its tests are labelled by Jira AC), so its two describes carry `// SPM-62 AC2/AC3` and `// SPM-62 AC4` instead of invented IDs. Tests with no ID in their name or enclosing describe (for example `EventDetailPage.registration.test.tsx`, `EventView.test.ts`, `api.test.ts`, `events.service.spec.ts`, the `State 1/2/3` heading tests) were left untouched.
+- Checks run: diff is comment-only (236 added lines, 0 deletions, every added line matches `// ID`); re-running the tool plans 0 further comments; backend unit 748 passed; registrations integration 114 passed, 1 todo; frontend 592 passed, 1 todo; TypeScript clean for the touched specs; Prettier status unchanged (20 of the touched files were already not Prettier-clean at HEAD, 20 now).
+- Follow-up/conflict notes: Staged for review; no commit, push or PR.
+

@@ -102,6 +102,7 @@ afterEach(() => {
 });
 
 describe("SPM-63 AC1: a manager sees the report for their event", () => {
+  // VIEW-REG-INFO-01-A
   // Oracle (SPEC 01-A FE, F1): heading "Tech Talk: Cloud 101 - Registration Report", the table rendered with its three
   // rows, no error state; the request is for this event's report.
   // Kills: link/route built with the wrong event id; an error shown for a valid manager.
@@ -119,6 +120,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(apiMock).toHaveBeenCalledWith("/events/EVT-101/registrations/report");
   });
 
+  // VIEW-REG-INFO-01-C
   // Oracle (SPEC 01-C FE): the owning organiser sees the same heading and table.
   // Kills: the page restricted to the coordinator role.
   it("VIEW-REG-INFO-01-C: the organiser's report page shows the same report", async () => {
@@ -134,6 +136,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(names()).toEqual(["Dev Patel", "Alice Tan", "Chloe Ng"]);
   });
 
+  // VIEW-REG-INFO-01-B
   // Oracle (SPEC 01-B): EVT-101 shows 3 rows; switching to EVT-105 shows 2 rows (Ben Lim, Dev Patel) under
   // "Data Science Meetup - Registration Report"; back to EVT-101 shows 3 again.
   // Kills: fetch not keyed by event id (the second event shows the first event's rows).
@@ -157,6 +160,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
     expect(rowCount()).toBe(3);
   });
 
+  // VIEW-REG-INFO-01-B-RACE
   // Oracle (SPEC 2.5 added to 01-B): a slow EVT-101 response that arrives after the user moved to EVT-105 must not
   // overwrite the EVT-105 table.
   // Kills: M17 a late response for the previous event applied.
@@ -183,6 +187,7 @@ describe("SPM-63 AC1: a manager sees the report for their event", () => {
 });
 
 describe("SPM-63 AC2: the count is read fresh on every visit", () => {
+  // VIEW-REG-INFO-02-B
   // Oracle (SPEC 02-B FE): a remount after a registration shows "4 Attendees Registered (4 / 50)"; a remount after a
   // withdrawal shows "2 Attendees Registered (2 / 50)".
   // Kills: the report cached on the client between visits.
@@ -225,6 +230,7 @@ describe("SPM-63 AC4: exporting the report", () => {
       headers: { "Content-Disposition": 'attachment; filename="EVT-101_registrations_2026-09-29.csv"', "Content-Type": "text/csv; charset=utf-8" },
     });
 
+  // VIEW-REG-INFO-04-A
   // Oracle (SPEC 04-A FE, D15): "Export as CSV" sends exactly one authenticated (credentialed) request for format=csv and
   // saves the file under the server's filename; the object URL is revoked.
   // Kills: a plain link that drops the session; a client-invented filename; a leaked object URL.
@@ -248,6 +254,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:report");
   });
 
+  // VIEW-REG-INFO-04-B
   // Oracle (SPEC 04-B FE): "Export as PDF" requests format=pdf.
   // Kills: both buttons asking for the same format.
   it("VIEW-REG-INFO-04-B: Export as PDF requests the pdf format", async () => {
@@ -267,6 +274,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect((fetchMock.mock.calls[0] as unknown as [string])[0].endsWith("/export?format=pdf")).toBe(true);
   });
 
+  // VIEW-REG-INFO-04-A-BUSY
   // Oracle (D15): the buttons are disabled while a download is in flight, so a double click cannot start two.
   // Kills: two requests for one click-and-click; buttons left enabled.
   it("VIEW-REG-INFO-04-A-BUSY: the export buttons are disabled while downloading", async () => {
@@ -292,6 +300,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect(screen.getByRole("button", { name: "Export as CSV" })).toBeEnabled();
   });
 
+  // VIEW-REG-INFO-04-A-ERR
   // Oracle (D15): a 403 or a 500 from the export is shown in the page and nothing is downloaded.
   // Kills: an error swallowed (the user thinks a file was saved); a file saved from an error body.
   it.each([
@@ -313,6 +322,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     expect(saved).toEqual([]);
   });
 
+  // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C FE): an event with no registrations shows exactly "No registrations yet" and a 0 count.
   // Kills: an error or blank page for an empty report.
   it("VIEW-REG-INFO-04-C: the empty report shows the empty state", async () => {
@@ -330,6 +340,7 @@ describe("SPM-63 AC4: exporting the report", () => {
 });
 
 describe("SPM-63 AC5: people who may not view the report are refused on screen", () => {
+  // VIEW-REG-INFO-05-A
   // Oracle (SPEC 05-A FE): COO-02 navigating straight to EVT-101's report sees MSG-08 and no table or attendee data.
   // Kills: the table shown from stale store data; the message dropped.
   it("VIEW-REG-INFO-05-A: an unassigned coordinator sees MSG-08 and no table", async () => {
@@ -346,6 +357,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(screen.queryByText("Dev Patel")).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D A FE): a registered attendee gets MSG-08 and is NOT redirected to the attendee event view.
   // Kills: a role guard that bounces the attendee to /events/:id.
   it("VIEW-REG-INFO-05-D: an attendee sees MSG-08 and stays on the report URL", async () => {
@@ -361,6 +373,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(screen.queryByText("Attendee event view")).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-05-D
   // Oracle (SPEC 05-D B FE): an expired or missing session (401) sends the user to the login page.
   // Kills: a 401 shown as a generic error; no redirect.
   it("VIEW-REG-INFO-05-D: a 401 redirects to the login page", async () => {
@@ -374,6 +387,7 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     expect(await screen.findByText("Login screen")).toBeInTheDocument();
   });
 
+  // VIEW-REG-INFO-01-A-ERR
   // Oracle (derived): a server error on first load is shown with a Retry that fetches again.
   // Kills: an endless spinner; Retry that does nothing.
   it("VIEW-REG-INFO-01-A-ERR: a failed first load offers a retry", async () => {
@@ -404,6 +418,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     serve({ "EVT-101": () => (++calls === 1 ? Promise.resolve(buildReport()) : next()) });
   }
 
+  // VIEW-REG-INFO-06-A
   // Oracle (SPEC 06-A): initial "3 Attendees Registered (3 / 50)"; ATT-05 Farhan Rahman registers; after exactly 10 000 ms
   // and no user action the header reads "4 Attendees Registered (4 / 50)", Farhan's row is present with his email, contact
   // number, SGT date and Confirmed, there are exactly 4 rows (no duplicates) and console.error was not called.
@@ -429,6 +444,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(consoleError).not.toHaveBeenCalled();
   });
 
+  // VIEW-REG-INFO-06-B
   // Oracle (SPEC 06-B): after REG-9001 (Alice Tan) is withdrawn, within 10 000 ms the header reads
   // "2 Attendees Registered (2 / 50)" and Alice's row is gone.
   // Kills: only the count updating while the withdrawn row stays; withdrawn row kept until a manual refresh.
@@ -447,6 +463,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(names()).toEqual(["Dev Patel", "Chloe Ng"]);
   });
 
+  // VIEW-REG-INFO-06-A-UNMOUNT
   // Oracle (SPEC 2.5 added to 06-A): once the page is closed no further request is made.
   // Kills: M16 interval not cleared on unmount (a closed page keeps downloading personal data).
   it("VIEW-REG-INFO-06-A-UNMOUNT: no requests after the page is closed", async () => {
@@ -464,6 +481,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAtUnmount);
   });
 
+  // VIEW-REG-INFO-06-A-REVOKE
   // Oracle (SPEC 2.5 added to 06-A): a 403 during polling (access was revoked) stops polling, clears the rows already
   // shown and shows MSG-08.
   // Kills: stale personal data kept on screen after access is revoked; polling continuing after a refusal.
@@ -486,6 +504,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAfterRefusal);
   });
 
+  // VIEW-REG-INFO-06-A-SESSION
   // Oracle (derived, R13): a 401 while polling (session ended) stops polling and sends the user to login.
   // Kills: polling on with an expired session.
   it("VIEW-REG-INFO-06-A-SESSION: a 401 while polling redirects to login and stops", async () => {
@@ -504,6 +523,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock.mock.calls.length).toBe(callsAfter);
   });
 
+  // VIEW-REG-INFO-06-A-BLIP
   // Oracle (ASSUMED A13): a transient failure during polling keeps the rows on screen and polling carries on, so the next
   // good response is applied.
   // Kills: the table blanked by a network blip; polling stopped for good by one failure.
@@ -530,6 +550,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(rowCount()).toBe(4);
   });
 
+  // VIEW-REG-INFO-06-A-INFLIGHT
   // Oracle (derived): while a request is still outstanding no second one is started, so a slow server is not flooded.
   // Kills: overlapping requests piling up behind a slow response.
   it("VIEW-REG-INFO-06-A-INFLIGHT: no new request while one is still pending", async () => {
@@ -545,6 +566,7 @@ describe("SPM-63 AC6: the report updates by itself within 10 seconds", () => {
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // VIEW-REG-INFO-01-B-POLL
   // Oracle (SPEC 2.5 / 3.1): changing event stops polling the old event.
   // Kills: the interval of the previous event surviving a navigation.
   it("VIEW-REG-INFO-01-B-POLL: after switching events only the new event is polled", async () => {

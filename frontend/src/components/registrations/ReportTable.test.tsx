@@ -11,6 +11,7 @@ import { ReportTable } from "./ReportTable";
 import { ALICE_TAN, CHLOE_NG, DEV_PATEL } from "./report.fixtures";
 
 describe("SPM-63 AC3: the table shows each attendee's details", () => {
+  // VIEW-REG-INFO-03-A
   // Oracle (SPEC 03-A): headers Name, Email, Contact Number, Registration Date, Status; three rows in the given (date)
   // order with SGT dates "27 Sep 2026 15:00 SGT", "28 Sep 2026 10:30 SGT", "29 Sep 2026 09:00 SGT" and status Confirmed.
   // Kills: dates in UTC (07:00); SGT suffix missing; two fields swapped; header label drift (Contact / Registered Date);
@@ -32,6 +33,7 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
     ]);
   });
 
+  // VIEW-REG-INFO-03-A-NULL
   // Oracle (derived from SPM-61: contact number optional): a missing contact number is an empty cell, not "null".
   // Kills: "undefined" or "null" printed.
   it("VIEW-REG-INFO-03-A-NULL: an empty contact number leaves an empty cell", () => {
@@ -45,6 +47,7 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
 });
 
 describe("SPM-63 AC4: an event with no registrations", () => {
+  // VIEW-REG-INFO-04-C
   // Oracle (SPEC 04-C): the empty state reads exactly "No registrations yet" and there is no data table.
   // Kills: a blank page; an empty table shown instead of the message.
   it("VIEW-REG-INFO-04-C: shows the empty state", () => {
@@ -58,6 +61,7 @@ describe("SPM-63 AC4: an event with no registrations", () => {
 });
 
 describe("SPM-63 AC3: attendee-supplied text is shown as text", () => {
+  // EVENT-REG-03-SEC-1
   // Oracle (EVENT-REG-03-SEC-1, coordinator report): a registration named <script>alert(1)</script> is rendered as
   // literal text: the same characters are visible and no script element exists.
   // Kills: dangerouslySetInnerHTML or any HTML interpretation of a name.
@@ -73,6 +77,7 @@ describe("SPM-63 AC3: attendee-supplied text is shown as text", () => {
     expect(container.querySelector("script")).toBeNull();
   });
 
+  // VIEW-REG-INFO-04-E
   // Oracle (SPM-61 03-SEC-1 / R10): a formula payload is shown literally on screen (neutralisation is export-only).
   // Kills: neutralisation applied to the screen (a leading ' would show).
   it("VIEW-REG-INFO-04-E: a formula payload is shown unchanged on screen", () => {
