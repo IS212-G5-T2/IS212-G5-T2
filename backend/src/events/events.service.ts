@@ -13,7 +13,6 @@ import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './event-input.js';
-import { pickNextCoordinator } from './coordinator-roster.js';
 import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -95,8 +94,8 @@ export class EventsService {
     };
   }
   // SPM-38 AC1/AC2/AC3: an organiser sees their own submitted requests; a
-  // coordinator sees only the requests round-robin has assigned to them —
-  // never another coordinator's. Every other role gets nothing from this
+  // coordinator sees only the requests the Event Coordinator Lead assigned to
+  // them (SPM-123) — never another coordinator's. Every other role gets nothing from this
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
@@ -177,35 +176,6 @@ export class EventsService {
       throw new NotFoundException('Event not found.');
     return this.record(row);
   }
-  // Manual override for a coordinator claim/reassignment. Round-robin
-  // (see insert()) is now the primary path, so this mainly exists for
-  // reassignment edge cases; kept scoped by event id like before. Assignment
-  // never advances status — "Under Review" was retired as a distinct stage.
-  async assignCoordinator(id: string, body: unknown) {
-    if (
-      !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    )
-      throw new NotFoundException('Event not found.');
-    const data = body as Record<string, unknown> | null;
-    const coordinatorId =
-      typeof data?.coordinatorId === 'string' ? data.coordinatorId.trim() : '';
-    const coordinatorName =
-      typeof data?.coordinatorName === 'string' ? data.coordinatorName.trim() : '';
-    if (!coordinatorId || !coordinatorName)
-      throw new BadRequestException('A coordinator id and name are required.');
-    const result = await this.database.query(
-      `UPDATE events
-         SET coordinator_id = $2,
-             coordinator_name = $3,
-             updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [id, coordinatorId, coordinatorName],
-    );
-    if (!result.rows[0]) throw new NotFoundException('Event not found.');
-    return this.record(result.rows[0]);
-  }
-
   private requireCoordinator(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     if (!user.roles.includes('COORDINATOR'))
@@ -243,7 +213,7 @@ export class EventsService {
     return trimmed;
   }
 
-  // SPM-83: only the coordinator assigned by SPM-38's round-robin flow may
+  // SPM-83: only the coordinator the Lead assigned (SPM-123) may
   // reject a still-Submitted request. The decision and organiser notification
   // share one transaction so a rejection is never persisted without its reason.
   async reject(id: string, body: unknown, identity?: AuthenticatedUser) {
@@ -335,15 +305,28 @@ export class EventsService {
     });
   }
 
+  // Which notification types each role reads and marks read: organisers get
+  // their request decisions (SPM-83 rejection, SPM-40 approval); coordinators
+  // get new assignments from the Event Coordinator Lead (SPM-123).
+  private notificationTypesFor(identity: AuthenticatedUser | undefined) {
+    const user = this.requireUser(identity);
+    const types = [
+      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval'] : []),
+      ...(user.roles.includes('COORDINATOR') ? ['coordinator_assignment'] : []),
+    ];
+    if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');
+    return { user, types };
+  }
+
   async notifications(identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      "SELECT * FROM notifications WHERE recipient_id = $1 AND (type = 'rejection' OR type = 'approval') ORDER BY created_at DESC",
-      [organiser.id],
+      'SELECT * FROM notifications WHERE recipient_id = $1 AND type = ANY($2) ORDER BY created_at DESC',
+      [user.uid, types],
     );
     return result.rows.map((row) => ({
       id: row.id,
-      audienceRole: 'organiser',
+      audienceRole: row.type === 'coordinator_assignment' ? 'coordinator' : 'organiser',
       audienceUserId: row.recipient_id,
       type: row.type,
       message: row.message,
@@ -354,11 +337,11 @@ export class EventsService {
   }
 
   async readNotification(id: string, identity?: AuthenticatedUser) {
-    const organiser = this.requireOrganiser(identity);
+    const { user, types } = this.notificationTypesFor(identity);
     this.eventId(id);
     const result = await this.database.query(
-      "UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND (type = 'rejection' OR type = 'approval') RETURNING id",
-      [id, organiser.id],
+      'UPDATE notifications SET read = true WHERE id = $1 AND recipient_id = $2 AND type = ANY($3) RETURNING id',
+      [id, user.uid, types],
     );
     if (!result.rows[0]) throw new NotFoundException('Notification not found.');
     return { success: true };
@@ -426,36 +409,11 @@ export class EventsService {
           [user.id, data.submissionKey],
         )
       ).rows[0];
-    const assignedRow = await this.autoAssignCoordinator(row, client);
+    // SPM-123: the request waits unassigned in the Event Coordinator Lead's
+    // queue; it is never assigned automatically.
     return {
-      event: this.record(assignedRow),
+      event: this.record(row),
       message: 'Your event request was submitted successfully.',
     };
-  }
-
-  // SPM-38 AC5: round-robin assignment at submission time, so a request is
-  // never left waiting for a coordinator to manually claim it. A retried
-  // submission (ON CONFLICT above) reuses the row already assigned, so this
-  // only ever assigns once per event. Assignment never advances status. The
-  // roster is queried live from Postgres (see coordinator-roster.ts); if no
-  // active coordinator account exists yet, the event is left unassigned
-  // rather than failing the submission.
-  private async autoAssignCoordinator(row: pg.QueryResultRow, client: pg.PoolClient) {
-    if (row.coordinator_id) return row;
-    const { rows } = await client.query<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM events WHERE coordinator_id IS NOT NULL',
-    );
-    const coordinator = await pickNextCoordinator(client, Number(rows[0].count));
-    if (!coordinator) return row;
-    const updated = await client.query(
-      `UPDATE events
-         SET coordinator_id = $2,
-             coordinator_name = $3,
-             updated_at = now()
-       WHERE id = $1
-       RETURNING *`,
-      [row.id, coordinator.id, coordinator.name],
-    );
-    return updated.rows[0];
   }
 }

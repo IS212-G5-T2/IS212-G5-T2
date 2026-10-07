@@ -56,3 +56,26 @@ Git history retains the original incremental changes and their commits.
 
 - Added `users.is_available boolean NOT NULL DEFAULT true` to `postgresql/init/001_schema.sql`: a coordinator's own setting for whether they can take new event assignments. It never changes events already assigned to them.
 - Added `postgresql/init/007_spm80_coordinator_availability.sql` so existing volumes can add the column without a reset. Additive and idempotent; apply it manually because init scripts only run on an empty volume. Every existing account starts as available.
+
+## Coordinator + Venue Staff account roles (SPM-123)
+
+- `002_seed_data.sql` now gives COORDINATOR and VENUE_STAFF to
+  `coordinator_venuestaff@connectsphere.test` ("Coor_Venue"). The roles were
+  still pointed at the old `organiser_coordinator@connectsphere.test` email,
+  so a fresh volume created Coor_Venue with no roles.
+- Organiser + Coordinator is not a valid role combination. Volumes created
+  before 2026-09-22 may still hold the old `organiser_coordinator` ("Org_Coor")
+  account. Reassign or delete any requests it is assigned as coordinator, then
+  remove it and re-run the seed to restore Coor_Venue's roles:
+
+  ```sql
+  DELETE FROM notifications
+   WHERE recipient_id = (SELECT id::text FROM users WHERE email = 'organiser_coordinator@connectsphere.test');
+  DELETE FROM users WHERE email = 'organiser_coordinator@connectsphere.test';
+  ```
+
+## SPM-123 - Event Coordinator Lead
+
+- `002_seed_data.sql` adds role 6 `COORDINATOR_LEAD` (read/update on Event, read on Event Review) and one account, `lead@connectsphere.test` ("Coordinator Lead", password `P@55w0rd`), which holds only that role.
+- Added `postgresql/init/008_spm123_coordinator_lead.sql` to add the role, permissions and account to existing volumes. Idempotent; apply it manually.
+- `README.md` verification counts updated to 6 roles, 11 resources and 30 role permission rows (the extra resource is SPM-50's).

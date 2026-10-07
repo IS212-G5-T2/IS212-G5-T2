@@ -7,6 +7,7 @@ import { RequireAuth } from "./RequireAuth";
 import { RequireEventOwner } from "./RequireEventOwner";
 import { RequireRole } from "./RequireRole";
 import { useAppStore } from "@/store/useAppStore";
+import { navByRole } from "@/components/layout/navConfig";
 import type { EventRecord, User } from "@/types";
 
 const organiser: User = {
@@ -108,6 +109,9 @@ function renderRoutes(initialEntry: string) {
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
           <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
         </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
+          <Route path="/lead/queue" element={<p>Assignment queue</p>} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );
@@ -184,12 +188,13 @@ describe("restricted organiser routes", () => {
   // A secondary server-granted role authorizes the route even when it is not the display role.
   it("allows a multi-role user through a route granted by its secondary role", () => {
     useAppStore.setState({
-      currentUser: { ...organiser, roles: ["organiser", "coordinator"] },
+      currentUser: { ...coordinator, role: "venue_staff", roles: ["venue_staff", "coordinator"] },
     });
 
-    renderRoutes("/bookings");
+    // /equipment/requests is granted to coordinators, not venue staff (SPM-111).
+    renderRoutes("/equipment/requests");
 
-    expect(screen.getByText("Bookings")).toBeInTheDocument();
+    expect(screen.getByText("Equipment requests")).toBeInTheDocument();
   });
 
   it("redirects an attendee who directly opens an organiser-only route", () => {
@@ -348,5 +353,39 @@ describe("restricted organiser routes", () => {
     );
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+});
+
+describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
+  // Only the Lead reaches the queue or sees it in the nav; a Lead sent away lands on it.
+  it("LEAD-ASN-11-SEC-4 shows the Assignment Queue only to the Lead", () => {
+    // Arrange + Act: the Lead opens the queue.
+    const lead = { ...organiser, id: "lead-1", role: "coordinator_lead" as const, roles: ["coordinator_lead" as const] };
+    useAppStore.setState({ currentUser: lead });
+    const { unmount } = renderRoutes("/lead/queue");
+
+    // Assert: the Lead sees it.
+    expect(screen.getByText("Assignment queue")).toBeInTheDocument();
+    unmount();
+
+    // Act + Assert: a coordinator and an organiser are sent to the events dashboard instead.
+    for (const role of ["coordinator", "organiser"] as const) {
+      useAppStore.setState({ currentUser: { ...organiser, id: `${role}-1`, role, roles: [role] } });
+      const { unmount: unmountOther } = renderRoutes("/lead/queue");
+      expect(screen.queryByText("Assignment queue")).not.toBeInTheDocument();
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountOther();
+    }
+
+    // Act + Assert: a Lead who opens a route they can't use lands on their queue, not a blank page.
+    useAppStore.setState({ currentUser: lead });
+    renderRoutes("/events/create");
+    expect(screen.getByText("Assignment queue")).toBeInTheDocument();
+
+    // Assert: only the Lead's navigation offers the queue.
+    expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue"]);
+    for (const [role, items] of Object.entries(navByRole)) {
+      if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/queue");
+    }
   });
 });

@@ -489,11 +489,15 @@ export function EventDetailPage() {
         )}
       </div>
 
-      <div className="mt-4">
-        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
-          ← Back
-        </button>
-      </div>
+      {/* Straight after submitting, "back" would return to the submitted form;
+          the success banner's "View My Events" link is the way on instead. */}
+      {!location.state?.submitted && (
+        <div className="mt-4">
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
+            ← Back
+          </button>
+        </div>
+      )}
     </div>
   );
 }

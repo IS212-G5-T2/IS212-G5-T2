@@ -111,13 +111,9 @@ clarification request is a meaningful "review started" signal on its own.
 
 Known gaps to close before this is fully production-ready:
 
-- **No endpoint sets `coordinator_id`.** Assigning a coordinator to an event
-  is a separate, unticketed feature (today it's mock-only in the frontend
-  Zustand store — see `frontend/src/store/useAppStore.ts`'s
-  `assignCoordinator`). Until a real assignment endpoint exists,
-  `coordinator_id` must be populated directly (e.g., seed data or a manual
-  `UPDATE`) for the coordinator-side clarification flow to work against real
-  data.
+- Coordinators are assigned by the Event Coordinator Lead (SPM-123, see
+  below); the old open `POST /api/events/:id/assign` and the store's mock
+  `assignCoordinator` were removed.
 - **`EventsService.identity()` still returns a single hardcoded demo
   organiser** (`DEMO_ORGANISER_ENABLED`) for every caller regardless of the
   real authenticated Firebase user, and every event created today has
@@ -144,7 +140,7 @@ The event, draft, clarification, and rejection routes are protected by Firebase 
 
 For an existing database, apply 003_event_rejection.sql then 004_allow_rejected_event_status.sql after the clarification schema. Fresh volumes receive the final constraints directly from 001_schema.sql. Status, a 10–500-character validated reason, and the recipient notification commit atomically under an event row lock. Notifications/read markers persist in PostgreSQL and are fetched by the organiser UI. Email is outside this contract.
 
-SPM-38's verified Firebase ownership and round-robin coordinator assignment remain in force. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
+SPM-38's verified ownership and coordinator scoping remain in force; its round-robin assignment was replaced by the Lead's manual assignment in SPM-123. Rejection notifications use the verified organiser UID; there is no demo-identity fallback.
 
 ## Approval integration (SPM-40)
 
@@ -163,3 +159,11 @@ Time comes from the `CLOCK` provider (`registrations/clock.ts`); e2e tests overr
 `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability`, protected by `AuthenticationMiddleware`. Only accounts holding COORDINATOR may use them, and the account is always the session's own, so there is no user id in the URL or body. The body must be exactly `{ available: true | false }`; anything else, including an extra field, is a 400. The value lives in `users.is_available` (default `true`; existing databases apply `database/postgresql/init/007_spm80_coordinator_availability.sql`).
 
 Unavailable means "no new assignments" only. Saving updates `users` and never `events`, so a coordinator keeps and can act on every event already assigned to them. Enforcing it belongs to the Event Coordinator Lead flow: SPM-123 must filter or refuse unavailable coordinators when assigning, and SPM-47 when reassigning. Nothing on `dev` reads the flag yet, including SPM-38's round-robin, which SPM-123 replaces.
+
+## Lead assignment (SPM-123)
+
+`src/lead` owns `GET /api/lead/queue`, `GET /api/lead/coordinators` and `POST /api/lead/queue/:eventId/assign`, behind `AuthenticationMiddleware` and limited to the `COORDINATOR_LEAD` role. There is one Lead account (`lead@connectsphere.test`), and it never also holds COORDINATOR. Existing databases apply `database/postgresql/init/008_spm123_coordinator_lead.sql`.
+
+Submitting a request no longer assigns anyone: it waits, unassigned, in the queue (oldest first). The coordinators list shows each active coordinator's availability (SPM-80) and active workload, which counts only `ACTIVE_STATUSES` (Submitted, Approved, Confirmed); it is sorted fewest first, then by name. Assigning locks the event row, refuses a request that already has a coordinator (409), refuses an inactive or non-coordinator id (400), and re-reads availability inside the transaction so a coordinator who went unavailable after the list loaded is refused (409). The assignment and a `coordinator_assignment` notification commit together. `GET`/`POST /api/notifications` now return each user only their role's types: organisers get rejection and approval, coordinators get coordinator_assignment.
+
+Out of scope: reassigning an assigned event is SPM-47, which should reuse the availability check here.

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- SPM-123: added the Event Coordinator Lead role and its Assignment Queue page
+  (`/lead/queue`): unassigned requests, coordinators with availability and active
+  count (fewest first), assign with confirmation, unavailable coordinators shown
+  but not selectable. A refused assignment reloads the queue as well as the
+  coordinators. Coordinators see new assignments on their events page, refreshed
+  on focus and every 30 seconds. Removed the unused store `assignCoordinator`.
+
 - The top bar now has a profile avatar showing the user's initials (e.g. C1 for
   Coordinator 1) that opens a menu with the name, Settings and the light/dark
   switch; coordinators see a green Available or grey Unavailable label there

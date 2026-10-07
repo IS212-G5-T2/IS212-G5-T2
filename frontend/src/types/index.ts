@@ -3,7 +3,9 @@ export type UserRole =
   | "coordinator"
   | "venue_staff"
   | "tech_support"
-  | "attendee";
+  | "attendee"
+  /** SPM-123: the single Event Coordinator Lead, never also a coordinator. */
+  | "coordinator_lead";
 
 export interface User {
   id: string;

@@ -62,7 +62,6 @@ interface AppState {
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
-  assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
   approveEvent: (id: string) => Promise<void>;
   rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
@@ -162,44 +161,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         audienceRole: "coordinator",
         type: "submission",
         message: `"${event.name}" was submitted for review.`,
-        relatedEventId: id,
-      });
-    }
-  },
-
-  assignCoordinator: (id, coordinatorId, coordinatorName) => {
-    // Optimistically reflect the claim so the UI updates immediately.
-    // Assignment alone no longer advances status — only a clarification
-    // request does that — so status is left untouched here.
-    set((s) => ({
-      events: s.events.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              coordinatorId,
-              coordinatorName,
-              updatedAt: new Date().toISOString(),
-            }
-          : e
-      ),
-    }));
-    // Persist the assignment so it survives a reload: the detail page refetches
-    // GET /events/:id on mount, which now returns the stored coordinator. Fire
-    // and forget — the optimistic state above already matches what the server
-    // writes, so no reconciliation is needed here.
-    api(`/events/${id}/assign`, {
-      method: "POST",
-      body: JSON.stringify({ coordinatorId, coordinatorName }),
-    }).catch(() => {
-      /* Optimistic state stands; a later refetch will resurface any drift. */
-    });
-    const event = get().events.find((e) => e.id === id);
-    if (event) {
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "coordinator_assignment",
-        message: `${coordinatorName} was assigned to "${event.name}".`,
         relatedEventId: id,
       });
     }

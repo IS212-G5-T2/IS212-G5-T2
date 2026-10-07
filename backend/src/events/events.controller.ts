@@ -20,7 +20,4 @@ export class EventsController {
   @Post('events') create(@Body() body: unknown, @Req() request: AuthenticatedRequest) {
     return this.events.create(request[CURRENT_USER_REQUEST_KEY], body);
   }
-  @Post('events/:id/assign') assign(@Param('id') id: string, @Body() body: unknown) {
-    return this.events.assignCoordinator(id, body);
-  }
 }

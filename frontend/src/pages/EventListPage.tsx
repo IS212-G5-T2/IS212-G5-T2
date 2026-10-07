@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
 import { EventCard } from "@/components/domain/EventCard";
+import { AssignmentNotifications } from "@/components/domain/AssignmentNotifications";
 import type { EventStatus } from "@/types";
 import {
   ATTENDEE_BROWSE_FILTERS,
@@ -58,7 +59,7 @@ export function EventListPage() {
     }
     // SPM-38: the backend scopes GET /api/events to the caller's own events —
     // an organiser sees their submitted requests, a coordinator sees only the
-    // requests round-robin has assigned to them.
+    // requests the Event Coordinator Lead assigned to them (SPM-123).
     return events;
   }, [events, currentUser]);
 
@@ -79,6 +80,8 @@ export function EventListPage() {
 
   return (
     <div>
+      {/* SPM-123 AC9: new assignments from the Event Coordinator Lead (coordinators only). */}
+      <AssignmentNotifications />
       <PageHeader
         title={isPlanning ? "Event Planning" : title}
         description={

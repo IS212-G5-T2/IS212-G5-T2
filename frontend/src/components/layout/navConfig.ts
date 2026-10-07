@@ -34,6 +34,19 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   attendee: [
     { label: "Browse Events", to: "/events", icon: "📅", feature: "Feature 6" },
   ],
+  coordinator_lead: [
+    { label: "Assignment Queue", to: "/lead/queue", icon: "🗂️", feature: "Feature 3" },
+  ],
+};
+
+/** Where each role lands after sign-in, and when sent away from a route it can't use. */
+export const homePathByRole: Record<UserRole, string> = {
+  organiser: "/events",
+  coordinator: "/events",
+  attendee: "/events",
+  venue_staff: "/venues",
+  tech_support: "/equipment/requests",
+  coordinator_lead: "/lead/queue",
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -42,4 +55,5 @@ export const roleLabels: Record<UserRole, string> = {
   venue_staff: "Venue Staff",
   tech_support: "Technical Support Staff",
   attendee: "Attendee",
+  coordinator_lead: "Event Coordinator Lead",
 };

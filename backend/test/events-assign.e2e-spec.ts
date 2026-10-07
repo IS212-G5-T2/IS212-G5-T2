@@ -1,7 +1,8 @@
 /*
- * End-to-end tests for SPM-37 coordinator assignment persistence
- * (POST /api/events/:id/assign) and the events list omitting attachment blobs,
- * against a real PostgreSQL database. Mirrors test/clarifications.e2e-spec.ts's
+ * End-to-end tests for the events list omitting attachment blobs and for
+ * coordinator-scoped event visibility, against a real PostgreSQL database.
+ * (SPM-37's open POST /api/events/:id/assign was removed by SPM-123; the Lead's
+ * assignment endpoint is covered in src/lead/lead-assignment.e2e-spec.ts.) Mirrors test/clarifications.e2e-spec.ts's
  * fixture pattern. Protected event routes use real PostgreSQL-backed session
  * cookies, rather than a mocked identity provider.
  */
@@ -76,77 +77,6 @@ describe('Events coordinator assignment (e2e)', () => {
     createdEventIds.push(eventId);
     return eventId;
   }
-
-  // Assignment alone no longer advances status — only a clarification
-  // request does that (see clarifications.e2e-spec.ts).
-  it('assigns a coordinator and persists it without changing status', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    const eventId = await seedEvent({ organiserId: organiser.uid, status: 'Submitted', coordinatorId: null });
-
-    const res = await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(201);
-    expect(res.body).toMatchObject({
-      id: eventId,
-      coordinatorId: coordinator.uid,
-      coordinatorName: coordinator.name,
-      status: 'submitted',
-    });
-
-    // The assignment survives a fresh read by the now-assigned coordinator
-    // (this is what made it "stick").
-    const detail = await request(app.getHttpServer())
-      .get(`/api/events/${eventId}`)
-      .set('Cookie', coordinator.cookie)
-      .expect(200);
-    expect(detail.body).toMatchObject({ coordinatorId: coordinator.uid, status: 'submitted' });
-
-    const row = await pool.query(
-      'SELECT coordinator_id, coordinator_name, status FROM events WHERE id=$1',
-      [eventId],
-    );
-    expect(row.rows[0]).toMatchObject({
-      coordinator_id: coordinator.uid,
-      coordinator_name: coordinator.name,
-      status: 'Submitted',
-    });
-  });
-
-  it('leaves an already-approved event status unchanged while still recording the coordinator', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    const eventId = await seedEvent({ organiserId: organiser.uid, status: 'Approved', coordinatorId: null });
-
-    const res = await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(201);
-    expect(res.body).toMatchObject({ coordinatorId: coordinator.uid, status: 'approved' });
-  });
-
-  it('rejects an assignment that is missing the coordinator identity', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const eventId = await seedEvent({ organiserId: organiser.uid });
-    await request(app.getHttpServer())
-      .post(`/api/events/${eventId}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorName: 'No Id' })
-      .expect(400);
-  });
-
-  it('returns 404 when assigning a coordinator to a non-existent event', async () => {
-    const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
-    const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
-    await request(app.getHttpServer())
-      .post(`/api/events/${randomUUID()}/assign`)
-      .set('Cookie', organiser.cookie)
-      .send({ coordinatorId: coordinator.uid, coordinatorName: coordinator.name })
-      .expect(404);
-  });
 
   it('omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');

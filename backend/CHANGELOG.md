@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- SPM-123: submitted requests are no longer auto-assigned (SPM-38's round-robin
+  and `coordinator-roster.ts` removed). Added the Event Coordinator Lead's
+  `GET /api/lead/queue`, `GET /api/lead/coordinators` and
+  `POST /api/lead/queue/:eventId/assign` (Lead-only; availability re-checked at
+  assignment; assignment notifies the coordinator). Removed the open
+  `POST /api/events/:id/assign`. Coordinators can now read their
+  `coordinator_assignment` notifications. The coordinator's row is share-locked
+  while assigning, and an unassigned request that is no longer Submitted gets
+  409 "This event request is no longer awaiting assignment."
+
 - Added PostgreSQL integration coverage for coordinator availability (SPM-80):
   the saved value, untouched event assignments, 400/401/403 through the real
   session middleware. Tightened COOR-AVAIL-02-B so it fails if no query runs.

@@ -85,10 +85,8 @@ function validEventRequest() {
   };
 }
 
-// The default row already carries a coordinator assignment (as steady-state
-// events do after round-robin has run), so tests that aren't specifically
-// about assignment don't also need to stub the COUNT/UPDATE auto-assign
-// queries. The dedicated round-robin tests below use an unassigned row.
+// The default row already carries a coordinator assignment, as events do once
+// the Event Coordinator Lead has assigned them (SPM-123).
 function savedEventRow() {
   const request = validEventRequest();
 
@@ -372,7 +370,7 @@ describe('EventsService', () => {
   });
 
   // SPM-38 AC1/AC2: a coordinator's My Events list is scoped to only the
-  // requests round-robin has assigned to them.
+  // requests the Event Coordinator Lead assigned to them (SPM-123).
   it('scopes list to the coordinator own assigned events', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -486,85 +484,6 @@ describe('EventsService', () => {
         service.get(coordinatorUser(), row.id),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
-
-    // A dual-role account (e.g. coor_tech@connectsphere.sg, which holds both
-    // ORGANISER and COORDINATOR in this system) must see an event through
-    // either match — owning it as organiser, or being its assigned coordinator.
-    it('EVE-REV-04-I lets a dual-role (organiser + coordinator) user view an event via either match', async () => {
-      const ownedByOrganiserRole = { ...savedEventRow(), organiser_id: 'dual-1', coordinator_id: 'someone-else' };
-      const assignedByCoordinatorRole = { ...savedEventRow(), organiser_id: 'someone-else', coordinator_id: 'dual-1' };
-      const dualRoleUser = organiserUser({ uid: 'dual-1', roles: ['ORGANISER', 'COORDINATOR'] });
-
-      db.query.mockResolvedValueOnce({ rows: [ownedByOrganiserRole] });
-      await expect(service.get(dualRoleUser, ownedByOrganiserRole.id)).resolves.toMatchObject({
-        organiserId: 'dual-1',
-      });
-
-      db.query.mockResolvedValueOnce({ rows: [assignedByCoordinatorRole] });
-      await expect(service.get(dualRoleUser, assignedByCoordinatorRole.id)).resolves.toMatchObject({
-        coordinatorId: 'dual-1',
-      });
-    });
-  });
-
-  describe('assignCoordinator', () => {
-    // Assignment (auto or manual) no longer advances status on its own —
-    // only a clarification request does that (see ClarificationsService).
-    it('claims a submitted event: writes the coordinator without changing status', async () => {
-      const row = {
-        ...savedEventRow(),
-        coordinator_id: 'coord-9',
-        coordinator_name: 'Coord Nine',
-        status: 'Submitted',
-      };
-      db.query.mockResolvedValue({ rows: [row] });
-
-      const result = await service.assignCoordinator(row.id, {
-        coordinatorId: 'coord-9',
-        coordinatorName: 'Coord Nine',
-      });
-
-      expect(result).toMatchObject({
-        coordinatorId: 'coord-9',
-        coordinatorName: 'Coord Nine',
-        status: 'submitted',
-      });
-      const [sql, params] = db.query.mock.calls[0];
-      expect(sql).toContain('UPDATE events');
-      expect(sql).not.toContain('Under_Review');
-      expect(params).toEqual([row.id, 'coord-9', 'Coord Nine']);
-    });
-
-    it('rejects a missing coordinator id or name before touching the database', async () => {
-      await expect(
-        service.assignCoordinator(savedEventRow().id, { coordinatorName: 'Coord Nine' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      await expect(
-        service.assignCoordinator(savedEventRow().id, { coordinatorId: '  ', coordinatorName: '  ' }),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(db.query).not.toHaveBeenCalled();
-    });
-
-    it('rejects a malformed event id without querying', async () => {
-      await expect(
-        service.assignCoordinator('not-a-uuid', {
-          coordinatorId: 'coord-9',
-          coordinatorName: 'Coord Nine',
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-      expect(db.query).not.toHaveBeenCalled();
-    });
-
-    it('returns not found when the event does not exist', async () => {
-      db.query.mockResolvedValue({ rows: [] });
-
-      await expect(
-        service.assignCoordinator(savedEventRow().id, {
-          coordinatorId: 'coord-9',
-          coordinatorName: 'Coord Nine',
-        }),
-      ).rejects.toBeInstanceOf(NotFoundException);
-    });
   });
 
   // SPM-36 event lookup guard
@@ -604,112 +523,26 @@ describe('EventsService', () => {
     expect(db.query).not.toHaveBeenCalled();
   });
 
-  // SPM-38 AC5: a newly-submitted request is round-robin assigned a
-  // coordinator automatically, cycling through the live database roster
-  // (see coordinator-roster.ts), and an event that already has a coordinator
-  // is never reassigned.
-  describe('SPM-38 AC5: round-robin coordinator assignment', () => {
-    const TEST_ROSTER = [
-      { id: 'roster-coord-1', name: 'Coordinator One' },
-      { id: 'roster-coord-2', name: 'Coordinator Two' },
-    ];
+  // SPM-123 AC1: a submitted request waits in the Lead's unassigned queue.
+  // It is never auto-assigned (this replaces SPM-38's round-robin).
+  it('LEAD-ASN-01-A saves a submitted request with no coordinator and sends no assignment notification', async () => {
+    // Arrange: the insert returns a fresh, unassigned row.
+    const freshRow = { ...savedEventRow(), coordinator_id: null, coordinator_name: null, status: 'Submitted' };
+    db.transaction
+      .mockResolvedValueOnce({ rows: [] }) // BEGIN
+      .mockResolvedValueOnce({ rows: [freshRow] }); // INSERT
 
-    it('EVE-REV-05-A assigns the first roster coordinator when no events have been assigned yet', async () => {
-      const request = validEventRequest();
-      const freshRow = {
-        ...savedEventRow(),
-        coordinator_id: null,
-        coordinator_name: null,
-        status: 'Submitted',
-      };
-      const assignedRow = {
-        ...freshRow,
-        coordinator_id: TEST_ROSTER[0].id,
-        coordinator_name: TEST_ROSTER[0].name,
-      };
-      db.transaction
-        .mockResolvedValueOnce({ rows: [] }) // BEGIN
-        .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
-        .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // COUNT assigned coordinators
-        .mockResolvedValueOnce({ rows: TEST_ROSTER }) // SELECT live coordinator roster
-        .mockResolvedValueOnce({ rows: [assignedRow] }); // UPDATE assigns coordinator
+    // Act: submit the request.
+    const result = await service.create(organiserUser(), validEventRequest());
 
-      const result = await service.create(organiserUser(), request);
-
-      expect(result.event.coordinatorId).toBe(TEST_ROSTER[0].id);
-      // Assignment alone does not advance status; the event stays Submitted.
-      expect(result.event.status).toBe('submitted');
-      expect(db.transaction).toHaveBeenNthCalledWith(
-        5,
-        expect.stringContaining('UPDATE events'),
-        [freshRow.id, TEST_ROSTER[0].id, TEST_ROSTER[0].name],
-      );
-    });
-
-    it('EVE-REV-05-B cycles to the next roster coordinator after a prior assignment', async () => {
-      const request = validEventRequest();
-      const freshRow = {
-        ...savedEventRow(),
-        coordinator_id: null,
-        coordinator_name: null,
-        status: 'Submitted',
-      };
-      const assignedRow = {
-        ...freshRow,
-        coordinator_id: TEST_ROSTER[1].id,
-        coordinator_name: TEST_ROSTER[1].name,
-      };
-      db.transaction
-        .mockResolvedValueOnce({ rows: [] }) // BEGIN
-        .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
-        .mockResolvedValueOnce({ rows: [{ count: '1' }] }) // COUNT assigned coordinators
-        .mockResolvedValueOnce({ rows: TEST_ROSTER }) // SELECT live coordinator roster
-        .mockResolvedValueOnce({ rows: [assignedRow] }); // UPDATE assigns coordinator
-
-      const result = await service.create(organiserUser(), request);
-
-      expect(result.event.coordinatorId).toBe(TEST_ROSTER[1].id);
-    });
-
-    it('EVE-REV-05-C does not reassign an event that already has a coordinator', async () => {
-      const request = validEventRequest();
-      const row = savedEventRow();
-      db.transaction
-        .mockResolvedValueOnce({ rows: [] }) // BEGIN
-        .mockResolvedValueOnce({ rows: [row] }); // INSERT (already assigned)
-
-      const result = await service.create(organiserUser(), request);
-
-      expect(result.event.coordinatorId).toBe('coord-9');
-      expect(db.transaction).not.toHaveBeenCalledWith(
-        expect.stringContaining('COUNT(*)'),
-      );
-    });
-
-    // If every coordinator account has been deactivated, a submission must
-    // still succeed rather than failing outright — it's just left unassigned
-    // for a human to fix manually.
-    it('EVE-REV-05-F leaves the event unassigned when no active coordinator account exists', async () => {
-      const request = validEventRequest();
-      const freshRow = {
-        ...savedEventRow(),
-        coordinator_id: null,
-        coordinator_name: null,
-        status: 'Submitted',
-      };
-      db.transaction
-        .mockResolvedValueOnce({ rows: [] }) // BEGIN
-        .mockResolvedValueOnce({ rows: [freshRow] }) // INSERT
-        .mockResolvedValueOnce({ rows: [{ count: '0' }] }) // COUNT assigned coordinators
-        .mockResolvedValueOnce({ rows: [] }); // SELECT live coordinator roster — empty
-
-      const result = await service.create(organiserUser(), request);
-
-      expect(result.event.coordinatorId).toBeUndefined();
-      expect(db.transaction).not.toHaveBeenCalledWith(
-        expect.stringContaining('UPDATE events'),
-        expect.anything(),
-      );
-    });
+    // Assert: unassigned and Submitted; the only statements are BEGIN, INSERT, COMMIT.
+    expect(result.event.coordinatorId).toBeUndefined();
+    expect(result.event.coordinatorName).toBeUndefined();
+    expect(result.event.status).toBe('submitted');
+    const sql = db.transaction.mock.calls.map(([text]) => String(text).replace(/\s+/g, ' ').trim());
+    expect(sql).toHaveLength(3);
+    expect(sql[0]).toBe('BEGIN');
+    expect(sql[1]).toMatch(/^INSERT INTO events/);
+    expect(sql[2]).toBe('COMMIT');
   });
 });

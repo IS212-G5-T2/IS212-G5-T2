@@ -29,11 +29,11 @@ describe("auth", () => {
   it("normalizes mixed-case roles and preserves the configured role order", () => {
     expect(toLocalUser({
       uid: "user-2",
-      email: "organiser_coordinator@connectsphere.test",
-      roles: [" coordinator ", "organiser", "UNKNOWN"],
+      email: "coordinator_venuestaff@connectsphere.test",
+      roles: [" venue_staff ", "coordinator", "UNKNOWN"],
     })).toMatchObject({
-      role: "organiser",
-      roles: ["organiser", "coordinator"],
+      role: "coordinator",
+      roles: ["coordinator", "venue_staff"],
     });
   });
 
@@ -145,5 +145,14 @@ describe("auth", () => {
 
     await logoutWithDefaultBase();
     expect(fetchMock).toHaveBeenCalledWith("http://localhost:8080/api/auth/logout", expect.any(Object));
+  });
+
+  // SPM-123 LEAD-ASN-11-B: the server's COORDINATOR_LEAD role becomes the UI's Lead role.
+  it("LEAD-ASN-11-B recognises the Lead role from the server", () => {
+    // Act: map the seeded Lead account.
+    const user = toLocalUser({ uid: "lead-1", email: "lead@connectsphere.test", roles: ["COORDINATOR_LEAD"] });
+
+    // Assert: a signed-in Lead, not an account without a role.
+    expect(user).toMatchObject({ role: "coordinator_lead", roles: ["coordinator_lead"] });
   });
 });

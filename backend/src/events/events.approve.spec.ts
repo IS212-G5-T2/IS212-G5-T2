@@ -240,3 +240,19 @@ describe('EventsService approval notifications (SPM-40 AC4)', () => {
     expect(result[0].message).toContain('approved and can proceed');
   });
 });
+
+describe('SPM-123 AC10: approving keeps the assigned coordinator', () => {
+  // Approval changes status only; the coordinator stays on the event.
+  it('LEAD-ASN-10-A keeps the coordinator when a request is approved', async () => {
+    // Arrange: an assigned, submitted request.
+    wireApprove(eventRow({ status: 'Submitted' }), eventRow({ status: 'Approved' }));
+
+    // Act: the assigned coordinator approves it.
+    const result = await approve(VALID_UUID, coordinator());
+
+    // Assert: the update never writes the coordinator columns, and the result keeps them.
+    const update = txSql().find((s) => s.startsWith('UPDATE'))!;
+    expect(update).not.toMatch(/coordinator_(id|name)/);
+    expect(result).toMatchObject({ status: 'approved', coordinatorId: 'coordinator-1', coordinatorName: 'Coordinator One' });
+  });
+});
