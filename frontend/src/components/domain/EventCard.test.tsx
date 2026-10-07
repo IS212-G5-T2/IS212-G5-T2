@@ -93,6 +93,7 @@ describe("EventCard", () => {
   });
 
   // SPM-46 AC2: a reassigned event is labelled in the coordinator's list, with who it came from.
+  // Kills: F1 ("Reassigned" label on every card).
   it("REASN-VIEW-02-F labels a reassigned event \"Reassigned\" with the coordinator it came from, and nothing else", () => {
     // Arrange + Act: one reassigned event and one that never was.
     render(

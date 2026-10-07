@@ -560,6 +560,7 @@ describe('SPM-46: reassignment context on events', () => {
   const latestToCoord9 = { coordinatorName: 'Coordinator 1', reassignedAt: '2026-10-07T06:05:00+00:00', toCoordinatorId: 'coord-9' };
 
   // The current coordinator sees who it came from and when; an event never reassigned has nothing.
+  // Kills: B4 (reassignment time returned unconverted).
   it('REASN-VIEW-02-C includes reassignedFrom for a reassigned event and leaves it out otherwise', async () => {
     // Arrange: one reassigned event, then one never reassigned.
     db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), latest_reassignment: latestToCoord9 }] });
@@ -576,6 +577,7 @@ describe('SPM-46: reassignment context on events', () => {
   });
 
   // The list carries it too, from the most recent reassignment, and only if it was to the current coordinator.
+  // Kills: B2 (shown when the latest reassignment went elsewhere), B3 (oldest first), B10 (no id tie-break).
   it('REASN-VIEW-02-D takes the most recent reassignment, for the list too, and only when it was to the current coordinator', async () => {
     // Arrange: the coordinator's list has one event reassigned to them and one whose latest reassignment went elsewhere.
     db.query.mockResolvedValueOnce({
@@ -593,11 +595,13 @@ describe('SPM-46: reassignment context on events', () => {
     expect(second.reassignedFrom).toBeUndefined();
     const sql = String(db.query.mock.calls[0][0]).replace(/\s+/g, ' ');
     expect(sql).toMatch(/event_reassignments/);
-    expect(sql).toMatch(/ORDER BY \w+\.reassigned_at DESC/);
+    // Latest first, with the row id as a fixed tie-break so the choice never depends on storage order.
+    expect(sql).toMatch(/ORDER BY (\w+)\.reassigned_at DESC, \1\.id DESC/);
     expect(sql).toMatch(/LIMIT 1/);
   });
 
   // Staffing history is only for the coordinator who now holds the event, not the organiser or attendees.
+  // Kills: B9 (reassignment details sent to the organiser and attendees).
   it('REASN-VIEW-02-I sends reassignedFrom only to the current coordinator, never to the organiser or an attendee', async () => {
     // Arrange: the same reassigned, attendee-visible event, read by its organiser, then an attendee, then the organiser's list.
     const row = { ...savedEventRow(), status: 'Confirmed', latest_reassignment: latestToCoord9 };
@@ -618,6 +622,7 @@ describe('SPM-46: reassignment context on events', () => {
   });
 
   // A previous coordinator is told the event moved, without naming who has it; anyone else still gets "not found".
+  // Kills: B5 (previous coordinator gets "not found"), B6 (message names the new coordinator).
   it('REASN-VIEW-04-A tells a previous coordinator the event was reassigned, and keeps "not found" for everyone else', async () => {
     // Arrange: the event now belongs to coord-9; coord-1 held it before, coord-5 never did.
     const formerHolder = coordinatorUser({ uid: 'coord-1', name: 'Coordinator 1' });
@@ -641,6 +646,7 @@ describe('SPM-46: reassignment context on events', () => {
   });
 
   // Someone who lost the event and later got it back sees it normally.
+  // Kills: the reassigned-away check being applied to the event's current coordinator.
   it('REASN-VIEW-04-D shows the event normally to a coordinator who lost it and later got it back', async () => {
     // Arrange: coord-9 is the current coordinator again; the latest reassignment was back to them.
     db.query.mockResolvedValueOnce({ rows: [{ ...savedEventRow(), latest_reassignment: { ...latestToCoord9, coordinatorName: 'Coordinator 2' } }] });

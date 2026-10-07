@@ -8,7 +8,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api, ApiError } from "@/utils/api";
-import { formatDateTime } from "@/utils/format";
+import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import type { EventRecord } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -92,6 +92,7 @@ beforeEach(() => {
 
 describe("SPM-46 AC2: who the event came from and when", () => {
   // The new coordinator sees a banner naming the previous coordinator and the time.
+  // Kills: a banner that drops the previous coordinator, the time, or uses the wrong wording.
   it("REASN-VIEW-02-G tells the new coordinator who the event was reassigned from and when", async () => {
     // Arrange: Coordinator 2 opens an event they received from Coordinator 1.
     serve(reassignedEvent());
@@ -106,6 +107,7 @@ describe("SPM-46 AC2: who the event came from and when", () => {
   });
 
   // No banner on an event that was never reassigned, or for the organiser.
+  // Kills: F2 (banner for everyone), F3 (banner without reassignment data).
   it("REASN-VIEW-02-H shows no reassignment banner for an event never reassigned, or to the organiser", async () => {
     // Arrange + Act: the coordinator opens an event that was never reassigned.
     serve(reassignedEvent({ reassignedFrom: undefined }));
@@ -129,16 +131,35 @@ describe("SPM-46 AC2: who the event came from and when", () => {
 
 describe("SPM-46 AC3: the full context", () => {
   // The new coordinator sees the details, the approval in the status timeline and the earlier clarification.
+  // Kills: F7 (clarification history not loaded), F8 (event detail fields swapped).
   it("REASN-VIEW-03-A shows the new coordinator the details, the approval decision and the clarification history", async () => {
-    // Arrange: Coordinator 2 opens the approved event that carries Coordinator 1's question.
-    serve(reassignedEvent());
+    // Arrange: Coordinator 2 opens the approved event, with distinct values in every detail field,
+    // carrying Coordinator 1's question.
+    serve(
+      reassignedEvent({
+        expectedAttendance: 137,
+        venueRequirements: { minCapacity: 137, layout: "Theatre", facilities: ["Catering", "AV System"], accessibility: ["Wheelchair ramps"] },
+        equipmentNeeds: "Two microphones",
+      }),
+    );
 
     // Act: open the page.
     renderPage();
 
-    // Assert: details, Approved in the timeline, and the earlier clarification loaded for them.
+    // Assert: the name, purpose and every planning detail the organiser submitted.
     expect(await screen.findByRole("heading", { name: "Community Welcome Evening" })).toBeInTheDocument();
     expect(screen.getByText("Community building")).toBeInTheDocument();
+    const detail = (label: string) => screen.getByText(label, { selector: "dt" }).nextElementSibling?.textContent;
+    expect(detail("Date & time")).toBe(formatDateTimeRange("2026-12-12T18:00:00.000Z", "2026-12-12T21:00:00.000Z"));
+    expect(detail("Expected attendance")).toBe("137");
+    expect(detail("Room layout")).toBe("Theatre");
+    expect(detail("Required facilities")).toBe("Catering, AV System");
+    expect(detail("Accessibility needs")).toBe("Wheelchair ramps");
+    expect(detail("Equipment needs")).toBe("Two microphones");
+    expect(detail("Organiser")).toContain("Priya Nair");
+    expect(detail("Coordinator")).toContain("Coordinator 2");
+
+    // Assert: the approval decision in the timeline, and the earlier clarification loaded for them.
     expect(within(screen.getByLabelText("Event status timeline")).getByText(/Approved/i)).toBeInTheDocument();
     await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/events/event-1/comments"));
     expect(await screen.findAllByText("Is the stage still needed?")).not.toHaveLength(0);
@@ -147,6 +168,7 @@ describe("SPM-46 AC3: the full context", () => {
 
 describe("SPM-46 AC4: after the event moves away", () => {
   // The previous coordinator sees why they can't open it, not a generic "not found".
+  // Kills: F6 (refusal replaced by a generic "Event not found").
   it("REASN-VIEW-04-C tells the previous coordinator the event was reassigned, with a way back", async () => {
     // Arrange: the server refuses the former coordinator with the reassigned message.
     useAppStore.setState({ currentUser: { ...coordinator2, id: "coordinator-1", name: "Coordinator 1" } });

@@ -6,7 +6,7 @@
  * 11-A, 11-SEC-3, 11-SEC-5, 11-SEC-7.
  * SPM-47 (reassignment): LEAD-REASN-01-B, 03-F, 04-B, 05-B, 06-A, 08-D,
  * 09-SEC-3, 09-SEC-6, 10-F.
- * SPM-46 (viewing a reassigned event): REASN-VIEW-01-A, 02-E, 03-C, 04-B.
+ * SPM-46 (viewing a reassigned event): REASN-VIEW-01-A, 02-E, 02-J, 03-C, 04-B.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -609,6 +609,7 @@ describe('Lead assignment (SPM-123 e2e)', () => {
   // ---------------------------------------------------------------------------
 
   // SPM-46 AC1: the new coordinator's notice points to an event they can actually open.
+  // Kills: B8 (the reassignment notice loses its event link).
   it('REASN-VIEW-01-A gives the new coordinator a notice that links to an event they can open', async () => {
     // Arrange: an approved event reassigned from the original to the replacement.
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
@@ -628,6 +629,7 @@ describe('Lead assignment (SPM-123 e2e)', () => {
   });
 
   // SPM-46 AC2: the current coordinator's list and event data say who it came from and when, after two moves.
+  // Kills: B1 (no history row), B3 (oldest reassignment chosen).
   it('REASN-VIEW-02-E records every reassignment and shows the current coordinator the most recent previous one', async () => {
     // Arrange: the event moves first -> second -> third.
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
@@ -659,7 +661,49 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     ]);
   });
 
+  // SPM-46 AC2: in the real database, a failed history write undoes the whole reassignment.
+  // Kills: B11 (history written outside the reassignment transaction, so a failure no longer undoes it).
+  it('REASN-VIEW-02-J rolls back the reassignment in PostgreSQL when the history row cannot be saved', async () => {
+    // Arrange: the Lead assigns a queued request to the original coordinator (an unread assignment notice exists),
+    // then a temporary trigger makes the history insert fail for this event only.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const original = await createDatabaseUser('COORDINATOR', 'Lead E2E Original');
+    const replacement = await createDatabaseUser('COORDINATOR', 'Lead E2E Replacement');
+    const eventId = await seedEvent({ name: 'Event whose history write fails' });
+    await request(app.getHttpServer())
+      .post(`/api/lead/queue/${eventId}/assign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: original.id })
+      .expect(201);
+    await pool.query(`CREATE OR REPLACE FUNCTION spm46_fail_history() RETURNS trigger AS $$
+      BEGIN RAISE EXCEPTION 'history store down'; END $$ LANGUAGE plpgsql`);
+    await pool.query(`CREATE TRIGGER spm46_fail_history BEFORE INSERT ON event_reassignments
+      FOR EACH ROW WHEN (NEW.event_id = '${eventId}'::uuid) EXECUTE FUNCTION spm46_fail_history()`);
+
+    try {
+      // Act: the Lead tries to reassign it.
+      const failed = await reassign(lead, eventId, replacement, original);
+
+      // Assert: the request fails, and nothing from the reassignment was kept.
+      expect(failed.status).toBe(500);
+      const stored = await pool.query('SELECT coordinator_id, coordinator_name FROM events WHERE id = $1', [eventId]);
+      expect(stored.rows[0]).toEqual({ coordinator_id: original.id, coordinator_name: 'Lead E2E Original' });
+      const history = await pool.query('SELECT count(*)::int AS n FROM event_reassignments WHERE event_id = $1', [eventId]);
+      expect(history.rows[0].n).toBe(0);
+      const notices = await pool.query(
+        'SELECT type, read FROM notifications WHERE related_event_id = $1 ORDER BY created_at',
+        [eventId],
+      );
+      expect(notices.rows).toEqual([{ type: 'coordinator_assignment', read: false }]);
+    } finally {
+      // Cleanup: remove the temporary trigger so no other test is affected.
+      await pool.query('DROP TRIGGER IF EXISTS spm46_fail_history ON event_reassignments');
+      await pool.query('DROP FUNCTION IF EXISTS spm46_fail_history()');
+    }
+  });
+
   // SPM-46 AC3: the new coordinator sees the status and the existing clarification history.
+  // Kills: a reassignment that breaks the new coordinator's access to status or clarifications (regression check).
   it('REASN-VIEW-03-C lets the new coordinator read the event status and its existing clarification history', async () => {
     // Arrange: the original asks a clarification on an approved event, then it is reassigned.
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
@@ -685,6 +729,7 @@ describe('Lead assignment (SPM-123 e2e)', () => {
   });
 
   // SPM-46 AC4: the original coordinator is told it moved; a stranger still gets "not found".
+  // Kills: B5, B6, B7 (any history row counts, so strangers would see the reassigned message).
   it('REASN-VIEW-04-B tells the original coordinator the event was reassigned and keeps "not found" for others', async () => {
     // Arrange: an event reassigned away from the original; another coordinator never had it.
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');

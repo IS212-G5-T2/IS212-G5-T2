@@ -222,6 +222,7 @@ describe("SPM-47 AC8: reassignment notifications", () => {
 
 describe("SPM-46 AC1: the reassignment notice opens the event", () => {
   // Clicking the notice's link takes the coordinator to that event's page.
+  // Kills: F5 (the notice links to the events list instead of the event).
   it("REASN-VIEW-01-B opens the reassigned event's page from the notice", async () => {
     // Arrange: one unread "reassigned to you" notice for event-2, inside a router with the event route.
     const user = userEvent.setup();

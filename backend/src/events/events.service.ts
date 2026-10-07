@@ -27,7 +27,7 @@ const LATEST_REASSIGNMENT = `(SELECT json_build_object(
            'toCoordinatorId', r.to_coordinator_id)
          FROM event_reassignments r
         WHERE r.event_id = events.id
-        ORDER BY r.reassigned_at DESC
+        ORDER BY r.reassigned_at DESC, r.id DESC
         LIMIT 1) AS latest_reassignment`;
 
 type LatestReassignment = { coordinatorName: string; reassignedAt: string; toCoordinatorId: string };

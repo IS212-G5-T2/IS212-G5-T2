@@ -714,6 +714,7 @@ describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
 // ---------------------------------------------------------------------------
 describe('SPM-46 AC2: each reassignment is recorded', () => {
   // One history row per reassignment, naming both coordinators and the Lead.
+  // Kills: B1 (no history row), B11 (history written outside the transaction).
   it('REASN-VIEW-02-A records the reassignment (from, to and the Lead) in the same transaction', async () => {
     // Arrange: a normal reassignment from Coordinator 1 to Coordinator 2.
     wireReassign({});
@@ -731,6 +732,7 @@ describe('SPM-46 AC2: each reassignment is recorded', () => {
   });
 
   // Without its history row, a reassignment doesn't stick.
+  // Kills: a history-write error being swallowed instead of rolling the reassignment back.
   it('REASN-VIEW-02-B rolls the reassignment back if the history row cannot be saved', async () => {
     // Arrange: saving the history row fails.
     wireReassign({ historyError: new Error('history store down') });
