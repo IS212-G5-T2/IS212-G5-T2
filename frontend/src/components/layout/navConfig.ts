@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types";
+import type { User, UserRole } from "@/types";
 
 export interface NavItem {
   label: string;
@@ -57,3 +57,20 @@ export const roleLabels: Record<UserRole, string> = {
   attendee: "Attendee",
   coordinator_lead: "Event Coordinator Lead",
 };
+
+/**
+ * Builds a sidebar from every role the server granted to the signed-in user.
+ * Shared destinations are kept once, using the first role's label and order.
+ */
+export function navigationFor(user: Pick<User, "role" | "roles">): NavItem[] {
+  const grantedRoles = user.roles ?? [user.role];
+  const destinations = new Set<string>();
+
+  return grantedRoles.flatMap((role) =>
+    navByRole[role].filter((item) => {
+      if (destinations.has(item.to)) return false;
+      destinations.add(item.to);
+      return true;
+    }),
+  );
+}

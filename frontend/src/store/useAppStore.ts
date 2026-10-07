@@ -79,6 +79,13 @@ interface AppState {
   /** Loads the signed-in attendee's active registration for an event from the server. */
   loadMyRegistration: (eventId: string) => Promise<void>;
   withdrawRegistration: (eventId: string) => void;
+  /**
+   * SPM-120: POSTs the withdrawal for one of the attendee's own registrations and
+   * stores the server's updated record. Rejects with the server's ApiError. A 401
+   * from this call (and only this call) clears the client session, so the route
+   * guards send the user to /login.
+   */
+  submitWithdrawal: (registrationId: string) => Promise<Registration>;
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -473,6 +480,29 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  submitWithdrawal: async (registrationId) => {
+    try {
+      // The response is the updated registration plus a server message; the UI builds its own
+      // banner text (D9), so only the registration fields are kept.
+      const { message, ...registration } = await api<Registration & { message: string }>(
+        `/registrations/${registrationId}/withdraw`,
+        { method: "POST" },
+      );
+      void message;
+      set((s) => ({
+        registrations: [registration, ...s.registrations.filter((r) => r.id !== registration.id)],
+      }));
+      return registration;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // The session is already invalid on the server; drop it here too.
+        authRevision += 1;
+        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      }
+      throw error;
+    }
   },
 
   login: async (email, password) => {

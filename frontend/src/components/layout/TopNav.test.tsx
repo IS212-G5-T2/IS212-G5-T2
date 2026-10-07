@@ -39,6 +39,17 @@ function renderTopNav(user: User = coordinator) {
   );
 }
 
+// A promise the test settles by hand, to control the order loads finish in.
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 // Opens the menu from the avatar and returns the menu panel.
 async function openMenu(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: "Open profile menu" }));
@@ -179,17 +190,52 @@ describe("SPM-80 AC3: a coordinator sees their availability in the profile menu"
 
   // If the status can't be loaded, show the email rather than guess.
   it("COOR-AVAIL-03-N shows the email instead of guessing when the status cannot load", async () => {
-    // Arrange: loading fails.
+    // Arrange: a load the test fails on purpose.
     const user = userEvent.setup();
-    getMyAvailability.mockRejectedValue(new Error("offline"));
+    const load = deferred<{ available: boolean }>();
+    getMyAvailability.mockReturnValue(load.promise);
     renderTopNav();
 
-    // Act: open the menu and let the load fail.
+    // Act: open the menu, then make the load fail and let it settle.
     const menu = await openMenu(user);
-    await act(async () => {});
+    expect(getMyAvailability).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      load.reject(new Error("offline"));
+      await load.promise.catch(() => undefined);
+    });
 
-    // Assert: email shown, no status label.
-    expect(await within(menu).findByText("coordinator1@connectsphere.test")).toBeInTheDocument();
+    // Assert: after the failure the email is shown and no status is guessed.
+    expect(within(menu).getByText("coordinator1@connectsphere.test")).toBeInTheDocument();
     expect(within(menu).queryByText(/^(Available|Unavailable)$/)).not.toBeInTheDocument();
+  });
+
+  // A slow load from an earlier opening must not overwrite a newer one.
+  it("COOR-AVAIL-03-Q ignores a slow load from an earlier opening that finishes last", async () => {
+    // Arrange: the first opening's load is slow; the second's is fast.
+    const user = userEvent.setup();
+    const slow = deferred<{ available: boolean }>();
+    const fast = deferred<{ available: boolean }>();
+    getMyAvailability.mockReturnValueOnce(slow.promise).mockReturnValueOnce(fast.promise);
+    renderTopNav();
+
+    // Act: open (slow load starts), close, reopen (fast load starts).
+    await openMenu(user);
+    await user.keyboard("{Escape}");
+    const menu = await openMenu(user);
+
+    // Act: the newer load finishes first (unavailable), then the older one (available).
+    await act(async () => {
+      fast.resolve({ available: false });
+      await fast.promise;
+    });
+    expect(within(menu).getByText("Unavailable")).toBeInTheDocument();
+    await act(async () => {
+      slow.resolve({ available: true });
+      await slow.promise;
+    });
+
+    // Assert: the newer status stays; the late, older one is ignored.
+    expect(within(menu).getByText("Unavailable")).toBeInTheDocument();
+    expect(within(menu).queryByText("Available")).not.toBeInTheDocument();
   });
 });

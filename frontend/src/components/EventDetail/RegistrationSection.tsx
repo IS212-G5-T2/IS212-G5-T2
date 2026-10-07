@@ -1,23 +1,31 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EventRecord, Registration, User } from "@/types";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 import { useAppStore } from "@/store/useAppStore";
 import { registrationState } from "@/pages/EventView";
+import { ApiError } from "@/utils/api";
 import {
   REGISTRATION_MESSAGES,
+  WITHDRAWAL_MESSAGES,
   formatSgt,
   formatSgtDateTime,
+  hasEventStarted,
   registrationClosingHeading,
 } from "@/utils/registration";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationForm } from "./RegistrationForm";
+import { WithdrawalConfirmation, WithdrawalSuccessBanner } from "./WithdrawalConfirmation";
+import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
 
 interface Props {
   event: EventRecord;
   currentUser: User;
-  /** The attendee's active registration for this event, if any. */
+  /** The attendee's latest registration for this event, of any status, if any. */
   registration?: Registration;
+  /** Called after a successful withdrawal so the page can refetch the event's capacity. */
+  onWithdrawn?: () => void;
 }
 
 // How often the open/closed state is re-checked while the page stays open.
@@ -39,12 +47,28 @@ function Meta({ label, value }: { label: string; value: string }) {
  * booked. The Register button is rendered only while registration is open;
  * every other state is text only. The server still enforces every rule.
  */
-export function RegistrationSection({ event, currentUser, registration }: Props) {
+export function RegistrationSection({ event, currentUser, registration, onWithdrawn }: Props) {
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+  const submitWithdrawal = useAppStore((s) => s.submitWithdrawal);
+  // The store holds the freshest copy (it is updated by a withdrawal or a re-registration); matched by
+  // event + attendee, which is what registerForEvent uses to replace the withdrawn row in the store.
+  const stored = useAppStore((s) =>
+    s.registrations.find((r) => r.eventId === event.id && r.attendeeId === currentUser.id),
+  );
+  const current = stored ?? registration;
   const [now, setNow] = useState(() => new Date());
   const [formOpen, setFormOpen] = useState(false);
   const [confirmation, setConfirmation] = useState<Registration | null>(null);
+  const [reregistering, setReregistering] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState("");
+  // SPM-120 withdrawal state.
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [withdrawPending, setWithdrawPending] = useState(false);
+  const [withdrawError, setWithdrawError] = useState("");
+  const [withdrawalMessage, setWithdrawalMessage] = useState("");
+  const [serverSaysOccurred, setServerSaysOccurred] = useState(false);
+  const withdrawInFlight = useRef(false);
+  const closeDialog = useCallback(() => setDialogOpen(false), []);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), RECHECK_MS);
@@ -62,13 +86,30 @@ export function RegistrationSection({ event, currentUser, registration }: Props)
   }
 
   const state = registrationState(event, now);
-  const registered = registration?.status === "registered";
+  const registered = current?.status === "registered";
+  const withdrawn = current?.status === "withdrawn";
+  // AC4: the cut-off is the event start. The server re-checks it; a 422 also sets serverSaysOccurred.
+  const eventOccurred = hasEventStarted(event, now) || serverSaysOccurred;
   const closedWhileFormOpen = formOpen && state !== "open";
   const spots = event.availableRegistrationSpots ?? event.expectedAttendance;
   const closesAt = event.registrationClosesAt;
   // "Closed on" is only true once the closing time has actually passed; a
   // cancelled or completed event can still have a future scheduled close.
   const hasClosed = Boolean(closesAt) && now.getTime() >= new Date(closesAt as string).getTime();
+
+  // SPM-62 AC3: the registration details; kept after a withdrawal too (SPM-120 07-A "details still shown").
+  const detailRows: { label: string; value: string }[] = current
+    ? [
+        { label: "Registration ID", value: current.id },
+        { label: "Full name", value: current.fullName || current.attendeeName },
+        ...(current.email ? [{ label: "Email", value: current.email }] : []),
+        ...(current.contactNumber ? [{ label: "Contact number", value: current.contactNumber }] : []),
+        { label: "Registered on", value: formatSgtDateTime(current.registeredAt) },
+        ...(current.specialRequirements
+          ? [{ label: "Special requirements", value: current.specialRequirements }]
+          : []),
+      ]
+    : [];
 
   let heading: string;
   let meta: { label: string; value: string }[] = [];
@@ -77,20 +118,7 @@ export function RegistrationSection({ event, currentUser, registration }: Props)
     // branch is checked before any event-timing state, so it stays visible
     // for a Completed or Cancelled event too.
     heading = "You're registered";
-    meta = registration
-      ? [
-          { label: "Registration ID", value: registration.id },
-          { label: "Full name", value: registration.fullName || registration.attendeeName },
-          ...(registration.email ? [{ label: "Email", value: registration.email }] : []),
-          ...(registration.contactNumber
-            ? [{ label: "Contact number", value: registration.contactNumber }]
-            : []),
-          { label: "Registered on", value: formatSgtDateTime(registration.registeredAt) },
-          ...(registration.specialRequirements
-            ? [{ label: "Special requirements", value: registration.specialRequirements }]
-            : []),
-        ]
-      : [];
+    meta = detailRows;
   } else if (state === "not-yet-open" && event.registrationOpensAt) {
     heading = `Registration opens on ${formatSgt(event.registrationOpensAt)}`;
     meta = [{ label: "Available", value: `${spots} ${spots === 1 ? "spot" : "spots"}` }];
@@ -110,34 +138,123 @@ export function RegistrationSection({ event, currentUser, registration }: Props)
     if (closesAt && hasClosed) meta = [{ label: "Closed on", value: formatSgtDateTime(closesAt) }];
   }
 
-  const showRegister = !registered && !formOpen && state === "open";
+  // The withdrawn card has its own "Register again" action in its footer (SPM-120 redesign).
+  const showRegister = !registered && !withdrawn && !formOpen && state === "open";
+
+  /** SPM-120 AC3: sends the withdrawal; the server decides, the UI mirrors the outcome. */
+  const confirmWithdrawal = async () => {
+    if (!current || withdrawInFlight.current) return;
+    withdrawInFlight.current = true;
+    setWithdrawPending(true);
+    setWithdrawError("");
+    try {
+      await submitWithdrawal(current.id);
+      setDialogOpen(false);
+      // D9: the banner is built here from the event name, never echoed from the response.
+      setWithdrawalMessage(WITHDRAWAL_MESSAGES.success(event.name));
+      onWithdrawn?.();
+    } catch (error) {
+      const code = error instanceof ApiError ? error.code : undefined;
+      if (code === "event_already_occurred") {
+        setDialogOpen(false);
+        setServerSaysOccurred(true);
+      } else if (code === "registration_already_withdrawn") {
+        // Withdrawn elsewhere (another tab): show the server's truth, not a stale "Registered".
+        setDialogOpen(false);
+        void loadMyRegistration(event.id).catch(() => undefined);
+      } else {
+        setWithdrawError(
+          error instanceof Error ? error.message : "We couldn't process your withdrawal. Please try again.",
+        );
+      }
+    } finally {
+      withdrawInFlight.current = false;
+      setWithdrawPending(false);
+    }
+  };
 
   return (
     <Card className="lg:col-span-3">
       <CardBody className="space-y-3">
         <section aria-label="Registration" className="space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div role="status" className="space-y-2">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
-              {meta.length > 0 && (
-                <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-                  {meta.map((item) => (
-                    <Meta key={item.label} label={item.label} value={item.value} />
-                  ))}
-                </dl>
+          {withdrawn && current ? (
+            <WithdrawnRegistrationStatus
+              event={event}
+              registration={current}
+              now={now}
+              hideFooter={formOpen}
+              onRegisterAgain={() => {
+                setDuplicateNotice("");
+                setReregistering(true);
+                setFormOpen(true);
+              }}
+            />
+          ) : (
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div role="status" className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
+                  {registered && <StatusBadge status="registered" />}
+                </div>
+                {meta.length > 0 && (
+                  <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+                    {meta.map((item) => (
+                      <Meta key={item.label} label={item.label} value={item.value} />
+                    ))}
+                  </dl>
+                )}
+              </div>
+              {showRegister && (
+                <Button
+                  variant="secondary"
+                  onClick={() => {
+                    setReregistering(false);
+                    setFormOpen(true);
+                  }}
+                >
+                  Register
+                </Button>
+              )}
+              {registered && (
+                <section aria-label="Withdrawal" className="space-y-1">
+                  {eventOccurred ? (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{WITHDRAWAL_MESSAGES.eventAlreadyOccurred}</p>
+                  ) : (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setWithdrawError("");
+                        setDialogOpen(true);
+                      }}
+                    >
+                      Withdraw
+                    </Button>
+                  )}
+                </section>
               )}
             </div>
-            {showRegister && (
-              <Button variant="secondary" onClick={() => setFormOpen(true)}>
-                Register
-              </Button>
-            )}
-          </div>
+          )}
+          {withdrawalMessage && (
+            <WithdrawalSuccessBanner message={withdrawalMessage} onDismiss={() => setWithdrawalMessage("")} />
+          )}
+          {dialogOpen && registered && (
+            <WithdrawalConfirmation
+              eventName={event.name}
+              pending={withdrawPending}
+              error={withdrawError}
+              onConfirm={confirmWithdrawal}
+              onCancel={closeDialog}
+            />
+          )}
           {confirmation && (
             <RegistrationConfirmation
               registration={confirmation}
               eventName={event.name}
-              onDismiss={() => setConfirmation(null)}
+              reregistered={reregistering}
+              onDismiss={() => {
+                setConfirmation(null);
+                setReregistering(false);
+              }}
             />
           )}
           {duplicateNotice && (
@@ -155,8 +272,9 @@ export function RegistrationSection({ event, currentUser, registration }: Props)
           {!registered && formOpen && (
             <RegistrationForm
               eventId={event.id}
-              initialName={currentUser.name}
-              initialEmail={currentUser.email}
+              initialName={current?.fullName || currentUser.name}
+              initialEmail={current?.email || currentUser.email}
+              initialContactNumber={current?.contactNumber || ""}
               onRegistered={(created) => {
                 setConfirmation(created);
                 setFormOpen(false);
