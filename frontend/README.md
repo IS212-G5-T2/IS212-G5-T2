@@ -75,10 +75,10 @@ Test files live alongside the code they cover (for example,
 helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup,
 `src/test/fixtures/` for reusable test data).
 
-The standard Vitest command currently loads `vitest.config.ts`, which selects
-`src/**/*.test.tsx`. Any `.test.ts` files are not run by that command. Do not
-claim complete coverage until the test selection includes every intended test
-file and the suite passes.
+The standard Vitest command loads `vitest.config.ts`, which selects
+`src/**/*.test.{ts,tsx}` and excludes `*.playwright.spec.ts` (browser tests).
+Do not claim complete coverage until the suite passes and includes every
+intended test file.
 
 `LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The mock accounts used to parameterize the "correct credentials" cases are documented in `src/test/fixtures/authUsers.ts`; their password is deliberately fake and test-only:
 
@@ -171,9 +171,21 @@ through `2,147,483,647`; the create form prevents values outside that database
 range before it sends the request. The location combobox accepts either a
 saved location or new free text.
 
-## Rejecting requests (SPM-83)
+## Event planning (SPM-97, SPM-49, SPM-85)
 
-Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.
+Once an event is Approved, its detail page shows a read-only **Planning information** panel to the owning organiser and the assigned coordinator; it refreshes every 15 seconds. Access uses every role the account holds, so a user who is both an organiser and the assigned coordinator gets the coordinator's editing tools.
+
+The assigned coordinator also gets **Update event information**. Each field is labelled:
+
+- **Applies immediately**: name, purpose, description and accessibility needs.
+- **Review if it affects bookings**: the rule is shown under the field (for example "up to 200 attendees", a time window, or "removing facilities applies immediately"), and once you edit the field the form says whether that value will apply immediately or be sent for review.
+- **Needs review**: any change is held, e.g. room layout while a venue is booked.
+
+A change that stays compatible with the existing venue bookings and equipment arrangements applies at once. A change that would affect one is listed under **Changes awaiting review** with the impacted bookings; the form keeps showing the current value, shows the proposal under the field, and locks that field until you confirm or reject it. Rules and assumptions are in `../backend/HANDOVER.md`.
+
+## Reviewing requests (SPM-83)
+
+Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request and choose **Review Event**. Approve persists the event as Approved; Reject requires a trimmed 10–500-character reason with at least three words and letters. Invalid rejection input blocks submission. The saved decision leaves the Submitted pending view; rejected requests retain their reason and remain available through the Rejected filter.
 
 Organisers receive persistent rejection notifications above their main content, with the reason in a separate block and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Existing databases require backend migrations 003_event_rejection.sql and 004_allow_rejected_event_status.sql.
 

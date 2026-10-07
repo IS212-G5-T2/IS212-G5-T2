@@ -541,6 +541,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
   });
 
   // EQUIP-UNAVAIL-07-SEC-02: every non-Technical-Support role is denied before state changes.
+  // Extra timeout: about a dozen bcrypt cost-12 hash/verify calls now run sequentially.
   it('EQUIP-UNAVAIL-07-SEC-02 denies every other defined role', async () => {
     // Arrange: each forbidden account targets its own available record.
     const roles = [
@@ -550,9 +551,14 @@ describe('SPM-119 equipment availability (e2e)', () => {
       'VENUE_STAFF',
       'COORDINATOR_LEAD',
     ] as const;
-    const actors = await Promise.all(
-      roles.map((role, index) => createUser(role, `forbidden-${index}`)),
-    );
+    // Logins and PATCHes run sequentially: supertest binds a non-listening
+    // server to an ephemeral port per request and closes it when that request
+    // ends, so concurrent requests against app.getHttpServer() can have their
+    // sockets reset (ECONNRESET) by whichever request finishes first.
+    const actors: Awaited<ReturnType<typeof createUser>>[] = [];
+    for (const [index, role] of roles.entries()) {
+      actors.push(await createUser(role, `forbidden-${index}`));
+    }
     const equipment = await Promise.all(
       actors.map((_, index) =>
         createEquipment(true, `Forbidden role ${index}`),
@@ -560,15 +566,13 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
 
     // Act: each non-Technical-Support account attempts the protected mutation.
-    await Promise.all(
-      actors.map((actor, index) =>
-        request(app.getHttpServer())
-          .patch(`/api/equipment/${equipment[index]}/availability`)
-          .set('Cookie', actor.cookie)
-          .send({ isAvailable: false, reason: 'test' })
-          .expect(403),
-      ),
-    );
+    for (const [index, actor] of actors.entries()) {
+      await request(app.getHttpServer())
+        .patch(`/api/equipment/${equipment[index]}/availability`)
+        .set('Cookie', actor.cookie)
+        .send({ isAvailable: false, reason: 'test' })
+        .expect(403);
+    }
 
     // Assert: no rejected request changes availability or creates audit history.
     const state = await pool.query<{ id: string; is_available: boolean }>(
@@ -596,7 +600,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
       .post('/api/auth/login')
       .send({ email, password })
       .expect(401);
-  });
+  }, 15_000);
 
   // EQUIP-UNAVAIL-07-SEC-03: audit history requires the same Technical Support authorization as mutation routes.
   it('EQUIP-UNAVAIL-07-SEC-03 rejects unauthenticated and forbidden audit-trail reads', async () => {

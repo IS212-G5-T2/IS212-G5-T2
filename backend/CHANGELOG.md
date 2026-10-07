@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Event planning (SPM-97/49/85) now reads SPM-124's `venue_bookings` table
+  instead of its own placeholder, which had the same name and broke database
+  initialisation once both were merged. Venue name and capacity come from
+  `venues`; statuses are mapped as described in `HANDOVER.md`.
 - SPM-46: each reassignment is recorded in `event_reassignments`. Events now
   carry `reassignedFrom { coordinatorName, reassignedAt }`, sent only to the
   coordinator who received them (never organisers or attendees), and a previous coordinator opening the event gets 403
@@ -17,6 +21,12 @@
   the same coordinator, or an unavailable or Lead-role coordinator is refused.
   Both coordinators are notified and the original's assignment notice is marked
   read. Marking yourself unavailable with active events now notifies the Lead.
+
+- Changed the SPM-49/SPM-85 update rule from "any booking exists" to impact-based: each date/time, attendance, layout, facilities or equipment change is checked against every active venue booking and equipment arrangement and applied immediately when it stays compatible with all of them (e.g. attendance within capacity, a time inside the booked window, removing facilities, equipment changes with only a venue booked). Only incompatible changes are flagged "Needs Review", and only the affected arrangements are marked impacted. Leaving a booking's held window is reported as a new `window` conflict. A field awaiting review now also refuses compatible changes until resolved. `GET …/planning` reports each field as `direct`, `conditional` (with its condition) or `needs_review`. Rules and assumptions to confirm are in HANDOVER.md (rules 2, 5, 6, 8, 15, 16).
+- Added event planning APIs under `/api/events/:id/planning` (SPM-97, SPM-49, SPM-85): the owning organiser reads planning information (venue bookings, equipment, pending changes) read-only; the assigned coordinator updates event information, with fields that affect existing bookings flagged "Needs Review"; flagged changes carry a per-venue-booking impact assessment (overlap, setup/turnaround, capacity) and are confirmed or rejected as a whole or per booking, with a change history. Updates and resolutions are transactional. Assumptions are in HANDOVER.md.
+
+- Fixed impact assessment (SPM-85): a change that does not move the booking in time (attendance, layout, facilities) is no longer reported as an overlap or turnaround conflict because of a gap that already existed. Start and end changes are assessed as before.
+- Expanded planning test coverage (SPM-97, SPM-49, SPM-85): `Confirmed` read-only view, inactive bookings, organiser privacy, unchanged values, date halves, per-booking closing rule, history access, transactions, manual requirements checks, and PostgreSQL tests for concurrency, date-move ordering and history access. Documented the test cases in `docs/test-cases/`. No production behaviour changed.
 
 - SPM-123: submitted requests are no longer auto-assigned (SPM-38's round-robin
   and `coordinator-roster.ts` removed). Added the Event Coordinator Lead's

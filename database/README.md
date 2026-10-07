@@ -5,6 +5,13 @@ This directory contains database initialization files shared by local developmen
 For the feature and schema evolution that led to the consolidated initializer,
 see [CHANGELOG.md](CHANGELOG.md). The base schema and seed scripts are followed
 by additive feature init scripts in filename order.
+Each feature script is additive and idempotent, so it can also upgrade an
+existing volume when applied by hand, for example:
+
+```sh
+psql postgresql://spm:spm_dev_password@localhost:5432/spm \
+  -f database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql
+```
 
 ## PostgreSQL
 
@@ -57,6 +64,8 @@ numbered scripts apply additive feature changes:
 | `venue_images` | Optional one-to-one venue image metadata and data URL (maximum 5 MB). |
 | `accessibility_features` | Controlled accessibility choices for venues. |
 | `venue_accessibility` | Accessibility selections linked to each venue. |
+| `equipment_reservations` | Event equipment arrangements used by planning; placeholder until the equipment-reservation story owns it. Added by `007`. |
+| `event_flagged_changes` | Booking-affecting event changes awaiting coordinator review, and their resolved history (SPM-85). Added by `007`. |
 
 To check a standalone database after it starts, connect with the local defaults:
 

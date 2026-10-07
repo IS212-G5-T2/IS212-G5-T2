@@ -76,6 +76,50 @@ email delivery remains deferred.
 The API maps stored Submitted status to the existing lowercase frontend status
 type.
 
+## Event planning (SPM-97, SPM-49, SPM-85)
+
+- `EventDetailPage` fetches `GET /events/:id/planning` only for `approved`,
+  `planning` and `confirmed` events, and only for the owning organiser or the
+  assigned coordinator. It re-fetches every `PLANNING_REFRESH_MS` (15 s, in
+  `src/utils/planning.ts`), skipping refreshes while the tab is hidden, and
+  merges the returned event into the store so the details card stays current.
+- Role checks on this page use `hasRole(currentUser, …)`, not
+  `currentUser.role`: accounts can hold several roles (e.g. organiser +
+  coordinator) and `role` is only the primary display role. The backend
+  authorises on every role, so the UI must too. `isOwner` (draft
+  edit/submit), the support-staff gate and the attendee section still use the
+  primary role; they are outside SPM-49 and should be reviewed separately.
+- `PlanningInformationPanel` is the read-only region named "Planning
+  information". It renders no controls of any kind (SPM-97 AC4); organisers
+  get nothing else.
+- Assigned coordinators additionally get `PlanningUpdateForm` and
+  `FlaggedChangeReview`. The form is **not** remounted on `lastUpdatedAt`.
+  It always shows the authoritative event: after a save it resets to the
+  event the server returned (for a flagged-only save that is the unchanged
+  event), and when the parent passes a newer event it takes the new values for
+  untouched fields while keeping edits in progress. Pending proposals are
+  passed in as `pendingChanges`, shown under their field, and the field is
+  disabled until resolved (the server refuses a second change to it anyway).
+- Field badges follow the server's `editableFields` modes: "Applies
+  immediately" (`direct`), "Review if it affects bookings" (`conditional`,
+  with the rule from `describeCondition` and, once edited, a prediction from
+  `satisfiesCondition`) and "Needs review" (`needs_review`). The prediction
+  mirrors the backend's compatibility rules (`backend/HANDOVER.md` rules 6, 8
+  and 15); the server's response is authoritative.
+- The form uses `noValidate` and its own required-field checks so error copy is
+  consistent ("Event name is required."); the backend repeats every check.
+- Layout, facility and accessibility option lists in `src/utils/planning.ts`
+  mirror `backend/src/events/event-input.ts`; keep them in sync.
+- Business rules and assumptions (impact-based field policy, per-booking
+  resolution, turnaround buffer) are documented in `backend/HANDOVER.md`.
+- Tests (case IDs and last run in
+  `docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`):
+  `pages/EventDetailPage.planning.test.tsx` (organiser and coordinator flows,
+  multi-role accounts, authoritative values after a save, lifecycle, polling,
+  hidden tab, failures), `components/domain/PlanningUpdateForm.test.tsx`,
+  `FlaggedChangeReview.test.tsx`, `PlanningInformationPanel.test.tsx` and
+  `utils/planning.test.ts`. There is no Playwright test of the planning workflow yet.
+
 ## Venue records (SPM-50)
 
 `src/pages/venues/VenueCreatePage/` owns the Venue Staff creation form and its

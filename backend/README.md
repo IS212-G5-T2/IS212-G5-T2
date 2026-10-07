@@ -91,6 +91,32 @@ npm run start:dev
 
 The service listens on `PORT` when set, otherwise `3000`.
 
+## Event planning (SPM-97, SPM-49, SPM-85)
+
+Routes (all behind `AuthenticationMiddleware`; the service checks role, ownership/assignment and event status):
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`) |
+| `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
+| `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | `{ decision: 'confirm' \| 'reject', bookingId? }` |
+| `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Resolved changes, newest first |
+
+Rules, assumptions and the placeholder tables behind this are in `HANDOVER.md`; test cases are indexed in `../docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`.
+
+```sh
+# Unit tests for the rules (mocked repository)
+npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts
+
+# Integration tests against real SQL. Use a disposable database: the spec applies
+# database/postgresql/init/001_schema.sql and 007_*.sql to it. Uses TEST_DATABASE_URL,
+# else DATABASE_URL; skipped locally when neither is set, fails in CI when neither is set.
+TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- src/events/event-planning.e2e-spec.ts
+
+# The same routes through HTTP, session-cookie auth and PostgreSQL
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
+```
+
 ## Checks
 
 Run local checks from this directory:

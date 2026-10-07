@@ -397,6 +397,34 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
+  it("persists an approval and updates the event after Submit Decision", async () => {
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes("/comments")) return Promise.resolve([]);
+      if (path.endsWith("/approve")) return Promise.resolve({ ...event, status: "approved" });
+      return Promise.resolve(event);
+    });
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Approve" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    expect(apiMock).toHaveBeenCalledWith(
+      `/events/${event.id}/approve`,
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(await screen.findByText("approved")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
+  });
+
   it("restricts venue staff from accessing unapproved submitted requests", async () => {
     const event = assignedEvent();
     apiMock.mockResolvedValue(event);
@@ -451,4 +479,3 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
 });
-

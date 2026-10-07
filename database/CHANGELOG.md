@@ -4,6 +4,12 @@ This records the evolution of the local PostgreSQL initializer. Base and
 additive scripts under `postgresql/init/` describe the fresh-volume state;
 existing databases must use backend migrations for upgrades.
 
+## 2026-10-07 - SPM-49/85/97 use SPM-124 venue bookings
+
+- `007_spm49_spm85_spm97_event_planning.sql` no longer creates a placeholder
+  `venue_bookings` table; SPM-124's `007_spm124_venue_schedule.sql` owns it.
+  It now only adds a `venue_bookings (event_id)` index.
+
 ## 2026-10-05 - SPM-124 venue schedule
 
 - Copied the SPM-50 venue schema and lookup seeds into the fresh-volume
@@ -16,6 +22,18 @@ existing databases must use backend migrations for upgrades.
   blockout booking so the card catalogue has visible records in a fresh
   development database.
 
+## Unreleased - SPM-97 / SPM-49 / SPM-85 event planning
+
+- Added `postgresql/init/007_spm49_spm85_spm97_event_planning.sql`, an additive,
+  idempotent initializer (same pattern as `dev`'s `003`-`006`; numbered `007` so
+  it runs after them). It can also be applied by hand to an existing volume.
+- Widened `events_status_check` to add `Planning`, as a superset of `dev`'s list
+  (`Submitted`, `Approved`, `Rejected`, `Planning`, `Confirmed`, `Completed`,
+  `Cancelled`).
+- Added placeholder `venue_bookings` and `equipment_reservations` tables, to be
+  taken over by the venue-booking and equipment-reservation stories.
+- Added `event_flagged_changes` (pending review and change history) with a
+  partial unique index allowing one pending change per event field.
 ## 2026-10-07 - SPM-119 equipment availability and audit trail
 
 - Added `010_spm119_equipment_availability.sql`: `equipment.is_available`
