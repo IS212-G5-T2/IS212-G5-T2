@@ -21,6 +21,14 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-07 - Codex (GPT-5) - Repair role fallbacks and consolidate navigation
+
+- Issue/PR: SPM-124 / PR #45.
+- Areas touched: frontend route guard, sidebar navigation, route-access tests, and lint-only cleanup.
+- Summary: Role-denied routes now use `homePathByRole`, so Venue Staff are redirected to `/venue-records` rather than an unauthorized coordinator route. Removed the duplicate sidebar navigation helper and made the sidebar use the tested multi-role helper.
+- Checks run: route/navigation tests 38/38 and repository-wide frontend ESLint passed.
+- Follow-up/conflict notes: Local change pending merge of the latest `dev`; preserve both sides for `AI_USAGE.md` and component CHANGELOG conflicts.
+
 ## 2026-10-07 - Codex (GPT-5) - Resolve SPM-124 review findings
 
 - Issue/PR: SPM-124 / PR #45.

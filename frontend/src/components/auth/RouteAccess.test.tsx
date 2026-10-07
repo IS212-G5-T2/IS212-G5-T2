@@ -95,10 +95,14 @@ function renderRoutes(initialEntry: string) {
         <Route element={<RequireAssignedCoordinator />}>
           <Route path="/events/:id/change-requests" element={<p>Review change requests</p>} />
         </Route>
-        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
           <Route path="/venues" element={<p>Venue catalogue</p>} />
-          <Route path="/venues/availability" element={<p>Venue availability</p>} />
           <Route path="/venues/:id" element={<p>Venue detail</p>} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venue-records" element={<p>Venue records</p>} />
+          <Route path="/venue-records/:id" element={<p>Venue record detail</p>} />
+          <Route path="/venues/availability" element={<p>Venue availability</p>} />
           <Route path="/bookings" element={<p>Bookings</p>} />
         </Route>
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
@@ -248,7 +252,11 @@ describe("restricted organiser routes", () => {
       useAppStore.setState({ currentUser: user });
       const { unmount: unmountBlocked } = renderRoutes("/equipment/create");
       expect(screen.queryByText("Create equipment")).not.toBeInTheDocument();
-      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          user.role === "venue_staff" ? "Venue records" : "Events dashboard",
+        ),
+      ).toBeInTheDocument();
       unmountBlocked();
     }
   });
@@ -267,14 +275,15 @@ describe("restricted organiser routes", () => {
     }
   });
 
-  // SPM-37: cover every branch of RequireRole's role-specific fallback redirect.
-  it("redirects unauthorized venue_staff to /venues", () => {
+  // SPM-124: a Venue Staff fallback must land on a route they are authorized to open.
+  it("redirects unauthorized venue_staff to /venue-records", () => {
     useAppStore.setState({
       currentUser: { ...organiser, id: "vs-1", role: "venue_staff" as const },
     });
 
     renderRoutes("/events/create");
 
+    expect(screen.getByText("Venue records")).toBeInTheDocument();
     expect(screen.queryByText("Create event")).not.toBeInTheDocument();
   });
 

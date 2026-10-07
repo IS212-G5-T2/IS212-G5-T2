@@ -1,11 +1,11 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { useAppStore } from "@/store/useAppStore";
-import { navigationFor } from "./navConfig";
+import { navigationForUser } from "./navConfig";
 
 export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; onCloseMobile: () => void }) {
   const currentUser = useAppStore((s) => s.currentUser);
-  const items = navigationFor(currentUser);
+  const items = navigationForUser(currentUser);
   const logout = useAppStore((s) => s.logout);
   const navigate = useNavigate();
 
