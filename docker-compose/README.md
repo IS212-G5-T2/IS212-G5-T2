@@ -151,13 +151,10 @@ identity; `DEMO_ORGANISER_ENABLED` no longer applies to these routes
 session — this later replaced the original Firebase-token implementation,
 see the SPM-30 local-session-auth migration — is the only source of
 identity). An Organiser sees only their own requests; a Coordinator sees only
-requests round-robin has assigned to them. The coordinator roster
-(`backend/src/events/coordinator-roster.ts`) is queried live from
-Postgres (`users`/`user_roles`/`roles`, seeded in
-`database/postgresql/init/002_seed_data.sql`) rather than hardcoded —
-any active account holding the `COORDINATOR` role is eligible. A request is
-assigned a coordinator automatically at submission time — there is no manual
-"claim this request" step. Pre-SPM-38 event rows created under the old fixed
+requests assigned to them. Since SPM-123 a submitted request waits unassigned
+until the Event Coordinator Lead (`lead@connectsphere.test`)
+assigns it from the Assignment Queue (`/lead/queue`) to an available
+coordinator. Pre-SPM-38 event rows created under the old fixed
 demo identity (`current-user`, no coordinator) are legacy-owned and stay
 invisible under real-identity scoping; they are not automatically migrated
 (see `backend/AGENTS.md`'s events-boundary policy). After backend

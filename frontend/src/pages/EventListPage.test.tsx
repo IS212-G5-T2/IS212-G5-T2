@@ -149,6 +149,46 @@ describe("EventListPage", () => {
     expect(screen.queryByText("Welcome Evening")).toBeNull();
   });
 
+  // SPM-123 AC9: the coordinator sees new assignments on the events page itself, not just in the standalone panel.
+  it("LEAD-ASN-09-M shows the coordinator's new-assignment panel on the events page", async () => {
+    // Arrange: a coordinator whose notifications feed has one unread assignment; the events list is empty.
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/notifications"
+          ? [
+              {
+                id: "notif-1",
+                audienceRole: "coordinator",
+                audienceUserId: "coordinator-1",
+                type: "coordinator_assignment",
+                message: 'New event request "Welcome Evening" is awaiting your review.',
+                relatedEventId: "event-1",
+                read: false,
+                createdAt: "2026-10-06T09:00:00.000Z",
+              },
+            ]
+          : [],
+      ) as ReturnType<typeof api>,
+    );
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    // Act: open the events page.
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the page includes the "New assigned requests" panel with the assignment.
+    const panel = await screen.findByRole("region", { name: "New assigned requests" });
+    expect(panel).toHaveTextContent('New event request "Welcome Evening" is awaiting your review.');
+  });
+
   // SPM-61: attendees get Upcoming/Registered/Past/Cancelled filters, see
   // "Confirmed" for Approved events, and a Registered badge beside the status.
   it("gives attendees personal filters and a Registered badge", async () => {

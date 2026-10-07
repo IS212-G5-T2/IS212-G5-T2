@@ -39,7 +39,7 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 ## Events boundary
 
-- `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table.
+- `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table. Submission leaves a request unassigned; the Lead assigns it (`src/lead`).
 - Coordinate local schema assets with `database/` and API consumers with `frontend/`.
 - Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass request.currentUser explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
 - Unit tests live beside the events module. `src/events/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
@@ -49,6 +49,11 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 - `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes only `users.is_available`. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.
 - Coordinator-only and always scoped to the session's own account; never accept a user id from the URL or body.
 - `src/coordinators/coordinator-availability.e2e-spec.ts` runs through the real app, session login and PostgreSQL; it needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `007` applied.
+
+## Lead boundary
+
+- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment` notification. It does not own reassignment (SPM-47) or approval/rejection.
+- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `008` applied.
 
 ## Registrations boundary
 

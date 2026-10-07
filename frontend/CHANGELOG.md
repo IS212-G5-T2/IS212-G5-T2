@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- SPM-123: added the Event Coordinator Lead role and its Assignment Queue page
+  (`/lead/queue`): unassigned requests, coordinators with availability and active
+  count (fewest first), assign with confirmation, unavailable coordinators shown
+  but not selectable. A refused assignment reloads the queue as well as the
+  coordinators. Coordinators see new assignments on their events page, refreshed
+  on focus and every 30 seconds. Removed the unused store `assignCoordinator`.
+
 - Added a re-runnable mutation check for the SPM-120 withdraw UI (`scripts/testing/mutation`) and tests for the dialog's Escape-while-pending and double-activation paths, unexpected withdrawal failures, a failed reload after a 409, and Withdraw on a cancelled event. Tests and tooling only; no behaviour change.
 
 - Fixed the withdrawn card's footer saying "Registration closed on <date>" with a future date for a cancelled event. It now says "Registration is closed." until the close time has actually passed, as the main registration card already does (SPM-120).

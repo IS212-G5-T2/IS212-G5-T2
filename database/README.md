@@ -69,12 +69,12 @@ SELECT count(*) FROM resources;
 SELECT count(*) FROM role_permissions;
 ```
 
-The expected counts are 5 roles, 10 resources, and 27 role permission rows.
+The expected counts are 6 roles, 11 resources, and 30 role permission rows.
 
 ## Local login data
 
 `001_schema.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
-session storage; `002_seed_data.sql` seeds one development-only account per role. Each seed
+session storage; `002_seed_data.sql` seeds development-only accounts for every role. Each seed
 account uses password `P@55w0rd`:
 
 | Role | Email |
@@ -84,6 +84,13 @@ account uses password `P@55w0rd`:
 | Venue Staff | `venue_staff1@connectsphere.test` |
 | Tech Support | `tech_support1@connectsphere.test` |
 | Attendee | `attendee1@connectsphere.test` |
+| Coordinator + Venue Staff | `coordinator_venuestaff@connectsphere.test` |
+| Event Coordinator Lead | `lead@connectsphere.test` |
+
+Accounts 2 and 3 of each role (e.g. `organiser2@connectsphere.test`) are also
+seeded, except for the single Lead. `coordinator_venuestaff` is the one
+multi-role account. No account may hold both Organiser and Coordinator, and the
+Lead never also holds Coordinator.
 
 These values are intentionally local-only and must never be reused outside the
 development database. Passwords are stored as bcrypt hashes; session tokens are

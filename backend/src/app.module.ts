@@ -25,6 +25,8 @@ import { CoordinatorAvailabilityController } from './coordinators/coordinator-av
 import { CoordinatorAvailabilityService } from './coordinators/coordinator-availability.service.js';
 import { VenuesController } from './venues/venues.controller.js';
 import { VenuesModule } from './venues/venues.module.js';
+import { LeadAssignmentController } from './lead/lead-assignment.controller.js';
+import { LeadAssignmentService } from './lead/lead-assignment.service.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
@@ -36,6 +38,7 @@ import { VenuesModule } from './venues/venues.module.js';
     RegistrationsController,
     EquipmentController,
     CoordinatorAvailabilityController,
+    LeadAssignmentController,
   ],
   providers: [
     AppService,
@@ -44,6 +47,7 @@ import { VenuesModule } from './venues/venues.module.js';
     RegistrationsService,
     EquipmentService,
     CoordinatorAvailabilityService,
+    LeadAssignmentService,
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -61,6 +65,7 @@ export class AppModule implements NestModule {
         ClarificationsController,
         CoordinatorAvailabilityController,
         VenuesController,
+        LeadAssignmentController,
       );
   }
 }
