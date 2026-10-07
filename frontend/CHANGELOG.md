@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- SPM-47: added the Lead's Reassign Events page (`/lead/reassign`): assigned
+  events soonest first with their current coordinator and a "Coordinator
+  unavailable" label, a picker showing availability and workload (current and
+  unavailable coordinators disabled), confirmation, and a refresh after a
+  refusal. The Lead sees coordinator-unavailable notices on the Assignment Queue
+  page; coordinators see reassignments to and away from them.
+
 - SPM-123: added the Event Coordinator Lead role and its Assignment Queue page
   (`/lead/queue`): unassigned requests, coordinators with availability and active
   count (fewest first), assign with confirmation, unavailable coordinators shown

@@ -46,14 +46,14 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 ## Coordinators boundary
 
-- `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes only `users.is_available`. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.
+- `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes `users.is_available`, plus (SPM-47 AC10) the Lead's `coordinator_unavailable` notification when a coordinator with active events becomes unavailable, marked read when they become available again. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.
 - Coordinator-only and always scoped to the session's own account; never accept a user id from the URL or body.
-- `src/coordinators/coordinator-availability.e2e-spec.ts` runs through the real app, session login and PostgreSQL; it needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `007` applied.
+- `src/coordinators/coordinator-availability.e2e-spec.ts` runs through the real app, session login and PostgreSQL; it needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `009` applied.
 
 ## Lead boundary
 
-- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment` notification. It does not own reassignment (SPM-47) or approval/rejection.
-- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `008` applied.
+- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123) and reassignment (SPM-47), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment`, `coordinator_reassignment` and `coordinator_unassignment` notifications. It does not own approval/rejection.
+- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `009` applied.
 
 ## Registrations boundary
 

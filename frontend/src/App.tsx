@@ -24,6 +24,7 @@ import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
 import { AssignmentQueuePage } from "@/pages/AssignmentQueuePage";
+import { ReassignmentPage } from "@/pages/ReassignmentPage";
 import { homePathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
@@ -89,6 +90,7 @@ export default function App() {
 
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
           <Route path="/lead/queue" element={<AssignmentQueuePage />} />
+          <Route path="/lead/reassign" element={<ReassignmentPage />} />
         </Route>
 
         <Route path="/settings" element={<SettingsPage />} />
