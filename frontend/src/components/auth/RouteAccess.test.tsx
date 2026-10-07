@@ -115,6 +115,7 @@ function renderRoutes(initialEntry: string) {
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
           <Route path="/lead/queue" element={<p>Assignment queue</p>} />
+          <Route path="/lead/reassign" element={<p>Reassign events</p>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -408,9 +409,37 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     expect(screen.getByText("Assignment queue")).toBeInTheDocument();
 
     // Assert: only the Lead's navigation offers the queue.
-    expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue"]);
+    expect(navByRole.coordinator_lead.map((item) => item.to)).toContain("/lead/queue");
     for (const [role, items] of Object.entries(navByRole)) {
       if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/queue");
+    }
+  });
+
+  // SPM-47 AC9: only the Lead can open the reassignment page or see it in the navigation.
+  it("LEAD-REASN-09-SEC-4 shows Reassign Events only to the Lead", () => {
+    // Arrange + Act: the Lead opens the reassignment page.
+    const lead = { ...organiser, id: "lead-1", role: "coordinator_lead" as const, roles: ["coordinator_lead" as const] };
+    useAppStore.setState({ currentUser: lead });
+    const { unmount } = renderRoutes("/lead/reassign");
+
+    // Assert: the Lead sees it.
+    expect(screen.getByText("Reassign events")).toBeInTheDocument();
+    unmount();
+
+    // Act + Assert: a coordinator and an organiser are sent to the events dashboard instead.
+    for (const role of ["coordinator", "organiser"] as const) {
+      useAppStore.setState({ currentUser: { ...organiser, id: `${role}-1`, role, roles: [role] } });
+      const { unmount: unmountOther } = renderRoutes("/lead/reassign");
+      expect(screen.queryByText("Reassign events")).not.toBeInTheDocument();
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountOther();
+    }
+
+    // Assert: the Lead's navigation offers the queue and the reassignment page; no other role's does.
+    expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue", "/lead/reassign"]);
+    expect(navByRole.coordinator_lead.find((item) => item.to === "/lead/reassign")?.label).toBe("Reassign Events");
+    for (const [role, items] of Object.entries(navByRole)) {
+      if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/reassign");
     }
   });
 });

@@ -7,12 +7,14 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import type pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
-// available coordinator. Only these statuses count towards a coordinator's
-// workload; Rejected, Completed and Cancelled events are finished.
+// available coordinator; SPM-47: the Lead reassigns an assigned event to another.
+// Only these statuses count towards a coordinator's workload and can be
+// reassigned; Rejected, Completed and Cancelled events are finished.
 export const ACTIVE_STATUSES = ['Submitted', 'Approved', 'Confirmed'] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -26,6 +28,19 @@ type QueueRow = {
   expected_attendance: number;
   created_at: Date;
 };
+
+type AssignedRow = {
+  id: string;
+  event_name: string;
+  status: string;
+  start_date_time: Date;
+  end_date_time: Date;
+  coordinator_id: string;
+  coordinator_name: string;
+  coordinator_available: boolean;
+};
+
+type AssignableCoordinator = { id: string; display_name: string; is_available: boolean };
 
 type CoordinatorRow = {
   id: string;
@@ -134,21 +149,7 @@ export class LeadAssignmentService {
       if (event.status !== 'Submitted')
         throw new ConflictException('This event request is no longer awaiting assignment.');
 
-      // FOR SHARE holds the coordinator's row until commit, so an availability
-      // change made at the same moment waits instead of slipping in between.
-      const found = await client.query<{ id: string; display_name: string; is_available: boolean }>(
-        `SELECT users.id, users.display_name, users.is_available
-           FROM users
-           JOIN user_roles ON user_roles.user_id = users.id
-           JOIN roles ON roles.id = user_roles.role_id
-          WHERE users.id = $1 AND roles.name = 'COORDINATOR' AND users.is_active = true
-            AND ${NOT_ALSO_LEAD}
-          FOR SHARE OF users`,
-        [coordinatorId],
-      );
-      const coordinator = found.rows[0];
-      if (!coordinator) throw new BadRequestException('Choose an active Event Coordinator.');
-      if (!coordinator.is_available) throw new ConflictException('This coordinator is unavailable.');
+      const coordinator = await this.availableCoordinator(client, coordinatorId);
 
       await client.query(
         `UPDATE events
@@ -176,5 +177,120 @@ export class LeadAssignmentService {
         message: `Event request "${event.event_name}" assigned to ${coordinator.display_name}.`,
       };
     });
+  }
+
+  // SPM-47 AC1/AC11: every active event that already has a coordinator, soonest
+  // first, flagged when that coordinator is currently unavailable.
+  async assigned(identity: AuthenticatedUser | undefined) {
+    requireLead(identity);
+    const result = await this.database.query<AssignedRow>(
+      `SELECT events.id, events.event_name, events.status, events.start_date_time, events.end_date_time,
+              events.coordinator_id, events.coordinator_name,
+              COALESCE(users.is_available, false) AS coordinator_available
+         FROM events
+         LEFT JOIN users ON users.id::text = events.coordinator_id
+        WHERE events.coordinator_id IS NOT NULL AND events.status = ANY($1)
+        ORDER BY events.start_date_time ASC, events.id ASC`,
+      [ACTIVE_STATUSES],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      name: row.event_name,
+      status: row.status,
+      startDateTime: row.start_date_time.toISOString(),
+      endDateTime: row.end_date_time.toISOString(),
+      coordinatorId: row.coordinator_id,
+      coordinatorName: row.coordinator_name,
+      coordinatorAvailable: row.coordinator_available,
+    }));
+  }
+
+  // SPM-47 AC3-AC8: move an assigned event to a different available coordinator
+  // under a row lock. The page sends the coordinator it showed, so a stale page
+  // can't undo a newer reassignment. Only the coordinator columns change, so
+  // clarifications and decisions stay with the event; both coordinators are
+  // notified in the same transaction.
+  async reassign(identity: AuthenticatedUser | undefined, eventId: string, body: unknown) {
+    requireLead(identity);
+    if (!UUID.test(eventId)) throw new NotFoundException('Event not found.');
+    const coordinatorId = parseCoordinatorId(body);
+    const shownCoordinatorId = (body as { currentCoordinatorId?: unknown }).currentCoordinatorId;
+
+    return this.database.transaction(async (client) => {
+      const selected = await client.query(
+        'SELECT id, event_name, status, coordinator_id, coordinator_name FROM events WHERE id = $1 FOR UPDATE',
+        [eventId],
+      );
+      const event = selected.rows[0];
+      if (!event) throw new NotFoundException('Event not found.');
+      if (!event.coordinator_id || !(ACTIVE_STATUSES as readonly string[]).includes(event.status))
+        throw new ConflictException('This event can no longer be reassigned.');
+      if (event.coordinator_id !== shownCoordinatorId)
+        throw new ConflictException('This event was changed since you loaded the page. Refresh and try again.');
+      if (event.coordinator_id === coordinatorId)
+        throw new BadRequestException('Choose a different coordinator.');
+
+      const coordinator = await this.availableCoordinator(client, coordinatorId);
+
+      await client.query(
+        `UPDATE events
+            SET coordinator_id = $2, coordinator_name = $3, updated_at = now()
+          WHERE id = $1`,
+        [eventId, coordinator.id, coordinator.display_name],
+      );
+      // The original coordinator's unread notices saying the event is theirs
+      // (first assignment, or an earlier reassignment to them) no longer apply.
+      await client.query(
+        `UPDATE notifications SET read = true
+          WHERE recipient_id = $1 AND related_event_id = $2
+            AND type IN ('coordinator_assignment', 'coordinator_reassignment') AND read = false`,
+        [event.coordinator_id, eventId],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'coordinator_reassignment', $3, $4)`,
+        [randomUUID(), coordinator.id, `Event "${event.event_name}" has been reassigned to you.`, eventId],
+      );
+      await client.query(
+        `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
+         VALUES ($1, $2, 'coordinator_unassignment', $3, $4)`,
+        [
+          randomUUID(),
+          event.coordinator_id,
+          `Event "${event.event_name}" has been reassigned to ${coordinator.display_name}.`,
+          eventId,
+        ],
+      );
+      return {
+        event: {
+          id: eventId,
+          name: event.event_name,
+          coordinatorId: coordinator.id,
+          coordinatorName: coordinator.display_name,
+        },
+        message: `Event "${event.event_name}" reassigned to ${coordinator.display_name}.`,
+      };
+    });
+  }
+
+  // Shared by assign and reassign: the chosen account must be an active
+  // coordinator who is not also the Lead, and available right now. FOR SHARE
+  // holds the coordinator's row until commit, so an availability change made at
+  // the same moment waits instead of slipping in between.
+  private async availableCoordinator(client: pg.PoolClient, coordinatorId: string): Promise<AssignableCoordinator> {
+    const found = await client.query<AssignableCoordinator>(
+      `SELECT users.id, users.display_name, users.is_available
+         FROM users
+         JOIN user_roles ON user_roles.user_id = users.id
+         JOIN roles ON roles.id = user_roles.role_id
+        WHERE users.id = $1 AND roles.name = 'COORDINATOR' AND users.is_active = true
+          AND ${NOT_ALSO_LEAD}
+        FOR SHARE OF users`,
+      [coordinatorId],
+    );
+    const coordinator = found.rows[0];
+    if (!coordinator) throw new BadRequestException('Choose an active Event Coordinator.');
+    if (!coordinator.is_available) throw new ConflictException('This coordinator is unavailable.');
+    return coordinator;
   }
 }

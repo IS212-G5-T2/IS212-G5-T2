@@ -1,5 +1,5 @@
 // SPM-123 AC9: the assigned coordinator is told a new request awaits their review.
-// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I, 09-J, 09-K, 09-L.
+// Test cases: LEAD-ASN-09-D, 09-F, 09-G, 09-H, 09-I, 09-J, 09-K, 09-L; SPM-47 LEAD-REASN-08-E.
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -191,6 +191,31 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     expect(await screen.findByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
     expect(screen.queryByText('New event request "Old Picnic" is awaiting your review.')).not.toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Mark as read" })).toHaveLength(1);
+  });
+});
+
+describe("SPM-47 AC8: reassignment notifications", () => {
+  // A coordinator sees events reassigned to them (with a link) and away from them (without one).
+  it("LEAD-REASN-08-E shows reassignment to and away from the coordinator, linking only to events they now have", async () => {
+    // Arrange: one event reassigned to this coordinator and one reassigned away.
+    api.mockResolvedValue([
+      { ...assignment, id: "notif-r", type: "coordinator_reassignment", relatedEventId: "event-2", message: 'Event "Spring Gala" has been reassigned to you.' },
+      { ...assignment, id: "notif-u", type: "coordinator_unassignment", relatedEventId: "event-3", message: 'Event "Old Picnic" has been reassigned to Coordinator 2.' },
+    ]);
+
+    // Act: render the panel.
+    render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+
+    // Assert: both messages are shown; only the event they now have is linked.
+    expect(await screen.findByText('Event "Spring Gala" has been reassigned to you.')).toBeInTheDocument();
+    expect(screen.getByText('Event "Old Picnic" has been reassigned to Coordinator 2.')).toBeInTheDocument();
+    const links = screen.getAllByRole("link", { name: "View request" });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute("href", "/events/event-2");
   });
 });
 

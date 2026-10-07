@@ -37,6 +37,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   coordinator_lead: [
     { label: "Assignment Queue", to: "/lead/queue", icon: "🗂️", feature: "Feature 3" },
+    { label: "Reassign Events", to: "/lead/reassign", icon: "🔁", feature: "Feature 3" },
   ],
 };
 

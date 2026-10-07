@@ -5,6 +5,13 @@
 - SPM-124 venue reads now use setup and turnaround buffers when determining
   whether an approved booking currently makes a venue unavailable. Removed the
   duplicate venue authentication-middleware registration.
+- SPM-47: the Event Coordinator Lead can reassign an assigned event.
+  `GET /api/lead/assigned` lists active events with a coordinator (soonest first,
+  with the coordinator's availability) and `POST /api/lead/events/:eventId/reassign`
+  takes `{ coordinatorId, currentCoordinatorId }`; a stale page, a finished event,
+  the same coordinator, or an unavailable or Lead-role coordinator is refused.
+  Both coordinators are notified and the original's assignment notice is marked
+  read. Marking yourself unavailable with active events now notifies the Lead.
 
 - SPM-123: submitted requests are no longer auto-assigned (SPM-38's round-robin
   and `coordinator-roster.ts` removed). Added the Event Coordinator Lead's

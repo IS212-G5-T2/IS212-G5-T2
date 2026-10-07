@@ -207,3 +207,110 @@ describe('AC3: view and modify availability at any time', () => {
     expect(result).toEqual({ available: true });
   });
 });
+
+// ---------------------------------------------------------------------------
+// SPM-47 AC10: when a coordinator with active events marks themselves
+// unavailable, the Event Coordinator Lead is told their events may need
+// reassignment; marking available again clears that notification.
+// Test cases: LEAD-REASN-10-A, 10-B, 10-BND-1, 10-C, 10-D.
+// ---------------------------------------------------------------------------
+describe('SPM-47 AC10: the Lead is told when a coordinator with active events becomes unavailable', () => {
+  // Answer each statement by what it does: the availability update reports the
+  // previous value, the events count, the Lead lookup, and notification writes.
+  function wireAvailability(options: { was: boolean; now: boolean; activeEvents?: number }) {
+    database.query.mockImplementation((sql: string) => {
+      const text = String(sql).replace(/\s+/g, ' ').trim();
+      if (text.startsWith('UPDATE users'))
+        return { rows: [{ is_available: options.now, display_name: 'Coordinator One', was_available: options.was }] };
+      if (text.includes('COORDINATOR_LEAD')) return { rows: [{ id: 'lead-1' }] };
+      if (text.includes('FROM events')) return { rows: [{ count: String(options.activeEvents ?? 0) }] };
+      return { rows: [] };
+    });
+  }
+
+  // Notification inserts sent by the service.
+  function inserts() {
+    return statements().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
+  }
+
+  // Going unavailable with active events notifies the Lead with the coordinator's name and count.
+  it('LEAD-REASN-10-A notifies the Lead with the name and number of active events when a coordinator goes unavailable', async () => {
+    // Arrange: available before, three active events.
+    wireAvailability({ was: true, now: false, activeEvents: 3 });
+
+    // Act: mark unavailable.
+    const result = await service.updateMine(coordinator, { available: false });
+
+    // Assert: saved, the active events are counted for this coordinator, and one notification goes to the Lead.
+    expect(result).toEqual({ available: false });
+    const count = statements().find((s) => s.sql.includes('FROM events'))!;
+    expect(count.params).toEqual(expect.arrayContaining(['coord-1']));
+    for (const status of ['Submitted', 'Approved', 'Confirmed'])
+      expect(`${count.sql} ${JSON.stringify(count.params)}`).toContain(status);
+    expect(inserts()).toHaveLength(1);
+    const [notification] = inserts();
+    expect(`${notification.sql} ${JSON.stringify(notification.params)}`).toContain('coordinator_unavailable');
+    expect(notification.params).toEqual(
+      expect.arrayContaining([
+        'lead-1',
+        'Coordinator One is now unavailable and has 3 active events that may need reassignment.',
+        'coord-1',
+      ]),
+    );
+  });
+
+  // Exactly one active event is enough, and the wording is singular.
+  it('LEAD-REASN-10-BND-1 notifies the Lead when the coordinator has exactly one active event', async () => {
+    // Arrange: available before, one active event.
+    wireAvailability({ was: true, now: false, activeEvents: 1 });
+
+    // Act: mark unavailable.
+    await service.updateMine(coordinator, { available: false });
+
+    // Assert: one notification with the singular wording.
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0].params).toEqual(
+      expect.arrayContaining(['Coordinator One is now unavailable and has 1 active event that may need reassignment.']),
+    );
+  });
+
+  // With nothing to reassign, the Lead is not bothered.
+  it('LEAD-REASN-10-B sends no notification when the coordinator has no active events', async () => {
+    // Arrange: available before, no active events.
+    wireAvailability({ was: true, now: false, activeEvents: 0 });
+
+    // Act: mark unavailable.
+    await service.updateMine(coordinator, { available: false });
+
+    // Assert: nothing is sent.
+    expect(inserts()).toEqual([]);
+  });
+
+  // Saving "unavailable" again doesn't send a duplicate.
+  it('LEAD-REASN-10-C sends no duplicate when the coordinator was already unavailable', async () => {
+    // Arrange: already unavailable, with active events.
+    wireAvailability({ was: false, now: false, activeEvents: 3 });
+
+    // Act: save unavailable again.
+    await service.updateMine(coordinator, { available: false });
+
+    // Assert: nothing is sent.
+    expect(inserts()).toEqual([]);
+  });
+
+  // Becoming available again clears the Lead's notification about this coordinator.
+  it("LEAD-REASN-10-D marks the Lead's notification about this coordinator as read when they become available again", async () => {
+    // Arrange: unavailable before, available now.
+    wireAvailability({ was: false, now: true, activeEvents: 3 });
+
+    // Act: mark available.
+    await service.updateMine(coordinator, { available: true });
+
+    // Assert: their unread unavailability notifications are marked read, and nothing new is sent.
+    const markRead = statements().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain('read = true');
+    expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain('coordinator_unavailable');
+    expect(markRead.params).toEqual(expect.arrayContaining(['coord-1']));
+    expect(inserts()).toEqual([]);
+  });
+});

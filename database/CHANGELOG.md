@@ -95,3 +95,7 @@ Git history retains the original incremental changes and their commits.
 - `002_seed_data.sql` adds role 6 `COORDINATOR_LEAD` (read/update on Event, read on Event Review) and one account, `lead@connectsphere.test` ("Coordinator Lead", password `P@55w0rd`), which holds only that role.
 - Added `postgresql/init/008_spm123_coordinator_lead.sql` to add the role, permissions and account to existing volumes. Idempotent; apply it manually.
 - `README.md` verification counts updated to 6 roles, 11 resources and 30 role permission rows (the extra resource is SPM-50's).
+
+## SPM-47 - Lead reassignment
+
+- Added `postgresql/init/009_spm47_notification_related_user.sql`: a nullable `notifications.related_user_id` (references `users`, cascade on delete) so the Lead's "coordinator unavailable" notice records which coordinator it is about. Idempotent; fresh volumes run it, existing volumes apply it manually.
