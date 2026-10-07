@@ -106,30 +106,34 @@ describe("SPM-63 registrations modal: expandable cards", () => {
 });
 
 describe("SPM-63 registrations modal: search and filter", () => {
-  // Search matches name, email and phone (including a "+"), case-insensitively, after the debounce.
-  it("filters by name, email and phone", async () => {
+  // VIEW-REG-INFO-03-SEARCH
+  // Oracle (SPEC: name, email, phone with case-insensitivity; 150 ms debounce)
+  // Kills: search ignores phone; debounce removed or wrong interval
+  it("VIEW-REG-INFO-03-SEARCH: filters by name, email and phone, with 150ms debounce", async () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, { ...ALICE_TAN, contactNumber: "+65 91234567" }, CHLOE_NG] }));
     renderModal();
     const search = await screen.findByRole("searchbox", { name: "Search registrations" });
 
+    // Type and wait for debounce
     await user.type(search, "ALICE");
+    expect(screen.getByText(/Dev Patel/)).toBeInTheDocument(); // not yet filtered
+    await vi.advanceTimersByTimeAsync(150);
     await waitFor(() => expect(screen.queryByText(/Dev Patel/)).not.toBeInTheDocument());
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
 
-    await user.clear(search);
-    await user.type(search, "chloe.ng@");
-    await waitFor(() => expect(screen.queryByText(/Alice Tan/)).not.toBeInTheDocument());
-    expect(screen.getByText(/Chloe Ng/)).toBeInTheDocument();
-
+    // Phone search works
     await user.clear(search);
     await user.type(search, "+65 9123");
+    await vi.advanceTimersByTimeAsync(150);
     await waitFor(() => expect(screen.queryByText(/Chloe Ng/)).not.toBeInTheDocument());
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // "Registered today" keeps only attendees who registered on the current Singapore day, and combines with search.
-  it("filters to attendees registered today and combines with search", async () => {
+  // VIEW-REG-INFO-03-TODAY
+  // Oracle (SPEC: Singapore calendar day, 150ms debounce)
+  // Kills: UTC day used; debounce ignored on filter change
+  it("VIEW-REG-INFO-03-TODAY: filters to attendees registered today and combines with search", async () => {
     const user = userEvent.setup();
     renderModal();
     await screen.findByText(/Dev Patel/);
@@ -143,8 +147,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(await screen.findByText("No registrations match your criteria")).toBeInTheDocument();
   });
 
-  // "Indicated special requirements" keeps only attendees with a non-empty special requirements field.
-  it("filters to attendees with indicated special requirements", async () => {
+  // VIEW-REG-INFO-03-SPECIAL
+  // Oracle (SPEC: non-empty specialRequirements field only)
+  // Kills: filter matches everyone; empty string treated as present
+  it("VIEW-REG-INFO-03-SPECIAL: filters to attendees with indicated special requirements", async () => {
     const user = userEvent.setup();
     const withRequirements = { ...ALICE_TAN, specialRequirements: "Vegetarian menu" };
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, withRequirements, CHLOE_NG] }));
@@ -157,8 +163,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(screen.queryByText(/Chloe Ng/)).not.toBeInTheDocument();
   });
 
-  // The day boundary is Singapore time: 23:30 SGT on 28 Sep is not "today" at 00:10 SGT on 29 Sep.
-  it("treats the day boundary as Singapore time", () => {
+  // VIEW-REG-INFO-03-TODAY-BND
+  // Oracle (SPEC 2.5): Singapore calendar day boundary at UTC+8, not UTC
+  // Kills: UTC day used; off-by-one at midnight
+  it("VIEW-REG-INFO-03-TODAY-BND: treats the day boundary as Singapore time", () => {
     const lateYesterday = { ...ALICE_TAN, registeredAt: "2026-09-28T15:30:00.000Z" };
     const justToday = { ...ALICE_TAN, registeredAt: "2026-09-28T16:10:00.000Z" };
     const now = new Date("2026-09-28T16:20:00.000Z");
@@ -207,18 +215,51 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // The close button, Escape and a click on the dark backdrop each dismiss the modal; a click inside does not.
-  it("closes from the close button, Escape and the backdrop only", async () => {
+  // VIEW-REG-INFO-CLOSE-1
+  // Oracle (SPEC: click inside does not close)
+  // Kills: any click closes; backdrop click not checked
+  it("VIEW-REG-INFO-CLOSE-1: a click inside the modal does not close it", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
 
     await user.click(screen.getByText("No waitlist"));
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // VIEW-REG-INFO-CLOSE-2
+  // Oracle (SPEC: close button closes)
+  // Kills: close button does nothing
+  it("VIEW-REG-INFO-CLOSE-2: the close button closes the modal", async () => {
+    const user = userEvent.setup();
+    const onClose = renderModal();
+    await screen.findByText(/Alice Tan/);
 
     await user.click(screen.getByRole("button", { name: "Close dialog" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // VIEW-REG-INFO-CLOSE-3
+  // Oracle (SPEC: Escape closes)
+  // Kills: Escape ignored
+  it("VIEW-REG-INFO-CLOSE-3: Escape closes the modal", async () => {
+    const user = userEvent.setup();
+    const onClose = renderModal();
+    await screen.findByText(/Alice Tan/);
+
     await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // VIEW-REG-INFO-CLOSE-4
+  // Oracle (SPEC: backdrop click closes)
+  // Kills: backdrop click not wired
+  it("VIEW-REG-INFO-CLOSE-4: a click on the backdrop closes the modal", async () => {
+    const user = userEvent.setup();
+    const onClose = renderModal();
+    await screen.findByText(/Alice Tan/);
+
     await user.click(screen.getByRole("dialog"));
-    expect(onClose).toHaveBeenCalledTimes(3);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

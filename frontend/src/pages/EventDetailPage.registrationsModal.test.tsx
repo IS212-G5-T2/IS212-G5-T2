@@ -62,8 +62,63 @@ beforeEach(() => {
 });
 
 describe("SPM-63 registrations modal on the event detail page", () => {
-  // The assigned coordinator opens the modal from the People card and sees this event's registrations.
-  it("lets the assigned coordinator open the registrations modal from the People card", async () => {
+  // VIEW-REG-DETAIL-01-A
+  // Oracle (SPEC: assigned coordinator and owning organiser only see button)
+  // Kills: any coordinator or organiser shown; wrong column compared
+  it.each([
+    ["assigned coordinator", COO_01, true],
+    ["owning organiser", ORG_01, true],
+    ["unassigned coordinator", COO_02, false],
+    ["attendee", ATT_01, false],
+  ])("VIEW-REG-DETAIL-01-A: %s sees button: %s", async (_who, user, shouldSee) => {
+    renderAs(user);
+    await screen.findByRole("heading", { name: "People" });
+
+    const button = screen.queryByRole("button", { name: "View registrations" });
+    if (shouldSee) {
+      expect(button).toBeInTheDocument();
+    } else {
+      expect(button).not.toBeInTheDocument();
+    }
+  });
+
+  // VIEW-REG-DETAIL-01-A-NON-OWNING
+  // Oracle (SPEC: non-owning organiser does not see button)
+  // Kills: organiser access check dropped; column matched wrong way
+  it("VIEW-REG-DETAIL-01-A-NON-OWNING: a non-owning organiser does not see the button", async () => {
+    // Adjust the event to be owned by a different organiser
+    const nonOwnedEvent = { ...event, organiserId: "ORG-OTHER" };
+    apiMock.mockImplementation((path: string) => {
+      if (path.includes("/registrations/report")) return Promise.resolve(buildReport()) as never;
+      if (path.includes("/comments")) return Promise.resolve([]) as never;
+      if (path.includes("/events")) return Promise.resolve(nonOwnedEvent) as never;
+      return Promise.resolve(event) as never;
+    });
+
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: ORG_01, // ORG_01 is not the owner of this event
+      events: [],
+      registrations: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/events/EVT-101"]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "People" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View registrations" })).not.toBeInTheDocument();
+  });
+
+  // VIEW-REG-DETAIL-02-A
+  // Oracle (SPEC: modal opens and closes from the button and x button)
+  // Kills: button does nothing; wrong event's data shown
+  it("VIEW-REG-DETAIL-02-A: opens modal on button click and closes on x button", async () => {
     const user = userEvent.setup();
     renderAs(COO_01);
 
@@ -75,25 +130,5 @@ describe("SPM-63 registrations modal on the event detail page", () => {
 
     await user.click(screen.getByRole("button", { name: "Close dialog" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  });
-
-  // The owning organiser is offered the same button.
-  it("offers the button to the owning organiser", async () => {
-    renderAs(ORG_01);
-
-    expect(await screen.findByRole("button", { name: "View registrations" })).toBeInTheDocument();
-  });
-
-  // A coordinator who is not assigned to this event, and an attendee, are not offered the button.
-  it("does not offer the button to an unassigned coordinator or an attendee", async () => {
-    renderAs(COO_02);
-    expect(await screen.findByRole("heading", { name: "People" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View registrations" })).not.toBeInTheDocument();
-  });
-
-  it("does not offer the button to an attendee", async () => {
-    renderAs(ATT_01);
-    expect(await screen.findByRole("heading", { name: "People" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View registrations" })).not.toBeInTheDocument();
   });
 });
