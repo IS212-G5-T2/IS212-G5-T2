@@ -12,13 +12,17 @@ cd backend && npx vitest run src/events/event-update-input.spec.ts src/events/ev
 
 # Backend integration tests (real repository, real SQL) — needs a DISPOSABLE PostgreSQL database.
 # The spec applies database/postgresql/init/001_schema.sql and 007_*.sql itself.
+# Uses TEST_DATABASE_URL if set, otherwise DATABASE_URL (which the Backend E2E CI job provides).
 cd backend && TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- src/events/event-planning.e2e-spec.ts
+
+# HTTP route tests (real AppModule, session-cookie auth, real PostgreSQL) — uses DATABASE_URL
+cd backend && DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
 
 # Frontend component / page / helper tests
 cd frontend && npx vitest run src/pages/EventDetailPage.planning.test.tsx src/components/domain/PlanningUpdateForm.test.tsx src/components/domain/FlaggedChangeReview.test.tsx src/components/domain/PlanningInformationPanel.test.tsx src/utils/planning.test.ts
 ```
 
-Without `TEST_DATABASE_URL` the integration suite is skipped, not failed.
+Locally, with neither `TEST_DATABASE_URL` nor `DATABASE_URL` set, the integration suite is skipped. In CI (`CI` is set) a missing database **fails** the suite instead, so a green pipeline cannot hide these tests being skipped. Both suites run in the Backend E2E Tests job.
 
 ## Last recorded run
 
@@ -35,7 +39,8 @@ Run on a local Linux machine (Node 22, PostgreSQL 16) on 7 Oct 2026, after the r
 | `FlaggedChangeReview.test.tsx` | 17 | PASS |
 | `PlanningInformationPanel.test.tsx` | 15 | PASS |
 | `planning.test.ts` | 41 | PASS |
-| **Planning total** | **360** | **PASS** |
+| `events-planning.http.e2e-spec.ts` (HTTP + PostgreSQL) | 6 | PASS |
+| **Planning total** | **366** | **PASS** |
 | Whole backend suite / whole frontend suite | 652 / 344 | PASS |
 
 Some of the new tests were checked by deliberately breaking the code under test (for example counting cancelled bookings, showing impacts to the organiser, refreshing while the tab is hidden, removing the resolve guard) and confirming a test fails. For the review fixes: restoring the old "anything booked ⇒ review" rule fails 8 tests (including EVENT-UPDATE-05-B attendance 80 → 70 with a 200-seat venue); checking the primary role instead of `hasRole` fails EVENT-UPDATE-01-D; not resetting the form after a save fails both EVENT-FLAG-01-E page tests; remounting the form on `lastUpdatedAt` fails the EVENT-UPDATE-05-A confirmation test.
@@ -91,12 +96,28 @@ Some of the new tests were checked by deliberately breaking the code under test 
 
 Where a case lists several suites, each covers a different layer: `event-update-input` / `impact` are pure rules, `service` is the business logic with a mocked repository, `e2e` is the same logic against PostgreSQL, and the frontend suites cover the page, form, review panel, information panel and helpers.
 
+### HTTP route tests
+
+`backend/test/events-planning.http.e2e-spec.ts` drives `GET/PATCH /api/events/:id/planning`, `POST .../changes/:changeId/resolve` and `GET .../history` through the real `AppModule`, `AuthenticationMiddleware` (session cookies from `/api/auth/login`) and PostgreSQL. These IDs are repo-side; add matching Confluence cases if the team wants them tracked there.
+
+| Case | Covers | What it proves | Result |
+| --- | --- | --- | --- |
+| EVENT-UPDATE-HTTP-01 | SPM-49 AC1, SPM-97 AC4 | Every planning route returns 401 without a session; nothing saved | PASS |
+| EVENT-UPDATE-HTTP-02 | SPM-49 AC1, AC3, AC6 | Assigned coordinator PATCH applies immediately; next GET shows the value and a later `lastUpdatedAt` | PASS |
+| EVENT-UPDATE-HTTP-03 | SPM-97 AC4 | Owning organiser gets a read-only view and 403 on PATCH | PASS |
+| EVENT-UPDATE-HTTP-04 | SPM-49 AC1 | Unassigned coordinator gets 404 on GET and PATCH | PASS |
+| EVENT-UPDATE-HTTP-05 | SPM-49 AC4 | Identity fields in the body are rejected (400); identity comes only from the session | PASS |
+| EVENT-UPDATE-HTTP-06 | SPM-49 AC3/AC5, SPM-85 AC1/AC3/AC5 | Compatible attendance applies despite a booking; incompatible is flagged; resolve route confirms; history records it | PASS |
+
+Removing `EventPlanningController` from the authentication middleware's routes fails 5 of these 6 tests.
+
 ## Assumptions behind the expected results
 
 The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assumptions". The ones that decide an expected result, and that the team should confirm, are:
 
 1. **Planning phase.** `Approved` and `Planning` events can be viewed and edited; `Confirmed` events can be viewed but nobody can edit them; any other status returns 409.
 2. **Field policy (impact-based).** Event name, purpose, description and accessibility needs always apply immediately. Date/time, attendance, venue requirements (layout + facilities) and equipment requirements apply immediately when the new value stays compatible with every active venue booking and equipment arrangement, and are flagged "Needs Review" only when incompatible with at least one. Compatible means: attendance within each booked capacity; a time inside the window each booking holds (and the event's current window when equipment is reserved); facilities only removed; equipment requirements changed while no equipment is reserved. **Confirm in Jira** that this is the intended reading of "does not affect bookings" (SPM-49 AC3/AC5) rather than "nothing is booked".
+   - **Open requirement conflict (blocks sign-off of EVENT-UPDATE-05-B / EVENT-FLAG-01-A).** SPM-49 AC3/AC5 (Jira and Confluence) and the Confluence SPM-85 matrix support this impact-based rule, but the current **Jira SPM-85 AC1** says the listed fields are "Needs Review" whenever bookings or arrangements exist. The implementation and tests follow the impact-based reading. The tests do not settle the requirement; the product owner must update one source so they agree. Proposed Jira SPM-85 AC1 wording: *"Given an event has existing venue bookings or equipment arrangements, when the coordinator changes the date/time, expected attendance, venue requirements or equipment requirements, then the change is flagged 'Needs Review' only if it is incompatible with at least one active booking or arrangement; compatible changes are applied immediately (SPM-49 AC5)."* If the team instead keeps the stricter Jira wording, `event-impact.ts`, `utils/planning.ts` and the EVENT-UPDATE-05-B tests must change.
 3. **Active bookings.** Venue bookings that are `Unavailable` or `Cancelled`, and equipment that is `Unavailable`, `Cancelled` or `Released`, hold nothing: they do not force a review and are not assessed.
 4. **Turnaround buffer.** 30 minutes between two events' bookings at one venue; exactly 30 is allowed, touching bookings conflict. **Confirm the figure.**
 5. **Per-booking decisions (SPM-85 AC7).** An event field has one value, so a decision for one booking leaves the change at "Needs Review" and leaves other bookings untouched; once every impacted booking is decided the change closes as *Applied* if all were confirmed, otherwise *Rejected*. **Confirm this reading of AC7.**
@@ -108,7 +129,7 @@ The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assum
 
 ## Not covered by automated tests
 
-- No browser (Playwright) test of the organiser–coordinator workflow end to end.
+- No browser (Playwright) test of the organiser–coordinator workflow end to end. The HTTP route suite above covers the real controller and authentication path; the remaining gap is the browser UI against a live backend (existing `*.playwright.spec.ts` files run manually via `backend/scripts/testing/run-browser.mjs`, not in CI).
 - No test of an update racing a decision on the same event. Two simultaneous decisions on one change are covered (`EVENT-FLAG-04-SEC-2`); two independent protections each prevent a double record (the locked event row and the guarded `UPDATE ... WHERE status = 'Needs Review'`), and the test fails only if both are removed.
 - No test of the migration path onto a database that already holds other branches' tables; `007` was applied by hand to the supported combinations (see `AI_USAGE.md`).
 - Real-time push updates (out of scope; see assumption 9).

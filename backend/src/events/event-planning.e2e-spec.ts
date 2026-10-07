@@ -18,11 +18,19 @@ import { EventPlanningService } from './event-planning.service.js';
 /**
  * SPM-97 / SPM-49 / SPM-85 against real PostgreSQL: proves the repository SQL
  * (neighbour lookup, JSONB per-booking decisions, one-pending-per-field index,
- * transactions) behaves as the mocked unit suite assumes. Run with
- * TEST_DATABASE_URL and `npm run test:e2e`; skipped otherwise.
+ * transactions) behaves as the mocked unit suite assumes.
+ *
+ * Uses TEST_DATABASE_URL when set (a dedicated local test database), otherwise
+ * DATABASE_URL, which the Backend E2E CI job provides. Locally the suite is
+ * skipped when neither is set; in CI a missing database fails the run instead,
+ * so a green pipeline can never hide these tests being skipped.
  */
 
-const database = process.env.TEST_DATABASE_URL;
+const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
+if (!database && process.env.CI)
+  throw new Error(
+    'SPM-49 planning PostgreSQL tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.',
+  );
 const MINUTE = 60_000;
 const START = '2030-03-10T10:00:00.000Z';
 const END = '2030-03-10T13:00:00.000Z';
@@ -110,7 +118,7 @@ describe.skipIf(!database)(
     }
 
     beforeAll(async () => {
-      // Use only the explicitly configured test database, never the application URL by default.
+      // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
       for (const file of [
