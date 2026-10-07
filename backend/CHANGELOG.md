@@ -6,6 +6,11 @@
   instead of its own placeholder, which had the same name and broke database
   initialisation once both were merged. Venue name and capacity come from
   `venues`; statuses are mapped as described in `HANDOVER.md`.
+- SPM-46: each reassignment is recorded in `event_reassignments`. Events now
+  carry `reassignedFrom { coordinatorName, reassignedAt }`, sent only to the
+  coordinator who received them (never organisers or attendees), and a previous coordinator opening the event gets 403
+  "This event has been reassigned to another Coordinator." instead of 404.
+
 - SPM-124 venue reads now use setup and turnaround buffers when determining
   whether an approved booking currently makes a venue unavailable. Removed the
   duplicate venue authentication-middleware registration.

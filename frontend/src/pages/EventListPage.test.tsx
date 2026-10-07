@@ -184,8 +184,8 @@ describe("EventListPage", () => {
       </MemoryRouter>,
     );
 
-    // Assert: the page includes the "New assigned requests" panel with the assignment.
-    const panel = await screen.findByRole("region", { name: "New assigned requests" });
+    // Assert: the page includes the "Assignment updates" panel with the assignment.
+    const panel = await screen.findByRole("region", { name: "Assignment updates" });
     expect(panel).toHaveTextContent('New event request "Welcome Evening" is awaiting your review.');
   });
 

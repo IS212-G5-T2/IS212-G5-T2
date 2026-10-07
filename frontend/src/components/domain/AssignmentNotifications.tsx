@@ -64,10 +64,10 @@ export function AssignmentNotifications() {
 
   return (
     <section
-      aria-label="New assigned requests"
+      aria-label="Assignment updates"
       className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">New assigned requests</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Assignment updates</h2>
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-300">
           {error}
