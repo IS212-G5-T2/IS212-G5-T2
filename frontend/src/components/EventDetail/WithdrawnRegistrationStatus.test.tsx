@@ -20,6 +20,7 @@ const noop = () => {};
 beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: T0 }));
 afterEach(() => vi.useRealTimers());
 
+// WITHDRAW-EVENT-REG-CARD-01
 describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again button", () => {
   // Oracle (task spec): the badge, both timeline entries with correct absolute timestamps,
   // and the Register again button all render for an open, spots-available event.
@@ -39,6 +40,7 @@ describe("WITHDRAW-EVENT-REG-CARD-01: badge, timeline and the Register again but
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-01
 describe("WITHDRAW-EVENT-REG-CARD-01 (legacy row): a withdrawal with no recorded time", () => {
   // Oracle (DERIVED from database migration 007: "rows withdrawn before this change have no timestamp"): the
   // timeline shows only the Registered entry; it must not invent a withdrawal time.
@@ -55,6 +57,7 @@ describe("WITHDRAW-EVENT-REG-CARD-01 (legacy row): a withdrawal with no recorded
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-02
 describe("WITHDRAW-EVENT-REG-CARD-02: the old layout is gone", () => {
   // Oracle (task spec): the old relative "Withdrawn today at ..." line and the old plain
   // "Register" button must not be rendered anywhere in the new card.
@@ -72,6 +75,7 @@ describe("WITHDRAW-EVENT-REG-CARD-02: the old layout is gone", () => {
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-03
 describe("WITHDRAW-EVENT-REG-CARD-03: the detail disclosure is collapsed by default", () => {
   // Oracle (task spec): collapsed by default, keyboard-operable, expands to show exactly
   // Registration ID, Full name, Email, Contact number.
@@ -108,6 +112,7 @@ describe("WITHDRAW-EVENT-REG-CARD-03: the detail disclosure is collapsed by defa
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-04
 describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
   // Oracle (task spec state matrix, row 1): "Changed your mind?" + availability line, button enabled,
   // one click calls the handler once.
@@ -204,6 +209,7 @@ describe("WITHDRAW-EVENT-REG-CARD-04: open with spots available", () => {
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-05
 describe("WITHDRAW-EVENT-REG-CARD-05: full event", () => {
   // Oracle (task spec state matrix, row 3): with no spots left the footer says "This event is full." and the button is hidden.
   // Kills: button still shown when full; wrong wording.
@@ -222,6 +228,7 @@ describe("WITHDRAW-EVENT-REG-CARD-05: full event", () => {
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-06
 describe("WITHDRAW-EVENT-REG-CARD-06: not yet open, closed, and event started", () => {
   // Oracle (task spec state matrix, rows 4-6): each state hides the button and shows its own message.
   // Kills: button shown in a blocked state; wrong message for the state.
@@ -294,6 +301,7 @@ describe("WITHDRAW-EVENT-REG-CARD-06: not yet open, closed, and event started", 
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-07
 describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial register rules", () => {
   // Oracle (DERIVED from SPM-61 D6 + SPM-120 hasEventStarted): closing is exclusive (closed AT the
   // instant), the event start is inclusive (started AT the instant) - the same rules
@@ -353,6 +361,7 @@ describe("WITHDRAW-EVENT-REG-CARD-07: boundary instants match the initial regist
   });
 });
 
+// WITHDRAW-EVENT-REG-CARD-08
 describe("WITHDRAW-EVENT-REG-CARD-08: timestamps render in Singapore time", () => {
   // Oracle (SPEC, mirrors the SPM-120 05-E convention): an instant whose UTC calendar day differs
   // from its Singapore calendar day must still show the SGT day and time, not the UTC one.

@@ -136,9 +136,9 @@ No deployment command is configured for this repository.
 
 ## Local event requests
 
-Set `DATABASE_URL` to the local PostgreSQL connection and
-`DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both
-through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
+Set `DATABASE_URL` to the local PostgreSQL connection. Compose supplies it
+through `.env.example`. Every event route needs a signed-in session; there is
+no shared demo identity. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
 for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 

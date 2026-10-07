@@ -30,7 +30,6 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   beforeAll(async () => {
     // Use only the explicitly configured test database, never the application URL by default.
     process.env.DATABASE_URL = database;
-    process.env.DEMO_ORGANISER_ENABLED = 'true';
     db = new pg.Pool({ connectionString: database });
     await db.query(
       await readFile(
