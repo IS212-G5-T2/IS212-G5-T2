@@ -100,6 +100,7 @@ async function refusal(promise: Promise<unknown>): Promise<HttpException> {
   throw new Error('expected the withdrawal to be refused, but it succeeded');
 }
 
+// WITHDRAW-EVENT-REG-04-STATE-1
 describe('WITHDRAW-EVENT-REG-04-STATE-1 (AC4): a started event is refused before anything is written', () => {
   // Oracle (SPEC 04-B/04-C: 422 "Event has already occurred"; A7: the start instant is exclusive, so at the
   // start it is already refused): the exception is the 422, and no UPDATE statement was ever issued.
@@ -130,6 +131,7 @@ describe('WITHDRAW-EVENT-REG-04-STATE-1 (AC4): a started event is refused before
   });
 });
 
+// WITHDRAW-EVENT-REG-05-STATE-1
 describe('WITHDRAW-EVENT-REG-05-STATE-1 (AC5): an already-withdrawn registration is refused before anything is written', () => {
   // Oracle (SPEC 05-D: 422 "This registration has already been withdrawn."): the 422 and no UPDATE.
   // Kills: the UPDATE issued before the state check (hidden by the rollback in the integration suite).
@@ -178,6 +180,7 @@ describe('WITHDRAW-EVENT-REG-05-STATE-1 (AC5): an already-withdrawn registration
   });
 });
 
+// WITHDRAW-EVENT-REG-05-STATE-2
 describe('WITHDRAW-EVENT-REG-05-STATE-2 (AC5): a bad body is refused before the database is touched', () => {
   // Oracle (D15, "no body or {} only"): a 400 and the database is never entered, so not even a lookup runs.
   // Kills: the body validated inside the transaction after the lookup or the write (rollback hides the write).
@@ -204,6 +207,7 @@ describe('WITHDRAW-EVENT-REG-05-STATE-2 (AC5): a bad body is refused before the 
   });
 });
 
+// WITHDRAW-EVENT-REG-07-STATE-1
 describe("WITHDRAW-EVENT-REG-07-STATE-1 (cross-cutting): another attendee's or a missing registration is refused before any write", () => {
   // Oracle (D16: 404 "Registration not found."): the lookup is scoped to the caller (the SQL filters on attendee_id
   // and receives the caller's uid as its second parameter), finds nothing, and no UPDATE is issued.
@@ -229,6 +233,7 @@ describe("WITHDRAW-EVENT-REG-07-STATE-1 (cross-cutting): another attendee's or a
   });
 });
 
+// WITHDRAW-EVENT-REG-07-STATE-2
 describe('WITHDRAW-EVENT-REG-07-STATE-2 (cross-cutting): a malformed id or no session never reaches the database', () => {
   // Oracle (D16 + the service's own rule: "a malformed id cannot belong to anyone"; authentication first):
   // 404 for a malformed id, 401 with no identity, and no transaction is opened in either case.
@@ -258,6 +263,7 @@ describe('WITHDRAW-EVENT-REG-07-STATE-2 (cross-cutting): a malformed id or no se
   );
 });
 
+// WITHDRAW-EVENT-REG-03-STATE-1
 describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal writes exactly once, guarded, from the injected clock', () => {
   // Oracle (SPEC 03-A: withdrawnAt is the injected clock, status Withdrawn; D14: a single compare-and-set UPDATE;
   // M10: never SQL now()): one SELECT, one UPDATE whose parameters are [id, caller, clock], guarded on 'Registered'.

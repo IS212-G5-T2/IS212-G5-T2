@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { VenueCreatePage } from "./VenueCreatePage";
-import { VenuesPage } from "../../VenuesPage";
+import { VenueRecordsPage } from "../../venue-records/VenueRecordsPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api, ApiError } from "@/utils/api";
 import { readFileAsDataUrl } from "@/utils/uploads";
@@ -64,7 +64,7 @@ function renderRoutes(initial = "/venues/create") {
       <Routes>
         <Route path="/events" element={<p>Events home</p>} />
         <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
-          <Route path="/venues" element={<VenuesPage />} />
+          <Route path="/venue-records" element={<VenueRecordsPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
           <Route path="/venues/create" element={<VenueCreatePage />} />

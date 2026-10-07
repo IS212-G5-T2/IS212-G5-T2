@@ -17,6 +17,7 @@ import { ClarificationsModule } from './clarifications/clarifications.module.js'
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
 import { CLOCK, systemClock } from './registrations/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
+import { ExportService } from './registrations/export.service.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
@@ -45,6 +46,7 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
     EventsService,
     DraftsService,
     RegistrationsService,
+    ExportService,
     EquipmentService,
     CoordinatorAvailabilityService,
     LeadAssignmentService,
@@ -62,9 +64,9 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,
-        VenuesController,
         LeadAssignmentController,
       );
   }

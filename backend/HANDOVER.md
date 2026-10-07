@@ -59,10 +59,64 @@ filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 ## Continuity Notes
 
+SPM-124 adds read-only `GET /api/venues` and `GET /api/venues/:id` for any role
+with `Venue:read`. Both endpoints use the shared catalogue by default;
+`GET /api/venues?mine=true` is the optional session-derived owner filter.
+`src/venues/` uses SPM-50's `VenuesModule`, controller, service, and
+repository names to read venue records and the single
+`venue_bookings` schedule table added by `migrations/009_venue_availability.sql`.
+Staff blockouts are `status = 'blocked'` rows with a reason and no event; the
+migration moves older `venue_unavailability` rows into that table. This branch copies the
+SPM-50 venue SQL into the fresh-volume initializer and migrations 005–008;
+apply those migrations before 009 on existing databases. Fresh database images
+create the schedule table through
+`database/postgresql/init/007_spm124_venue_schedule.sql`. The
+older frontend booking workflow remains in browser memory; it does not write
+the `venue_bookings` table. A future booking writer must own status and
+hold-expiry transitions. SPM-124 reads approved bookings, active pending
+holds, and staff blockouts, and reports overlaps against each booking's
+setup-to-turnaround occupied period.
+
 Equipment creation validates quantities from 1 through `2,147,483,647`, the
 PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
 the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a
 database with the local initialisers applied.
+
+SPM-119 "Mark Equipment as Unavailable" adds `EquipmentService.updateAvailability()`
+and `getAuditTrail()`. Availability (`is_available`) is deliberately orthogonal
+to `maintenance_status`: a record can be Active and unavailable, or Under
+Maintenance and still bookable — the two flags are never conflated.
+`updateAvailability()` locks the row (`SELECT ... FOR UPDATE`) inside
+`DatabaseService.transaction()`, updates `is_available`, and inserts the audit
+row in the same transaction, so a failed audit insert rolls the availability
+change back with it (`src/equipment/equipment-availability.e2e-spec.ts`
+EQUIP-UNAVAIL-07-A proves this with a Postgres trigger that forces the insert
+to fail). Reactivating never requires a reason; marking unavailable always
+does (`equipment-availability-input.ts`). `list()` filters out unavailable
+records by default; `includeUnavailable=true` opts back in. The audit trail is
+shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
+The availability route authorizes before validating its body, derives
+`changed_by` only from the verified session, and validates the path ID before
+querying PostgreSQL: malformed IDs are 400 and unknown UUIDs are 404. A request
+for the equipment's current availability is rejected with 409 and creates no
+audit row, because the history represents actual state transitions. Audit API
+rows expose the resulting `isAvailable` value. Availability remains independent
+of maintenance status, so Retired and Under Maintenance records can still have
+their separate availability changed and audited.
+Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
+Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
+for a database with `database/postgresql/init/001` through `010` applied.
+`createUser(role, emailPrefix)` generates its unique email upfront
+(`${emailPrefix}-${randomUUID()}@example.test`) and returns it for callers to
+assert against, matching the pattern every other `*.e2e-spec.ts` helper in
+this codebase already uses. (An earlier version instead mangled a
+caller-supplied literal email after insertion, so the session's real email
+never matched the literal four tests asserted against; fixed.) All 17 of 17
+cases in that file pass against a real database, including the 07-A rollback
+and both 07-SEC-1 role-guard cases. `EQUIP-UNAVAIL-01-A` and `05-A`'s equipment
+fixtures use the exact Confluence literals (`'Lighting'`, quantity `50`) via
+`createEquipment`'s optional overrides, rather than that helper's generic
+defaults (`'Visual'`, quantity `1`) used by every other case in the file.
 
 Legacy demo-owned records are retained but cannot be safely attributed to a Firebase account. Do not expose or auto-claim them; migrate only after explicit confirmation of the actual owner. My drafts and My Events must remain scoped to the verified UID.
 
@@ -91,9 +145,8 @@ Legacy demo-owned records are retained but cannot be safely attributed to a Fire
 
 `src/events` owns submission validation and the API. Local schema initialization
 belongs to `database/`; production migrations remain outside this
-ticket. The `DEMO_ORGANISER_ENABLED` switch must be replaced by authenticated
-server identity integration before multi-user use. Never trust an organiser ID
-or status supplied by the client. Keep the nested TypeScript 5 lock entry when
+ticket. Identity always comes from the signed-in session (`request.currentUser`);
+there is no demo identity. Never trust an organiser ID or status supplied by the client. Keep the nested TypeScript 5 lock entry when
 using local npm 11; Docker npm 10 requires it.
 
 ## Coordinator clarification/amendment requests (SPM-39)
@@ -114,15 +167,12 @@ Known gaps to close before this is fully production-ready:
 - Coordinators are assigned by the Event Coordinator Lead (SPM-123, see
   below); the old open `POST /api/events/:id/assign` and the store's mock
   `assignCoordinator` were removed.
-- **`EventsService.identity()` still returns a single hardcoded demo
-  organiser** (`DEMO_ORGANISER_ENABLED`) for every caller regardless of the
-  real authenticated Firebase user, and every event created today has
-  `organiser_id = 'current-user'`. The clarification reply endpoint's
-  ownership check (`events.organiser_id === currentUser.uid`) is real and
-  correct, but it will only match a real Firebase-authenticated organiser
-  once `EventsService` is migrated off that demo identity — see the
-  "Event persistence" note above. Until then, only rows seeded/updated with a
-  real uid as `organiser_id` can exercise the reply endpoint end-to-end.
+- **Seeded events are owned by `organiser_id = 'current-user'`**, a leftover
+  of the pre-login demo identity (`002_seed_data.sql`), so no real organiser
+  sees them and the ownership checks (`events.organiser_id === currentUser.uid`,
+  `events.coordinator_id === currentUser.uid`) never match for them. Events
+  created through the API carry the real session uid. Re-point seeded rows
+  at a real account to exercise those flows locally.
 - The `notifications` table is new and intentionally minimal (insert +
   per-recipient read), scoped to clarification/clarification-reply events
   only. It does not replace the frontend's broader mock notification system
@@ -182,3 +232,6 @@ Submitting a request no longer assigns anyone: it waits, unassigned, in the queu
 ## Viewing a reassigned event (SPM-46)
 
 Every reassignment writes one `event_reassignments` row (from/to coordinator id and name, the Lead, `reassigned_at`) inside the reassign transaction; a failed write rolls the reassignment back. `GET /api/events` (coordinator list) and `GET /api/events/:id` read the event's latest row and return `reassignedFrom: { coordinatorName, reassignedAt }` only to the event's current coordinator, and only when that row was to them; organisers and attendees never receive it. When `GET /api/events/:id` would refuse a coordinator, it first checks whether they were ever a `from_coordinator_id` for the event: if so it returns 403 "This event has been reassigned to another Coordinator." (never naming the new coordinator); anyone else still gets 404 "Event not found." so existence is not leaked. The original coordinator's `coordinator_unassignment` notice does name the new coordinator (SPM-47 AC8) so they can hand over informally; the 403 stays generic because it is only a fallback for an old link. The two wordings are intentionally different. The latest reassignment is chosen by `reassigned_at DESC, id DESC`. Two rows for the same event shouldn't share a time (reassign locks the event row and `reassigned_at` uses `clock_timestamp()`), so the `id` tie-break only keeps the choice fixed if that ever happens. Existing databases apply `database/postgresql/init/010_spm46_event_reassignments.sql`.
+## SPM-63 registration report
+
+`RegistrationsService.getReport` is the one place that decides who may see an event's registrations; the report route and the CSV/PDF export route both call it (`report-access.ts` holds the pure rule). Access is the assigned coordinator (`events.coordinator_id`) or the owning organiser (`events.organiser_id`); there is no `event_coordinators` table, so adding co-coordinators later means changing that one rule. The report reads only `status = 'Registered'` rows (SPEC "Confirmed"); the schema allows only `Registered` and `Withdrawn`, so a Cancelled registration is not a case today. Each report row carries `specialRequirements` when the attendee gave one, and the CSV and PDF have a Special Requirements column (the PDF is A4 landscape; its six column widths must sum to at most 762 pt). Exports are named `<event_name>_registrations.<csv|pdf>` (lowercase, spaces as underscores, unsafe characters removed). Formula neutralisation is export-only (`sanitization.ts`, called by `export.service.ts`) and covers every CSV cell, including special requirements; stored values and the JSON report stay literal. SPM-63 formats (`report-format.ts`) deliberately differ from the SPM-61 `formatSgt` ("12 Mar 2027, 23:59 SGT") because the test cases fix "28 Sep 2026 10:30 SGT". The PDF embeds `assets/fonts/NotoSans-Regular.ttf` (SIL OFL licence alongside), resolved relative to the compiled file, so `dist/` and the Docker image need `assets/`; it has no CJK glyphs. Risks: PDF text relies on `pdfkit` wrapping, large events produce many pages (no pagination or audit trail, out of scope), and the browser can only read the server filename because `main.ts` exposes `Content-Disposition`. The 44 integration tests (authorization across three doors, CSV/PDF content, real-time polling) run in CI as part of the `backend-e2e-tests` workflow job (spins up Postgres, runs `npm run test:e2e`). Run the mutation check locally with `node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs` (needs `DATABASE_URL` pointing to a test database). See `docs/specs/SPM-63-test-results.md`.

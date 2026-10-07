@@ -9,6 +9,9 @@
   coordinator's notification panel is now headed "Assignment updates" (it also
   lists events reassigned away).
 
+- SPM-124 venue schedule periods now always display their start and end times,
+  including multi-day periods. Changing venue detail routes immediately clears
+  the previous venue while the replacement record loads.
 - SPM-47: added the Lead's Reassign Events page (`/lead/reassign`): assigned
   events soonest first with their current coordinator and a "Coordinator
   unavailable" label, a picker showing availability and workload (current and
@@ -22,6 +25,11 @@
   but not selectable. A refused assignment reloads the queue as well as the
   coordinators. Coordinators see new assignments on their events page, refreshed
   on focus and every 30 seconds. Removed the unused store `assignCoordinator`.
+- The download now saves under the server's UTF-8 `filename*` when present (so an accented event name is kept), falling back to the plain `filename`.
+
+- Added a registrations modal to the event detail page (SPM-63 UI improvement): the People card has a "View registrations" button for the assigned coordinator or owning organiser only. The modal (title "Registrations (N)") shows "N of capacity spots registered · K available", the registration period and event time in Singapore time and "No waitlist"; a search box (name, email or phone, 150 ms debounce) and a Filter of All / Registered today / Indicated special requirements (Singapore day); expandable registration cards (name, email, date; one open at a time, with contact number, registered-at and status); "No registrations yet" and "No registrations match your criteria" states; and "Export as CSV" / "Export as PDF" through the existing server exports (the full report, not narrowed by search or filter). It loads and refreshes every 5 seconds only while open, and closes from the x button, Escape or the backdrop. A waitlist is not shown (Release 1 has no waitlist). The report page now shares its export logic through `useReportExport`. The "View Registrations" link from the event list page was removed: you now reach registrations only from the event detail page.
+
+- Added the registration report page for organisers and coordinators (SPM-63) at `/events/:id/registrations/report`: heading "{event} - Registration Report", "N Attendees Registered (N / capacity)" and "K spots available", a table of name, email, contact number, registration date (Singapore time) and status, "Export as CSV" and "Export as PDF" buttons (authenticated download under the server's filename, disabled while downloading, errors shown in the page), and the empty state "No registrations yet". The report refreshes every 5 seconds without user action, replacing the rows, and polling stops on leaving the page, changing event, 401 (back to login) and 403 (rows cleared, "You do not have access to this event's registrations." shown). Event cards now have a "View Registrations" link for the assigned coordinator or owning organiser only. Added `apiBaseUrl()` to `utils/api.ts`. Added a re-runnable mutation check (`scripts/testing/mutation/spm63.mutants.mjs`).
 
 - Added a re-runnable mutation check for the SPM-120 withdraw UI (`scripts/testing/mutation`) and tests for the dialog's Escape-while-pending and double-activation paths, unexpected withdrawal failures, a failed reload after a 409, and Withdraw on a cancelled event. Tests and tooling only; no behaviour change.
 

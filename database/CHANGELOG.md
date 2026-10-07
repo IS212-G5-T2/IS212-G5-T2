@@ -1,8 +1,27 @@
 # Local Database Changelog
 
-This records the evolution of the local PostgreSQL initializer. The two files
-under `postgresql/init/` intentionally describe only the final fresh-volume
-state; existing databases must use backend migrations for upgrades.
+This records the evolution of the local PostgreSQL initializer. Base and
+additive scripts under `postgresql/init/` describe the fresh-volume state;
+existing databases must use backend migrations for upgrades.
+
+## 2026-10-05 - SPM-124 venue schedule
+
+- Copied the SPM-50 venue schema and lookup seeds into the fresh-volume
+  initializer so a clean Compose volume creates the venue catalogue tables.
+- Added idempotent fresh-volume initialization for one `venue_bookings` table
+  containing event reservations and staff blockouts. Existing volumes use
+  backend migration 009 after the copied SPM-50 migrations 005–008; it moves
+  any earlier `venue_unavailability` rows into that table.
+- Added two local sample venue records with illustrative images and a short
+  blockout booking so the card catalogue has visible records in a fresh
+  development database.
+
+## 2026-10-07 - SPM-119 equipment availability and audit trail
+
+- Added `010_spm119_equipment_availability.sql`: `equipment.is_available`
+  (boolean, default `true`), the `equipment_audit_trail` table, and their
+  indexes. Additive and idempotent; applied to the shared local Compose
+  volume without a reset.
 
 ## 2026-09-22 - Two-file initializer consolidation
 

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthError, login, logout, restoreSession } from "@/lib/auth";
 import { useAppStore } from "./useAppStore";
 import type { User } from "@/types";
-import type { EventRecord } from "@/types";
 
 vi.mock("@/lib/auth", async () => {
   const actual = await vi.importActual<typeof import("@/lib/auth")>("@/lib/auth");

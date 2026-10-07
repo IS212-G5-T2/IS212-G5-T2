@@ -195,7 +195,7 @@ export function VenueCreatePage() {
     try {
       const confirmation = await createVenue(venue);
       setErrors({});
-      navigate("/venues", {
+      navigate("/venue-records", {
         replace: true,
         state: { creationMessage: confirmation },
       });

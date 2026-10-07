@@ -114,9 +114,9 @@ No deployment command is configured for this repository.
 
 ## Local event requests
 
-Set `DATABASE_URL` to the local PostgreSQL connection and
-`DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both
-through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
+Set `DATABASE_URL` to the local PostgreSQL connection. Compose supplies it
+through `.env.example`. Every event route needs a signed-in session; there is
+no shared demo identity. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
 for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
@@ -174,6 +174,18 @@ Fresh local databases
 receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
 test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
+
+### Venue Staff catalogue (SPM-124)
+
+`GET /api/venues` and `GET /api/venues/:id` require `Venue:read` and return the
+shared catalogue to every authorized reader. `GET /api/venues?mine=true` narrows
+the list to venues whose `owner_user_id` matches the verified session; no client
+owner ID is accepted. Responses include venue fields, image,
+current and scheduled staff blockouts, approved bookings, and active pending
+holds. A booking is marked affected when a blockout overlaps its occupied
+setup-to-turnaround period. Apply migration `009_venue_availability.sql` after
+migrations 005–008 for existing databases; fresh local initialization includes
+the schedule and sample venues.
 
 ## Clarification/amendment requests (SPM-39)
 

@@ -11,6 +11,7 @@ const closesAt = new Date('2030-01-20T02:00:00.000Z');
 const at = (offsetMs: number, base = opensAt) => new Date(base.getTime() + offsetMs);
 const event = { registrationEnabled: true, status: 'Confirmed', opensAt, closesAt };
 
+// EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
 describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants', () => {
   // [A] one second before the window opens registration is not open.
   it('[A] 1s before open: closed', () => {

@@ -10,10 +10,34 @@ The shared local Docker Compose stack builds this app with `frontend/Dockerfile`
 
 ## Continuity notes
 
+SPM-124 gives Venue Staff the persisted `/venue-records` card catalogue and
+`/venue-records/:id` detail, with API loading, name/location search, four sortable
+fields, venue images, unavailable-period reasons, and upcoming bookings/active holds.
+The catalogue defaults to all readable venues and provides an optional My venues filter.
+Coordinators, including dual-role users, retain the prior in-memory planning view on
+`/venues` and `/venues/:id`. The
+new read view depends on SPM-50 venue tables plus backend migration 009, which
+stores both event bookings and staff blockouts in `venue_bookings`. The
+fresh-volume initializer in this branch creates both and seeds two sample
+venues; the
+existing browser-only booking actions do not populate the new booking table.
+
 Equipment Availability distinguishes a successful empty inventory from a
 failed fetch. `EquipmentCreatePage.playwright.spec.ts` covers the browser
 create-to-inventory flow; the backend browser harness removes its uniquely
 named equipment fixture afterward.
+
+SPM-119: `EquipmentAvailabilityPage` filters unavailable records out of its
+default view and toggles between `getEquipment()` and
+`getEquipment({ includeUnavailable: true })` — filtering stays client-side
+too, since the component must also behave correctly against a backend that
+hasn't applied the server-side filter. While the Mark-unavailable or
+Reactivate dialog is open, the rest of the page is wrapped in
+`aria-hidden` so the row's own trigger button (same label text as the
+dialog's confirm button, e.g. both read "Mark unavailable") is excluded from
+the accessible tree and queries like `getByRole("button", { name:
+/^mark unavailable$/i })` resolve uniquely to the dialog. `AuditTrailPage`
+(`/equipment/audit-trail`) is read-only and has no dedicated unit test yet.
 
 My Events and My drafts rely on backend Firebase UID ownership. API requests carry the Firebase token, account changes remount page state and clear cached events. Legacy demo-owned rows require explicit ownership migration.
 
@@ -72,3 +96,11 @@ must stay aligned with the backend/database lookup seeds.
 Duplicate name/location pairs are enforced by PostgreSQL and returned as
 field-level errors; the form already routes those errors back to Venue details.
 The backend remains the authorization and persistence authority.
+
+## SPM-63 registration report
+
+`RegistrationReportPage` (route `/events/:id/registrations/report`, inside the authenticated shell but deliberately without a role guard) shows the report to whoever the server allows; a 403 shows MSG-08 and no data, so an attendee is never redirected to the attendee view. `useRegistrationReport` owns the 5 s polling (replace, never append; stop on unmount, event change, 401, 403; keep rows through a transient failure; no overlapping requests). The export buttons call `downloadReportExport` (a credentialed `fetch`, not `api()`, because the body is a file) and save the Blob under the `Content-Disposition` filename, which needs the backend's CORS `exposedHeaders`. The report is reached from the People card on the event detail page (the former "View Registrations" link on `EventListPage` was removed); `canViewRegistrationReport` only decides whether to offer it, and the server enforces access. Wording and date formats in `utils/registrationReport.ts` mirror `backend/src/registrations/report-format.ts` and differ from the SPM-61/62 formatter on purpose (no comma after the year). Mutation check: `node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs`.
+
+### Registrations modal (People card)
+
+`RegistrationsModal` opens from a "View registrations" button in the People card of `EventDetailPage` (shown by `canViewRegistrationReport`; the server still enforces access). It is mounted only while open, so `useRegistrationReport` fetches and polls only then. It reuses the report endpoints and `useReportExport`, so CSV/PDF are the server's full report under the server's filename (not narrowed by the modal's search/filter). The "Indicated special requirements" filter matches rows whose `specialRequirements` is present; the backend report includes it only when the attendee gave one. The backend runs from a compiled Docker image (no file watching), so after a backend change run `docker compose up -d --build backend` in `docker-compose/`. A waitlist filter is not built: Release 1 has a hard capacity limit (the modal states "No waitlist"). "Registered today" compares Singapore calendar days. Icons are inline SVG (Tabler is not installed).

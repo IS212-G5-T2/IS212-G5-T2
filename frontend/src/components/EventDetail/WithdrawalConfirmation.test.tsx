@@ -59,6 +59,7 @@ afterEach(() => {
 });
 
 describe("SPM-120 AC2: the confirmation prompt shows the event name and the consequences", () => {
+  // WITHDRAW-EVENT-REG-02-A
   // Oracle (SPEC 02-A): dialog named "Withdraw from Tech Talk: Cloud 101?", both consequences, two buttons.
   // Added: opening the dialog sends no request.
   // Kills: event name missing/wrong; request fired on the first click; consequence text missing.
@@ -82,6 +83,7 @@ describe("SPM-120 AC2: the confirmation prompt shows the event name and the cons
 });
 
 describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => {
+  // WITHDRAW-EVENT-REG-03-A
   // Oracle (SPEC 03-A frontend): exactly one POST to /registrations/REG-9001/withdraw; dialog closes;
   // withdrawn card with Registered 3 Oct 2026, 12:00 and Withdrawn 4 Oct 2026, 12:00 in its timeline.
   // Kills: two requests per click; wrong registration id; local state not updated from the response.
@@ -107,6 +109,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(timelineEntry("Withdrawn").getByText("4 Oct 2026, 12:00")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-03-A
   // Oracle (SPEC 03-A: exactly one POST): two activations of Confirm before React re-renders (a fast double click)
   // still send a single request; the second would be refused as "already withdrawn" and show a false error.
   // Kills: M40 the in-flight guard (`withdrawInFlight`) removed, so a double activation sends two requests.
@@ -129,6 +132,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // WITHDRAW-EVENT-REG-03-B
   // Oracle (SPEC 03-B + F12): Cancel closes the dialog with zero requests, badge stays, no message, focus returns.
   // Kills: M9 Cancel sends the request; local state mutated on cancel.
   it("WITHDRAW-EVENT-REG-03-B: Cancel closes the prompt with no request and no change", async () => {
@@ -150,6 +154,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     expect(withdrawButton()).toHaveFocus();
   });
 
+  // WITHDRAW-EVENT-REG-03-B
   // Oracle (ASSUMED, F12): a click on the dimmed backdrop is ignored; the dialog stays and nothing is sent.
   // Kills: M9 backdrop click closes or confirms.
   it("WITHDRAW-EVENT-REG-03-B (backdrop, ASSUMED F12): clicking outside the dialog does nothing", async () => {
@@ -169,6 +174,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
 });
 
 describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
+  // WITHDRAW-EVENT-REG-06-A
   // Oracle (SPEC 06-A A + D13): Confirm disabled and aria-busy while pending, no success text early;
   // after 200 the dialog is gone within 500 ms and a persistent, dismissible success banner shows exactly MSG-11.
   // Kills: M7 success shown before the response; auto-dismiss under 3 s; dialog lingers over 500 ms.
@@ -210,6 +216,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(banner()).not.toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-06-A
   // Oracle (Added 06-A B): a 5xx or network failure shows an error inside the dialog, never the success text.
   // Kills: success shown on failure; Confirm left disabled; local status changed on failure.
   // ASSUMPTION A11: a failure that is not an ApiError shows its own message, and a rejection that is not an Error at all
@@ -240,6 +247,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(screen.getByText("Registered")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-06-B
   // Oracle (SPEC 06-B + D9 + F15): MSG-11 template per event name, built by the UI (the mock's text is different),
   // no timestamp in the banner; the Withdrawn timeline entry shows 4 Oct 2026, 14:30 (clock 14:30 SGT).
   // Kills: hard-coded event name; name taken from another registration; template differing per event;
