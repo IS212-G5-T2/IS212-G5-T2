@@ -82,7 +82,7 @@ SELECT users.id, roles.id FROM (VALUES
     ('venue_staff1@connectsphere.test', 'VENUE_STAFF'), ('venue_staff2@connectsphere.test', 'VENUE_STAFF'), ('venue_staff3@connectsphere.test', 'VENUE_STAFF'),
     ('tech_support1@connectsphere.test', 'TECH_SUPPORT'), ('tech_support2@connectsphere.test', 'TECH_SUPPORT'), ('tech_support3@connectsphere.test', 'TECH_SUPPORT'),
     ('attendee1@connectsphere.test', 'ATTENDEE'), ('attendee2@connectsphere.test', 'ATTENDEE'), ('attendee3@connectsphere.test', 'ATTENDEE'),
-    ('organiser_coordinator@connectsphere.test', 'COORDINATOR'), ('organiser_coordinator@connectsphere.test', 'VENUE_STAFF')
+    ('coordinator_venuestaff@connectsphere.test', 'COORDINATOR'), ('coordinator_venuestaff@connectsphere.test', 'VENUE_STAFF')
 ) AS assignments(email, role_name)
 JOIN users ON users.email = assignments.email
 JOIN roles ON roles.name = assignments.role_name
