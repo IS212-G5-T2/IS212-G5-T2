@@ -30,6 +30,7 @@ export const ALICE_TAN: ReportRow = {
   contactNumber: "98765432",
   registeredAt: "2026-09-28T02:30:00.000Z",
   status: "Confirmed",
+  specialRequirements: "Vegetarian menu",
 };
 /** REG-EXTRA-01: ATT-03 Chloe Ng, registered 29 Sep 2026 09:00 SGT. */
 export const CHLOE_NG: ReportRow = {

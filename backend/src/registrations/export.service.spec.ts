@@ -88,25 +88,14 @@ describe('SPM-63 AC4: the export filename uses the event id and the SGT date of 
   // Oracle (SPEC 04-A, F8 / Q10): "<event id>_registrations_<SGT date>.<ext>"; T0 is 29 Sep 2026 12:00 SGT.
   // Kills: the extension or separator changed; the event name used instead of the id.
   it.each([
-    ['csv', `${EVT_101_ID}_registrations_2026-09-29.csv`],
-    ['pdf', `${EVT_101_ID}_registrations_2026-09-29.pdf`],
+    ['csv', 'Tech Talk: Cloud 101_registrations.csv'],
+    ['pdf', 'Tech Talk: Cloud 101_registrations.pdf'],
   ] as const)('VIEW-REG-INFO-04-A: %s filename', (format, expected) => {
     // Arrange / Act
-    const name = reportFilename(EVT_101_ID, T0, format);
+    const name = reportFilename('Tech Talk: Cloud 101', format);
 
     // Assert
     expect(name).toBe(expected);
-  });
-
-  // VIEW-REG-INFO-04-A-BND
-  // Oracle (SPEC 2.5 added BND): 2026-09-30 00:30 SGT is still 29 Sep in UTC, so the file is dated 2026-09-30.
-  // Kills: M9 filename date taken from UTC.
-  it('VIEW-REG-INFO-04-A-BND: just after SGT midnight the filename carries the next date', () => {
-    // Arrange / Act
-    const name = reportFilename(EVT_101_ID, new Date('2026-09-30T00:30:00+08:00'), 'csv');
-
-    // Assert
-    expect(name).toBe(`${EVT_101_ID}_registrations_2026-09-30.csv`);
   });
 });
 

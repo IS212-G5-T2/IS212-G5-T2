@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
 import { EventCard } from "@/components/domain/EventCard";
 import { AssignmentNotifications } from "@/components/domain/AssignmentNotifications";
-import { canViewRegistrationReport } from "@/utils/registrationReport";
 import type { EventStatus } from "@/types";
 import {
   ATTENDEE_BROWSE_FILTERS,
@@ -124,22 +123,12 @@ export function EventListPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((e) => (
-            <div key={e.id} className="flex flex-col gap-1.5">
-              <EventCard
-                // "Approved" and "Confirmed" are the same published state for attendees.
-                event={isAttendee && e.status === "approved" ? { ...e, status: "confirmed" } : e}
-                registered={isAttendee && e.myRegistrationStatus === "registered"}
-              />
-              {/* SPM-63: only the assigned coordinator or owning organiser is offered the report. */}
-              {canViewRegistrationReport(currentUser, e) && (
-                <Link
-                  to={`/events/${e.id}/registrations/report`}
-                  className="self-start text-sm font-medium text-primary-600 hover:underline"
-                >
-                  View Registrations
-                </Link>
-              )}
-            </div>
+            <EventCard
+              key={e.id}
+              // "Approved" and "Confirmed" are the same published state for attendees.
+              event={isAttendee && e.status === "approved" ? { ...e, status: "confirmed" } : e}
+              registered={isAttendee && e.myRegistrationStatus === "registered"}
+            />
           ))}
         </div>
       )}

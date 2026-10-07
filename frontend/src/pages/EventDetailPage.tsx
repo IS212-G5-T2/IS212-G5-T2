@@ -12,6 +12,8 @@ import { ClarificationThread } from "@/components/domain/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 import { attendeeEventStatus } from "./EventView";
 import { RegistrationSection } from "@/components/EventDetail/RegistrationSection";
+import { RegistrationsModal } from "@/components/registrations/RegistrationsModal";
+import { canViewRegistrationReport } from "@/utils/registrationReport";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
@@ -88,6 +90,7 @@ export function EventDetailPage() {
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
 
+  const [registrationsOpen, setRegistrationsOpen] = useState(false);
   const [reviewNotice, setReviewNotice] = useState("");
   const [showReviewControls, setShowReviewControls] = useState(false);
   const [reviewDecision, setReviewDecision] = useState<"approve" | "reject" | "">("");
@@ -474,6 +477,11 @@ export function EventDetailPage() {
               <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
               <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
             </div>
+            {canViewRegistrationReport(currentUser, event) && (
+              <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
+                View registrations
+              </Button>
+            )}
           </CardBody>
         </Card>
 
@@ -500,6 +508,15 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
+
+      {registrationsOpen && (
+        <RegistrationsModal
+          eventId={event.id}
+          registrationOpensAt={event.registrationOpensAt}
+          registrationClosesAt={event.registrationClosesAt}
+          onClose={() => setRegistrationsOpen(false)}
+        />
+      )}
 
       {/* Straight after submitting, "back" would return to the submitted form;
           the success banner's "View My Events" link is the way on instead. */}

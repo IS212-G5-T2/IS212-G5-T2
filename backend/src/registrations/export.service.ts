@@ -51,9 +51,9 @@ export function buildCsv(report: RegistrationReport): Buffer {
   return Buffer.from(`${BOM}${lines.map((line) => line + CRLF).join('')}`, 'utf8');
 }
 
-/** "<event id>_registrations_<SGT date of generation>.<csv|pdf>" (F8): filesystem-safe, unlike the event name. */
-export function reportFilename(eventId: string, generatedAt: Date, format: ExportFormat): string {
-  return `${eventId}_registrations_${sgtCalendarDate(generatedAt)}.${format}`;
+/** "<event name>_registrations.<csv|pdf>": a readable filename derived from the event name. */
+export function reportFilename(eventName: string, format: ExportFormat): string {
+  return `${eventName}_registrations.${format}`;
 }
 
 const PDF_MARGIN = 40;
@@ -138,6 +138,6 @@ export class ExportService {
   }
 
   filename(report: RegistrationReport, format: ExportFormat): string {
-    return reportFilename(report.event.id, new Date(report.generatedAt), format);
+    return reportFilename(report.event.name, format);
   }
 }

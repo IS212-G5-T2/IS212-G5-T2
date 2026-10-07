@@ -14,6 +14,7 @@ export interface ReportRow {
   contactNumber: string;
   registeredAt: string;
   status: "Confirmed";
+  specialRequirements?: string;
 }
 
 export interface RegistrationReport {
@@ -52,6 +53,38 @@ export function formatReportDateTimeSgt(value: string | Date): string {
   const parts = SGT_PARTS.formatToParts(new Date(value));
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")} ${part("hour")}:${part("minute")} SGT`;
+}
+
+/** "28 Sep 2026" (Singapore calendar date). */
+export function formatReportDateSgt(value: string | Date): string {
+  return formatReportDateTimeSgt(value).split(" ").slice(0, 3).join(" ");
+}
+
+/** Singapore calendar day as YYYY-MM-DD, for "registered today" comparisons. */
+export function sgtDayKey(value: string | Date): string {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(new Date(value));
+}
+
+export type FilterType = "all" | "today" | "special-requirements";
+
+/** Search by name, email or phone (case-insensitive), then the optional "registered today" (Singapore day) or "indicated special requirements" filter. */
+export function filterRegistrations(rows: ReportRow[], search: string, filter: FilterType, now = new Date()): ReportRow[] {
+  const term = search.trim().toLowerCase();
+  const today = sgtDayKey(now);
+  return rows.filter((row) => {
+    const matchesSearch =
+      !term ||
+      row.fullName.toLowerCase().includes(term) ||
+      row.email.toLowerCase().includes(term) ||
+      row.contactNumber.toLowerCase().includes(term);
+    if (!matchesSearch) return false;
+    if (filter === "all") return true;
+    if (filter === "today") return sgtDayKey(row.registeredAt) === today;
+    if (filter === "special-requirements") {
+      return !!row.specialRequirements;
+    }
+    return true;
+  });
 }
 
 /** "3 Attendees Registered (3 / 50)"; singular "1 Attendee Registered (1 / 50)". */

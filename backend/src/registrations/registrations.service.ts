@@ -225,7 +225,7 @@ export class RegistrationsService {
     }
 
     const registered = await this.database.query(
-      `SELECT id, full_name, email, contact_number, created_at FROM event_registrations
+      `SELECT id, full_name, email, contact_number, created_at, special_requirements FROM event_registrations
         WHERE event_id = $1 AND status = 'Registered'
         ORDER BY created_at ASC, id ASC`,
       [eventId],
@@ -237,6 +237,7 @@ export class RegistrationsService {
       contactNumber: (row.contact_number ?? '') as string,
       registeredAt: (row.created_at as Date).toISOString(),
       status: 'Confirmed' as const,
+      ...(row.special_requirements && { specialRequirements: row.special_requirements as string }),
     }));
     return {
       event: {

@@ -19,6 +19,7 @@ export interface ReportRow {
   registeredAt: string;
   /** The SPEC label for the stored "Registered" status (F18). */
   status: 'Confirmed';
+  specialRequirements?: string;
 }
 
 export interface RegistrationReport {
