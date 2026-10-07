@@ -15,6 +15,8 @@ import { EventEditPage } from "@/pages/EventEditPage";
 import { EventChangeRequestsPage } from "@/pages/EventChangeRequestsPage";
 import { VenuesPage } from "@/pages/VenuesPage";
 import { VenueDetailPage } from "@/pages/VenueDetailPage";
+import { VenueRecordsPage } from "@/pages/venue-records/VenueRecordsPage";
+import { VenueRecordDetailPage } from "@/pages/venue-records/VenueRecordDetailPage";
 import { VenueAvailabilityPage } from "@/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
@@ -69,11 +71,15 @@ export default function App() {
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
           <Route path="/venues" element={<VenuesPage />} />
-          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
           <Route path="/venues/:id" element={<VenueDetailPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/venue-records" element={<VenueRecordsPage />} />
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
           <Route path="/venues/create" element={<VenueCreatePage />} />

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- SPM-124 venue schedule periods now always display their start and end times,
+  including multi-day periods. Changing venue detail routes immediately clears
+  the previous venue while the replacement record loads.
 - SPM-47: added the Lead's Reassign Events page (`/lead/reassign`): assigned
   events soonest first with their current coordinator and a "Coordinator
   unavailable" label, a picker showing availability and workload (current and

@@ -10,6 +10,18 @@ The shared local Docker Compose stack builds this app with `frontend/Dockerfile`
 
 ## Continuity notes
 
+SPM-124 gives Venue Staff the persisted `/venue-records` card catalogue and
+`/venue-records/:id` detail, with API loading, name/location search, four sortable
+fields, venue images, unavailable-period reasons, and upcoming bookings/active holds.
+The catalogue defaults to all readable venues and provides an optional My venues filter.
+Coordinators, including dual-role users, retain the prior in-memory planning view on
+`/venues` and `/venues/:id`. The
+new read view depends on SPM-50 venue tables plus backend migration 009, which
+stores both event bookings and staff blockouts in `venue_bookings`. The
+fresh-volume initializer in this branch creates both and seeds two sample
+venues; the
+existing browser-only booking actions do not populate the new booking table.
+
 Equipment Availability distinguishes a successful empty inventory from a
 failed fetch. `EquipmentCreatePage.playwright.spec.ts` covers the browser
 create-to-inventory flow; the backend browser harness removes its uniquely

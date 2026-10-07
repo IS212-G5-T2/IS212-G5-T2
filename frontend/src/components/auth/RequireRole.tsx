@@ -35,9 +35,7 @@ export function RequireRole({
   }
 
   if (!allowedRoles.some((role) => hasRole(currentUser, role))) {
-    // SPM-123: the Lead can't use /events, so send them to their own queue
-    // instead of redirecting back into a page they are also refused.
-    const fallback = currentUser.role === "coordinator_lead" ? homePathByRole.coordinator_lead : "/events";
+    const fallback = homePathByRole[currentUser.role];
     return <Navigate to={fallback} replace />;
   }
 

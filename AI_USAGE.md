@@ -21,6 +21,24 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-07 - Codex (GPT-5) - Repair role fallbacks and consolidate navigation
+
+- Issue/PR: SPM-124 / PR #45.
+- Areas touched: frontend route guard, sidebar navigation, route-access tests, and lint-only cleanup.
+- Summary: Role-denied routes now use `homePathByRole`, so Venue Staff are redirected to `/venue-records` rather than an unauthorized coordinator route. Removed the duplicate sidebar navigation helper and made the sidebar use the tested multi-role helper.
+- Checks run: route/navigation tests 38/38 and repository-wide frontend ESLint passed.
+- Follow-up/conflict notes: Local change pending merge of the latest `dev`; preserve both sides for `AI_USAGE.md` and component CHANGELOG conflicts.
+
+## 2026-10-07 - Codex (GPT-5) - Resolve SPM-124 review findings
+
+- Issue/PR: SPM-124 / PR #45.
+- Human requester/operator: swr.
+- Areas touched: `backend/src/venues`, `backend/src/app.module.ts`, `frontend/src/pages/venue-records`, backend/frontend venue documentation, and `AI_USAGE.md`.
+- Summary: Resolved the remaining active review findings: removed duplicate venue authentication middleware, applied setup/turnaround windows to current approved-booking availability, preserved times for multi-day schedule ranges, and cleared stale venue detail state during route changes. Removed dead owner-scoped detail-query support and aligned durable documentation with the shared catalogue plus optional `?mine=true` filter.
+- AI contribution: Merge-conflict resolution, review remediation, regression tests, and documentation updates.
+- Assumptions: An approved booking occupies the venue from its setup start through its turnaround end; active tentative holds remain visible but do not set the catalogue availability status.
+- Checks run: focused backend venue repository/service/controller suites (21 tests) and frontend venue-record suites (33 tests), plus both production builds; all passed.
+- Follow-up/conflict notes: Merged the current `dev` branch into the PR branch using `dev` for conflicted files per repository guidance; no local scripts or dependencies were lost.
 ## 2026-10-07 - Claude (Opus 5.5) - SPM-47 reassignment (Red, then Green)
 
 - Issue/PR: SPM-47 "Reassign an Event to Another Coordinator (Lead)" (Jira: In Progress; ACs rewritten 7 Oct, AC1-11) / branch `feature/SPM-47-Reassign-an-Event-to-Another-Coordinator-Lead` from `dev` at 727b38f (after SPM-123 PR #47 merged). PR: https://github.com/IS212-G5-T2/IS212-G5-T2/pull/49 (into `dev`).

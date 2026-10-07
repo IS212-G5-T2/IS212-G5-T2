@@ -154,7 +154,6 @@ export function ClarificationThread({
           <div className="space-y-4">
             {visibleThreads.map((clarification) => {
               const replies = getThreadReplies(clarification.id);
-              const hasReplies = replies.length > 0;
               const status = clarification.resolved ? "answered" : "pending";
 
               return (
