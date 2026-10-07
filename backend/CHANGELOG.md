@@ -10,7 +10,9 @@
   `POST /api/events/:id/assign`. Coordinators can now read their
   `coordinator_assignment` notifications. The coordinator's row is share-locked
   while assigning, and an unassigned request that is no longer Submitted gets
-  409 "This event request is no longer awaiting assignment."
+  409 "This event request is no longer awaiting assignment." An account holding
+  both COORDINATOR_LEAD and COORDINATOR is refused on the Lead endpoints (403)
+  and is never listed or assignable as a coordinator.
 
 - Added a re-runnable mutation check for the SPM-120 withdraw code (`scripts/testing/mutation`) and a recording-client unit spec, `registrations.withdraw.spec.ts`, proving a refused withdrawal issues no UPDATE: the integration suite cannot see that, because the transaction rolls a refusal back. Added integration cases for every non-attendee role, for Confirmed, Cancelled and Completed events, and for a registration with no stored details. Tests and tooling only; no behaviour change.
 

@@ -3,7 +3,7 @@
  * middleware and PostgreSQL: the unassigned queue, coordinator workload and
  * availability, the Lead's assignment, its notification and access control.
  * Test cases: LEAD-ASN-01-B, 02-D, 03-B, 03-C, 04-B, 05-B, 06-B, 09-E, 10-C,
- * 11-A, 11-SEC-3, 11-SEC-5.
+ * 11-A, 11-SEC-3, 11-SEC-5, 11-SEC-7.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -318,6 +318,30 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     };
   }
 
+  // AC11: an account wrongly given both the Lead and Coordinator roles can neither act as the Lead nor be assigned work.
+  it('LEAD-ASN-11-SEC-7 keeps an account holding both roles out of the Lead endpoints and the coordinator list', async () => {
+    // Arrange: a real Lead, one queued request, and an account granted both roles directly in the database.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const both = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead And Coordinator', ['COORDINATOR']);
+    const eventId = await seedEvent({ name: 'Request nobody with both roles may take' });
+
+    // Act: the dual-role account tries the Lead queue; the real Lead lists coordinators and tries to assign to it.
+    const ownQueue = await request(app.getHttpServer()).get('/api/lead/queue').set('Cookie', both.cookie).expect(403);
+    const list = await request(app.getHttpServer()).get('/api/lead/coordinators').set('Cookie', lead.cookie).expect(200);
+    const refused = await request(app.getHttpServer())
+      .post(`/api/lead/queue/${eventId}/assign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: both.id })
+      .expect(400);
+
+    // Assert: forbidden as Lead, absent from the list, not assignable, and the request is still unassigned.
+    expect(ownQueue.body.message).toBe('An Event Coordinator Lead cannot also be an Event Coordinator.');
+    expect(list.body.map((c: { id: string }) => c.id)).not.toContain(both.id);
+    expect(refused.body.message).toBe('Choose an active Event Coordinator.');
+    const stored = await pool.query('SELECT coordinator_id FROM events WHERE id = $1', [eventId]);
+    expect(stored.rows[0].coordinator_id).toBeNull();
+  });
+
   async function seedEvent(options: {
     name: string;
     status?: string;
@@ -347,7 +371,7 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     return id;
   }
 
-  async function createDatabaseUser(role: string, name: string): Promise<TestUser> {
+  async function createDatabaseUser(role: string, name: string, extraRoles: string[] = []): Promise<TestUser> {
     const email = `lead-e2e-${randomUUID()}@example.com`;
     const password = 'password123';
     const created = await pool.query<{ id: string }>(
@@ -356,9 +380,10 @@ describe('Lead assignment (SPM-123 e2e)', () => {
       [email, name, password],
     );
     createdUserIds.push(created.rows[0].id);
-    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [
+    // Grant the main role plus any extra roles before signing in, so the session carries them all.
+    await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = ANY($2::text[])', [
       created.rows[0].id,
-      role,
+      [role, ...extraRoles],
     ]);
     const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email, password }).expect(201);
     // supertest types set-cookie as a string, but it is a list of header values.

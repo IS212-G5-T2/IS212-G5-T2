@@ -3,7 +3,7 @@
 // fewest first), AC5 (assign), AC6 (unavailable refused), AC9 (coordinator
 // notified), AC11 (Lead only).
 // Test cases: LEAD-ASN-02-A, 03-A, 04-A, 05-A, 05-D, 05-E, 05-G, 06-A, 06-E,
-// 09-A, 09-B, 11-SEC-1, 11-SEC-2.
+// 09-A, 09-B, 11-SEC-1, 11-SEC-2, 11-SEC-6.
 import {
   BadRequestException,
   ConflictException,
@@ -322,6 +322,20 @@ describe('AC11: only the Event Coordinator Lead', () => {
       expect(database.transaction).not.toHaveBeenCalled();
     },
   );
+
+  // The Lead must never also be a Coordinator, so an account holding both roles is refused outright.
+  it('LEAD-ASN-11-SEC-6 refuses an account that holds both the Lead and Coordinator roles without querying', async () => {
+    // Arrange: a signed-in user wrongly granted both roles.
+    const both: AuthenticatedUser = { ...lead, roles: ['COORDINATOR_LEAD', 'COORDINATOR'] };
+    const forbidden = new ForbiddenException('An Event Coordinator Lead cannot also be an Event Coordinator.');
+
+    // Act + Assert: queue, coordinators and assign are all forbidden, and nothing is read or written.
+    await expect(service.queue(both)).rejects.toThrow(forbidden);
+    await expect(service.coordinators(both)).rejects.toThrow(forbidden);
+    await expect(service.assign(both, EVENT_ID, { coordinatorId: COORDINATOR_ID })).rejects.toThrow(forbidden);
+    expect(database.query).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
 
   // Without a session nothing is read or written.
   it('LEAD-ASN-11-SEC-2 refuses a caller who is not signed in on every Lead endpoint', async () => {

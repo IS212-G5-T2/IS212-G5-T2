@@ -34,12 +34,23 @@ type CoordinatorRow = {
   active_assignments: string;
 };
 
+// The Lead is never also a Coordinator (SPM-123 decision). Only seed data grants
+// roles today, so an account wrongly given both is refused as the Lead and is
+// never listed or assignable as a coordinator.
 function requireLead(user: AuthenticatedUser | undefined): AuthenticatedUser {
   if (!user?.uid) throw new UnauthorizedException('Authentication required.');
   if (!user.roles.includes('COORDINATOR_LEAD'))
     throw new ForbiddenException('Event Coordinator Lead access required.');
+  if (user.roles.includes('COORDINATOR'))
+    throw new ForbiddenException('An Event Coordinator Lead cannot also be an Event Coordinator.');
   return user;
 }
+
+// Shared by the coordinator list and the assignment check so both apply the same rule.
+const NOT_ALSO_LEAD = `NOT EXISTS (
+            SELECT 1 FROM user_roles lead_roles
+              JOIN roles lead_role ON lead_role.id = lead_roles.role_id
+             WHERE lead_roles.user_id = users.id AND lead_role.name = 'COORDINATOR_LEAD')`;
 
 function parseCoordinatorId(body: unknown): string {
   const value = (body as { coordinatorId?: unknown } | null)?.coordinatorId;
@@ -87,7 +98,8 @@ export class LeadAssignmentService {
          FROM users
          JOIN user_roles ON user_roles.user_id = users.id
          JOIN roles ON roles.id = user_roles.role_id
-        WHERE roles.name = 'COORDINATOR' AND users.is_active = true`,
+        WHERE roles.name = 'COORDINATOR' AND users.is_active = true
+          AND ${NOT_ALSO_LEAD}`,
     );
     return result.rows
       .map((row) => ({
@@ -130,6 +142,7 @@ export class LeadAssignmentService {
            JOIN user_roles ON user_roles.user_id = users.id
            JOIN roles ON roles.id = user_roles.role_id
           WHERE users.id = $1 AND roles.name = 'COORDINATOR' AND users.is_active = true
+            AND ${NOT_ALSO_LEAD}
           FOR SHARE OF users`,
         [coordinatorId],
       );
