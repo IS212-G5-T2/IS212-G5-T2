@@ -40,10 +40,10 @@ npm run build
 npm test
 ```
 
-Venue Staff can open `/venues` to browse the shared image-led venue catalogue, then
+Venue Staff and Coordinators can open `/venue-records` to browse the shared image-led venue catalogue, then
 select **My venues** to narrow it to records they own. They can search the selected
 catalogue scope by name or location, sort by name/capacity/location/status,
-and click any part of a card to open `/venues/:id` for
+and click any part of a card to open `/venue-records/:id` for
 accessibility, setup and turnaround details plus availability, bookings and
 tentative holds. Each card shows counts of bookings and active tentative holds.
 The view uses the credentialed backend API configured by
@@ -51,8 +51,8 @@ The view uses the credentialed backend API configured by
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
 fresh local database initializer creates them and also seeds two sample venues
 from `database/postgresql/init/008_spm124_sample_venues.sql`.
-The Coordinator's existing venue-planning view remains on the same routes, including
-for accounts that also hold the Venue Staff role.
+The Coordinator's existing venue-planning and booking view remains at `/venues`
+and `/venues/:id`, including for accounts that also hold the Venue Staff role.
 
 No deployment command is configured for this repository.
 
@@ -154,7 +154,7 @@ non-numeric durations before sending `POST /api/venues`. Venue identifiers are
 not entered in the form; the backend returns a database-generated UUID.
 The same venue name and location cannot be created twice, ignoring surrounding
 spaces and letter case; the form displays the backend's field-level conflict.
-Successful responses redirect Venue Staff to the venue catalogue and display a
+Successful responses redirect Venue Staff to **Venue Records** and display a
 confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
 convenience. Component tests live beside the page in
 `src/pages/venues/VenueCreatePage/`.

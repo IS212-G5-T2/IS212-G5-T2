@@ -21,6 +21,16 @@ describe("venue staff navigation", () => {
     );
   });
 
+  // SPM-124: Coordinators can choose operational records separately from venue planning.
+  it("links Coordinators to Venue Records as well as venue planning", () => {
+    expect(navByRole.coordinator).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Venues", to: "/venues" }),
+        expect.objectContaining({ label: "Venue Records", to: "/venue-records" }),
+      ]),
+    );
+  });
+
   // SPM-124: multi-role users receive the union of each role's navigation, not a primary-role subset.
   it("keeps Coordinator planning and Venue Staff records available to a dual-role user", () => {
     const items = navigationForUser({

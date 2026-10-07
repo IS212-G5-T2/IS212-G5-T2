@@ -217,16 +217,17 @@ export class VenuesRepository {
     if (!venues.length) return venues;
     const ids = venues.map((venue) => venue.id);
     const now = this.clock.now();
-    const periods = await this.database.query<UnavailableRow>(
-      `SELECT id, venue_id, start_at, end_at, reason,
-         start_at <= $2::timestamptz AND end_at > $2::timestamptz AS current
-       FROM venue_bookings
-       WHERE venue_id = ANY($1::uuid[]) AND status = 'blocked' AND end_at > $2::timestamptz
-       ORDER BY start_at, id`,
-      [ids, now],
-    );
-    const bookings = await this.database.query<BookingRow>(
-      `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
+    const [periods, bookings] = await Promise.all([
+      this.database.query<UnavailableRow>(
+        `SELECT id, venue_id, start_at, end_at, reason,
+           start_at <= $2::timestamptz AND end_at > $2::timestamptz AS current
+         FROM venue_bookings
+         WHERE venue_id = ANY($1::uuid[]) AND status = 'blocked' AND end_at > $2::timestamptz
+         ORDER BY start_at, id`,
+        [ids, now],
+      ),
+      this.database.query<BookingRow>(
+        `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
          b.start_at - make_interval(mins => v.setup_time_minutes) <= $2::timestamptz
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz AS current,
          EXISTS (
@@ -243,9 +244,10 @@ export class VenuesRepository {
          AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz
          AND (b.status = 'approved' OR
            (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz)))
-       ORDER BY b.start_at, b.id`,
-      [ids, now],
-    );
+         ORDER BY b.start_at, b.id`,
+        [ids, now],
+      ),
+    ]);
     const byId = new Map(venues.map((venue) => [venue.id, venue]));
     for (const row of periods.rows) {
       const venue = byId.get(row.venue_id);

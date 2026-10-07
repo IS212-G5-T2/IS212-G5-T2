@@ -1,3 +1,5 @@
+import type { Venue } from "@/types";
+
 export interface VenueUnavailablePeriod {
   id: string;
   start: string;
@@ -14,22 +16,8 @@ export interface VenueReservation {
   affectedByUnavailablePeriod: boolean;
 }
 
-/** Read-only Venue Staff view of the SPM-50 venue record and schedule. */
-export interface VenueRecord {
-  id: string;
-  name: string;
-  location: string;
-  capacity: number;
-  facilities: string[];
-  layouts: string[];
-  accessibility: string[];
-  operatingInformation: string;
-  operatingDays: string[];
-  operatingStartTime: string;
-  operatingEndTime: string;
-  setupTimeMinutes: number;
-  turnaroundTimeMinutes: number;
-  image?: { name: string; type: string; size: number; dataUrl: string };
+/** Read-only venue catalogue view of the SPM-50 venue record and schedule. */
+export interface VenueRecord extends Venue {
   availabilityStatus: "available" | "unavailable";
   unavailablePeriods: VenueUnavailablePeriod[];
   reservations: VenueReservation[];
@@ -61,6 +49,6 @@ export function visibleVenues(
             ).localeCompare(
               sortKey === "status" ? b.availabilityStatus : b[sortKey],
             );
-      return (descending ? -1 : 1) * (comparison || a.id.localeCompare(b.id));
+      return (descending ? -comparison : comparison) || a.id.localeCompare(b.id);
     });
 }

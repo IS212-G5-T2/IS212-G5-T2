@@ -16,10 +16,16 @@ export function VenueRecordDetailPage() {
 
   useEffect(() => {
     let active = true;
-    if (!id) return;
     setLoading(true);
     setVenue(undefined);
     setError("");
+    if (!id) {
+      setError("Venue not found.");
+      setLoading(false);
+      return () => {
+        active = false;
+      };
+    }
     api<VenueRecord>(`/venues/${encodeURIComponent(id)}`).then(
       (record) => {
         if (active) {
@@ -67,8 +73,8 @@ export function VenueRecordDetailPage() {
         title={venue.name}
         description={venue.location}
         actions={
-          <Link to="/venues">
-            <Button variant="secondary">Back to Catalogue</Button>
+          <Link to="/venue-records">
+            <Button variant="secondary">Back to Venue Records</Button>
           </Link>
         }
       />

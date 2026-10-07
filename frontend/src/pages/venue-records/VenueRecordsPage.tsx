@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select, TextInput } from "@/components/ui/FormControls";
@@ -18,6 +19,7 @@ const sortableColumns: { key: VenueSortKey; label: string }[] = [
 ];
 
 export function VenueRecordsPage() {
+  const location = useLocation();
   const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -26,6 +28,8 @@ export function VenueRecordsPage() {
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState<VenueSortKey>("name");
   const [descending, setDescending] = useState(false);
+  const creationMessage = (location.state as { creationMessage?: string } | null)
+    ?.creationMessage;
 
   useEffect(() => {
     let active = true;
@@ -72,6 +76,11 @@ export function VenueRecordsPage() {
         title="Venue Catalogue"
         description="View venue details, availability, bookings, and tentative holds."
       />
+      {creationMessage && (
+        <p role="status" className="mb-4 text-success-700">
+          {creationMessage}
+        </p>
+      )}
       <div className="mb-4 grid max-w-2xl gap-4 sm:grid-cols-2">
         <Select
           label="Catalogue"

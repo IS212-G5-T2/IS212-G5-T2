@@ -14,6 +14,7 @@ const password = 'P@55w0rd';
 const staffEmail = 'venue_staff1@connectsphere.test';
 const secondStaffEmail = 'venue_staff2@connectsphere.test';
 const coordinatorEmail = 'coordinator1@connectsphere.test';
+const coordinatorVenueStaffEmail = 'coordinator_venuestaff@connectsphere.test';
 const attendeeEmail = 'attendee1@connectsphere.test';
 const fixedNow = new Date('2030-01-10T12:00:00.000Z');
 const uuidPattern =
@@ -149,6 +150,19 @@ describe.skipIf(!databaseUrl)(
           ]);
         await pool.end();
       }
+    });
+
+    // SPM-50 / TEST-5: the production HTTP stack requires a real persisted session and Venue:create permission.
+    it('authenticates the seeded Coordinator and Venue Staff account with both roles', async () => {
+      // Arrange and act: authenticate the fixture that exercises multi-role routing and read access.
+      const dualRole = await authenticate(coordinatorVenueStaffEmail);
+      const session = await dualRole.get('/api/auth/me').expect(200);
+
+      // Assert: both granted roles are present; the account can read the shared catalogue.
+      expect(session.body.roles).toEqual(
+        expect.arrayContaining(['COORDINATOR', 'VENUE_STAFF']),
+      );
+      await dualRole.get('/api/venues').expect(200);
     });
 
     // SPM-50 / TEST-5: the production HTTP stack requires a real persisted session and Venue:create permission.

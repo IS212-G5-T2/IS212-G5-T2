@@ -17,7 +17,6 @@ import { VenuesPage } from "@/pages/VenuesPage";
 import { VenueDetailPage } from "@/pages/VenueDetailPage";
 import { VenueRecordsPage } from "@/pages/venue-records/VenueRecordsPage";
 import { VenueRecordDetailPage } from "@/pages/venue-records/VenueRecordDetailPage";
-import { hasRole } from "@/types";
 import { VenueAvailabilityPage } from "@/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
@@ -32,16 +31,6 @@ import { homePathByRole } from "@/components/layout/navConfig";
 function RootRedirect() {
   const role = useAppStore((state) => state.currentUser.role);
   return <Navigate to={homePathByRole[role]} replace />;
-}
-
-function VenueCatalogueRoute() {
-  const user = useAppStore((state) => state.currentUser);
-  return hasRole(user, "coordinator") ? <VenuesPage /> : <VenueRecordsPage />;
-}
-
-function VenueDetailRoute() {
-  const user = useAppStore((state) => state.currentUser);
-  return hasRole(user, "coordinator") ? <VenueDetailPage /> : <VenueRecordDetailPage />;
 }
 
 export default function App() {
@@ -81,15 +70,17 @@ export default function App() {
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
-          <Route path="/venues" element={<VenueCatalogueRoute />} />
-          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
-          <Route path="/venues/:id" element={<VenueDetailRoute />} />
-          <Route path="/bookings" element={<BookingsPage />} />
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
+          <Route path="/venues" element={<VenuesPage />} />
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
         </Route>
-        <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
+          <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/venue-records" element={<VenueRecordsPage />} />
           <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
           <Route path="/venues/create" element={<VenueCreatePage />} />
         </Route>
 

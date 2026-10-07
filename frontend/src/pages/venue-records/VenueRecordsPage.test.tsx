@@ -262,17 +262,17 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(within(card!).queryByText(/Maintenance/)).not.toBeInTheDocument();
   });
 
-  // SPM-124: selecting any part of a venue card opens that venue's details.
-  it("SPM-124-REG-AC7-D: opens the venue detail route when the card image is clicked", async () => {
+  // SPM-124: selecting any part of a venue card preserves the operational-record workflow.
+  it("SPM-124-REG-AC7-D: opens the venue record detail route when the card image is clicked", async () => {
     // Arrange: render the catalogue with a detail route for the selected venue.
     const user = userEvent.setup();
     render(
-      <MemoryRouter initialEntries={["/venues"]}>
+      <MemoryRouter initialEntries={["/venue-records"]}>
         <Routes>
-          <Route path="/venues" element={<VenueRecordsPage />} />
+          <Route path="/venue-records" element={<VenueRecordsPage />} />
           <Route
-            path={`/venues/${base.id}`}
-            element={<p>Venue detail opened</p>}
+            path={`/venue-records/${base.id}`}
+            element={<p>Venue record detail opened</p>}
           />
         </Routes>
       </MemoryRouter>,
@@ -284,8 +284,8 @@ describe("VenueRecordsPage (SPM-124)", () => {
       screen.getByRole("img", { name: "Conference Room venue" }),
     );
 
-    // Assert: the card link navigates to the venue detail route.
-    expect(screen.getByText("Venue detail opened")).toBeInTheDocument();
+    // Assert: the card link navigates to the operational venue detail route.
+    expect(screen.getByText("Venue record detail opened")).toBeInTheDocument();
   });
 
   // VEN-VIEW-03-A (AC3): the exact seeded venue name narrows the catalogue.
@@ -516,7 +516,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
     await user.click(screen.getByRole("button", { name: /^Status/ }));
     expect(namesInCards()).toEqual(["Zulu Room", "Mike Studio", "Alpha Hall"]);
     await user.click(screen.getByRole("button", { name: /^Status/ }));
-    expect(namesInCards()).toEqual(["Alpha Hall", "Mike Studio", "Zulu Room"]);
+    expect(namesInCards()).toEqual(["Alpha Hall", "Zulu Room", "Mike Studio"]);
   });
 
   // M3: surrounding whitespace is ignored, but name/location terms cannot be joined across fields.
@@ -560,8 +560,8 @@ describe("VenueRecordsPage (SPM-124)", () => {
     expect(screen.getByRole("button", { name: /^Capacity/ })).toHaveTextContent("↑");
   });
 
-  // SPM-124-REG-AC5-A: equal sort values resolve consistently by venue ID.
-  it("SPM-124-REG-AC5-A: sorts equal-status venues by ID in both directions", async () => {
+  // SPM-124-REG-AC5-A: equal sort values retain their ascending-ID tie break in both directions.
+  it("SPM-124-REG-AC5-A: keeps equal-status venues in stable ID order", async () => {
     // Arrange: API order deliberately differs from ID order for equal statuses.
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce([
@@ -571,11 +571,11 @@ describe("VenueRecordsPage (SPM-124)", () => {
     renderPage();
     await screen.findByRole("link", { name: "First" });
 
-    // Act and assert: status ties use ascending IDs, then descending IDs.
+    // Act and assert: status ties use the same ascending IDs in either status direction.
     await user.click(screen.getByRole("button", { name: /^Status/ }));
     expect(namesInCards()).toEqual(["Second", "First"]);
     await user.click(screen.getByRole("button", { name: /^Status/ }));
-    expect(namesInCards()).toEqual(["First", "Second"]);
+    expect(namesInCards()).toEqual(["Second", "First"]);
   });
 
   // AC1: failed loading is distinguishable from a genuine empty catalogue.

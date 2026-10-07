@@ -55,10 +55,10 @@ function renderRoute(role: UserRole, path: string) {
 }
 
 describe("venue routes (SPM-124)", () => {
-  // AC1: Venue Staff reach the persistent catalogue on the existing venue route.
+  // AC1: Venue Staff reach the persistent catalogue on its operational route.
   it("VEN-VIEW-01-A: opens the persisted catalogue for Venue Staff", () => {
     // Arrange and act: enter the protected catalogue as a signed-in staff member.
-    renderRoute("venue_staff", "/venues");
+    renderRoute("venue_staff", "/venue-records");
 
     // Assert: the staff read view is the route content.
     expect(screen.getByText("Persistent staff catalogue")).toBeInTheDocument();
@@ -75,7 +75,7 @@ describe("venue routes (SPM-124)", () => {
 
     // Act: navigate directly to the catalogue URL.
     render(
-      <MemoryRouter initialEntries={["/venues"]}>
+      <MemoryRouter initialEntries={["/venue-records"]}>
         <App />
       </MemoryRouter>,
     );
@@ -90,7 +90,7 @@ describe("venue routes (SPM-124)", () => {
   // AC7 supplementary route-access check: Venue Staff detail links resolve.
   it("SPM-124-REG-AC7-A: opens the persisted detail route for Venue Staff", () => {
     // Arrange and act: enter a venue detail URL as signed-in staff.
-    renderRoute("venue_staff", "/venues/00000000-0000-4000-8000-000000000124");
+    renderRoute("venue_staff", "/venue-records/00000000-0000-4000-8000-000000000124");
 
     // Assert: the detail API page owns this route.
     expect(screen.getByText("Persistent staff detail")).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe("venue routes (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
-  // A dual-role account must retain the coordinator booking flow instead of being downgraded to staff records.
+  // A dual-role account retains the coordinator booking flow at its dedicated route.
   it("SPM-124-REG-AC1-C: keeps the coordinator catalogue for a Coordinator and Venue Staff account", () => {
     useAppStore.setState({
       isAuthenticated: true,
@@ -132,8 +132,8 @@ describe("venue routes (SPM-124)", () => {
     expect(screen.queryByText("Persistent staff catalogue")).not.toBeInTheDocument();
   });
 
-  // A dual-role account must also retain access to the explicit staff records workflow.
-  it("SPM-124-REG-AC1-D: opens staff records for a Coordinator and Venue Staff account", () => {
+  // A dual-role account can also open the explicit operational records workflow.
+  it("SPM-124-REG-AC1-D: opens venue records for a Coordinator and Venue Staff account", () => {
     useAppStore.setState({
       isAuthenticated: true,
       authLoading: false,
@@ -157,12 +157,26 @@ describe("venue routes (SPM-124)", () => {
     expect(screen.queryByText("Coordinator planning catalogue")).not.toBeInTheDocument();
   });
 
+  // Coordinators can inspect operational records without holding the Venue Staff role.
+  it("SPM-124-REG-AC1-E: opens venue records for a Coordinator", () => {
+    renderRoute("coordinator", "/venue-records");
+
+    expect(screen.getByText("Persistent staff catalogue")).toBeInTheDocument();
+  });
+
+  // Coordinator access includes the record detail destination used by catalogue cards.
+  it("SPM-124-REG-AC7-B: opens a venue record detail for a Coordinator", () => {
+    renderRoute("coordinator", "/venue-records/00000000-0000-4000-8000-000000000124");
+
+    expect(screen.getByText("Persistent staff detail")).toBeInTheDocument();
+  });
+
   // AC1 security: roles outside the venue read policy cannot render staff records.
   it.each(["organiser", "attendee"] as const)(
     "SPM-124-REG-AC1-B: denies %s access to the persisted venue catalogue",
     (role) => {
       // Arrange and act: a signed-in non-venue role opens the protected route.
-      renderRoute(role, "/venues");
+      renderRoute(role, "/venue-records");
 
       // Assert: no staff catalogue data is mounted after the route guard redirects.
       expect(screen.queryByText("Persistent staff catalogue")).not.toBeInTheDocument();

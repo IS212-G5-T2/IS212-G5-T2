@@ -64,9 +64,9 @@ afterEach(cleanup);
 
 function renderPage() {
   return render(
-    <MemoryRouter initialEntries={[`/venues/${id}`]}>
+    <MemoryRouter initialEntries={[`/venue-records/${id}`]}>
       <Routes>
-        <Route path="/venues/:id" element={<VenueRecordDetailPage />} />
+        <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -176,10 +176,10 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       path === `/venues/${id}` ? Promise.resolve(venue) : secondRequest,
     );
     render(
-      <MemoryRouter initialEntries={[`/venues/${id}`]}>
-        <Link to={`/venues/${secondId}`}>Select Seminar Room 2 Test</Link>
+      <MemoryRouter initialEntries={[`/venue-records/${id}`]}>
+        <Link to={`/venue-records/${secondId}`}>Select Seminar Room 2 Test</Link>
         <Routes>
-          <Route path="/venues/:id" element={<VenueRecordDetailPage />} />
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
         </Routes>
       </MemoryRouter>,
     );
@@ -211,6 +211,38 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(
       screen.queryByText("45 minutes after an event"),
     ).not.toBeInTheDocument();
+  });
+
+  // Route changes must clear the prior venue while the next record is loading.
+  it("SPM-124-REG-AC7-D: does not show stale details while another venue loads", async () => {
+    // Arrange: delay the second response so the transient UI state is observable.
+    const user = userEvent.setup();
+    const secondId = "00000000-0000-4000-8000-000000000125";
+    let resolveSecond!: (record: VenueRecord) => void;
+    apiMock
+      .mockResolvedValueOnce(venue)
+      .mockImplementationOnce(
+        () => new Promise<VenueRecord>((resolve) => { resolveSecond = resolve; }),
+      );
+    render(
+      <MemoryRouter initialEntries={[`/venue-records/${id}`]}>
+        <Link to={`/venue-records/${secondId}`}>Select another venue</Link>
+        <Routes>
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Conference Room" });
+
+    // Act: select the new detail route before its API request completes.
+    await user.click(screen.getByRole("link", { name: "Select another venue" }));
+
+    // Assert: the old venue is not presented under the new URL.
+    expect(screen.getByRole("status")).toHaveTextContent("Loading venue details…");
+    expect(screen.queryByRole("heading", { name: "Conference Room" })).not.toBeInTheDocument();
+
+    resolveSecond({ ...venue, id: secondId, name: "Seminar Room 2 Test" });
+    expect(await screen.findByRole("heading", { name: "Seminar Room 2 Test" })).toBeInTheDocument();
   });
 
   // AC7: a missing record has a clear not-found state.
