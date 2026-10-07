@@ -92,6 +92,8 @@ export default function App() {
           <Route path="/bookings" element={<BookingsPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
+          <Route path="/venue-records" element={<VenueRecordsPage />} />
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
           <Route path="/venues/create" element={<VenueCreatePage />} />
         </Route>
 

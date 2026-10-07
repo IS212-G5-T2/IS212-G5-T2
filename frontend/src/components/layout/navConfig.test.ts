@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navByRole } from "./navConfig";
+import { navByRole, navigationForUser } from "./navConfig";
 
 describe("organiser navigation", () => {
   // The requests route is presented as My Drafts after submitted items move to My Events.
@@ -19,6 +19,23 @@ describe("venue staff navigation", () => {
     expect(navByRole.venue_staff).toContainEqual(
       expect.objectContaining({ label: "Create Venue", to: "/venues/create" }),
     );
+  });
+
+  // SPM-124: multi-role users receive the union of each role's navigation, not a primary-role subset.
+  it("keeps Coordinator planning and Venue Staff records available to a dual-role user", () => {
+    const items = navigationForUser({
+      role: "coordinator",
+      roles: ["coordinator", "venue_staff"],
+    });
+
+    expect(items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: "Venues", to: "/venues" }),
+        expect.objectContaining({ label: "Venue Records", to: "/venue-records" }),
+        expect.objectContaining({ label: "Create Venue", to: "/venues/create" }),
+      ]),
+    );
+    expect(items.filter((item) => item.to === "/venues/availability")).toHaveLength(1);
   });
 });
 

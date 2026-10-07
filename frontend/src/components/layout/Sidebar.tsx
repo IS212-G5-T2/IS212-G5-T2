@@ -1,11 +1,11 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import { useAppStore } from "@/store/useAppStore";
-import { navByRole } from "./navConfig";
+import { navigationForUser } from "./navConfig";
 
 export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; onCloseMobile: () => void }) {
-  const role = useAppStore((s) => s.currentUser.role);
-  const items = navByRole[role];
+  const user = useAppStore((s) => s.currentUser);
+  const items = navigationForUser(user);
   const logout = useAppStore((s) => s.logout);
   const navigate = useNavigate();
 

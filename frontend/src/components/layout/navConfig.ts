@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types";
+import type { User, UserRole } from "@/types";
 
 export interface NavItem {
   label: string;
@@ -21,7 +21,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Equipment", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },
   ],
   venue_staff: [
-    { label: "Venue Catalogue", to: "/venues", icon: "🏛️", feature: "Feature 7" },
+    { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
     { label: "Create Venue", to: "/venues/create", icon: "➕", feature: "SPM-50" },
     { label: "Availability Calendar", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Booking Requests", to: "/bookings", icon: "📝", feature: "Feature 10, 11" },
@@ -35,6 +35,27 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Browse Events", to: "/events", icon: "📅", feature: "Feature 6" },
   ],
 };
+
+/**
+ * Returns the union of navigation entries granted by every role on the session.
+ *
+ * A role can grant an entry but must never hide an entry granted by another role.
+ * Duplicate destinations are displayed once, preserving the server-provided role order.
+ */
+export function navigationForUser(
+  user: Pick<User, "role"> & Partial<Pick<User, "roles">>,
+): NavItem[] {
+  const roles = user.roles?.length ? user.roles : [user.role];
+  const destinations = new Set<string>();
+
+  return roles.flatMap((role) =>
+    navByRole[role].filter((item) => {
+      if (destinations.has(item.to)) return false;
+      destinations.add(item.to);
+      return true;
+    }),
+  );
+}
 
 export const roleLabels: Record<UserRole, string> = {
   organiser: "Event Organiser",

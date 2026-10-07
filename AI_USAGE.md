@@ -21,6 +21,17 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-07 - Codex (GPT-5) - Preserve multi-role venue navigation
+
+- Issue/PR: SPM-124 / PR #45.
+- Human requester/operator: swr.
+- Areas touched: `frontend/src/components/layout/`, `frontend/src/App.tsx`, `AI_USAGE.md`.
+- Summary: Made navigation the de-duplicated union of all session roles, and added explicit staff-only `/venue-records` routes. A Coordinator plus Venue Staff account can now open both the coordinator booking catalogue and SPM-124 operational venue records.
+- AI contribution: Multi-role navigation and routing implementation with a focused regression test.
+- Assumptions: `/venues` remains the existing coordinator booking route for dual-role users; `/venue-records` is the explicit staff workflow.
+- Checks run: `npm test -- --run src/components/layout/navConfig.test.ts src/pages/venue-records/VenueRoutes.test.tsx`, `npm run build`, and `git diff --check` passed.
+- Follow-up/conflict notes: Local changes only; no commit or push.
+
 ## 2026-10-07 - Codex (GPT-5) - Align SPM-124 catalogue scope with Jira AC1
 
 - Issue/PR: SPM-124 / branch `feature/SPM-124-View-Venue-Records-Venue-Staff`.
