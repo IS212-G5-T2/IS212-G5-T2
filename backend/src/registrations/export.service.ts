@@ -15,7 +15,6 @@ import {
   formatReportDateTimeSgt,
   formatReportEventRange,
   formatReportGenerated,
-  sgtCalendarDate,
   spotsLine,
 } from './report-format.js';
 import type { ExportFormat, RegistrationReport } from './report-types.js';
@@ -51,9 +50,21 @@ export function buildCsv(report: RegistrationReport): Buffer {
   return Buffer.from(`${BOM}${lines.map((line) => line + CRLF).join('')}`, 'utf8');
 }
 
-/** "<event name>_registrations.<csv|pdf>": a readable filename derived from the event name. */
+/** "<event_name>_registrations.<csv|pdf>": the event name lowercased with spaces as underscores and unsafe characters removed. */
 export function reportFilename(eventName: string, format: ExportFormat): string {
-  return `${eventName}_registrations.${format}`;
+  const safe = eventName
+    .toLowerCase()
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f\\/:*?"<>|]/g, ' ')
+    .replace(/\s+/g, '_')
+    .replace(/^[._]+|[._]+$/g, '');
+  return `${safe || 'event'}_registrations.${format}`;
+}
+
+/** Content-Disposition value: an ASCII `filename` fallback plus the exact UTF-8 name in `filename*` (RFC 6266). */
+export function reportContentDisposition(filename: string): string {
+  const ascii = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\%]/g, '_');
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 const PDF_MARGIN = 40;
@@ -139,5 +150,9 @@ export class ExportService {
 
   filename(report: RegistrationReport, format: ExportFormat): string {
     return reportFilename(report.event.name, format);
+  }
+
+  contentDisposition(report: RegistrationReport, format: ExportFormat): string {
+    return reportContentDisposition(this.filename(report, format));
   }
 }

@@ -13,8 +13,8 @@
 import { PDFParse } from 'pdf-parse';
 import { describe, expect, it } from 'vitest';
 import { neutralizeCsvCell } from './sanitization.js';
-import { buildCsv, buildPdf, reportFilename, toCsvCell } from './export.service.js';
-import { ALICE_TAN, T0, makeReport, makeRow, EVT_101_ID } from './report.fixtures.js';
+import { buildCsv, buildPdf, reportContentDisposition, reportFilename, toCsvCell } from './export.service.js';
+import { ALICE_TAN, makeReport, makeRow } from './report.fixtures.js';
 
 const BOM = '﻿';
 const HEADER = 'Name,Email,Contact Number,Registration Date,Status';
@@ -83,19 +83,40 @@ describe('SPM-63 AC4: the CSV file matches the report', () => {
   });
 });
 
-describe('SPM-63 AC4: the export filename uses the event id and the SGT date of generation', () => {
+describe('SPM-63 AC4: the export filename is "<event name>_registrations.<ext>"', () => {
   // VIEW-REG-INFO-04-A
-  // Oracle (SPEC 04-A, F8 / Q10): "<event id>_registrations_<SGT date>.<ext>"; T0 is 29 Sep 2026 12:00 SGT.
-  // Kills: the extension or separator changed; the event name used instead of the id.
+  // Oracle (user request): the downloaded file is named after the event (lowercase, spaces as underscores), then "_registrations", then the extension.
+  // Kills: the event id or a date used instead of the name; the extension or separator changed; uppercase letters not converted.
   it.each([
-    ['csv', 'Tech Talk: Cloud 101_registrations.csv'],
-    ['pdf', 'Tech Talk: Cloud 101_registrations.pdf'],
+    ['csv', 'cloud_101_workshop_registrations.csv'],
+    ['pdf', 'cloud_101_workshop_registrations.pdf'],
   ] as const)('VIEW-REG-INFO-04-A: %s filename', (format, expected) => {
     // Arrange / Act
-    const name = reportFilename('Tech Talk: Cloud 101', format);
+    const name = reportFilename('Cloud 101 Workshop', format);
 
     // Assert
     expect(name).toBe(expected);
+  });
+
+  // Characters that are invalid in filenames or that would break the header are replaced by a space, then spaces become underscores.
+  it('removes path separators, colons, quotes and control characters; converts to lowercase and replaces spaces with underscores', () => {
+    expect(reportFilename('Tech Talk: Cloud/101 "Intro"\r\n', 'csv')).toBe('tech_talk_cloud_101_intro_registrations.csv');
+    expect(reportFilename('..\\..\\Etc', 'pdf')).toBe('etc_registrations.pdf');
+  });
+
+  // A name with nothing usable still gives a valid filename.
+  it('falls back to "event" when the name has no usable characters', () => {
+    expect(reportFilename('///', 'csv')).toBe('event_registrations.csv');
+  });
+
+  // The header stays ASCII-safe for Node, and the exact UTF-8 name travels in filename*.
+  it('builds a Content-Disposition with an ASCII fallback and a UTF-8 filename*', () => {
+    const header = reportContentDisposition(reportFilename('Café Ünite 2026', 'csv'));
+
+    expect(header).toBe(
+      `attachment; filename="caf___nite_2026_registrations.csv"; filename*=UTF-8''${encodeURIComponent('café_ünite_2026_registrations.csv')}`,
+    );
+    expect(/^[\x20-\x7e]+$/.test(header)).toBe(true);
   });
 });
 

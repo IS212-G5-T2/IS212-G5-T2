@@ -81,6 +81,7 @@ describe("SPM-63 registrations modal: expandable cards", () => {
     expect(card).toHaveAttribute("aria-expanded", "true");
     const details = within(screen.getByText("Contact number").closest("dl") as HTMLElement);
     expect(details.getByText("98765432")).toBeInTheDocument();
+    expect(details.getByText("Vegetarian menu")).toBeInTheDocument();
     expect(details.getByText("28 Sep 2026 10:30 SGT")).toBeInTheDocument();
     expect(details.getByText("Confirmed")).toBeInTheDocument();
 

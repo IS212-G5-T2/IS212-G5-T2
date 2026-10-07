@@ -113,8 +113,16 @@ export function fetchRegistrationReport(eventId: string): Promise<RegistrationRe
   return api<RegistrationReport>(`/events/${eventId}/registrations/report`);
 }
 
-/** Reads `filename="..."` from a Content-Disposition value. */
+/** Reads the filename from a Content-Disposition value: `filename*=UTF-8''...` first, then `filename="..."`. */
 export function filenameFromDisposition(header: string | null): string | undefined {
+  const encoded = /filename\*=UTF-8''([^;\s]+)/i.exec(header ?? "")?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch {
+      // A malformed encoding falls through to the plain filename.
+    }
+  }
   return /filename="([^"]+)"/.exec(header ?? "")?.[1];
 }
 

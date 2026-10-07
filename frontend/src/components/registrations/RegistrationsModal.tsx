@@ -115,6 +115,12 @@ function RegistrationCard({ row, expanded, onToggle }: { row: ReportRow; expande
             <dd className="break-words text-gray-900 dark:text-gray-100">
               {row.contactNumber || <span className="text-gray-400 dark:text-gray-500">—</span>}
             </dd>
+            {row.specialRequirements && (
+              <>
+                <dt className="font-medium text-gray-500 dark:text-gray-400">Special requirements</dt>
+                <dd className="break-words text-gray-900 dark:text-gray-100">{row.specialRequirements}</dd>
+              </>
+            )}
             <dt className="font-medium text-gray-500 dark:text-gray-400">Registered at</dt>
             <dd className="text-gray-900 dark:text-gray-100">{formatReportDateTimeSgt(row.registeredAt)}</dd>
             <dt className="font-medium text-gray-500 dark:text-gray-400">Status</dt>

@@ -80,7 +80,7 @@ export class RegistrationsController {
 
     const body = format === 'csv' ? this.exports.csv(report) : await this.exports.pdf(report);
     response.setHeader('Content-Type', format === 'csv' ? 'text/csv; charset=utf-8' : 'application/pdf');
-    response.setHeader('Content-Disposition', `attachment; filename="${this.exports.filename(report, format)}"`);
+    response.setHeader('Content-Disposition', this.exports.contentDisposition(report, format));
     return new StreamableFile(body);
   }
 }

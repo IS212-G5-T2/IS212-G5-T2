@@ -89,6 +89,19 @@ describe("SPM-63 AC4: the download is saved under the server's filename", () => 
     expect(name).toBe("EVT-101_registrations_2026-09-29.csv");
   });
 
+  // VIEW-REG-INFO-04-A
+  // Oracle (user request): the file is named "<event_name>_registrations.<ext>" (lowercase, underscores for spaces);
+  // the exact UTF-8 name in filename* wins over the ASCII fallback, so an accented event name is saved as written.
+  it("VIEW-REG-INFO-04-A: the UTF-8 filename* is preferred over the ASCII fallback", () => {
+    // Arrange / Act
+    const name = filenameFromDisposition(
+      `attachment; filename="caf__nite_registrations.pdf"; filename*=UTF-8''${encodeURIComponent("café_ünite_registrations.pdf")}`,
+    );
+
+    // Assert
+    expect(name).toBe("café_ünite_registrations.pdf");
+  });
+
   // VIEW-REG-INFO-04-A-BND
   // Oracle (derived): a missing or unparsable header gives undefined so the caller can fall back.
   // Kills: a thrown error or a garbage name when the header is hidden by CORS.
