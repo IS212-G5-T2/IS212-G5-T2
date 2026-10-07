@@ -59,24 +59,29 @@ beforeEach(() => {
 });
 afterEach(() => vi.useRealTimers());
 
+// EVENT-REG-01-A, EVENT-REG-01-B, EVENT-REG-01-C
 describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
+  // EVENT-REG-01-A
   // 01-A: "I can see the registration button only if the registration period is open"
   it("01-A open: Register button is shown", () => {
     renderSection();
     expect(registerButton()).toBeInTheDocument();
   });
+  // EVENT-REG-01-B
   // 01-B: before opening there is no button and the SGT opening time is shown.
   it("01-B not yet open: no button, shows the opening time in SGT", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(2 * HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: `Registration opens on ${formatSgt(iso(2 * HOUR))}` })).toBeInTheDocument();
   });
+  // EVENT-REG-01-C
   // 01-C[A]: after the close time there is no button, only status text.
   it("01-C[A] closed by time: no button, closed text", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(-48 * HOUR), registrationClosesAt: iso(-HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
   });
+  // EVENT-REG-01-C
   // 01-C[B]: manual close needs a schema field that does not exist (D17).
   it.todo("01-C[B] Blocked: no manual_close_at field exists (D17)");
   // 01-BND-1[D] / 02-BND-1: at the exact closing instant the button is gone.
@@ -145,6 +150,7 @@ describe("SPM-61 registration heading states (design)", () => {
   });
 });
 
+// EVENT-REG-03-A, EVENT-REG-04-A
 describe("EVENT-REG-03-A / EVENT-REG-04-A: submit and confirmation (AC3, AC4)", () => {
   // 03-A: fields are prefilled from the profile, submit posts the details.
   // 04-A: "I receive a confirmation message upon successful registration" with
@@ -191,6 +197,7 @@ describe("EVENT-REG-03-A / EVENT-REG-04-A: submit and confirmation (AC3, AC4)", 
   });
 });
 
+// EVENT-REG-03-B, EVENT-REG-03-C
 describe("EVENT-REG-03-B / 03-C: form validation (AC3)", () => {
   // Invalid input shows field errors and never calls the server.
   it("blank name and bad email show errors and send nothing", async () => {
@@ -220,6 +227,7 @@ describe("EVENT-REG-03-B / 03-C: form validation (AC3)", () => {
   });
 });
 
+// EVENT-REG-02-B
 describe("EVENT-REG-02-B: registration closes while the form is open (AC2)", () => {
   // Expected: the form stays mounted with values, a notice appears, and the
   // server's 422 MSG-01 is shown on submit.
@@ -244,6 +252,7 @@ describe("EVENT-REG-02-B: registration closes while the form is open (AC2)", () 
   });
 });
 
+// EVENT-REG-03-SEC-1
 describe("EVENT-REG-03-SEC-1: escape on output", () => {
   // Markup in a stored registration is rendered as text, never as HTML.
   it("renders script text literally in the form values", async () => {
@@ -267,7 +276,10 @@ describe("EVENT-REG-03-SEC-1: escape on output", () => {
   });
 });
 
+// EVENT-REG-05-A, EVENT-REG-05-C
 describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
+  // EVENT-REG-05-A
+  // VIEW-REG-DET-02-A
   // 05-A: "I cannot register twice for the same event": no button when registered.
   it("05-A registered attendee sees status and ID, no Register button", () => {
     renderSection(baseEvent, created);
@@ -290,6 +302,7 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
     expect(alerts.some((a) => within(a).queryByText("You are already registered for this event.") !== null || a.textContent?.includes("You are already registered"))).toBe(true);
     expect(apiMock).toHaveBeenCalledWith("/events/event-1/registrations/me");
   });
+  // EVENT-REG-05-C
   // 05-C: a withdrawn registration does not block registering again. SPM-120 card redesign:
   // the action is now the withdrawn card's "Register again" footer button, not the plain
   // top-right "Register" button (which is hidden once withdrawn).
@@ -312,6 +325,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     specialRequirements: "Wheelchair access",
   };
 
+  // VIEW-REG-DET-03-A
   it("AC3 shows full name, email, contact number and special requirements", () => {
     renderSection(baseEvent, full);
     expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
@@ -320,6 +334,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(within(screen.getByText("Special requirements").parentElement!).getByText("Wheelchair access")).toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-03-B
   // Optional fields captured at registration (contact number, special
   // requirements) must never render as blank rows when absent.
   it("AC3 omits contact number and special requirements rows when absent", () => {
@@ -328,6 +343,7 @@ describe("SPM-62 AC2/AC3: registered attendee sees their registration details", 
     expect(screen.queryByText("Special requirements")).not.toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-03-C
   // Older records may lack fullName (SPM-61 comment on the Registration
   // type); the attendee's stored name is still shown via the fallback.
   it("AC3 falls back to attendeeName when fullName is absent on older records", () => {
@@ -346,12 +362,14 @@ describe("SPM-62 AC4: registration details stay visible before and after the eve
     email: "alice@example.com",
   };
 
+  // VIEW-REG-DET-04-A
   it("shows full registration details once the event has completed", () => {
     renderSection({ ...baseEvent, status: "completed" }, full);
     expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
     expect(within(screen.getByText("Full name").parentElement!).getByText("Alice Tan")).toBeInTheDocument();
   });
 
+  // VIEW-REG-DET-04-B
   it("shows full registration details for a cancelled event", () => {
     renderSection({ ...baseEvent, status: "cancelled" }, full);
     expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
@@ -399,6 +417,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
 
   beforeEach(() => vi.setSystemTime(T0));
 
+  // WITHDRAW-EVENT-REG-01-A
   // Oracle (SPEC 01-A): REG-9001 on future EVT-101 shows an enabled button named "Withdraw" and no unavailable text.
   // Not automated: styling prominence (visual). No availability flag exists (D11).
   // Kills: button absent or disabled for a future registered event; wrong label.
@@ -409,6 +428,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.queryByText("Event has already occurred")).not.toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-04-D
   // ASSUMPTION A8: only the start instant decides, never the event status label (see the backend 04-D). A registered
   // attendee of a Cancelled event that has not started can still withdraw (it only frees a spot), and a Completed label
   // on a future start changes nothing. Unconfirmed by the Product Owner; Confirmed is the SPEC baseline (01-A).
@@ -423,6 +443,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     },
   );
 
+  // WITHDRAW-EVENT-REG-01-B
   // Oracle (SPEC 01-B + D6): REG-9002 on started EVT-104 has no actionable control and shows the AC5 text.
   // The "Event has occurred" badge bullet was removed from the case (no such badge in this app).
   // Kills: control active for a past event.
@@ -434,6 +455,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-04-A
   // Oracle (SPEC 04-A + D11): nothing can start a withdrawal for REG-9002; no request is made.
   // Kills: past-event control opens the prompt.
   it("WITHDRAW-EVENT-REG-04-A: nothing can start a withdrawal for a started event", () => {
@@ -444,6 +466,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // WITHDRAW-EVENT-REG-04-A
   // Oracle (DERIVED from AC4/[A7]): the cut-off is the START, not the end. An event that started a minute
   // ago and has not ended is already blocked.
   // Kills: boundary read from the event end instead of its start.
@@ -454,6 +477,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(within(section()).getByText("Event has already occurred")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-05-A
   // Oracle (SPEC 05-A A + AC5): exactly "Event has already occurred", visible, in the withdrawal area.
   // Kills: wording differs from AC5; generic text.
   it("WITHDRAW-EVENT-REG-05-A (A): the AC5 message is shown, exactly, for a started event", () => {
@@ -464,6 +488,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(message).toBeVisible();
   });
 
+  // WITHDRAW-EVENT-REG-05-A
   // Oracle (Added 05-A B): the page loaded before the start; the server answers 422 on confirm.
   // The dialog closes, the AC5 text appears, Withdraw disappears, the status stays Registered.
   // Kills: a 422 swallowed or shown as a generic error.
@@ -484,6 +509,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.getByText("Registered")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-05-D
   // Oracle (Added 05-D frontend): "already withdrawn" (e.g. done in another tab) closes the dialog and
   // reloads the registration, so the page shows the withdrawn status instead of a stale Registered.
   // Kills: stale status kept after an already-withdrawn conflict.
@@ -507,6 +533,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-CARD-09
   // Oracle (task spec, regression check for the withdrawn-card redesign): an active, non-withdrawn
   // registration must render exactly as before - the new badge/timeline/disclosure/footer are
   // specific to the withdrawn state and must never appear for a registered attendee.
@@ -550,6 +577,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
 
   beforeEach(() => vi.setSystemTime(T0));
 
+  // WITHDRAW-EVENT-REG-CARD-10
   // Oracle (brief): Register again opens the form prefilled with the withdrawn record's name, email and
   // contact number; the footer action is hidden while the form is open so there is one place to act.
   // Kills: prefill from the account instead of the withdrawn record; contact number not prefilled;
@@ -571,6 +599,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(screen.getByText("Registration withdrawn")).toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-CARD-10
   // Oracle (brief): a withdrawn record with no contact number prefills an empty field, never "undefined".
   // Kills: an absent contact number rendered as text.
   it("WITHDRAW-EVENT-REG-CARD-10 (no contact number): the contact field starts empty", async () => {
@@ -582,6 +611,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(screen.getByLabelText(/Contact number/)).toHaveValue("");
   });
 
+  // WITHDRAW-EVENT-REG-CARD-11
   // Oracle (brief + backend 05-C derived): submitting posts the prefilled details; the server reactivates the SAME
   // row (same id, withdrawnAt cleared), and the card must flip from withdrawn to registered with the
   // "Registered again" wording (not the first-time message).
@@ -624,6 +654,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(screen.queryByText(/Registration successful/)).not.toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-CARD-12
   // Oracle (SPM-61 server rules apply to re-registration): the server refuses (window closed meanwhile); its
   // message is shown, the typed values stay, and the card is still the withdrawn registration.
   // Kills: optimistic card flip before the server answers; refusal swallowed.
@@ -646,6 +677,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(useAppStore.getState().registrations).toEqual([withdrawn]);
   });
 
+  // WITHDRAW-EVENT-REG-CARD-13
   // Oracle (SPM-61 duplicate rule, via the server): re-registering while the attendee is already registered
   // (for example from another tab) answers 409; the card reloads the real registration, shows the duplicate
   // notice, and the form closes.
@@ -674,6 +706,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(useAppStore.getState().registrations).toEqual([active]);
   });
 
+  // WITHDRAW-EVENT-REG-CARD-13
   // ASSUMPTION A9: if the reload after a 409 itself fails, the failure is swallowed (SPM-61 behaviour, no spec): the
   // attendee stays on the form with the duplicate message, the card stays withdrawn and nothing is thrown. A 404 is used
   // for the failure because the store retries 5xx and network errors with real delays. Unconfirmed by the Product Owner.
@@ -701,6 +734,7 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
     expect(useAppStore.getState().registrations).toEqual([withdrawn]);
   });
 
+  // WITHDRAW-EVENT-REG-CARD-13
   // Oracle (DERIVED from the same flow): once a 409 has shown the active registration, the form is closed for good;
   // if the attendee then withdraws, the withdrawn card appears with its Register again footer and no form.
   // Kills: the form still flagged open after a 409 (it reappears, and hides the footer, after the next withdrawal).

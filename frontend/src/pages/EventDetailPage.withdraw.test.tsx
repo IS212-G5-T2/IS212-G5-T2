@@ -55,6 +55,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
+  // WITHDRAW-EVENT-REG-05-C, WITHDRAW-EVENT-REG-05-E
   // Oracle (SPEC 05-C + 05-E UI): a remounted page refetches (first GET returns Registered, second Withdrawn)
   // and shows the withdrawn card with the Withdrawn entry at 4 Oct 2026, 12:00 (SGT, not the UTC hour 04).
   // The store is emptied between the two mounts, so the only source of truth is the refetch.
@@ -91,6 +92,7 @@ describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
 });
 
 describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
+  // WITHDRAW-EVENT-REG-CAP-01
   // Oracle (CAP-01 frontend): EVT-105 is full (0 spots); after ATT-02 withdraws, the refetched event shows
   // 1 spot and the Register button, in SPM-61's existing "Available 1 spot" format. The mock only returns the
   // freed count after the withdraw POST, so a missing refetch leaves the page on "fully booked".
@@ -125,6 +127,7 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
 });
 
 describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
+  // WITHDRAW-EVENT-REG-07-B
   // Oracle (Added 07-B frontend, 401 sign-out narrowed to this call): a 401 from the withdraw call clears the
   // session so the route guard redirects to /login, and no success banner appears.
   // Kills: M13 withdraw bypassing the 401 handling; success shown after a 401.
@@ -150,6 +153,7 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
     expect(screen.queryByText(/has been processed/)).not.toBeInTheDocument();
   });
 
+  // WITHDRAW-EVENT-REG-07-B
   // Oracle (DERIVED, narrow scope): only a 401 signs the user out; a 403 or other error does not.
   // Kills: session cleared on any failure.
   it("WITHDRAW-EVENT-REG-07-B (frontend): a 500 keeps the user signed in", async () => {

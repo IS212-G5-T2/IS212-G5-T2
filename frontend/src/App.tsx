@@ -9,6 +9,7 @@ import { RequireRole } from "@/components/auth/RequireRole";
 import { LoginPage } from "@/pages/LoginPage";
 import { EventListPage } from "@/pages/EventListPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
+import { RegistrationReportPage } from "@/pages/RegistrationReportPage";
 import { EventCreatePage } from "@/pages/EventCreatePage";
 import { MyRequestsPage } from "@/pages/MyRequestsPage";
 import { EventEditPage } from "@/pages/EventEditPage";
@@ -67,6 +68,8 @@ export default function App() {
           </Route>
         </Route>
         <Route path="/events/:id" element={<EventDetailPage />} />
+        {/* SPM-63: access is decided by the server (MSG-08 on refusal), so no client role redirect here. */}
+        <Route path="/events/:id/registrations/report" element={<RegistrationReportPage />} />
         <Route element={<RequireAssignedCoordinator />}>
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>

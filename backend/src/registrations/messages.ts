@@ -51,4 +51,8 @@ export const MESSAGES = {
   alreadyWithdrawn: 'This registration has already been withdrawn.',
   withdrawalSuccess: (eventName: string) =>
     `Your withdrawal from ${eventName} has been processed.`,
+  // SPM-63. MSG-08 is fixed by the test cases; the PDF empty state and the 400 are picked (D17 / A11).
+  reportForbidden: "You do not have access to this event's registrations.",
+  reportEmptyPdf: 'No registrations to display',
+  exportFormatInvalid: 'Export format must be csv or pdf.',
 } as const;
