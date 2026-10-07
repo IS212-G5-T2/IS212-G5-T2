@@ -9,11 +9,6 @@ type AuthenticatedRequest = Request & { currentUser?: AuthenticatedUser };
 export class EventRejectionsController {
   constructor(private readonly events: EventsService) {}
 
-  @Post('events/:id/approve')
-  approve(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
-    return this.events.approve(id, request.currentUser);
-  }
-
   @Post('events/:id/reject')
   reject(
     @Param('id') id: string,
@@ -21,6 +16,11 @@ export class EventRejectionsController {
     @Req() request: AuthenticatedRequest,
   ) {
     return this.events.reject(id, body, request.currentUser);
+  }
+
+  @Post('events/:id/approve')
+  approve(@Param('id') id: string, @Req() request: AuthenticatedRequest) {
+    return this.events.approve(id, request.currentUser);
   }
 
   @Get('notifications')

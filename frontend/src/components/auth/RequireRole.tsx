@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { hasRole, type UserRole } from "@/types";
 import { AuthLoadingScreen } from "./AuthLoadingScreen";
 import { useAppStore } from "@/store/useAppStore";
+import { homePathByRole } from "@/components/layout/navConfig";
 
 /**
  * Restricts a route to users with one of the explicitly permitted roles.
@@ -34,7 +35,10 @@ export function RequireRole({
   }
 
   if (!allowedRoles.some((role) => hasRole(currentUser, role))) {
-    return <Navigate to="/events" replace />;
+    // SPM-123: the Lead can't use /events, so send them to their own queue
+    // instead of redirecting back into a page they are also refused.
+    const fallback = currentUser.role === "coordinator_lead" ? homePathByRole.coordinator_lead : "/events";
+    return <Navigate to={fallback} replace />;
   }
 
   return children ?? <Outlet />;

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AuthError, login, logout, restoreSession } from "@/lib/auth";
-import { api } from "@/utils/api";
+import { ApiError, api } from "@/utils/api";
+import type { RegistrationDetails } from "@/utils/registration";
 import type {
   Booking,
   ChangeRequest,
@@ -12,10 +13,26 @@ import type {
   Registration,
   User,
   Venue,
+  VenueCreateInput,
 } from "@/types";
 
 let idCounter = 1000;
 let authRevision = 0;
+const GET_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+/** GETs are idempotent, so transient failures are retried with exponential backoff (D14). */
+async function getWithRetry<T>(path: string): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await api<T>(path);
+    } catch (error) {
+      const transient = error instanceof ApiError && (!error.status || error.status >= 500);
+      if (!transient || attempt >= GET_RETRY_DELAYS_MS.length) throw error;
+      await new Promise((resolve) => setTimeout(resolve, GET_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
 const nextId = (prefix: string) => `${prefix}-${idCounter++}`;
 
 // Placeholder identity shown before sign-in and restored on sign-out. It is
@@ -34,6 +51,8 @@ interface AppState {
   authLoading: boolean;
   events: EventRecord[];
   venues: Venue[];
+  /** Creates a venue and returns the server confirmation message. */
+  createVenue: (venue: VenueCreateInput) => Promise<string>;
   bookings: Booking[];
   equipment: EquipmentItem[];
   equipmentRequests: EquipmentRequest[];
@@ -43,7 +62,6 @@ interface AppState {
   createDraftEvent: (data: Partial<EventRecord>) => EventRecord;
   updateEvent: (id: string, data: Partial<EventRecord>) => void;
   submitEvent: (id: string) => void;
-  assignCoordinator: (id: string, coordinatorId: string, coordinatorName: string) => void;
   approveEvent: (id: string) => Promise<void>;
   rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
@@ -56,8 +74,18 @@ interface AppState {
   requestEquipment: (data: Omit<EquipmentRequest, "id" | "status" | "createdAt">) => void;
   reviewEquipmentRequest: (id: string, decision: "reserved" | "unavailable") => void;
 
-  registerForEvent: (eventId: string) => void;
+  /** POSTs a registration; rejects with the server's ApiError (code, errors). */
+  registerForEvent: (eventId: string, details: RegistrationDetails) => Promise<Registration>;
+  /** Loads the signed-in attendee's active registration for an event from the server. */
+  loadMyRegistration: (eventId: string) => Promise<void>;
   withdrawRegistration: (eventId: string) => void;
+  /**
+   * SPM-120: POSTs the withdrawal for one of the attendee's own registrations and
+   * stores the server's updated record. Rejects with the server's ApiError. A 401
+   * from this call (and only this call) clears the client session, so the route
+   * guards send the user to /login.
+   */
+  submitWithdrawal: (registrationId: string) => Promise<Registration>;
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -75,6 +103,13 @@ export const useAppStore = create<AppState>((set, get) => ({
   authLoading: true,
   events: [],
   venues: [],
+  createVenue: async (venue) => {
+    const result = await api<{ venue: Venue; message: string }>("/venues", {
+      method: "POST",
+      body: JSON.stringify(venue),
+    });
+    return result.message;
+  },
   bookings: [],
   equipment: [],
   equipmentRequests: [],
@@ -138,53 +173,53 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  assignCoordinator: (id, coordinatorId, coordinatorName) => {
-    // Optimistically reflect the claim so the UI updates immediately.
-    // Assignment alone no longer advances status — only a clarification
-    // request does that — so status is left untouched here.
-    set((s) => ({
-      events: s.events.map((e) =>
-        e.id === id
-          ? {
-              ...e,
-              coordinatorId,
-              coordinatorName,
-              updatedAt: new Date().toISOString(),
-            }
-          : e
-      ),
-    }));
-    // Persist the assignment so it survives a reload: the detail page refetches
-    // GET /events/:id on mount, which now returns the stored coordinator. Fire
-    // and forget — the optimistic state above already matches what the server
-    // writes, so no reconciliation is needed here.
-    api(`/events/${id}/assign`, {
-      method: "POST",
-      body: JSON.stringify({ coordinatorId, coordinatorName }),
-    }).catch(() => {
-      /* Optimistic state stands; a later refetch will resurface any drift. */
-    });
-    const event = get().events.find((e) => e.id === id);
-    if (event) {
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "coordinator_assignment",
-        message: `${coordinatorName} was assigned to "${event.name}".`,
-        relatedEventId: id,
-      });
-    }
-  },
-
   approveEvent: async (id) => {
-    const approvedEvent = await api<EventRecord>(`/events/${id}/approve`, {
-      method: "POST",
-    });
-    set((s) => ({
-      events: s.events.map((event) =>
-        event.id === id ? { ...event, ...approvedEvent } : event,
+    const existing = get().events.find((event) => event.id === id);
+    const notificationId = "notif-" + Date.now();
+    set((state) => ({
+      events: state.events.map((event) =>
+        event.id === id
+          ? { ...event, status: "approved" as const, updatedAt: new Date().toISOString() }
+          : event
       ),
+      notifications: existing
+        ? [
+            {
+              id: notificationId,
+              audienceRole: "organiser" as const,
+              audienceUserId: existing.organiserId,
+              type: "approval" as const,
+              message: `Your event request "${existing.name}" was approved and can proceed.`,
+              relatedEventId: id,
+              read: false,
+              createdAt: new Date().toISOString(),
+            },
+            ...state.notifications,
+          ]
+        : state.notifications,
     }));
+    try {
+      const approved = await api<EventRecord>(`/events/${id}/approve`, {
+        method: "POST",
+      });
+      if (approved?.id) {
+        set((state) => ({
+          events: state.events.map((event) =>
+            event.id === id ? { ...event, ...approved } : event
+          ),
+        }));
+      }
+    } catch (error) {
+      set((state) => ({
+        events: existing
+          ? state.events.map((event) => (event.id === id ? existing : event))
+          : state.events,
+        notifications: state.notifications.filter(
+          (notification) => notification.id !== notificationId,
+        ),
+      }));
+      throw error;
+    }
   },
 
   rejectEvent: async (id, reason) => {
@@ -389,45 +424,45 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  registerForEvent: (eventId) => {
+  registerForEvent: async (eventId, details) => {
     const user = get().currentUser;
-    const event = get().events.find((candidate) => candidate.id === eventId);
-
-    // Registration is an attendee-only action. Keep the policy beside the
-    // mutation so a caller cannot register on behalf of another user merely by
-    // bypassing the EventDetailPage button.
-    if (!get().isAuthenticated || user.role !== "attendee" || !event?.registrationEnabled) {
-      return;
+    // The server enforces role, window, duplicates and capacity; this guard
+    // only avoids a pointless request from a signed-out or non-attendee session.
+    if (!get().isAuthenticated || user.role !== "attendee") {
+      throw new Error("Only signed-in attendees can register.");
     }
-
-    const existing = get().registrations.find(
-      (r) => r.eventId === eventId && r.attendeeId === user.id
+    const { registration } = await api<{ registration: Registration }>(
+      `/events/${eventId}/registrations`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          fullName: details.fullName,
+          email: details.email,
+          contactNumber: details.contactNumber,
+          specialRequirements: details.specialRequirements,
+        }),
+      },
     );
-    if (existing) {
-      set((s) => ({
-        registrations: s.registrations.map((r) =>
-          r.id === existing.id ? { ...r, status: "registered" } : r
-        ),
-      }));
-    } else {
-      const record: Registration = {
-        id: nextId("r"),
-        eventId,
-        attendeeId: user.id,
-        attendeeName: user.name,
-        status: "registered",
-        registeredAt: new Date().toISOString(),
-      };
-      set((s) => ({ registrations: [record, ...s.registrations] }));
-    }
-    if (event) {
-      get().pushNotification({
-        audienceRole: "coordinator",
-        type: "registration",
-        message: `${user.name} registered for "${event.name}".`,
-        relatedEventId: eventId,
-      });
-    }
+    set((s) => ({
+      registrations: [
+        registration,
+        ...s.registrations.filter((r) => !(r.eventId === eventId && r.attendeeId === registration.attendeeId)),
+      ],
+    }));
+    return registration;
+  },
+
+  loadMyRegistration: async (eventId) => {
+    const user = get().currentUser;
+    const { registration } = await getWithRetry<{ registration: Registration | null }>(
+      `/events/${eventId}/registrations/me`,
+    );
+    set((s) => ({
+      registrations: [
+        ...(registration ? [registration] : []),
+        ...s.registrations.filter((r) => !(r.eventId === eventId && r.attendeeId === user.id)),
+      ],
+    }));
   },
 
   withdrawRegistration: (eventId) => {
@@ -445,6 +480,29 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  submitWithdrawal: async (registrationId) => {
+    try {
+      // The response is the updated registration plus a server message; the UI builds its own
+      // banner text (D9), so only the registration fields are kept.
+      const { message, ...registration } = await api<Registration & { message: string }>(
+        `/registrations/${registrationId}/withdraw`,
+        { method: "POST" },
+      );
+      void message;
+      set((s) => ({
+        registrations: [registration, ...s.registrations.filter((r) => r.id !== registration.id)],
+      }));
+      return registration;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        // The session is already invalid on the server; drop it here too.
+        authRevision += 1;
+        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      }
+      throw error;
+    }
   },
 
   login: async (email, password) => {

@@ -53,6 +53,14 @@ The PostgreSQL entrypoint runs every SQL file in `init/` by filename order when 
 | `users` | Local account identity, password hash, active state, and display name. |
 | `user_roles` | Local account membership in the seeded RBAC roles. |
 | `auth_sessions` | Hashed, revocable, expiring local browser sessions. |
+| `venues` | Venue Staff-created catalogue details, including one scalar location, operating information, selected operating days with start/end times, and an authenticated `owner_user_id` foreign key to `users`. |
+| `facilities` | Controlled facility names and categories available to venues. |
+| `venue_facilities` | Many-to-many facility selections linked to venues. |
+| `room_layouts` | Controlled supported room-layout names. |
+| `venue_layouts` | Many-to-many room-layout selections linked to venues. |
+| `venue_images` | Optional one-to-one venue image metadata and data URL (maximum 5 MB). |
+| `accessibility_features` | Controlled accessibility choices for venues. |
+| `venue_accessibility` | Accessibility selections linked to each venue. |
 | `venue_bookings` | Event venue bookings used by planning (SPM-97/85); placeholder until the venue-booking story owns it. Added by `007`. |
 | `equipment_reservations` | Event equipment arrangements used by planning; placeholder until the equipment-reservation story owns it. Added by `007`. |
 | `event_flagged_changes` | Booking-affecting event changes awaiting coordinator review, and their resolved history (SPM-85). Added by `007`. |
@@ -71,12 +79,12 @@ SELECT count(*) FROM resources;
 SELECT count(*) FROM role_permissions;
 ```
 
-The expected counts are 5 roles, 10 resources, and 27 role permission rows.
+The expected counts are 6 roles, 11 resources, and 30 role permission rows.
 
 ## Local login data
 
 `001_schema.sql` enables PostgreSQL `pgcrypto`, adds local-role membership and
-session storage; `002_seed_data.sql` seeds one development-only account per role. Each seed
+session storage; `002_seed_data.sql` seeds development-only accounts for every role. Each seed
 account uses password `P@55w0rd`:
 
 | Role | Email |
@@ -86,6 +94,13 @@ account uses password `P@55w0rd`:
 | Venue Staff | `venue_staff1@connectsphere.test` |
 | Tech Support | `tech_support1@connectsphere.test` |
 | Attendee | `attendee1@connectsphere.test` |
+| Coordinator + Venue Staff | `coordinator_venuestaff@connectsphere.test` |
+| Event Coordinator Lead | `lead@connectsphere.test` |
+
+Accounts 2 and 3 of each role (e.g. `organiser2@connectsphere.test`) are also
+seeded, except for the single Lead. `coordinator_venuestaff` is the one
+multi-role account. No account may hold both Organiser and Coordinator, and the
+Lead never also holds Coordinator.
 
 These values are intentionally local-only and must never be reused outside the
 development database. Passwords are stored as bcrypt hashes; session tokens are
@@ -117,6 +132,19 @@ The two files create a fresh database only. For an existing volume, use the
 backend migrations that correspond to the missing schema change; do not apply
 the schema file as a replacement migration or delete the volume merely to pick
 up initializer refactoring.
+
+SPM-50 venue creation uses `venues`, controlled accessibility/facility/layout
+lookups and junctions, plus optional `venue_images` on fresh databases.
+Existing databases must apply the
+additive `backend/migrations/005_venues.sql`; do not reset a volume merely to
+receive this schema change. `venues.id` is a PostgreSQL-generated UUID; the
+migration converts any earlier local text identifiers deterministically while
+preserving accessibility links.
+The `venues_name_location_unique` index separately prevents case-insensitive,
+trimmed duplicates of the same venue name at the same location; names and
+locations remain editable attributes rather than identifiers.
+The migration also converts legacy venue facility/layout arrays into the
+normalized lookup relationships before dropping those array columns.
 
 The Compose postgres service also mounts the backend-owned draft migration as `004_event_drafts.sql`. Drafts use separate `event_drafts` storage so incomplete values do not weaken submitted-event constraints. For existing volumes follow the additive migration command in docker-compose/README.md; no reset is required.
 

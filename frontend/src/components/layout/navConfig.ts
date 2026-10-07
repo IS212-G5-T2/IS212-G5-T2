@@ -1,4 +1,4 @@
-import type { UserRole } from "@/types";
+import type { User, UserRole } from "@/types";
 
 export interface NavItem {
   label: string;
@@ -22,6 +22,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   venue_staff: [
     { label: "Venue Catalogue", to: "/venues", icon: "🏛️", feature: "Feature 7" },
+    { label: "Create Venue", to: "/venues/create", icon: "➕", feature: "SPM-50" },
     { label: "Availability Calendar", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Booking Requests", to: "/bookings", icon: "📝", feature: "Feature 10, 11" },
   ],
@@ -33,6 +34,19 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   attendee: [
     { label: "Browse Events", to: "/events", icon: "📅", feature: "Feature 6" },
   ],
+  coordinator_lead: [
+    { label: "Assignment Queue", to: "/lead/queue", icon: "🗂️", feature: "Feature 3" },
+  ],
+};
+
+/** Where each role lands after sign-in, and when sent away from a route it can't use. */
+export const homePathByRole: Record<UserRole, string> = {
+  organiser: "/events",
+  coordinator: "/events",
+  attendee: "/events",
+  venue_staff: "/venues",
+  tech_support: "/equipment/requests",
+  coordinator_lead: "/lead/queue",
 };
 
 export const roleLabels: Record<UserRole, string> = {
@@ -41,4 +55,22 @@ export const roleLabels: Record<UserRole, string> = {
   venue_staff: "Venue Staff",
   tech_support: "Technical Support Staff",
   attendee: "Attendee",
+  coordinator_lead: "Event Coordinator Lead",
 };
+
+/**
+ * Builds a sidebar from every role the server granted to the signed-in user.
+ * Shared destinations are kept once, using the first role's label and order.
+ */
+export function navigationFor(user: Pick<User, "role" | "roles">): NavItem[] {
+  const grantedRoles = user.roles ?? [user.role];
+  const destinations = new Set<string>();
+
+  return grantedRoles.flatMap((role) =>
+    navByRole[role].filter((item) => {
+      if (destinations.has(item.to)) return false;
+      destinations.add(item.to);
+      return true;
+    }),
+  );
+}

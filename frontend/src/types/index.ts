@@ -3,7 +3,9 @@ export type UserRole =
   | "coordinator"
   | "venue_staff"
   | "tech_support"
-  | "attendee";
+  | "attendee"
+  /** SPM-123: the single Event Coordinator Lead, never also a coordinator. */
+  | "coordinator_lead";
 
 export interface User {
   id: string;
@@ -70,6 +72,16 @@ export interface EventRecord {
   venueRequirements: VenueRequirements;
   equipmentNeeds: string;
   registrationEnabled: boolean;
+  /** ISO timestamp at which attendee registration becomes available. */
+  registrationOpensAt?: string;
+  /** ISO timestamp after which attendee registration is no longer available. */
+  registrationClosesAt?: string;
+  /** Server-computed: the registration window is open right now (SPM-61). */
+  registrationOpen?: boolean;
+  /** The signed-in attendee's own registration status, on the browse list only (SPM-61). */
+  myRegistrationStatus?: RegistrationStatus;
+  /** Registration capacity remaining; separate from venue capacity. */
+  availableRegistrationSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
   venueId?: string;
@@ -106,8 +118,24 @@ export interface Venue {
   facilities: string[];
   accessibility: string[];
   layouts: string[];
-  operatingHours: string;
+  operatingInformation: string;
+  operatingDays: string[];
+  operatingStartTime: string;
+  operatingEndTime: string;
+  setupTimeMinutes: number;
+  turnaroundTimeMinutes: number;
+  image?: VenueImage;
 }
+
+export interface VenueImage {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
+
+/** Venue details supplied by staff before the backend generates its UUID. */
+export type VenueCreateInput = Omit<Venue, "id">;
 
 export type BookingStatus = "pending" | "approved" | "rejected";
 
@@ -140,6 +168,18 @@ export interface EquipmentItem {
   totalQuantity: number;
 }
 
+/** A persisted inventory record created by Technical Support (SPM-111). */
+export interface EquipmentRecord {
+  id: string;
+  name: string;
+  type: 'Audio' | 'Visual' | 'Furniture' | 'Lighting' | 'Other';
+  quantity: number;
+  maintenanceStatus: 'Active' | 'Under Maintenance' | 'Retired';
+  location: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type EquipmentRequestStatus =
   | "requested"
   | "checking"
@@ -169,6 +209,13 @@ export interface Registration {
   attendeeName: string;
   status: RegistrationStatus;
   registeredAt: string;
+  /** Instant of the withdrawal (SPM-120); set once by the server, absent while registered. */
+  withdrawnAt?: string;
+  /** Details captured at registration (SPM-61); absent on older records. */
+  fullName?: string;
+  email?: string;
+  contactNumber?: string;
+  specialRequirements?: string;
 }
 
 export type NotificationType =

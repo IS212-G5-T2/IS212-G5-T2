@@ -65,6 +65,633 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Checks run: Backend `npx vitest run` passed (22 files, 567 tests, including the 3 target specs with 124 tests). Backend `nest build` passed, and oxlint is clean on the new files. Backend `tsc --noEmit` shows 7 errors, all pre-existing in `test/*.e2e-spec.ts` and `vitest.spm37.config.ts`. `event-planning.e2e-spec.ts` passed 5/5 against a local PostgreSQL 16 database. Init script `007` applied cleanly and idempotently on this branch's 001-002 and on `origin/dev`'s 001-006. Frontend `npx vitest run` passed (23 files, 221 tests, including the 3 target suites with 20 tests), and `npm run build` passed. `eslint .` reports 2 errors, both pre-existing (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`). The bundled `node_modules` held macOS binaries, so dependencies were reinstalled with `npm ci` on Linux for these checks.
 - Follow-up/conflict notes: The branch is behind `dev` (dev adds init scripts 003-006, SPM-111 `equipment`, and a wider status constraint). Init script `007` was numbered and written to merge cleanly on top of that. After merging, add foreign keys from the placeholder tables to `venues`/`equipment`. Nothing is staged, committed, or pushed.
 
+## 2026-10-05 - Claude (Opus 5.5) - SPM-123 restart for Lead assignment
+
+- Issue/PR: SPM-123 "Assign Event Requests to Coordinators (Lead)" (Jira status: In Review from the superseded PR #35) / new branch `feature/SPM-123-Assign-Event-Requests-to-Coordinators-Lead` from the SPM-80 branch (now at 83e5ae4, PR #43), because the new story depends on coordinator availability. PR: https://github.com/IS212-G5-T2/IS212-G5-T2/pull/47 (into `dev`).
+- Human requester/operator: Ei Chaw Zin (chaw678).
+- Areas touched: `database/postgresql/init/002_seed_data.sql`, `database/README.md`, `database/CHANGELOG.md`, `backend/src/events/events.service.spec.ts`, frontend auth/role test fixtures (`lib/auth.test.ts`, `store/useAppStore.auth.test.ts`, `types/index.test.ts`, `components/auth/RouteAccess.test.tsx`), `frontend/src/pages/EventDetailPage.tsx` and its test (SPM-36 Back button).
+- Summary: SPM-123's requirements changed from automatic workload-balanced assignment to manual assignment by an Event Coordinator Lead. The requester chose to keep the old work for reference and start fresh: the old branch keeps its name `feature/SPM-123-Balance-Coordinator-Workload-in-Auto-Assignment` and PR #35 is closed and retitled "[Superseded]". (A first rename of that branch closed #35, because GitHub closes a PR whose source branch is renamed; it was then renamed back.) Carried over only what the requester asked to keep: Coor_Venue gets its COORDINATOR + VENUE_STAFF roles in the seed (they still pointed at the old Org_Coor email), Organiser + Coordinator test fixtures switched to Coordinator + Venue Staff, the SPM-38 Organiser + Coordinator test EVE-REV-04-I removed (already removed from Confluence on 1 Oct), and the multi-role route test uses `/equipment/requests`. Also carried over at the requester's choice: the SPM-36 fix that hides "← Back" straight after a request is submitted (tests EVE-CRE-07-C/D/E, already documented in Confluence). Not carried over: auto-assignment, the assignment banner, notification API changes, dashboard wording, and the sample-event ownership seed changes.
+- AI contribution: branch management, porting, docs.
+- Assumptions: Org_Coor cleanup SQL kept in `database/CHANGELOG.md` for existing local volumes.
+- Checks run: backend `scripts/ci/unit-test.sh` 599/599; frontend `scripts/ci/unit-test.sh` 371 passed + 1 todo, `tsc -b` and eslint clean; no Organiser + Coordinator fixtures remain in code or seed.
+- Follow-up/conflict notes: see the Lead assignment entry below.
+- 2026-10-06 Lead assignment (Claude Opus 5.5, chaw678): implemented the rewritten SPM-123 (11 ACs, agreed 5 Oct and recorded in Standup 12). Test-first: the requester approved the case list, then backend Red (22 failing; LEAD-ASN-10-A/B already passed because approve/reject never touched the coordinator) and frontend Red (13 failing), then Green. Added role `COORDINATOR_LEAD` and one seed account `lead@connectsphere.test` (002 seed + `008_spm123_coordinator_lead.sql`), `src/lead` (`GET /api/lead/queue`, `GET /api/lead/coordinators`, `POST /api/lead/queue/:eventId/assign`), role-aware notifications (coordinators read `coordinator_assignment`), the Lead's Assignment Queue page, and a coordinator assignment panel on the events page. Removed SPM-38 round-robin (`coordinator-roster.ts` + spec, `autoAssignCoordinator`), the open `POST /api/events/:id/assign` and its e2e tests, and the store's unused `assignCoordinator` (+ its test file). Adjusted two SPM-83 notification tests (non-organiser caller is now venue staff; type check reads query params). The route guard's fallback sends only the Lead to `/lead/queue`; other roles keep `/events`. Decisions: one Lead, never also a Coordinator; queue oldest first; Lead assigns from the four queue fields plus availability and workload (no full-detail view); 409 for already assigned or unavailable, 400 for a bad coordinator. Confluence: new folder "SPM-123 Assign Event Requests to Coordinators (Lead)" with matrix and LEAD-ASN-01..11 (46 cases, all Pass); SPM-38 EVE-REV-05-A..D marked superseded, E reworded. The old auto-assignment pages (EVE-ASN-01..06, matrix, two folders) could not be removed: the connector has no delete and archive returned 500; the requester will delete them manually. Checks: backend unit 611/611, oxlint and tsc clean (pre-existing e2e/spm37 errors only); backend e2e on a fresh database built from the init scripts: Lead file 12/12, full suite 94 passed; frontend 385 passed + 1 todo, tsc and eslint clean. AC6 tests checked by removing the availability check (06-A and 06-B fail). Live: on the local stack a submitted request stayed unassigned and queued, assigning to an unavailable coordinator returned 409, a successful assignment notified the coordinator, and re-assigning returned 409; the test event was deleted. Later the same day, at the requester's request: reviewed and approved PR #40 (SPM-50, Jacob) with four non-blocking notes, merged it into `dev` (c1fd919), then merged the new `dev` into this branch (2b658dc, merge commit, so SPM-80's commits from PR #43 keep their SHAs). Conflicts in `app.module.ts`, `App.tsx`, both CHANGELOGs and this file were resolved keeping both sides; `useAppStore.events.test.ts` keeps SPM-50's `createVenue` tests with only the removed `assignCoordinator` tests dropped. After the merge: backend unit 685/685, full backend e2e 102 passed on a fresh database, frontend 438 passed + 1 todo, frontend tsc clean; a backend tsc error in SPM-50's `venues.controller.spec.ts` is already on `dev` and was left for its owner. Noted, not changed: on `dev` the route guard sends venue staff and tech support to `/events`, which they also can't open (a redirect dead end); the local database currently has Coordinator 1 marked unavailable. 2026-10-07 code review (Claude Opus 5.5, chaw678): Confluence checked page by page (46 IDs in the matrix = 46 in code, every exact test name matches); the old auto-assignment folder was deleted by the requester (the connector has no delete and archive returns 500). Then a high-effort code review; 6 findings fixed: the queue page reloads the queue after a refused assignment (LEAD-ASN-06-F); `FOR SHARE OF users` on the availability check (06-E); a separate 409 message for an unassigned request that is no longer Submitted (05-G); coordinator assignment notifications refresh on focus and every 30 s and clear the error after a successful retry (09-H, 09-I); stale round-robin comments rewritten; `database/README.md` counts set to 6/11/30 (checked against the seed SQL and the local database). New cases added to Confluence and the matrix (51 cases). Not changed: the venue staff / tech support redirect dead end (pre-existing on `dev`), reassignment (SPM-47), and two optional tidy-ups (status list as a query parameter; one shared coordinator-eligibility query). Checks: backend unit 687/687, oxlint clean, tsc clean apart from SPM-50's existing `venues.controller.spec.ts` error; frontend 441 passed + 1 todo, tsc and eslint clean; Lead e2e 12/12 against the local Docker PostgreSQL (the full e2e run there had 20 failures in SPM-61/SPM-111/SPM-50 suites because that local volume lacks newer columns; not a fresh database). Committed as 9764c8e and opened PR #47 into `dev` after the requester's approval; a shared notifications hook is planned as a separate chore. Same day, at the requester's request: merged the latest `dev` (24 commits: SPM-120 withdraw registration, SPM-117 equipment search, multi-role venue navigation #46) into this branch with a merge commit, not a rebase (the branch was already pushed with an open PR). Five files conflicted; contrary to the AGENTS.md "take dev's version" rule, and at the requester's explicit instruction, both sides were kept because dev's version would have dropped the Lead controller registration (`app.module.ts`), the Lead's role in `002_seed_data.sql`, and SPM-123's CHANGELOG and AI_USAGE entries. In every hunk dev's side was empty or a subset, so nothing from dev was lost; doc entries were kept with SPM-123's first. No local scripts or dependencies were lost; `npm install` was needed locally for dev's new `vitest-axe`. After the merge: backend unit 701/701, oxlint clean; frontend 554 passed + 1 todo, tsc clean; e2e (Lead, approve, assign, auth) 39/39 on the local Docker PostgreSQL. Pre-existing on dev, not changed: frontend eslint (unused `hasReplies` in ClarificationThread.tsx, unused `EventRecord` import in useAppStore.auth.test.ts) and backend tsc errors in older e2e specs, `vitest.spm37.config.ts`, SPM-50's `venues.controller.spec.ts` and SPM-111's `equipment.e2e-spec.ts`. Later on 7 Oct, from a test-gap review the requester supplied: added LEAD-ASN-09-J (a non-coordinator such as the Lead gets no panel and no notifications request), 09-K (an already-read notification in the feed stays hidden) and 09-L (fake timers: no refetch at 29,999 ms, refetch at 30,000 ms shows a new assignment) to `AssignmentNotifications.test.tsx`; test-only, no production change. Each was mutation-checked by editing the component and restoring it (guard removed fails 09-J; unread filter removed fails 09-K and also 09-D/09-I; interval removed or set to 15 s fails 09-L). Also added LEAD-ASN-09-M to `EventListPage.test.tsx`: the coordinator sees the "New assigned requests" panel on the events page (the component tests only rendered it standalone); mutation-checked by deleting `<AssignmentNotifications />` from the page. Confluence LEAD-ASN-09 and the matrix updated (55 cases). Frontend 558 passed + 1 todo, eslint and tsc clean. At the requester's decision (full coverage), the "one Lead, never also a Coordinator" rule is now enforced in `src/lead` (not the database, which the requester placed with a future account-management story): `requireLead` refuses an account holding both roles with 403 "An Event Coordinator Lead cannot also be an Event Coordinator.", and one shared `NOT_ALSO_LEAD` SQL condition keeps such accounts out of the coordinator list and the assignment check. Test-first: LEAD-ASN-11-SEC-6 (unit) and 11-SEC-7 (e2e, account granted both roles in PostgreSQL) failed first (e2e got 200 instead of 403), then passed; mutation-checked by removing the role check (fails both) and each SQL exclusion (fails 11-SEC-7). Confluence LEAD-ASN-11 and the matrix updated (57 cases); backend HANDOVER and CHANGELOG updated. Checks: backend unit 702/702, Lead and assign e2e 15/15 on the local Docker PostgreSQL, oxlint clean. Staged for review; not committed.
+
+## 2026-10-06 - Codex (GPT-5) - Show navigation for every granted role
+
+- Issue/PR: [PR #46](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/46); no Jira key supplied.
+- Human requester/operator: swr
+- Areas touched: `frontend/src/components/layout/`, `frontend/README.md`, and `AI_USAGE.md`
+- Summary: Fixed the sidebar so multi-role accounts combine navigation from every server-granted role, and so parent routes do not remain active on nested pages. Shared destinations are deduplicated while preserving the primary role's label and ordering, so a Coordinator/Venue Staff account can discover Create Venue and sees only Venue Availability selected at that page.
+- AI contribution: Root-cause analysis, sidebar/navigation implementation, and component regression tests.
+- Assumptions: The server-provided `roles` list is authoritative when present; its order defines the primary-navigation precedence.
+- Checks run: Focused Sidebar test — 3/3 passed; full frontend unit suite before the exact-route addition — 38 files, 444 passed, 1 todo; production build passed; `git diff --check` passed. Full frontend lint remains blocked by pre-existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Preserved the pre-existing uncommitted dual-role seed-account addition in `database/postgresql/init/002_seed_data.sql`.
+## 2026-10-06 - Claude (Sonnet 5.5) - Make the SPM-120 tests meet the guide's remaining rows (no-side-effect proof, enumerated inputs, anti-patterns, mutation process, branch coverage)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, PR #42; these changes are after commit `837f2e3`).
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations` (new unit spec, integration spec, event-start spec), `backend/scripts/testing/mutation` (new), `frontend/scripts/testing/mutation` (new), `frontend/src/components/EventDetail` and `frontend/src/pages` and `frontend/src/utils` (tests only), both CHANGELOGs and AGENTS files, `docs/specs/SPM-120-test-results.md`, `AI_USAGE.md`.
+- Summary: A re-evaluation found that the "row unchanged" assertions on refused withdrawals cannot fail: `withdraw()` runs in a transaction that rolls back, so mutant M34 (the UPDATE issued before the event-start check) survived all 33 integration tests. Added `registrations.withdraw.spec.ts`, a unit spec with a fake database that records every statement, which kills it; corrected the false 04-B claim and the checklist tick in the results doc. Also: every non-attendee role and the Confirmed, Cancelled and Completed event statuses are now tested (the cancelled-event rule is tagged ASSUMPTION A8); the 04-C ternary moved into the table; the 100-request concurrency test is now 5; "Mutants killed:" is now "Kills:". Added tests for Escape while pending, the double-activation guard, unexpected failures, a failed reload after a 409 and a registration with no stored details. Committed a re-runnable mutation harness for both components and recorded every mutant (M1 to M44) in the results doc.
+- AI contribution: analysis, tests, harness, documentation. No production code changed in this pass.
+- Assumptions: A8 (the event status label never blocks a withdrawal), A9 (a failed reload after a 409 is swallowed), A10 (a registration with no stored details answers empty strings), A11 (the generic wording for an unexpected failure). All are listed for the Product Owner in the results doc; none is confirmed.
+- Checks run: backend unit 688 passed; backend integration (`src/registrations`) 70 passed, 1 todo (the SPM-120 file is 40) on a throwaway `spm_test` database, then dropped; frontend 532 passed, 1 todo; `tsc` clean; lint has the same 2 pre-existing errors; backend `oxlint` clean on `src/registrations`; the 05-E UTC tests pass under TZ=UTC, Asia/Singapore, America/Los_Angeles, and the frontend date tests (72) pass under the same three. Mutation harness: backend 16 of 16 killed; frontend 28 killed and 1 equivalent (M15). Branch arms: service 97.1%, status card 100%, dialog 96.2%; every remaining uncovered arm is unreachable or SPM-61 code (listed in the results doc).
+- Follow-up/conflict notes: Playwright was not re-run (nothing it asserts changed). Prettier flags two backend specs that were already unformatted at `HEAD`; left alone (a 1,200-line reformat). Not committed or pushed.
+
+## 2026-10-06 - Claude (Sonnet 5.5) - Close the SPM-120 test-guide review findings (rule order, traceability, assumptions, coverage)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, rebased onto the latest `dev`; PR #42 not yet updated).
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations` (withdraw e2e spec, event-start spec), `frontend/src/components/EventDetail` (tests), `frontend/src/pages` (`EventView.ts`, page test), `frontend/src/utils/registration.test.ts`, `frontend/CHANGELOG.md`, `docs/specs/SPM-120-test-results.md`, `AI_USAGE.md`.
+- Summary: Reviewed the suite against the test-code-generation guide and fixed four findings. (1) Added rule-order tests (07-INT-1 to 5) and body-shape tests; three mutants that had survived (state vs event-start order, body vs ownership order, array body accepted) are now killed. (2) Fixed traceability: corrected stale "IDs are from Confluence" headers, gave the re-register test its own ID (05-F, 05-C was used twice), and added a Test ID map, a "Tests without an AC" list and a decision table (the D/A/F IDs cited by the tests were defined nowhere in the repository). (3) Added an assumption index at the end of every SPM-120 test file. (4) Covered the dialog's two untested focus-trap branches, the footer variants (no close time, cancelled event, no availability figure, legacy withdrawal row) and the 409-on-re-register path. One production fix came out of it: `withdrawnCardFooterState` showed "Registration closed on <future date>" for a cancelled event, found by a test that failed first.
+- AI contribution: review, tests, the footer fix, mutation checks (M22 to M33), documentation.
+- Assumptions: the rule order documented on `RegistrationsService.withdraw` is the intended one (DERIVED, not stated by the Jira AC); the decision table restates what the tests assert because the original Phase 0 notes are not in the repository.
+- Checks run: frontend 524 passed, 1 todo; `tsc` clean; lint has the same 2 pre-existing errors; build ok; date tests 72 passed under TZ=UTC, Asia/Singapore, America/Los_Angeles; backend unit 678 passed; backend integration (`src/registrations`) 63 passed, 1 todo on a throwaway `spm_test` database with all init scripts applied, then dropped. Coverage (diagnostic): service branches 88.4% to 91.3%, dialog 76.9% to 92.3%, status card 90.3% to 100%. Mutants M22 to M33 all killed; two survived their first test and were strengthened. Playwright spec not re-run this pass (no browser-facing change besides the footer text it does not assert).
+- Follow-up/conflict notes: not done: loops/ternaries in backend tests, event status values and non-attendee roles, scalar request bodies. Mutation driver still not committed. Changes are staged locally; nothing committed or pushed.
+
+## 2026-10-05 - Claude (Sonnet 5.5) - Renumber SPM-120 test case IDs to the six-AC matrix
+
+- Issue/PR: SPM-120 / PR #42 (branch `feature/SPM-120-Withdraw-Registration`).
+- Human requester/operator: Wei Zhi.
+- Areas touched: SPM-120 test files under `frontend/src` and `backend/src/registrations` (names and comments only, no assertions), `docs/specs/SPM-120-test-results.md`, `backend/HANDOVER.md`, `AI_USAGE.md`.
+- Summary: Renumbered the `WITHDRAW-EVENT-REG-*` IDs to the requested matrix: old 06-A/B/C are now 05-C/D/E, old 07-A/B are 06-A/B, old 09-A/B are 07-A/B, old 10-A is 08-A. Cases 01 to 05-B are unchanged. The old 08-A (capacity freed, a story goal that is not one of the six ACs) has no slot in the matrix, so it is tagged `WITHDRAW-EVENT-REG-CAP-01` (same convention as `CARD-xx`). Short forms in comments and test titles were updated too; the older SPM-61 `EVENT-REG-*` IDs in `RegistrationSection.test.tsx` were left alone. The results doc has a numbering note, the corrected AC column and the `CAP-01` rows moved after 08-A. Corrected a stale count there (backend integration is 55 passed, 1 todo, not 2 todo).
+- AI contribution: scripted rename with per-replacement match counts, a before/after ID multiset check, test runs, documentation.
+- Assumptions: AC labels inside the code stay on the Jira numbering (for example 05-B is labelled AC4 because it asserts the "Event has already occurred" message), while the requested matrix files 05-A and 05-B under AC5. Not changed; the owner decides.
+- Checks run: frontend 413 passed, 1 todo; backend unit 582 passed; registrations e2e 55 passed, 1 todo on a throwaway PostgreSQL database (init 001 to 007), dropped afterwards, Compose `spm` database untouched; the 05-E block passes under TZ=UTC, Asia/Singapore, America/Los_Angeles (2/2 each); frontend `tsc` clean. Backend `tsc --noEmit` reports errors only in unrelated equipment, clarification and events test files. Playwright not re-run (only a comment changed in that spec).
+- Follow-up/conflict notes: not committed or pushed. PR #42's description still says "06-C passes under TZ=..." and should say 05-E. Confluence/Jira case pages still use the old numbering.
+
+## 2026-10-05 - Claude (Sonnet 5.5) - Fix SPM-120 test-suite review findings
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`; no PR yet).
+- Human requester/operator: Wei Zhi.
+- Areas touched: `frontend/src/components/EventDetail` (tests, fixtures, comment), `frontend/src/utils/registration.ts` and its test, `frontend/src/pages` (page test, Playwright spec), `frontend/CHANGELOG.md`, `backend/HANDOVER.md`, `docs/specs/SPM-120-test-results.md`, `AI_USAGE.md`.
+- Summary: Reviewed the SPM-120 tests against the test-code-generation prompt and fixed the findings. Timeline tests now assert each timestamp inside its own entry (a swap mutant had survived). Added tests for re-registering from the withdrawn card (prefill, card flip, refused re-registration, "Registered again" wording) and for `daysUntilLabel`. Updated the Playwright spec to the redesigned card and extended it to re-register. Removed the dead `formatWithdrawnAt` and its tests. Fixed a real defect found on the way: `formatSgtDateTime` showed September as "Sept" (fixed month table now). Corrected a CARD-08 test whose date did not cross the UTC/SGT day boundary. Removed waiting-list/AC7 wording from tests, comments and docs, and refreshed the results doc.
+- AI contribution: review, tests, the `formatSgtDateTime` fix, mutation checks (M14 to M21), documentation.
+- Assumptions: the backend reactivates the same registration row on re-register (same id), per the backend 06-A derived test. An earlier claim of mine that re-registering issues a new id was wrong; the event + attendee lookup in `RegistrationSection` is harmless but not required (mutant M15 survives by design).
+- Checks run: frontend 413 passed, 1 todo; `tsc` clean; lint has the 2 pre-existing errors only; build ok; date tests pass under TZ=UTC, Asia/Singapore, America/Los_Angeles; Playwright SPM-120 spec 1/1 on a throwaway `spm_test` database (servers on :8081/:5174), database dropped afterwards and the Compose database checked untouched. Backend not re-run (no backend code changed).
+- Follow-up/conflict notes: not changed in this pass: `for` loops and two ternaries inside backend tests, the combined check-order case, and roles other than organiser. New CARD tests were written after the implementation (not RED-first). Changes are staged/unstaged locally; nothing committed or pushed.
+
+## 2026-10-05 - Claude (Opus 5.5 for Phase 0, Sonnet 5.5 for implementation) - Implement SPM-120 Withdraw Registration (attendee)
+
+- Issue/PR: SPM-120 (branch `feature/SPM-120-Withdraw-Registration`, reused; no PR yet). Jira status was In Progress.
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations`, `backend/scripts/testing/run-browser.mjs`, `database/postgresql/init` (007), `frontend/src/components/EventDetail`, `frontend/src/pages`, `frontend/src/store`, `frontend/src/utils`, `frontend/src/types`, `frontend/package.json`, `docs/specs`, scoped AGENTS/CHANGELOG/HANDOVER files, `AI_USAGE.md`.
+- Summary: Added `POST /api/registrations/:registrationId/withdraw` (ownership-scoped 404, 422 at or after the event start, one compare-and-set UPDATE, `withdrawn_at` from the injected clock stored as UTC), a nullable `withdrawn_at` column, `/me` returning the latest registration of any status, the Withdraw button, accessible confirmation dialog, success banner, Withdrawn status line and capacity refetch in the registration card, and a narrow 401 sign-out for the withdraw call. The waiting-list AC was later removed from the story, so nothing waiting-list related is built or tested.
+- AI contribution: Jira and Confluence reading (23 test cases), reconnaissance, test-first backend and component work, mutation spot-check (M1 to M13), a Playwright spec, documentation.
+- Assumptions: the Guide and the two spec files were absent, so Confluence supplied the cases and `AGENTS.md` plus the task prompt supplied the conventions; event start is an exclusive cut-off [A7, pending PO confirmation]; backdrop clicks are ignored; error code names are assumed; Confluence "Confirmed" means the repo's "Registered". Full list in `docs/specs/SPM-120-test-results.md`.
+- Checks run: backend unit 582 passed (baseline 579); registrations e2e on local PostgreSQL 55 passed, 2 todo (baseline 30); 06-C under TZ=UTC, Asia/Singapore, America/Los_Angeles 2/2 each; frontend 375 passed, 1 todo (baseline 341); tsc clean; frontend lint has the 2 pre-existing errors only; backend lint and both builds ok; Playwright SPM-120 spec 1/1 on a dedicated `spm_test` database with servers on spare ports (not on the Compose containers, which run older code). Mutation spot-check: 13/13 killed after strengthening 06-B (M3 survived the first run).
+- Follow-up/conflict notes: new dev dependency `vitest-axe`; two existing-test changes are not both permitted by the brief (only the `registrations.e2e-spec.ts:301` edit was needed). Page-level frontend tests and the Playwright spec were written after the implementation. The `withdrawRegistration` store stub is now dead code. Existing local databases need `007_spm120_withdraw_registration.sql` applied (done on the local `spm` and `spm_test` databases). The Confluence wording amendments still need a human to apply (drafted in the results doc). Changes are local and uncommitted; nothing was pushed and no Jira status was changed.
+
+## 2026-10-06 - Codex - Match SPM-117 test pages to the SPM-61 format
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04` and `AI_USAGE.md`.
+- Summary: Rebuilt all 18 SPM-117 cases using the SPM-61 two-table structure. Every case now has a definition table with scenario, pre-conditions, steps, data, expected result, remarks, creator, and creation date, followed by an execution table with descriptive actual result, PASS/FAIL, automation remarks, executor, and execution date.
+- AI contribution: Reference-format comparison, Confluence restructuring, and consistency verification.
+- Assumptions: The latest verified runs remain authoritative: frontend 60/60, backend service 30/30, and equipment HTTP/PostgreSQL 8/8 passed on 06 Oct 2026.
+- Checks run: Read back all four published pages; confirmed 18 definition tables, 18 execution tables, and one complete set of required fields per case.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Rerun SPM-117 test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01` through `EQUIP-VIEW-04`, SPM-117 matrix, and `AI_USAGE.md`.
+- Summary: Reran the frontend, backend service, and equipment HTTP/PostgreSQL suites cited by the SPM-117 cases. All documented outcomes remain PASS; added the fresh run commands and counts to each live case page and the matrix.
+- AI contribution: Test execution, evidence comparison, and Confluence results update.
+- Assumptions: The running local PostgreSQL Compose service is the intended database for the equipment e2e suite; the test cleans up its created records and users.
+- Checks run: Frontend 4/4 files and 60/60 tests passed; backend equipment service 1/1 file and 30/30 tests passed; equipment e2e 1/1 file and 8/8 tests passed. Read back all five Confluence documents and confirmed the rerun evidence and case result rows.
+- Follow-up/conflict notes: No code changes, commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Describe SPM-117 test outcomes
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence `EQUIP-VIEW-01`, `EQUIP-VIEW-03`, `EQUIP-VIEW-04`, and `AI_USAGE.md`.
+- Summary: Replaced generic Actual Result text with the observed UI, navigation, service, and HTTP outcomes for all affected cases. Corrected the AC3 location-only case to document its actual Visual Suite fixture and search term.
+- AI contribution: Test evidence review and Confluence documentation updates.
+- Assumptions: Existing PASS results and run dates remain authoritative; no tests were rerun for this wording change.
+- Checks run: Compared case wording to test assertions; read back all four SPM-117 pages and confirmed every Actual Result row describes an observed outcome.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Complete SPM-117 AC1 test-case documentation
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21495817) and `AI_USAGE.md`.
+- Summary: Reworked all six AC1 cases into the standard two-table layout: case definition (scenario, pre-conditions, steps, data, expected result) followed by execution evidence (actual result and PASS/FAIL).
+- AI contribution: Confluence test-case documentation and read-back verification.
+- Assumptions: Existing scenarios and PASS results remain authoritative; no code or test behaviour changed.
+- Checks run: Read back the published page and confirmed six each of Test Scenario, Pre-conditions, Test Steps, Test Data, Expected Result, and Actual Result.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Normalize SPM-117 test traceability IDs
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: SPM-117 Confluence matrix and EQUIP-VIEW-01 through EQUIP-VIEW-04 pages; frontend and backend equipment test traceability labels; `AI_USAGE.md`.
+- Summary: Renamed test IDs so the suite number matches its acceptance criterion: AC1 → EQUIP-VIEW-01, AC2 → EQUIP-VIEW-02, AC3 → EQUIP-VIEW-03, and AC4 → EQUIP-VIEW-04. Rebuilt the matrix links to point to the matching live page and included every current case.
+- AI contribution: Traceability refactor, Confluence cross-link repair, and unit-test verification.
+- Assumptions: This is identifier-only work; test behaviour, acceptance criteria, and existing PASS evidence are unchanged.
+- Checks run: Frontend affected suites — 4 files, 60/60 passed. Backend equipment service suite — 1 file, 30/30 passed. Read back every live Confluence page and matrix row to confirm the AC-aligned IDs.
+- Follow-up/conflict notes: The backend e2e case was renamed but not re-executed because only its test label changed. No commit, push, pull request, or Jira status transition was made.
+
+## 2026-10-06 - Codex - Reformat SPM-117 search test evidence
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: Confluence live document `EQUIP-VIEW-01` (page ID 21037164) and `AI_USAGE.md`.
+- Summary: Reorganized all eight AC3 search cases so each has a case-definition table containing the scenario, pre-conditions, test steps, test data, and expected result, followed by a separate execution-results table containing the actual result and PASS/FAIL outcome.
+- AI contribution: Confluence test-document restructuring and read-back verification.
+- Assumptions: Existing test scenarios and PASS evidence remain authoritative and were preserved; this change is documentation structure only.
+- Checks run: Read back the live document and confirmed eight Pre-conditions, eight Test Steps, and eight Actual Result rows.
+- Follow-up/conflict notes: The live document's Confluence page title remains `EQUIP-VIEW-03` despite its EQUIP-VIEW-01 body and URL history; title correction was not requested and is intentionally left untouched.
+
+## 2026-10-06 - Claude Sonnet 5 - Align SPM-117 suite with the test-development-learnings guide
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/App.test.tsx`, `frontend/src/components/auth/RouteAccess.test.tsx`, `frontend/src/components/layout/navConfig.test.ts`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `backend/src/equipment/equipment.service.spec.ts`, `backend/src/equipment/equipment.e2e-spec.ts`.
+- Summary: Evaluated the SPM-117 suite against `test-development-learnings.md` (shared by the requester; not previously in this repo). Fixed one real survivor the review's own mutation run found: `App.test.tsx`'s AC1 coverage only checked Technical Support (allowed) and Attendee (blocked) against the real route tree, so a mutation adding "coordinator" to the allowed-roles list passed CI. Extended to an `it.each` over all four non-Technical-Support roles (attendee, coordinator, organiser, venue_staff); mutation-verified it now catches that exact regression. Discovered and documented, but did not fix, a separate pre-existing App.tsx bug found while adding venue_staff: RequireRole's blocked-access fallback always redirects to `/events`, which venue_staff cannot reach either, landing on a blank page — out of scope for SPM-117. Adopted one consistent traceability ID scheme (EQUIP-VIEW-<NN>-<letter>) across every SPM-117 test, replacing the ad hoc "SPM-117 AC# ..." titles from the two prior commits; added a traceability map and an indexed assumption list (AND-vs-OR confirmed by the requester directly, not an open question) to the page test's file header; split the flat `describe` into one block per AC, with SPM-111's four pre-existing tests kept in their own clearly-labelled block rather than silently merged; added a `makeRecord()` factory to replace ~14 near-identical record literals; merged the two near-duplicate no-match tests and the two near-duplicate whitespace-trim tests into `it.each` pairs under single IDs (EQUIP-VIEW-01-C, EQUIP-VIEW-01-E); added a one-line `Kills:` comment to every SPM-117-authored test naming the mutant it catches. Did not retrofit `Kills:` lines or IDs onto the pre-existing SPM-111 tests in the same file - that is a larger, separately-scoped cleanup.
+- AI contribution: Verified two specific claims in my own draft comments before keeping them (that `Sidebar.test.tsx` already covered the nav-link render path - it does not, comment corrected; that `Sidebar.tsx` maps nav items generically with no tech_support branching - confirmed true by reading the component); empirically verified the venue_staff redirect behavior with a throwaway probe test before asserting it either way; implementation and mutation verification for the one real fix.
+- Assumptions: The reviewer's "§5B/§5C/§5E/§5F/§7" section references map to this guide's sections on traceability (2.3, 7), assumption tagging (2.2), anti-patterns/table-driven tests (5), and enumerated values (3) - the guide itself is informal prose without lettered subsections, and a companion "test-code-generation-prompt.md" mentioned in its header (which may hold the literal lettered scheme) was not supplied.
+- Checks run: Mutation-verified the coordinator-access fix (added "coordinator" to App.tsx's allowed roles in place, confirmed the new it.each fails, reverted, confirmed zero diff). `App.test.tsx` - 11/11 passed; `RouteAccess.test.tsx` + `navConfig.test.ts` - 32/32 passed; `EquipmentAvailabilityPage.test.tsx` - 14/14 passed (13 unique IDs, 2 parametrized); full frontend `npm test` - 38 files, 440 passed + 1 pre-existing todo; frontend build passed. `equipment.service.spec.ts` - 30/30 passed; full backend `npm test` - 30 files, 675/675 passed; `equipment.e2e-spec.ts` against local PostgreSQL - 8/8 passed.
+- Follow-up/conflict notes: Confluence (Matrix + EQUIP-VIEW-01/02 Live Docs) does not yet reflect the renamed/new IDs in this commit (EQUIP-VIEW-01-E/F, EQUIP-VIEW-02-B/C, and the new EQUIP-VIEW-04 AC1 bucket) - planned as an immediate follow-up, not done here to keep this commit's verified code change self-contained. Guide items explicitly left undone: no automated/scripted mutation harness was built (mutations were applied and reverted by hand per fix, as in the two prior commits); `Kills:` lines and IDs were not retrofitted onto the four pre-existing SPM-111 tests. Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Claude Sonnet 5 - Close SPM-117 mutation-tested survivors
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/App.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `backend/src/equipment/equipment.service.spec.ts`.
+- Summary: A follow-up mutation-testing pass on the previous review-fix commit found three concrete survivors. (1) `RouteAccess.test.tsx`'s positive AC1 test builds its own isolated route table, so a regression in App.tsx's real route guard would pass CI; two App.tsx mutations (letting attendees into tech_support routes, blocking tech_support entirely) both stayed green. Added two tests in `App.test.tsx` rendering the real `<App/>` at `/equipment/availability`, following the file's existing pattern for other roles/pages. (2) The new backend `list()` status test mocks `database.query`, so it cannot catch a SQL-level filter bug (confirmed: adding `WHERE maintenance_status = 'Active'` to the real query left all 30 unit tests green); reworded its comment to stop claiming it guards against that, and point to the e2e test which actually does. (3) The location search box had no whitespace-trim test (only the type box did); added the symmetric case.
+- AI contribution: Verified each claim by reproducing the reviewer's mutations directly (edited App.tsx and EquipmentAvailabilityPage.tsx in place, confirmed the new tests fail, reverted, confirmed zero diff) before treating any fix as done; implementation.
+- Assumptions: The review's other findings (test-ID scheme inconsistency between `EQUIP-VIEW-01-A` and `SPM-117 AC3 ...` naming, fixture duplication across the page test, and the nav-link test only checking `navConfig` rather than rendering `Sidebar`) are explicitly marked optional/low-risk by the review's own compliance table; not addressed here, left as a follow-up decision.
+- Checks run: Mutation-verified each fix individually (test fails with the bug present, passes once fixed, zero net diff on production files after revert). `App.test.tsx` + `EquipmentAvailabilityPage.test.tsx` — 21/21 passed; `equipment.service.spec.ts` — 30/30 passed; full frontend `npm test` — 38 files, 436 passed + 1 pre-existing todo; frontend build passed; full backend `npm test` — 30 files, 675/675 passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Claude Sonnet 5 - Address SPM-117 review findings on test coverage
+
+- Issue/PR: SPM-117 / PR #44.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment/equipment.service.spec.ts`, `backend/src/equipment/equipment.e2e-spec.ts`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/components/auth/RouteAccess.test.tsx`, `frontend/src/components/layout/navConfig.test.ts`.
+- Summary: Addressed a review of the SPM-117 branch. Fixed `EQUIP-VIEW-02-A`, which was partly vacuous (record names "Active projector"/"Retired lighting rig" let `toHaveTextContent` pass from the name text alone) by renaming to neutral names. Closed the review's highest-risk gap — nothing proved the backend `list()` query returns non-Active records, since every unit and e2e fixture only ever used `Active`, and the frontend tests mock the API — by adding a service test and a real-HTTP/PostgreSQL e2e test asserting all three statuses come back. Added an e2e test for `GET /api/equipment` 401/403 (only `POST` had HTTP-level auth coverage). Closed three named frontend search gaps: whitespace-padded search terms, a location-only no-match message, and clearing a filter restoring all rows. Added a positive `tech_support` route-access test for `/equipment/availability` (only negative/blocking cases existed) and a nav-link test, giving AC1 its own traceable coverage. No production code changed — all findings were test-coverage gaps, not implementation bugs.
+- AI contribution: Verified each review claim against the actual code before fixing (confirmed `list()` has no status filter today — the gap is coverage, not a live bug); implementation, verification.
+- Assumptions: The review findings are from an external code-review pass on the branch (not GitHub PR comments — none were found via `gh pr view`). Did not restructure `RouteAccess.test.tsx` to import the real `App.tsx` route tree (the review's "ideally" suggestion) — that file is shared across many stories and a full refactor was judged out of scope for this fix; the new test reuses the file's existing isolated route-table helper.
+- Checks run: `equipment.service.spec.ts` — 30/30 passed; `equipment.e2e-spec.ts` against local PostgreSQL (`npm run test:e2e`) — 8/8 passed, including the two new cases; full backend `npm test` — 30 files, 675/675 passed; backend build passed. `EquipmentAvailabilityPage.test.tsx` — 13/13 passed; `RouteAccess.test.tsx` + `navConfig.test.ts` — 32/32 passed; full frontend `npm test` — 38 files, 433 passed + 1 pre-existing todo; frontend build passed.
+- Follow-up/conflict notes: Full backend e2e suite has 11 pre-existing failures in `coordinator-availability.e2e-spec.ts` (SPM-80) and `venues.e2e-spec.ts` (SPM-50), unrelated to this change — neither file was touched, and the equipment e2e file is fully green. Likely the local Postgres container is missing migrations 007/008; not fixed here as out of scope. Changes are local and uncommitted pending human approval.
+
+## 2026-10-06 - Codex - Split SPM-117 equipment search controls
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, and `AI_USAGE.md`.
+- Summary: Replaced the combined equipment type/location search with dedicated type and location search boxes. Each supports trimmed, case-insensitive exact or substring matching; when both are populated, records must match both filters. Added explicit unit coverage for each box, the no-match state, and AND combination behavior.
+- AI contribution: React implementation review, test alignment, verification, and documentation. The refined unit-test cases were prepared before this implementation pass and preserved.
+- Assumptions: An empty search box imposes no constraint; two populated boxes combine with AND, as confirmed in the refined test design and Confluence matrix.
+- Checks run: Latest focused run `npm test -- --run src/pages/EquipmentAvailabilityPage.test.tsx --reporter=verbose` — 17/17 passed, including EQUIP-VIEW-01-A through 01-H, EQUIP-VIEW-02-A, and EQUIP-VIEW-03-A. Earlier full frontend verification passed (29 files, 347 passed + 1 pre-existing todo), and the frontend build passed.
+- Follow-up/conflict notes: Confluence EQUIP-VIEW-01/02/03 results and the Matrix were refreshed to the 17/17 run. The live EQUIP-VIEW-01 replacement page (ID 21037164) now contains cases 01-A through 01-H; the original page remains in trash. Changes are local and uncommitted pending human approval.
+
+## 2026-10-05 - Claude (Opus 5.5) - SPM-80 coordinator updates availability
+
+- Issue/PR: SPM-80 (Jira status at start: To Do; no existing branch/PR) / branch `feature/SPM-80-Coordinator-Updates-Availability` from `dev` (4b8139d) / PR https://github.com/IS212-G5-T2/IS212-G5-T2/pull/43 into `dev`.
+- Human requester/operator: Ei Chaw Zin (chaw678).
+- Areas touched: `backend/src/coordinators`, `backend/src/app.module.ts`, `database/postgresql/init` (001, new 007), `frontend/src/pages/SettingsPage*`, `frontend/src/components/domain/CoordinatorAvailability.tsx`, `frontend/src/utils/availability-api*`, backend AGENTS/HANDOVER/CHANGELOG, frontend and database CHANGELOG.
+- Summary: Coordinators (including multi-role accounts) get an Availability section on Settings that reads and saves `GET`/`PUT /api/coordinators/me/availability`, backed by `users.is_available` (default true). Saving only updates the caller's own `users` row, never `events`, so current assignments are unchanged (AC2). Built test-first: Confluence cases, then failing tests (backend 19/19 red against a stub; frontend 12/13 red, with COOR-AVAIL-01-C passing by design), then the implementation.
+- AI contribution: test case design, Confluence documentation, tests, implementation, docs.
+- Assumptions: With the requester's agreement, AC5 ("cannot be selected by the Event Coordinator Lead") was removed from SPM-80 in Jira because it duplicates SPM-123 AC5; recorded in Standup 12 (5 Oct). No Lead notification on unavailability (requester chose to leave Lead visibility to SPM-123 AC3). `/me` route chosen by the requester over `/{id}`. Message wording proposed by the AI and accepted with the test cases.
+- Checks run: backend `scripts/ci/unit-test.sh` 600/600, oxlint and `tsc --noEmit` clean (apart from errors already on `dev` in e2e specs and `vitest.spm37.config.ts`); frontend `scripts/ci/unit-test.sh` 356 passed + 1 todo, `tsc -b` and eslint clean on changed files. Coverage: service 100%; controller and API client covered after adding COOR-AVAIL-02-D/E and 03-H/I; the component's unmount-during-load guard is the only uncovered branch. Live: applied 007 to the local volume (column already present from earlier SPM-123 work, so skipped), rebuilt the backend, and confirmed GET/PUT as coordinator2, 400 for invalid bodies, 403 for organiser1, 401 without a session, and that coordinator2 kept all 5 assigned events while unavailable; reset to available afterwards.
+- Follow-up/conflict notes: Confluence: SPM-14 Coordinator Assignment > SPM-80 folder with matrix and COOR-AVAIL-01..04 (27 cases, all Pass). Nothing reads `is_available` yet; SPM-123 (Lead assignment) and SPM-47 (reassignment) must enforce it. Found out of scope: `DEMO_ORGANISER_ENABLED` still disables ownership checks in `src/clarifications` and defaults to true in `docker-compose/.env.example`; `requireOrganiserOrAssignedCoordinator` also lets any coordinator act on unassigned events. Needs its own ticket.
+- 2026-10-06 second review follow-up (Claude Opus 5.5, chaw678): Kishore's re-check flagged that ProfileMenu's stale-load guard was untested; added COOR-AVAIL-03-Q (open with a slow load, close, reopen with a fast load, then let the slow one finish last; the newer status must stay), checked by removing the guard (the test fails). Tightened COOR-AVAIL-03-N to fail the load explicitly and assert only after it settles, since the email also shows while loading. Not changed, with reasons: CoordinatorAvailability's guard can't be observed (its load reruns only on Retry, which appears after the previous load already failed); 03-J/K deliberately assert the colour classes because jsdom has no computed colour; the re-check's two "still stands" points (02-B vacuous loop, no real-DB proof of AC2) were already fixed in 83e5ae4. Confluence COOR-AVAIL-03 and matrix updated (38 cases). Checks: frontend 369 passed + 1 todo, tsc and eslint clean.
+- 2026-10-06 review follow-up (Claude Opus 5.5, chaw678), from Kishore's review of PR #43: (1) COOR-AVAIL-02-B looped over SQL statements and would pass if the service ran no query; it now asserts exactly one `UPDATE users` first (checked by removing the query: it fails). (2) Added `backend/src/coordinators/coordinator-availability.e2e-spec.ts` (COOR-AVAIL-01-SEC-3, 02-F, 02-SEC-2, 03-O, 03-P) through the real app, session login and PostgreSQL, proving AC2 at database level; checked 02-F by making the service unassign events (it fails). The earlier deferral no longer applied because login (SPM-30) has landed and CI already runs a Backend E2E job. Two review points did not apply: every matrix case already had a test, and 03-I already asserts the exact URL. Confluence pages and matrix updated (37 cases). Checks: backend unit 600/600, oxlint clean, no new tsc errors (the copied cookie helper was typed properly instead of repeating SPM-111's tsc error); e2e: new file 5/5 and full suite 86 passed against a fresh database built from the init scripts.
+- 2026-10-05 profile menu follow-up (Claude Opus 5.5, chaw678): at the requester's direction, added a top-right avatar with initials (`ProfileMenu.tsx`) whose menu shows the name, Settings and the light/dark switch; coordinators see a green Available / grey Unavailable label in place of their email, loaded each time the menu opens. Log out moved to the bottom of the sidebar; Settings and the theme switch left the sidebar; the "Signed in as" text was removed. Built test-first (13 new tests red, then green). Tests documented as SPM-80 COOR-AVAIL-01-D (rewritten for the profile menu) and 03-J to 03-N, and, per the requester, as SPM-30 USER-LOGIN-01-F and 02-E/F/G, appended to the USER-LOGIN pages and matrix without changing existing cases. The old untagged TopNav test was replaced by 02-E/F. Noted: `auth.test.ts` already tags USER-LOGIN-01-E (logout), which has no Confluence case; left for the SPM-30 owners. Checks: frontend 367 passed + 1 todo, `tsc -b` and eslint clean. The Playwright approval spec still finds the "Log out" button by name; it was not run.
+- 2026-10-06 dependency scan fix (Claude Opus 5.5, chaw678): the Dependency Vulnerability Scans on PR #43 started failing on advisories published 2026-10-06 that are unrelated to this PR's code (proxy-addr GHSA-jqcg-44mw-7w3h, critical, backend; source-map-js GHSA-68fv-2mgg-jv7q, high, backend and frontend). At the requester's direction, fixed here instead of on a separate chore branch: `npm audit fix` changed only the lockfiles (proxy-addr 2.0.7 -> 2.0.8, source-map-js 1.2.1 -> 1.2.2). Checks: `npm audit --audit-level=high` clean in both; backend 674 and frontend 422 (+1 todo) unit tests pass; both builds pass.
+
+## 2026-10-05 - Codex (GPT-6) - Link SPM-50 venues to their creator
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/`, `backend/migrations/008_venue_owner_user_id.sql`, `database/postgresql/init/001_schema.sql`, backend/database documentation, and `AI_USAGE.md`
+- Summary: Added `venues.owner_user_id` as a UUID foreign key to the local `users` table. Venue creation stores the verified session user ID in the same transaction as the venue and its relationships. The request and response do not accept or expose an owner field. Fresh schemas require an owner; migration 008 preserves historical rows with unknown owners and enforces ownership for future writes.
+- AI contribution: Cross-boundary ownership implementation, legacy-safe migration, service/repository and HTTP/PostgreSQL test updates, and documentation.
+- Assumptions: Existing venues without a trustworthy creator remain unassigned; a later retrieval story will filter by verified owner ID. SPM-50 itself remains creation-only.
+- Checks run: Backend venue unit tests, full backend coverage suite, build, and lint passed. Database E2E cases cover two staff identities, spoofed owner fields, foreign key and required-owner constraints, migration idempotence, and legacy preservation; database execution was not available locally because `DATABASE_URL` was unset and Docker was inaccessible.
+- Follow-up/conflict notes: Jira SPM-50 was In Review with PR #40 open; this is the requester's change to that existing review. Do not attribute legacy venues to the seeded staff account without evidence.
+
+## 2026-10-05 - Codex (GPT-5) - Normalize venue operating-time API output
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/venues/venues.repository.ts`, `backend/src/venues/venues.repository.spec.ts`, and `AI_USAGE.md`
+- Summary: Fixed the remaining CI E2E assertion by normalizing PostgreSQL `time` output from `HH:MM:SS` to the SPM-50 API contract's `HH:MM` format.
+- AI contribution: GitHub Actions log diagnosis, persistence-to-API normalization repair, and regression test.
+- Assumptions: Venue operating times are minute-granular throughout the frontend/API contract; PostgreSQL's seconds are a storage serialization detail, not part of the response contract.
+- Checks run: Focused venue repository/service tests — 12 passed; backend build passed; diff whitespace check passed.
+- Follow-up/conflict notes: The prior Actions transform error is resolved. This change addresses the one remaining venue E2E assertion shown in the post-fix CI run.
+
+## 2026-10-05 - Codex (GPT-5) - Repair venue module duplicate imports
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `backend/src/app.module.ts` and `AI_USAGE.md`
+- Summary: Removed the duplicated `VenuesController` and `VenuesModule` imports that prevented Vitest from transforming the Nest application and caused every E2E suite to fail before execution.
+- AI contribution: CI failure diagnosis and minimal compile repair.
+- Assumptions: One import of each venue symbol is sufficient; existing module imports, route middleware, and controller wiring remain unchanged.
+- Checks run: Backend build passed. Full E2E transform proceeded past the duplicate-import error; execution in the Codex sandbox is blocked from listening on HTTP ports and reaching local PostgreSQL.
+- Follow-up/conflict notes: This is a direct follow-up to the already-authorized SPM-50 commit/push. CI should rerun in its database-enabled environment after push.
+
+## 2026-10-05 - Codex (GPT-5) - Strengthen SPM-50 mutation-sensitive coverage
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, `frontend/src/store/`, `backend/src/venues/`, `backend/migrations/`, and `AI_USAGE.md`
+- Summary: Reviewed the SPM-50 branch history and added business-rule, malformed-input, Base64-padding boundary, API-failure isolation, and selected/empty accessibility relationship coverage. Removed obsolete unreachable duration branches from the form. Made migration 006 safe for both legacy databases with `operating_hours` and fresh schemas without it, and extended the venue E2E suite to verify selected and empty accessibility sets through HTTP and PostgreSQL.
+- AI contribution: Branch-history test-gap analysis, unit/integration test implementation, migration compatibility repair, and coverage verification.
+- Assumptions: An omitted or empty accessibility list is valid and persists no `venue_accessibility` rows. Database-backed E2E requires a caller-provided `DATABASE_URL`.
+- Checks run: Focused frontend venue/store tests — 39 passed; frontend TypeScript compilation passed. Focused backend validator/repository tests — 64 passed; backend build passed. Full frontend coverage — 376 passed, 1 todo; full backend coverage — 628 passed. Venue E2E discovered 3 tests but skipped because this process has no `DATABASE_URL`.
+- Follow-up/conflict notes: SPM-50 form and backend venue units reach 100% coverage across statements, branches, functions, and lines in full coverage reports. Repository-wide totals remain below 100% because unrelated legacy modules are included. Preserved the unrelated pre-existing `backend/src/app.module.ts` edit. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Make SPM-50 accessibility selections optional
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `backend/src/venues/`, `backend/README.md`, and `AI_USAGE.md`
+- Summary: Removed the requirement to select an accessibility feature. The form labels accessibility as optional and permits progression without a selection; the API accepts omitted or empty selections as an empty relationship set while still rejecting malformed or unsupported supplied values.
+- AI contribution: Client/server business-rule alignment, regression tests, and API documentation update.
+- Assumptions: A venue without selected accessibility features has no rows in `venue_accessibility`; facilities and room layouts remain required.
+- Checks run: Focused frontend `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation passed; backend `venue-input` suite — 55 passed; backend build passed.
+- Follow-up/conflict notes: Preserved unrelated pre-existing edits in `backend/src/app.module.ts` and SPM-50 frontend files. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-05 - Codex (GPT-5) - Clarify SPM-50 venue duration fields
+
+- Issue/PR: SPM-50 / PR #40
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, shared frontend form controls, and `AI_USAGE.md`
+- Summary: Placed required setup and turnaround duration inputs side by side on wider screens while retaining a single-column narrow-screen layout. Added a visible information icon beside each label with hover text and an accessible description explaining the before-event setup and post-event turnaround periods.
+- AI contribution: Focused responsive form layout and accessible label-accessory implementation, with component-test coverage.
+- Assumptions: Setup time is the preparation period before an event; turnaround time is the period after an event before the venue can be used again.
+- Checks run: Focused `VenueCreatePage` suite — 32 passed; frontend TypeScript compilation (`npx tsc --noEmit`) passed.
+- Follow-up/conflict notes: Preserved an unrelated pre-existing edit in `backend/src/app.module.ts`. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, frontend venue types/displays/tests, `backend/src/venues/`, `backend/migrations/`, database initializer, and component documentation
+- Summary: Corrected the revised AC2 so operating information remains a multiline field while operating hours are a structured schedule: selected operating days plus required start and end times. The time controls share a responsive two-column row on desktop and stack on narrow screens. All fields are validated, persisted, returned by the API, and retained in the existing catalogue displays.
+- AI contribution: Jira/Confluence requirement review, frontend/API/database contract update, backward-compatible migration, mutation-sensitive happy/negative/boundary/cross-dependency test updates, and documentation.
+- Assumptions: One daily start/end range applies to every selected operating day; overnight schedules are not supported because end time must follow start time. Migration 006 backfills legacy operating information from the former text schedule, and migration 007 supplies weekday/all-day defaults only for pre-existing development records.
+- Checks run: Full frontend suite — 375 passed, 1 todo; full backend suite — 620 passed. Focused schedule tests cover selected-day, malformed-time, duplicate-day, equal-time, inverted-time, and minute-boundary cases; backend validation is 100% statements/functions/lines in its focused coverage run. Backend build and frontend TypeScript compilation passed. Frontend focused coverage execution is blocked by an existing global `RequireRole` coverage threshold; Vite bundling remains blocked locally because `@tailwindcss/postcss` is missing from the installed dependencies.
+- Follow-up/conflict notes: Existing staged work was preserved. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Implement SPM-50 AC7 venue redirect
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `frontend/src/pages/VenuesPage.tsx`, frontend documentation, and `AI_USAGE.md`
+- Summary: Implemented the newly added AC7: after a successful venue POST, Venue Staff are redirected to the existing venue catalogue and receive the server confirmation there. Failed validation or persistence leaves the user in the creation form with its error state. The redirect does not restore the removed catalogue GET/refresh behavior.
+- AI contribution: Jira/Confluence source-of-truth review, redirect and confirmation implementation, AC7-positive/negative test coverage, and documentation update.
+- Assumptions: AC7 requires the catalogue destination, not a catalogue API reload or display of the new record. Router navigation state is sufficient for carrying the confirmation across the redirect.
+- Checks run: Focused `VenueCreatePage` suite — 28 passed; full frontend suite — 344 passed, 1 todo. Frontend build was attempted; the SPM-50 code compiles, but the command remains blocked by two unrelated pre-existing implicit-`this` TypeScript errors in `EventEditForm.test.tsx`.
+- Follow-up/conflict notes: Jira is read-only and unchanged by this work. No commit, push, or pull request was created.
+
+## 2026-10-04 - Codex (GPT-6.1) - Cover SPM-50 shared uploads and venue displays
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/utils/`, venue display components/pages, event edit form, and navigation tests
+- Summary: Added unit tests for shared FileReader success/failure behavior, event edit upload integration, optional venue images, setup/turnaround displays, and Venue Staff creation navigation.
+- AI contribution: Test analysis and implementation.
+- Assumptions: Existing staged tests already cover SPM-50 form rules, route access, API confirmation, validation, authorization, and persistence; this addition targets changed behavior that lacked direct assertions.
+- Checks run: Frontend full unit suite with coverage — 344 passed, 1 todo; 80.45% total line coverage. VenueCreatePage reached 100% lines and 98.83% branches. `git diff --cached --check` passed.
+- Follow-up/conflict notes: Frontend total coverage remains below 100% because this run includes the whole application, including unrelated components; no commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Remove SPM-50 catalogue coupling
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/src/venues/`, supporting tests and documentation, and `AI_USAGE.md`
+- Summary: Removed the SPM-50 `GET /api/venues` endpoint, backend/repository catalogue reads, frontend catalogue refresh, saved-venue store insertion, and creation-page catalogue links. Kept the pre-existing venue catalogue intact and exposed creation directly through the Venue Staff navigation. Changed Operating information from a single-line input to the shared multiline text control.
+- AI contribution: Scope correction, cross-boundary API/store/UI/test cleanup, documentation update, and verification.
+- Assumptions: The existing catalogue belongs to separate venue-planning functionality. SPM-50 owns creation and persistence only; it confirms a successful POST without requiring a retrieval or display workflow.
+- Checks run: Focused frontend tests — 32 passed, then 26 passed after the textarea update; focused backend venue tests — 12 passed; full frontend suite — 327 passed, 1 todo; full backend suite — 551 passed; frontend build, backend lint, backend build, and `git diff --check` passed. Frontend lint remains blocked by two unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: PostgreSQL E2E was not run because `DATABASE_URL` is unavailable. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-6.1) - Correct SPM-50 persistence test scope
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-05-B`, Confluence `VEN-CRE-05-C`, and `AI_USAGE.md`
+- Summary: Replaced the retrieval/display-dependent VEN-CRE-05-B scenario with direct PostgreSQL persistence verification by generated UUID, and replaced VEN-CRE-05-C with an atomic rollback scenario for failed venue creation. Both revised cases are marked Not Executed pending their new automation evidence.
+- AI contribution: Creation-only scope correction, targeted rich-content Confluence edits, and saved-page verification.
+- Assumptions: SPM-50 AC5 requires creation and persistence but does not require a GET endpoint, catalogue, search, or venue display. Direct database queries are test-only verification and not product functionality.
+- Checks run: Confluence dry-run validation passed; post-update Markdown read-back confirmed both new scenarios and statuses, removal of the old retrieval/catalogue wording from VEN-CRE-05-B/C, and preservation of VEN-CRE-05-A.
+- Follow-up/conflict notes: No Jira, source code, commit, push, or pull request change was made during this documentation correction.
+
+## 2026-10-04 - Codex (GPT-6.1) - Normalize SPM-50 venue options and add image step
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/catalogue/types/tests, shared frontend uploads, backend venue validation/repository/tests/migration, database initializer/seeds/docs, and `AI_USAGE.md`
+- Summary: Reworked venue creation into two pages: venue details with exactly one scalar location and the existing accessibility pills, followed by controlled facility and room-layout selections plus one optional image. Extracted the event form's FileReader/data-URL behavior into a shared upload helper. Normalized facilities and layouts into lookup/junction tables, added one-to-one venue image persistence, retained PostgreSQL-generated venue UUIDs, and rendered saved images in catalogue/detail views. Rechecked the supplied Week 4 project requirements and removed wording that implied a venue could contain child locations. Added a case-insensitive, trimmed unique index for `(name, location)` and a field-level `409` response so UUID identity does not permit duplicate venue records.
+- AI contribution: Cross-boundary schema/API/UI design, legacy-array migration, shared upload refactor, implementation, validation, unit/component/integration test updates, and documentation.
+- Assumptions: The project requirement's singular `location` is one attribute of a venue, not a child collection or separate location entity. UUID is the stable technical identity; trimmed, case-insensitive name plus location is the business uniqueness key. Facilities and layouts are controlled shared options; each new venue requires at least one of each. Images are optional, image MIME only, limited to 5 MB, and use the repository's existing data-URL upload convention. Accessibility behavior remains unchanged.
+- Checks run: Backend full unit suite — 557 passed; focused venue validation/service/repository suites — 55 passed; backend lint and build passed; frontend full unit suite — 330 passed and 1 todo; focused venue page suite — 27 passed; affected frontend ESLint and production build passed; `git diff --check` passed. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The unrelated `backend/src/registrations/registration-window.ts` repair was preserved without modification. No commit, push, pull request, Confluence update, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Generate SPM-50 venue UUIDs
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/store/types/tests, backend validation/service/repository/tests/migration, shared database schema/docs, Confluence `VEN-CRE-02` through `VEN-CRE-05`, and `AI_USAGE.md`
+- Summary: Removed the staff-entered venue identifier from the creation form and API contract. PostgreSQL now generates `venues.id` with `gen_random_uuid()`, the repository uses the returned UUID for accessibility links, and saved API/catalogue records retain the UUID. The migration converts any earlier local text IDs deterministically while preserving their accessibility relationships. Updated Confluence fixtures so identifiers are documented as system-generated outputs rather than user inputs.
+- AI contribution: Source-of-truth review, UUID contract refactor across frontend/backend/database, migration compatibility logic, automated-test updates, documentation updates, and Confluence read-modify-write verification.
+- Assumptions: Jira does not define an identifier field or generation strategy; the requester explicitly selected UUID generation. PostgreSQL is the identifier authority, and clients cannot supply or override a venue ID.
+- Checks run: Backend full unit suite — 546 passed (including 46 venue tests); frontend full unit suite — 328 passed and 1 todo (including 33 focused venue/store tests); backend lint and build passed; targeted frontend ESLint and production build passed; Confluence updates passed dry-run validation and HTML read-back with no stale `VEN-TC-*` fixture identifiers. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The separate `backend/src/registrations/registration-window.ts` repair was preserved and not edited as part of SPM-50. No commit, push, pull request, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Repair registration-window TypeScript build
+
+- Issue/PR: Unknown / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `backend/src/registrations`, `AI_USAGE.md`
+- Summary: Replaced the single-value readonly-tuple membership check with a direct `Confirmed` status comparison, resolving the TypeScript argument-narrowing error without changing registration behavior; corrected the adjacent stale comment.
+- AI contribution: TypeScript diagnosis, focused code repair, and regression verification.
+- Assumptions: Only `Confirmed` events are registrable, as already established by the registration tests and attendee visibility rules.
+- Checks run: Focused registration-window suite (11 passed); backend `npm run build` passed.
+- Follow-up/conflict notes: Existing staged SPM-50 work was preserved and not restaged; this repair remains unstaged for human review.
+
+## 2026-10-04 - Codex (GPT-6.1) - Record SPM-50 Confluence test evidence
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-01` through `VEN-CRE-06`, Create Venue Records Matrix, `AI_USAGE.md`
+- Summary: Refreshed the SPM-50 Confluence unit-test pages from the current Jira criteria and implementation, replaced placeholder module mappings, aligned the fixture to a 45-minute turnaround, and recorded all automated cases as passed with execution evidence dated 4 Oct 2026. Re-verified the later-restored `VEN-CRE-01-B`, corrected its heading, recorded its frontend and backend authorization evidence, added it to the traceability matrix, and labeled both associated automated-test comments with the exact test case ID.
+- AI contribution: Confluence discovery, source-to-test traceability review, rich-content-preserving page updates, execution-result recording, and read-back verification.
+- Assumptions: Confluence records automated Vitest evidence; the database-backed venue E2E remains separately unexecuted because `DATABASE_URL` is unavailable, and this limitation is stated on VEN-CRE-05.
+- Checks run: Backend venue suites (47 passed), including a focused `venues.service.spec.ts` rerun (9 passed); frontend SPM-50 route/form/store suites (38 passed), including a focused `VenueCreatePage.test.tsx` rerun (26 passed); Confluence dry-run validation and HTML/Markdown read-back confirmed pass states, execution dates, automation references, restored `VEN-CRE-01-B` traceability, and removal of all matrix placeholders.
+- Follow-up/conflict notes: Jira was read-only and unchanged. Confluence pages remain live docs in their existing draft state. No code behavior changed, and no commit, push, or PR was created.
+
+## 2026-10-03 - Codex (GPT-6.1) - Implement SPM-50 venue creation
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/`, `database/`, `AI_USAGE.md`
+- Summary: Added a Venue Staff-only creation route and form, authenticated/RBAC-protected venue APIs, PostgreSQL venue and accessibility persistence, durable catalogue refresh, success/error feedback, and required configurable setup and turnaround durations stored as non-negative whole minutes.
+- AI contribution: Fetched and checked Jira status/acceptance criteria; recovered prior SPM-50 work from the repository stash; reconciled it with current `dev`; completed missing duration behavior; updated unit/component/integration coverage and documentation.
+- Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
+- Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
+- Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
+## 2026-10-05 - Codex (GPT-5) / Claude Sonnet 5 - SPM-117 view-equipment search and sort
+
+- Issue/PR: SPM-117 / no pull request yet.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/components/ui/DataTable.tsx`, Confluence (SPM-117 Matrix + Live Docs), and `AI_USAGE.md`.
+- Summary: Step A6 (EQUIP-VIEW-01/02/03 unit tests for AC3 search and AC5 sort, plus an explicit AC4 status-render test) was written directly by kirub, not an AI tool. Codex then implemented Step A8: case-insensitive type/location substring search (one check covers exact and partial terms), a search-specific empty state distinct from the inventory-empty state, and toggleable ascending/descending sort for type, numeric quantity, and location, via an optional backward-compatible `onHeaderClick` on `DataTable`'s `Column<T>`. Claude Code (Sonnet 5) authored the Confluence Test Case Matrix/Live Docs, linked them to the Jira story, and independently re-ran the full suite plus lint/build to verify Codex's implementation before this entry.
+- AI contribution: Codex — client-side React implementation, shared table header support. Claude — Confluence docs, Jira linking, independent verification (re-ran tests, lint, build), this log entry.
+- Assumptions: The user-supplied SPM-117 acceptance criteria and the human-written tests are authoritative; Jira and Confluence were not touched during the Codex coding session (handled separately by Claude Code per the story-to-PR workflow).
+- Checks run (independently re-verified by Claude after Codex's handoff): `npx vitest run src/pages/EquipmentAvailabilityPage.test.tsx` — 1 file, 11/11 passed; `npm test` — 29 files passed, 348 passed + 1 pre-existing todo (349 total), no regressions; `npm run lint` — 2 pre-existing errors in untouched files (`ClarificationThread.tsx`, `useAppStore.auth.test.ts`), none new; `npm run build` — passed.
+- Follow-up/conflict notes: Changes are local and uncommitted pending explicit commit approval per AGENTS.md. No push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Strengthen SPM-111 equipment validation and evidence
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment`, `backend/scripts/testing`, `frontend/src/components/ui`, `frontend/src/pages`, component documentation, and `AI_USAGE.md`.
+- Summary: Added PostgreSQL-backed equipment API integration coverage, a browser create-to-inventory flow, explicit maximum-quantity validation, strict validated-input shaping, stronger role/error/UI tests, combobox tests, frontend name-trimming coverage, RBAC-seed verification, and a distinct inventory-load failure state. Follow-up replaced delegation-only controller tests and redundant option-exclusion assertions with UI and real-PostgreSQL behavioural coverage.
+- AI contribution: Implementation, test hardening, integration/browser verification, and documentation.
+- Assumptions: The maximum valid quantity is PostgreSQL `integer` maximum `2,147,483,647`; name/location limits, duplicate policy, and dismissal behaviour remain product decisions and were not changed.
+- Checks run: Full backend suite 579/579 passed; equipment E2E 6/6 passed using local PostgreSQL; frontend equipment/component follow-up tests 33/33 passed and full frontend suite 341 passed with 1 existing todo; backend and frontend production builds passed; SPM-111 Playwright create-to-inventory passed. The combined browser run had one unrelated SPM-37 existing failure while four other browser flows passed.
+- Follow-up/conflict notes: Changes are local and uncommitted. The full browser-suite SPM-37 event-create failure is unrelated to these files. No push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Correct SPM-111 test-step placement
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `EQUIP-CRE-01` through `EQUIP-CRE-07` test-case pages and `AI_USAGE.md`.
+- Summary: Corrected the prior formatting change after comparison with the supplied Register for an Event examples. Test Steps now appear inside each case-details table, directly after Pre-conditions and before Test Data, rather than as standalone sections.
+- AI contribution: Confluence formatting correction and read-back verification.
+- Assumptions: The supplied SPM-61 detailed test cases are the authoritative placement reference for SPM-111 detailed test cases.
+- Checks run: Read-back across 16 SPM-111 cases confirms Test Steps are in the case-details tables, no standalone Test Steps sections remain, and every Test Steps row precedes Test Data.
+- Follow-up/conflict notes: Supersedes the placement statement in the immediately preceding formatting entry. No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Standardize SPM-111 detailed test cases
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `EQUIP-CRE-01` through `EQUIP-CRE-07` test-case pages, excluding the already-standardized `EQUIP-CRE-05`, and `AI_USAGE.md`.
+- Summary: Standardized the detailed test-case pages without changing their SPM-111 scenarios or recorded outcomes. Converted every remaining inline Test Steps cell to a plain Markdown ordered list with one step per line and corrected retired `dto/equipment-input.ts` references.
+- AI contribution: Confluence test-case formatting and traceability cleanup.
+- Assumptions: The request to move onto test cases means standardizing the existing detailed case pages after the SPM-111 matrix was aligned.
+- Checks run: Read-back on all seven case pages confirms test IDs, actual results, pass/fail status, and standalone Test Steps sections are present. No inline Test Steps table cells or stale DTO paths remain.
+- Follow-up/conflict notes: No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Align SPM-111 test matrix format
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: SPM-111 Confluence `Create Equipment Records Matrix` and `AI_USAGE.md`.
+- Summary: Aligned the SPM-111 traceability matrix with the four-column format used by the Register for an Event Matrix. Added the missing Location-related cases, corrected stale code paths, and retained all SPM-111-specific acceptance criteria and test-case links.
+- AI contribution: Confluence test-matrix standardization and traceability review.
+- Assumptions: The requested format applies to the SPM-111 matrix; detailed execution pages retain their separate test-case template.
+- Checks run: Read-back confirms matrix update version 5 was saved.
+- Follow-up/conflict notes: No source code, commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Display equipment locations in availability inventory
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages/EquipmentAvailabilityPage.tsx`, `frontend/src/pages/EquipmentAvailabilityPage.test.tsx`, SPM-111 Confluence `EQUIP-CRE-05`, and `AI_USAGE.md`.
+- Summary: Added the missing Location column to Equipment Availability and asserted that a persisted location is rendered. Updated EQUIP-CRE-05-A with the location-display scenario, one-line numbered steps, and current execution evidence.
+- AI contribution: Frontend implementation, unit test, browser verification, and Confluence test-evidence update.
+- Assumptions: The user meant the missing location field in the displayed equipment records; the screenshot already showed the records themselves.
+- Checks run: EquipmentAvailabilityPage unit test — 1/1 passed; targeted ESLint passed; frontend production build passed; local Equipment Availability browser verification displayed the Location header and stored values.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Correct SPM-111 location-validation test traceability
+
+- Issue/PR: SPM-111 / follow-up pull request pending.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/equipment`, `frontend/src/pages`, SPM-111 Confluence `EQUIP-CRE-03`, and `AI_USAGE.md`.
+- Summary: Split location-required assertions from shared required-field parameterized tests and labelled them explicitly as `EQUIP-CRE-03-D`. Refreshed the passing automated results in all SPM-111 live cases, including the Location-combobox cases in `EQUIP-CRE-02`.
+- AI contribution: Test traceability correction, focused and full-suite verification, and Confluence test-evidence updates.
+- Assumptions: `EQUIP-CRE-03-D` covers both omitted and whitespace-only Location values, as described in the Confluence case.
+- Checks run: Backend equipment input/service/controller suites — 66/66 passed; frontend equipment-create, availability, and route-access suites — 52/52 passed; full backend — 566/566 passed; full frontend — 323 passed with 1 existing todo; `git diff --check` passed.
+- Follow-up/conflict notes: `EQUIP-CRE-02` was updated through the alternate Confluence text-update path after its collaborative draft conflict cleared; its three cases are now PASS. No commit, push, or pull request was created.
+## 2026-10-02 - Claude (Sonnet 5) - Implement SPM-62 View Registration Details (Attendee)
+
+- Issue/PR: SPM-62 (branch `feature/SPM-62-View-Registration-Details-Attendee`, reused from an existing empty branch/no PR yet)
+- Human requester/operator: Wei Zhi
+- Areas touched: `frontend/src/components/EventDetail`, `frontend/src/types`, `AI_USAGE.md`
+- Summary: SPM-62 asked for a user-provided test-case document (`docs/specs/SPM-62-test-cases.md`) that does not exist in this repo, so scope was grounded in the real Jira ACs and the existing SPM-61/SPM-99 implementation instead of an invented fixture matrix. Phase-0 recon found the "dashboard" (AC1, via `EventListPage`'s Registered-Events filter -> `EventCard` -> `/events/:id`), the status badge (AC2), already implemented and tested by SPM-61/SPM-99. AC5 was removed from SPM-62 as unreachable (no registration-by-id route exists), so nothing is traced to it. The only real gap was AC3: `RegistrationSection` showed only Registration ID and Registered-on date. Expanded its `registered` branch to also show Full name (falling back to `attendeeName` for older records), Email, Contact number, and Special requirements when present, and added a `fullName?` field to the frontend `Registration` type to carry it. AC4 required no code change (the `registered` branch is checked before any event-timing branch) but got new tests proving it for Completed and Cancelled events.
+- AI contribution: Jira lookup (MCP), repo reconnaissance via a read-only subagent, scope decisions confirmed with the human via AskUserQuestion (expand the existing inline section rather than add a new `/registrations/:id` route/endpoint; keep "Registered"/"Withdrawn" labels instead of relabeling to "Confirmed"; drop AC5 as unreachable; leave withdrawn-registration visibility out of scope), test-first implementation, and test/type/lint verification.
+- Assumptions: A withdrawn registration stays invisible to the attendee (`findMine` only returns `status='Registered'` rows, pinned by an existing SPM-61 e2e assertion) - AC2/AC4 for a withdrawn registration are a known gap, intentionally deferred to whichever future story implements the withdraw write path. No `cancelled` registration status exists or was added; Jira AC2's "(Confirmed, Cancelled, etc.)" wording is read as illustrative, not a requirement, since no feature in this repo produces that value for a registration (as opposed to an event).
+- Checks run: Frontend `npm test` (301 passed, 1 pre-existing todo, up from 296/296 baseline), `npx tsc --noEmit` (clean), `npm run lint` (2 pre-existing, unrelated failures in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, already noted in the 2026-09-26 SPM-99 entry above, untouched by this change). Backend `npm test` re-run unchanged at 500/500 (no backend files touched; registrations `.e2e-spec.ts` still skipped locally, no `DATABASE_URL`).
+- Follow-up/conflict notes: No existing branch/PR work was overwritten (the SPM-62 branch existed but had no commits ahead of `dev`). Staged for human review only; no commit, push, or PR created per instruction. If a future "withdraw" story persists withdrawals, `registrations.service.ts`'s `findMine` filter and this component's `registered` check will both need revisiting to surface Withdrawn status/details per AC2/AC4.
+## 2026-10-04 - Codex (GPT-5) - Structure SPM-50 venue operating schedule
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/`, frontend venue types/displays/tests, `backend/src/venues/`, `backend/migrations/`, database initializer, and component documentation
+- Summary: Corrected the revised AC2 so operating information remains a multiline field while operating hours are a structured schedule: selected operating days plus required start and end times. The time controls share a responsive two-column row on desktop and stack on narrow screens. All fields are validated, persisted, returned by the API, and retained in the existing catalogue displays.
+- AI contribution: Jira/Confluence requirement review, frontend/API/database contract update, backward-compatible migration, mutation-sensitive happy/negative/boundary/cross-dependency test updates, and documentation.
+- Assumptions: One daily start/end range applies to every selected operating day; overnight schedules are not supported because end time must follow start time. Migration 006 backfills legacy operating information from the former text schedule, and migration 007 supplies weekday/all-day defaults only for pre-existing development records.
+- Checks run: Full frontend suite — 375 passed, 1 todo; full backend suite — 620 passed. Focused schedule tests cover selected-day, malformed-time, duplicate-day, equal-time, inverted-time, and minute-boundary cases; backend validation is 100% statements/functions/lines in its focused coverage run. Backend build and frontend TypeScript compilation passed. Frontend focused coverage execution is blocked by an existing global `RequireRole` coverage threshold; Vite bundling remains blocked locally because `@tailwindcss/postcss` is missing from the installed dependencies.
+- Follow-up/conflict notes: Existing staged work was preserved. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Implement SPM-50 AC7 venue redirect
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages/venues/VenueCreatePage/`, `frontend/src/pages/VenuesPage.tsx`, frontend documentation, and `AI_USAGE.md`
+- Summary: Implemented the newly added AC7: after a successful venue POST, Venue Staff are redirected to the existing venue catalogue and receive the server confirmation there. Failed validation or persistence leaves the user in the creation form with its error state. The redirect does not restore the removed catalogue GET/refresh behavior.
+- AI contribution: Jira/Confluence source-of-truth review, redirect and confirmation implementation, AC7-positive/negative test coverage, and documentation update.
+- Assumptions: AC7 requires the catalogue destination, not a catalogue API reload or display of the new record. Router navigation state is sufficient for carrying the confirmation across the redirect.
+- Checks run: Focused `VenueCreatePage` suite — 28 passed; full frontend suite — 344 passed, 1 todo. Frontend build was attempted; the SPM-50 code compiles, but the command remains blocked by two unrelated pre-existing implicit-`this` TypeScript errors in `EventEditForm.test.tsx`.
+- Follow-up/conflict notes: Jira is read-only and unchanged by this work. No commit, push, or pull request was created.
+
+## 2026-10-04 - Codex (GPT-6.1) - Cover SPM-50 shared uploads and venue displays
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/src/utils/`, venue display components/pages, event edit form, and navigation tests
+- Summary: Added unit tests for shared FileReader success/failure behavior, event edit upload integration, optional venue images, setup/turnaround displays, and Venue Staff creation navigation.
+- AI contribution: Test analysis and implementation.
+- Assumptions: Existing staged tests already cover SPM-50 form rules, route access, API confirmation, validation, authorization, and persistence; this addition targets changed behavior that lacked direct assertions.
+- Checks run: Frontend full unit suite with coverage — 344 passed, 1 todo; 80.45% total line coverage. VenueCreatePage reached 100% lines and 98.83% branches. `git diff --cached --check` passed.
+- Follow-up/conflict notes: Frontend total coverage remains below 100% because this run includes the whole application, including unrelated components; no commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-5) - Remove SPM-50 catalogue coupling
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/src/venues/`, supporting tests and documentation, and `AI_USAGE.md`
+- Summary: Removed the SPM-50 `GET /api/venues` endpoint, backend/repository catalogue reads, frontend catalogue refresh, saved-venue store insertion, and creation-page catalogue links. Kept the pre-existing venue catalogue intact and exposed creation directly through the Venue Staff navigation. Changed Operating information from a single-line input to the shared multiline text control.
+- AI contribution: Scope correction, cross-boundary API/store/UI/test cleanup, documentation update, and verification.
+- Assumptions: The existing catalogue belongs to separate venue-planning functionality. SPM-50 owns creation and persistence only; it confirms a successful POST without requiring a retrieval or display workflow.
+- Checks run: Focused frontend tests — 32 passed, then 26 passed after the textarea update; focused backend venue tests — 12 passed; full frontend suite — 327 passed, 1 todo; full backend suite — 551 passed; frontend build, backend lint, backend build, and `git diff --check` passed. Frontend lint remains blocked by two unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: PostgreSQL E2E was not run because `DATABASE_URL` is unavailable. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-04 - Codex (GPT-6.1) - Correct SPM-50 persistence test scope
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-05-B`, Confluence `VEN-CRE-05-C`, and `AI_USAGE.md`
+- Summary: Replaced the retrieval/display-dependent VEN-CRE-05-B scenario with direct PostgreSQL persistence verification by generated UUID, and replaced VEN-CRE-05-C with an atomic rollback scenario for failed venue creation. Both revised cases are marked Not Executed pending their new automation evidence.
+- AI contribution: Creation-only scope correction, targeted rich-content Confluence edits, and saved-page verification.
+- Assumptions: SPM-50 AC5 requires creation and persistence but does not require a GET endpoint, catalogue, search, or venue display. Direct database queries are test-only verification and not product functionality.
+- Checks run: Confluence dry-run validation passed; post-update Markdown read-back confirmed both new scenarios and statuses, removal of the old retrieval/catalogue wording from VEN-CRE-05-B/C, and preservation of VEN-CRE-05-A.
+- Follow-up/conflict notes: No Jira, source code, commit, push, or pull request change was made during this documentation correction.
+
+## 2026-10-04 - Codex (GPT-6.1) - Normalize SPM-50 venue options and add image step
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/catalogue/types/tests, shared frontend uploads, backend venue validation/repository/tests/migration, database initializer/seeds/docs, and `AI_USAGE.md`
+- Summary: Reworked venue creation into two pages: venue details with exactly one scalar location and the existing accessibility pills, followed by controlled facility and room-layout selections plus one optional image. Extracted the event form's FileReader/data-URL behavior into a shared upload helper. Normalized facilities and layouts into lookup/junction tables, added one-to-one venue image persistence, retained PostgreSQL-generated venue UUIDs, and rendered saved images in catalogue/detail views. Rechecked the supplied Week 4 project requirements and removed wording that implied a venue could contain child locations. Added a case-insensitive, trimmed unique index for `(name, location)` and a field-level `409` response so UUID identity does not permit duplicate venue records.
+- AI contribution: Cross-boundary schema/API/UI design, legacy-array migration, shared upload refactor, implementation, validation, unit/component/integration test updates, and documentation.
+- Assumptions: The project requirement's singular `location` is one attribute of a venue, not a child collection or separate location entity. UUID is the stable technical identity; trimmed, case-insensitive name plus location is the business uniqueness key. Facilities and layouts are controlled shared options; each new venue requires at least one of each. Images are optional, image MIME only, limited to 5 MB, and use the repository's existing data-URL upload convention. Accessibility behavior remains unchanged.
+- Checks run: Backend full unit suite — 557 passed; focused venue validation/service/repository suites — 55 passed; backend lint and build passed; frontend full unit suite — 330 passed and 1 todo; focused venue page suite — 27 passed; affected frontend ESLint and production build passed; `git diff --check` passed. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The unrelated `backend/src/registrations/registration-window.ts` repair was preserved without modification. No commit, push, pull request, Confluence update, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Generate SPM-50 venue UUIDs
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: SPM-50 frontend form/store/types/tests, backend validation/service/repository/tests/migration, shared database schema/docs, Confluence `VEN-CRE-02` through `VEN-CRE-05`, and `AI_USAGE.md`
+- Summary: Removed the staff-entered venue identifier from the creation form and API contract. PostgreSQL now generates `venues.id` with `gen_random_uuid()`, the repository uses the returned UUID for accessibility links, and saved API/catalogue records retain the UUID. The migration converts any earlier local text IDs deterministically while preserving their accessibility relationships. Updated Confluence fixtures so identifiers are documented as system-generated outputs rather than user inputs.
+- AI contribution: Source-of-truth review, UUID contract refactor across frontend/backend/database, migration compatibility logic, automated-test updates, documentation updates, and Confluence read-modify-write verification.
+- Assumptions: Jira does not define an identifier field or generation strategy; the requester explicitly selected UUID generation. PostgreSQL is the identifier authority, and clients cannot supply or override a venue ID.
+- Checks run: Backend full unit suite — 546 passed (including 46 venue tests); frontend full unit suite — 328 passed and 1 todo (including 33 focused venue/store tests); backend lint and build passed; targeted frontend ESLint and production build passed; Confluence updates passed dry-run validation and HTML read-back with no stale `VEN-TC-*` fixture identifiers. PostgreSQL E2E/migration execution was not run because `DATABASE_URL` is unavailable.
+- Follow-up/conflict notes: The separate `backend/src/registrations/registration-window.ts` repair was preserved and not edited as part of SPM-50. No commit, push, pull request, or Jira status change was performed.
+
+## 2026-10-04 - Codex (GPT-6.1) - Repair registration-window TypeScript build
+
+- Issue/PR: Unknown / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `backend/src/registrations`, `AI_USAGE.md`
+- Summary: Replaced the single-value readonly-tuple membership check with a direct `Confirmed` status comparison, resolving the TypeScript argument-narrowing error without changing registration behavior; corrected the adjacent stale comment.
+- AI contribution: TypeScript diagnosis, focused code repair, and regression verification.
+- Assumptions: Only `Confirmed` events are registrable, as already established by the registration tests and attendee visibility rules.
+- Checks run: Focused registration-window suite (11 passed); backend `npm run build` passed.
+- Follow-up/conflict notes: Existing staged SPM-50 work was preserved and not restaged; this repair remains unstaged for human review.
+
+## 2026-10-04 - Codex (GPT-6.1) - Record SPM-50 Confluence test evidence
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: Confluence `VEN-CRE-01` through `VEN-CRE-06`, Create Venue Records Matrix, `AI_USAGE.md`
+- Summary: Refreshed the SPM-50 Confluence unit-test pages from the current Jira criteria and implementation, replaced placeholder module mappings, aligned the fixture to a 45-minute turnaround, and recorded all automated cases as passed with execution evidence dated 4 Oct 2026. Re-verified the later-restored `VEN-CRE-01-B`, corrected its heading, recorded its frontend and backend authorization evidence, added it to the traceability matrix, and labeled both associated automated-test comments with the exact test case ID.
+- AI contribution: Confluence discovery, source-to-test traceability review, rich-content-preserving page updates, execution-result recording, and read-back verification.
+- Assumptions: Confluence records automated Vitest evidence; the database-backed venue E2E remains separately unexecuted because `DATABASE_URL` is unavailable, and this limitation is stated on VEN-CRE-05.
+- Checks run: Backend venue suites (47 passed), including a focused `venues.service.spec.ts` rerun (9 passed); frontend SPM-50 route/form/store suites (38 passed), including a focused `VenueCreatePage.test.tsx` rerun (26 passed); Confluence dry-run validation and HTML/Markdown read-back confirmed pass states, execution dates, automation references, restored `VEN-CRE-01-B` traceability, and removal of all matrix placeholders.
+- Follow-up/conflict notes: Jira was read-only and unchanged. Confluence pages remain live docs in their existing draft state. No code behavior changed, and no commit, push, or PR was created.
+
+## 2026-10-03 - Codex (GPT-6.1) - Implement SPM-50 venue creation
+
+- Issue/PR: SPM-50 / branch `feature/SPM-50-Create-Venue-Records`
+- Human requester/operator: swr
+- Areas touched: `frontend/`, `backend/`, `database/`, `AI_USAGE.md`
+- Summary: Added a Venue Staff-only creation route and form, authenticated/RBAC-protected venue APIs, PostgreSQL venue and accessibility persistence, durable catalogue refresh, success/error feedback, and required configurable setup and turnaround durations stored as non-negative whole minutes.
+- AI contribution: Fetched and checked Jira status/acceptance criteria; recovered prior SPM-50 work from the repository stash; reconciled it with current `dev`; completed missing duration behavior; updated unit/component/integration coverage and documentation.
+- Assumptions: A valid duration is a non-negative whole number of minutes; setup and turnaround are required venue fields. This is explicit in the UI labels, API contract, validation messages, and database constraints.
+- Checks run: Backend `npm test` (547 passed), `npm run test:cov` (96.62% statements), venue-focused tests, and `npm run lint` passed. Frontend `npm run test:cov` (329 passed, 1 todo), focused SPM-50 tests (26 passed), targeted ESLint, and `npm run build` passed. Venue PostgreSQL E2E was discovered but skipped because `DATABASE_URL` was unavailable. `git diff --check` passed.
+- Follow-up/conflict notes: The older stash conflicted with current `dev` in five files; per repository policy, `dev` versions were retained before current SPM-50 integration was reapplied. Repository-wide frontend lint remains blocked by two unchanged unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`; backend build remains blocked by the unchanged `registration-window.ts` REGISTRABLE_STATUSES typing error. Work is staged for human review only; no commit, push, or PR was created.
+
+## 2026-09-26 - Codex (GPT-6) - Align SPM-99 automated cases with revised Confluence IDs
+
+- Issue/PR: SPM-99 / existing feature branch `feature/SPM-99-View-Event-information`
+- Human requester/operator: swr
+- Areas touched: frontend event-view tests, backend event service test comments, PostgreSQL availability integration tests, `AI_USAGE.md`.
+- Summary: Reassigned stale EVENT-VIEW references to the revised 01–06 cases. Kept supplementary not-found, security, refresh and lifecycle checks without reusing Confluence case IDs. Added an AC3 display assertion for both registration timestamps, used the seeded event values for AC1, and split the real PostgreSQL availability check into 02-A through 02-D scenarios.
+- Assumptions: The earlier 100% coverage claim applies to `frontend/src/pages/EventView.ts`; repository-wide coverage is not 100%. The requester excluded location from the test scope, while Jira AC1 still lists it.
+- Checks run: Focused frontend tests 33/33 passed; `EventView.ts` coverage 100% statements (20/20), branches (26/26), functions (3/3), lines (15/15). PostgreSQL availability integration tests 4/4 passed against the local database with unique fixture IDs and cleanup. Frontend build, targeted frontend ESLint, backend lint and `git diff --check` passed.
+- Follow-up/conflict notes: No production behavior changed. Confluence cases remain marked Not Executed as manual cases; the automated evidence is recorded here. Jira AC1 location wording still differs from the agreed test scope. Changes staged for human review only; no commit, push or PR created.
+
+## 2026-09-26 - Codex (GPT-5) - Complete SPM-99 attendee-view test evidence
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages`, `backend/src/events`, `backend/test`, `AI_USAGE.md`
+- Summary: Compared the staged SPM-99 tests with Jira acceptance criteria, Confluence EVENT-VIEW-01 through EVENT-VIEW-06, and the supplied IS212 testing/CI slides. Added missing UI and unit evidence for core attendee details, exact registration-close behaviour, pre-open, cancelled, completed, full, and no-window-hidden states, lifecycle mapping, refresh consistency, nonexistent-event safety, restricted-event non-disclosure, request-error/stale-data handling, and missing optional detail fallbacks. Replaced brittle SQL-text assertions with a PostgreSQL integration test for the registration-limit calculation rule.
+- AI contribution: Requirements traceability review, boundary/negative/integration-test expansion, coverage verification, and test execution.
+- Assumptions: The implemented policy is that registration is open through the exact configured closing instant and closes strictly after it; the attendee registration panel is displayed only when website registration is disabled (to explain that state) or both registration timestamps are configured.
+- Checks run: Focused frontend tests (29 passed); `vitest` coverage scoped to `src/pages/EventView.ts` (100% statements, branches, functions, lines); full frontend `npm test` (218 passed before the final supplemental cases) and `npm run build`; backend focused `events.service.spec.ts` (34 passed), new PostgreSQL availability integration test (1 passed), `npm run lint`, and `npm run build`; `git diff --check`.
+- Follow-up/conflict notes: Frontend `npm run lint` remains blocked by two unrelated pre-existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`. Repository-wide coverage is not 100%; the 100% claim is intentionally scoped to the new lifecycle decision unit, consistent with the course slides’ guidance that coverage is diagnostic rather than proof of correctness.
+
+## 2026-09-26 - Codex (GPT-5) - Repair fresh SPM-99 database initialization
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `backend/src/events`, `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Updated the base local event-status constraint so `002_seed_data.sql` can insert its Confirmed seed events, allowing the subsequent SPM-99 initializer to create attendee registration storage on a fresh database. Moved the attendee available-spots calculation into the PostgreSQL query, with the backend returning that database result directly.
+- AI contribution: Diagnosed PostgreSQL initializer ordering failure, added a schema compatibility correction, and aligned attendee availability ownership with the database.
+- Assumptions: The statuses supported by the SPM-99 attendee event view are valid statuses for new local databases, as already specified by its additive initializer.
+- Checks run: Built and initialized an isolated PostgreSQL 16 container; confirmed logs ran `001_schema.sql`, `002_seed_data.sql`, and `003_spm99_attendee_event_view.sql` in sequence; verified `event_registrations` exists and five seed events were inserted. Backend `npm test -- --run src/events/events.service.spec.ts` (32 passed), `npm run lint`, `npm run build`, and `git diff --check`.
+- Follow-up/conflict notes: The currently running Compose database was left unchanged; it was initialized before this repair and still needs the previously provided one-time SQL application or a reset after rebuilding.
+
+## 2026-09-24 - Codex (GPT-5) - Implement attendee event information view
+
+- Issue/PR: SPM-99
+- Human requester/operator: swr
+- Areas touched: `frontend/src/pages`, `frontend/src/types`, `backend/src/events`, `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Implemented attendee-safe event listing/detail access and attendee-facing registration information: configured opening/closing times, remaining registration spots, registration notices, and derived Upcoming/In Progress/Completed/Cancelled labels. Added an additive local PostgreSQL schema update for registration settings, registration records, and attendee-view lifecycle states.
+- AI contribution: Read Jira SPM-99 and Confluence EVENT-VIEW-01 through EVENT-VIEW-06, implemented the contract, and added boundary-focused unit tests.
+- Assumptions: The registration opening instant is inclusive; closing occurs strictly after the configured closing timestamp; existing `expected_attendance` is the default registration limit until a separate organiser registration-limit UI exists.
+- Checks run: Frontend `npm test` (213 passed), `npm run build`, focused `eventView` coverage (100% statements/branches/functions/lines); backend `npm test` (444 passed), `npm run lint`, `npm run build`; `git diff --check`. Frontend `npm run lint` remains blocked by unrelated existing unused variables in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`.
+- Follow-up/conflict notes: Preserved the pre-existing uncommitted SPM-99 local seed-data changes in `002_seed_data.sql`. The new schema has not been applied to a live local PostgreSQL volume because no database service was running during this work.
+
+## 2026-09-24 - Codex (GPT-5) - Add local event seed cases
+
+- Issue/PR: Unknown
+- Human requester/operator: swr
+- Areas touched: `database/postgresql/init`, `AI_USAGE.md`
+- Summary: Added four fictional event records to the local PostgreSQL seed data, retaining the existing demo event. The added records cover submitted, approved, and rejected workflows, plus registration-enabled and accessibility variants.
+- AI contribution: Seed-data design and SQL validation.
+- Assumptions: “Test cases” means local development seed records for exercising event workflows, not automated test files.
+- Checks run: `git diff --check`; confirmed all four new IDs and their Submitted/Approved/Rejected states. Full PostgreSQL execution was not run because `postgres:16-alpine` is not cached locally.
+- Follow-up/conflict notes: No existing records, schemas, migrations, or application code were changed; no commit or push was created.
+
 ## 2026-09-22 - Codex (GPT-5) - Analyze backend authentication coverage
 
 - Issue/PR: Unknown
@@ -1392,3 +2019,124 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 - Assumptions: Per-component `coverage/` reports are sufficient for local coverage use.
 - Checks: Confirmed the combined dashboard scripts and CI steps are absent while both component coverage configurations remain present.
 - Follow-up/conflict notes: No dependency, commit, push, or pull request was removed or created.
+
+## 2026-09-22 - Codex (GPT-5) - Prepare SPM-40 accept-request branch
+
+- Issue/PR: SPM-40 / no pull request; Jira could not be accessed from the available tools.
+- Human requester/operator: kirub
+- Areas touched: branch setup and `AI_USAGE.md` only.
+- Summary: Created `feature/SPM-40-accept-a-request` from the latest `dev` as requested. An older local branch, `feature/SPM-40-approve-a-request`, was inspected and found to have no commits beyond `dev`, so it contained no development work to reuse.
+- Assumptions: The user-supplied ticket name, "Accept a request," is used for the branch slug. No feature requirements or acceptance criteria were inferred.
+- Checks run: Fetched `origin/dev`, verified local `dev` matches it, checked local/remote SPM-40 branches and GitHub pull requests, and verified the new branch starts at the same commit as `dev`.
+- Follow-up/conflict notes: Jira summary, description, acceptance criteria, comments, priority, sprint, and status remain unverified. No implementation, commit, push, pull request, or Jira status change was performed.
+
+## 2026-09-26 - Codex - Implement SPM-40 approval workflow
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages`, `frontend/src/store`, `frontend/src/components/domain`, `backend/src/events`, component documentation, and `AI_USAGE.md`.
+- Summary: Added assigned-coordinator approval for Submitted requests, a transactional `Submitted → Approved` backend transition, persistent organiser approval notifications, frontend decision submission, pending-list removal through the existing Submitted filter, and forward-only state guards.
+- AI contribution: Jira verification, implementation, unit tests, notification UI integration, documentation, and validation.
+- Assumptions: Approval requires no reason; the existing request-decision controller and organiser notification feed are shared with SPM-83 while preserving rejection behavior.
+- Checks run: Backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed; backend direct oxlint and production build passed; targeted frontend ESLint for all SPM-40-touched files and production build passed; `git diff --check` passed.
+- Follow-up/conflict notes: Reused and completed the three pre-existing untracked SPM-40 TDD test files. Full frontend lint remains blocked by two pre-existing unused-variable errors in `ClarificationThread.tsx` and `useAppStore.auth.test.ts`, both untouched. The Windows backend npm lint wrapper mis-parses its root-relative executable, so the underlying oxlint command was run directly. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-26 - Codex - Add SPM-40 approval functional tests
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `frontend/src/pages`, `backend/scripts/testing`, and `AI_USAGE.md`.
+- Summary: Added Playwright functional coverage for the SPM-40 approval workflow: coordinator default Submitted queue, approval action, pending-list removal, approved filter visibility, organiser approval notification, and UI immutability once approved.
+- AI contribution: Functional test design, browser-test implementation, and browser harness cleanup extension.
+- Assumptions: The user's "SPM-40-reject request" wording refers to SPM-40 approve request, since Jira SPM-40 is "Approve a Request" and rejection belongs to SPM-83.
+- Checks run: `npx playwright test src/pages/EventDetailPage.approve.playwright.spec.ts` in `frontend/` — 2/2 passed; backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed.
+- Follow-up/conflict notes: Uses local seeded accounts and the existing browser-test harness. The direct Playwright run created two local SPM-40 test events and approval notifications; they were removed from the local PostgreSQL database by exact `SPM-40 approval functional %` test-name cleanup. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-26 - Codex - Add SPM-40 approval integration tests
+
+- Issue/PR: SPM-40 / no pull request.
+- Human requester/operator: kirub.
+- Areas touched: `backend/test` and `AI_USAGE.md`.
+- Summary: Added backend integration coverage for the approval endpoint using the real Nest HTTP pipeline, PostgreSQL-backed session cookies, persisted event status changes, organiser approval notification retrieval/read state, assigned-coordinator authorization, organiser role rejection, unassigned request rejection, invalid/unknown IDs, unauthenticated access, and non-Submitted conflict guards.
+- AI contribution: Integration test design and implementation.
+- Assumptions: Integration testing should target the backend API/database boundary; Playwright functional coverage remains the browser-level check.
+- Checks run: Focused backend e2e `npx vitest run --config ./vitest.config.e2e.ts test/events-approve.e2e-spec.ts` with local `DATABASE_URL` — 8/8 passed; full backend `npm run test:e2e` — 41 passed / 11 skipped across 6 files; backend `npm test` — 454/454 passed; frontend `npm test` — 211/211 passed.
+- Follow-up/conflict notes: The first focused e2e attempt failed before exercising code because `DATABASE_URL` was not set in the shell; reran with the local Compose host URL `postgres://spm:spm_dev_password@localhost:5432/spm`. No commit, push, pull request, or Jira status change performed.
+
+## 2026-09-27 - Codex - Address PR #31 review-thread wording updates
+
+- Issue/PR: PR #31 review thread `#pullrequestreview-5326720172`.
+- Human requester/operator: @chaw678.
+- Areas touched: `backend/src/events/events.approve.spec.ts`, `frontend/src/pages/EventDetailPage.approve.test.tsx`, `frontend/src/store/useAppStore.approve.test.ts`, and `AI_USAGE.md`.
+- Summary: Updated stale RED/TDD preambles and helper comments to describe implemented SPM-40 approval behavior as regression coverage, matching current production code.
+- AI contribution: Applied the three requested review-thread comment-text fixes with no logic changes.
+- Assumptions: "Improved relevant comments for RED/TDD" means only rewriting outdated TDD wording identified in that review thread.
+- Checks run: backend targeted test `npm test -- src/events/events.approve.spec.ts` — 11/11 passed; frontend targeted tests `npm test -- src/pages/EventDetailPage.approve.test.tsx src/store/useAppStore.approve.test.ts` — 9/9 passed.
+- Follow-up/conflict notes: No functional behavior changes were made.
+
+## 2026-09-27 - Codex - Refine SPM-40 regression-test headers
+
+- Issue/PR: SPM-40 / PR #31.
+- Human requester/operator: kirub.
+- Areas touched: `backend/src/events/events.approve.spec.ts`, `frontend/src/pages/EventDetailPage.approve.test.tsx`, `frontend/src/store/useAppStore.approve.test.ts`, and `AI_USAGE.md`.
+- Summary: Refined the three approval-test headers so they identify the implemented behavior and traceability references directly, without stale TDD framing or ambiguous endpoint terminology.
+- AI contribution: Documentation-only test comment cleanup.
+- Assumptions: The requested local changes are a follow-up refinement to the already-committed review-thread fix; no production or test behavior should change.
+- Checks run: `git diff --check`; no test run because only comments and the AI usage ledger changed.
+- Follow-up/conflict notes: Changes are local and uncommitted for human review.
+
+## 2026-09-30 - Claude (Sonnet 5.5 / Opus 5.5) - SPM-61 attendee event registration
+
+- Issue/PR: SPM-61 (In Progress) on `feature/SPM-61-Register-for-Event`; no PR yet.
+- Human requester/operator: Wei Zhi.
+- Areas touched: `backend/src/registrations/`, `backend/src/events/events.service.ts`, `backend/src/app.module.ts`, `database/postgresql/init/004_spm61_event_registration.sql`, `frontend/src/components/EventDetail/`, `frontend/src/utils/registration.ts`, `frontend/src/store/useAppStore.ts`, `frontend/src/pages/EventDetailPage.tsx`, `EventView.ts`, related tests and docs, `docs/specs/SPM-61-test-results.md`.
+- Summary: Server-enforced registration (role, strict validation, window, duplicate, capacity), server-computed `registrationOpen` from an injectable clock, and the attendee form, confirmation and status UI. Changed SPM-99 behaviour by decision: exclusive close, no button when closed/full/not-yet-open, Withdraw hidden.
+- AI contribution: implementation, tests, docs.
+- Assumptions: `docs/specs/SPM-61-*.md` were absent, so Test Case IDs and quotes are ASSUMED from the task matrix and Jira ACs; MSG-02/03/04/07 wording, email/requirements limits and capacity rule are ASSUMED (listed in the results file).
+- Checks run: backend unit 495 passed; backend integration (Docker Postgres `spm_test`) 71 passed, 11 failed (pre-existing SPM-37 `drafts.e2e-spec.ts`); frontend 275 passed; frontend build and typecheck clean; backend lint clean; frontend lint has 2 pre-existing errors in untouched files.
+- Follow-up/conflict notes: Product decisions later locked messages, limits and capacity; constants split into `messages.ts` and `validation.ts`. Existing local Postgres volumes need `004_spm61_event_registration.sql` applied. Manual-close (01-C[B]) is blocked. Registrations e2e suite was written after the service, not red-first. Changes are staged for review; nothing committed or pushed.
+- Follow-up (same day, Claude Opus 5.5): treated Approved as attendee-published per product decision; added `myRegistrationStatus` to the attendee list; attendee Browse Events filters (Upcoming/Registered/Past/Cancelled) and a Registered badge; added dev seed fix `database/postgresql/init/005_spm61_dev_seed_fixes.sql`, applied to local `spm` and `spm_test`. Rebuilt the local backend container. Checks: backend unit 496 passed, integration 73 passed (11 draft tests skipped without `TEST_DATABASE_URL`), frontend 280 passed.
+- Follow-up (Claude Sonnet 5.5): redesigned the attendee registration card to the five-state design (open with N days / today, closed, not yet open, fully booked), one SGT date format (`12 Mar 2027, 23:59`), SGT calendar-day difference for N; updated SPM-99 assertions that pinned the old rows. Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
+- Follow-up 2 (Claude Haiku 4.5): added the opening time row back to the open state to satisfy SPM-99 AC3 (both times visible). Checks: frontend 294 passed; backend unit 496 passed; registrations e2e 28 passed.
+- Follow-up 3 (Claude Haiku 4.5): added registration date/time to the "You're registered" state; hid the event status progression line from attendee view. Checks: frontend 294 passed.
+- Follow-up 4 (Claude Haiku 4.5): attendee event view now shows ONLY Confirmed events (not Approved). Created distinct REGISTRABLE_STATUSES=['Confirmed'] and ATTENDEE_VISIBLE_STATUSES=['Confirmed', 'Completed', 'Cancelled']. Updated list query to use constants and all related tests (backend 496 passed; registrations e2e 28 passed).
+
+## 2026-10-03 - Codex - Restore Docker Compose backend build
+
+- Issue/PR: No Jira issue or pull request; local Docker rebuild requested by kirub.
+- Areas touched: `backend/src/registrations/registration-window.ts`, `AI_USAGE.md`.
+- Summary: Widened the status-list lookup to accept the existing `RegistrationWindow.status: string` contract, resolving the TypeScript build error that prevented the backend Docker image from building.
+- Checks run: `npm run build` passed; `src/registrations/registration-window.spec.ts` — 11/11 passed; Docker Compose rebuild completed and frontend, backend, and PostgreSQL containers are healthy.
+- Follow-up/conflict notes: This is an uncommitted local fix. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add equipment creation acknowledgement flow
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: `frontend/src/pages/EquipmentCreatePage.tsx`, its unit test, the SPM-111 AC4 Confluence live test case, and `AI_USAGE.md`.
+- Summary: Replaced the inline post-create confirmation with an Equipment record created dialog. Selecting OK routes the user to Equipment Availability.
+- Checks run: `frontend` EquipmentCreatePage unit tests — 17/17 passed; `frontend` production build passed.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Add required equipment name to SPM-111 records
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: equipment database schema/migration, backend equipment validation and persistence, frontend creation and availability pages, equipment unit tests, SPM-111 Confluence matrix/live cases, and `AI_USAGE.md`.
+- Summary: Added a required, non-blank Equipment Name throughout the create, persist, retrieve, and display flow. Existing local equipment rows are backfilled with their type when the idempotent migration runs.
+- Checks run: backend equipment tests — 55/55 passed; frontend creation-page tests — 18/18 passed; frontend availability-page test — 1/1 passed; backend and frontend builds passed; local Docker services rebuilt healthy; PostgreSQL confirms `equipment.equipment_name` is non-nullable.
+- Follow-up/conflict notes: No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Record SPM-111 B1 results
+
+- Issue/PR: SPM-111 / no pull request.
+- Areas touched: SPM-111 Confluence live test cases and `AI_USAGE.md`.
+- Summary: Reran the SPM-111 backend equipment and frontend creation, availability, and route-access unit suites. Updated all 14 live cases with PASS, the exact run counts, test executor, and requester-confirmed manual verification.
+- Checks run: backend equipment suite — 3/3 files and 55/55 tests passed; frontend SPM-111 suites — 3/3 files and 47/47 tests passed.
+- Follow-up/conflict notes: API/database end-to-end checks were not run. No commit, push, pull request, or Jira status change was made.
+
+## 2026-10-03 - Codex - Resolve frontend dependency vulnerability scan
+
+- Issue/PR: SPM-111 / PR #37.
+- Areas touched: `frontend` dependency lockfile, Tailwind/PostCSS configuration, frontend stylesheet, frontend README, and `AI_USAGE.md`.
+- Summary: Upgraded Tailwind CSS from v3.4.17 to v4.3.3 and configured its v4 PostCSS integration. Moved the shared custom design tokens and class-based dark-mode variant into the global stylesheet so the existing UI utilities continue to build.
+- Checks run: `npm audit --audit-level=high` — 0 vulnerabilities; `npm run build` — passed; `npm test` — 28 files passed, 318 tests passed, 1 todo. A Playwright browser smoke check reached the styled login page; its only console errors were expected local CORS errors caused by testing from port 4173 while the backend permits port 5173.
+- Follow-up/conflict notes: The Tailwind v4 change is uncommitted pending human review. `tailwind.config.js` remains in the repository but is no longer the source of the shared theme tokens.

@@ -20,17 +20,15 @@ import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/pages/EquipmentRequestsPage";
 import { EquipmentAvailabilityPage } from "@/pages/EquipmentAvailabilityPage";
+import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
+import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
+import { AssignmentQueuePage } from "@/pages/AssignmentQueuePage";
+import { homePathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
   const role = useAppStore((state) => state.currentUser.role);
-  if (role === "venue_staff") {
-    return <Navigate to="/venues" replace />;
-  }
-  if (role === "tech_support") {
-    return <Navigate to="/equipment/requests" replace />;
-  }
-  return <Navigate to="/events" replace />;
+  return <Navigate to={homePathByRole[role]} replace />;
 }
 
 export default function App() {
@@ -76,11 +74,21 @@ export default function App() {
           <Route path="/venues/:id" element={<VenueDetailPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
         </Route>
+        <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
+          <Route path="/venues/create" element={<VenueCreatePage />} />
+        </Route>
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+        <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<EquipmentPage />} />
-          <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
           <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+          <Route path="/equipment/create" element={<EquipmentCreatePage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
+        </Route>
+
+        <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
+          <Route path="/lead/queue" element={<AssignmentQueuePage />} />
         </Route>
 
         <Route path="/settings" element={<SettingsPage />} />

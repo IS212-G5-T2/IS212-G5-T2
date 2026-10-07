@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useLocation, useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select, TextInput } from "@/components/ui/FormControls";
@@ -8,12 +8,16 @@ import { SubmitBookingModal } from "@/components/domain/SubmitBookingModal";
 import { Card, CardBody } from "@/components/ui/Card";
 import type { Venue } from "@/types";
 
+/** Renders the persisted venue catalogue and its client-side filters. */
 export function VenuesPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const venues = useAppStore((s) => s.venues);
   const events = useAppStore((s) => s.events);
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const eventId = searchParams.get("eventId") ?? "";
+  const creationMessage = (location.state as { creationMessage?: string } | null)
+    ?.creationMessage;
 
   const [minCapacity, setMinCapacity] = useState("");
   const [facility, setFacility] = useState("");
@@ -59,6 +63,12 @@ export function VenuesPage() {
             : "Feature 7 — Search and filter venues by capacity, facilities, accessibility, and location."
         }
       />
+
+      {creationMessage && (
+        <p role="status" className="mb-4 text-success-700">
+          {creationMessage}
+        </p>
+      )}
 
       {selectedEvent && (
         <Card className="mb-4 border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/30">

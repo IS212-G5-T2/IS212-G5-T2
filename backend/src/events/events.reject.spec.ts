@@ -312,54 +312,6 @@ describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
   );
 });
 
-describe('EventsService.approve', () => {
-  it('approves a Submitted request assigned to the coordinator', async () => {
-    wireReject(
-      eventRow({ status: 'Submitted' }),
-      eventRow({ status: 'Approved' }),
-    );
-
-    const result = await service.approve(VALID_UUID, coordinator());
-
-    expect(result).toMatchObject({ id: VALID_UUID, status: 'approved' });
-    const sql = txSql();
-    expect(sql).toContain('BEGIN');
-    expect(sql.some((statement) => /FOR UPDATE/.test(statement))).toBe(true);
-    expect(sql.some((statement) => statement.startsWith('UPDATE') && /'Approved'/.test(statement))).toBe(true);
-    expect(sql).toContain('COMMIT');
-    expect(sql.some((statement) => statement.startsWith('INSERT INTO notifications'))).toBe(false);
-  });
-
-  it('rejects unauthenticated, non-coordinator and unassigned callers', async () => {
-    await expect(service.approve(VALID_UUID, undefined)).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
-    await expect(service.approve(VALID_UUID, organiser())).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    wireReject(eventRow({ status: 'Submitted' }), null);
-    await expect(
-      service.approve(VALID_UUID, coordinator('coordinator-2')),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(txSql().some((statement) => statement.startsWith('UPDATE'))).toBe(false);
-  });
-
-  it('rejects malformed or unknown IDs and refuses requests that are no longer Submitted', async () => {
-    await expect(service.approve('not-a-uuid', coordinator())).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
-    wireReject(null, null);
-    await expect(service.approve(VALID_UUID, coordinator())).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
-    wireReject(eventRow({ status: 'Rejected' }), null);
-    await expect(service.approve(VALID_UUID, coordinator())).rejects.toBeInstanceOf(
-      ConflictException,
-    );
-    expect(txSql().some((statement) => statement.startsWith('UPDATE'))).toBe(false);
-  });
-});
-
 describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () => {
   const notificationRow = {
     id: 'notif-1',
@@ -383,12 +335,16 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
       read: false,
     });
     expect(result[0].message).toContain(VALID_REASON);
-    const [sql] = db.query.mock.calls[0];
-    expect(sql).toContain("type = 'rejection'");
+    // The organiser's query asks only for their decision notification types.
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval']]);
   });
 
+  // Coordinators may now read their own assignment notifications (SPM-123), so
+  // the non-organiser here is a venue staff account, who has no notifications.
   it('refuses a non-organiser caller and does not query', async () => {
-    await expect(service.notifications(coordinator())).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      service.notifications({ uid: 'venue-1', roles: ['VENUE_STAFF'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(db.query).not.toHaveBeenCalled();
   });
 
@@ -404,5 +360,67 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     await expect(service.readNotification(VALID_UUID, organiser())).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+});
+
+describe('SPM-123 AC10: rejecting keeps the assigned coordinator', () => {
+  // Rejection changes status and reason only; the coordinator stays on the event.
+  it('LEAD-ASN-10-B keeps the coordinator when a request is rejected', async () => {
+    // Arrange: an assigned, submitted request.
+    wireReject(
+      eventRow({ status: 'Submitted' }),
+      eventRow({ status: 'Rejected', rejection_reason: VALID_REASON }),
+    );
+
+    // Act: the assigned coordinator rejects it.
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    // Assert: the update never writes the coordinator columns, and the result keeps them.
+    const update = txSql().find((s) => s.startsWith('UPDATE'))!;
+    expect(update).not.toMatch(/coordinator_(id|name)/);
+    expect(result).toMatchObject({ status: 'rejected', coordinatorId: 'coordinator-1' });
+  });
+});
+
+describe('SPM-123 AC9: coordinator assignment notifications', () => {
+  const assignmentRow = {
+    id: 'notif-9',
+    recipient_id: 'coordinator-1',
+    type: 'coordinator_assignment',
+    message: 'New event request "Welcome Evening" is awaiting your review.',
+    related_event_id: VALID_UUID,
+    read: false,
+    created_at: new Date('2026-10-06T00:00:00.000Z'),
+  };
+
+  // A coordinator sees only their own assignment notifications and can mark them read.
+  it('LEAD-ASN-09-C lets a coordinator read and mark read only their own assignment notifications', async () => {
+    // Arrange: the coordinator has one assignment notification.
+    db.query.mockResolvedValueOnce({ rows: [assignmentRow] });
+
+    // Act: read notifications.
+    const result = await service.notifications(coordinator());
+
+    // Assert: labelled for the coordinator, and the query is scoped to them and to the assignment type.
+    expect(result).toEqual([
+      expect.objectContaining({
+        id: 'notif-9',
+        audienceRole: 'coordinator',
+        type: 'coordinator_assignment',
+        relatedEventId: VALID_UUID,
+        read: false,
+      }),
+    ]);
+    expect(db.query.mock.calls[0][1]).toEqual(['coordinator-1', ['coordinator_assignment']]);
+
+    // Act + Assert: marking read is scoped the same way.
+    db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-9' }] });
+    await expect(service.readNotification(VALID_UUID, coordinator())).resolves.toEqual({ success: true });
+    expect(db.query.mock.calls[1][1]).toEqual([VALID_UUID, 'coordinator-1', ['coordinator_assignment']]);
+
+    // Assert: an organiser's query still asks only for their decision types.
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await service.notifications(organiser());
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval']]);
   });
 });

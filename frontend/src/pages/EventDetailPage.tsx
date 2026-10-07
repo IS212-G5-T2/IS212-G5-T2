@@ -30,6 +30,8 @@ import {
   resolvePlanningChange,
   updatePlanning,
 } from "@/utils/planning";
+import { attendeeEventStatus } from "./EventView";
+import { RegistrationSection } from "@/components/EventDetail/RegistrationSection";
 
 const CLARIFIABLE_STATUSES = ["submitted", "approved"];
 
@@ -83,14 +85,25 @@ export function EventDetailPage() {
     }).catch(e => { if (active) setLoadError(e.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]);
+  // SPM-120: a withdrawal frees a spot, so the event's capacity is refetched rather than guessed.
+  const refreshEvent = useCallback(() => {
+    api<EventRecord>(`/events/${id}`)
+      .then((event) => useAppStore.setState((s) => ({ events: [event, ...s.events.filter((e) => e.id !== event.id)] })))
+      .catch(() => undefined);
+  }, [id]);
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
   const registrations = useAppStore((s) => s.registrations);
   const submitEvent = useAppStore((s) => s.submitEvent);
   const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
-  const registerForEvent = useAppStore((s) => s.registerForEvent);
-  const withdrawRegistration = useAppStore((s) => s.withdrawRegistration);
+  const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+
+  // SPM-61 AC5: the server is the source of truth for "already registered".
+  useEffect(() => {
+    if (currentUser.role !== "attendee" || !id) return;
+    loadMyRegistration(id).catch(() => undefined);
+  }, [id, currentUser.role, loadMyRegistration]);
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
@@ -228,8 +241,14 @@ export function EventDetailPage() {
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = hasRole(currentUser, "coordinator") && event.coordinatorId === currentUser.id;
 
+  // The latest registration of any status: a withdrawn one still shows its status and time (SPM-120).
   const myRegistration = registrations.find(
     (r) => r.eventId === event.id && r.attendeeId === currentUser.id
+  );
+  // Registration is attendee-facing only after an organiser has configured
+  // both boundaries; an incomplete period is not useful information to show.
+  const hasRegistrationPeriod = Boolean(
+    event.registrationOpensAt && event.registrationClosesAt,
   );
 
   const canRequestClarification =
@@ -301,29 +320,33 @@ export function EventDetailPage() {
         }
       />
 
-      {!statusFlow.includes(event.status) ? (
-        <div className="mb-6">
-          <StatusBadge status={event.status} />
-        </div>
-      ) : (
-        <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
-          {statusFlow.map((s, i) => (
-            <li key={s} className="flex items-center gap-2">
-              <span
-                className={`rounded-full px-2.5 py-1 font-medium ${
-                  isRejected && s === "rejected"
-                    ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
-                    : i <= currentStepIndex
-                      ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
-                      : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
-                }`}
-              >
-                {s.replace("_", " ")}
-              </span>
-              {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
-            </li>
-          ))}
-        </ol>
+      {(isOwner || isAssignedCoordinator) && (
+        <>
+          {!statusFlow.includes(event.status) ? (
+            <div className="mb-6">
+              <StatusBadge status={event.status} />
+            </div>
+          ) : (
+            <ol className="mb-6 flex flex-wrap items-center gap-2 text-xs" aria-label="Event status timeline">
+              {statusFlow.map((s, i) => (
+                <li key={s} className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-medium ${
+                      isRejected && s === "rejected"
+                        ? "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300"
+                        : i <= currentStepIndex
+                          ? "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300"
+                          : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500"
+                    }`}
+                  >
+                    {s.replace("_", " ")}
+                  </span>
+                  {i < statusFlow.length - 1 && <span className="text-gray-300 dark:text-gray-600">→</span>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
       )}
 
       {showReviewControls && isAssignedCoordinator && event.status === "submitted" && (
@@ -375,37 +398,45 @@ export function EventDetailPage() {
               <Button
                 disabled={submittingDecision || !reviewDecision}
                 onClick={async () => {
-                  if (!reviewDecision) return;
-                  let trimmed = "";
-                  if (reviewDecision === "reject") {
-                    const raw = rejectionReason;
-                    trimmed = raw.trim();
-                    const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
-                    const isValid =
-                      raw.length <= 500 &&
-                      trimmed.length >= 10 &&
-                      trimmed.length <= 500 &&
-                      words.length >= 3 &&
-                      /[a-zA-Z]/.test(trimmed);
-                    if (!isValid) {
-                      setRejectionError(true);
-                      return;
+                  if (reviewDecision === "approve") {
+                    setSubmittingDecision(true);
+                    try {
+                      await approveEvent(event.id);
+                      setShowReviewControls(false);
+                      setReviewDecision("");
+                    } catch (error) {
+                      setReviewNotice(
+                        error instanceof Error ? error.message : "Failed to approve event.",
+                      );
+                    } finally {
+                      setSubmittingDecision(false);
                     }
+                    return;
+                  }
+                  if (reviewDecision !== "reject") return;
+                  const raw = rejectionReason;
+                  const trimmed = raw.trim();
+                  const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+                  const isValid =
+                    raw.length <= 500 &&
+                    trimmed.length >= 10 &&
+                    trimmed.length <= 500 &&
+                    words.length >= 3 &&
+                    /[a-zA-Z]/.test(trimmed);
+                  if (!isValid) {
+                    setRejectionError(true);
+                    return;
                   }
                   setSubmittingDecision(true);
                   try {
-                    if (reviewDecision === "approve") {
-                      await approveEvent(event.id);
-                    } else {
-                      await rejectEvent(event.id, trimmed);
-                    }
+                    await rejectEvent(event.id, trimmed);
                     setShowReviewControls(false);
                     setReviewDecision("");
                     setRejectionReason("");
                     setRejectionError(false);
                   } catch (error) {
                     setReviewNotice(
-                      error instanceof Error ? error.message : "Failed to submit review decision.",
+                      error instanceof Error ? error.message : "Failed to reject event.",
                     );
                   } finally {
                     setSubmittingDecision(false);
@@ -500,6 +531,12 @@ export function EventDetailPage() {
                 <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
               </div>
+              {currentUser.role === "attendee" && (
+                <div>
+                  <dt className="text-gray-400 dark:text-gray-500">Event status</dt>
+                  <dd className="font-medium text-gray-800 dark:text-gray-200">{attendeeEventStatus(event, new Date())}</dd>
+                </div>
+              )}
               <div>
                 <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
@@ -581,40 +618,13 @@ export function EventDetailPage() {
           </CardBody>
         </Card>
 
-        {currentUser.role === "attendee" && (
-          <Card className="lg:col-span-3">
-            <CardHeader>
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>
-            </CardHeader>
-            {!event.registrationEnabled ? (
-              <CardBody className="text-sm text-gray-600 dark:text-gray-400">
-                Registration through the website is not enabled for this event.
-              </CardBody>
-            ) : (
-              <CardBody className="space-y-3">
-                {myRegistration?.status !== "registered" && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Please sign up through the website first to attend this event.
-                  </p>
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Status:{" "}
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      {myRegistration?.status === "registered" ? "You're registered" : "Not registered"}
-                    </span>
-                  </p>
-                  {myRegistration?.status === "registered" ? (
-                    <Button variant="secondary" onClick={() => withdrawRegistration(event.id)}>
-                      Withdraw Registration
-                    </Button>
-                  ) : (
-                    <Button onClick={() => registerForEvent(event.id)}>Register</Button>
-                  )}
-                </div>
-              </CardBody>
-            )}
-          </Card>
+        {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
+          <RegistrationSection
+            event={event}
+            currentUser={currentUser}
+            registration={myRegistration}
+            onWithdrawn={refreshEvent}
+          />
         )}
 
         {(isOwner || isAssignedCoordinator) && (
@@ -632,11 +642,15 @@ export function EventDetailPage() {
         )}
       </div>
 
-      <div className="mt-4">
-        <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
-          ← Back
-        </button>
-      </div>
+      {/* Straight after submitting, "back" would return to the submitted form;
+          the success banner's "View My Events" link is the way on instead. */}
+      {!location.state?.submitted && (
+        <div className="mt-4">
+          <button onClick={() => navigate(-1)} className="text-sm text-gray-500 dark:text-gray-400 hover:underline">
+            ← Back
+          </button>
+        </div>
+      )}
     </div>
   );
 }

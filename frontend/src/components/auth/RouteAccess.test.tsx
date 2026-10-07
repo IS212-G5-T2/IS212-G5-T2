@@ -7,6 +7,7 @@ import { RequireAuth } from "./RequireAuth";
 import { RequireEventOwner } from "./RequireEventOwner";
 import { RequireRole } from "./RequireRole";
 import { useAppStore } from "@/store/useAppStore";
+import { navByRole } from "@/components/layout/navConfig";
 import type { EventRecord, User } from "@/types";
 
 const organiser: User = {
@@ -28,6 +29,20 @@ const coordinator: User = {
   name: "Coordinator",
   email: "coordinator@example.com",
   role: "coordinator",
+};
+
+const technicalSupport: User = {
+  id: "tech-support-1",
+  name: "Technical Support",
+  email: "support@example.com",
+  role: "tech_support",
+};
+
+const venueStaff: User = {
+  id: "venue-staff-1",
+  name: "Venue Staff",
+  email: "venue@example.com",
+  role: "venue_staff",
 };
 
 const event: EventRecord = {
@@ -86,10 +101,16 @@ function renderRoutes(initialEntry: string) {
           <Route path="/venues/:id" element={<p>Venue detail</p>} />
           <Route path="/bookings" element={<p>Bookings</p>} />
         </Route>
-        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+        <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<p>Equipment</p>} />
-          <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
+          <Route path="/equipment/create" element={<p>Create equipment</p>} />
           <Route path="/equipment/availability" element={<p>Equipment availability</p>} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
+          <Route path="/equipment/requests" element={<p>Equipment requests</p>} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
+          <Route path="/lead/queue" element={<p>Assignment queue</p>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -167,12 +188,13 @@ describe("restricted organiser routes", () => {
   // A secondary server-granted role authorizes the route even when it is not the display role.
   it("allows a multi-role user through a route granted by its secondary role", () => {
     useAppStore.setState({
-      currentUser: { ...organiser, roles: ["organiser", "coordinator"] },
+      currentUser: { ...coordinator, role: "venue_staff", roles: ["venue_staff", "coordinator"] },
     });
 
-    renderRoutes("/bookings");
+    // /equipment/requests is granted to coordinators, not venue staff (SPM-111).
+    renderRoutes("/equipment/requests");
 
-    expect(screen.getByText("Bookings")).toBeInTheDocument();
+    expect(screen.getByText("Equipment requests")).toBeInTheDocument();
   });
 
   it("redirects an attendee who directly opens an organiser-only route", () => {
@@ -189,6 +211,7 @@ describe("restricted organiser routes", () => {
     "/venues/venue-1",
     "/bookings",
     "/equipment",
+    "/equipment/create",
     "/equipment/requests",
     "/equipment/availability",
   ])("redirects an attendee who directly opens restricted operational route %s", (path) => {
@@ -196,6 +219,52 @@ describe("restricted organiser routes", () => {
     renderRoutes(path);
 
     expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+  });
+
+  // EQUIP-VIEW-01-E (AC1, supplementary). Kills: RequireRole wiring for
+  // /equipment/availability in this file's isolated route table. Fast, but NOT
+  // authoritative for App.tsx itself, since this table is hand-maintained rather
+  // than imported from App.tsx (confirmed by mutation testing: editing App.tsx's
+  // real route config leaves this test green). EQUIP-VIEW-01-A/B in App.test.tsx
+  // are the authoritative regression guard, rendering the real <App/>; the negative
+  // side of this isolated table is covered above by the "/equipment/availability"
+  // case in the restricted-operational-route table.
+  it("EQUIP-VIEW-01-E allows Technical Support to reach the equipment inventory list", () => {
+    useAppStore.setState({ currentUser: technicalSupport });
+
+    renderRoutes("/equipment/availability");
+
+    expect(screen.getByText("Equipment availability")).toBeInTheDocument();
+  });
+
+  // SPM-111 EQUIP-CRE-01-B: only Technical Support reaches the create-record route.
+  it("allows Technical Support and blocks every other role from the equipment creation route", () => {
+    useAppStore.setState({ currentUser: technicalSupport });
+    const { unmount } = renderRoutes("/equipment/create");
+    expect(screen.getByText("Create equipment")).toBeInTheDocument();
+
+    unmount();
+    for (const user of [organiser, coordinator, venueStaff, attendee]) {
+      useAppStore.setState({ currentUser: user });
+      const { unmount: unmountBlocked } = renderRoutes("/equipment/create");
+      expect(screen.queryByText("Create equipment")).not.toBeInTheDocument();
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountBlocked();
+    }
+  });
+
+  // Coordinators handle event equipment requests but not equipment records.
+  it("allows a coordinator to view equipment requests but blocks equipment record routes", () => {
+    useAppStore.setState({ currentUser: coordinator });
+    const { unmount: unmountRequests } = renderRoutes("/equipment/requests");
+    expect(screen.getByText("Equipment requests")).toBeInTheDocument();
+    unmountRequests();
+
+    for (const path of ["/equipment", "/equipment/create", "/equipment/availability"]) {
+      const { unmount: unmountBlocked } = renderRoutes(path);
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountBlocked();
+    }
   });
 
   // SPM-37: cover every branch of RequireRole's role-specific fallback redirect.
@@ -300,5 +369,39 @@ describe("restricted organiser routes", () => {
     );
 
     expect(screen.getByText(expected)).toBeInTheDocument();
+  });
+});
+
+describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
+  // Only the Lead reaches the queue or sees it in the nav; a Lead sent away lands on it.
+  it("LEAD-ASN-11-SEC-4 shows the Assignment Queue only to the Lead", () => {
+    // Arrange + Act: the Lead opens the queue.
+    const lead = { ...organiser, id: "lead-1", role: "coordinator_lead" as const, roles: ["coordinator_lead" as const] };
+    useAppStore.setState({ currentUser: lead });
+    const { unmount } = renderRoutes("/lead/queue");
+
+    // Assert: the Lead sees it.
+    expect(screen.getByText("Assignment queue")).toBeInTheDocument();
+    unmount();
+
+    // Act + Assert: a coordinator and an organiser are sent to the events dashboard instead.
+    for (const role of ["coordinator", "organiser"] as const) {
+      useAppStore.setState({ currentUser: { ...organiser, id: `${role}-1`, role, roles: [role] } });
+      const { unmount: unmountOther } = renderRoutes("/lead/queue");
+      expect(screen.queryByText("Assignment queue")).not.toBeInTheDocument();
+      expect(screen.getByText("Events dashboard")).toBeInTheDocument();
+      unmountOther();
+    }
+
+    // Act + Assert: a Lead who opens a route they can't use lands on their queue, not a blank page.
+    useAppStore.setState({ currentUser: lead });
+    renderRoutes("/events/create");
+    expect(screen.getByText("Assignment queue")).toBeInTheDocument();
+
+    // Assert: only the Lead's navigation offers the queue.
+    expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue"]);
+    for (const [role, items] of Object.entries(navByRole)) {
+      if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/queue");
+    }
   });
 });

@@ -36,9 +36,8 @@ when serving HTTPS.
 ## Authorization
 
 Route-owning modules must apply `AuthenticationMiddleware` to protected
-controllers. The app module currently applies it only to `AuthController`.
-The current events controller is therefore not session-protected. When the
-middleware is applied to a controller, it:
+controllers. The app module applies it to authenticated event, clarification,
+and venue routes. When the middleware is applied to a controller, it:
 
 - Leaves public `GET /` and `GET /healthz` requests alone.
 - Requires a valid session cookie for that protected controller's non-public routes.
@@ -144,6 +143,14 @@ for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
+
+## Equipment records
+
+Technical Support users can create and list equipment through `POST /api/equipment`
+and `GET /api/equipment`; `GET /api/equipment/locations` returns distinct saved
+locations for the create form. Equipment requests require a non-blank name and
+location, predefined type and maintenance status, and a whole-number quantity
+from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
 - `GET /api/events`: lists the fixed local demo organiser's events, newest first.
 - `GET /api/events/:id`: returns full details or 404.
 
@@ -159,6 +166,36 @@ Event unit tests live beside their implementation:
 `src/events/events.service.spec.ts` covers persistence behavior with mocked
 database calls. They run through `npm test`. There is no committed
 database-container E2E test for the event endpoints.
+
+## Venue records (SPM-50)
+
+`POST /api/venues` requires a valid local session and the RBAC `Venue:create`
+permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
+positive integer capacity, non-empty facilities and layouts, optional
+accessibility features, separate operating information and operating
+days with valid daily start/end times, and non-negative
+whole-minute setup and turnaround durations. Facilities and layouts must match
+the controlled lookup values; an optional image must be an image data URL no
+larger than 5 MB. Successful requests persist the venue, its normalized
+relationships, optional image, and the authenticated Venue Staff account ID
+(`venues.owner_user_id`) atomically and return
+the saved record with `Venue created successfully.` PostgreSQL generates the
+venue UUID; the server derives ownership from the verified session, never from
+request fields. Missing or invalid fields
+return field-specific `400` errors. A case-insensitive, trimmed name/location
+pair must be unique; duplicates return a field-level `409` conflict while the
+UUID remains the stable identifier.
+
+Apply `migrations/005_venues.sql` followed by
+`migrations/006_venue_operating_information.sql`, then
+`migrations/007_venue_operating_schedule.sql`, then
+`migrations/008_venue_owner_user_id.sql` to existing databases. The owner
+migration leaves historical venues with unknown ownership unassigned, while
+requiring an owner for new rows and enforcing a foreign key to `users(id)`.
+Fresh local databases
+receive the tables through `database/postgresql/init/001_schema.sql`. Unit
+coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
+test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
 ## Clarification/amendment requests (SPM-39)
 
@@ -191,12 +228,13 @@ Unit tests: `src/clarifications/clarification-input.spec.ts` and
 `test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
 real PostgreSQL database and the Firebase Auth Emulator.
 
-## Coordinator event decisions (SPM-83)
+## Request decisions (SPM-83 and SPM-40)
 
 Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_event_status.sql`, after the existing events and clarification schema (including its notifications table). Fresh local databases receive the final SPM-38/83 status and reason constraints directly from `database/postgresql/init/001_schema.sql`. This preserves existing rows; do not reset volumes.
 
-- `POST /api/events/:id/approve` requires the verified COORDINATOR assigned to a Submitted event. It locks the request, persists Approved status, and returns the updated event. A stale decision returns 409; another coordinator's assignment returns 403.
 - `POST /api/events/:id/reject` accepts `{ "reason": "..." }`. It requires the verified COORDINATOR assigned to a Submitted event. The trimmed reason must be 10–500 characters, contain at least three words, and include letters. It returns the updated event, including `rejectionReason`.
+- `POST /api/events/:id/approve` takes no body. It requires the verified COORDINATOR assigned to a Submitted event and returns the updated event with status `approved`.
+- Approval locks the event and commits Approved status plus an organiser-addressed `approval` notification in one transaction. Any later attempt to approve or move the same request through this decision endpoint returns 409, preserving the forward-only status transition.
 - Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.
-- `GET /api/notifications` returns only the verified ORGANISER's rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
+- `GET /api/notifications` returns only the verified ORGANISER's approval and rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
 Notifications are persistent in-app messages, not email. The frontend checks for them on sign-in, focus and every 30 seconds. In local demo mode they are addressed to the existing fixed demo organiser. Build with `npm run build`; use configured Firebase coordinator and organiser accounts to verify the live workflow.

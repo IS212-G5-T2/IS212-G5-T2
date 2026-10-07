@@ -7,7 +7,9 @@ export type UserRole =
   | 'COORDINATOR'
   | 'VENUE_STAFF'
   | 'TECH_SUPPORT'
-  | 'ATTENDEE';
+  | 'ATTENDEE'
+  // SPM-123: the single Event Coordinator Lead, never also a Coordinator.
+  | 'COORDINATOR_LEAD';
 
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
 

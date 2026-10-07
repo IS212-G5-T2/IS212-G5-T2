@@ -14,6 +14,9 @@ Install dependencies:
 npm ci
 ```
 
+The app uses Tailwind CSS v4. Shared design tokens and the class-based dark-mode
+variant are defined in `src/index.css` during the Tailwind build.
+
 Run the development server:
 
 ```sh
@@ -123,6 +126,37 @@ variable is absent. Firebase authentication is required for both draft and event
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
+## Creating venue records (SPM-50)
+
+Venue Staff can open **Create Venue** from the navigation, enter the
+required venue details, including one location, separate operating information
+(for example, public-holiday closures) and operating days with a daily start/end
+time, plus setup/turnaround
+durations in whole minutes, then continue to a second page to select facilities and room layouts.
+Accessibility remains a pill-style checkbox group on the first page. Staff may
+also attach one optional image of at most 5 MB; the image reader is shared with
+event creation/editing. The form rejects missing, negative, fractional, or
+non-numeric durations before sending `POST /api/venues`. Venue identifiers are
+not entered in the form; the backend returns a database-generated UUID.
+The same venue name and location cannot be created twice, ignoring surrounding
+spaces and letter case; the form displays the backend's field-level conflict.
+Successful responses redirect Venue Staff to the venue catalogue and display a
+confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
+convenience. Component tests live beside the page in
+`src/pages/venues/VenueCreatePage/`.
+
+Accounts with more than one server-granted role receive the combined navigation
+for all their roles. Shared destinations appear once, following the primary
+role's navigation label and order; role-specific entries such as **Create Venue**
+remain available.
+## Equipment records
+
+Technical Support can create equipment records at `/equipment/create` and view
+them at `/equipment/availability`. Quantity must be a whole number from 1
+through `2,147,483,647`; the create form prevents values outside that database
+range before it sends the request. The location combobox accepts either a
+saved location or new free text.
+
 ## Event planning (SPM-97, SPM-49, SPM-85)
 
 Once an event is Approved, its detail page shows a read-only **Planning information** panel to the owning organiser and the assigned coordinator; it refreshes every 15 seconds. Access uses every role the account holds, so a user who is both an organiser and the assigned coordinator gets the coordinator's editing tools.
@@ -140,3 +174,9 @@ A change that stays compatible with the existing venue bookings and equipment ar
 Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request and choose **Review Event**. Approve persists the event as Approved; Reject requires a trimmed 10–500-character reason with at least three words and letters. Invalid rejection input blocks submission. The saved decision leaves the Submitted pending view; rejected requests retain their reason and remain available through the Rejected filter.
 
 Organisers receive persistent rejection notifications above their main content, with the reason in a separate block and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Existing databases require backend migrations 003_event_rejection.sql and 004_allow_rejected_event_status.sql.
+
+## Approving requests (SPM-40)
+
+Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
+
+Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.

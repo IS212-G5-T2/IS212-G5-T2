@@ -1,42 +1,69 @@
-import { useAppStore } from "@/store/useAppStore";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { DataTable, type Column } from "@/components/ui/DataTable";
-import type { EquipmentItem } from "@/types";
-
-interface Row extends EquipmentItem {
-  reserved: number;
-  requested: number;
-  available: number;
-}
+import { Button } from "@/components/ui/Button";
+import { TextInput } from "@/components/ui/FormControls";
+import type { EquipmentRecord } from "@/types";
+import { getEquipment } from "@/utils/equipment-api";
 
 export function EquipmentAvailabilityPage() {
-  const equipment = useAppStore((s) => s.equipment);
-  const equipmentRequests = useAppStore((s) => s.equipmentRequests);
+  const navigate = useNavigate();
+  const [records, setRecords] = useState<EquipmentRecord[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [typeSearch, setTypeSearch] = useState("");
+  const [locationSearch, setLocationSearch] = useState("");
 
-  const rows: Row[] = equipment.map((item) => {
-    const relevant = equipmentRequests.filter((r) => r.equipmentId === item.id);
-    const reserved = relevant
-      .filter((r) => r.status === "reserved")
-      .reduce((sum, r) => sum + r.quantity, 0);
-    const requested = relevant
-      .filter((r) => r.status === "requested" || r.status === "checking")
-      .reduce((sum, r) => sum + r.quantity, 0);
-    return { ...item, reserved, requested, available: Math.max(item.totalQuantity - reserved, 0) };
-  });
+  useEffect(() => {
+    void getEquipment()
+      .then((loaded) => {
+        setRecords(loaded);
+        setLoadError(false);
+      })
+      .catch(() => {
+        setRecords([]);
+        setLoadError(true);
+      });
+  }, []);
 
-  const columns: Column<Row>[] = [
-    { header: "Equipment", render: (r) => <span className="font-medium text-gray-900 dark:text-gray-100">{r.name}</span> },
-    { header: "Category", render: (r) => r.category },
-    { header: "Total quantity", render: (r) => r.totalQuantity },
-    { header: "Reserved", render: (r) => r.reserved },
-    { header: "Pending requests", render: (r) => r.requested },
+  const visibleRecords = useMemo(() => {
+    const typeQuery = typeSearch.trim().toLowerCase();
+    const locationQuery = locationSearch.trim().toLowerCase();
+    return records.filter(
+      (record) =>
+        record.type.toLowerCase().includes(typeQuery) &&
+        record.location.toLowerCase().includes(locationQuery),
+    );
+  }, [records, typeSearch, locationSearch]);
+
+  const columns: Column<EquipmentRecord>[] = [
     {
-      header: "Available now",
-      render: (r) => (
-        <span className={r.available === 0 ? "font-semibold text-danger-700 dark:text-danger-400" : "font-semibold text-success-700 dark:text-success-300"}>
-          {r.available}
+      header: "Equipment name",
+      render: (record) => (
+        <span className="font-medium text-gray-900 dark:text-gray-100">
+          {record.name}
         </span>
       ),
+    },
+    {
+      header: "Equipment type",
+      render: (record) => (
+        <span className="font-medium text-gray-900 dark:text-gray-100">
+          {record.type}
+        </span>
+      ),
+    },
+    {
+      header: "Location",
+      render: (record) => record.location,
+    },
+    {
+      header: "Maintenance status",
+      render: (record) => record.maintenanceStatus,
+    },
+    {
+      header: "Quantity",
+      render: (record) => record.quantity,
     },
   ];
 
@@ -44,9 +71,48 @@ export function EquipmentAvailabilityPage() {
     <div>
       <PageHeader
         title="Equipment Availability"
-        description="Feature 13 — Determine whether sufficient equipment is available, filtering out quantities already committed to overlapping events."
+        description="Technical Support inventory records."
+        actions={
+          <Button onClick={() => navigate("/equipment/create")}>
+            + Create Equipment Record
+          </Button>
+        }
       />
-      <DataTable columns={columns} rows={rows} rowKey={(r) => r.id} />
+      {loadError ? (
+        <p
+          role="alert"
+          className="text-sm text-danger-600 dark:text-danger-400"
+        >
+          Unable to load equipment records. Please try again.
+        </p>
+      ) : (
+        <>
+          <div className="mb-4 grid max-w-2xl gap-4 sm:grid-cols-2">
+            <TextInput
+              type="search"
+              label="Search by type"
+              value={typeSearch}
+              onChange={(event) => setTypeSearch(event.target.value)}
+            />
+            <TextInput
+              type="search"
+              label="Search by location"
+              value={locationSearch}
+              onChange={(event) => setLocationSearch(event.target.value)}
+            />
+          </div>
+          <DataTable
+            columns={columns}
+            rows={visibleRecords}
+            rowKey={(record) => record.id}
+            emptyMessage={
+              records.length > 0 && (typeSearch.trim() || locationSearch.trim())
+                ? "No equipment records match your search."
+                : "No equipment records found."
+            }
+          />
+        </>
+      )}
     </div>
   );
 }
