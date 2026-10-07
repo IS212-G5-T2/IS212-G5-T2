@@ -203,6 +203,12 @@ export function EventDetailPage() {
   return (
     <div>
       {location.state?.submitted && <div role="status" className="mb-6 rounded-lg border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900"><strong>Your event request was submitted successfully.</strong><p className="mt-1">You can find it in My Events.</p><Link className="mt-2 inline-block underline" to="/events">View My Events</Link></div>}
+      {/* SPM-46 AC2: the coordinator sees who handed the event over, and when. */}
+      {isAssignedCoordinator && event.reassignedFrom && (
+        <p role="note" className="mb-4 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-900 dark:border-primary-800 dark:bg-primary-900/30 dark:text-primary-100">
+          {`Reassigned to you from ${event.reassignedFrom.coordinatorName} on ${formatDateTime(event.reassignedFrom.reassignedAt)}`}
+        </p>
+      )}
       <PageHeader
         title={event.name}
         description={event.purpose}

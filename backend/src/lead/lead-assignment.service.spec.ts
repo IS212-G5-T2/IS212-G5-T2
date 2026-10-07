@@ -391,6 +391,7 @@ function wireReassign(options: {
   event?: Record<string, unknown> | null;
   coordinator?: Record<string, unknown> | null;
   notificationError?: Error;
+  historyError?: Error;
 }) {
   const event = options.event === undefined ? reassignEventRow() : options.event;
   const coordinator =
@@ -402,6 +403,7 @@ function wireReassign(options: {
     if (text.startsWith('SELECT') && text.includes('FROM events')) return { rows: event ? [event] : [] };
     if (text.startsWith('SELECT') && text.includes('FROM users')) return { rows: coordinator ? [coordinator] : [] };
     if (text.startsWith('INSERT INTO notifications') && options.notificationError) throw options.notificationError;
+    if (text.startsWith('INSERT INTO event_reassignments') && options.historyError) throw options.historyError;
     return { rows: [] };
   });
 }
@@ -701,5 +703,41 @@ describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
     await expect(service.reassign(both, EVENT_ID, reassignBody)).rejects.toThrow(forbidden);
     expect(database.query).not.toHaveBeenCalled();
     expect(database.transaction).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SPM-46 View a Reassigned Event: every reassignment is recorded so the new
+// coordinator can see who the event came from and when (AC2), and a previous
+// coordinator can be told it moved (AC4).
+// Test cases: REASN-VIEW-02-A, 02-B.
+// ---------------------------------------------------------------------------
+describe('SPM-46 AC2: each reassignment is recorded', () => {
+  // One history row per reassignment, naming both coordinators and the Lead.
+  // Kills: B1 (no history row), B11 (history written outside the transaction).
+  it('REASN-VIEW-02-A records the reassignment (from, to and the Lead) in the same transaction', async () => {
+    // Arrange: a normal reassignment from Coordinator 1 to Coordinator 2.
+    wireReassign({});
+
+    // Act: reassign.
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: exactly one history row inside the reassignment transaction, with both coordinators and the Lead.
+    const history = txStatements().filter((s) => s.sql.startsWith('INSERT INTO event_reassignments'));
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+    expect(history).toHaveLength(1);
+    expect(history[0].params).toEqual(
+      expect.arrayContaining([EVENT_ID, COORDINATOR_ID, 'Coordinator 1', NEW_COORDINATOR_ID, 'Coordinator 2', 'lead-1']),
+    );
+  });
+
+  // Without its history row, a reassignment doesn't stick.
+  // Kills: a history-write error being swallowed instead of rolling the reassignment back.
+  it('REASN-VIEW-02-B rolls the reassignment back if the history row cannot be saved', async () => {
+    // Arrange: saving the history row fails.
+    wireReassign({ historyError: new Error('history store down') });
+
+    // Act + Assert: the error leaves the transaction, so it rolls back.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow('history store down');
   });
 });
