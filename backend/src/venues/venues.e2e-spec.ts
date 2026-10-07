@@ -641,5 +641,231 @@ describe.skipIf(!databaseUrl)(
       // Assert: Alpha rows use ID order; Zulu follows both regardless of its lower ID.
       expect(orderedIds).toEqual([ids[1], ids[2], ids[0]]);
     });
+
+    // SPM-122 / VEN-UNAVAIL-04/06/07/08: blockouts persist without changing booked events.
+    it('saves staff unavailability and lists setup and turnaround conflicts without mutating bookings', async () => {
+      // Arrange one venue with three distinct existing event bookings.
+      const staff = await authenticate(staffEmail);
+      const coordinator = await authenticate(coordinatorEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, name: 'SPM-122 Conflict Venue' })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const setupEvent = await createScheduleEvent('Setup affected event');
+      const turnaroundEvent = await createScheduleEvent(
+        'Turnaround affected event',
+      );
+      const outsideEvent = await createScheduleEvent('Outside event');
+      const at = (hour: number, minute = 0) =>
+        new Date(Date.UTC(2030, 0, 12, hour, minute));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1,$2,$5,$6,'approved'), ($1,$3,$7,$8,'approved'), ($1,$4,$9,$10,'approved')`,
+        [
+          id,
+          setupEvent,
+          turnaroundEvent,
+          outsideEvent,
+          at(13),
+          at(14),
+          at(10),
+          at(11),
+          at(15, 30),
+          at(16, 30),
+        ],
+      );
+      const before = await pool.query(
+        'SELECT id, event_id, start_at, end_at, status FROM venue_bookings WHERE venue_id = $1 ORDER BY id',
+        [id],
+      );
+      const originalEvents = await pool.query(
+        'SELECT id, event_name, start_date_time, end_date_time, organiser_id, coordinator_id FROM events WHERE id = ANY($1::uuid[]) ORDER BY id',
+        [[setupEvent, turnaroundEvent, outsideEvent]],
+      );
+      const payload = {
+        start: at(12, 15).toISOString(),
+        end: at(12, 45).toISOString(),
+        reason: 'Air-conditioning inspection',
+      };
+
+      // Act: denied users cannot save, while staff can despite the booking.
+      await coordinator
+        .post(`/api/venues/${id}/unavailable-periods`)
+        .send(payload)
+        .expect(403);
+      const saved = await staff
+        .post(`/api/venues/${id}/unavailable-periods`)
+        .send(payload)
+        .expect(201);
+      const turnaround = await staff
+        .post(`/api/venues/${id}/unavailable-periods`)
+        .send({
+          start: at(11, 15).toISOString(),
+          end: at(11, 30).toISOString(),
+          reason: 'Cleaning',
+        })
+        .expect(201);
+      const detail = await staff.get(`/api/venues/${id}`).expect(200);
+
+      // Assert setup-only and turnaround-only matches, no false positive, and unchanged originals.
+      expect(saved.body.period).toMatchObject({
+        start: payload.start,
+        end: payload.end,
+        reason: payload.reason,
+      });
+      expect(
+        saved.body.affectedBookings.map(
+          (item: { eventId: string }) => item.eventId,
+        ),
+      ).toEqual([setupEvent]);
+      expect(
+        turnaround.body.affectedBookings.map(
+          (item: { eventId: string }) => item.eventId,
+        ),
+      ).toEqual([turnaroundEvent]);
+      expect(detail.body.unavailablePeriods).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ reason: payload.reason }),
+        ]),
+      );
+      expect(
+        (
+          await pool.query(
+            'SELECT id, event_id, start_at, end_at, status FROM venue_bookings WHERE venue_id = $1 AND status = $2 ORDER BY id',
+            [id, 'approved'],
+          )
+        ).rows,
+      ).toEqual(before.rows);
+      expect(
+        (
+          await pool.query(
+            'SELECT id, event_name, start_date_time, end_date_time, organiser_id, coordinator_id FROM events WHERE id = ANY($1::uuid[]) ORDER BY id',
+            [[setupEvent, turnaroundEvent, outsideEvent]],
+          )
+        ).rows,
+      ).toEqual(originalEvents.rows);
+    });
+
+    // SPM-122 / VEN-UNAVAIL-07-C: touching effective boundaries are not conflicts.
+    it('lists one-minute setup and turnaround overlaps but excludes exact boundary touches', async () => {
+      // Arrange four bookings around both ends of the proposed unavailable period.
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Boundary Venue' }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const events = await Promise.all([
+        createScheduleEvent('Turnaround boundary'),
+        createScheduleEvent('Turnaround overlap'),
+        createScheduleEvent('Setup boundary'),
+        createScheduleEvent('Setup overlap'),
+      ]);
+      const at = (hour: number, minute: number) => new Date(Date.UTC(2030, 0, 12, hour, minute));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1,$2,$6,$7,'approved'), ($1,$3,$6,$8,'approved'),
+                ($1,$4,$9,$10,'approved'), ($1,$5,$11,$10,'approved')`,
+        [id, ...events, at(11, 0), at(11, 45), at(11, 46), at(13, 15), at(14, 0), at(13, 14)],
+      );
+
+      // Act through the HTTP endpoint and the real overlap query.
+      const saved = await staff.post(`/api/venues/${id}/unavailable-periods`).send({
+        start: at(12, 30).toISOString(), end: at(12, 45).toISOString(), reason: 'Safety inspection',
+      }).expect(201);
+
+      // Assert strict overlap at both occupied-period boundaries.
+      expect(saved.body.affectedBookings.map((booking: { eventId: string }) => booking.eventId)).toEqual([events[1], events[3]]);
+    });
+
+    // SPM-122 / VEN-UNAVAIL-04-A/07-C: only live bookings on an existing venue are affected.
+    it('rejects a missing venue and excludes expired tentative holds from the affected list', async () => {
+      // Arrange an active hold and an expired hold with the same effective overlap.
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Hold Venue' }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const activeEvent = await createScheduleEvent('Active hold event');
+      const expiredEvent = await createScheduleEvent('Expired hold event');
+      const at = (hour: number) => new Date(Date.UTC(2030, 0, 12, hour));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, hold_expires_at)
+         VALUES ($1,$2,$4,$5,'pending',$6), ($1,$3,$4,$5,'pending',$7)`,
+        [id, activeEvent, expiredEvent, at(13), at(14), new Date(fixedNow.getTime() + 60_000), new Date(fixedNow.getTime() - 60_000)],
+      );
+      const payload = { start: at(13).toISOString(), end: at(14).toISOString(), reason: 'Inspection' };
+
+      // Act and assert a missing venue cannot receive a period.
+      await staff.post(`/api/venues/${randomUUID()}/unavailable-periods`).send(payload).expect(404);
+      const saved = await staff.post(`/api/venues/${id}/unavailable-periods`).send(payload).expect(201);
+
+      // Assert only the live tentative hold is listed, with its real event identity.
+      expect(saved.body.affectedBookings).toEqual([
+        expect.objectContaining({ eventId: activeEvent, eventName: 'Active hold event', status: 'tentative' }),
+      ]);
+    });
+
+    // SPM-122 / VEN-UNAVAIL-05-A/B: one active period ends early without changing another.
+    it('restores one active period early while leaving a second period intact', async () => {
+      // Arrange a venue with two blockouts.
+      const staff = await authenticate(staffEmail);
+      const coordinator = await authenticate(coordinatorEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({
+          ...venueInput,
+          name: 'SPM-122 Early End Venue',
+        })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const at = (day: number, hour: number) =>
+        new Date(Date.UTC(2030, 0, day, hour)).toISOString();
+      const active = await staff
+        .post(`/api/venues/${id}/unavailable-periods`)
+        .send({ start: at(10, 11), end: at(10, 13), reason: 'Maintenance' })
+        .expect(201);
+      const unrelated = await staff
+        .post(`/api/venues/${id}/unavailable-periods`)
+        .send({ start: at(12, 11), end: at(12, 13), reason: 'Renovation' })
+        .expect(201);
+      const otherVenue = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Other Venue' }).expect(201);
+      venueIds.push(otherVenue.body.venue.id as string);
+      const beforeDetail = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(beforeDetail.body.availabilityStatus).toBe('unavailable');
+      expect(beforeDetail.body.unavailablePeriods).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: active.body.period.id, current: true }),
+        expect.objectContaining({ id: unrelated.body.period.id, current: false }),
+      ]));
+      // An unrelated user, future period, or wrong venue must not end the active period.
+      await coordinator.post(`/api/venues/${id}/unavailable-periods/${active.body.period.id}/end`).expect(403);
+      await staff.post(`/api/venues/${id}/unavailable-periods/${unrelated.body.period.id}/end`).expect(404);
+      await staff.post(`/api/venues/${otherVenue.body.venue.id}/unavailable-periods/${active.body.period.id}/end`).expect(404);
+      // Act: end only the active period.
+      const ended = await staff
+        .post(
+          `/api/venues/${id}/unavailable-periods/${active.body.period.id}/end`,
+        )
+        .expect(201);
+      await staff.post(`/api/venues/${id}/unavailable-periods/${active.body.period.id}/end`).expect(404);
+      const afterDetail = await staff.get(`/api/venues/${id}`).expect(200);
+      const periods = await pool.query(
+        'SELECT id, end_at, reason FROM venue_bookings WHERE venue_id = $1 AND status = $2 ORDER BY id',
+        [id, 'blocked'],
+      );
+
+      // Assert the active period ends at the fixed clock and unrelated future period is unchanged.
+      expect(
+        periods.rows.find((row) => row.id === active.body.period.id),
+      ).toMatchObject({ end_at: fixedNow, reason: 'Maintenance' });
+      expect(ended.body.period).toMatchObject({ id: active.body.period.id, start: at(10, 11), end: fixedNow.toISOString(), reason: 'Maintenance' });
+      expect(afterDetail.body.availabilityStatus).toBe('available');
+      expect(afterDetail.body.unavailablePeriods).toEqual([
+        expect.objectContaining({ id: unrelated.body.period.id, current: false }),
+      ]);
+      expect(
+        periods.rows.find((row) => row.id === unrelated.body.period.id),
+      ).toMatchObject({ end_at: new Date(at(12, 13)), reason: 'Renovation' });
+    });
   },
 );

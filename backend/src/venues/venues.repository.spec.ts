@@ -273,6 +273,7 @@ describe('SPM-124 venue reads', () => {
           start: '2026-10-05T00:00:00.000Z',
           end: '2026-10-07T00:00:00.000Z',
           reason: 'Maintenance',
+          current: true,
         },
       ],
       reservations: [

@@ -11,6 +11,7 @@ import type {
 } from '../auth/models/auth.models.js';
 import { RbacRepository } from '../auth/authorization/rbac.repository.js';
 import { validateVenue } from './venue-input.js';
+import { validateUnavailability } from './venue-unavailability.js';
 import { VenuesRepository } from './venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
@@ -105,5 +106,43 @@ export class VenuesService {
     const venue = await this.repository.get(id);
     if (!venue) throw new NotFoundException('Venue not found.');
     return venue;
+  }
+
+  /** Venue Staff can save blockouts even when existing bookings are affected. */
+  async markUnavailable(
+    user: AuthenticatedUser | undefined,
+    id: string,
+    body: unknown,
+  ) {
+    await this.authorizeStaff(user);
+    if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    const result = await this.repository.markUnavailable(
+      id,
+      validateUnavailability(body),
+    );
+    if (!result) throw new NotFoundException('Venue not found.');
+    return result;
+  }
+
+  async endUnavailable(
+    user: AuthenticatedUser | undefined,
+    id: string,
+    periodId: string,
+  ) {
+    await this.authorizeStaff(user);
+    if (!UUID.test(id) || !UUID.test(periodId))
+      throw new NotFoundException('Unavailable period not found.');
+    const period = await this.repository.endUnavailable(id, periodId);
+    if (!period) throw new NotFoundException('Unavailable period not found.');
+    return { period };
+  }
+
+  private async authorizeStaff(user: AuthenticatedUser | undefined) {
+    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
+    if (
+      !user.roles.includes('VENUE_STAFF') ||
+      !(await this.rbac.hasPermission('VENUE_STAFF', 'Venue', 'update'))
+    )
+      throw new ForbiddenException('Venue Staff access required.');
   }
 }

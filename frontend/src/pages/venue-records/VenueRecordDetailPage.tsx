@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -6,6 +6,9 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ApiError, api } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
 import type { VenueRecord } from "./venue-records";
+import { VenueUnavailabilityPanel } from "./VenueUnavailabilityPanel";
+import { useAppStore } from "@/store/useAppStore";
+import { hasRole } from "@/types";
 
 export function VenueRecordDetailPage() {
   const { id } = useParams();
@@ -13,11 +16,16 @@ export function VenueRecordDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const displayedVenueId = useRef<string | undefined>(undefined);
+  const user = useAppStore((state) => state.currentUser);
 
   useEffect(() => {
     let active = true;
-    setLoading(true);
-    setVenue(undefined);
+    if (displayedVenueId.current !== id) {
+      setLoading(true);
+      setVenue(undefined);
+      displayedVenueId.current = id;
+    }
     setError("");
     if (!id) {
       setError("Venue not found.");
@@ -140,18 +148,12 @@ export function VenueRecordDetailPage() {
               <h2 className="font-semibold">Unavailable periods</h2>
             </CardHeader>
             <CardBody>
-              {venue.unavailablePeriods.length === 0 ? (
-                <p>No current or scheduled unavailable periods.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {venue.unavailablePeriods.map((period) => (
-                    <li key={period.id}>
-                      {formatDateTimeRange(period.start, period.end)} —{" "}
-                      {period.reason}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <VenueUnavailabilityPanel
+                venueId={venue.id}
+                periods={venue.unavailablePeriods}
+                canManage={hasRole(user, "venue_staff")}
+                onSaved={() => setRevision((value) => value + 1)}
+              />
             </CardBody>
           </Card>
           <Card>

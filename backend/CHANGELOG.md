@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- SPM-122: Venue Staff can save free-text unavailable periods, list affected
+  bookings using setup/turnaround time, and end an active period early.
+
 - SPM-124 venue reads now use setup and turnaround buffers when determining
   whether an approved booking currently makes a venue unavailable. Removed the
   duplicate venue authentication-middleware registration.

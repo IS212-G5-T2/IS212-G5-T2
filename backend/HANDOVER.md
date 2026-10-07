@@ -59,6 +59,12 @@ filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 ## Continuity Notes
 
+SPM-122 extends the same venue module with Venue Staff blockout creation and
+early ending. Creation returns affected approved bookings and live tentative
+holds using setup and turnaround times without changing events. The legacy
+browser-memory booking flow remains separate from this table. Booking and hold
+enforcement belongs to SPM-125.
+
 SPM-124 adds read-only `GET /api/venues` and `GET /api/venues/:id` for any role
 with `Venue:read`. Both endpoints use the shared catalogue by default;
 `GET /api/venues?mine=true` is the optional session-derived owner filter.

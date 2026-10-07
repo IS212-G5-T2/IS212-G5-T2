@@ -4,6 +4,7 @@ import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import { accessibilityOptions } from './accessibility-options.js';
 import type { VenueImageInput, VenueInput } from './venue-input.js';
+import type { UnavailabilityInput } from './venue-unavailability.js';
 
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {
@@ -34,6 +35,7 @@ export interface VenueUnavailablePeriod {
   start: string;
   end: string;
   reason: string;
+  current?: boolean;
 }
 
 export interface VenueReservation {
@@ -43,6 +45,10 @@ export interface VenueReservation {
   end: string;
   status: 'booked' | 'tentative';
   affectedByUnavailablePeriod: boolean;
+}
+
+export interface AffectedVenueReservation extends VenueReservation {
+  eventId: string;
 }
 
 type Queryable = Pick<pg.PoolClient, 'query'>;
@@ -165,6 +171,98 @@ export class VenuesRepository {
     return (await this.withSchedules([this.toReadRecord(result.rows[0])]))[0];
   }
 
+  /** Block a venue without altering existing event bookings or holds. */
+  async markUnavailable(
+    venueId: string,
+    input: UnavailabilityInput,
+  ): Promise<
+    | {
+        period: VenueUnavailablePeriod;
+        affectedBookings: AffectedVenueReservation[];
+      }
+    | undefined
+  > {
+    return this.database.transaction(async (client) => {
+      const venue = await client.query(
+        'SELECT id FROM venues WHERE id = $1::uuid FOR UPDATE',
+        [venueId],
+      );
+      if (!venue.rows[0]) return undefined;
+      const saved = await client.query<{
+        id: string;
+        start_at: Date;
+        end_at: Date;
+        reason: string;
+      }>(
+        `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+         VALUES ($1, $2, $3, 'blocked', $4) RETURNING id, start_at, end_at, reason`,
+        [venueId, input.start, input.end, input.reason],
+      );
+      const affected = await client.query<BookingRow & { event_id: string }>(
+        `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status
+         FROM venue_bookings b JOIN events e ON e.id = b.event_id
+         JOIN venues v ON v.id = b.venue_id
+         WHERE b.venue_id = $1::uuid
+           AND (b.status = 'approved' OR
+             (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)))
+           AND b.start_at - make_interval(mins => v.setup_time_minutes) < $2::timestamptz
+           AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $4::timestamptz
+         ORDER BY b.start_at, b.id`,
+        [venueId, input.end, this.clock.now(), input.start],
+      );
+      const row = saved.rows[0];
+      return {
+        period: {
+          id: row.id,
+          start: row.start_at.toISOString(),
+          end: row.end_at.toISOString(),
+          reason: row.reason,
+        },
+        affectedBookings: affected.rows.map((booking) => ({
+          id: booking.id,
+          eventId: booking.event_id,
+          eventName: booking.event_name,
+          start: booking.start_at.toISOString(),
+          end: booking.end_at.toISOString(),
+          status:
+            booking.status === 'approved'
+              ? ('booked' as const)
+              : ('tentative' as const),
+          affectedByUnavailablePeriod: true,
+        })),
+      };
+    });
+  }
+
+  /** Shorten only the selected active blockout; retain every other period. */
+  async endUnavailable(
+    venueId: string,
+    periodId: string,
+  ): Promise<VenueUnavailablePeriod | undefined> {
+    const now = this.clock.now();
+    const result = await this.database.query<{
+      id: string;
+      start_at: Date;
+      end_at: Date;
+      reason: string;
+    }>(
+      `UPDATE venue_bookings SET end_at = $3::timestamptz
+       WHERE id = $2::uuid AND venue_id = $1::uuid AND status = 'blocked'
+         AND start_at < $3::timestamptz AND end_at > $3::timestamptz
+       RETURNING id, start_at, end_at, reason`,
+      [venueId, periodId, now],
+    );
+    const row = result.rows[0];
+    return row
+      ? {
+          id: row.id,
+          start: row.start_at.toISOString(),
+          end: row.end_at.toISOString(),
+          reason: row.reason,
+        }
+      : undefined;
+  }
+
   /**
    * Translates database field names to the venue API contract.
    *
@@ -257,6 +355,7 @@ export class VenuesRepository {
         start: row.start_at.toISOString(),
         end: row.end_at.toISOString(),
         reason: row.reason,
+        current: row.current,
       });
       if (row.current) venue.availabilityStatus = 'unavailable';
     }

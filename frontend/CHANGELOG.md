@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- SPM-122: added venue detail controls to review, confirm, cancel, and end
+  unavailable periods, with an affected-booking list after saving.
+
 - SPM-124 venue schedule periods now always display their start and end times,
   including multi-day periods. Changing venue detail routes immediately clears
   the previous venue while the replacement record loads.
