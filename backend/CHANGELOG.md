@@ -3,7 +3,8 @@
 ## Unreleased
 
 - SPM-122: Venue Staff can save free-text unavailable periods, list affected
-  bookings using setup/turnaround time, and end an active period early.
+  current or upcoming bookings using setup/turnaround time, and end an active
+  period early. New periods whose end has passed are rejected.
 - SPM-46: each reassignment is recorded in `event_reassignments`. Events now
   carry `reassignedFrom { coordinatorName, reassignedAt }`, sent only to the
   coordinator who received them (never organisers or attendees), and a previous coordinator opening the event gets 403

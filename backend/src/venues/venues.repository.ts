@@ -203,6 +203,7 @@ export class VenuesRepository {
          FROM venue_bookings b JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          WHERE b.venue_id = $1::uuid
+           AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $3::timestamptz
            AND (b.status = 'approved' OR
              (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)))
            AND b.start_at - make_interval(mins => v.setup_time_minutes) < $2::timestamptz

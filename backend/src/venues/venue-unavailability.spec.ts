@@ -6,13 +6,16 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { RbacRepository } from '../auth/authorization/rbac.repository.js';
-import { validateUnavailability } from './venue-unavailability.js';
+import { validateUnavailability as validateWithClock } from './venue-unavailability.js';
 import { VenuesRepository } from './venues.repository.js';
 import { VenuesService } from './venues.service.js';
 
 const venueId = '00000000-0000-4000-8000-000000000122';
 const periodId = '00000000-0000-4000-8000-000000000123';
 const staff: AuthenticatedUser = { uid: 'staff', roles: ['VENUE_STAFF'] };
+const fixedNow = new Date('2030-01-10T12:00:00.000Z');
+const validateUnavailability = (value: unknown, now = fixedNow) =>
+  validateWithClock(value, now);
 const input = {
   start: '2030-01-12T11:00:00.000Z',
   end: '2030-01-12T13:00:00.000Z',
@@ -43,6 +46,29 @@ describe('SPM-122 venue unavailable periods', () => {
       );
     },
   );
+
+  // SPM-122 AC1/04: a blockout must still affect the venue when it is saved.
+  it('rejects an interval that has ended, but accepts one already in progress', () => {
+    // Arrange a fixed server clock and intervals on both sides of the end boundary.
+    const now = new Date('2030-01-12T12:00:00.000Z');
+    const active = { ...input, start: '2030-01-12T11:00:00.000Z' };
+
+    // Act and assert an end at or before now is rejected, while an active end is valid.
+    for (const end of ['2030-01-12T11:59:59.000Z', now.toISOString()]) {
+      try {
+        validateUnavailability({ ...active, end }, now);
+        throw new Error('Expected validation to fail');
+      } catch (error) {
+        expect((error as BadRequestException).getResponse()).toMatchObject({
+          errors: { end: 'End date and time must be in the future.' },
+        });
+      }
+    }
+    expect(validateUnavailability(active, now)).toMatchObject({
+      start: new Date(active.start),
+      end: new Date(active.end),
+    });
+  });
 
   // VEN-UNAVAIL-01-B: a syntactically valid but nonexistent calendar day is invalid.
   it('rejects a nonexistent date instead of silently moving it into March', () => {
@@ -98,6 +124,7 @@ describe('SPM-122 venue unavailable periods', () => {
   const service = new VenuesService(
     { markUnavailable, endUnavailable } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
+    { now: () => fixedNow },
   );
 
   // VEN-UNAVAIL-04-SEC-1: only a verified Venue Staff identity can write.

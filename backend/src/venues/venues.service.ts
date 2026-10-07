@@ -1,8 +1,10 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import type {
@@ -10,6 +12,7 @@ import type {
   PermissionAction,
 } from '../auth/models/auth.models.js';
 import { RbacRepository } from '../auth/authorization/rbac.repository.js';
+import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import { validateVenue } from './venue-input.js';
 import { validateUnavailability } from './venue-unavailability.js';
 import { VenuesRepository } from './venues.repository.js';
@@ -37,6 +40,7 @@ export class VenuesService {
   constructor(
     private readonly repository: VenuesRepository,
     private readonly rbac: RbacRepository,
+    @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
   ) {}
 
   /**
@@ -118,7 +122,7 @@ export class VenuesService {
     if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
     const result = await this.repository.markUnavailable(
       id,
-      validateUnavailability(body),
+      validateUnavailability(body, this.clock.now()),
     );
     if (!result) throw new NotFoundException('Venue not found.');
     return result;

@@ -192,6 +192,10 @@ the schedule and sample venues.
 Venue Staff can `POST /api/venues/:id/unavailable-periods` with ISO date-times
 `start`, `end`, and a required free-text `reason`. The response contains the
 saved `period` and `affectedBookings`, including setup and turnaround overlaps.
+The end time must be later than the current server time. A period that has
+already started can be saved if it is still in progress. The affected list
+contains current and upcoming bookings, including their setup and turnaround
+time; elapsed bookings are omitted.
 Existing bookings and events are unchanged. `POST
 /api/venues/:id/unavailable-periods/:periodId/end` shortens one active period
 to the server clock time. `GET /api/venues/:id` exposes current and scheduled

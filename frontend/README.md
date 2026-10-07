@@ -173,6 +173,10 @@ save result lists affected bookings. An active period can be ended early after
 an explicit confirmation; the server's effective end time is shown afterward. Other
 roles can read the venue but cannot use these controls. The backend enforces
 authorization; frontend tests live beside the venue-record pages.
+If a save fails, the form keeps its values, shows the server error, and lets
+staff correct the fields and review again.
+The end time must still be in the future; a period already in progress is
+allowed while its end remains ahead.
 Periods display as separate cards with Active now or Scheduled labels. The form
 places date fields side by side on wider screens and stacks them on small screens;
 review, success, and error messages appear in separate panels.

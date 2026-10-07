@@ -805,6 +805,37 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    // SPM-122 AC1/04/07: an elapsed period cannot be saved and historical bookings are not actionable conflicts.
+    it('rejects elapsed periods and lists only live bookings for an active period', async () => {
+      // Arrange two approved bookings, with only one still occupying the venue at the fixed clock.
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Current Booking Venue' }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const historicalEvent = await createScheduleEvent('Past affected event');
+      const liveEvent = await createScheduleEvent('Upcoming affected event');
+      const at = (offsetHours: number) => new Date(fixedNow.getTime() + offsetHours * 60 * 60 * 1000).toISOString();
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1,$2,$4,$5,'approved'), ($1,$3,$6,$7,'approved')`,
+        [id, historicalEvent, liveEvent, at(-3), at(-1), at(1), at(2)],
+      );
+
+      // Act: a fully past interval is refused, while one still active is saved.
+      const past = await staff.post(`/api/venues/${id}/unavailable-periods`).send({
+        start: at(-2), end: fixedNow.toISOString(), reason: 'Maintenance',
+      }).expect(400);
+      expect(past.body).toMatchObject({ errors: { end: 'End date and time must be in the future.' } });
+      const saved = await staff.post(`/api/venues/${id}/unavailable-periods`).send({
+        start: at(-4), end: at(3), reason: 'Maintenance',
+      }).expect(201);
+
+      // Assert the past write did not persist and only the still-current booking is listed.
+      expect(saved.body.affectedBookings.map((booking: { eventId: string }) => booking.eventId)).toEqual([liveEvent]);
+      const blockouts = await pool.query('SELECT id FROM venue_bookings WHERE venue_id = $1 AND status = $2', [id, 'blocked']);
+      expect(blockouts.rows).toHaveLength(1);
+    });
+
     // SPM-122 / VEN-UNAVAIL-05-A/B: one active period ends early without changing another.
     it('restores one active period early while leaving a second period intact', async () => {
       // Arrange a venue with two blockouts.

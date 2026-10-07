@@ -61,7 +61,10 @@ filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 SPM-122 extends the same venue module with Venue Staff blockout creation and
 early ending. Creation returns affected approved bookings and live tentative
-holds using setup and turnaround times without changing events. The legacy
+holds using setup and turnaround times without changing events. A new period
+must end after the server clock; an already-started period is allowed while
+still active. Its affected-booking response omits bookings whose turnaround
+has already ended. The legacy
 browser-memory booking flow remains separate from this table. Booking and hold
 enforcement belongs to SPM-125.
 

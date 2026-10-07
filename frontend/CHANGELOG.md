@@ -3,7 +3,8 @@
 ## Unreleased
 
 - SPM-122: added venue detail controls to review, confirm, cancel, and end
-  unavailable periods, with an affected-booking list after saving.
+  unavailable periods, with an affected-booking list after saving. Failed saves
+  keep the form editable, and elapsed periods are rejected before review.
 - SPM-46: a reassigned event shows a "Reassigned" label and "from <coordinator>"
   on its card, and the assigned coordinator sees "Reassigned to you from
   <coordinator> on <date>" on the event page.

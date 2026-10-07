@@ -43,6 +43,7 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
     if (!start || Number.isNaN(new Date(start).getTime())) next.start = "Enter a valid start date and time.";
     if (!end || Number.isNaN(new Date(end).getTime())) next.end = "Enter a valid end date and time.";
     else if (start && new Date(end) <= new Date(start)) next.end = "End date and time must be after start date and time.";
+    else if (new Date(end) <= new Date()) next.end = "End date and time must be in the future.";
     if (!reason.trim()) next.reason = "A reason is required.";
     setErrors(next);
     if (!Object.keys(next).length) setConfirming(true);
@@ -60,8 +61,13 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
       cancel();
       onSaved();
     } catch (error) {
-      if (error instanceof ApiError) setErrors(error.errors ?? { form: error.message });
-      else setErrors({ form: "Unable to save the unavailable period." });
+      setConfirming(false);
+      if (error instanceof ApiError) {
+        const fieldErrors = Object.fromEntries(
+          Object.entries(error.errors ?? {}).filter(([key]) => ["start", "end", "reason"].includes(key)),
+        );
+        setErrors(Object.keys(fieldErrors).length ? fieldErrors : { form: error.message });
+      } else setErrors({ form: "Unable to save the unavailable period." });
     } finally {
       setBusy(false);
     }

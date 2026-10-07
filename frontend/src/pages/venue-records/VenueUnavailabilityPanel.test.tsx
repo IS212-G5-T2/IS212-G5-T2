@@ -9,7 +9,11 @@ const apiMock = vi.mocked(api);
 const id = "00000000-0000-4000-8000-000000000122";
 const onSaved = vi.fn();
 
-beforeEach(() => { vi.resetAllMocks(); });
+beforeEach(() => {
+  vi.resetAllMocks();
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2030-01-10T12:00:00.000Z"));
+});
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 
 function renderPanel(periods: Array<{ id: string; start: string; end: string; reason: string; current?: boolean }> = [], canManage = true) {
@@ -95,6 +99,22 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // SPM-122 AC1/04: fully elapsed periods cannot be reviewed for a new save.
+  it("explains that an elapsed end time cannot be saved", async () => {
+    // Arrange a historical interval with otherwise valid form fields.
+    const user = userEvent.setup();
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.type(screen.getByLabelText(/Unavailable start/), "2020-01-12T12:15");
+    await user.type(screen.getByLabelText(/Unavailable end/), "2020-01-12T12:45");
+    await user.type(screen.getByLabelText(/Reason/), "Maintenance");
+
+    // Act and assert the user sees the end-time problem before an API write.
+    await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+    expect(screen.getByText("End date and time must be in the future.")).toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   // VEN-UNAVAIL-05-A/B: an active period may end early while another stays intact.
   it("shows a dated reason and ends only the selected active period", async () => {
     // Arrange two periods, only the first marked current by the server.
@@ -155,6 +175,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange a valid-looking form that the server rejects with a field error.
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new ApiError("Check the unavailable period.", { reason: "A reason is required." }, undefined, 400));
+    apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
     renderPanel();
     await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
@@ -162,10 +183,42 @@ describe("SPM-122 venue unavailable period controls", () => {
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
     await user.click(screen.getByRole("button", { name: "Review unavailability" }));
 
-    // Act and assert the field error appears without a success result.
+    // Act and assert the rejected values remain editable so staff can correct and retry.
     await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
     expect(await screen.findByText("A reason is required.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Reason/)).toBeEnabled();
+    expect(screen.getByLabelText(/Unavailable start/)).toBeEnabled();
+    expect(screen.getByLabelText(/Unavailable end/)).toBeEnabled();
+    expect(screen.getByLabelText(/Reason/)).toHaveValue("Inspection");
+    expect(screen.getByRole("button", { name: "Review unavailability" })).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Affected bookings" })).not.toBeInTheDocument();
+    expect(onSaved).not.toHaveBeenCalled();
+    await user.clear(screen.getByLabelText(/Reason/));
+    await user.type(screen.getByLabelText(/Reason/), "Safety inspection");
+    await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+    await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
+    expect(await screen.findByText("No existing bookings are affected.")).toBeInTheDocument();
+    expect(JSON.parse(apiMock.mock.calls[1][1]?.body as string)).toMatchObject({ reason: "Safety inspection" });
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
+
+  // VEN-UNAVAIL-04-A: an unfamiliar server field error must still be visible and recoverable.
+  it("shows an unfamiliar server validation error and allows another review", async () => {
+    // Arrange a valid form and a rejection whose field is not part of this form.
+    const user = userEvent.setup();
+    apiMock.mockRejectedValueOnce(new ApiError("Check the unavailable period.", { venue: "Venue cannot be updated." }, undefined, 400));
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
+    await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
+    await user.type(screen.getByLabelText(/Reason/), "Inspection");
+    await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+
+    // Act and assert an error is visible and the entered values can be edited.
+    await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Check the unavailable period.");
+    expect(screen.getByLabelText(/Reason/)).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Review unavailability" })).toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
   });
 

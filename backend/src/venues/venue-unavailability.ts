@@ -10,7 +10,7 @@ const timestamp =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,3})?)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 /** Validate the public interval and free-text reason before any write. */
-export function validateUnavailability(value: unknown): UnavailabilityInput {
+export function validateUnavailability(value: unknown, now: Date = new Date()): UnavailabilityInput {
   const body =
     value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, unknown>)
@@ -36,6 +36,8 @@ export function validateUnavailability(value: unknown): UnavailabilityInput {
   const end = parse('end');
   if (!errors.start && !errors.end && end <= start)
     errors.end = 'End date and time must be after start date and time.';
+  else if (!errors.end && end <= now)
+    errors.end = 'End date and time must be in the future.';
   const reason = typeof body.reason === 'string' ? body.reason.trim() : '';
   if (!reason) errors.reason = 'A reason is required.';
   else if (reason.length > 500) errors.reason = 'Use 500 characters or fewer.';

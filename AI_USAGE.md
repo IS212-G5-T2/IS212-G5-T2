@@ -21,29 +21,40 @@ Keep entries concise. Do not paste long prompts, private conversations, credenti
 
 ## Entries
 
+## 2026-10-08 - Codex (GPT-6) - SPM-122 PR review fixes
+
+- Issue/PR: SPM-122 / [PR #53](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/53).
+- Human requester/operator: swr.
+- Areas touched: `backend/src/venues`, `frontend/src/pages/venue-records`, component documentation, and this ledger.
+- Summary: Failed unavailable-period saves now return to the editable form with entered values retained; unknown server field errors show the response message. New periods with an elapsed end are rejected, and affected-booking results omit bookings whose turnaround has ended. Updated earlier SPM-122 ledger entries to point to the existing PR and explain that mutation experiments were run before their scripts were excluded from the commit.
+- AI contribution: Reviewed teammate findings against current Jira AC1–AC8, code, and tests; added editable retry, elapsed-time boundary, and active versus historical booking checks.
+- Assumptions: Venue Staff role is required by the story; owner-only write access is not specified. Jira and Confluence do not prescribe past-date behavior; the current/scheduled list implies that a new period must still have time remaining. A past start is allowed when the end is in the future.
+- Checks run: Focused backend unit 38/38, frontend venue-detail 24/24, and venue HTTP/PostgreSQL 16/16 passed. Full backend coverage run: 38 files, 862 tests passed; full frontend coverage run: 59 files, 727 tests passed and 1 existing todo. Backend and frontend lint and builds passed. After freezing time in the focused test fixtures, backend validation 19/19 and frontend panel 15/15 passed. `git diff --check` passed.
+- Follow-up/conflict notes: Scheduled cancellation, overlapping blockout prevention, actor audit, and automatic page refresh at time boundaries remain outside the current Jira ACs. The requester authorized commit and push to the existing PR after the fixes are complete.
+
 ## 2026-10-08 - Codex (GPT-6) - Audit SPM-122 test evidence
 
 - UI follow-up: Improved period cards, active/scheduled labels, responsive date fields, form spacing, and feedback panels at the requester's direction. Reused existing date formatting for readable review times. Removed SPM-122 mutation files and restored shared runners at the requester's request; earlier mutation results remain historical evidence.
 
-- Issue/PR: SPM-122 / no pull request.
+- Issue/PR: SPM-122 / [PR #53](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/53), created after this audit.
 - Human requester/operator: swr.
-- Areas touched: `backend/src/venues`, `frontend/src/pages/venue-records`, component mutation scripts and documentation, and this ledger.
+- Areas touched: `backend/src/venues`, `frontend/src/pages/venue-records`, documentation, and this ledger. Mutation experiments used temporary scripts that were removed before commit at the requester's direction.
 - Summary: Audited current Jira AC1–AC8 against the Confluence VEN-UNAVAIL cases; added exact overlap boundaries, missing-venue and live-hold cases, early-end state and failure checks, and timezone payload assertions. Corrected nonexistent calendar-date acceptance and invisible early-end errors; added explicit early-end confirmation and result display.
 - AI contribution: requirements traceability, test/implementation review, controlled scratch-copy mutation suites, code, tests, and documentation.
 - Assumptions: Early ending uses the server clock. The current/scheduled venue detail list omits periods once they end; Confluence VEN-UNAVAIL-05 v4 now verifies the saved early-end time through the confirmation and restored availability through the refreshed detail.
 - Checks run: After the Confluence clarification, focused backend unit 39, frontend unit 22, venue HTTP/PostgreSQL 15, broader backend unit 761, and broader frontend unit 629 passed with 1 existing todo. Backend/frontend lint and builds passed. Scoped V8 coverage measured 100% of SPM-122 statements, branches, functions, and lines; scratch-copy mutation runs killed all 13 backend and 8 frontend mutants.
-- Follow-up/conflict notes: Current work reuses the staged SPM-122 branch; no commit, push, pull request, or Jira transition. The earlier AC5 source mismatch was resolved by the requester-approved Confluence v4 wording change; no production change was needed for that clarification.
+- Follow-up/conflict notes: The audit preceded commit `322e0ce` and PR #53. The earlier AC5 source mismatch was resolved by the requester-approved Confluence v4 wording change; no production change was needed for that clarification.
 
 ## 2026-10-07 - Codex (GPT-6) - Implement SPM-122 venue unavailable periods
 
-- Issue/PR: SPM-122 / no pull request; based on SPM-124 commit `b28aef3e1ce9ac639d336ca08aaf04d97c786189`.
+- Issue/PR: SPM-122 / [PR #53](https://github.com/IS212-G5-T2/IS212-G5-T2/pull/53), created after implementation; based on SPM-124 commit `b28aef3e1ce9ac639d336ca08aaf04d97c786189`.
 - Human requester/operator: swr.
 - Areas touched: `backend/src/venues`, `frontend/src/pages/venue-records`, component documentation, and this ledger.
 - Summary: Added Venue Staff blockout creation and early ending, validated free-text reasons and intervals, and returned setup/turnaround-aware affected bookings without changing events. The save result lists affected bookings.
 - AI contribution: Jira/Confluence review, implementation, automated tests, local PostgreSQL verification, and documentation.
 - Assumptions: The existing `venue_bookings` table stores staff blockouts; early ending uses the server clock. No SPM-125 availability-calendar, booking-enforcement, audit/history, or notification behavior was added.
 - Checks run: After correcting to AC1–AC8, backend unit 751/751, frontend unit 621 passed with 1 todo, venue PostgreSQL HTTP suite 13/13, backend/frontend lint and production builds, and both V8 coverage runs passed; `git diff --check` passed.
-- Follow-up/conflict notes: The Jira story and Confluence matrix changed from AC1–AC9 to AC1–AC8 before implementation; an earlier snapshot led to out-of-scope calendar and booking-guard work, which was removed after the requester corrected it. The guard trigger/function created by the earlier local integration run were removed from the development database and verified absent. The SPM-124 base received a teammate's merge of `dev` before branch creation; the SPM-122 branch starts from that updated commit with no conflict. No SPM-122 commit, push, merge, pull request, or Jira transition was performed.
+- Follow-up/conflict notes: The Jira story and Confluence matrix changed from AC1–AC9 to AC1–AC8 before implementation; an earlier snapshot led to out-of-scope calendar and booking-guard work, which was removed after the requester corrected it. The guard trigger/function created by the earlier local integration run were removed from the development database and verified absent. The SPM-124 base received a teammate's merge of `dev` before branch creation; the SPM-122 branch starts from that updated commit with no conflict. Commit `322e0ce` and PR #53 followed this entry; no Jira transition was made manually.
 ## 2026-10-07 - Claude (Opus 5.5) - SPM-46 view a reassigned event (Red, then Green)
 
 - Issue/PR: SPM-46 "View a Reassigned Event" (Jira: To Do; ACs rephrased with the requester on 7 Oct after a teammate's "Rephrase this story" comment, 4 ACs) / branch `feature/SPM-46-View-a-Reassigned-Event` from the SPM-47 branch, updated from `dev` after PR #49 merged. PR: https://github.com/IS212-G5-T2/IS212-G5-T2/pull/50 (into `dev`).
