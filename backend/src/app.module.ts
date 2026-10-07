@@ -66,12 +66,14 @@ export class AppModule implements NestModule {
         EventsController,
         EventRejectionsController,
         EventPlanningController,
+        EventPlanningService,
+        EventPlanningRepository,
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,
-        VenuesController,
         LeadAssignmentController,
       );
   }

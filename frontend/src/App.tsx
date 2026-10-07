@@ -15,6 +15,8 @@ import { EventEditPage } from "@/pages/EventEditPage";
 import { EventChangeRequestsPage } from "@/pages/EventChangeRequestsPage";
 import { VenuesPage } from "@/pages/VenuesPage";
 import { VenueDetailPage } from "@/pages/VenueDetailPage";
+import { VenueRecordsPage } from "@/pages/venue-records/VenueRecordsPage";
+import { VenueRecordDetailPage } from "@/pages/venue-records/VenueRecordDetailPage";
 import { VenueAvailabilityPage } from "@/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/pages/BookingsPage";
 import { EquipmentPage } from "@/pages/EquipmentPage";
@@ -24,6 +26,7 @@ import { EquipmentCreatePage } from "@/pages/EquipmentCreatePage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { VenueCreatePage } from "@/pages/venues/VenueCreatePage/VenueCreatePage";
 import { AssignmentQueuePage } from "@/pages/AssignmentQueuePage";
+import { ReassignmentPage } from "@/pages/ReassignmentPage";
 import { homePathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
@@ -68,11 +71,15 @@ export default function App() {
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
           <Route path="/venues" element={<VenuesPage />} />
-          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
           <Route path="/venues/:id" element={<VenueDetailPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
+          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
           <Route path="/bookings" element={<BookingsPage />} />
+          <Route path="/venue-records" element={<VenueRecordsPage />} />
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
           <Route path="/venues/create" element={<VenueCreatePage />} />
@@ -89,6 +96,7 @@ export default function App() {
 
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
           <Route path="/lead/queue" element={<AssignmentQueuePage />} />
+          <Route path="/lead/reassign" element={<ReassignmentPage />} />
         </Route>
 
         <Route path="/settings" element={<SettingsPage />} />

@@ -40,24 +40,29 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 ## Events boundary
 
 - `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table. Submission leaves a request unassigned; the Lead assigns it (`src/lead`).
-- `src/events` also owns event planning (SPM-97/49/85): `/api/events/:id/planning` routes, the `venue_bookings`, `equipment_reservations` and `event_flagged_changes` tables (placeholders for the first two; see HANDOVER.md), and the impact rules in `event-impact.ts`.
+- `src/events` also owns event planning (SPM-97/49/85): `/api/events/:id/planning` routes, reads SPM-124's `venue_bookings`, owns the `equipment_reservations` (placeholder) and `event_flagged_changes` tables (see HANDOVER.md), and the impact rules in `event-impact.ts`.
 - Coordinate local schema assets with `database/` and API consumers with `frontend/`.
 - Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass request.currentUser explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
 - Unit tests live beside the events module. `src/events/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
 
 ## Coordinators boundary
 
-- `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes only `users.is_available`. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.
+- `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes `users.is_available`, plus (SPM-47 AC10) the Lead's `coordinator_unavailable` notification when a coordinator with active events becomes unavailable, marked read when they become available again. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.
 - Coordinator-only and always scoped to the session's own account; never accept a user id from the URL or body.
-- `src/coordinators/coordinator-availability.e2e-spec.ts` runs through the real app, session login and PostgreSQL; it needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `007` applied.
+- `src/coordinators/coordinator-availability.e2e-spec.ts` runs through the real app, session login and PostgreSQL; it needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `009` applied.
 
 ## Lead boundary
 
-- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment` notification. It does not own reassignment (SPM-47) or approval/rejection.
-- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `008` applied.
+- `src/lead` owns the Event Coordinator Lead's queue, coordinator list and assignment (SPM-123) and reassignment (SPM-47), and writes `events.coordinator_id`/`coordinator_name` plus the `coordinator_assignment`, `coordinator_reassignment` and `coordinator_unassignment` notifications. It does not own approval/rejection.
+- Lead-only (`COORDINATOR_LEAD`); availability is always re-checked inside the assignment transaction. `src/lead/lead-assignment.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `009` applied.
 
 ## Registrations boundary
 
 - `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me` (latest registration of any status), `POST /api/registrations/:registrationId/withdraw` (SPM-120), and writes to `event_registrations`. It does not own event authoring. The "event has already occurred" rule is one function, `event-start.ts` (`hasEventStarted`, exclusive at the start instant).
 - Registration rules read time only from the injected `CLOCK`; tests freeze it. `src/registrations/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied; `registrations.withdraw.e2e-spec.ts` (SPM-120) also needs `007` (`withdrawn_at`).
 - SPM-120 withdrawal tests: `src/registrations/registrations.withdraw.spec.ts` records the SQL a refusal issues, because `withdraw()` runs in a transaction that rolls back and no database assertion can show a write that was undone. The fault-injection check is `node scripts/testing/mutation/run.mjs` (mutants in `spm120.mutants.mjs`; it mutates a scratch copy, needs `DATABASE_URL` for the integration suite, and exits 1 if a non-equivalent mutant survives).
+
+## Venues boundary
+
+- `src/venues` owns SPM-50 `POST /api/venues` creation plus SPM-124 `GET /api/venues` and `GET /api/venues/:id` reads. Any role with the `Venue` read permission can access the shared catalogue and detail records. `GET /api/venues?mine=true` is an optional session-derived owner filter; creation requires `Venue` create permission and uses the verified user as owner.
+- Venue schema upgrades live in `backend/migrations/005` through `009`; local fresh-volume initialization lives in `database/postgresql/init/`.

@@ -1,8 +1,26 @@
 # Local Database Changelog
 
-This records the evolution of the local PostgreSQL initializer. The two files
-under `postgresql/init/` intentionally describe only the final fresh-volume
-state; existing databases must use backend migrations for upgrades.
+This records the evolution of the local PostgreSQL initializer. Base and
+additive scripts under `postgresql/init/` describe the fresh-volume state;
+existing databases must use backend migrations for upgrades.
+
+## 2026-10-07 - SPM-49/85/97 use SPM-124 venue bookings
+
+- `007_spm49_spm85_spm97_event_planning.sql` no longer creates a placeholder
+  `venue_bookings` table; SPM-124's `007_spm124_venue_schedule.sql` owns it.
+  It now only adds a `venue_bookings (event_id)` index.
+
+## 2026-10-05 - SPM-124 venue schedule
+
+- Copied the SPM-50 venue schema and lookup seeds into the fresh-volume
+  initializer so a clean Compose volume creates the venue catalogue tables.
+- Added idempotent fresh-volume initialization for one `venue_bookings` table
+  containing event reservations and staff blockouts. Existing volumes use
+  backend migration 009 after the copied SPM-50 migrations 005–008; it moves
+  any earlier `venue_unavailability` rows into that table.
+- Added two local sample venue records with illustrative images and a short
+  blockout booking so the card catalogue has visible records in a fresh
+  development database.
 
 ## Unreleased - SPM-97 / SPM-49 / SPM-85 event planning
 
@@ -96,3 +114,7 @@ Git history retains the original incremental changes and their commits.
 - `002_seed_data.sql` adds role 6 `COORDINATOR_LEAD` (read/update on Event, read on Event Review) and one account, `lead@connectsphere.test` ("Coordinator Lead", password `P@55w0rd`), which holds only that role.
 - Added `postgresql/init/008_spm123_coordinator_lead.sql` to add the role, permissions and account to existing volumes. Idempotent; apply it manually.
 - `README.md` verification counts updated to 6 roles, 11 resources and 30 role permission rows (the extra resource is SPM-50's).
+
+## SPM-47 - Lead reassignment
+
+- Added `postgresql/init/009_spm47_notification_related_user.sql`: a nullable `notifications.related_user_id` (references `users`, cascade on delete) so the Lead's "coordinator unavailable" notice records which coordinator it is about. Idempotent; fresh volumes run it, existing volumes apply it manually.

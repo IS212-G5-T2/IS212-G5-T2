@@ -104,7 +104,7 @@ The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assum
 7. **One open review per field**, and values identical to the stored value are ignored.
 8. **Privacy.** The organiser sees that a change is pending, but never the impact detail, which names other organisers' events.
 9. **Live updates.** The frontend polls every 15 seconds while the tab is visible; there is no push channel.
-10. **Placeholders.** `venue_bookings` and `equipment_reservations` are minimal placeholder tables until the venue-booking and equipment stories land.
+10. **Bookings and placeholders.** Venue bookings come from SPM-124's `venue_bookings` table (statuses mapped as described in `backend/HANDOVER.md`); `equipment_reservations` is still a minimal placeholder until the equipment story lands.
 
 ## Not covered by automated tests
 

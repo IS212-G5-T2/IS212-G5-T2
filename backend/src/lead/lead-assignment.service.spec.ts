@@ -348,3 +348,358 @@ describe('AC11: only the Event Coordinator Lead', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// SPM-47 Reassign an Event to Another Coordinator (Lead): backend unit tests.
+// ACs: AC1 (assigned active events), AC3 (reassign to a different available
+// coordinator), AC4 (unavailable refused), AC5 (prior context preserved),
+// AC7 (confirmation; stale page refused), AC8 (both coordinators notified),
+// AC9 (Lead only), AC11 (unavailable coordinator flagged).
+// Test cases: LEAD-REASN-01-A, 03-A, 03-B, 03-C, 03-G, 04-A, 05-A, 07-B, 07-C,
+// 08-A, 08-B, 08-C, 09-SEC-1, 09-SEC-2, 09-SEC-5, 11-A.
+// ---------------------------------------------------------------------------
+
+const NEW_COORDINATOR_ID = '00000000-0000-4000-8000-0000000000c2';
+const SECOND_EVENT_ID = '00000000-0000-4000-8000-000000000124';
+
+// One row of the reassignment list as the database returns it.
+function assignedRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: EVENT_ID,
+    event_name: 'Welcome Evening',
+    status: 'Approved',
+    start_date_time: new Date('2027-01-10T10:00:00.000Z'),
+    end_date_time: new Date('2027-01-10T12:00:00.000Z'),
+    coordinator_id: COORDINATOR_ID,
+    coordinator_name: 'Coordinator 1',
+    coordinator_available: true,
+    ...overrides,
+  };
+}
+
+// The locked event row read at the start of a reassignment.
+function reassignEventRow(overrides: Record<string, unknown> = {}) {
+  return { id: EVENT_ID, event_name: 'Welcome Evening', status: 'Approved', coordinator_id: COORDINATOR_ID, coordinator_name: 'Coordinator 1', ...overrides };
+}
+
+// The body the Lead's page sends: the chosen coordinator and the one the page showed.
+const reassignBody = { coordinatorId: NEW_COORDINATOR_ID, currentCoordinatorId: COORDINATOR_ID };
+
+// Wire the transaction for a reassignment: lock the event, look up the new
+// coordinator, update the event, mark the old notification read, insert the two notifications.
+function wireReassign(options: {
+  event?: Record<string, unknown> | null;
+  coordinator?: Record<string, unknown> | null;
+  notificationError?: Error;
+}) {
+  const event = options.event === undefined ? reassignEventRow() : options.event;
+  const coordinator =
+    options.coordinator === undefined
+      ? { id: NEW_COORDINATOR_ID, display_name: 'Coordinator 2', is_available: true }
+      : options.coordinator;
+  client.query.mockImplementation((sql: string) => {
+    const text = String(sql).replace(/\s+/g, ' ').trim();
+    if (text.startsWith('SELECT') && text.includes('FROM events')) return { rows: event ? [event] : [] };
+    if (text.startsWith('SELECT') && text.includes('FROM users')) return { rows: coordinator ? [coordinator] : [] };
+    if (text.startsWith('INSERT INTO notifications') && options.notificationError) throw options.notificationError;
+    return { rows: [] };
+  });
+}
+
+// Statements that change data (anything but SELECT), whitespace-normalised.
+function writes() {
+  return txStatements().filter((s) => !s.sql.startsWith('SELECT'));
+}
+
+describe('SPM-47 AC1 and AC11: the reassignment list', () => {
+  // Only events that already have a coordinator and are still active, soonest first.
+  it('LEAD-REASN-01-A returns assigned Submitted, Approved and Confirmed events, soonest first', async () => {
+    // Arrange: two assigned events as the database returns them.
+    database.query.mockResolvedValue({
+      rows: [
+        assignedRow(),
+        assignedRow({
+          id: SECOND_EVENT_ID,
+          event_name: 'Spring Gala',
+          status: 'Submitted',
+          start_date_time: new Date('2027-02-01T09:00:00.000Z'),
+          end_date_time: new Date('2027-02-01T11:00:00.000Z'),
+          coordinator_id: NEW_COORDINATOR_ID,
+          coordinator_name: 'Coordinator 2',
+        }),
+      ],
+    });
+
+    // Act: load the list.
+    const result = await service.assigned(lead);
+
+    // Assert: each event's name, status, dates and current coordinator, in the database's order.
+    expect(result).toEqual([
+      {
+        id: EVENT_ID,
+        name: 'Welcome Evening',
+        status: 'Approved',
+        startDateTime: '2027-01-10T10:00:00.000Z',
+        endDateTime: '2027-01-10T12:00:00.000Z',
+        coordinatorId: COORDINATOR_ID,
+        coordinatorName: 'Coordinator 1',
+        coordinatorAvailable: true,
+      },
+      {
+        id: SECOND_EVENT_ID,
+        name: 'Spring Gala',
+        status: 'Submitted',
+        startDateTime: '2027-02-01T09:00:00.000Z',
+        endDateTime: '2027-02-01T11:00:00.000Z',
+        coordinatorId: NEW_COORDINATOR_ID,
+        coordinatorName: 'Coordinator 2',
+        coordinatorAvailable: true,
+      },
+    ]);
+    // Assert: the query keeps only assigned events whose status is in exactly the
+    // three active statuses, and orders by start time.
+    const [sql, params] = database.query.mock.calls[0];
+    const text = String(sql).replace(/\s+/g, ' ');
+    expect(text).toMatch(/coordinator_id IS NOT NULL/);
+    expect(text).toMatch(/status = ANY\(\$1\)/);
+    expect(params).toEqual([['Submitted', 'Approved', 'Confirmed']]);
+    expect(text).toMatch(/ORDER BY (events\.)?start_date_time ASC/);
+  });
+
+  // The list says when an event's coordinator is unavailable.
+  it("LEAD-REASN-11-A marks events whose coordinator is unavailable using the coordinator's saved availability", async () => {
+    // Arrange: one event whose coordinator is unavailable.
+    database.query.mockResolvedValue({ rows: [assignedRow({ coordinator_available: false })] });
+
+    // Act: load the list.
+    const [event] = await service.assigned(lead);
+
+    // Assert: flagged, and read from the coordinator's availability.
+    expect(event.coordinatorAvailable).toBe(false);
+    expect(String(database.query.mock.calls[0][0])).toContain('is_available');
+  });
+});
+
+describe('SPM-47 AC3, AC4 and AC5: reassigning an event', () => {
+  // The event is locked, moved to exactly the chosen coordinator, and confirmed.
+  it('LEAD-REASN-03-A reassigns the event to the chosen coordinator inside one transaction', async () => {
+    // Arrange: an assigned, active event and an available new coordinator.
+    wireReassign({});
+
+    // Act: reassign.
+    const result = await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: locked first, updated with the new coordinator's id and name, and confirmed.
+    const sent = txStatements();
+    expect(database.transaction).toHaveBeenCalledTimes(1);
+    expect(sent[0].sql).toMatch(/^SELECT .* FROM events WHERE id = \$1 FOR UPDATE$/);
+    const update = sent.find((s) => s.sql.startsWith('UPDATE events'))!;
+    expect(update.params).toEqual([EVENT_ID, NEW_COORDINATOR_ID, 'Coordinator 2']);
+    expect(result).toEqual({
+      event: { id: EVENT_ID, name: 'Welcome Evening', coordinatorId: NEW_COORDINATOR_ID, coordinatorName: 'Coordinator 2' },
+      message: 'Event "Welcome Evening" reassigned to Coordinator 2.',
+    });
+  });
+
+  // Choosing the coordinator the event already has is refused.
+  it('LEAD-REASN-03-B refuses the coordinator the event is already assigned to', async () => {
+    // Arrange: the chosen coordinator is the current one.
+    wireReassign({});
+
+    // Act + Assert: refused, and nothing is written.
+    await expect(
+      service.reassign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID, currentCoordinatorId: COORDINATOR_ID }),
+    ).rejects.toThrow(new BadRequestException('Choose a different coordinator.'));
+    expect(writes()).toEqual([]);
+  });
+
+  // Unknown events and anyone who isn't an active coordinator are refused inside the transaction.
+  it.each([
+    ['an unknown event', { event: null }, new NotFoundException('Event not found.')],
+    ['an id that is not an active coordinator', { coordinator: null }, new BadRequestException('Choose an active Event Coordinator.')],
+  ])('LEAD-REASN-03-C refuses %s without reassigning', async (_label, wiring, error) => {
+    // Arrange: the missing row.
+    wireReassign(wiring);
+
+    // Act + Assert: the specific error, and nothing is written.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow(error);
+    expect(writes()).toEqual([]);
+  });
+
+  // Malformed input never reaches the database.
+  it.each([
+    ['a malformed event id', 'not-a-uuid', reassignBody, new NotFoundException('Event not found.')],
+    ['a missing coordinator id', EVENT_ID, { currentCoordinatorId: COORDINATOR_ID }, new BadRequestException('Choose an active Event Coordinator.')],
+    ['a non-uuid coordinator id', EVENT_ID, { coordinatorId: 'coord-2', currentCoordinatorId: COORDINATOR_ID }, new BadRequestException('Choose an active Event Coordinator.')],
+  ])('LEAD-REASN-03-C refuses %s before opening a transaction', async (_label, eventId, body, error) => {
+    // Act + Assert: refused up front.
+    await expect(service.reassign(lead, eventId, body)).rejects.toThrow(error);
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // The new coordinator's row is locked and Lead accounts can never be chosen.
+  it('LEAD-REASN-03-G locks the new coordinator row and excludes accounts that are also the Lead', async () => {
+    // Arrange: a normal reassignment.
+    wireReassign({});
+
+    // Act: reassign.
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: the lookup excludes Lead accounts and takes a share lock before the event is updated.
+    const sent = txStatements();
+    const lookup = sent.findIndex((s) => s.sql.includes('FROM users'));
+    const update = sent.findIndex((s) => s.sql.startsWith('UPDATE events'));
+    expect(sent[lookup].sql).toContain('COORDINATOR_LEAD');
+    expect(sent[lookup].sql).toMatch(/FOR SHARE OF users$/);
+    expect(lookup).toBeLessThan(update);
+  });
+
+  // An unavailable coordinator is refused, with availability read inside the transaction.
+  it('LEAD-REASN-04-A refuses an unavailable coordinator without reassigning or notifying', async () => {
+    // Arrange: the new coordinator is now unavailable.
+    wireReassign({ coordinator: { id: NEW_COORDINATOR_ID, display_name: 'Coordinator 2', is_available: false } });
+
+    // Act + Assert: refused, after reading availability, with nothing written.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow(
+      new ConflictException('This coordinator is unavailable.'),
+    );
+    expect(txStatements().some((s) => s.sql.includes('is_available') && s.sql.includes('FROM users'))).toBe(true);
+    expect(writes()).toEqual([]);
+  });
+
+  // Reassignment changes only who coordinates the event; status and clarifications are untouched.
+  it('LEAD-REASN-05-A changes only the coordinator columns and never touches status or clarifications', async () => {
+    // Arrange: a normal reassignment.
+    wireReassign({});
+
+    // Act: reassign.
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: the event update sets the coordinator only; nothing deletes rows or writes comments.
+    const update = txStatements().find((s) => s.sql.startsWith('UPDATE events'))!;
+    expect(update.sql).toMatch(/SET coordinator_id = \$2, coordinator_name = \$3, updated_at = now\(\)/);
+    expect(update.sql).not.toContain('status');
+    expect(writes().some((s) => /^DELETE|event_comments/.test(s.sql))).toBe(false);
+  });
+});
+
+describe('SPM-47 AC7: stale pages and events that moved on', () => {
+  // If the event's coordinator changed since the page loaded, nothing happens.
+  it('LEAD-REASN-07-B refuses a reassignment made from a page that showed a different coordinator', async () => {
+    // Arrange: the event now belongs to someone else than the page showed.
+    wireReassign({ event: reassignEventRow({ coordinator_id: '00000000-0000-4000-8000-0000000000c9', coordinator_name: 'Coordinator 9' }) });
+
+    // Act + Assert: refused as stale, and nothing is written.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow(
+      new ConflictException('This event was changed since you loaded the page. Refresh and try again.'),
+    );
+    expect(writes()).toEqual([]);
+  });
+
+  // Only assigned, active events can be reassigned.
+  it.each([
+    ['a Rejected event', { status: 'Rejected' }],
+    ['a Completed event', { status: 'Completed' }],
+    ['a Cancelled event', { status: 'Cancelled' }],
+    ['an event with no coordinator', { status: 'Submitted', coordinator_id: null, coordinator_name: null }],
+  ])('LEAD-REASN-07-C refuses %s', async (_label, overrides) => {
+    // Arrange: the event is no longer reassignable.
+    wireReassign({ event: reassignEventRow(overrides) });
+
+    // Act + Assert: refused, and nothing is written.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow(
+      new ConflictException('This event can no longer be reassigned.'),
+    );
+    expect(writes()).toEqual([]);
+  });
+});
+
+describe('SPM-47 AC8: both coordinators are notified', () => {
+  // The new coordinator and the original coordinator each get one notification about the event.
+  it('LEAD-REASN-08-A notifies the new and the original coordinator in the same transaction', async () => {
+    // Arrange: a normal reassignment.
+    wireReassign({});
+
+    // Act: reassign.
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: exactly two notifications, one per coordinator, with the agreed type and wording.
+    const inserts = writes().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
+    expect(inserts).toHaveLength(2);
+    const toNew = inserts.find((s) => (s.params as unknown[]).includes(NEW_COORDINATOR_ID))!;
+    const toOriginal = inserts.find((s) => (s.params as unknown[]).includes(COORDINATOR_ID))!;
+    expect(`${toNew.sql} ${JSON.stringify(toNew.params)}`).toContain('coordinator_reassignment');
+    expect(toNew.params).toEqual(expect.arrayContaining(['Event "Welcome Evening" has been reassigned to you.', EVENT_ID]));
+    expect(`${toOriginal.sql} ${JSON.stringify(toOriginal.params)}`).toContain('coordinator_unassignment');
+    expect(toOriginal.params).toEqual(
+      expect.arrayContaining(['Event "Welcome Evening" has been reassigned to Coordinator 2.', EVENT_ID]),
+    );
+  });
+
+  // The original coordinator's unread notices saying the event is theirs no longer apply,
+  // whether from the first assignment or an earlier reassignment to them.
+  it("LEAD-REASN-08-B marks the original coordinator's unread assignment and reassignment notifications for the event as read", async () => {
+    // Arrange: a normal reassignment.
+    wireReassign({});
+
+    // Act: reassign.
+    await service.reassign(lead, EVENT_ID, reassignBody);
+
+    // Assert: one update marks that coordinator's assignment and reassignment notices for this event as read.
+    const markRead = writes().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain('read = true');
+    expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain("'coordinator_assignment'");
+    expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain("'coordinator_reassignment'");
+    expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+  });
+
+  // If a notification can't be saved, the reassignment doesn't stick.
+  it('LEAD-REASN-08-C rolls the reassignment back if a notification cannot be saved', async () => {
+    // Arrange: saving notifications fails.
+    wireReassign({ notificationError: new Error('notification store down') });
+
+    // Act + Assert: the error leaves the transaction, so it rolls back.
+    await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow('notification store down');
+  });
+});
+
+describe('SPM-47 AC9: only the Event Coordinator Lead', () => {
+  // Every other role is refused before any query.
+  it.each(['COORDINATOR', 'ORGANISER', 'VENUE_STAFF', 'TECH_SUPPORT', 'ATTENDEE'] as const)(
+    'LEAD-REASN-09-SEC-1 refuses the %s role on the list and on reassign without querying',
+    async (role) => {
+      // Arrange: a signed-in user without the Lead role.
+      const user = userWithRole(role);
+      const forbidden = new ForbiddenException('Event Coordinator Lead access required.');
+
+      // Act + Assert: both are forbidden, and nothing is read or written.
+      await expect(service.assigned(user)).rejects.toThrow(forbidden);
+      await expect(service.reassign(user, EVENT_ID, reassignBody)).rejects.toThrow(forbidden);
+      expect(database.query).not.toHaveBeenCalled();
+      expect(database.transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  // Without a session nothing is read or written.
+  it('LEAD-REASN-09-SEC-2 refuses a caller who is not signed in', async () => {
+    // Act + Assert: both need a signed-in user.
+    const unauthorized = new UnauthorizedException('Authentication required.');
+    await expect(service.assigned(undefined)).rejects.toThrow(unauthorized);
+    await expect(service.reassign(undefined, EVENT_ID, reassignBody)).rejects.toThrow(unauthorized);
+    expect(database.query).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // An account wrongly holding both the Lead and Coordinator roles can't reassign.
+  it('LEAD-REASN-09-SEC-5 refuses an account that holds both the Lead and Coordinator roles', async () => {
+    // Arrange: a user granted both roles.
+    const both: AuthenticatedUser = { ...lead, roles: ['COORDINATOR_LEAD', 'COORDINATOR'] };
+    const forbidden = new ForbiddenException('An Event Coordinator Lead cannot also be an Event Coordinator.');
+
+    // Act + Assert: both are forbidden, and nothing is read or written.
+    await expect(service.assigned(both)).rejects.toThrow(forbidden);
+    await expect(service.reassign(both, EVENT_ID, reassignBody)).rejects.toThrow(forbidden);
+    expect(database.query).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+});

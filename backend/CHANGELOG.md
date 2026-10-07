@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Event planning (SPM-97/49/85) now reads SPM-124's `venue_bookings` table
+  instead of its own placeholder, which had the same name and broke database
+  initialisation once both were merged. Venue name and capacity come from
+  `venues`; statuses are mapped as described in `HANDOVER.md`.
+- SPM-124 venue reads now use setup and turnaround buffers when determining
+  whether an approved booking currently makes a venue unavailable. Removed the
+  duplicate venue authentication-middleware registration.
+- SPM-47: the Event Coordinator Lead can reassign an assigned event.
+  `GET /api/lead/assigned` lists active events with a coordinator (soonest first,
+  with the coordinator's availability) and `POST /api/lead/events/:eventId/reassign`
+  takes `{ coordinatorId, currentCoordinatorId }`; a stale page, a finished event,
+  the same coordinator, or an unavailable or Lead-role coordinator is refused.
+  Both coordinators are notified and the original's assignment notice is marked
+  read. Marking yourself unavailable with active events now notifies the Lead.
+
 - Changed the SPM-49/SPM-85 update rule from "any booking exists" to impact-based: each date/time, attendance, layout, facilities or equipment change is checked against every active venue booking and equipment arrangement and applied immediately when it stays compatible with all of them (e.g. attendance within capacity, a time inside the booked window, removing facilities, equipment changes with only a venue booked). Only incompatible changes are flagged "Needs Review", and only the affected arrangements are marked impacted. Leaving a booking's held window is reported as a new `window` conflict. A field awaiting review now also refuses compatible changes until resolved. `GET …/planning` reports each field as `direct`, `conditional` (with its condition) or `needs_review`. Rules and assumptions to confirm are in HANDOVER.md (rules 2, 5, 6, 8, 15, 16).
 - Added event planning APIs under `/api/events/:id/planning` (SPM-97, SPM-49, SPM-85): the owning organiser reads planning information (venue bookings, equipment, pending changes) read-only; the assigned coordinator updates event information, with fields that affect existing bookings flagged "Needs Review"; flagged changes carry a per-venue-booking impact assessment (overlap, setup/turnaround, capacity) and are confirmed or rejected as a whole or per booking, with a change history. Updates and resolutions are transactional. Assumptions are in HANDOVER.md.
 

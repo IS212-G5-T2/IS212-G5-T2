@@ -59,6 +59,24 @@ filtering belongs to a later venue retrieval story; SPM-50 has no venue GET API.
 
 ## Continuity Notes
 
+SPM-124 adds read-only `GET /api/venues` and `GET /api/venues/:id` for any role
+with `Venue:read`. Both endpoints use the shared catalogue by default;
+`GET /api/venues?mine=true` is the optional session-derived owner filter.
+`src/venues/` uses SPM-50's `VenuesModule`, controller, service, and
+repository names to read venue records and the single
+`venue_bookings` schedule table added by `migrations/009_venue_availability.sql`.
+Staff blockouts are `status = 'blocked'` rows with a reason and no event; the
+migration moves older `venue_unavailability` rows into that table. This branch copies the
+SPM-50 venue SQL into the fresh-volume initializer and migrations 005–008;
+apply those migrations before 009 on existing databases. Fresh database images
+create the schedule table through
+`database/postgresql/init/007_spm124_venue_schedule.sql`. The
+older frontend booking workflow remains in browser memory; it does not write
+the `venue_bookings` table. A future booking writer must own status and
+hold-expiry transitions. SPM-124 reads approved bookings, active pending
+holds, and staff blockouts, and reports overlaps against each booking's
+setup-to-turnaround occupied period.
+
 Equipment creation validates quantities from 1 through `2,147,483,647`, the
 PostgreSQL `integer` maximum. `src/equipment/equipment.e2e-spec.ts` exercises
 the real HTTP/session/PostgreSQL path and requires `DATABASE_URL` to point to a
@@ -166,7 +184,7 @@ Run `registrations.withdraw.e2e-spec.ts` with `DATABASE_URL` set; to prove the U
 
 `src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability`, protected by `AuthenticationMiddleware`. Only accounts holding COORDINATOR may use them, and the account is always the session's own, so there is no user id in the URL or body. The body must be exactly `{ available: true | false }`; anything else, including an extra field, is a 400. The value lives in `users.is_available` (default `true`; existing databases apply `database/postgresql/init/007_spm80_coordinator_availability.sql`).
 
-Unavailable means "no new assignments" only. Saving updates `users` and never `events`, so a coordinator keeps and can act on every event already assigned to them. Enforcing it belongs to the Event Coordinator Lead flow: SPM-123 must filter or refuse unavailable coordinators when assigning, and SPM-47 when reassigning. Nothing on `dev` reads the flag yet, including SPM-38's round-robin, which SPM-123 replaces.
+Unavailable means "no new assignments" only. Saving updates `users` and never `events`, so a coordinator keeps and can act on every event already assigned to them. SPM-123 refuses unavailable coordinators when assigning and SPM-47 when reassigning. Since SPM-47 (AC10), changing from available to unavailable while holding active events also notifies every Lead (`coordinator_unavailable`, with `related_user_id` set to the coordinator), and changing back marks those notices read. The availability update and these notification writes are separate statements, not one transaction: the availability change always saves even if a notice fails.
 
 ## Lead assignment (SPM-123)
 
@@ -174,7 +192,9 @@ Unavailable means "no new assignments" only. Saving updates `users` and never `e
 
 Submitting a request no longer assigns anyone: it waits, unassigned, in the queue (oldest first). The coordinators list shows each active coordinator's availability (SPM-80) and active workload, which counts only `ACTIVE_STATUSES` (Submitted, Approved, Confirmed); it is sorted fewest first, then by name. Assigning locks the event row, refuses a request that already has a coordinator (409), refuses an inactive or non-coordinator id (400), and re-reads availability inside the transaction so a coordinator who went unavailable after the list loaded is refused (409). The assignment and a `coordinator_assignment` notification commit together. `GET`/`POST /api/notifications` now return each user only their role's types: organisers get rejection and approval, coordinators get coordinator_assignment.
 
-Out of scope: reassigning an assigned event is SPM-47, which should reuse the availability check here.
+## Lead reassignment (SPM-47)
+
+`src/lead` also owns `GET /api/lead/assigned` and `POST /api/lead/events/:eventId/reassign` (Lead only, same dual-role refusal). The list holds every event with a coordinator whose status is in `ACTIVE_STATUSES`, soonest first, with `coordinatorAvailable` from `users.is_available`. Reassigning takes `{ coordinatorId, currentCoordinatorId }`: the event row is locked; a missing, unassigned or finished event is 404/409; if the event's coordinator is not the `currentCoordinatorId` the page showed, it is 409 "This event was changed since you loaded the page. Refresh and try again." (so a stale page can't undo a newer reassignment); choosing the current coordinator is 400. The new coordinator goes through the same shared check as assignment (`availableCoordinator`: active, COORDINATOR, not also the Lead, available, row share-locked). Only `coordinator_id`/`coordinator_name` change, so clarifications and approval status stay with the event, and access for the original coordinator ends because every check reads the current `coordinator_id`. In the same transaction the original coordinator's unread `coordinator_assignment` and `coordinator_reassignment` notices for the event are marked read, the new coordinator gets `coordinator_reassignment` and the original gets `coordinator_unassignment`. Coordinators read all three types; the Lead reads `coordinator_unavailable`. Existing databases apply `database/postgresql/init/009_spm47_notification_related_user.sql`.
 
 ## Event planning: view, update and flagged changes (SPM-97, SPM-49, SPM-85)
 
@@ -240,7 +260,7 @@ These were derived from the Jira stories and are pinned by the test suites liste
 
 Tables come from `database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql` (additive and idempotent; apply to an existing volume with `psql "$DATABASE_URL" -f …`). It also widens `events_status_check` to add `Planning` alongside dev's statuses.
 
-`venue_bookings` and `equipment_reservations` are **minimal placeholders**: no venue-booking or equipment-reservation tables existed on any branch. `venue_id` is free text and the venue's name/capacity are copied onto the booking; equipment is identified by name. When the owning stories land, extend these tables (or point the repository's SQL at theirs) and add foreign keys to `venues`/`equipment` (the latter exists on `dev` from SPM-111). Only `event-planning.repository.ts` needs to change.
+`venue_bookings` is owned by SPM-124 (`007_spm124_venue_schedule.sql`); planning only reads it. `EventPlanningRepository.listVenueBookings` joins `venues` for name and capacity and maps statuses: `approved` or an unexpired `pending` hold → `Booked` (holds the venue); `rejected` → `Unavailable` (replacement venue required, SPM-97 AC3); an expired `pending` hold → `Cancelled`. Clash neighbours are other events' `approved` bookings plus Venue Staff `blocked` periods. **Confirm:** whether a `rejected` booking should mean "replacement required", and whether planning should use each venue's own setup/turnaround minutes (as SPM-124's catalogue does) instead of the fixed `TURNAROUND_MINUTES`. `equipment_reservations` is still a **minimal placeholder** (equipment identified by name) until the equipment-reservation story lands.
 
 ### Manual QA
 
@@ -248,8 +268,10 @@ With an `Approved` event assigned to a coordinator, add a booking and an equipme
 
 ```sql
 UPDATE events SET status = 'Planning' WHERE id = '<event-id>';
-INSERT INTO venue_bookings (event_id, venue_id, venue_name, venue_capacity, start_date_time, end_date_time)
-SELECT id, 'hall-a', 'Hall A', 100, start_date_time, end_date_time FROM events WHERE id = '<event-id>';
+-- Uses a venue from 008_spm124_sample_venues.sql (or any row in venues).
+INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status)
+SELECT e.id, '<venue-id>', e.start_date_time, e.end_date_time, 'approved'
+  FROM events e WHERE e.id = '<event-id>';
 INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status)
 VALUES ('<event-id>', 'Projector', 2, 'Reserved');
 -- Then, as the coordinator: lowering attendance to 90 or ending 30 minutes
@@ -257,7 +279,7 @@ VALUES ('<event-id>', 'Projector', 2, 'Reserved');
 -- changing the layout or the equipment requirements, or ending later is
 -- flagged "Needs Review" with only the affected booking/reservation listed.
 -- Simulate a lost venue (SPM-97 AC3):
-UPDATE venue_bookings SET status = 'Unavailable' WHERE event_id = '<event-id>' AND venue_id = 'hall-a';
+UPDATE venue_bookings SET status = 'rejected' WHERE event_id = '<event-id>' AND venue_id = '<venue-id>';
 ```
 
 ### Follow-ups

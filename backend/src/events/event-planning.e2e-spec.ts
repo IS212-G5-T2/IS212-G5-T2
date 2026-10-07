@@ -78,18 +78,33 @@ describe.skipIf(!database)(
       return id;
     }
 
+    // Venues and bookings use SPM-124's schema (venues + venue_bookings).
+    let venueOwnerId: string;
+    const venueIds: string[] = [];
+
+    async function insertVenue(name: string, capacity: number) {
+      const result = await db.query<{ id: string }>(
+        `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
+           operating_days, operating_start_time, operating_end_time,
+           setup_time_minutes, turnaround_time_minutes)
+         VALUES ($1,$2,$3,$4,'Open weekdays',ARRAY['Monday'],'08:00','22:00',0,0)
+         RETURNING id`,
+        [venueOwnerId, name, `E2E ${randomUUID()}`, capacity],
+      );
+      venueIds.push(result.rows[0].id);
+      return result.rows[0].id;
+    }
+
     async function insertBooking(
       event: string,
       venueId: string,
-      venueName: string,
       start: string,
       end: string,
-      capacity = 200,
     ) {
       const result = await db.query<{ id: string }>(
-        `INSERT INTO venue_bookings (event_id, venue_id, venue_name, venue_capacity, start_date_time, end_date_time)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
-        [event, venueId, venueName, capacity, start, end],
+        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status)
+       VALUES ($1,$2,$3,$4,'approved') RETURNING id`,
+        [event, venueId, start, end],
       );
       return result.rows[0].id;
     }
@@ -100,6 +115,7 @@ describe.skipIf(!database)(
       db = new pg.Pool({ connectionString: database });
       for (const file of [
         '001_schema.sql',
+        '007_spm124_venue_schedule.sql',
         '007_spm49_spm85_spm97_event_planning.sql',
       ])
         await db.query(
@@ -119,16 +135,22 @@ describe.skipIf(!database)(
         ],
       }).compile();
       service = module.get(EventPlanningService);
+      const owner = await db.query<{ id: string }>(
+        `INSERT INTO users (email, display_name, password_hash)
+         VALUES ($1,'E2E Venue Staff','not-a-real-hash') RETURNING id`,
+        [`venue-staff-${randomUUID()}@example.test`],
+      );
+      venueOwnerId = owner.rows[0].id;
       databaseService = module.get(DatabaseService);
     });
 
     beforeEach(async () => {
       // A fresh event with two venue bookings; another event sits next to Hall B.
       eventId = await insertEvent();
-      const venueA = `venue-a-${randomUUID()}`;
-      const venueB = `venue-b-${randomUUID()}`;
-      hallA = await insertBooking(eventId, venueA, 'Hall A', START, END);
-      hallB = await insertBooking(eventId, venueB, 'Hall B', START, END, 100);
+      const venueA = await insertVenue('Hall A', 200);
+      const venueB = await insertVenue('Hall B', 100);
+      hallA = await insertBooking(eventId, venueA, START, END);
+      hallB = await insertBooking(eventId, venueB, START, END);
       const other = await insertEvent({
         organiserId: 'someone-else',
         coordinatorId: 'someone-else',
@@ -137,7 +159,6 @@ describe.skipIf(!database)(
       await insertBooking(
         other,
         venueB,
-        'Hall B',
         at(END, TURNAROUND_MINUTES + 30),
         at(END, 300),
       );
@@ -153,6 +174,11 @@ describe.skipIf(!database)(
         await db.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [
           eventIds,
         ]);
+        await db.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [
+          venueIds,
+        ]);
+        if (venueOwnerId)
+          await db.query('DELETE FROM users WHERE id = $1', [venueOwnerId]);
         await db.end();
       }
       await databaseService?.onModuleDestroy();
@@ -320,7 +346,8 @@ describe.skipIf(!database)(
     // SPM-97 AC3 + AC5: an unavailable venue surfaces as needing a replacement on the next read.
     it('EVENT-VIEW-03-B shows a replacement venue requirement once a booking becomes unavailable', async () => {
       await db.query(
-        `UPDATE venue_bookings SET status = 'Unavailable' WHERE id = $1`,
+        // SPM-124 'rejected' = the venue was lost, so a replacement is needed.
+        `UPDATE venue_bookings SET status = 'rejected' WHERE id = $1`,
         [hallA],
       );
       const view = await service.getPlanningView(organiser, eventId);
@@ -399,7 +426,8 @@ describe.skipIf(!database)(
     // SPM-85 AC1: bookings that were cancelled or released hold nothing, so changes apply directly.
     it('EVENT-FLAG-01-D applies changes directly once every booking is cancelled or released', async () => {
       await db.query(
-        `UPDATE venue_bookings SET status = 'Cancelled' WHERE event_id = $1`,
+        // An expired SPM-124 pending hold no longer holds the venue.
+        `UPDATE venue_bookings SET status = 'pending', hold_expires_at = now() - interval '1 hour' WHERE event_id = $1`,
         [eventId],
       );
       await db.query(

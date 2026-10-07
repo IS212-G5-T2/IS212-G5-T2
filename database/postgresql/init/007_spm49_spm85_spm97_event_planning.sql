@@ -1,5 +1,6 @@
 -- SPM-97 / SPM-49 / SPM-85: event information during the planning phase.
--- Additive and idempotent, so it can run on a fresh volume (after 001-006) or
+-- Additive and idempotent, so it can run on a fresh volume (after 001-006 and
+-- 007_spm124, which owns venue_bookings) or
 -- be applied by hand to an existing local volume:
 --   psql "$DATABASE_URL" -f database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql
 --
@@ -14,27 +15,12 @@ ALTER TABLE events
         status IN ('Submitted', 'Approved', 'Rejected', 'Planning', 'Confirmed', 'Completed', 'Cancelled')
     );
 
--- Minimal venue bookings so planning can show and assess them. Placeholder for
--- the venue-booking story: venue_id is text (no venues table exists yet) and
--- the venue's name/capacity are copied onto the booking. Only 'Booked' rows
--- hold the venue; 'Unavailable' means the venue was lost and a replacement is
--- required (SPM-97 AC3).
-CREATE TABLE IF NOT EXISTS venue_bookings (
-    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    event_id uuid NOT NULL REFERENCES events (id) ON DELETE CASCADE,
-    venue_id text NOT NULL CHECK (length(btrim(venue_id)) > 0),
-    venue_name text NOT NULL CHECK (length(btrim(venue_name)) > 0),
-    venue_capacity integer NOT NULL CHECK (venue_capacity > 0),
-    start_date_time timestamptz NOT NULL,
-    end_date_time timestamptz NOT NULL,
-    status text NOT NULL DEFAULT 'Booked' CHECK (status IN ('Booked', 'Unavailable', 'Cancelled')),
-    created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now(),
-    CHECK (end_date_time > start_date_time)
-);
+-- Venue bookings come from SPM-124's `venue_bookings` table
+-- (007_spm124_venue_schedule.sql, which sorts and runs before this file).
+-- Planning reads that table and maps its statuses; see
+-- backend/src/events/event-planning.repository.ts. It only adds a lookup
+-- index for an event's own bookings.
 CREATE INDEX IF NOT EXISTS venue_bookings_event_idx ON venue_bookings (event_id);
-CREATE INDEX IF NOT EXISTS venue_bookings_venue_time_idx
-    ON venue_bookings (venue_id, start_date_time) WHERE status = 'Booked';
 
 -- Minimal equipment arrangements for an event. Placeholder for the equipment
 -- reservation story; link to dev's `equipment` table (SPM-111) once merged.

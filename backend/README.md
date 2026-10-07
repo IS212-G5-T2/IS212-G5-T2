@@ -197,6 +197,18 @@ receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
 test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
+### Venue Staff catalogue (SPM-124)
+
+`GET /api/venues` and `GET /api/venues/:id` require `Venue:read` and return the
+shared catalogue to every authorized reader. `GET /api/venues?mine=true` narrows
+the list to venues whose `owner_user_id` matches the verified session; no client
+owner ID is accepted. Responses include venue fields, image,
+current and scheduled staff blockouts, approved bookings, and active pending
+holds. A booking is marked affected when a blockout overlaps its occupied
+setup-to-turnaround period. Apply migration `009_venue_availability.sql` after
+migrations 005–008 for existing databases; fresh local initialization includes
+the schedule and sample venues.
+
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's

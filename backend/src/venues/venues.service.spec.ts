@@ -45,9 +45,11 @@ const venueInput = {
 };
 describe('SPM-50 venue service', () => {
   const create = vi.fn();
+  const list = vi.fn();
+  const get = vi.fn();
   const hasPermission = vi.fn();
   const service = new VenuesService(
-    { create } as unknown as VenuesRepository,
+    { create, list, get } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
   );
 
@@ -55,6 +57,7 @@ describe('SPM-50 venue service', () => {
     vi.resetAllMocks();
     hasPermission.mockResolvedValue(true);
     create.mockResolvedValue(venue);
+    list.mockResolvedValue([]);
   });
 
   // SPM-50 / VEN-CRE-01-B / AC1: a Coordinator without Venue create permission cannot save.
@@ -169,5 +172,39 @@ describe('SPM-50 venue service', () => {
       ),
     ).toEqual({ venue, message: 'Venue created successfully.' });
     expect(create).toHaveBeenCalledWith('both', venueInput);
+  });
+
+  // SPM-124: the normal catalogue is shared; My venues alone derives an owner scope from the session.
+  it('returns the shared catalogue by default and scopes only an explicit My venues request', async () => {
+    const records = [{ id: venue.id }];
+    list.mockResolvedValue(records);
+
+    await expect(service.list(staff)).resolves.toBe(records);
+    await expect(service.list(staff, true)).resolves.toBe(records);
+
+    expect(list).toHaveBeenNthCalledWith(1, undefined);
+    expect(list).toHaveBeenNthCalledWith(2, staff.uid);
+    expect(hasPermission).toHaveBeenCalledWith('VENUE_STAFF', 'Venue', 'read');
+  });
+
+  // SPM-124: a second role must never reduce a Coordinator's read access.
+  it('keeps the shared catalogue for Coordinators and dual-role accounts', async () => {
+    await service.list(coordinator);
+    await service.list({ uid: 'dual-role', roles: ['COORDINATOR', 'VENUE_STAFF'] });
+
+    expect(list).toHaveBeenNthCalledWith(1, undefined);
+    expect(list).toHaveBeenNthCalledWith(2, undefined);
+  });
+
+  // SPM-124: malformed and missing detail identifiers use the same not-found result.
+  it('returns not found for malformed or absent venue IDs', async () => {
+    get.mockResolvedValue(undefined);
+
+    await expect(service.get(staff, 'invalid')).rejects.toMatchObject({ status: 404 });
+    expect(get).not.toHaveBeenCalled();
+    await expect(
+      service.get(staff, '00000000-0000-4000-8000-000000000124'),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(get).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000124');
   });
 });

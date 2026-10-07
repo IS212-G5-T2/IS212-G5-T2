@@ -41,6 +41,8 @@ const database = {
 
 const VALID_UUID = '00000000-0000-4000-8000-000000000036';
 const VALID_REASON = 'Venue unavailable for the requested date.';
+// Notification types a coordinator reads: SPM-123 assignment, SPM-47 reassignment to and away from them.
+const COORDINATOR_NOTIFICATION_TYPES = ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment'];
 
 function coordinator(uid = 'coordinator-1'): AuthenticatedUser {
   return { uid, roles: ['COORDINATOR'] };
@@ -411,16 +413,77 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
         read: false,
       }),
     ]);
-    expect(db.query.mock.calls[0][1]).toEqual(['coordinator-1', ['coordinator_assignment']]);
+    const [recipient, types] = db.query.mock.calls[0][1];
+    expect(recipient).toBe('coordinator-1');
+    expect(types).toContain('coordinator_assignment');
 
     // Act + Assert: marking read is scoped the same way.
     db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-9' }] });
     await expect(service.readNotification(VALID_UUID, coordinator())).resolves.toEqual({ success: true });
-    expect(db.query.mock.calls[1][1]).toEqual([VALID_UUID, 'coordinator-1', ['coordinator_assignment']]);
+    const [notificationId, readBy, readTypes] = db.query.mock.calls[1][1];
+    expect([notificationId, readBy]).toEqual([VALID_UUID, 'coordinator-1']);
+    expect(readTypes).toContain('coordinator_assignment');
 
     // Assert: an organiser's query still asks only for their decision types.
     db.query.mockResolvedValueOnce({ rows: [] });
     await service.notifications(organiser());
     expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval']]);
+  });
+});
+
+describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
+  // Coordinators see reassignment to and away from them as coordinator notifications.
+  it('LEAD-REASN-08-F labels reassignment notifications for the coordinator who receives them', async () => {
+    // Arrange: one notification of each reassignment type.
+    const row = { recipient_id: 'coordinator-1', related_event_id: VALID_UUID, read: false, created_at: new Date('2026-10-07T09:00:00.000Z') };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        { ...row, id: 'notif-1', type: 'coordinator_reassignment', message: 'Event "Welcome Evening" has been reassigned to you.' },
+        { ...row, id: 'notif-2', type: 'coordinator_unassignment', message: 'Event "Spring Gala" has been reassigned to Coordinator 2.' },
+      ],
+    });
+
+    // Act: the coordinator reads notifications.
+    const result = await service.notifications(coordinator());
+
+    // Assert: the query asks for all three coordinator types, and both are labelled for the coordinator.
+    expect(db.query.mock.calls[0][1]).toEqual(['coordinator-1', COORDINATOR_NOTIFICATION_TYPES]);
+    expect(result.map((n) => [n.type, n.audienceRole])).toEqual([
+      ['coordinator_reassignment', 'coordinator'],
+      ['coordinator_unassignment', 'coordinator'],
+    ]);
+  });
+
+  // The Lead reads only notifications about coordinators becoming unavailable, and can mark them read.
+  it("LEAD-REASN-10-G lets the Lead read and mark read only their coordinator-unavailable notifications", async () => {
+    // Arrange: the Lead has one such notification.
+    const lead: AuthenticatedUser = { uid: 'lead-1', roles: ['COORDINATOR_LEAD'], email: 'lead@example.test', name: 'Coordinator Lead' };
+    db.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'notif-3',
+          recipient_id: 'lead-1',
+          type: 'coordinator_unavailable',
+          message: 'Coordinator One is now unavailable and has 3 active events that may need reassignment.',
+          related_event_id: null,
+          read: false,
+          created_at: new Date('2026-10-07T09:00:00.000Z'),
+        },
+      ],
+    });
+
+    // Act: the Lead reads notifications.
+    const result = await service.notifications(lead);
+
+    // Assert: labelled for the Lead, and the query is scoped to them and that type.
+    expect(result).toEqual([
+      expect.objectContaining({ id: 'notif-3', audienceRole: 'coordinator_lead', type: 'coordinator_unavailable', read: false }),
+    ]);
+    expect(db.query.mock.calls[0][1]).toEqual(['lead-1', ['coordinator_unavailable']]);
+
+    // Act + Assert: marking read is scoped the same way.
+    db.query.mockResolvedValueOnce({ rows: [{ id: 'notif-3' }] });
+    await expect(service.readNotification(VALID_UUID, lead)).resolves.toEqual({ success: true });
+    expect(db.query.mock.calls[1][1]).toEqual([VALID_UUID, 'lead-1', ['coordinator_unavailable']]);
   });
 });

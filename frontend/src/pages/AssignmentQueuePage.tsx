@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { LeadNotifications } from "@/components/domain/LeadNotifications";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
@@ -130,6 +131,8 @@ export function AssignmentQueuePage() {
 
   return (
     <div>
+      {/* SPM-47 AC10: coordinators who went unavailable with active events. */}
+      <LeadNotifications />
       <PageHeader
         title="Assignment Queue"
         description="Assign each unassigned event request to an available coordinator. Coordinators with the fewest active requests are listed first."

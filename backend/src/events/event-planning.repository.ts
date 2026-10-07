@@ -4,10 +4,12 @@
  * arrangements and flagged changes. Business rules live in
  * EventPlanningService; this class only reads and writes rows.
  *
- * Tables come from database/postgresql/init/007_spm49_spm85_spm97_event_planning.sql.
- * `venue_bookings` and `equipment_reservations` are minimal placeholders until
- * the venue-booking and equipment-reservation stories own them; if those
- * stories change the shape, only the SQL in this file needs to follow.
+ * `venue_bookings` is owned by SPM-124 (database/postgresql/init/007_spm124_venue_schedule.sql);
+ * listVenueBookings() maps its rows onto planning's booking shape.
+ * `equipment_reservations` and `event_flagged_changes` come from
+ * 007_spm49_spm85_spm97_event_planning.sql; equipment_reservations is a
+ * placeholder until the equipment-reservation story owns it. If either story
+ * changes the shape, only the SQL in this file needs to follow.
  *
  * runInTransaction() opens one transaction and every repository call made
  * inside it (in the same async context) uses that connection, so the service
@@ -198,27 +200,43 @@ export class EventPlanningRepository {
     eventId: string,
     window: BookingWindow = {},
   ): Promise<VenueBookingRow[]> {
+    // SPM-124 owns venue_bookings. Its statuses map onto planning's as follows:
+    //   approved, or a pending hold that has not expired -> 'Booked' (holds the venue)
+    //   rejected                                         -> 'Unavailable' (replacement needed)
+    //   pending hold that has expired                    -> 'Cancelled' (holds nothing)
+    // Neighbours are other events' approved bookings plus Venue Staff blockouts
+    // ('blocked', no event), the same rows SPM-124 treats as occupying a venue.
     const result = await this.db().query(
-      `SELECT b.*,
+      `SELECT b.id, b.venue_id, v.name AS venue_name, v.capacity AS venue_capacity,
+              b.start_at, b.end_at, b.created_at,
+              CASE
+                WHEN b.status = 'approved' THEN 'Booked'
+                WHEN b.status = 'pending'
+                     AND (b.hold_expires_at IS NULL OR b.hold_expires_at > now()) THEN 'Booked'
+                WHEN b.status = 'rejected' THEN 'Unavailable'
+                ELSE 'Cancelled'
+              END AS planning_status,
               COALESCE(
                 json_agg(
-                  json_build_object('id', n.id, 'eventName', e.event_name,
-                                    'start', n.start_date_time, 'end', n.end_date_time)
-                  ORDER BY n.start_date_time
+                  json_build_object('id', n.id,
+                                    'eventName', COALESCE(e.event_name, 'Venue unavailable'),
+                                    'start', n.start_at, 'end', n.end_at)
+                  ORDER BY n.start_at
                 ) FILTER (WHERE n.id IS NOT NULL),
                 '[]'::json
               ) AS neighbours
          FROM venue_bookings b
+         JOIN venues v ON v.id = b.venue_id
          LEFT JOIN venue_bookings n
            ON n.venue_id = b.venue_id
-          AND n.event_id <> b.event_id
-          AND n.status = 'Booked'
-          AND n.start_date_time < GREATEST(b.end_date_time, $3::timestamptz) + make_interval(mins => $4)
-          AND n.end_date_time > LEAST(b.start_date_time, $2::timestamptz) - make_interval(mins => $4)
+          AND n.id <> b.id
+          AND ((n.status = 'approved' AND n.event_id <> b.event_id) OR n.status = 'blocked')
+          AND n.start_at < GREATEST(b.end_at, $3::timestamptz) + make_interval(mins => $4)
+          AND n.end_at > LEAST(b.start_at, $2::timestamptz) - make_interval(mins => $4)
          LEFT JOIN events e ON e.id = n.event_id
         WHERE b.event_id = $1
-        GROUP BY b.id
-        ORDER BY b.start_date_time, b.created_at`,
+        GROUP BY b.id, v.id
+        ORDER BY b.start_at, b.created_at`,
       [eventId, window.start ?? null, window.end ?? null, TURNAROUND_MINUTES],
     );
     return result.rows.map((row) => ({
@@ -226,9 +244,9 @@ export class EventPlanningRepository {
       venueId: row.venue_id,
       venueName: row.venue_name,
       capacity: row.venue_capacity,
-      start: iso(row.start_date_time),
-      end: iso(row.end_date_time),
-      status: row.status,
+      start: iso(row.start_at),
+      end: iso(row.end_at),
+      status: row.planning_status,
       neighbours: (row.neighbours as NeighbourBooking[]).map((n) => ({
         ...n,
         start: iso(n.start),

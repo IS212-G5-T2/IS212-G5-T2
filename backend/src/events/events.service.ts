@@ -19,6 +19,13 @@ import {
   isRegistrationOpen,
 } from '../registrations/registration-window.js';
 
+// Who a stored notification is for, as the frontend labels it.
+function audienceRoleFor(type: string) {
+  if (type === 'coordinator_unavailable') return 'coordinator_lead';
+  if (type.startsWith('coordinator_')) return 'coordinator';
+  return 'organiser';
+}
+
 @Injectable()
 export class EventsService {
   constructor(
@@ -307,12 +314,17 @@ export class EventsService {
 
   // Which notification types each role reads and marks read: organisers get
   // their request decisions (SPM-83 rejection, SPM-40 approval); coordinators
-  // get new assignments from the Event Coordinator Lead (SPM-123).
+  // get new assignments from the Event Coordinator Lead (SPM-123) and
+  // reassignments to and away from them (SPM-47); the Lead is told when a
+  // coordinator with active events becomes unavailable (SPM-47).
   private notificationTypesFor(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const types = [
       ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval'] : []),
-      ...(user.roles.includes('COORDINATOR') ? ['coordinator_assignment'] : []),
+      ...(user.roles.includes('COORDINATOR')
+        ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment']
+        : []),
+      ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
     ];
     if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');
     return { user, types };
@@ -326,7 +338,7 @@ export class EventsService {
     );
     return result.rows.map((row) => ({
       id: row.id,
-      audienceRole: row.type === 'coordinator_assignment' ? 'coordinator' : 'organiser',
+      audienceRole: audienceRoleFor(row.type),
       audienceUserId: row.recipient_id,
       type: row.type,
       message: row.message,

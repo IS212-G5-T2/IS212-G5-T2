@@ -16,12 +16,13 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   coordinator: [
     { label: "Events", to: "/events", icon: "📅", feature: "Feature 3, 4, 5, 6" },
     { label: "Venues", to: "/venues", icon: "🏛️", feature: "Feature 7, 8" },
+    { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
     { label: "Venue Availability", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Bookings", to: "/bookings", icon: "📝", feature: "Feature 9, 11" },
     { label: "Equipment", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },
   ],
   venue_staff: [
-    { label: "Venue Catalogue", to: "/venues", icon: "🏛️", feature: "Feature 7" },
+    { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
     { label: "Create Venue", to: "/venues/create", icon: "➕", feature: "SPM-50" },
     { label: "Availability Calendar", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Booking Requests", to: "/bookings", icon: "📝", feature: "Feature 10, 11" },
@@ -36,6 +37,7 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   coordinator_lead: [
     { label: "Assignment Queue", to: "/lead/queue", icon: "🗂️", feature: "Feature 3" },
+    { label: "Reassign Events", to: "/lead/reassign", icon: "🔁", feature: "Feature 3" },
   ],
 };
 
@@ -44,10 +46,31 @@ export const homePathByRole: Record<UserRole, string> = {
   organiser: "/events",
   coordinator: "/events",
   attendee: "/events",
-  venue_staff: "/venues",
+  venue_staff: "/venue-records",
   tech_support: "/equipment/requests",
   coordinator_lead: "/lead/queue",
 };
+
+/**
+ * Returns the union of navigation entries granted by every role on the session.
+ *
+ * A role can grant an entry but must never hide an entry granted by another role.
+ * Duplicate destinations are displayed once, preserving the server-provided role order.
+ */
+export function navigationForUser(
+  user: Pick<User, "role"> & Partial<Pick<User, "roles">>,
+): NavItem[] {
+  const roles = user.roles?.length ? user.roles : [user.role];
+  const destinations = new Set<string>();
+
+  return roles.flatMap((role) =>
+    navByRole[role].filter((item) => {
+      if (destinations.has(item.to)) return false;
+      destinations.add(item.to);
+      return true;
+    }),
+  );
+}
 
 export const roleLabels: Record<UserRole, string> = {
   organiser: "Event Organiser",
@@ -57,20 +80,3 @@ export const roleLabels: Record<UserRole, string> = {
   attendee: "Attendee",
   coordinator_lead: "Event Coordinator Lead",
 };
-
-/**
- * Builds a sidebar from every role the server granted to the signed-in user.
- * Shared destinations are kept once, using the first role's label and order.
- */
-export function navigationFor(user: Pick<User, "role" | "roles">): NavItem[] {
-  const grantedRoles = user.roles ?? [user.role];
-  const destinations = new Set<string>();
-
-  return grantedRoles.flatMap((role) =>
-    navByRole[role].filter((item) => {
-      if (destinations.has(item.to)) return false;
-      destinations.add(item.to);
-      return true;
-    }),
-  );
-}
