@@ -137,7 +137,7 @@ Confirm:
 - Applicable acceptance criteria have final verification statuses.
 - Currently due Definition of Done items have evidence; items awaiting Code Quality Review, PR/CI, human or PO approval, merge, and post-merge verification are reported as pending until proven, without claiming the Jira story is Done.
 - Required tests, build, lint, static-analysis, and integration checks passed, or limitations are disclosed.
-- Documentation, including the AI usage archive linked from `AI_USAGE.md`, is updated where required.
+- Documentation, including `AI_USAGE.md`, is updated where required.
 - Changes are staged only where authorized.
 
 If a platform cannot run both later reviews concurrently, run them sequentially on the same stable snapshot and disclose any lack of independent native agents.
