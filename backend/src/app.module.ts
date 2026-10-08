@@ -7,6 +7,9 @@ import {
 import { EventsController } from './events/events.controller.js';
 import { EventRejectionsController } from './events/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
+import { EventPlanningController } from './events/event-planning.controller.js';
+import { EventPlanningRepository } from './events/event-planning.repository.js';
+import { EventPlanningService } from './events/event-planning.service.js';
 import { DraftsController } from './events/drafts.controller.js';
 import { DraftsService } from './events/drafts.service.js';
 import { AppController } from './app.controller.js';
@@ -35,6 +38,7 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
     AppController,
     EventsController,
     EventRejectionsController,
+    EventPlanningController,
     DraftsController,
     RegistrationsController,
     EquipmentController,
@@ -50,6 +54,8 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
     EquipmentService,
     CoordinatorAvailabilityService,
     LeadAssignmentService,
+    EventPlanningService,
+    EventPlanningRepository,
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -61,6 +67,9 @@ export class AppModule implements NestModule {
         { path: 'api/auth/me', method: RequestMethod.GET },
         EventsController,
         EventRejectionsController,
+        EventPlanningController,
+        EventPlanningService,
+        EventPlanningRepository,
         DraftsController,
         RegistrationsController,
         EquipmentController,

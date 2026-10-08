@@ -22,6 +22,11 @@
   refusal. The Lead sees coordinator-unavailable notices on the Assignment Queue
   page; coordinators see reassignments to and away from them.
 
+- Fixed the planning update form (SPM-49/SPM-85): after a save it resets to the event the server returned, so a value sent for review no longer stays in the field. Pending proposals are shown under their field, which is locked until the change is resolved. The form now updates in place instead of remounting on `lastUpdatedAt`, so the save confirmation is no longer lost when the view refreshes. Fields are labelled "Applies immediately", "Review if it affects bookings" (with the rule, e.g. "up to 200 attendees", and a live prediction once edited) or "Needs review". The event page now uses `hasRole`, so an assigned coordinator whose primary role is organiser can edit, and an organiser only loads planning data for events they own.
+- Added planning information to the event detail page (SPM-97, SPM-49, SPM-85). Organisers see a read-only "Planning information" panel (venues, equipment, pending changes, replacement-venue alerts) that refreshes every 15 seconds. Assigned coordinators also get `PlanningUpdateForm` (per-field "Applies immediately" / "Needs review" badges, changed-fields-only saves, last-updated time) and `FlaggedChangeReview` (current vs proposed values, impacts per venue booking, whole-change and per-booking confirm/reject, change history). API helpers live in `src/utils/planning.ts`.
+
+- Expanded planning test coverage (SPM-97, SPM-49, SPM-85): coordinator save and decision flows on the event page, `Confirmed` read-only view, role gating, hidden-tab and failed-refresh behaviour, form validation and feedback, review-panel states, a new `PlanningInformationPanel` suite and a `utils/planning` suite. No production behaviour changed.
+
 - SPM-123: added the Event Coordinator Lead role and its Assignment Queue page
   (`/lead/queue`): unassigned requests, coordinators with availability and active
   count (fewest first), assign with confirmation, unavailable coordinators shown

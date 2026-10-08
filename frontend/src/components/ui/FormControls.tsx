@@ -273,17 +273,20 @@ export function CheckboxGroup({
   options,
   values,
   onChange,
+  disabled = false,
 }: {
   label: string;
   options: string[];
   values: string[];
   onChange: (values: string[]) => void;
+  /** Disables every option (a disabled fieldset disables its inputs). */
+  disabled?: boolean;
 }) {
   const toggle = (option: string) => {
     onChange(values.includes(option) ? values.filter((v) => v !== option) : [...values, option]);
   };
   return (
-    <fieldset className="mb-4">
+    <fieldset className="mb-4" disabled={disabled}>
       {label && <legend className="mb-3 text-sm font-medium text-gray-700 dark:text-gray-300">{label}</legend>}
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => {
@@ -292,7 +295,8 @@ export function CheckboxGroup({
             <label
               key={opt}
               className={clsx(
-                "flex cursor-pointer items-center gap-2 rounded-full border-2 px-3.5 py-2 text-sm font-medium transition-all",
+                "flex items-center gap-2 rounded-full border-2 px-3.5 py-2 text-sm font-medium transition-all",
+                disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer",
                 isChecked
                   ? "border-primary-500 bg-blue-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-200"
                   : "border-gray-300 text-gray-700 hover:border-gray-400 dark:border-gray-600 dark:text-gray-300 dark:hover:border-gray-500"
