@@ -12,7 +12,7 @@ import { TopNav } from "./TopNav";
 
 const { getMyAvailability } = vi.hoisted(() => ({ getMyAvailability: vi.fn() }));
 
-vi.mock("@/utils/availability-api", () => ({ getMyAvailability, saveMyAvailability: vi.fn() }));
+vi.mock("@/features/account/api/availability-api", () => ({ getMyAvailability, saveMyAvailability: vi.fn() }));
 
 const coordinator: User = {
   id: "coord-1",

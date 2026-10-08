@@ -71,9 +71,24 @@ npm run test:cov      # run once with a coverage report
 ```
 
 Test files live alongside the code they cover (for example,
-`src/pages/LoginPage.test.tsx` next to `src/pages/LoginPage.tsx`). Shared test
+`src/features/account/pages/LoginPage.test.tsx` next to its page). Shared test
 helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup,
 `src/test/fixtures/` for reusable test data).
+
+## Source layout
+
+Feature-owned pages, components, tests, API clients, and feature types live in
+`src/features/<feature>/`. The current feature groups are `account`, `events`,
+`registrations`, `venues`, `bookings`, `equipment`, and `lead`. `src/app/`
+owns the route tree; `src/components/` contains shared UI, layout, auth guards,
+and application-wide notifications; `src/store/`, `src/types/`, `src/lib/`,
+and `src/utils/` hold cross-feature code.
+
+Lead workflow pages and their colocated tests live in
+`src/features/lead/pages/assignment-queue/` and
+`src/features/lead/pages/reassignment/`. The shared Lead API and notifications
+remain in the feature's `api/` and `components/` folders. Their public routes are
+`/lead/queue` and `/lead/reassign`.
 
 The standard Vitest command currently loads `vitest.config.ts`, which selects
 `src/**/*.test.tsx`. Any `.test.ts` files are not run by that command. Do not
@@ -138,7 +153,7 @@ In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
 variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
 
-Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
+Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/features/events/pages/`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
 ## Creating venue records (SPM-50)
 
@@ -157,7 +172,7 @@ spaces and letter case; the form displays the backend's field-level conflict.
 Successful responses redirect Venue Staff to **Venue Records** and display a
 confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
 convenience. Component tests live beside the page in
-`src/pages/venues/VenueCreatePage/`.
+`src/features/venues/pages/create/`.
 
 Accounts with more than one server-granted role receive the combined navigation
 for all their roles. Shared destinations appear once, following the primary

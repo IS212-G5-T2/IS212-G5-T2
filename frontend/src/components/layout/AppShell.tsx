@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import { RejectionNotifications } from "@/components/domain/RejectionNotifications";
+import { RejectionNotifications } from "@/components/notifications/RejectionNotifications";
 import { TopNav } from "./TopNav";
 
 export function AppShell() {
