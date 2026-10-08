@@ -12,6 +12,7 @@ const approvalName = `SPM-40 approval functional ${randomUUID()}`;
 const equipmentName = `SPM-111 equipment browser ${randomUUID()}`;
 const auditTrailEquipmentName = `SPM-119 audit browser ${randomUUID()}`;
 const withdrawalEventName = `SPM-120 withdrawal browser ${randomUUID()}`;
+const venueName = `SPM-122 unavailability browser ${randomUUID()}`;
 const frontend = fileURLToPath(new URL('../../../frontend/', import.meta.url));
 const db = new pg.Client({ connectionString: process.env.TEST_DATABASE_URL });
 await db.connect();
@@ -67,6 +68,7 @@ try {
           SPM111_TEST_NAME: equipmentName,
           SPM119_AUDIT_EQUIPMENT_NAME: auditTrailEquipmentName,
           SPM120_TEST_NAME: withdrawalEventName,
+          SPM122_TEST_VENUE_NAME: venueName,
         },
       },
     );
@@ -75,7 +77,8 @@ try {
   });
 } finally {
   // Delete only the uniquely named record created by this browser run, in FK order.
-  await db.query("DELETE FROM event_drafts WHERE fields->>'name'=$1", [name]);
+  if ((await db.query("SELECT to_regclass('public.event_drafts') AS table_name")).rows[0].table_name)
+    await db.query("DELETE FROM event_drafts WHERE fields->>'name'=$1", [name]);
   await db.query('DELETE FROM events WHERE event_name=$1', [name]);
   await db.query(
     `DELETE FROM notifications
@@ -97,6 +100,8 @@ try {
   await db.query('DELETE FROM events WHERE event_name=$1', [
     withdrawalEventName,
   ]);
+  // The venue's unavailable periods cascade with it; only this run's unique venue is removed.
+  await db.query('DELETE FROM venues WHERE name=$1', [venueName]);
   await db.end();
 }
 process.exitCode = code;

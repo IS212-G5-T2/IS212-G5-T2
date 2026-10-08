@@ -66,5 +66,5 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 ## Venues boundary
 
-- `src/venues` owns SPM-50 `POST /api/venues` creation plus SPM-124 `GET /api/venues` and `GET /api/venues/:id` reads. Any role with the `Venue` read permission can access the shared catalogue and detail records. `GET /api/venues?mine=true` is an optional session-derived owner filter; creation requires `Venue` create permission and uses the verified user as owner.
+- `src/venues` owns SPM-50 `POST /api/venues` creation, SPM-124 `GET /api/venues` and `GET /api/venues/:id` reads, and SPM-122 Venue Staff unavailable-period creation and early ending. Any role with the `Venue` read permission can access the shared catalogue and detail records. `GET /api/venues?mine=true` is an optional session-derived owner filter; creation requires `Venue` create permission and uses the verified user as owner.
 - Venue schema upgrades live in `backend/migrations/005` through `009`; local fresh-volume initialization lives in `database/postgresql/init/`.

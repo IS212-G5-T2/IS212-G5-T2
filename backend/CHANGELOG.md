@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- SPM-122: Venue Staff can save free-text unavailable periods, list affected
+  current or upcoming bookings using setup/turnaround time, and end an active
+  period early. New periods whose end has passed are rejected.
 - Event planning (SPM-97/49/85) now reads SPM-124's `venue_bookings` table
   instead of its own placeholder, which had the same name and broke database
   initialisation once both were merged. Venue name and capacity come from

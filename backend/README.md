@@ -213,6 +213,20 @@ setup-to-turnaround period. Apply migration `009_venue_availability.sql` after
 migrations 005–008 for existing databases; fresh local initialization includes
 the schedule and sample venues.
 
+### Mark venue unavailable (SPM-122)
+
+Venue Staff can `POST /api/venues/:id/unavailable-periods` with ISO date-times
+`start`, `end`, and a required free-text `reason`. The response contains the
+saved `period` and `affectedBookings`, including setup and turnaround overlaps.
+The end time must be later than the current server time. A period that has
+already started can be saved if it is still in progress. The affected list
+contains current and upcoming bookings, including their setup and turnaround
+time; elapsed bookings are omitted.
+Existing bookings and events are unchanged. `POST
+/api/venues/:id/unavailable-periods/:periodId/end` shortens one active period
+to the server clock time. `GET /api/venues/:id` exposes current and scheduled
+periods with reasons and a `current` flag for the early-end control.
+
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's

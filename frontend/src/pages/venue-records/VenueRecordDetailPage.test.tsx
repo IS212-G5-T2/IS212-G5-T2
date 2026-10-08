@@ -7,6 +7,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Link, MemoryRouter, Route, Routes } from "react-router-dom";
 import { ApiError, api } from "@/utils/api";
+import { useAppStore } from "@/store/useAppStore";
 import { VenueRecordDetailPage } from "./VenueRecordDetailPage";
 import type { VenueRecord } from "./venue-records";
 
@@ -60,7 +61,8 @@ const venue: VenueRecord = {
 };
 
 beforeEach(() => vi.resetAllMocks());
-afterEach(cleanup);
+const originalUser = useAppStore.getState().currentUser;
+afterEach(() => { cleanup(); useAppStore.setState({ currentUser: originalUser }); });
 
 function renderPage() {
   return render(
@@ -287,5 +289,30 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     // Assert: both schedule sections explain their independently empty state.
     expect(await screen.findByText("No current or scheduled unavailable periods.")).toBeInTheDocument();
     expect(screen.getByText("No upcoming bookings or active tentative holds.")).toBeInTheDocument();
+  });
+
+  // SPM-122 / VEN-UNAVAIL-04-A/07-A: affected bookings remain visible after the detail reload.
+  it("keeps the saved affected-booking list visible while refreshing the venue", async () => {
+    // Arrange a staff session and a save response with one impacted event.
+    useAppStore.setState({ currentUser: { id: "staff", name: "Venue Staff", email: "", role: "venue_staff" } });
+    const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce({ ...venue, unavailablePeriods: [] })
+      .mockResolvedValueOnce({ period: { id: "new", start: "2030-01-12T04:15:00.000Z", end: "2030-01-12T04:45:00.000Z", reason: "Maintenance" }, affectedBookings: [{ id: "b1", eventName: "Affected Workshop", start: "2030-01-12T05:00:00.000Z", end: "2030-01-12T06:00:00.000Z" }] })
+      .mockResolvedValueOnce({ ...venue, unavailablePeriods: [{ id: "new", start: "2030-01-12T04:15:00.000Z", end: "2030-01-12T04:45:00.000Z", reason: "Maintenance" }] });
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+
+    // Act: create and confirm one unavailable period through the actual detail page.
+    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
+    await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
+    await user.type(screen.getByLabelText(/Reason/), "Maintenance");
+    await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+    await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
+
+    // Assert both the refreshed period and the affected event are present together.
+    expect(await screen.findByText(/Affected Workshop/)).toBeInTheDocument();
+    expect(await screen.findByText(/Maintenance/)).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(3);
   });
 });

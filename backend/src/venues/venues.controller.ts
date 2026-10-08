@@ -35,4 +35,30 @@ export class VenuesController {
   @Post() create(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.venues.create(request[CURRENT_USER_REQUEST_KEY], body);
   }
+
+  @Post(':id/unavailable-periods')
+  markUnavailable(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.venues.markUnavailable(
+      request[CURRENT_USER_REQUEST_KEY],
+      id,
+      body,
+    );
+  }
+
+  @Post(':id/unavailable-periods/:periodId/end')
+  endUnavailable(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Param('periodId') periodId: string,
+  ) {
+    return this.venues.endUnavailable(
+      request[CURRENT_USER_REQUEST_KEY],
+      id,
+      periodId,
+    );
+  }
 }

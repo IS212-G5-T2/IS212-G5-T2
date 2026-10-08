@@ -5,6 +5,7 @@ export interface VenueUnavailablePeriod {
   start: string;
   end: string;
   reason: string;
+  current?: boolean;
 }
 
 export interface VenueReservation {

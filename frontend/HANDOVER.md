@@ -10,6 +10,16 @@ The shared local Docker Compose stack builds this app with `frontend/Dockerfile`
 
 ## Continuity notes
 
+SPM-122 adds staff unavailable-period entry and early ending to the persisted
+venue detail. The component preserves the affected-booking result while it
+refreshes venue data after saving. Early ending requires a second confirmation
+and displays the server-confirmed end time; failures remain visible in the panel.
+After a failed save, the form retains editable values for correction and retry.
+The client rejects a period whose end has passed; the server repeats this check
+using its own clock.
+The legacy browser-memory booking flow is
+still separate from the persisted venue schedule.
+
 SPM-124 gives Venue Staff the persisted `/venue-records` card catalogue and
 `/venue-records/:id` detail, with API loading, name/location search, four sortable
 fields, venue images, unavailable-period reasons, and upcoming bookings/active holds.

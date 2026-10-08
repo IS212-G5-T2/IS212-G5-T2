@@ -163,6 +163,23 @@ Accounts with more than one server-granted role receive the combined navigation
 for all their roles. Shared destinations appear once, following the primary
 role's navigation label and order; role-specific entries such as **Create Venue**
 remain available.
+
+## Marking a venue unavailable (SPM-122)
+
+Venue Staff can open a venue in **Venue Records**, choose **Mark unavailable**,
+enter start/end date and time with a free-text reason, review, then confirm or
+cancel. The existing venue detail shows unavailable periods and reasons; the
+save result lists affected bookings. An active period can be ended early after
+an explicit confirmation; the server's effective end time is shown afterward. Other
+roles can read the venue but cannot use these controls. The backend enforces
+authorization; frontend tests live beside the venue-record pages.
+If a save fails, the form keeps its values, shows the server error, and lets
+staff correct the fields and review again.
+The end time must still be in the future; a period already in progress is
+allowed while its end remains ahead.
+Periods display as separate cards with Active now or Scheduled labels. The form
+places date fields side by side on wider screens and stacks them on small screens;
+review, success, and error messages appear in separate panels.
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view
