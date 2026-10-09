@@ -3,8 +3,8 @@
  * rejected (D15) so a client can never set status, attendee or event ids.
  */
 import { BadRequestException } from '@nestjs/common';
-import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
-import { sanitizeText } from './sanitization.js';
+import { MESSAGES, REGISTRATION_ERROR_CODES } from '../messages.js';
+import { sanitizeText } from '../sanitization.js';
 
 /*
  * Field limits are locked here (single source of truth on the backend; the

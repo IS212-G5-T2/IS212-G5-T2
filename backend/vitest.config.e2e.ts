@@ -7,7 +7,7 @@ export default defineConfig({
   test: {
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    include: ['test/**/*.e2e-spec.ts'],
     // These suites share one mutable PostgreSQL container and clean up their
     // own fixtures, so parallel files can interfere with one another.
     fileParallelism: false,

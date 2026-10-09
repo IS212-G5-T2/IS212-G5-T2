@@ -16,7 +16,7 @@ import {
 import type { Request, Response } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
-import { ExportService } from './export.service.js';
+import { ExportService } from './report/export.service.js';
 import { MESSAGES } from './messages.js';
 import { RegistrationsService } from './registrations.service.js';
 

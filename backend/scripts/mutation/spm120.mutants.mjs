@@ -7,7 +7,7 @@ export const SUITES = {
   unit: { args: ['run', 'src/registrations'] },
   // PostgreSQL integration suite; needs DATABASE_URL with database/postgresql/init 001 to 007 applied.
   e2e: {
-    args: ['run', '--config', './vitest.config.e2e.ts', 'src/registrations/registrations.withdraw'],
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/registrations.withdraw'],
     needsEnv: ['DATABASE_URL'],
   },
 };

@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { AppModule } from '../app.module.js';
+import { AppModule } from '../src/app.module.js';
 
 describe('SPM-119 equipment availability (e2e)', () => {
   let app: INestApplication;

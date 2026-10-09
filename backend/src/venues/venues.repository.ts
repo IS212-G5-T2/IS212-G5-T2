@@ -3,8 +3,8 @@ import type pg from 'pg';
 import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import { accessibilityOptions } from './accessibility-options.js';
-import type { VenueImageInput, VenueInput } from './venue-input.js';
-import type { UnavailabilityInput } from './venue-unavailability.js';
+import type { VenueImageInput, VenueInput } from './dto/venue-input.js';
+import type { UnavailabilityInput } from './dto/venue-unavailability.js';
 
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {

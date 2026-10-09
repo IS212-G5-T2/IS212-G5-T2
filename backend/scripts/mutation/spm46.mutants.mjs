@@ -1,12 +1,12 @@
 // SPM-46 backend mutants (View a Reassigned Event), run by run.mjs:
-//   node scripts/testing/mutation/run.mjs --mutants spm46.mutants.mjs
+//   node scripts/mutation/run.mjs --mutants spm46.mutants.mjs
 // Each edit is [from, to]; `from` must occur exactly once in the file. IDs match the Confluence
 // REASN-VIEW pages ("Mutation-checked") and the frontend spm46.mutants.mjs (F*).
 export const SUITES = {
   // Unit specs for the reassign write and the event reads.
   unit: { args: ['run', 'src/lead/lead-assignment.service.spec.ts', 'src/events/events.service.spec.ts'] },
   // PostgreSQL integration suite; needs DATABASE_URL with database/postgresql/init 001 to 010 applied.
-  e2e: { args: ['run', '--config', './vitest.config.e2e.ts', 'src/lead'], needsEnv: ['DATABASE_URL'] },
+  e2e: { args: ['run', '--config', './vitest.config.e2e.ts', 'test/lead-assignment.e2e-spec.ts'], needsEnv: ['DATABASE_URL'] },
 };
 
 const LEAD = 'src/lead/lead-assignment.service.ts';

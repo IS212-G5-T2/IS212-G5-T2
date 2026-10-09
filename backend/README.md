@@ -140,7 +140,7 @@ integrate server-side Firebase identity and RBAC before shared or production
 use. Email delivery and Save Draft are deferred.
 
 Event unit tests live beside their implementation:
-`src/events/event-input.spec.ts` covers validation and
+`src/events/dto/event-input.spec.ts` covers validation and
 `src/events/events.service.spec.ts` covers persistence behavior with mocked
 database calls. They run through `npm test`. There is no committed
 database-container E2E test for the event endpoints.
@@ -173,7 +173,7 @@ requiring an owner for new rows and enforcing a foreign key to `users(id)`.
 Fresh local databases
 receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
-test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
+test is `test/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
 ### Venue Staff catalogue (SPM-124)
 
@@ -227,7 +227,7 @@ and `EventsService`'s hardcoded demo-organiser identity means the reply
 endpoint's ownership check only matches events whose `organiser_id` is a real
 Firebase uid.
 
-Unit tests: `src/clarifications/clarification-input.spec.ts` and
+Unit tests: `src/clarifications/dto/clarification-input.spec.ts` and
 `src/clarifications/clarifications.service.spec.ts`. E2E test:
 `test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
 real PostgreSQL database and the Firebase Auth Emulator.

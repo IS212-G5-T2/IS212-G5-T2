@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
-import { accessibilityLabels } from './accessibility-options.js';
-import { facilityNames, roomLayoutNames } from './venue-options.js';
+import { accessibilityLabels } from '../accessibility-options.js';
+import { facilityNames, roomLayoutNames } from '../venue-options.js';
 
 const MAX_DURATION_MINUTES = 2_147_483_647;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;

@@ -2,7 +2,7 @@
  * End-to-end tests for the events list omitting attachment blobs and for
  * coordinator-scoped event visibility, against a real PostgreSQL database.
  * (SPM-37's open POST /api/events/:id/assign was removed by SPM-123; the Lead's
- * assignment endpoint is covered in src/lead/lead-assignment.e2e-spec.ts.) Mirrors test/clarifications.e2e-spec.ts's
+ * assignment endpoint is covered in test/lead-assignment.e2e-spec.ts.) Mirrors test/clarifications.e2e-spec.ts's
  * fixture pattern. Protected event routes use real PostgreSQL-backed session
  * cookies, rather than a mocked identity provider.
  */

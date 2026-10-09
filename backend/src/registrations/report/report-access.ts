@@ -3,7 +3,7 @@
  * "Events I manage" ([A10]) means: the COORDINATOR assigned to the event, or the ORGANISER who owns it.
  * Identity and roles come from the verified session only; nothing from the query, body or headers is read here.
  */
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../../auth/models/auth.models.js';
 
 /** The two owner columns of an event row (`coordinator_id`, `organiser_id`). */
 export interface EventManagers {

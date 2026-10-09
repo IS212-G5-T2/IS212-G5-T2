@@ -7,8 +7,8 @@
 import { Injectable } from '@nestjs/common';
 import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
-import { MESSAGES } from './messages.js';
-import { neutralizeCsvCell } from './sanitization.js';
+import { MESSAGES } from '../messages.js';
+import { neutralizeCsvCell } from '../sanitization.js';
 import {
   attendeeCountLine,
   formatReportDateTime,
@@ -21,7 +21,7 @@ import type { ExportFormat, RegistrationReport } from './report-types.js';
 
 // Noto Sans (SIL OFL, backend/assets/fonts) is embedded so Latin-extended names render; the standard PDF fonts
 // cannot draw them reliably. It has no CJK coverage (Q4), which is listed as a known gap.
-const FONT_PATH = fileURLToPath(new URL('../../assets/fonts/NotoSans-Regular.ttf', import.meta.url));
+const FONT_PATH = fileURLToPath(new URL('../../../assets/fonts/NotoSans-Regular.ttf', import.meta.url));
 
 const BOM = '﻿';
 const CRLF = '\r\n';

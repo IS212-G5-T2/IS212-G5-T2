@@ -3,14 +3,14 @@
 // mutant's suites there, and reports which mutants the suites killed. The original tree is never edited
 // (the script hashes the mutated files before and after to prove it).
 //
-//   node scripts/testing/mutation/run.mjs                 # every mutant in spm120.mutants.mjs
-//   node scripts/testing/mutation/run.mjs --only M22,M34  # a subset
-//   node scripts/testing/mutation/run.mjs --suite e2e     # use one suite only (shows what that suite alone catches)
-//   node scripts/testing/mutation/run.mjs --list          # show the mutants and exit
+//   node scripts/mutation/run.mjs                 # every mutant in spm120.mutants.mjs
+//   node scripts/mutation/run.mjs --only M22,M34  # a subset
+//   node scripts/mutation/run.mjs --suite e2e     # use one suite only (shows what that suite alone catches)
+//   node scripts/mutation/run.mjs --list          # show the mutants and exit
 //
 // Exit code: 0 when every mutant is killed (or listed as equivalent), 1 when a non-equivalent mutant
 // survives or an edit does not apply exactly once, 2 when a baseline suite is not green.
-// This file is kept identical in backend/ and frontend/ because each component owns its own test tooling.
+// Each component owns its own runner; its root URL follows the tooling folder depth.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -19,7 +19,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
-const root = fileURLToPath(new URL('../../../', import.meta.url));
+const root = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const { SUITES, MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);

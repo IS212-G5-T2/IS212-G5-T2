@@ -12,7 +12,7 @@
  */
 import { PDFParse } from 'pdf-parse';
 import { describe, expect, it } from 'vitest';
-import { neutralizeCsvCell } from './sanitization.js';
+import { neutralizeCsvCell } from '../sanitization.js';
 import { buildCsv, buildPdf, reportContentDisposition, reportFilename, toCsvCell } from './export.service.js';
 import { ALICE_TAN, makeReport, makeRow } from './report.fixtures.js';
 

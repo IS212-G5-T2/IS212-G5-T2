@@ -6,7 +6,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { RbacRepository } from '../auth/authorization/rbac.repository.js';
-import { validateUnavailability as validateWithClock } from './venue-unavailability.js';
+import { validateUnavailability as validateWithClock } from './dto/venue-unavailability.js';
 import { VenuesRepository } from './venues.repository.js';
 import { VenuesService } from './venues.service.js';
 

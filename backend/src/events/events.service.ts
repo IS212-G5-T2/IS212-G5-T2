@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateEvent, type EventAttachment } from './event-input.js';
+import { validateEvent, type EventAttachment } from './dto/event-input.js';
 import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,

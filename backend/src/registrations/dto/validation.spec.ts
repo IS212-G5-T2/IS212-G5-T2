@@ -5,8 +5,8 @@
  */
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
-import { MESSAGES } from './messages.js';
-import { sanitizeText } from './sanitization.js';
+import { MESSAGES } from '../messages.js';
+import { sanitizeText } from '../sanitization.js';
 import { REGISTRATION_LIMITS, validateRegistration } from './validation.js';
 
 const valid = { fullName: 'Alice Tan', email: 'alice@example.com' };

@@ -6,7 +6,7 @@ import pg from 'pg';
 import request from 'supertest';
 import { NestFactory } from '@nestjs/core';
 import type { INestApplication } from '@nestjs/common';
-import { AppModule } from '../app.module.js';
+import { AppModule } from '../src/app.module.js';
 
 const database = process.env.TEST_DATABASE_URL;
 describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
@@ -34,7 +34,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await db.query(
       await readFile(
         new URL(
-          '../../../database/postgresql/init/001_schema.sql',
+          '../../database/postgresql/init/001_schema.sql',
           import.meta.url,
         ),
         'utf8',
@@ -42,7 +42,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     );
     await db.query(
       await readFile(
-        new URL('../../migrations/001_event_drafts.sql', import.meta.url),
+        new URL('../migrations/001_event_drafts.sql', import.meta.url),
         'utf8',
       ),
     );

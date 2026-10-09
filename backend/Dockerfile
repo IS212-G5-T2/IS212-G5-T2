@@ -22,7 +22,7 @@ ENV NODE_ENV=production
 ENV PORT=3000
 
 COPY --from=build /app/dist ./dist
-# SPM-63: the PDF export embeds this font, resolved relative to dist/registrations.
+# SPM-63: the PDF export embeds this font, resolved relative to dist/registrations/report.
 COPY --from=build /app/assets ./assets
 COPY --from=build /app/node_modules ./node_modules
 COPY package*.json ./

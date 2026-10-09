@@ -7,11 +7,11 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateEquipmentInput } from './equipment-input.js';
+import { validateEquipmentInput } from './dto/equipment-input.js';
 import {
   validateAvailabilityInput,
   validateEquipmentAvailabilityId,
-} from './equipment-availability-input.js';
+} from './dto/equipment-availability-input.js';
 
 type EquipmentRow = {
   id: string;

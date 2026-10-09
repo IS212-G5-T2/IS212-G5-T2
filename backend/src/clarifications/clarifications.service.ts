@@ -14,7 +14,7 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/models/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateMessage } from './clarification-input.js';
+import { validateMessage } from './dto/clarification-input.js';
 import {
   ClarificationsRepository,
   type CommentRow,

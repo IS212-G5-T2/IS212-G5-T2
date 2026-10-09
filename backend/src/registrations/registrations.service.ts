@@ -24,9 +24,9 @@ import { CLOCK, systemClock, type Clock } from './clock.js';
 import { hasEventStarted } from './event-start.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration-window.js';
-import { canViewEventRegistrations } from './report-access.js';
-import type { RegistrationReport } from './report-types.js';
-import { validateRegistration } from './validation.js';
+import { canViewEventRegistrations } from './report/report-access.js';
+import type { RegistrationReport } from './report/report-types.js';
+import { validateRegistration } from './dto/validation.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Capacity is a hard limit (no waitlist in Release 1). Attendees may only see

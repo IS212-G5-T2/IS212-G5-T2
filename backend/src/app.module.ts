@@ -17,13 +17,13 @@ import { ClarificationsModule } from './clarifications/clarifications.module.js'
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
 import { CLOCK, systemClock } from './registrations/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
-import { ExportService } from './registrations/export.service.js';
+import { ExportService } from './registrations/report/export.service.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
-import { CoordinatorAvailabilityController } from './coordinators/coordinator-availability.controller.js';
-import { CoordinatorAvailabilityService } from './coordinators/coordinator-availability.service.js';
+import { CoordinatorAvailabilityController } from './coordinators-availability/coordinator-availability.controller.js';
+import { CoordinatorAvailabilityService } from './coordinators-availability/coordinator-availability.service.js';
 import { VenuesController } from './venues/venues.controller.js';
 import { VenuesModule } from './venues/venues.module.js';
 import { LeadAssignmentController } from './lead/lead-assignment.controller.js';

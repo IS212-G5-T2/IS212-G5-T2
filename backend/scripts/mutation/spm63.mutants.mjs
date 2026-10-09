@@ -1,4 +1,4 @@
-// SPM-63 backend mutants, run by run.mjs:  node scripts/testing/mutation/run.mjs --mutants spm63.mutants.mjs
+// SPM-63 backend mutants, run by run.mjs:  node scripts/mutation/run.mjs --mutants spm63.mutants.mjs
 // Each edit is [from, to]; `from` must occur exactly once in the file (the runner reports MISAPPLIED otherwise).
 // IDs M1 to M20 match the task prompt's list; X* are extra mutants added while reviewing the suite.
 // Not expressible as one textual edit: M5 (the export routes skip the access check). The check lives in ONE shared
@@ -7,19 +7,19 @@
 export const SUITES = {
   // Pure specs for the SPM-63 formatters, the access rule and the CSV writer.
   unit: {
-    args: ['run', 'src/registrations/report-format.spec.ts', 'src/registrations/report-access.spec.ts', 'src/registrations/export.service.spec.ts'],
+    args: ['run', 'src/registrations/report/report-format.spec.ts', 'src/registrations/report/report-access.spec.ts', 'src/registrations/report/export.service.spec.ts'],
   },
   // PostgreSQL integration suite; needs DATABASE_URL with database/postgresql/init 001 to 007 applied.
   e2e: {
-    args: ['run', '--config', './vitest.config.e2e.ts', 'src/registrations/registrations.report'],
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/registrations.report'],
     needsEnv: ['DATABASE_URL'],
   },
 };
 
 const SERVICE = 'src/registrations/registrations.service.ts';
-const ACCESS = 'src/registrations/report-access.ts';
-const EXPORT = 'src/registrations/export.service.ts';
-const FORMAT = 'src/registrations/report-format.ts';
+const ACCESS = 'src/registrations/report/report-access.ts';
+const EXPORT = 'src/registrations/report/export.service.ts';
+const FORMAT = 'src/registrations/report/report-format.ts';
 const CONTROLLER = 'src/registrations/registrations.controller.ts';
 const both = ['unit', 'e2e'];
 
@@ -58,7 +58,7 @@ export const MUTANTS = [
     ]], suites: both },
   { id: 'M13', name: 'neutralisation applied at input (the report JSON would carry the prefix)', file: SERVICE,
     edits: [
-      ["import { canViewEventRegistrations } from './report-access.js';", "import { canViewEventRegistrations } from './report-access.js';\nimport { neutralizeCsvCell } from './sanitization.js';"],
+      ["import { canViewEventRegistrations } from './report/report-access.js';", "import { canViewEventRegistrations } from './report/report-access.js';\nimport { neutralizeCsvCell } from './sanitization.js';"],
       ["fullName: (row.full_name ?? '') as string,", "fullName: neutralizeCsvCell((row.full_name ?? '') as string),"],
     ], suites: ['e2e'] },
   { id: 'M14', name: 'the whole event row spread into the response', file: SERVICE,

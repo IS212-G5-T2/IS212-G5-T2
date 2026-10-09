@@ -174,7 +174,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     ).toBe(false);
   });
   it('Q1-026 retries identical save without issuing an update', async () => {
-    const { validateDraft } = await import('./draft-input.js');
+    const { validateDraft } = await import('./dto/draft-input.js');
     const body = { fields, version: 0, operationId };
     selected({
       ...row(),

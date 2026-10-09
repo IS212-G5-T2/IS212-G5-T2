@@ -13,7 +13,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { AppModule } from '../app.module.js';
+import { AppModule } from '../src/app.module.js';
 
 type TestUser = { id: string; name: string; cookie: string };
 

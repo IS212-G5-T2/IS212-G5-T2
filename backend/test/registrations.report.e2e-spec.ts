@@ -26,8 +26,8 @@ import { PDFParse } from 'pdf-parse';
 import pg from 'pg';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AppModule } from '../app.module.js';
-import { CLOCK } from './clock.js';
+import { AppModule } from '../src/app.module.js';
+import { CLOCK } from '../src/registrations/clock.js';
 
 const database = process.env.DATABASE_URL;
 const T0 = new Date('2026-09-29T12:00:00+08:00');

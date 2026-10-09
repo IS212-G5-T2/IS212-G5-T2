@@ -13,8 +13,8 @@ import type {
 } from '../auth/models/auth.models.js';
 import { RbacRepository } from '../auth/authorization/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
-import { validateVenue } from './venue-input.js';
-import { validateUnavailability } from './venue-unavailability.js';
+import { validateVenue } from './dto/venue-input.js';
+import { validateUnavailability } from './dto/venue-unavailability.js';
 import { VenuesRepository } from './venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';

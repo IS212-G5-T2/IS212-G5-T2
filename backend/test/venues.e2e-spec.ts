@@ -6,8 +6,8 @@ import { Test, type TestingModule } from '@nestjs/testing';
 import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { AppModule } from '../app.module.js';
-import { CLOCK } from '../registrations/clock.js';
+import { AppModule } from '../src/app.module.js';
+import { CLOCK } from '../src/registrations/clock.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const password = 'P@55w0rd';
@@ -87,14 +87,14 @@ describe.skipIf(!databaseUrl)(
       pool = new pg.Pool({ connectionString: databaseUrl });
       await pool.query(
         await readFile(
-          new URL('../../migrations/005_venues.sql', import.meta.url),
+          new URL('../migrations/005_venues.sql', import.meta.url),
           'utf8',
         ),
       );
       await pool.query(
         await readFile(
           new URL(
-            '../../migrations/006_venue_operating_information.sql',
+            '../migrations/006_venue_operating_information.sql',
             import.meta.url,
           ),
           'utf8',
@@ -103,7 +103,7 @@ describe.skipIf(!databaseUrl)(
       await pool.query(
         await readFile(
           new URL(
-            '../../migrations/007_venue_operating_schedule.sql',
+            '../migrations/007_venue_operating_schedule.sql',
             import.meta.url,
           ),
           'utf8',
@@ -111,7 +111,7 @@ describe.skipIf(!databaseUrl)(
       );
       ownerMigration = await readFile(
         new URL(
-          '../../migrations/008_venue_owner_user_id.sql',
+          '../migrations/008_venue_owner_user_id.sql',
           import.meta.url,
         ),
         'utf8',
@@ -121,7 +121,7 @@ describe.skipIf(!databaseUrl)(
       await pool.query(
         await readFile(
           new URL(
-            '../../migrations/009_venue_availability.sql',
+            '../migrations/009_venue_availability.sql',
             import.meta.url,
           ),
           'utf8',
