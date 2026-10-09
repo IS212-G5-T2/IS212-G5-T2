@@ -2,6 +2,7 @@
 name: code-quality-reviewer
 description: Engineering-quality gate after Test Review passes; may run alongside Requirement Review.
 model: sonnet
+effort: medium
 disallowedTools: Write, Edit
 ---
 
