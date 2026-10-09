@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { CoordinatorPicker } from "@/features/lead/components/CoordinatorPicker";
 import { ApiError } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
 import {
@@ -14,14 +15,6 @@ import {
 
 const message = (error: unknown, fallback: string) =>
   error instanceof ApiError ? error.message : fallback;
-
-// How a coordinator appears in an event's picker: the current one and
-// unavailable ones are shown but can't be chosen.
-function optionLabel(coordinator: LeadCoordinator, currentId: string) {
-  if (coordinator.id === currentId) return `${coordinator.name} (current)`;
-  if (!coordinator.available) return `${coordinator.name} (Unavailable)`;
-  return `${coordinator.name} (${coordinator.activeAssignments} active)`;
-}
 
 // One assigned event with its own coordinator picker and Reassign button.
 function AssignedEventCard({
@@ -72,29 +65,15 @@ function AssignedEventCard({
           </p>
           <p className="text-sm text-gray-700 dark:text-gray-300">{`Coordinator: ${event.coordinatorName}`}</p>
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <div>
-              <label htmlFor={pickerId} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Reassign to
-              </label>
-              <select
-                id={pickerId}
-                value={coordinatorId}
-                onChange={(change) => setCoordinatorId(change.target.value)}
-                disabled={reassigning}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option value="">Choose a coordinator</option>
-                {coordinators.map((coordinator) => (
-                  <option
-                    key={coordinator.id}
-                    value={coordinator.id}
-                    disabled={coordinator.id === event.coordinatorId || !coordinator.available}
-                  >
-                    {optionLabel(coordinator, event.coordinatorId)}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <CoordinatorPicker
+              id={pickerId}
+              label="Reassign to"
+              coordinators={coordinators}
+              value={coordinatorId}
+              onChange={setCoordinatorId}
+              disabled={reassigning}
+              currentCoordinatorId={event.coordinatorId}
+            />
             <Button onClick={reassign} disabled={!coordinatorId || reassigning}>
               {reassigning ? "Reassigning…" : "Reassign"}
             </Button>

@@ -358,7 +358,7 @@ describe("EventDetailPage", () => {
 
   // SPM-83 builds the approve/reject decision controls behind the Review Event
   // entrypoint, replacing the SPM-37 "not available yet" placeholder. Full
-  // coverage of the reject workflow lives in EventDetailPage.reject.test.tsx.
+  // coverage of the reject workflow lives in EventDetailPage.decision.test.tsx.
   it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
     // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();

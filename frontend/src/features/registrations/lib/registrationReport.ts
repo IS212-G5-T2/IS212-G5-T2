@@ -6,6 +6,7 @@
  */
 import type { User } from "@/types";
 import { ApiError, api, apiBaseUrl } from "@/utils/api";
+import { sgtDateTimeParts, sgtDayKey } from "@/utils/sgtDate";
 
 export interface ReportRow {
   registrationId: string;
@@ -36,23 +37,10 @@ export const REPORT_MESSAGES = {
   empty: "No registrations yet",
 } as const;
 
-// Fixed month table: the "en-GB" short form of September is "Sept" in newer ICU data.
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const SGT_PARTS = new Intl.DateTimeFormat("en-GB", {
-  timeZone: "Asia/Singapore",
-  day: "numeric",
-  month: "numeric",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
 /** "28 Sep 2026 10:30 SGT" (D8). */
 export function formatReportDateTimeSgt(value: string | Date): string {
-  const parts = SGT_PARTS.formatToParts(new Date(value));
-  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
-  return `${Number(part("day"))} ${MONTHS[Number(part("month")) - 1]} ${part("year")} ${part("hour")}:${part("minute")} SGT`;
+  const { date, time } = sgtDateTimeParts(value);
+  return `${date} ${time} SGT`;
 }
 
 /** "28 Sep 2026" (Singapore calendar date). */
@@ -60,10 +48,7 @@ export function formatReportDateSgt(value: string | Date): string {
   return formatReportDateTimeSgt(value).split(" ").slice(0, 3).join(" ");
 }
 
-/** Singapore calendar day as YYYY-MM-DD, for "registered today" comparisons. */
-export function sgtDayKey(value: string | Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(new Date(value));
-}
+export { sgtDayKey } from "@/utils/sgtDate";
 
 export type FilterType = "all" | "today" | "special-requirements";
 

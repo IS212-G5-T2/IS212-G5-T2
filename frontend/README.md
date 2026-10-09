@@ -83,17 +83,29 @@ Feature-owned pages, components, tests, API clients, and feature types live in
 owns the route tree; `src/components/` contains shared UI, layout, auth guards,
 and application-wide notifications; `src/store/`, `src/types/`, `src/lib/`,
 and `src/utils/` hold cross-feature code.
+Singapore date parts and calendar-day conversion are shared in
+`src/utils/sgtDate.ts`; event registration and registration reports retain their
+own display wording. Authentication and API calls use the same API origin helper.
+The role-specific notification panels use the shared polling and mark-as-read
+hook in `src/components/notifications/`. Assignment and reassignment pages
+share the coordinator picker in `src/features/lead/components/`.
 
 Lead workflow pages and their colocated tests live in
 `src/features/lead/pages/assignment-queue/` and
 `src/features/lead/pages/reassignment/`. The shared Lead API and notifications
 remain in the feature's `api/` and `components/` folders. Their public routes are
 `/lead/queue` and `/lead/reassign`.
+Attendee registration rules live in `src/features/events/lib/registration.ts`
+because the event detail workflow owns its form and status controls;
+`src/features/registrations/` owns the registration report and export workflow.
+Approval and rejection component cases share
+`src/features/events/pages/detail/EventDetailPage.decision.test.tsx`; their
+store action cases share `src/store/useAppStore.decisions.test.ts`. Other event
+detail suites stay separate by workflow.
 
-The standard Vitest command currently loads `vitest.config.ts`, which selects
-`src/**/*.test.tsx`. Any `.test.ts` files are not run by that command. Do not
-claim complete coverage until the test selection includes every intended test
-file and the suite passes.
+The standard Vitest command loads `vitest.config.ts`, which selects both
+`src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
+browser runner.
 
 `LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The mock accounts used to parameterize the "correct credentials" cases are documented in `src/test/fixtures/authUsers.ts`; their password is deliberately fake and test-only:
 

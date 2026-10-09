@@ -1,9 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "@/utils/api";
+import { useNotificationFeed } from "@/components/notifications/useNotificationFeed";
 import { useAppStore } from "@/store/useAppStore";
 import { formatDateTime, timeAgo } from "@/utils/format";
-import type { Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
 
 // Rejections carry a reason in one combined backend message. Split that reason
@@ -21,56 +20,16 @@ function splitRejectionMessage(message: string): { headline: string; reason: str
 // Refresh on sign-in, window focus and periodically for organisers already online.
 export function RejectionNotifications() {
   const user = useAppStore((s) => s.currentUser);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const { notifications, error, markRead, retry } = useNotificationFeed({
+    enabled: user.role === "organiser",
+    userId: user.id,
+    loadError: "Could not load request decisions.",
+  });
   const [expanded, setExpanded] = useState(false);
-  useEffect(() => {
-    if (user.role !== "organiser") return;
-    let active = true;
-    let pending = false;
-    const refresh = async () => {
-      if (pending) return;
-      pending = true;
-      try {
-        const data = await api<Notification[]>("/notifications");
-        if (active) {
-          setNotifications(data);
-          setError("");
-        }
-      } catch {
-        if (active) setError("Could not load request decisions.");
-      } finally {
-        pending = false;
-      }
-    };
-    void refresh();
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 30000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [user.id, user.role, retry]);
 
   if (user.role !== "organiser") return null;
   const unread = notifications.filter((n) => !n.read);
   if (!notifications.length && !error) return null;
-
-  const markRead = async (id: string) => {
-    try {
-      await api(`/notifications/${id}/read`, { method: "POST" });
-      setNotifications((items) =>
-        items.map((item) => (item.id === id ? { ...item, read: true } : item)),
-      );
-      setError("");
-    } catch {
-      setError("Could not mark the notification as read. Please try again.");
-    }
-  };
 
   const visible = expanded ? notifications : unread;
 
@@ -121,7 +80,7 @@ export function RejectionNotifications() {
           className="flex flex-wrap items-center gap-2 border-b border-danger-100 bg-danger-50 px-4 py-2 text-sm text-danger-700 dark:border-danger-900/40 dark:bg-danger-900/20 dark:text-danger-300"
         >
           {error}
-          <Button variant="ghost" size="sm" onClick={() => setRetry((r) => r + 1)}>
+          <Button variant="ghost" size="sm" onClick={retry}>
             Retry
           </Button>
         </p>

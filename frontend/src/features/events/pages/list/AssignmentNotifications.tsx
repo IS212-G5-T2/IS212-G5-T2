@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
+import { useNotificationFeed } from "@/components/notifications/useNotificationFeed";
 import { useAppStore } from "@/store/useAppStore";
 import { hasRole, type Notification } from "@/types";
-import { api } from "@/utils/api";
 
 // An unassignment has no link: the event now belongs to another coordinator.
 const COORDINATOR_TYPES: Notification["type"][] = ["coordinator_assignment", "coordinator_reassignment", "coordinator_unassignment"];
+const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 
 // SPM-123 AC9: tells a coordinator which requests the Event Coordinator Lead
 // has assigned to them; SPM-47 AC8: and which events were reassigned to or away from them. Shown on the coordinator's events page. Refreshes on
@@ -15,49 +15,12 @@ const COORDINATOR_TYPES: Notification["type"][] = ["coordinator_assignment", "co
 export function AssignmentNotifications() {
   const user = useAppStore((s) => s.currentUser);
   const isCoordinator = hasRole(user, "coordinator");
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!isCoordinator) return;
-    let active = true;
-    let pending = false;
-    const refresh = async () => {
-      if (pending) return;
-      pending = true;
-      try {
-        const data = await api<Notification[]>("/notifications");
-        if (active) {
-          setNotifications(data.filter((n) => COORDINATOR_TYPES.includes(n.type)));
-          setError("");
-        }
-      } catch {
-        if (active) setError("Could not load your new assignments.");
-      } finally {
-        pending = false;
-      }
-    };
-    void refresh();
-    const interval = window.setInterval(() => {
-      void refresh();
-    }, 30000);
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-      window.removeEventListener("focus", refresh);
-    };
-  }, [user.id, isCoordinator]);
-
-  const markRead = async (id: string) => {
-    try {
-      await api(`/notifications/${id}/read`, { method: "POST" });
-      setNotifications((items) => items.map((item) => (item.id === id ? { ...item, read: true } : item)));
-      setError("");
-    } catch {
-      setError("Could not mark the notification as read. Please try again.");
-    }
-  };
+  const { notifications, error, markRead } = useNotificationFeed({
+    enabled: isCoordinator,
+    userId: user.id,
+    loadError: "Could not load your new assignments.",
+    filter: isCoordinatorNotice,
+  });
 
   const unread = notifications.filter((n) => !n.read);
   if (!isCoordinator || (!unread.length && !error)) return null;

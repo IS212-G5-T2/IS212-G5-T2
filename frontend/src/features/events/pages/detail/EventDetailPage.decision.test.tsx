@@ -7,19 +7,10 @@ import { api } from "@/utils/api";
 import type { EventRecord, UserRole } from "@/types";
 
 /**
- * SPM-83 — Reject a request. Frontend UI unit tests (Confluence: EVENT-REJECT-01
- * A-H and the UI authorization guard EVENT-REJECT-04-A). These are RED / TDD:
- * the reject decision controls behind the existing "Review Event" button are not
- * implemented yet (today it only surfaces "Event review is not available yet."),
- * so the cases fail until the feature lands. Intended UI contract:
- *
- *   - Clicking "Review Event" reveals decision controls: an Approve and a Reject
- *     option, a reason textbox, and a "Submit Decision" button.
- *   - On any invalid reason the FULL requirements block is shown (three lines),
- *     the reason field is aria-invalid, and no reject request fires.
- *   - A valid reason submits the rejection (POST /events/:id/reject).
- *
- * Reason rule: trimmed 10-500 chars, >=3 words, must contain letters.
+ * Event decision controls: SPM-40 approval (EVENT-APPROVE-01-A-C, 04-C) and
+ * SPM-83 rejection (EVENT-REJECT-01-A-H, 04-A). Both actions use the same
+ * assigned-coordinator page setup; their distinct requirements remain in the
+ * named test groups below.
  */
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -78,6 +69,11 @@ async function openReview() {
   fireEvent.click(screen.getByRole("radio", { name: /reject/i }));
 }
 
+async function openReviewApprove() {
+  fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+  fireEvent.click(screen.getByRole("radio", { name: /approve/i }));
+}
+
 function fillReason(value: string) {
   fireEvent.change(screen.getByRole("textbox", { name: /reason/i }), {
     target: { value },
@@ -96,6 +92,10 @@ function expectRequirementsBlock() {
 
 function rejectRequestFired() {
   return apiMock.mock.calls.some(([p]) => String(p).includes("/reject"));
+}
+
+function approveRequestFired() {
+  return apiMock.mock.calls.some(([p]) => String(p).includes("/approve"));
 }
 
 function reasonOfLength(n: number): string {
@@ -123,10 +123,15 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     renderDetail(assignedEvent());
 
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Review Event" }));
+    const reviewButton = screen.getByRole("button", { name: "Review Event" });
+    expect(reviewButton).toHaveProperty("disabled", false);
+    fireEvent.click(reviewButton);
 
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
     expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
+    expect(screen.queryByText("Event review is not available yet.")).toBeNull();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
   // EVENT-REJECT-01-B — happy path (submit)
@@ -279,5 +284,70 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     // The approval pipeline steps are not part of a rejected request's timeline.
     expect(within(timeline).queryByText("approved")).toBeNull();
     expect(within(timeline).queryByText("under review")).toBeNull();
+  });
+});
+
+describe("EventDetailPage — approve workflow (SPM-40)", () => {
+  // EVENT-APPROVE-01-A — happy path (entry)
+  it("lets the assigned coordinator open the decision controls with an Approve option", async () => {
+    renderDetail(assignedEvent());
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Review Event" }));
+
+    expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
+  });
+
+  // EVENT-APPROVE-01-B — happy path (submit); no reason required
+  it("submits an approval and fires the approve request without asking for a reason", async () => {
+    renderDetail(assignedEvent());
+    await openReviewApprove();
+
+    // Approve requires no reason field.
+    expect(screen.queryByRole("textbox", { name: /reason/i })).toBeNull();
+
+    submitDecision();
+
+    expect(approveRequestFired()).toBe(true);
+  });
+
+  // EVENT-APPROVE-01-C — authorization (UI): controls only for the assigned coordinator
+  it("shows the Approve controls only to the assigned coordinator", async () => {
+    // Unassigned coordinator: no Review Event entrypoint.
+    setUser("coordinator", "coordinator-2");
+    renderDetail(assignedEvent());
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    cleanup();
+
+    // Organiser (owner): no decision controls.
+    setUser("organiser", "organiser-9");
+    renderDetail(assignedEvent());
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
+    cleanup();
+
+    // Assigned coordinator: the Approve control is available.
+    setUser("coordinator", "coordinator-1");
+    renderDetail(assignedEvent());
+    fireEvent.click(await screen.findByRole("button", { name: "Review Event" }));
+    expect(screen.getByRole("radio", { name: /approve/i })).toBeTruthy();
+  });
+
+  // EVENT-APPROVE-04-C — immutability (UI): no approve/revert controls once approved
+  it("hides the approve controls once the event is approved", async () => {
+    setUser("coordinator", "coordinator-1");
+
+    // An already-approved event offers no Review Event entrypoint / decision controls.
+    renderDetail(assignedEvent({ status: "approved" }));
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
+    cleanup();
+
+    // Contrast: while still submitted, the Approve entrypoint is shown.
+    renderDetail(assignedEvent({ status: "submitted" }));
+    expect(await screen.findByRole("button", { name: "Review Event" })).toBeTruthy();
   });
 });

@@ -4,14 +4,9 @@ import { useAppStore } from "./useAppStore";
 import type { EventRecord } from "@/types";
 
 /**
- * SPM-40 regression coverage for the implemented `approveEvent` store action.
- * Covers EVENT-APPROVE-02: approval persistence, organiser notification, and
- * removal from the coordinator's pending list. The store contract:
- *
- *   approveEvent(id: string)
- *     - sets the event status to "approved"
- *     - persists via POST /events/:id/approve
- *     - pushes an "approval" notification to the organiser
+ * Store decision actions: SPM-40 approval (EVENT-APPROVE-02) and SPM-83
+ * rejection (EVENT-REJECT-02). Both start with the same pending event and
+ * share the API mock; the test groups retain their separate outcomes.
  */
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -21,7 +16,10 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
-// Access the store action through a typed helper to keep call sites concise.
+type RejectStore = { rejectEvent: (id: string, reason: string) => void };
+const rejectEvent = (id: string, reason: string) =>
+  (useAppStore.getState() as unknown as RejectStore).rejectEvent(id, reason);
+
 type ApproveStore = { approveEvent: (id: string) => Promise<void> };
 const approveEvent = (id: string) =>
   (useAppStore.getState() as unknown as ApproveStore).approveEvent(id);
@@ -57,6 +55,70 @@ beforeEach(() => {
   vi.clearAllMocks();
   apiMock.mockResolvedValue({});
   useAppStore.setState({ events: [pendingEvent()], notifications: [] });
+});
+
+describe("rejectEvent (SPM-83)", () => {
+  // EVENT-REJECT-02-A
+  it("sets the status to rejected and records the reason", () => {
+    rejectEvent("event-1", "Budget not approved.");
+
+    expect(useAppStore.getState().events[0]).toMatchObject({
+      status: "rejected",
+      rejectionReason: "Budget not approved.",
+    });
+  });
+
+  it("persists the rejection to the backend with the reason", () => {
+    rejectEvent("event-1", "Budget not approved.");
+
+    expect(apiMock).toHaveBeenCalledWith(
+      "/events/event-1/reject",
+      expect.objectContaining({ method: "POST" }),
+    );
+    const [, init] = apiMock.mock.calls.find(([p]) => String(p).includes("/reject"))!;
+    expect(JSON.parse(init!.body as string)).toEqual({ reason: "Budget not approved." });
+  });
+
+  // EVENT-REJECT-02-B
+  it("notifies the organiser of the rejection, including the reason", () => {
+    rejectEvent("event-1", "Room capacity too low.");
+
+    const notification = useAppStore.getState().notifications[0];
+    expect(notification).toMatchObject({
+      type: "rejection",
+      audienceUserId: "organiser-9",
+      relatedEventId: "event-1",
+    });
+    expect(notification.message).toContain("Room capacity too low.");
+  });
+
+  // EVENT-REJECT-02-C
+  it("drops the rejected request out of the coordinator's pending list", () => {
+    useAppStore.setState({
+      events: [
+        pendingEvent({ id: "event-1", status: "submitted" }),
+        pendingEvent({ id: "event-2", status: "submitted" }),
+      ],
+      notifications: [],
+    });
+
+    // Both are pending to begin with.
+    const pendingBefore = useAppStore
+      .getState()
+      .events.filter((e) => PENDING.includes(e.status));
+    expect(pendingBefore.map((e) => e.id)).toEqual(["event-1", "event-2"]);
+
+    rejectEvent("event-1", "Duplicate of an existing event.");
+
+    const pendingAfter = useAppStore
+      .getState()
+      .events.filter((e) => PENDING.includes(e.status));
+    expect(pendingAfter.map((e) => e.id)).toEqual(["event-2"]);
+
+    // The rejected event still exists (now terminal) and remains retrievable.
+    const rejected = useAppStore.getState().events.find((e) => e.id === "event-1");
+    expect(rejected).toMatchObject({ status: "rejected" });
+  });
 });
 
 describe("approveEvent (SPM-40)", () => {
@@ -99,21 +161,14 @@ describe("approveEvent (SPM-40)", () => {
       notifications: [],
     });
 
-    // Both are pending to begin with.
-    const pendingBefore = useAppStore
-      .getState()
-      .events.filter((e) => PENDING.includes(e.status));
-    expect(pendingBefore.map((e) => e.id)).toEqual(["event-1", "event-2"]);
+    const pendingBefore = useAppStore.getState().events.filter((event) => PENDING.includes(event.status));
+    expect(pendingBefore.map((event) => event.id)).toEqual(["event-1", "event-2"]);
 
     approveEvent("event-1");
 
-    const pendingAfter = useAppStore
-      .getState()
-      .events.filter((e) => PENDING.includes(e.status));
-    expect(pendingAfter.map((e) => e.id)).toEqual(["event-2"]);
-
-    // The approved event still exists (now further down the pipeline).
-    const approved = useAppStore.getState().events.find((e) => e.id === "event-1");
+    const pendingAfter = useAppStore.getState().events.filter((event) => PENDING.includes(event.status));
+    expect(pendingAfter.map((event) => event.id)).toEqual(["event-2"]);
+    const approved = useAppStore.getState().events.find((event) => event.id === "event-1");
     expect(approved).toMatchObject({ status: "approved" });
   });
 

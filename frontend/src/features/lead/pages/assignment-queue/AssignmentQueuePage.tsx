@@ -3,6 +3,7 @@ import clsx from "clsx";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { LeadNotifications } from "@/features/lead/components/LeadNotifications";
+import { CoordinatorPicker } from "@/features/lead/components/CoordinatorPicker";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
@@ -57,25 +58,14 @@ function QueuedRequestCard({
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-400">{`Expected attendance: ${request.expectedAttendance}`}</p>
           <div className="mt-4 flex flex-wrap items-end gap-3">
-            <div>
-              <label htmlFor={pickerId} className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Assign to
-              </label>
-              <select
-                id={pickerId}
-                value={coordinatorId}
-                onChange={(event) => setCoordinatorId(event.target.value)}
-                disabled={noneAvailable || assigning}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-              >
-                <option value="">Choose a coordinator</option>
-                {coordinators.map((coordinator) => (
-                  <option key={coordinator.id} value={coordinator.id} disabled={!coordinator.available}>
-                    {`${coordinator.name} (${coordinator.available ? `${coordinator.activeAssignments} active` : "Unavailable"})`}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <CoordinatorPicker
+              id={pickerId}
+              label="Assign to"
+              coordinators={coordinators}
+              value={coordinatorId}
+              onChange={setCoordinatorId}
+              disabled={noneAvailable || assigning}
+            />
             <Button onClick={assign} disabled={noneAvailable || !coordinatorId || assigning}>
               {assigning ? "Assigning…" : "Assign"}
             </Button>
