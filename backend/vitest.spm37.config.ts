@@ -9,9 +9,9 @@ export default mergeConfig(
         enabled: true,
         provider: 'v8',
         include: [
-          'src/events/dto/draft-input.ts',
-          'src/events/drafts.service.ts',
-          'src/events/drafts.controller.ts',
+          'src/event-drafts/dto/draft-input.ts',
+          'src/event-drafts/drafts.service.ts',
+          'src/event-drafts/drafts.controller.ts',
           'src/events/dto/event-input.ts',
           'src/events/events.service.ts',
         ],

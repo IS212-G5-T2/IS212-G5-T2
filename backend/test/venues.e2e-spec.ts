@@ -7,7 +7,7 @@ import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
-import { CLOCK } from '../src/registrations/clock.js';
+import { CLOCK } from '../src/common/clock.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const password = 'P@55w0rd';

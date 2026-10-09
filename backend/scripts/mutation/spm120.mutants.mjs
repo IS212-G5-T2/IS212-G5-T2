@@ -30,7 +30,7 @@ const UPDATE_SQL = `        \`UPDATE event_registrations
         RETURNING *\`,`;
 
 export const MUTANTS = [
-  { id: 'M1', name: '`>=` to `>` in hasEventStarted (event start no longer exclusive)', file: 'src/registrations/event-start.ts',
+  { id: 'M1', name: '`>=` to `>` in hasEventStarted (event start no longer exclusive)', file: 'src/registrations/withdrawal/event-start.ts',
     edits: [['return now.getTime() >= event.startDateTime.getTime();', 'return now.getTime() > event.startDateTime.getTime();']], suites: ['unit', 'e2e'] },
   { id: 'M2', name: 'ownership filter dropped from the lookup', file: SERVICE,
     edits: [['WHERE r.id = $1 AND r.attendee_id = $2', 'WHERE r.id = $1 AND ($2::uuid IS NOT NULL)']], suites: ['unit', 'e2e'] },

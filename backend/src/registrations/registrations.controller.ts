@@ -14,10 +14,10 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { ExportService } from './report/export.service.js';
-import { MESSAGES } from './messages.js';
+import { MESSAGES } from './helpers/messages.js';
 import { RegistrationsService } from './registrations.service.js';
 
 type AuthenticatedRequest = Request & {

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 describe('authentication decorator metadata', () => {
   afterEach(() => {
-    vi.doUnmock('./auth.repository.js');
+    vi.doUnmock('./repository/auth.repository.js');
     vi.doUnmock('./auth.service.js');
     vi.doUnmock('../../database/database.service.js');
     vi.resetModules();
@@ -26,7 +26,7 @@ describe('authentication decorator metadata', () => {
       DatabaseService: undefined,
     }));
 
-    const { AuthRepository } = await import('./auth.repository.js');
+    const { AuthRepository } = await import('./repository/auth.repository.js');
 
     expect(AuthRepository).toBeTypeOf('function');
     expect(Reflect.getMetadata('design:paramtypes', AuthRepository)).toEqual([
@@ -36,7 +36,7 @@ describe('authentication decorator metadata', () => {
 
   // Nest falls back to Object metadata if the service repository dependency is unavailable.
   it('defines the service with a missing repository constructor', async () => {
-    vi.doMock('./auth.repository.js', () => ({ AuthRepository: undefined }));
+    vi.doMock('./repository/auth.repository.js', () => ({ AuthRepository: undefined }));
 
     const { AuthService } = await import('./auth.service.js');
 

@@ -53,7 +53,7 @@ Auth code is organized by responsibility:
 | `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
 | `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
 | `src/auth/authorization/` | RBAC permission and ownership checks. |
-| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+| `src/auth/types/` | Shared auth user, role, permission, and public-route types. |
 
 ## Database Access
 

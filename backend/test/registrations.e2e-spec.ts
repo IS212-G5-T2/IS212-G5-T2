@@ -11,8 +11,8 @@ import pg from 'pg';
 import request from 'supertest';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
-import { CLOCK } from '../src/registrations/clock.js';
-import { MESSAGES, formatSgt } from '../src/registrations/messages.js';
+import { CLOCK } from '../src/common/clock.js';
+import { MESSAGES, formatSgt } from '../src/registrations/helpers/messages.js';
 
 const database = process.env.DATABASE_URL;
 // Frozen "now"; every fixture time is an offset from it.

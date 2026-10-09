@@ -13,7 +13,7 @@ The generated starter endpoint currently returns `Hello World!`, and `/healthz` 
 Auth source is split by responsibility: `src/config/auth.config.ts` parses and
 validates session environment settings; `src/auth/authentication` owns login,
 logout, session lookup, and middleware; `src/auth/authorization` owns
-RBAC/ownership services; and `src/auth/models` owns shared auth types.
+RBAC/ownership services; and `src/auth/types` owns shared auth types.
 
 Authentication uses `users`, `user_roles`, and `auth_sessions`, seeded together
 in `database/postgresql/init/001_schema.sql` and seeded by `002_seed_data.sql`. Sessions are opaque
@@ -101,7 +101,7 @@ row in the same transaction, so a failed audit insert rolls the availability
 change back with it (`test/equipment-availability.e2e-spec.ts`
 EQUIP-UNAVAIL-07-A proves this with a Postgres trigger that forces the insert
 to fail). Reactivating never requires a reason; marking unavailable always
-does (`dto/equipment-availability-input.ts`). `list()` filters out unavailable
+does (`availability/dto/equipment-availability-input.ts`). `list()` filters out unavailable
 records by default; `includeUnavailable=true` opts back in. The audit trail is
 shared and unfiltered by actor — any TECH_SUPPORT user can read every entry.
 The availability route authorizes before validating its body, derives
@@ -112,7 +112,7 @@ audit row, because the history represents actual state transitions. Audit API
 rows expose the resulting `isAvailable` value. Availability remains independent
 of maintenance status, so Retired and Under Maintenance records can still have
 their separate availability changed and audited.
-Unit tests: `equipment-availability.spec.ts` (mocked transaction/client).
+Unit tests: `availability/equipment-availability.spec.ts` (mocked transaction/client).
 Integration tests: `equipment-availability.e2e-spec.ts` needs `DATABASE_URL`
 for a database with `database/postgresql/init/001` through `010` applied.
 `createUser(role, emailPrefix)` generates its unique email upfront
@@ -211,7 +211,7 @@ The organiser decision feed now returns both `approval` and `rejection` notifica
 
 `POST /api/events/:eventId/registrations` and `GET /api/events/:eventId/registrations/me` live in `src/registrations/` and require the ATTENDEE role. Order of checks: role (401/403), strict body validation (400, unknown keys rejected), event visibility (404 unless Confirmed/Completed/Cancelled), window (422 `registration_not_open` / `registration_closed`), duplicate (409 `already_registered`), capacity (422 `registration_full`). The event row is locked `FOR UPDATE` so duplicate and capacity checks cannot race; the existing `UNIQUE (event_id, attendee_id)` remains the database guarantee. A `Withdrawn` row is reactivated with the same id. Text is stored literally (trim and control-character strip only); escaping is the renderer's job.
 
-Time comes from the `CLOCK` provider (`registrations/clock.ts`); e2e tests override it. Events now return a server-computed `registrationOpen` (inclusive open, exclusive close). Apply `database/postgresql/init/004_spm61_event_registration.sql` to existing databases. Messages live in `registrations/messages.ts` and limits in `validation.ts` (wording and limits locked; capacity is a hard limit with no waitlist in R1). Manual close by organiser is blocked (no `manual_close_at` field). Integration tests need a database with `database/postgresql/init/001` to `004` applied, for example a separate `spm_test` database on the Compose Postgres, exported as `DATABASE_URL`. See `docs/specs/SPM-61-test-results.md` for open items.
+Time comes from the `CLOCK` provider (`common/clock.ts`); e2e tests override it. Events now return a server-computed `registrationOpen` (inclusive open, exclusive close). Apply `database/postgresql/init/004_spm61_event_registration.sql` to existing databases. Messages live in `registrations/helpers/messages.ts` and limits in `registration/dto/validation.ts` (wording and limits locked; capacity is a hard limit with no waitlist in R1). Manual close by organiser is blocked (no `manual_close_at` field). Integration tests need a database with `database/postgresql/init/001` to `004` applied, for example a separate `spm_test` database on the Compose Postgres, exported as `DATABASE_URL`. See `docs/specs/SPM-61-test-results.md` for open items.
 
 ## Attendee withdrawal (SPM-120)
 
@@ -223,7 +223,7 @@ Run `registrations.withdraw.e2e-spec.ts` with `DATABASE_URL` set; to prove the U
 
 ## Coordinator availability (SPM-80)
 
-`src/coordinators` owns `GET` and `PUT /api/coordinators/me/availability`, protected by `AuthenticationMiddleware`. Only accounts holding COORDINATOR may use them, and the account is always the session's own, so there is no user id in the URL or body. The body must be exactly `{ available: true | false }`; anything else, including an extra field, is a 400. The value lives in `users.is_available` (default `true`; existing databases apply `database/postgresql/init/007_spm80_coordinator_availability.sql`).
+`src/coordinator-availability` owns `GET` and `PUT /api/coordinators/me/availability`, protected by `AuthenticationMiddleware`. Only accounts holding COORDINATOR may use them, and the account is always the session's own, so there is no user id in the URL or body. The body must be exactly `{ available: true | false }`; anything else, including an extra field, is a 400. The value lives in `users.is_available` (default `true`; existing databases apply `database/postgresql/init/007_spm80_coordinator_availability.sql`).
 
 Unavailable means "no new assignments" only. Saving updates `users` and never `events`, so a coordinator keeps and can act on every event already assigned to them. SPM-123 refuses unavailable coordinators when assigning and SPM-47 when reassigning. Since SPM-47 (AC10), changing from available to unavailable while holding active events also notifies every Lead (`coordinator_unavailable`, with `related_user_id` set to the coordinator), and changing back marks those notices read. The availability update and these notification writes are separate statements, not one transaction: the availability change always saves even if a notice fails.
 

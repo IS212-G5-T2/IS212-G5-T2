@@ -31,7 +31,7 @@ export type ExportFormat = "csv" | "pdf";
 export const REPORT_POLL_INTERVAL_MS = 5_000;
 
 export const REPORT_MESSAGES = {
-  // MSG-08, fixed by the test cases and mirrored from backend/src/registrations/messages.ts.
+  // MSG-08, fixed by the test cases and mirrored from backend/src/registrations/helpers/messages.ts.
   forbidden: "You do not have access to this event's registrations.",
   empty: "No registrations yet",
 } as const;

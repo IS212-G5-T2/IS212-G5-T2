@@ -8,7 +8,7 @@
  * the labels COO-01, ORG-01 ... stand for the UUIDs the real tables hold.
  */
 import { describe, expect, it } from 'vitest';
-import type { AuthenticatedUser } from '../../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { canViewEventRegistrations } from './report-access.js';
 
 const COO_01 = 'coo-01-uid';

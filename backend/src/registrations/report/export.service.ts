@@ -7,8 +7,8 @@
 import { Injectable } from '@nestjs/common';
 import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
-import { MESSAGES } from '../messages.js';
-import { neutralizeCsvCell } from '../sanitization.js';
+import { MESSAGES } from '../helpers/messages.js';
+import { neutralizeCsvCell } from '../helpers/sanitization.js';
 import {
   attendeeCountLine,
   formatReportDateTime,

@@ -12,14 +12,15 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
+import type { CommentDto } from './dto/comment.dto.js';
 import { validateMessage } from './dto/clarification-input.js';
 import {
   ClarificationsRepository,
   type CommentRow,
   type EventForReview,
-} from './clarifications.repository.js';
+} from './repository/clarifications.repository.js';
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -29,20 +30,6 @@ const UUID_PATTERN =
 // distinct stage since coordinator assignment (its only other trigger) is
 // now automatic and never a meaningful "review started" signal.
 const CLARIFIABLE_STATUSES = ['Submitted', 'Approved'];
-
-export interface CommentDto {
-  id: string;
-  eventId: string;
-  parentId: string | null;
-  type: 'clarification' | 'reply';
-  authorId: string;
-  authorName: string;
-  authorRole: 'coordinator' | 'organiser';
-  message: string;
-  awaitingReply: boolean;
-  resolved: boolean;
-  createdAt: string;
-}
 
 @Injectable()
 export class ClarificationsService {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { VenuesController } from './venues.controller.js';
 import { VenuesService } from './venues.service.js';
 import { VenuesModule } from './venues.module.js';

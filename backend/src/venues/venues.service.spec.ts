@@ -4,10 +4,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
-import { RbacRepository } from '../auth/authorization/rbac.repository.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { VenuesService } from './venues.service.js';
-import { VenuesRepository } from './venues.repository.js';
+import { VenuesRepository } from './repository/venues.repository.js';
 
 const staff: AuthenticatedUser = { uid: 'staff-1', roles: ['VENUE_STAFF'] };
 const coordinator: AuthenticatedUser = {

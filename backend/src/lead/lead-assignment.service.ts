@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one

@@ -1,5 +1,5 @@
 import { InternalServerErrorException } from '@nestjs/common';
-import type { AuthConfig } from '../auth/models/auth.models.js';
+import type { AuthConfig } from '../auth/types/auth.models.js';
 
 const DEFAULT_SESSION_TTL_HOURS = 8;
 const DEFAULT_COOKIE_NAME = 'connectsphere_session';

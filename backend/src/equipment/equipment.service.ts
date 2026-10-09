@@ -5,13 +5,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateEquipmentInput } from './dto/equipment-input.js';
+import { validateEquipmentInput } from './creation/dto/equipment-input.js';
 import {
   validateAvailabilityInput,
   validateEquipmentAvailabilityId,
-} from './dto/equipment-availability-input.js';
+} from './availability/dto/equipment-availability-input.js';
 
 type EquipmentRow = {
   id: string;

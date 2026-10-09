@@ -10,14 +10,14 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
-import { CLOCK, systemClock, type Clock } from '../registrations/clock.js';
+import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
   isRegistrationOpen,
-} from '../registrations/registration-window.js';
+} from '../registrations/registration/registration-window.js';
 
 // SPM-46: the event's most recent reassignment, read with each event so the
 // current coordinator can see who it came from and when.

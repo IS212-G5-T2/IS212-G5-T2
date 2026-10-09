@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
-import { CURRENT_USER_REQUEST_KEY, type AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY, type AuthenticatedUser } from '../auth/types/auth.models.js';
 import { LeadAssignmentService } from './lead-assignment.service.js';
 
 type AuthenticatedRequest = Request & { [CURRENT_USER_REQUEST_KEY]?: AuthenticatedUser };

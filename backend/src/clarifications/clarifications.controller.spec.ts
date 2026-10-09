@@ -1,5 +1,5 @@
 import { UnauthorizedException } from '@nestjs/common';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import { ClarificationsController } from './clarifications.controller.js';
 import type { ClarificationsService } from './clarifications.service.js';
 

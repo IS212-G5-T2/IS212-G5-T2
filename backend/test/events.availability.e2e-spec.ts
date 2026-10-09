@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
-import type { AuthenticatedUser } from '../src/auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
 import { EventsService } from '../src/events/events.service.js';
 
 const database = process.env.DATABASE_URL;
