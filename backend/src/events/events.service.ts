@@ -56,7 +56,7 @@ export class EventsService {
   ) {}
 
   // SPM-38: never trust an organiser/coordinator id from a request body — the
-  // verified Firebase identity (set by FirebaseAuthenticationMiddleware) is
+  // verified local-session identity (set by AuthenticationMiddleware) is
   // the only source of truth for who is calling.
   private requireUser(identity: AuthenticatedUser | undefined): AuthenticatedUser {
     if (!identity?.uid) throw new UnauthorizedException('Authentication required.');

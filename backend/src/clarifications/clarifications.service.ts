@@ -1,10 +1,9 @@
 /*
  * SPM-39: Coordinator clarification/amendment requests. Coordinators open a
  * clarification thread on an event assigned to them; the event's Organiser
- * replies. See backend/HANDOVER.md for the known limits of the
- * ownership checks here (they depend on events.organiser_id/coordinator_id
- * holding real Firebase uids, which EventsService's demo identity does not
- * yet guarantee).
+ * replies. Ownership checks compare the verified local session account with
+ * events.organiser_id or events.coordinator_id. Legacy demo-owned events
+ * require an explicit owner migration before real accounts can access them.
  */
 import {
   BadRequestException,

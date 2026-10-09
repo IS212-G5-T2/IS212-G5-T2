@@ -22,7 +22,7 @@ Scope: `backend`, within the [global policy](../AGENTS.md).
 - Validate request input before it reaches business logic.
 - Avoid leaking secrets, storage errors, stack traces, or sensitive request data in API responses or logs.
 - Coordinate API contract changes with callers under `frontend/`.
-- Update [README.md](README.md), [HANDOVER.md](HANDOVER.md), and [CHANGELOG.md](CHANGELOG.md) when setup, behavior, scripts, or service contracts change.
+- Update [README.md](README.md) when setup, scripts, or supported service contracts change. Keep durable operational guidance there or in a focused document when needed; use Git history and PRs for change history.
 
 ## Local Commands
 
@@ -41,7 +41,7 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 - `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table. Submission leaves a request unassigned; the Lead assigns it (`src/lead`).
 - Coordinate local schema assets with `database/` and API consumers with `frontend/`.
-- Draft and event routes require a verified Firebase Bearer token with the ORGANISER role. Pass request.currentUser explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
+- Draft and event routes require a verified local session with the ORGANISER role. Pass `request.currentUser` explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
 - Unit tests live beside the events module. `test/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
 
 ## Coordinators boundary
@@ -60,7 +60,6 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 - `src/registrations` owns attendee registration validation, `POST /api/events/:eventId/registrations`, `GET /api/events/:eventId/registrations/me` (latest registration of any status), `POST /api/registrations/:registrationId/withdraw` (SPM-120), and writes to `event_registrations`. It also owns the SPM-63 registration report: `GET /api/events/:eventId/registrations/report` and `GET .../report/export?format=csv|pdf` (CSV and PDF writers in `report/export.service.ts`, the single access rule in `report/report-access.ts`). It does not own event authoring. The "event has already occurred" rule is one function, `withdrawal/event-start.ts` (`hasEventStarted`, exclusive at the start instant).
 - Registration rules read time only from the injected `CLOCK`; tests freeze it. `test/registrations.e2e-spec.ts` needs `DATABASE_URL` for a database with `database/postgresql/init/001` to `004` applied; `registrations.withdraw.e2e-spec.ts` (SPM-120) also needs `007` (`withdrawn_at`).
 - SPM-120 withdrawal tests: `src/registrations/withdrawal/registrations.withdraw.spec.ts` records the SQL a refusal issues, because `withdraw()` runs in a transaction that rolls back and no database assertion can show a write that was undone. The fault-injection check is `node scripts/mutation/run.mjs` (mutants in `spm120.mutants.mjs`; it mutates a scratch copy, needs `DATABASE_URL` for the integration suite, and exits 1 if a non-equivalent mutant survives). SPM-46 has its own `spm46.mutants.mjs` (`--mutants spm46.mutants.mjs`) covering the reassignment history, its tie-break, the viewer check, the 403, and the transaction.
-- SPM-120 withdrawal tests: `src/registrations/withdrawal/registrations.withdraw.spec.ts` records the SQL a refusal issues, because `withdraw()` runs in a transaction that rolls back and no database assertion can show a write that was undone. The fault-injection check is `node scripts/mutation/run.mjs` (mutants in `spm120.mutants.mjs`; it mutates a scratch copy, needs `DATABASE_URL` for the integration suite, and exits 1 if a non-equivalent mutant survives).
 - SPM-63 report rules: the report and both exports must go through `RegistrationsService.getReport`; never add a second access check or a route that reads `event_registrations` for another role. Identity comes from the session only (never from the query or body). The PDF embeds `assets/fonts/NotoSans-Regular.ttf`; keep it copied into the Docker image. Fault-injection check: `node scripts/mutation/run.mjs --mutants spm63.mutants.mjs` (mutates a scratch copy; needs `DATABASE_URL`). Integration tests: `test/registrations.report.e2e-spec.ts`.
 
 ## Venues boundary

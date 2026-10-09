@@ -2,9 +2,8 @@
 
 This directory contains database initialization files shared by local development tooling.
 
-For the feature and schema evolution that led to the consolidated initializer,
-see [CHANGELOG.md](CHANGELOG.md). The base schema and seed scripts are followed
-by additive feature init scripts in filename order.
+The base schema and seed scripts are followed by additive feature init scripts
+in filename order. Git history records how the local schema evolved.
 
 ## PostgreSQL
 
@@ -125,6 +124,22 @@ The init scripts run for a fresh database only. For an existing volume, use the
 backend migrations that correspond to the missing schema change; do not apply
 the schema file as a replacement migration or delete the volume merely to pick
 up initializer refactoring.
+
+For existing local volumes, apply only missing, relevant changes in order:
+backend migrations `001`–`009` upgrade drafts, events, and venues; additive
+`postgresql/init/` scripts cover later registration, coordinator, equipment,
+and reassignment fields. In particular, registration details use
+`004_spm61_event_registration.sql`, withdrawal time uses
+`007_spm120_withdraw_registration.sql`, coordinator availability uses
+`007_spm80_coordinator_availability.sql`, the Lead role uses
+`008_spm123_coordinator_lead.sql`, notification linkage uses
+`009_spm47_notification_related_user.sql`, and reassignment/audit tables use
+the two `010_*` scripts. Apply each with `psql -v ON_ERROR_STOP=1` against the
+intended database; numbering is shared across separate feature scripts, so
+check filenames and the current schema rather than assuming one script per
+number. `005_spm61_dev_seed_fixes.sql` and `008_spm124_sample_venues.sql` are
+optional local data updates, not schema migrations. Never reset a shared
+volume merely to pick up an initializer change.
 
 SPM-50 venue creation uses `venues`, controlled accessibility/facility/layout
 lookups and junctions, plus optional `venue_images` on fresh databases.

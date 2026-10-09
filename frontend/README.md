@@ -1,4 +1,4 @@
- # Frontend
+# Frontend
 
 This directory contains the React/Vite frontend for the workspace.
 
@@ -60,9 +60,7 @@ No deployment command is configured for this repository.
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
 GitHub Actions is configured to run the suite with coverage through
-`scripts/ci/unit-test.sh`. The coverage configuration declares thresholds for
-the SPM-30 login page, Firebase-role mapper, and access guards; the thresholds
-are meaningful only when the selected suite passes and includes those tests.
+`scripts/ci/unit-test.sh`. Component tests do not replace browser-level checks.
 
 ```sh
 npm test              # run the suite once
@@ -71,9 +69,9 @@ npm run test:cov      # run once with a coverage report
 ```
 
 Test files live alongside the code they cover (for example,
-`src/features/account/pages/LoginPage.test.tsx` next to its page). Shared test
-helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup,
-`src/test/fixtures/` for reusable test data).
+`src/features/account/pages/login/LoginPage.test.tsx` next to its page).
+Feature-owned fixtures stay with their feature; `src/test/setup.ts` provides
+global setup.
 
 ## Source layout
 
@@ -107,63 +105,34 @@ The standard Vitest command loads `vitest.config.ts`, which selects both
 `src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
 browser runner.
 
-`LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The mock accounts used to parameterize the "correct credentials" cases are documented in `src/test/fixtures/authUsers.ts`; their password is deliberately fake and test-only:
+## Authentication
 
-| Email | Role |
-| --- | --- |
-| attendee@connectsphere.sg | attendee |
-| organiser@connectsphere.sg | organiser |
-| coordinator@connectsphere.sg | coordinator |
-| venue_staff@connectsphere.sg | venue_staff |
-| technical_support@connectsphere.sg | tech_support |
+`/login` calls the backend's `/api/auth/login`; session restoration and logout
+use `/api/auth/me` and `/api/auth/logout`. Requests include the server-owned,
+HTTP-only session cookie. The UI maps the backend's role list into navigation
+and route guards, but the backend enforces authorization. Local-only seeded
+accounts are documented in [database/README.md](../database/README.md#local-login-data).
+Set `VITE_API_BASE_URL` to the backend origin when it is not
+`http://localhost:8080`. Login tests mock HTTP calls, not an external identity
+provider.
 
-These fixtures do not need to exist under Authentication -> Users in any Firebase project; the automated suite never contacts Firebase.
+Coordinator assignment is managed through the Lead's assignment queue;
+submitting an event leaves it unassigned until the Lead assigns it.
 
-## Authentication (Firebase)
-
-`/login` uses Firebase Authentication (Email/Password provider) via the Firebase JS SDK. Before running the app:
-
-1. Create/use a Firebase project and register a Web app (Firebase console → Project settings → General → Your apps).
-2. Enable the **Email/Password** sign-in provider (Authentication → Sign-in method).
-3. Add at least one user (Authentication → Users).
-4. `cp .env.example .env` in this directory and fill in the `VITE_FIREBASE_*` values from that web app's SDK config.
-
-Without a valid `.env`, the app still starts, but sign-in fails — the browser console names the missing config values.
-
-Firebase users must also have a supported custom `roles` claim (`ORGANISER`,
-`COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`). The frontend maps
-that verified Firebase claim to its UI role; it does not assume a role from a
-successful sign-in alone. The route guards restrict organiser event creation,
-organiser-owned edits, and coordinator change-request reviews in the client.
-The in-memory registration actions are also limited to the signed-in attendee.
-
-Coordinator assignment is manual: submitting a request leaves it unassigned.
-Coordinators use **Assign Myself as Coordinator** on an unassigned event to
-claim it. Approval/rejection controls are not part of the SPM-37 draft workflow.
-As in the earlier client workflow, this assignment is held
-in browser memory and is not persisted by an assignment API.
-
-The API client forwards the signed-in Firebase ID token. Draft/event endpoints verify that token, require the ORGANISER role, and scope data to its UID.
-
-### Local Compose Firebase
-
-The shared Docker Compose stack uses the real Firebase Web app configuration
-from `docker-compose/.env`; it does not start a Firebase emulator. Use a
-dedicated non-production Firebase project and test accounts. Keep
-`VITE_USE_FIREBASE_AUTH_EMULATOR` unset or `false` for this mode.
-
-The Firebase Auth Emulator is used only by the GitHub Actions backend E2E test.
 ## Event request workflow
 
 My drafts lists only unsubmitted drafts. Once submitted, requests appear under My Events. Create new events from the Create Event action on the planning or events page.
 
-My Events uses the API response scoped to the verified Firebase UID. Drafts and submitted events are private to their owner; old shared demo records are retained but not automatically assigned to an account.
+My Events uses the API response scoped to the verified local session account.
+Drafts and submitted events are private to their owner; old shared demo records
+are not automatically assigned to an account.
 
 Open `/planning` or `/events` and choose Create Event. The light-mode three-step form collects basic information, schedule/venue needs, and equipment needs. Successful submission opens the saved details and shows a confirmation. My Events reloads records from PostgreSQL through the backend API. Dates use the browser's local time zone and are sent as UTC.
 
 In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
-variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
+variable is absent. The local session is required for both draft and event
+APIs. Save Draft is implemented; email delivery remains deferred.
 
 Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/features/events/pages/`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
@@ -226,3 +195,12 @@ Organisers receive persistent rejection notifications above their main content, 
 Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
 
 Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.
+
+## Registration report
+
+The authenticated report route `/events/:id/registrations/report` relies on
+the backend's access check; a 403 displays an error rather than redirecting
+the viewer. The People-card modal mounts only while open and shares the report
+fetch/polling and CSV/PDF export hooks. Exports use the server's full report
+and filename, even when the modal view is filtered. Polling stops when the
+viewer leaves, changes events, or loses access. Release 1 has no waitlist.

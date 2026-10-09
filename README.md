@@ -20,7 +20,7 @@ This repository contains the project code, local development setup, and GitHub A
 |-- docker-compose/       # Local Docker Compose integration stack
 |-- frontend/             # React/Vite frontend application
 |-- AGENTS.md             # Agent working instructions
-|-- AI_USAGE.md           # Index to AI-assisted work archives
+|-- AI_USAGE.md           # Current AI-assisted work log
 `-- opencode.json
 ```
 
@@ -44,8 +44,6 @@ At a high level:
 - `docs` owns project workflow documentation.
 
 No deployment target is defined in this repository. `dev` is the latest shared branch; create new work branches from the latest `dev` and open pull requests back into `dev`.
-
-![Secure Architecture with Centralized Logging](assets/Secure%20Architecture%20with%20Centralized%20Logging.png)
 
 ## Setup
 
