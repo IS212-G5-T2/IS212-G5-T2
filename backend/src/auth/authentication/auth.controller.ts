@@ -11,11 +11,9 @@ import {
 import type { Request, Response } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../types/auth.models.js';
 import type { AuthenticatedUser } from '../types/auth.models.js';
+import type { AuthenticatedRequest } from '../types/authenticated-request.js';
 import { AuthService } from './auth.service.js';
-
-type AuthenticatedRequest = Request & {
-  [CURRENT_USER_REQUEST_KEY]?: AuthenticatedUser;
-};
+import { readSessionCookie } from './session-cookie.js';
 
 @Controller('api/auth')
 export class AuthController {
@@ -43,7 +41,7 @@ export class AuthController {
   ): Promise<void> {
     const config = this.auth.getConfig();
     await this.auth.logout(
-      this.readCookie(request.headers.cookie, config.cookieName),
+      readSessionCookie(request.headers.cookie, config.cookieName),
     );
     response.clearCookie(config.cookieName, this.cookieOptions());
   }
@@ -90,15 +88,4 @@ export class AuthController {
     };
   }
 
-  private readCookie(
-    header: string | undefined,
-    cookieName: string,
-  ): string | undefined {
-    if (!header) return undefined;
-    return header
-      .split(';')
-      .map((value) => value.trim())
-      .find((value) => value.startsWith(`${cookieName}=`))
-      ?.slice(cookieName.length + 1);
-  }
 }

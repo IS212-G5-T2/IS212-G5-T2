@@ -1,12 +1,10 @@
 import { BadRequestException } from '@nestjs/common';
+import { UUID_PATTERN } from '../../../common/uuid.js';
 
 export interface AvailabilityInput {
   isAvailable: boolean;
   reason?: string;
 }
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Reject malformed identifiers before PostgreSQL can turn them into a 500. */
 export function validateEquipmentAvailabilityId(id: string): void {

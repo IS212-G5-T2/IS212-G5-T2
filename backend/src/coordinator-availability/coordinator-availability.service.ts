@@ -8,7 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { ACTIVE_STATUSES } from '../lead/lead-assignment.service.js';
+import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/event-status.js';
 
 type AvailabilityRow = { is_available: boolean };
 type UpdatedAvailabilityRow = AvailabilityRow & { display_name?: string; was_available?: boolean };
@@ -82,7 +82,7 @@ export class CoordinatorAvailabilityService {
   private async tellLead(coordinatorId: string, name: string) {
     const counted = await this.database.query<{ count: string }>(
       'SELECT COUNT(*) AS count FROM events WHERE coordinator_id = $1 AND status = ANY($2)',
-      [coordinatorId, ACTIVE_STATUSES],
+      [coordinatorId, ACTIVE_COORDINATOR_EVENT_STATUSES],
     );
     const active = Number(counted.rows[0]?.count ?? 0);
     if (active === 0) return;

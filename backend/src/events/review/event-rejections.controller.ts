@@ -1,9 +1,6 @@
 import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import type { Request } from 'express';
-import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
+import type { AuthenticatedRequest } from '../../auth/types/authenticated-request.js';
 import { EventsService } from '../events.service.js';
-
-type AuthenticatedRequest = Request & { currentUser?: AuthenticatedUser };
 
 @Controller('api')
 export class EventRejectionsController {

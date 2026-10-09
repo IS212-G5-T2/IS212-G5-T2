@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
+import { UUID_PATTERN } from '../common/uuid.js';
 import type { CommentDto } from './dto/comment.dto.js';
 import { validateMessage } from './dto/clarification-input.js';
 import {
@@ -21,9 +22,6 @@ import {
   type CommentRow,
   type EventForReview,
 } from './repository/clarifications.repository.js';
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Statuses a clarification request may be opened from. Submitting one no
 // longer changes the event's status — "Under Review" was retired as a

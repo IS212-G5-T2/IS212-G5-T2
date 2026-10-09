@@ -1,9 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
-import type { Request } from 'express';
-import { CURRENT_USER_REQUEST_KEY, type AuthenticatedUser } from '../auth/types/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
+import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { EquipmentService } from './equipment.service.js';
-
-type AuthenticatedRequest = Request & { [CURRENT_USER_REQUEST_KEY]?: AuthenticatedUser };
 
 /* v8 ignore start -- Nest decorator metadata is not executable in unit tests. */
 @Controller('api/equipment')

@@ -13,13 +13,12 @@ import type {
 } from '../auth/types/auth.models.js';
 import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
+import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
 import { VenuesRepository } from './repository/venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /** Identifies the PostgreSQL constraint that protects venue natural-key uniqueness. */
 function isDuplicateVenue(error: unknown): boolean {
   return (

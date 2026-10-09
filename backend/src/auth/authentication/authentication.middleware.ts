@@ -6,13 +6,14 @@ import {
 import type { NextFunction, Request, Response } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../types/auth.models.js';
 import { AuthService } from './auth.service.js';
+import { readSessionCookie } from './session-cookie.js';
 
 @Injectable()
 export class AuthenticationMiddleware implements NestMiddleware {
   constructor(private readonly auth: AuthService) {}
 
   use(request: Request, _response: Response, next: NextFunction): void {
-    const token = this.readCookie(
+    const token = readSessionCookie(
       request.headers.cookie,
       this.auth.getConfig().cookieName,
     );
@@ -27,16 +28,4 @@ export class AuthenticationMiddleware implements NestMiddleware {
     }, next);
   }
 
-  private readCookie(
-    header: string | undefined,
-    cookieName: string,
-  ): string | undefined {
-    if (!header) return undefined;
-
-    return header
-      .split(';')
-      .map((value) => value.trim())
-      .find((value) => value.startsWith(`${cookieName}=`))
-      ?.slice(cookieName.length + 1);
-  }
 }

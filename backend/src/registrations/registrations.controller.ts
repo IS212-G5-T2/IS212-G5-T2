@@ -13,16 +13,12 @@ import {
   Res,
   StreamableFile,
 } from '@nestjs/common';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { ExportService } from './report/export.service.js';
 import { MESSAGES } from './helpers/messages.js';
 import { RegistrationsService } from './registrations.service.js';
-
-type AuthenticatedRequest = Request & {
-  [CURRENT_USER_REQUEST_KEY]?: AuthenticatedUser;
-};
 
 @Controller('api')
 export class RegistrationsController {
