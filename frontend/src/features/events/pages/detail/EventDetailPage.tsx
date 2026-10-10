@@ -1,5 +1,14 @@
 import { api } from "@/utils/api";
-import type { EventComment, EventRecord } from "@/types";
+import { hasRole } from "@/types";
+import type {
+  ChangeHistoryEntry,
+  EventComment,
+  EventRecord,
+  FlaggedChange,
+  PlanningUpdatePatch,
+  PlanningView,
+  ResolveChangeRequest,
+} from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
@@ -10,6 +19,17 @@ import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/features/events/pages/detail/ClarificationThread";
 import { formatDateTimeRange, formatDateTime } from "@/utils/format";
+import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
+import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
+import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
+import {
+  PLANNING_REFRESH_MS,
+  PLANNING_STATUSES,
+  fetchChangeHistory,
+  fetchPlanningView,
+  resolvePlanningChange,
+  updatePlanning,
+} from "@/utils/planning";
 import { attendeeEventStatus } from "@/features/events/lib/EventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
@@ -99,6 +119,69 @@ export function EventDetailPage() {
   const [submittingDecision, setSubmittingDecision] = useState(false);
 
   const event = events.find((e) => e.id === id);
+
+  // Planning data is read-only for the owning organiser and editable for the
+  // assigned coordinator. Refresh it while the page is visible so decisions
+  // made by either role are reflected without a reload.
+  const [planningView, setPlanningView] = useState<PlanningView | null>(null);
+  const [planningError, setPlanningError] = useState("");
+  const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  const isPlanningCoordinator =
+    hasRole(currentUser, "coordinator") && !!event && event.coordinatorId === currentUser.id;
+  const isPlanningOwner =
+    hasRole(currentUser, "organiser") && !!event && event.organiserId === currentUser.id;
+  const planningEnabled =
+    !!event && !loading && !loadError && PLANNING_STATUSES.includes(event.status) &&
+    (isPlanningOwner || isPlanningCoordinator);
+
+  const loadPlanning = useCallback(async () => {
+    if (!id) return;
+    try {
+      const view = await fetchPlanningView(id);
+      setPlanningView(view);
+      setPlanningError("");
+      useAppStore.setState((s) => ({
+        events: s.events.map((e) => (e.id === view.event.id ? { ...e, ...view.event } : e)),
+      }));
+    } catch (e) {
+      setPlanningError(
+        e instanceof Error ? `Could not refresh planning information: ${e.message}` : "Could not refresh planning information.",
+      );
+    }
+  }, [id]);
+
+  const loadHistory = useCallback(async () => {
+    if (!id) return;
+    try {
+      setChangeHistory(await fetchChangeHistory(id));
+    } catch {
+      // History is supplementary; the review panel still works without it.
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (!planningEnabled) {
+      setPlanningView(null);
+      return;
+    }
+    loadPlanning();
+    if (isPlanningCoordinator) loadHistory();
+    const timer = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") loadPlanning();
+    }, PLANNING_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [planningEnabled, isPlanningCoordinator, loadPlanning, loadHistory]);
+
+  const savePlanning = async (patch: PlanningUpdatePatch) => {
+    const result = await updatePlanning(id!, patch);
+    await Promise.all([loadPlanning(), loadHistory()]);
+    return result;
+  };
+
+  const resolveChange = async (request: ResolveChangeRequest) => {
+    await resolvePlanningChange(id!, request);
+    await Promise.all([loadPlanning(), loadHistory()]);
+  };
 
   const refreshComments = useCallback(async () => {
     try {
@@ -378,6 +461,50 @@ export function EventDetailPage() {
       {event.rejectionReason && event.status === "rejected" && (
         <div className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           <strong>Rejected:</strong> {event.rejectionReason}
+        </div>
+      )}
+
+      {planningView && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
+      {!planningView && planningEnabled && planningError && (
+        <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
+          {planningError}
+        </div>
+      )}
+      {planningView && isPlanningCoordinator && !planningView.readOnly && (
+        <div className="mb-6 grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Update event information</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Compatible changes apply immediately. Changes that affect bookings stay under review until confirmed.
+              </p>
+            </CardHeader>
+            <CardBody>
+              <PlanningUpdateForm
+                event={planningView.event}
+                editableFields={planningView.editableFields}
+                lastUpdatedAt={planningView.lastUpdatedAt}
+                pendingChanges={planningView.pendingChanges.filter(
+                  (change): change is FlaggedChange => change.kind === "booking_conflict",
+                )}
+                onSave={savePlanning}
+              />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Changes awaiting review</h2>
+            </CardHeader>
+            <CardBody>
+              <FlaggedChangeReview
+                changes={planningView.pendingChanges.filter(
+                  (change): change is FlaggedChange => change.kind === "booking_conflict",
+                )}
+                history={changeHistory}
+                onResolve={resolveChange}
+              />
+            </CardBody>
+          </Card>
         </div>
       )}
 

@@ -2,6 +2,10 @@
 
 Entries without a single Jira ticket.
 
+## 2026-10-10
+
+- swr - fix - refactor/file_structure_and_modularization - Preserve event-planning integration during conflict resolution: Kept the refactor branch's module and page organization while restoring planning controller registration and planning UI behavior. The focused planning page suite passes (30 tests); backend/frontend builds and linters pass. CI E2E rerun pending.
+
 ## 2026-10-09
 
 - swr - documentation - refactor/frontend-shared-modularization - Archive branch AI usage and set PR handoff rule: Preserved the 15 active work entries with their confirmed branch, updated the log format to require a Jira key or branch name, and made an explicit PR-creation request trigger archival before the PR opens.
