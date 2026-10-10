@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/Button";
 import { TextArea, TextInput } from "@/components/ui/FormControls";
 import { ApiError, api } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
+import { sgtLocalDateTimeToDate } from "@/utils/sgtDate";
 import type { VenueReservation, VenueUnavailablePeriod } from "../venue-records";
 
 interface Props {
@@ -40,10 +41,12 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
 
   function review() {
     const next: Record<string, string> = {};
-    if (!start || Number.isNaN(new Date(start).getTime())) next.start = "Enter a valid start date and time.";
-    if (!end || Number.isNaN(new Date(end).getTime())) next.end = "Enter a valid end date and time.";
-    else if (start && new Date(end) <= new Date(start)) next.end = "End date and time must be after start date and time.";
-    else if (new Date(end) <= new Date()) next.end = "End date and time must be in the future.";
+    const startDate = sgtLocalDateTimeToDate(start);
+    const endDate = sgtLocalDateTimeToDate(end);
+    if (!start || Number.isNaN(startDate.getTime())) next.start = "Enter a valid start date and time.";
+    if (!end || Number.isNaN(endDate.getTime())) next.end = "Enter a valid end date and time.";
+    else if (start && endDate <= startDate) next.end = "End date and time must be after start date and time.";
+    else if (endDate <= new Date()) next.end = "End date and time must be in the future.";
     if (!reason.trim()) next.reason = "A reason is required.";
     setErrors(next);
     if (!Object.keys(next).length) setConfirming(true);
@@ -55,7 +58,7 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
     try {
       const saved = await api<SavedPeriod>(`/venues/${venueId}/unavailable-periods`, {
         method: "POST",
-        body: JSON.stringify({ start: new Date(start).toISOString(), end: new Date(end).toISOString(), reason }),
+        body: JSON.stringify({ start: sgtLocalDateTimeToDate(start).toISOString(), end: sgtLocalDateTimeToDate(end).toISOString(), reason }),
       });
       setResult(saved);
       cancel();
