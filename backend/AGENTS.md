@@ -40,6 +40,7 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 ## Events boundary
 
 - `src/events` owns event request validation, `POST /api/events`, `GET /api/events`, `GET /api/events/:id`, and persistence in the `events` table. Submission leaves a request unassigned; the Lead assigns it (`src/lead`).
+- `src/events` also owns event planning (SPM-97/49/85): `/api/events/:id/planning` routes, reads SPM-124's `venue_bookings`, owns the `equipment_reservations` (placeholder) and `event_flagged_changes` tables (see HANDOVER.md), and the impact rules in `event-impact.ts`.
 - Coordinate local schema assets with `database/` and API consumers with `frontend/`.
 - Draft and event routes require a verified local session with the ORGANISER role. Pass `request.currentUser` explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
 - Unit tests live beside the events module. `test/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
