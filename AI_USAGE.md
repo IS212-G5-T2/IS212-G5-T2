@@ -14,4 +14,4 @@ Add entries under one date per day, using this format:
 
 ## 2026-10-10
 
-- user - bug fix - refactor/file_structure_and_modularization - Make venue unavailability datetime conversion explicitly use Singapore time; verify the timezone test across UTC and Singapore runners.
+- user - bug fix - refactor/file_structure_and_modularization - Make venue unavailability datetime conversion explicitly use Singapore time and assert UTC instants without host-timezone-dependent getHours(); verify frontend CI unit tests.

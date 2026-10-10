@@ -41,10 +41,8 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Assert the venue path, free-text payload and affected event display.
     expect(apiMock).toHaveBeenCalledWith(`/venues/${id}/unavailable-periods`, expect.objectContaining({ method: "POST", body: expect.stringContaining("Air-conditioning inspection") }));
     const sent = JSON.parse(apiMock.mock.calls[0][1]?.body as string) as { start: string; end: string; reason: string };
-    expect(sent.start).toMatch(/Z$/);
-    expect(sent.end).toMatch(/Z$/);
-    expect([new Date(sent.start).getHours(), new Date(sent.start).getMinutes()]).toEqual([12, 15]);
-    expect([new Date(sent.end).getHours(), new Date(sent.end).getMinutes()]).toEqual([12, 45]);
+    expect(sent.start).toBe("2030-01-12T04:15:00.000Z");
+    expect(sent.end).toBe("2030-01-12T04:45:00.000Z");
     expect(sent.reason).toBe("Air-conditioning inspection");
     expect(within(await screen.findByRole("region", { name: "Affected bookings" })).getByText(/Welcome Event/)).toBeInTheDocument();
     expect(onSaved).toHaveBeenCalledOnce();
