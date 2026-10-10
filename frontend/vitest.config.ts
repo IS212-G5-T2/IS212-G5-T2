@@ -5,6 +5,7 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: "jsdom",
+      pool: "vmThreads",
       include: ["src/**/*.test.{ts,tsx}"],
       exclude: ["**/*.playwright.spec.ts"],
       coverage: {

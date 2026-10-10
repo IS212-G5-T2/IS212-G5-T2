@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { AuthError, login, logout, restoreSession } from "@/lib/auth";
 import { ApiError, api } from "@/utils/api";
-import type { RegistrationDetails } from "@/utils/registration";
+import type { RegistrationDetails } from "@/features/events/lib/registration";
 import type {
   Booking,
   ChangeRequest,

@@ -3,15 +3,15 @@
 // Not reproduced here: M11 (backend, needs a TZ-specific run). M8 is the frontend formatter's time zone (M8-fe).
 export const SUITES = {
   // Component, page and utility suites that exercise the SPM-120 code (Vitest, jsdom, HTTP mocked at the boundary).
-  spm120: { args: ['run', 'src/components/EventDetail', 'src/pages', 'src/utils'] },
+  spm120: { args: ['run', 'src/features/events/pages/detail/registration', 'src/features/events/pages', 'src/features/events/lib'] },
 };
 
-const D = 'src/components/EventDetail';
+const D = 'src/features/events/pages/detail/registration';
 const SECTION = `${D}/RegistrationSection.tsx`;
 const DIALOG = `${D}/WithdrawalConfirmation.tsx`;
 const STATUS = `${D}/WithdrawnRegistrationStatus.tsx`;
-const VIEW = 'src/pages/EventView.ts';
-const UTIL = 'src/utils/registration.ts';
+const VIEW = 'src/features/events/lib/EventView.ts';
+const UTIL = 'src/features/events/lib/registration.ts';
 const suites = ['spm120'];
 
 export const MUTANTS = [

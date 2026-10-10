@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { TURNAROUND_MINUTES } from './event-impact.js';
 import { EventPlanningRepository } from './event-planning.repository.js';
 import { EventPlanningService } from './event-planning.service.js';

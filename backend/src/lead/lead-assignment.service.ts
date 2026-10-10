@@ -8,16 +8,14 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
+import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/event-status.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
-// Only these statuses count towards a coordinator's workload and can be
-// reassigned; Rejected, Completed and Cancelled events are finished.
-export const ACTIVE_STATUSES = ['Submitted', 'Approved', 'Confirmed'] as const;
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const ACTIVE_STATUSES = ACTIVE_COORDINATOR_EVENT_STATUSES;
 
 type QueueRow = {
   id: string;

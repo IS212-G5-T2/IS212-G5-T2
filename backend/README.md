@@ -15,16 +15,9 @@ The cookie-based API never returns password hashes or session tokens:
 - `POST /api/auth/logout` revokes the persisted session and clears the
   cookie.
 
-The local database seeds one account per role. All use password
-`P@55w0rd` and are strictly for local development:
-
-| Role | Email |
-| --- | --- |
-| Organiser | `organiser@local.connectsphere.test` |
-| Coordinator | `coordinator@local.connectsphere.test` |
-| Venue Staff | `venue.staff@local.connectsphere.test` |
-| Tech Support | `tech.support@local.connectsphere.test` |
-| Attendee | `attendee@local.connectsphere.test` |
+Local-only account credentials and roles are listed in
+[database/README.md](../database/README.md#local-login-data); do not reuse them
+outside development.
 
 Sessions are opaque random values. PostgreSQL retains only their SHA-256
 digests in `auth_sessions`; passwords are verified with bcrypt through the
@@ -53,7 +46,7 @@ Auth code is organized by responsibility:
 | `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
 | `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
 | `src/auth/authorization/` | RBAC permission and ownership checks. |
-| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+| `src/auth/types/` | Shared auth user, role, permission, and public-route types. |
 
 ## Database Access
 
@@ -72,8 +65,6 @@ Required runtime configuration:
 | `AUTH_COOKIE_NAME` | Name of the HTTP-only session cookie. |
 | `AUTH_COOKIE_SECURE` | Set `true` when the backend is served over HTTPS. |
 | `AUTH_SESSION_TTL_HOURS` | Session lifetime; defaults to `8`, maximum `168`. |
-
-This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes event submission and retrieval endpoints alongside the starter health checks.
 
 ## Setup
 
@@ -147,6 +138,15 @@ for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
+- `GET /api/events` and `GET /api/events/:id` return requests visible to the
+  signed-in account. Drafts use `/api/requests`. Submission leaves a request
+  unassigned until the Event Coordinator Lead assigns it.
+
+The server derives ownership from the session, not client-supplied identity.
+Existing rows created with the old fixed demo identity remain inaccessible
+under session scoping; migrate ownership only after verifying the real owner.
+Submitted requests use the stored `Submitted` status and a unique
+organiser/submission key to protect retries. Email delivery is deferred.
 
 ## Equipment records
 
@@ -155,21 +155,11 @@ and `GET /api/equipment`; `GET /api/equipment/locations` returns distinct saved
 locations for the create form. Equipment requests require a non-blank name and
 location, predefined type and maintenance status, and a whole-number quantity
 from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
-- `GET /api/events`: lists the fixed local demo organiser's events, newest first.
-- `GET /api/events/:id`: returns full details or 404.
 
-Name, purpose, start/end times and positive integer attendance are required. Times are ISO UTC strings; end must follow start. Requests receive field-specific 400 errors. The server owns the organiser and status; SQL stores `Submitted`, mapped to `submitted` in the frontend contract. A unique organiser/submission key prevents duplicate retries. Optional text and selection fields have size/value limits.
-
-Firebase handles user accounts for `/auth/me`, but the event API does not yet
-use the authenticated Firebase user. Its demo identity is explicitly local-only;
-integrate server-side Firebase identity and RBAC before shared or production
-use. Email delivery and Save Draft are deferred.
-
-Event unit tests live beside their implementation:
-`src/events/event-input.spec.ts` covers validation and
-`src/events/events.service.spec.ts` covers persistence behavior with mocked
-database calls. They run through `npm test`. There is no committed
-database-container E2E test for the event endpoints.
+Availability is separate from maintenance status. Marking equipment
+unavailable and writing its audit entry happen in one transaction; a failed
+audit insert rolls the availability change back. `GET /api/equipment` excludes
+unavailable records unless `includeUnavailable=true` is requested.
 
 ## Venue records (SPM-50)
 
@@ -199,7 +189,7 @@ requiring an owner for new rows and enforcing a foreign key to `users(id)`.
 Fresh local databases
 receive the tables through `database/postgresql/init/001_schema.sql`. Unit
 coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
-test is `src/venues/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
+test is `test/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
 
 ### Venue Staff catalogue (SPM-124)
 
@@ -222,21 +212,20 @@ The end time must be later than the current server time. A period that has
 already started can be saved if it is still in progress. The affected list
 contains current and upcoming bookings, including their setup and turnaround
 time; elapsed bookings are omitted.
-Existing bookings and events are unchanged. `POST
-/api/venues/:id/unavailable-periods/:periodId/end` shortens one active period
+Existing bookings and events are unchanged.
+`POST /api/venues/:id/unavailable-periods/:periodId/end` shortens one active period
 to the server clock time. `GET /api/venues/:id` exposes current and scheduled
 periods with reasons and a `current` flag for the early-end control.
 
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's
-Organiser. Unlike the events endpoints above, these routes are protected by
-`FirebaseAuthenticationMiddleware` and use the real authenticated Firebase
-`uid`/`roles` for ownership checks.
+Organiser. Like other protected routes, these use the verified local session
+and check the account against the event's assigned coordinator or owner.
 
 - `POST /api/events/:id/clarifications`: Coordinator opens a clarification.
-  Requires `Authorization: Bearer <Firebase ID token>` for a user with the
-  `COORDINATOR` role whose uid matches the event's `coordinator_id`. Body:
+  Requires the `COORDINATOR` role and an account matching the event's
+  `coordinator_id`. Body:
   `{ "message": string }` (rejected with 400 if blank/whitespace-only).
   Notifies the Organiser. Does not change the event's status — "Under Review"
   was retired as a distinct status (SPM-38 follow-up); only `Submitted` and
@@ -248,15 +237,9 @@ Organiser. Unlike the events endpoints above, these routes are protected by
   a user with the `ORGANISER` role whose uid matches the event's
   `organiser_id`.
 
-See `HANDOVER.md` for known gaps: no endpoint yet assigns `coordinator_id`,
-and `EventsService`'s hardcoded demo-organiser identity means the reply
-endpoint's ownership check only matches events whose `organiser_id` is a real
-Firebase uid.
-
-Unit tests: `src/clarifications/clarification-input.spec.ts` and
-`src/clarifications/clarifications.service.spec.ts`. E2E test:
-`test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
-real PostgreSQL database and the Firebase Auth Emulator.
+The Lead assigns coordinators through `/api/lead/queue/:eventId/assign`.
+`test/clarifications.e2e-spec.ts` exercises the HTTP/session/PostgreSQL path
+with a dedicated test database.
 
 ## Request decisions (SPM-83 and SPM-40)
 
@@ -267,4 +250,18 @@ Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_
 - Approval locks the event and commits Approved status plus an organiser-addressed `approval` notification in one transaction. Any later attempt to approve or move the same request through this decision endpoint returns 409, preserving the forward-only status transition.
 - Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.
 - `GET /api/notifications` returns only the verified ORGANISER's approval and rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
-Notifications are persistent in-app messages, not email. The frontend checks for them on sign-in, focus and every 30 seconds. In local demo mode they are addressed to the existing fixed demo organiser. Build with `npm run build`; use configured Firebase coordinator and organiser accounts to verify the live workflow.
+Notifications are persistent in-app messages, not email. The frontend checks
+for them on sign-in, focus, and every 30 seconds. Identity and recipient
+scoping come from the local session.
+
+## Registration report and exports
+
+The report and CSV/PDF exports all use `RegistrationsService.getReport`, so
+the owning organiser and assigned coordinator share one access rule. CSV
+formula neutralisation applies only to exported cells; stored values and the
+JSON report remain unchanged. The PDF embeds
+`assets/fonts/NotoSans-Regular.ttf` (SIL OFL); keep that asset in the Docker
+image. The font does not cover CJK glyphs, and large reports rely on PDFKit
+page wrapping. Integration checks require a dedicated PostgreSQL database and
+`npm run test:e2e`; the report mutation check is
+`node scripts/mutation/run.mjs --mutants spm63.mutants.mjs` with `DATABASE_URL`.

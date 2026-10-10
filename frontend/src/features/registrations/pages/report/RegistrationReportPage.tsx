@@ -1,0 +1,53 @@
+import { useParams } from "react-router-dom";
+import { Button } from "@/components/ui/Button";
+import { ReportHeader } from "@/features/registrations/components/report/ReportHeader";
+import { ReportTable } from "@/features/registrations/components/report/ReportTable";
+import { useRegistrationReport } from "@/features/registrations/components/report/useRegistrationReport";
+import { useReportExport } from "@/features/registrations/components/report/useReportExport";
+import { REPORT_MESSAGES } from "@/features/registrations/lib/registrationReport";
+
+/**
+ * SPM-63: the registration report for one event, shared by the assigned coordinator and the owning organiser. The
+ * server decides access (assigned coordinator or owning organiser); a refusal shows MSG-08 and no data, and the route
+ * deliberately has no client-side role redirect so an attendee is never bounced to the attendee view.
+ */
+export function RegistrationReportPage() {
+  const { id = "" } = useParams();
+  const { state, retry } = useRegistrationReport(id);
+  const { downloading, exportError, exportAs } = useReportExport(id);
+
+  if (state.status === "loading") return <p role="status">Loading registration report…</p>;
+  if (state.status === "forbidden") return <div role="alert">{REPORT_MESSAGES.forbidden}</div>;
+  if (state.status === "error") {
+    return (
+      <div role="alert">
+        {state.message}{" "}
+        <Button variant="secondary" onClick={retry}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  const { report } = state;
+  return (
+    <div>
+      <ReportHeader
+        eventName={report.event.name}
+        totalConfirmed={report.totalConfirmed}
+        capacity={report.event.capacity}
+        availableSpots={report.availableSpots}
+      />
+      <div className="mb-4 flex gap-2">
+        <Button variant="secondary" disabled={downloading !== null} onClick={() => void exportAs("csv")}>
+          Export as CSV
+        </Button>
+        <Button variant="secondary" disabled={downloading !== null} onClick={() => void exportAs("pdf")}>
+          Export as PDF
+        </Button>
+      </div>
+      {exportError && <div role="alert" className="mb-4">{exportError}</div>}
+      <ReportTable registrations={report.registrations} />
+    </div>
+  );
+}

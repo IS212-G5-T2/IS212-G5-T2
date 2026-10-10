@@ -122,7 +122,7 @@ This is the shared three-tier integration environment, with a persistent
 `postgres-data` volume. Automated integration tests should preserve the
 environment and existing data, remove their own test records and temporary
 resources, and report any services they started and left running. The
-[development lifecycle rules](../AGENTS.md#lifecycle-rules) define resource
+[development lifecycle rules](AGENTS.md#lifecycle-rules) define resource
 ownership and the exception to disposable-test teardown.
 
 When explicitly stopping the whole stack, run `docker compose down` from this directory. It removes the stack's containers and network while retaining the named database volume.

@@ -19,8 +19,8 @@ import {
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import { CURRENT_USER_REQUEST_KEY } from '../auth/models/auth.models.js';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { EventPlanningService } from './event-planning.service.js';
 
 type AuthenticatedRequest = Request & {

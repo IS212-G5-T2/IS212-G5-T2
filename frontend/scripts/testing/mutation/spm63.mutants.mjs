@@ -2,23 +2,23 @@
 // Each edit is [from, to]; `from` must occur exactly once in the file (the runner reports MISAPPLIED otherwise).
 // IDs M15 to M17 and M20 match the task prompt's list; X* are extra mutants added while reviewing the suite.
 export const SUITES = {
-  // The SPM-63 specs only (helpers, components, the report page and the event-list link).
+  // The SPM-63 specs only (helpers, components, the report page and the event-detail visibility rule).
   spm63: {
     args: [
       'run',
-      'src/utils/registrationReport.test.ts',
-      'src/components/registrations',
-      'src/pages/RegistrationReportPage.test.tsx',
-      'src/pages/EventListPage.registrations.test.tsx',
+      'src/features/registrations/lib/registrationReport.test.ts',
+      'src/features/registrations/components/report',
+      'src/features/registrations/pages/report/RegistrationReportPage.test.tsx',
+      'src/features/events/pages/detail/EventDetailPage.registrationsModal.test.tsx',
     ],
   },
 };
 
-const HOOK = 'src/components/registrations/useRegistrationReport.ts';
-const UTIL = 'src/utils/registrationReport.ts';
-const PAGE = 'src/pages/RegistrationReportPage.tsx';
-const TABLE = 'src/components/registrations/ReportTable.tsx';
-const LIST = 'src/pages/EventListPage.tsx';
+const HOOK = 'src/features/registrations/components/report/useRegistrationReport.ts';
+const UTIL = 'src/features/registrations/lib/registrationReport.ts';
+const PAGE = 'src/features/registrations/pages/report/RegistrationReportPage.tsx';
+const TABLE = 'src/features/registrations/components/report/ReportTable.tsx';
+const LIST = 'src/features/events/pages/detail/EventDetailPage.tsx';
 const suites = ['spm63'];
 
 export const MUTANTS = [
@@ -57,7 +57,7 @@ export const MUTANTS = [
   { id: 'X13', name: 'Export as PDF asks for csv', file: PAGE, suites,
     edits: [['onClick={() => void exportAs("pdf")}', 'onClick={() => void exportAs("csv")}']] },
   { id: 'X14', name: 'the link is offered to everyone', file: LIST, suites,
-    edits: [['{canViewRegistrationReport(currentUser, e) && (', '{true && (']] },
+    edits: [['{canViewRegistrationReport(currentUser, event) && (', '{true && (']] },
   { id: 'X15', name: 'coordinator link compared with the organiser column', file: UTIL, suites,
     edits: [['event.coordinatorId !== undefined && event.coordinatorId === user.id', 'event.organiserId !== undefined && event.organiserId === user.id']] },
   { id: 'X16', name: 'attendee names rendered as HTML', file: TABLE, suites,

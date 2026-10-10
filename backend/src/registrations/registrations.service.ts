@@ -18,17 +18,17 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import type pg from 'pg';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { CLOCK, systemClock, type Clock } from './clock.js';
-import { hasEventStarted } from './event-start.js';
-import { MESSAGES, REGISTRATION_ERROR_CODES } from './messages.js';
-import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration-window.js';
-import { canViewEventRegistrations } from './report-access.js';
-import type { RegistrationReport } from './report-types.js';
-import { validateRegistration } from './validation.js';
+import { CLOCK, systemClock, type Clock } from '../common/clock.js';
+import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import { hasEventStarted } from './withdrawal/event-start.js';
+import { MESSAGES, REGISTRATION_ERROR_CODES } from './helpers/messages.js';
+import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration/registration-window.js';
+import { canViewEventRegistrations } from './report/report-access.js';
+import type { RegistrationReport } from './report/report-types.js';
+import { validateRegistration } from './registration/dto/validation.js';
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // Capacity is a hard limit (no waitlist in Release 1). Attendees may only see
 // (and register for) published events.
 const ATTENDEE_VISIBLE = ATTENDEE_VISIBLE_STATUSES;

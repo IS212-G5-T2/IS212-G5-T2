@@ -54,7 +54,7 @@ The 11 backend integration failures are all in `src/events/drafts.e2e-spec.ts` (
 
 ## Locked decisions and open items
 
-Locked (product decisions): MSG-02 "Registration for this event opens on [date] SGT.", MSG-03 "Please correct the highlighted fields.", MSG-04 "We couldn't complete your registration. Please try again.", fully-booked "This event is fully booked."; email max 254 and special requirements max 500; capacity is a hard limit returning 422 `registration_full` (no waitlist in Release 1); 01-C[B] stays Blocked (no `manual_close_at`). Messages live in `backend/src/registrations/messages.ts` and limits in `validation.ts`, with a frontend mirror in `frontend/src/utils/registration.ts`.
+Locked (product decisions): MSG-02 "Registration for this event opens on [date] SGT.", MSG-03 "Please correct the highlighted fields.", MSG-04 "We couldn't complete your registration. Please try again.", fully-booked "This event is fully booked."; email max 254 and special requirements max 500; capacity is a hard limit returning 422 `registration_full` (no waitlist in Release 1); 01-C[B] stays Blocked (no `manual_close_at`). Messages live in `backend/src/registrations/helpers/messages.ts` and limits in `registration/dto/validation.ts`, with a frontend mirror in `frontend/src/utils/registration.ts`.
 
 Still open:
 

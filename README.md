@@ -7,6 +7,12 @@ This repository contains the project code, local development setup, and GitHub A
 ```text
 .
 |-- .github/              # GitHub metadata, pull request template, and workflows
+|-- .codex/               # Native project agent definitions and concurrency setting
+|-- .claude/              # Native Claude Code Markdown subagent definitions
+|-- .agents/              # Repository skills for on-demand agent workflows
+|-- ai/agents/            # One shared Markdown playbook per agent case
+|-- ai/docs/              # Agent workflow and invocation examples
+|-- ai/runtime/           # Ignored local agent reports and handoffs
 |-- assets/               # README and documentation images
 |-- backend/              # NestJS backend service
 |-- database/             # Local database image and initialization assets
@@ -14,9 +20,15 @@ This repository contains the project code, local development setup, and GitHub A
 |-- docker-compose/       # Local Docker Compose integration stack
 |-- frontend/             # React/Vite frontend application
 |-- AGENTS.md             # Agent working instructions
-|-- AI_USAGE.md           # AI-assisted work log
+|-- AI_USAGE.md           # Current AI-assisted work log
 `-- opencode.json
 ```
+
+## Codex development workflow
+
+The primary Codex or Claude Code session acts as the Orchestrator. Each role has a separate Markdown playbook in [ai/agents/](ai/agents/). Codex loads project agents from `.codex/agents/*.toml`; Claude Code loads project agents from `.claude/agents/*.md` with YAML frontmatter. After implementation, the Orchestrator accepts Test Code Review before starting Requirement Review and Code Quality Review. Those two reviews may run concurrently on the same stable snapshot; both results are needed before completion or corrections. The Orchestrator routes accepted findings to Implementation and reruns invalidated checks and gates for up to three cycles. See [the agent contract](ai/docs/sub-agents.md) and [an example request](ai/docs/example.md).
+
+For Jira work, provide an issue key and access to the authenticated Jira connector; provide relevant Confluence page links or access when specifications live there. Missing material requirements pause implementation. Temporary reports belong in ignored `ai/runtime/`; persistent instructions remain in `ai/agents/`, `ai/docs/`, and the agent and skill directories. The Orchestrator reports skipped reviews, unavailable integrations, and unresolved findings. Repository rules still require human approval before a commit, push, or pull request.
 
 ## Project Context
 
@@ -32,8 +44,6 @@ At a high level:
 - `docs` owns project workflow documentation.
 
 No deployment target is defined in this repository. `dev` is the latest shared branch; create new work branches from the latest `dev` and open pull requests back into `dev`.
-
-![Secure Architecture with Centralized Logging](assets/Secure%20Architecture%20with%20Centralized%20Logging.png)
 
 ## Setup
 

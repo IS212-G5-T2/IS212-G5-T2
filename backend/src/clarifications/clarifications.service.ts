@@ -1,10 +1,9 @@
 /*
  * SPM-39: Coordinator clarification/amendment requests. Coordinators open a
  * clarification thread on an event assigned to them; the event's Organiser
- * replies. See backend/HANDOVER.md for the known limits of the
- * ownership checks here (they depend on events.organiser_id/coordinator_id
- * holding real Firebase uids, which EventsService's demo identity does not
- * yet guarantee).
+ * replies. Ownership checks compare the verified local session account with
+ * events.organiser_id or events.coordinator_id. Legacy demo-owned events
+ * require an explicit owner migration before real accounts can access them.
  */
 import {
   BadRequestException,
@@ -12,37 +11,22 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateMessage } from './clarification-input.js';
+import { UUID_PATTERN } from '../common/uuid.js';
+import type { CommentDto } from './dto/comment.dto.js';
+import { validateMessage } from './dto/clarification-input.js';
 import {
   ClarificationsRepository,
   type CommentRow,
   type EventForReview,
-} from './clarifications.repository.js';
-
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+} from './repository/clarifications.repository.js';
 
 // Statuses a clarification request may be opened from. Submitting one no
 // longer changes the event's status — "Under Review" was retired as a
 // distinct stage since coordinator assignment (its only other trigger) is
 // now automatic and never a meaningful "review started" signal.
 const CLARIFIABLE_STATUSES = ['Submitted', 'Approved'];
-
-export interface CommentDto {
-  id: string;
-  eventId: string;
-  parentId: string | null;
-  type: 'clarification' | 'reply';
-  authorId: string;
-  authorName: string;
-  authorRole: 'coordinator' | 'organiser';
-  message: string;
-  awaitingReply: boolean;
-  resolved: boolean;
-  createdAt: string;
-}
 
 @Injectable()
 export class ClarificationsService {

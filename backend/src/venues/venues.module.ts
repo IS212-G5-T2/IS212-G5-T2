@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { RbacRepository } from '../auth/authorization/rbac.repository.js';
+import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { DatabaseModule } from '../database/database.module.js';
-import { CLOCK, systemClock } from '../registrations/clock.js';
+import { CLOCK, systemClock } from '../common/clock.js';
 import { VenuesController } from './venues.controller.js';
 import { VenuesService } from './venues.service.js';
-import { VenuesRepository } from './venues.repository.js';
+import { VenuesRepository } from './repository/venues.repository.js';
 
 @Module({
   imports: [DatabaseModule],

@@ -6,16 +6,16 @@ export const SUITES = {
   unit: {
     args: [
       'run',
-      'src/components/domain/EventCard.test.tsx',
-      'src/components/domain/AssignmentNotifications.test.tsx',
-      'src/pages/EventDetailPage.reassignment.test.tsx',
+      'src/features/events/pages/list/EventCard.test.tsx',
+      'src/features/events/pages/list/AssignmentNotifications.test.tsx',
+      'src/features/events/pages/detail/EventDetailPage.reassignment.test.tsx',
     ],
   },
 };
 
-const CARD = 'src/components/domain/EventCard.tsx';
-const PAGE = 'src/pages/EventDetailPage.tsx';
-const PANEL = 'src/components/domain/AssignmentNotifications.tsx';
+const CARD = 'src/features/events/pages/list/EventCard.tsx';
+const PAGE = 'src/features/events/pages/detail/EventDetailPage.tsx';
+const PANEL = 'src/features/events/pages/list/AssignmentNotifications.tsx';
 
 export const MUTANTS = [
   { id: 'F1', name: '"Reassigned" label on every card (kills REASN-VIEW-02-F)', file: CARD,

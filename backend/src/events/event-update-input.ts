@@ -13,7 +13,7 @@
  *   the stored start time) are checked by EventPlanningService, not here.
  */
 import { BadRequestException } from '@nestjs/common';
-import { ACCESSIBILITY, FACILITIES, LAYOUTS } from './event-input.js';
+import { ACCESSIBILITY, FACILITIES, LAYOUTS } from './dto/event-input.js';
 
 /** Every event field a coordinator may edit during the planning phase. */
 export const EDITABLE_FIELDS = [

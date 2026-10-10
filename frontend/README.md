@@ -1,4 +1,4 @@
- # Frontend
+# Frontend
 
 This directory contains the React/Vite frontend for the workspace.
 
@@ -60,9 +60,7 @@ No deployment command is configured for this repository.
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
 GitHub Actions is configured to run the suite with coverage through
-`scripts/ci/unit-test.sh`. The coverage configuration declares thresholds for
-the SPM-30 login page, Firebase-role mapper, and access guards; the thresholds
-are meaningful only when the selected suite passes and includes those tests.
+`scripts/ci/unit-test.sh`. Component tests do not replace browser-level checks.
 
 ```sh
 npm test              # run the suite once
@@ -71,74 +69,72 @@ npm run test:cov      # run once with a coverage report
 ```
 
 Test files live alongside the code they cover (for example,
-`src/pages/LoginPage.test.tsx` next to `src/pages/LoginPage.tsx`). Shared test
-helpers and fixtures live in `src/test/` (`src/test/setup.ts` for global setup,
-`src/test/fixtures/` for reusable test data).
+`src/features/account/pages/login/LoginPage.test.tsx` next to its page).
+Feature-owned fixtures stay with their feature; `src/test/setup.ts` provides
+global setup.
 
-The standard Vitest command loads `vitest.config.ts`, which selects
-`src/**/*.test.{ts,tsx}` and excludes `*.playwright.spec.ts` (browser tests).
-Do not claim complete coverage until the suite passes and includes every
-intended test file.
+## Source layout
 
-`LoginPage` tests mock the Firebase Auth SDK call (`signInWithEmailAndPassword`) instead of hitting a real Firebase project, so the suite runs offline and deterministically in CI. The mock accounts used to parameterize the "correct credentials" cases are documented in `src/test/fixtures/authUsers.ts`; their password is deliberately fake and test-only:
+Feature-owned pages, components, tests, API clients, and feature types live in
+`src/features/<feature>/`. The current feature groups are `account`, `events`,
+`registrations`, `venues`, `bookings`, `equipment`, and `lead`. `src/app/`
+owns the route tree; `src/components/` contains shared UI, layout, auth guards,
+and application-wide notifications; `src/store/`, `src/types/`, `src/lib/`,
+and `src/utils/` hold cross-feature code.
+Singapore date parts and calendar-day conversion are shared in
+`src/utils/sgtDate.ts`; event registration and registration reports retain their
+own display wording. Authentication and API calls use the same API origin helper.
+The role-specific notification panels use the shared polling and mark-as-read
+hook in `src/components/notifications/`. Assignment and reassignment pages
+share the coordinator picker in `src/features/lead/components/`.
 
-| Email | Role |
-| --- | --- |
-| attendee@connectsphere.sg | attendee |
-| organiser@connectsphere.sg | organiser |
-| coordinator@connectsphere.sg | coordinator |
-| venue_staff@connectsphere.sg | venue_staff |
-| technical_support@connectsphere.sg | tech_support |
+Lead workflow pages and their colocated tests live in
+`src/features/lead/pages/assignment-queue/` and
+`src/features/lead/pages/reassignment/`. The shared Lead API and notifications
+remain in the feature's `api/` and `components/` folders. Their public routes are
+`/lead/queue` and `/lead/reassign`.
+Attendee registration rules live in `src/features/events/lib/registration.ts`
+because the event detail workflow owns its form and status controls;
+`src/features/registrations/` owns the registration report and export workflow.
+Approval and rejection component cases share
+`src/features/events/pages/detail/EventDetailPage.decision.test.tsx`; their
+store action cases share `src/store/useAppStore.decisions.test.ts`. Other event
+detail suites stay separate by workflow.
 
-These fixtures do not need to exist under Authentication -> Users in any Firebase project; the automated suite never contacts Firebase.
+The standard Vitest command loads `vitest.config.ts`, which selects both
+`src/**/*.test.ts` and `src/**/*.test.tsx`. Playwright specs use their separate
+browser runner.
 
-## Authentication (Firebase)
+## Authentication
 
-`/login` uses Firebase Authentication (Email/Password provider) via the Firebase JS SDK. Before running the app:
+`/login` calls the backend's `/api/auth/login`; session restoration and logout
+use `/api/auth/me` and `/api/auth/logout`. Requests include the server-owned,
+HTTP-only session cookie. The UI maps the backend's role list into navigation
+and route guards, but the backend enforces authorization. Local-only seeded
+accounts are documented in [database/README.md](../database/README.md#local-login-data).
+Set `VITE_API_BASE_URL` to the backend origin when it is not
+`http://localhost:8080`. Login tests mock HTTP calls, not an external identity
+provider.
 
-1. Create/use a Firebase project and register a Web app (Firebase console → Project settings → General → Your apps).
-2. Enable the **Email/Password** sign-in provider (Authentication → Sign-in method).
-3. Add at least one user (Authentication → Users).
-4. `cp .env.example .env` in this directory and fill in the `VITE_FIREBASE_*` values from that web app's SDK config.
+Coordinator assignment is managed through the Lead's assignment queue;
+submitting an event leaves it unassigned until the Lead assigns it.
 
-Without a valid `.env`, the app still starts, but sign-in fails — the browser console names the missing config values.
-
-Firebase users must also have a supported custom `roles` claim (`ORGANISER`,
-`COORDINATOR`, `VENUE_STAFF`, `TECH_SUPPORT`, or `ATTENDEE`). The frontend maps
-that verified Firebase claim to its UI role; it does not assume a role from a
-successful sign-in alone. The route guards restrict organiser event creation,
-organiser-owned edits, and coordinator change-request reviews in the client.
-The in-memory registration actions are also limited to the signed-in attendee.
-
-Coordinator assignment is manual: submitting a request leaves it unassigned.
-Coordinators use **Assign Myself as Coordinator** on an unassigned event to
-claim it. Approval/rejection controls are not part of the SPM-37 draft workflow.
-As in the earlier client workflow, this assignment is held
-in browser memory and is not persisted by an assignment API.
-
-The API client forwards the signed-in Firebase ID token. Draft/event endpoints verify that token, require the ORGANISER role, and scope data to its UID.
-
-### Local Compose Firebase
-
-The shared Docker Compose stack uses the real Firebase Web app configuration
-from `docker-compose/.env`; it does not start a Firebase emulator. Use a
-dedicated non-production Firebase project and test accounts. Keep
-`VITE_USE_FIREBASE_AUTH_EMULATOR` unset or `false` for this mode.
-
-The Firebase Auth Emulator is used only by the GitHub Actions backend E2E test.
 ## Event request workflow
 
 My drafts lists only unsubmitted drafts. Once submitted, requests appear under My Events. Create new events from the Create Event action on the planning or events page.
 
-My Events uses the API response scoped to the verified Firebase UID. Drafts and submitted events are private to their owner; old shared demo records are retained but not automatically assigned to an account.
+My Events uses the API response scoped to the verified local session account.
+Drafts and submitted events are private to their owner; old shared demo records
+are not automatically assigned to an account.
 
 Open `/planning` or `/events` and choose Create Event. The light-mode three-step form collects basic information, schedule/venue needs, and equipment needs. Successful submission opens the saved details and shows a confirmation. My Events reloads records from PostgreSQL through the backend API. Dates use the browser's local time zone and are sent as UTC.
 
 In the Compose stack, `VITE_API_BASE_URL` is set to `http://localhost:8080`.
 The API helper falls back to `http://localhost:8080` only when that environment
-variable is absent. Firebase authentication is required for both draft and event APIs. Save Draft is implemented; email delivery remains deferred.
+variable is absent. The local session is required for both draft and event
+APIs. Save Draft is implemented; email delivery remains deferred.
 
-Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/pages`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
+Run `npm ci`, `npm test`, `npm run lint`, and `npm run build` from this directory. SPM-36 page-level component tests live beside `EventCreatePage.tsx` and `EventListPage.tsx` under `src/features/events/pages/`. Tests use Vitest, jsdom, React Testing Library, and user-event; CI invokes `scripts/ci/unit-test.sh`. Component tests are not a substitute for visual browser verification.
 
 ## Creating venue records (SPM-50)
 
@@ -157,7 +153,7 @@ spaces and letter case; the form displays the backend's field-level conflict.
 Successful responses redirect Venue Staff to **Venue Records** and display a
 confirmation there. The backend is authoritative for session and RBAC checks, so the route guard is only a UI
 convenience. Component tests live beside the page in
-`src/pages/venues/VenueCreatePage/`.
+`src/features/venues/pages/create/`.
 
 Accounts with more than one server-granted role receive the combined navigation
 for all their roles. Shared destinations appear once, following the primary
@@ -188,21 +184,9 @@ through `2,147,483,647`; the create form prevents values outside that database
 range before it sends the request. The location combobox accepts either a
 saved location or new free text.
 
-## Event planning (SPM-97, SPM-49, SPM-85)
+## Rejecting requests (SPM-83)
 
-Once an event is Approved, its detail page shows a read-only **Planning information** panel to the owning organiser and the assigned coordinator; it refreshes every 15 seconds. Access uses every role the account holds, so a user who is both an organiser and the assigned coordinator gets the coordinator's editing tools.
-
-The assigned coordinator also gets **Update event information**. Each field is labelled:
-
-- **Applies immediately**: name, purpose, description and accessibility needs.
-- **Review if it affects bookings**: the rule is shown under the field (for example "up to 200 attendees", a time window, or "removing facilities applies immediately"), and once you edit the field the form says whether that value will apply immediately or be sent for review.
-- **Needs review**: any change is held, e.g. room layout while a venue is booked.
-
-A change that stays compatible with the existing venue bookings and equipment arrangements applies at once. A change that would affect one is listed under **Changes awaiting review** with the impacted bookings; the form keeps showing the current value, shows the proposal under the field, and locks that field until you confirm or reject it. Rules and assumptions are in `../backend/HANDOVER.md`.
-
-## Reviewing requests (SPM-83)
-
-Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request and choose **Review Event**. Approve persists the event as Approved; Reject requires a trimmed 10–500-character reason with at least three words and letters. Invalid rejection input blocks submission. The saved decision leaves the Submitted pending view; rejected requests retain their reason and remain available through the Rejected filter.
+Coordinators land on Pending Requests with the Submitted filter selected. Open an assigned request, choose **Review Event**, then select Reject. The decision requires a trimmed 10–500-character reason with at least three words and letters; invalid input blocks submission. The saved request displays Rejected and its recorded reason, leaves the Submitted pending view, and remains available through the Rejected filter.
 
 Organisers receive persistent rejection notifications above their main content, with the reason in a separate block and a View request link. Notifications refresh on sign-in, focus and every 30 seconds; read state survives reload. Show all includes previously read notifications. Delivery is in-app, not email. Existing databases require backend migrations 003_event_rejection.sql and 004_allow_rejected_event_status.sql.
 
@@ -211,3 +195,12 @@ Organisers receive persistent rejection notifications above their main content, 
 Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
 
 Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.
+
+## Registration report
+
+The authenticated report route `/events/:id/registrations/report` relies on
+the backend's access check; a 403 displays an error rather than redirecting
+the viewer. The People-card modal mounts only while open and shares the report
+fetch/polling and CSV/PDF export hooks. Exports use the server's full report
+and filename, even when the modal view is filtered. Polling stops when the
+viewer leaves, changes events, or loses access. Release 1 has no waitlist.

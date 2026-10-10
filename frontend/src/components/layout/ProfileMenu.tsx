@@ -4,7 +4,7 @@ import clsx from "clsx";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { useAppStore } from "@/store/useAppStore";
 import { hasRole } from "@/types";
-import { getMyAvailability } from "@/utils/availability-api";
+import { getMyAvailability } from "@/features/account/api/availability-api";
 
 // First letter of the first and last words, e.g. "Coordinator 1" -> "C1".
 function initials(name: string): string {
