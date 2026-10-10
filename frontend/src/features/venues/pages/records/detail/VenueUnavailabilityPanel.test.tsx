@@ -54,6 +54,9 @@ describe("SPM-122 venue unavailable period controls", () => {
   it("sends Singapore local date-times as the corresponding UTC instants", async () => {
     // Arrange a non-UTC runner timezone and a reviewed local afternoon interval.
     vi.stubEnv("TZ", "Asia/Singapore");
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-10T12:00:00.000Z"));
     try {
       const user = userEvent.setup();
       apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
