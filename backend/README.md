@@ -97,12 +97,12 @@ Rules, assumptions and the placeholder tables behind this are in `HANDOVER.md`; 
 
 ```sh
 # Unit tests for the rules (mocked repository)
-npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts
+npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts src/events/event-planning.repository.spec.ts
 
 # Integration tests against real SQL. Use a disposable database: the spec applies
 # database/postgresql/init/001_schema.sql and 007_*.sql to it. Uses TEST_DATABASE_URL,
 # else DATABASE_URL; skipped locally when neither is set, fails in CI when neither is set.
-TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- src/events/event-planning.e2e-spec.ts
+TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/event-planning.e2e-spec.ts
 
 # The same routes through HTTP, session-cookie auth and PostgreSQL
 DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts

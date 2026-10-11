@@ -8,18 +8,18 @@ Case IDs: `EVENT-VIEW-*` = SPM-97, `EVENT-UPDATE-*` = SPM-49, `EVENT-FLAG-*` = S
 
 ```sh
 # Backend unit tests (mocked repository) — no database needed
-cd backend && npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts
+cd backend && npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts src/events/event-planning.repository.spec.ts
 
 # Backend integration tests (real repository, real SQL) — needs a DISPOSABLE PostgreSQL database.
 # The spec applies database/postgresql/init/001_schema.sql and 007_*.sql itself.
 # Uses TEST_DATABASE_URL if set, otherwise DATABASE_URL (which the Backend E2E CI job provides).
-cd backend && TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- src/events/event-planning.e2e-spec.ts
+cd backend && TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/event-planning.e2e-spec.ts
 
 # HTTP route tests (real AppModule, session-cookie auth, real PostgreSQL) — uses DATABASE_URL
 cd backend && DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
 
 # Frontend component / page / helper tests
-cd frontend && npx vitest run src/pages/EventDetailPage.planning.test.tsx src/components/domain/PlanningUpdateForm.test.tsx src/components/domain/FlaggedChangeReview.test.tsx src/components/domain/PlanningInformationPanel.test.tsx src/utils/planning.test.ts
+cd frontend && npx vitest run src/features/events/pages/detail/EventDetailPage.planning.test.tsx src/features/events/pages/detail/planning src/utils/planning.test.ts
 ```
 
 Locally, with neither `TEST_DATABASE_URL` nor `DATABASE_URL` set, the integration suite is skipped. In CI (`CI` is set) a missing database **fails** the suite instead, so a green pipeline cannot hide these tests being skipped. Both suites run in the Backend E2E Tests job.
@@ -95,6 +95,49 @@ Some of the new tests were checked by deliberately breaking the code under test 
 | EVENT-FLAG-07-A | SPM-85 AC7 | Each booking decided independently; change closes once every impacted booking is decided | `event-impact.spec.ts`, `event-planning.service.spec.ts`, `event-planning.e2e-spec.ts` (PostgreSQL), `FlaggedChangeReview.test.tsx` | PASS |
 
 Where a case lists several suites, each covers a different layer: `event-update-input` / `impact` are pure rules, `service` is the business logic with a mocked repository, `e2e` is the same logic against PostgreSQL, and the frontend suites cover the page, form, review panel, information panel and helpers.
+
+### Supporting cases added by SPM-142 (unit test coverage)
+
+Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverage in the unit/component run. Each is a supporting case under the story's existing AC; the Confluence case pages and the story traceability matrices need matching entries.
+
+| Case | Story / AC | Scenario | Automated by |
+| --- | --- | --- | --- |
+| EVENT-VIEW-01-SEC-2 | SPM-97 AC1 | A well-formed event id that does not exist answers "not found" to the view and to an update | `event-planning.service.spec.ts` |
+| EVENT-VIEW-02-E | SPM-97 AC2 | An approved event with no coordinator yet is shown with no coordinator | `event-planning.service.spec.ts` |
+| EVENT-VIEW-02-F | SPM-97 AC2 | Event rows are returned with ISO UTC times; missing coordinator and registration values and a missing event are handled | `event-planning.repository.spec.ts` |
+| EVENT-VIEW-02-G | SPM-97 AC2 | Venue bookings (with neighbours) and equipment arrangements are mapped with ISO times; the proposed window is passed or sent as null | `event-planning.repository.spec.ts` |
+| EVENT-VIEW-02-H | SPM-97 AC2 | No room layout recorded shows a dash | `PlanningInformationPanel.test.tsx` |
+| EVENT-VIEW-05-D | SPM-97 AC5 | A planning load that fails without a message shows a general refresh alert | `EventDetailPage.planning.test.tsx` |
+| EVENT-VIEW-05-E | SPM-97 AC5 | A refresh updates only this event in the shared event list | `EventDetailPage.planning.test.tsx` |
+| EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-01-SEC-1 | SPM-49 AC1 | No session: update and decision refused (401) before any read; owner with the coordinator role but not assigned gets 404 | `event-planning.service.spec.ts` |
+| EVENT-UPDATE-02-C | SPM-49 AC2 | A field with no edit policy from the server shows no badge | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-04-D | SPM-49 AC4 | Text fields: null required field is "required"; numbers, lists, objects and a null optional field are "Enter valid text." | `event-update-input.spec.ts` |
+| EVENT-UPDATE-04-E | SPM-49 AC4 | A room layout outside the allowed list is refused | `event-update-input.spec.ts` |
+| EVENT-UPDATE-04-F | SPM-49 AC4 | Facilities / accessibility: non-list, unknown option, non-text entry or too many entries refused | `event-update-input.spec.ts` |
+| EVENT-UPDATE-04-G | SPM-49 AC4 | A start or end sent as a number or null is reported as required | `event-update-input.spec.ts` |
+| EVENT-UPDATE-04-H | SPM-49 AC4 | Server errors for the facility and accessibility lists are shown under them; a refusal with no field errors marks no field | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-04-SEC-2 | SPM-49 AC4 | The repository writes only whitelisted columns, as parameters, and always stamps `updated_at` | `event-planning.repository.spec.ts` |
+| EVENT-UPDATE-05-C | SPM-49 AC5 | A missing or cleared start time is predicted to need review | `planning.test.ts`, `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-05-D | SPM-49 AC5 | "Removals only" with a missing proposed or current facility list | `planning.test.ts` |
+| EVENT-FLAG-01-F | SPM-85 AC1 | The proposer is recorded by name, else email, else "Coordinator" | `event-planning.service.spec.ts` |
+| EVENT-FLAG-01-G | SPM-85 AC1 | A flagged change is stored as JSON; a concurrent duplicate (23505) is a conflict naming the field; other errors pass through | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-C | SPM-85 AC4 | Resolving a change that is no longer pending is refused as already resolved | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-SEC-3 | SPM-85 AC4 | A decision request with no body or a non-object body is refused | `event-planning.service.spec.ts` |
+| EVENT-FLAG-04-SEC-4 | SPM-85 AC4 | Nested work shares one transaction; event and change rows are locked only inside it | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-SEC-5 | SPM-85 AC4 | A malformed change id is "not found" without a query | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-05-C | SPM-85 AC5 | A resolved change without resolver or time still appears in history with blank details | `event-planning.service.spec.ts` |
+| EVENT-FLAG-05-D | SPM-85 AC5 | Flagged-change rows are mapped with and without resolution details; found and not-found lookups | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-07-B | SPM-85 AC7 | A per-booking decision updates that booking's entry only; a decision without a booking closes the change | `event-planning.repository.spec.ts` |
+
+`event-planning.repository.spec.ts` stubs the database, so it proves the TypeScript around the SQL (connection choice, locking, column whitelist, error mapping, row mapping), not the SQL; `test/event-planning.e2e-spec.ts` proves the SQL against PostgreSQL. That suite was moved from `src/events/` to `test/` in SPM-142 because `vitest.config.e2e.ts` only includes `test/**/*.e2e-spec.ts`, so before the move it ran in neither the unit run nor the Backend E2E job.
+
+**Left uncovered in the unit run, with reasons**
+
+- `event-planning.service.ts` line 727/751, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
+- `event-planning.service.ts` line 93 and `event-planning.repository.ts` line 167: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
+- `EventDetailPage.tsx` lines 138 and 154, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
+- Other uncovered branches in `EventDetailPage.tsx` belong to other stories and are left to their owners (see SPM-141).
 
 ### HTTP route tests
 

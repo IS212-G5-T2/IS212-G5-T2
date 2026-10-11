@@ -217,4 +217,16 @@ describe("PlanningInformationPanel: refresh problems", () => {
     render(<PlanningInformationPanel view={view()} />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  /**
+   * EVENT-VIEW-02-H: an event with no room layout recorded shows a dash in the
+   * layout row instead of an empty cell.
+   */
+  it("EVENT-VIEW-02-H shows a dash when no room layout is recorded", () => {
+    const event = eventRecord();
+    event.venueRequirements = { ...event.venueRequirements, layout: "" };
+    render(<PlanningInformationPanel view={view({ event })} />);
+    expect(row("Room layout")).toHaveTextContent("—");
+    expect(row("Room layout")).not.toHaveTextContent("Banquet");
+  });
 });

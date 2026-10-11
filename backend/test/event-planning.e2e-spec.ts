@@ -9,11 +9,11 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
-import { DatabaseService } from '../database/database.service.js';
-import { TURNAROUND_MINUTES } from './event-impact.js';
-import { EventPlanningRepository } from './event-planning.repository.js';
-import { EventPlanningService } from './event-planning.service.js';
+import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
+import { DatabaseService } from '../src/database/database.service.js';
+import { TURNAROUND_MINUTES } from '../src/events/event-impact.js';
+import { EventPlanningRepository } from '../src/events/event-planning.repository.js';
+import { EventPlanningService } from '../src/events/event-planning.service.js';
 
 /**
  * SPM-97 / SPM-49 / SPM-85 against real PostgreSQL: proves the repository SQL
@@ -128,10 +128,7 @@ describe.skipIf(!database)(
       ])
         await db.query(
           await readFile(
-            new URL(
-              `../../../database/postgresql/init/${file}`,
-              import.meta.url,
-            ),
+            new URL(`../../database/postgresql/init/${file}`, import.meta.url),
             'utf8',
           ),
         );
