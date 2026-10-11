@@ -481,7 +481,14 @@ describe("EventDetailPage planning information (coordinator)", () => {
   it("EVENT-VIEW-05-E updates only this event in the shared event list", async () => {
     const other = eventRecord({ id: "00000000-0000-4000-8000-000000000097", name: "Other Event" });
     useAppStore.setState({ events: [other] });
+    // The event endpoint still says 80; only the planning view carries 120,
+    // so 120 in the store can only come from the planning refresh.
     currentView = planningView({ event: eventRecord({ expectedAttendance: 120 }) });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.includes("/comments")) return [];
+      return eventRecord({ expectedAttendance: 80 });
+    }) as typeof api);
     renderPage();
     await planningRegion();
     await waitFor(() =>

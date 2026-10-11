@@ -464,7 +464,9 @@ describe("PlanningUpdateForm: unusual inputs and server replies (SPM-49)", () =>
 
   /**
    * EVENT-UPDATE-01-E: an event whose stored date cannot be read opens with
-   * that date input empty instead of showing an invalid value.
+   * that date input empty instead of showing an invalid value. This checks the
+   * outcome the coordinator sees; browsers (and jsdom) also clear an invalid
+   * datetime-local value, so it does not by itself prove the form's guard.
    */
   it("EVENT-UPDATE-01-E opens with an empty date input when the stored date is unreadable", () => {
     const event = { ...eventRecord(), startDateTime: "not-a-date" };
@@ -519,10 +521,14 @@ describe("PlanningUpdateForm: unusual inputs and server replies (SPM-49)", () =>
     );
     await user.type(screen.getByLabelText(/event name/i), " 2");
     await user.click(screen.getByRole("button", { name: /save changes/i }));
-    const alerts = (await screen.findAllByRole("alert")).map((a) => a.textContent);
-    expect(alerts).toEqual(
-      expect.arrayContaining(["Choose valid facilities.", "Choose valid accessibility needs."]),
-    );
+    await screen.findByText("Choose valid facilities.");
+    // Each error sits directly after its own list, not under the other one.
+    const errorAfter = (groupName: string) =>
+      screen.getByRole("group", { name: groupName }).parentElement?.nextElementSibling;
+    expect(errorAfter("Required facilities")).toHaveTextContent("Choose valid facilities.");
+    expect(errorAfter("Required facilities")).toHaveAttribute("role", "alert");
+    expect(errorAfter("Accessibility needs")).toHaveTextContent("Choose valid accessibility needs.");
+    expect(errorAfter("Accessibility needs")).toHaveAttribute("role", "alert");
     expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
   });
 

@@ -109,14 +109,14 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-VIEW-02-H | SPM-97 AC2 | No room layout recorded shows a dash | `PlanningInformationPanel.test.tsx` |
 | EVENT-VIEW-05-D | SPM-97 AC5 | A planning load that fails without a message shows a general refresh alert | `EventDetailPage.planning.test.tsx` |
 | EVENT-VIEW-05-E | SPM-97 AC5 | A refresh updates only this event in the shared event list | `EventDetailPage.planning.test.tsx` |
-| EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input (the browser also clears invalid values, so this documents the outcome rather than proving the guard) | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-01-SEC-1 | SPM-49 AC1 | No session: update and decision refused (401) before any read; owner with the coordinator role but not assigned gets 404 | `event-planning.service.spec.ts` |
 | EVENT-UPDATE-02-C | SPM-49 AC2 | A field with no edit policy from the server shows no badge | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-04-D | SPM-49 AC4 | Text fields: null required field is "required"; numbers, lists, objects and a null optional field are "Enter valid text." | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-E | SPM-49 AC4 | A room layout outside the allowed list is refused | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-F | SPM-49 AC4 | Facilities / accessibility: non-list, unknown option, non-text entry or too many entries refused | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-G | SPM-49 AC4 | A start or end sent as a number or null is reported as required | `event-update-input.spec.ts` |
-| EVENT-UPDATE-04-H | SPM-49 AC4 | Server errors for the facility and accessibility lists are shown under them; a refusal with no field errors marks no field | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-04-H | SPM-49 AC4 | Server errors for the facility and accessibility lists are each shown directly under their own list; a refusal with no field errors marks no field | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-04-SEC-2 | SPM-49 AC4 | The repository writes only whitelisted columns, as parameters, and always stamps `updated_at` | `event-planning.repository.spec.ts` |
 | EVENT-UPDATE-05-C | SPM-49 AC5 | A missing or cleared start time is predicted to need review | `planning.test.ts`, `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-05-D | SPM-49 AC5 | "Removals only" with a missing proposed or current facility list | `planning.test.ts` |
@@ -126,7 +126,7 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-FLAG-04-SEC-3 | SPM-85 AC4 | A decision request with no body or a non-object body is refused | `event-planning.service.spec.ts` |
 | EVENT-FLAG-04-SEC-4 | SPM-85 AC4 | Nested work shares one transaction; event and change rows are locked only inside it | `event-planning.repository.spec.ts` |
 | EVENT-FLAG-04-SEC-5 | SPM-85 AC4 | A malformed change id is "not found" without a query | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-05-C | SPM-85 AC5 | A resolved change without resolver or time still appears in history with blank details | `event-planning.service.spec.ts` |
+| EVENT-FLAG-05-C | SPM-85 AC5 | Defensive: a resolved change without resolver or time (prevented by `event_flagged_changes_resolution_check`) still appears in history with blank details | `event-planning.service.spec.ts` |
 | EVENT-FLAG-05-D | SPM-85 AC5 | Flagged-change rows are mapped with and without resolution details; found and not-found lookups | `event-planning.repository.spec.ts` |
 | EVENT-FLAG-07-B | SPM-85 AC7 | A per-booking decision updates that booking's entry only; a decision without a booking closes the change | `event-planning.repository.spec.ts` |
 
@@ -134,7 +134,7 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 
 **Left uncovered in the unit run, with reasons**
 
-- `event-planning.service.ts` line 727/751, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
+- `event-planning.service.ts` lines 727 and 750–751, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
 - `event-planning.service.ts` line 93 and `event-planning.repository.ts` line 167: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
 - `EventDetailPage.tsx` lines 138 and 154, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
 - Other uncovered branches in `EventDetailPage.tsx` belong to other stories and are left to their owners (see SPM-141).

@@ -1889,9 +1889,10 @@ describe('SPM-49 / SPM-85 / SPM-97 defensive paths', () => {
   );
 
   /**
-   * EVENT-FLAG-05-C: a resolved change stored without the resolver's name or
-   * resolution time still appears in the history, with those details blank
-   * instead of failing the whole list.
+   * EVENT-FLAG-05-C: defensive mapping. The schema
+   * (event_flagged_changes_resolution_check) requires a resolver and time on
+   * every resolved change, but if a row ever lacked them the history still
+   * lists it with those details blank instead of failing the whole list.
    */
   it('EVENT-FLAG-05-C lists resolved changes that have no resolver or time with blank details', async () => {
     repo.listHistory.mockResolvedValue([
