@@ -217,13 +217,21 @@ describe('AC3: view and modify availability at any time', () => {
 describe('SPM-47 AC10: the Lead is told when a coordinator with active events becomes unavailable', () => {
   // Answer each statement by what it does: the availability update reports the
   // previous value, the events count, the Lead lookup, and notification writes.
-  function wireAvailability(options: { was: boolean; now: boolean; activeEvents?: number }) {
+  function wireAvailability(options: {
+    was: boolean;
+    now: boolean;
+    activeEvents?: number;
+    displayName?: string | null;
+    noCountRow?: boolean;
+  }) {
+    const displayName = 'displayName' in options ? options.displayName : 'Coordinator One';
     database.query.mockImplementation((sql: string) => {
       const text = String(sql).replace(/\s+/g, ' ').trim();
       if (text.startsWith('UPDATE users'))
-        return { rows: [{ is_available: options.now, display_name: 'Coordinator One', was_available: options.was }] };
+        return { rows: [{ is_available: options.now, display_name: displayName, was_available: options.was }] };
       if (text.includes('COORDINATOR_LEAD')) return { rows: [{ id: 'lead-1' }] };
-      if (text.includes('FROM events')) return { rows: [{ count: String(options.activeEvents ?? 0) }] };
+      if (text.includes('FROM events'))
+        return options.noCountRow ? { rows: [] } : { rows: [{ count: String(options.activeEvents ?? 0) }] };
       return { rows: [] };
     });
   }
@@ -311,6 +319,43 @@ describe('SPM-47 AC10: the Lead is told when a coordinator with active events be
     expect(markRead.sql).toContain('read = true');
     expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain('coordinator_unavailable');
     expect(markRead.params).toEqual(expect.arrayContaining(['coord-1']));
+    expect(inserts()).toEqual([]);
+  });
+
+  // A coordinator with no display name still gets the Lead notified about their active events.
+  it('LEAD-REASN-10-BND-2 still notifies the Lead when the coordinator has no display name', async () => {
+    // Arrange: available before, no display name, three active events.
+    wireAvailability({ was: true, now: false, activeEvents: 3, displayName: null });
+
+    // Act: mark unavailable.
+    const result = await service.updateMine(coordinator, { available: false });
+
+    // Assert: the change is saved, and one notice still goes to the Lead with the event count.
+    expect(result).toEqual({ available: false });
+    expect(inserts()).toHaveLength(1);
+    expect(inserts()[0].params).toEqual(
+      expect.arrayContaining([
+        'lead-1',
+        expect.stringContaining('is now unavailable and has 3 active events that may need reassignment.'),
+        'coord-1',
+      ]),
+    );
+    // The message must not show a literal null or undefined for the missing name.
+    const message = String(inserts()[0].params.find((p: unknown) => typeof p === 'string' && p.includes('is now unavailable')));
+    expect(message).not.toContain('null');
+    expect(message).not.toContain('undefined');
+  });
+
+  // If the active-event count query returns no row, the service treats it as no active events.
+  it('LEAD-REASN-10-BND-3 sends no notification when the active-event count returns no row', async () => {
+    // Arrange: available before; the count query comes back empty.
+    wireAvailability({ was: true, now: false, noCountRow: true });
+
+    // Act: mark unavailable.
+    const result = await service.updateMine(coordinator, { available: false });
+
+    // Assert: the change is still saved, and nothing is sent to the Lead.
+    expect(result).toEqual({ available: false });
     expect(inserts()).toEqual([]);
   });
 });

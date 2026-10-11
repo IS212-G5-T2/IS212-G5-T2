@@ -1,6 +1,6 @@
 // Top bar profile menu.
 // SPM-30 (AC2: the signed-in user is correctly identified): USER-LOGIN-02-E/F/G.
-// SPM-80 (AC3: a coordinator can view their availability at any time): COOR-AVAIL-03-J/K/L/M/N.
+// SPM-80 (AC3: a coordinator can view their availability at any time): COOR-AVAIL-03-J/K/L/M/N/Q/R/U.
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -237,5 +237,47 @@ describe("SPM-80 AC3: a coordinator sees their availability in the profile menu"
     // Assert: the newer status stays; the late, older one is ignored.
     expect(within(menu).getByText("Unavailable")).toBeInTheDocument();
     expect(within(menu).queryByText("Available")).not.toBeInTheDocument();
+  });
+
+  // A failed load from an earlier opening must not clear the status a newer opening already loaded.
+  it("COOR-AVAIL-03-R keeps the newer status when an earlier opening's load fails afterwards", async () => {
+    // Arrange: the first opening's load is pending; the second's succeeds.
+    const user = userEvent.setup();
+    const failing = deferred<{ available: boolean }>();
+    getMyAvailability
+      .mockReturnValueOnce(failing.promise)
+      .mockResolvedValueOnce({ available: true });
+    renderTopNav();
+
+    // Act: open (load starts), close, reopen (second load succeeds), then the first load fails.
+    await openMenu(user);
+    await user.keyboard("{Escape}");
+    const menu = await openMenu(user);
+    expect(await within(menu).findByText("Available")).toBeInTheDocument();
+    await act(async () => {
+      failing.reject(new Error("offline"));
+      await failing.promise.catch(() => undefined);
+    });
+
+    // Assert: the status from the newer opening is still shown, not reset to the email.
+    expect(within(menu).getByText("Available")).toBeInTheDocument();
+    expect(within(menu).queryByText("coordinator1@connectsphere.test")).not.toBeInTheDocument();
+  });
+});
+
+describe("profile menu keyboard handling", () => {
+  // Only Escape closes the menu; a key other than Escape leaves it open.
+  it("COOR-AVAIL-03-U keeps the profile menu open when a key other than Escape is pressed", async () => {
+    // Arrange: a signed-in user opens the menu.
+    const user = userEvent.setup();
+    renderTopNav(organiser);
+    const menu = await openMenu(user);
+
+    // Act: press an ordinary key.
+    await user.keyboard("a");
+
+    // Assert: the menu is still open.
+    expect(screen.getByRole("region", { name: "Profile menu" })).toBe(menu);
+    expect(within(menu).getByText("organiser1@connectsphere.test")).toBeInTheDocument();
   });
 });

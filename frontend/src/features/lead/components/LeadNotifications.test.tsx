@@ -1,6 +1,6 @@
 // SPM-47 AC10: the Event Coordinator Lead is told when a coordinator with active
 // events becomes unavailable, with a link to the reassignment page.
-// Test cases: LEAD-REASN-10-E, 10-I, 10-J.
+// Test cases: LEAD-REASN-10-E, 10-I, 10-J, 10-K.
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -92,5 +92,19 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     // Assert: no request is made and no panel is shown.
     expect(api).not.toHaveBeenCalled();
     expect(screen.queryByRole("region", { name: "Coordinator availability" })).not.toBeInTheDocument();
+  });
+
+  // If the notices cannot be loaded, the Lead is told inside the panel instead of seeing nothing.
+  it("LEAD-REASN-10-K shows a load error inside the panel when the notices cannot be loaded", async () => {
+    // Arrange: loading the notifications fails.
+    api.mockRejectedValue(new Error("offline"));
+
+    // Act: render the panel.
+    renderPanel();
+
+    // Assert: the error is shown in the panel, and no notice or "Mark as read" button is listed.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load coordinator availability notices.");
+    expect(screen.getByRole("region", { name: "Coordinator availability" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as read" })).not.toBeInTheDocument();
   });
 });

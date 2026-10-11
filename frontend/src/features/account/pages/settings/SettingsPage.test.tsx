@@ -1,8 +1,9 @@
 // SPM-80 Coordinator Updates Availability: Settings page component tests.
 // ACs: AC1 (coordinators reach availability on Settings), AC2 (save
 // Unavailable), AC3 (view and change at any time), AC4 (confirmation on save).
-// Test cases: COOR-AVAIL-01-A/B/C/D, 02-C, 03-C/D/F, 04-A/B/C/D/BND-1.
-import { render, screen, waitFor } from "@testing-library/react";
+// Test cases: COOR-AVAIL-01-A/B/C/D, 02-C, 03-C/D/F/S/T, 04-A/B/C/D/BND-1.
+import { StrictMode } from "react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -31,13 +32,15 @@ function renderSettings(user: User = coordinator) {
   return render(<SettingsPage />);
 }
 
-// A save that stays pending until the test resolves it.
+// A save that stays pending until the test resolves or rejects it.
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
+  let reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
@@ -188,6 +191,56 @@ describe("AC3: view and change availability at any time", () => {
     // Assert: the saved status loads and Save is enabled.
     expect(await screen.findByText("Current status: Unavailable")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save availability" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  // A superseded status load that succeeds late must not update the page.
+  it("COOR-AVAIL-03-S ignores a superseded status load that resolves after a newer load", async () => {
+    // Arrange: StrictMode runs the load effect twice, so the first load is superseded by the second.
+    const stale = deferred<{ available: boolean }>();
+    const current = deferred<{ available: boolean }>();
+    getMyAvailability.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    useAppStore.setState({ currentUser: coordinator });
+    render(
+      <StrictMode>
+        <SettingsPage />
+      </StrictMode>,
+    );
+    expect(getMyAvailability).toHaveBeenCalledTimes(2);
+
+    // Act: settle only the superseded load with a status.
+    await act(async () => {
+      stale.resolve({ available: false });
+      await stale.promise;
+    });
+
+    // Assert: the page is still loading and shows no status from the stale result.
+    expect(screen.getByText("Loading your availability…")).toBeInTheDocument();
+    expect(screen.queryByText(/Current status:/)).not.toBeInTheDocument();
+  });
+
+  // A superseded status load that fails late must not show a load error.
+  it("COOR-AVAIL-03-T does not show a load error from a superseded status load", async () => {
+    // Arrange: StrictMode runs the load effect twice, so the first load is superseded by the second.
+    const stale = deferred<{ available: boolean }>();
+    const current = deferred<{ available: boolean }>();
+    getMyAvailability.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    useAppStore.setState({ currentUser: coordinator });
+    render(
+      <StrictMode>
+        <SettingsPage />
+      </StrictMode>,
+    );
+    expect(getMyAvailability).toHaveBeenCalledTimes(2);
+
+    // Act: settle only the superseded load with a failure.
+    await act(async () => {
+      stale.reject(new Error("offline"));
+      await stale.promise.catch(() => undefined);
+    });
+
+    // Assert: the page is still loading and no error alert is shown.
+    expect(screen.getByText("Loading your availability…")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
