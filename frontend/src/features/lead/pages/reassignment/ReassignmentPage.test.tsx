@@ -7,6 +7,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "@/test/deferred";
 import { ApiError } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
 import { ReassignmentPage } from "./ReassignmentPage";
@@ -40,15 +41,6 @@ const away = { id: "c3", name: "Coordinator 3", available: false, activeAssignme
 // The card that holds a given event name.
 function card(name: string) {
   return within(screen.getByRole("article", { name }));
-}
-
-// A promise that stays pending until the test resolves it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
 }
 
 beforeEach(() => {

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import { api } from "@/utils/api";
 import type { EventRecord } from "@/types";
 
@@ -55,17 +56,6 @@ function assignedEvent(): EventRecord {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-}
-
-// A load that stays pending until the test resolves or rejects it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }
 
 afterEach(() => {

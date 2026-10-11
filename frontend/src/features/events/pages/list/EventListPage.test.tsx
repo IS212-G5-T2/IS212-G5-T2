@@ -7,6 +7,7 @@ import { EventCreatePage } from "@/features/events/pages/create/EventCreatePage"
 import { EventListPage } from "@/features/events/pages/list/EventListPage";
 import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -47,17 +48,6 @@ function submittedEvent(): EventRecord {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-}
-
-// A load that stays pending until the test resolves or rejects it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }
 
 afterEach(cleanup);

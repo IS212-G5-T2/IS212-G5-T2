@@ -8,6 +8,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import { ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
 import { AssignmentQueuePage } from "./AssignmentQueuePage";
@@ -41,15 +42,6 @@ const unavailable = { id: "c2", name: "Coordinator 2", available: false, activeA
 // The request card that holds a given event name.
 function card(name: string) {
   return screen.getByRole("article", { name });
-}
-
-// A promise that stays pending until the test resolves it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
 }
 
 beforeEach(() => {

@@ -9,6 +9,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TopNav } from "@/components/layout/TopNav";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import type { User } from "@/types";
 import { SettingsPage } from "./SettingsPage";
 
@@ -30,17 +31,6 @@ const coordinator: User = {
 function renderSettings(user: User = coordinator) {
   useAppStore.setState({ currentUser: user });
   return render(<SettingsPage />);
-}
-
-// A save that stays pending until the test resolves or rejects it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }
 
 beforeEach(() => {
