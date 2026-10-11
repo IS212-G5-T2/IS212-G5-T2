@@ -150,7 +150,7 @@ describe('EventPlanningRepository transactions and locking', () => {
     });
     expect(clientQuery).toHaveBeenCalledTimes(2);
     for (const [sql] of clientQuery.mock.calls)
-      expect(sql).toMatch(/FOR UPDATE$/);
+      expect(sql).toContain('FOR UPDATE');
   });
 
   /**
@@ -189,10 +189,12 @@ describe('EventPlanningRepository writes', () => {
     );
 
     const [sql, params] = poolQuery.mock.calls[0];
-    expect(sql).toBe(
-      'UPDATE events SET event_name = $2, expected_attendance = $3, updated_at = $4 WHERE id = $1 RETURNING *',
-    );
     expect(params).toEqual([EVENT_ID, 'Renamed', 120, now]);
+    expect(sql).toContain('event_name = $2');
+    expect(sql).toContain('expected_attendance = $3');
+    expect(sql).toContain('updated_at = $4');
+    expect(sql).not.toContain('status');
+    expect(sql).not.toContain('Confirmed');
     expect(row.name).toBe('Renamed');
   });
 

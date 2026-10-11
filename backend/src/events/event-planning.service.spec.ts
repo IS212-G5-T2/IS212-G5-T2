@@ -1802,8 +1802,9 @@ describe('SPM-49 / SPM-85 / SPM-97 defensive paths', () => {
 
   /**
    * EVENT-UPDATE-01-SEC-1: the owning organiser who also holds the coordinator
-   * role, but is not the coordinator assigned to this event, cannot update it.
-   * The event is hidden (404) rather than revealed as read-only.
+   * role, but is not the coordinator assigned to this event, cannot update it:
+   * the update is refused (404 from the editable-access check) and nothing is
+   * written.
    */
   it('EVENT-UPDATE-01-SEC-1 refuses an update from the owner when they are not the assigned coordinator', async () => {
     const ownerWithCoordinatorRole = organiser({

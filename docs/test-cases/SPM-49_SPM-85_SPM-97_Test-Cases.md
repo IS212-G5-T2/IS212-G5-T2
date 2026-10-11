@@ -98,37 +98,37 @@ Where a case lists several suites, each covers a different layer: `event-update-
 
 ### Supporting cases added by SPM-142 (unit test coverage)
 
-Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverage in the unit/component run. Each is a supporting case under the story's existing AC; the Confluence case pages and the story traceability matrices need matching entries.
+Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverage in the unit/component run. Each is a supporting case under the story's existing AC, recorded on the matching Confluence case page and story matrix. SPM-85 AC numbers here follow the current Jira story (8 ACs: AC2 = when a change needs review, AC4 reject, AC5 confirm, AC6 history, AC7 per-venue listing, AC8 per-booking decisions); rows in the case index above still use the earlier numbering (AC3 reject, AC4 confirm, AC5 history, AC6 per venue, AC7 per booking).
 
 | Case | Story / AC | Scenario | Automated by |
 | --- | --- | --- | --- |
-| EVENT-VIEW-01-SEC-2 | SPM-97 AC1 | A well-formed event id that does not exist answers "not found" to the view and to an update | `event-planning.service.spec.ts` |
+| EVENT-VIEW-01-SEC-2 | SPM-97 AC1 (update part: SPM-49 AC1) | A well-formed event id that does not exist answers "not found" to the view and to an update | `event-planning.service.spec.ts` |
 | EVENT-VIEW-02-E | SPM-97 AC2 | An approved event with no coordinator yet is shown with no coordinator | `event-planning.service.spec.ts` |
 | EVENT-VIEW-02-F | SPM-97 AC2 | Event rows are returned with ISO UTC times; missing coordinator and registration values and a missing event are handled | `event-planning.repository.spec.ts` |
 | EVENT-VIEW-02-G | SPM-97 AC2 | Venue bookings (with neighbours) and equipment arrangements are mapped with ISO times; the proposed window is passed or sent as null | `event-planning.repository.spec.ts` |
 | EVENT-VIEW-02-H | SPM-97 AC2 | No room layout recorded shows a dash | `PlanningInformationPanel.test.tsx` |
-| EVENT-VIEW-05-D | SPM-97 AC5 | A planning load that fails without a message shows a general refresh alert | `EventDetailPage.planning.test.tsx` |
-| EVENT-VIEW-05-E | SPM-97 AC5 | A refresh updates only this event in the shared event list | `EventDetailPage.planning.test.tsx` |
+| EVENT-VIEW-05-D | SPM-97 AC5 | Shared page path, run as the assigned coordinator: a planning load that fails without a message shows a general refresh alert | `EventDetailPage.planning.test.tsx` |
+| EVENT-VIEW-05-E | SPM-97 AC5 | Shared page path, run as the assigned coordinator: a refresh updates only this event in the shared event list | `EventDetailPage.planning.test.tsx` |
 | EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input (the browser also clears invalid values, so this documents the outcome rather than proving the guard) | `PlanningUpdateForm.test.tsx` |
-| EVENT-UPDATE-01-SEC-1 | SPM-49 AC1 | No session: update and decision refused (401) before any read; owner with the coordinator role but not assigned gets 404 | `event-planning.service.spec.ts` |
+| EVENT-UPDATE-01-SEC-1 | SPM-49 AC1 (decision part: SPM-85 AC4, AC5) | No session: update and decision refused (401) before any read; an owner who also holds the coordinator role but is not assigned has the update refused (404) and nothing written | `event-planning.service.spec.ts` |
 | EVENT-UPDATE-02-C | SPM-49 AC2 | A field with no edit policy from the server shows no badge | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-04-D | SPM-49 AC4 | Text fields: null required field is "required"; numbers, lists, objects and a null optional field are "Enter valid text." | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-E | SPM-49 AC4 | A room layout outside the allowed list is refused | `event-update-input.spec.ts` |
-| EVENT-UPDATE-04-F | SPM-49 AC4 | Facilities / accessibility: non-list, unknown option, non-text entry or too many entries refused | `event-update-input.spec.ts` |
+| EVENT-UPDATE-04-F | SPM-49 AC4 | Facilities / accessibility: non-list, unknown option, non-text entry, or more entries than the allowed vocabulary, refused (input validation matching event creation) | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-G | SPM-49 AC4 | A start or end sent as a number or null is reported as required | `event-update-input.spec.ts` |
 | EVENT-UPDATE-04-H | SPM-49 AC4 | Server errors for the facility and accessibility lists are each shown directly under their own list; a refusal with no field errors marks no field | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-04-SEC-2 | SPM-49 AC4 | The repository writes only whitelisted columns, as parameters, and always stamps `updated_at` | `event-planning.repository.spec.ts` |
 | EVENT-UPDATE-05-C | SPM-49 AC5 | A missing or cleared start time is predicted to need review | `planning.test.ts`, `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-05-D | SPM-49 AC5 | "Removals only" with a missing proposed or current facility list | `planning.test.ts` |
-| EVENT-FLAG-01-F | SPM-85 AC1 | The proposer is recorded by name, else email, else "Coordinator" | `event-planning.service.spec.ts` |
+| EVENT-FLAG-01-F | SPM-85 AC1, AC6 | Defensive fallback: the proposer is recorded by name, else email, else "Coordinator" | `event-planning.service.spec.ts` |
 | EVENT-FLAG-01-G | SPM-85 AC1 | A flagged change is stored as JSON; a concurrent duplicate (23505) is a conflict naming the field; other errors pass through | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-04-C | SPM-85 AC4 | Resolving a change that is no longer pending is refused as already resolved | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-04-SEC-3 | SPM-85 AC4 | A decision request with no body or a non-object body is refused | `event-planning.service.spec.ts` |
-| EVENT-FLAG-04-SEC-4 | SPM-85 AC4 | Nested work shares one transaction; event and change rows are locked only inside it | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-04-SEC-5 | SPM-85 AC4 | A malformed change id is "not found" without a query | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-05-C | SPM-85 AC5 | Defensive: a resolved change without resolver or time (prevented by `event_flagged_changes_resolution_check`) still appears in history with blank details | `event-planning.service.spec.ts` |
-| EVENT-FLAG-05-D | SPM-85 AC5 | Flagged-change rows are mapped with and without resolution details; found and not-found lookups | `event-planning.repository.spec.ts` |
-| EVENT-FLAG-07-B | SPM-85 AC7 | A per-booking decision updates that booking's entry only; a decision without a booking closes the change | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-C | SPM-85 AC4, AC5 | Resolving a change that is no longer pending is refused as already resolved | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-SEC-3 | SPM-85 AC4, AC5 | A decision request with no body or a non-object body is refused | `event-planning.service.spec.ts` |
+| EVENT-FLAG-04-SEC-4 | SPM-85 AC4, AC5 | Nested work shares one transaction; event and change rows are locked only inside it | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-04-SEC-5 | SPM-85 AC4, AC5 | A malformed change id is "not found" without a query | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-05-C | SPM-85 AC6 | Defensive: a resolved change without resolver or time (prevented by `event_flagged_changes_resolution_check`) still appears in history with blank details | `event-planning.service.spec.ts` |
+| EVENT-FLAG-05-D | SPM-85 AC6 | Flagged-change rows are mapped with and without resolution details; found and not-found lookups | `event-planning.repository.spec.ts` |
+| EVENT-FLAG-07-B | SPM-85 AC8 | A per-booking decision updates that booking's entry only; a decision without a booking closes the change | `event-planning.repository.spec.ts` |
 
 `event-planning.repository.spec.ts` stubs the database, so it proves the TypeScript around the SQL (connection choice, locking, column whitelist, error mapping, row mapping), not the SQL; `test/event-planning.e2e-spec.ts` proves the SQL against PostgreSQL. That suite was moved from `src/events/` to `test/` in SPM-142 because `vitest.config.e2e.ts` only includes `test/**/*.e2e-spec.ts`, so before the move it ran in neither the unit run nor the Backend E2E job.
 

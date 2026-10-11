@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { ACCESSIBILITY, FACILITIES } from './dto/event-input.js';
 import {
   FIELD_POLICY,
   classifyUpdate,
@@ -228,10 +229,10 @@ describe('validateEventUpdate', () => {
     ['facilities', 'AV System'],
     ['facilities', ['Helipad']],
     ['facilities', [7]],
-    ['facilities', Array(7).fill('Stage')],
+    ['facilities', Array(FACILITIES.length + 1).fill('Stage')],
     ['accessibility', null],
     ['accessibility', ['Escalator']],
-    ['accessibility', Array(5).fill('Hearing loop')],
+    ['accessibility', Array(ACCESSIBILITY.length + 1).fill('Hearing loop')],
   ] as const)('EVENT-UPDATE-04-F rejects %s %j', (field, value) => {
     expect(errorsOf({ [field]: value })[field]).toBe('Choose valid options.');
   });
