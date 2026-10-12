@@ -285,6 +285,42 @@ describe('EventsService', () => {
     expect(db.release).toHaveBeenCalledTimes(1);
   });
 
+  // SPM-36 Test Case EVE-CRE-06-BND-1: an organiser with no display name is saved under their email.
+  it('EVE-CRE-06-BND-1 saves the organiser under their email when no display name is set', async () => {
+    // Arrange: the organiser has an email address but no name.
+    const row = savedEventRow();
+    db.transaction
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [row] });
+
+    // Act: create the request.
+    await service.create(organiserUser({ name: undefined }), validEventRequest());
+
+    // Assert: the insert stores the email as the organiser's name (params 2 and 3 are name and email).
+    const insertParams = db.transaction.mock.calls[1][1];
+    expect(insertParams[1]).toBe('organiser-1');
+    expect(insertParams[2]).toBe('organiser@example.test');
+    expect(insertParams[3]).toBe('organiser@example.test');
+  });
+
+  // SPM-36 Test Case EVE-CRE-06-BND-2: with neither a name nor an email, the organiser is saved as "Organiser" with a blank email.
+  it('EVE-CRE-06-BND-2 saves the organiser as "Organiser" with a blank email when neither name nor email is set', async () => {
+    // Arrange: the organiser has no name and no email address.
+    const row = savedEventRow();
+    db.transaction
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [row] });
+
+    // Act: create the request.
+    await service.create(organiserUser({ name: undefined, email: undefined }), validEventRequest());
+
+    // Assert: the insert falls back to the generic name and an empty email (params 2 and 3).
+    const insertParams = db.transaction.mock.calls[1][1];
+    expect(insertParams[1]).toBe('organiser-1');
+    expect(insertParams[2]).toBe('Organiser');
+    expect(insertParams[3]).toBe('');
+  });
+
   // SPM-36 retry safety check
   it('returns the existing event when the same submission is retried', async () => {
     const request = validEventRequest();
@@ -343,6 +379,25 @@ describe('EventsService', () => {
     await expect(service.list(undefined)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+    expect(db.query).not.toHaveBeenCalled();
+  });
+
+  // Coverage note: the non-string branch of `validateRejectionReason` is left to its owning story (SPM-83) and is out of scope for SPM-141.
+  // SPM-38 AC1-AC3 Test Case EVE-REV-01-B: a signed-in user with none of the event roles sees an empty list.
+  it('EVE-REV-01-B returns an empty event list, without querying, to a signed-in user with none of the event roles', async () => {
+    // Arrange: a venue staff account, which has no organiser, coordinator or attendee role.
+    const venueStaff: AuthenticatedUser = {
+      uid: 'venue-1',
+      roles: ['VENUE_STAFF'],
+      email: 'venue@example.test',
+      name: 'Venue Staff',
+    };
+
+    // Act: list events.
+    const events = await service.list(venueStaff);
+
+    // Assert: nothing is returned and the database is never asked for events.
+    expect(events).toEqual([]);
     expect(db.query).not.toHaveBeenCalled();
   });
 

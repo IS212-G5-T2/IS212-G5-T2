@@ -1,13 +1,14 @@
 // SPM-123 Assign Event Requests to Coordinators (Lead): Assignment Queue page tests.
 // ACs: AC2 (view the queue), AC3 (availability and workload), AC5 (assign),
 // AC6 (unavailable refused), AC7 (none available), AC8 (confirmation).
-// Test cases: LEAD-ASN-02-B, 02-C, 02-E, 03-D, 05-C, 05-BND-1, 06-C, 06-D, 06-F, 07-A, 08-A, 08-B;
+// Test cases: LEAD-ASN-02-B, 02-C, 02-E, 03-D, 05-C, 05-BND-1, 06-C, 06-D, 06-F, 06-G, 07-A, 08-A, 08-B, 08-C, 08-D;
 // SPM-47 LEAD-REASN-10-H.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import { ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
 import { AssignmentQueuePage } from "./AssignmentQueuePage";
@@ -41,15 +42,6 @@ const unavailable = { id: "c2", name: "Coordinator 2", available: false, activeA
 // The request card that holds a given event name.
 function card(name: string) {
   return screen.getByRole("article", { name });
-}
-
-// A promise that stays pending until the test resolves it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -187,6 +179,51 @@ describe("AC5 and AC8: assigning a request", () => {
     expect(screen.getByRole("article", { name: "Welcome Evening" })).toBeInTheDocument();
   });
 
+  // A failure that is not a server response still gets a readable message.
+  it("LEAD-ASN-08-C shows a generic message when assigning fails for a reason other than a server response", async () => {
+    // Arrange: the assignment fails with a plain error, not an ApiError.
+    const user = userEvent.setup();
+    assignRequest.mockRejectedValue(new Error("socket hang up"));
+    render(<AssignmentQueuePage />);
+    const request = within(await screen.findByRole("article", { name: "Welcome Evening" }));
+
+    // Act: try to assign.
+    await user.selectOptions(request.getByLabelText("Assign to"), "c1");
+    await user.click(request.getByRole("button", { name: "Assign" }));
+
+    // Assert: the generic message is shown instead of the raw error, with no confirmation, and the request stays.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not assign this request. Please try again.");
+    expect(screen.queryByText(/socket hang up/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Welcome Evening" })).toBeInTheDocument();
+  });
+
+  // Coverage note: the `(items ?? [])` fallback in `assigned` is left uncovered on purpose. It is unreachable:
+  // a request card (the only caller) renders only once the queue has loaded, and the queue is only ever set to an array.
+  // If refreshing the coordinators fails after a successful assignment, the confirmation still stands.
+  it("LEAD-ASN-08-D keeps the confirmation and removes the request when refreshing coordinators fails after assigning", async () => {
+    // Arrange: the assignment succeeds; the refresh that follows fails.
+    const user = userEvent.setup();
+    assignRequest.mockResolvedValue({ message: 'Event request "Welcome Evening" assigned to Coordinator 1.' });
+    getLeadCoordinators
+      .mockResolvedValueOnce([available, unavailable])
+      .mockRejectedValueOnce(new ApiError("Unable to reach the server. Check your connection and try again."));
+    render(<AssignmentQueuePage />);
+    const request = within(await screen.findByRole("article", { name: "Welcome Evening" }));
+
+    // Act: assign to Coordinator 1.
+    await user.selectOptions(request.getByLabelText("Assign to"), "c1");
+    await user.click(request.getByRole("button", { name: "Assign" }));
+
+    // Assert: the confirmation is shown, the request left the queue, no error appears, and the refresh was attempted.
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      'Event request "Welcome Evening" assigned to Coordinator 1.',
+    );
+    await waitFor(() => expect(screen.queryByRole("article", { name: "Welcome Evening" })).not.toBeInTheDocument());
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(getLeadCoordinators).toHaveBeenCalledTimes(2);
+  });
+
   // Double-clicking Assign must not send two requests.
   it("LEAD-ASN-05-BND-1 disables Assign while assigning so only one request is sent", async () => {
     // Arrange: an assignment that stays pending.
@@ -268,6 +305,29 @@ describe("AC6 and AC7: unavailable coordinators", () => {
     await waitFor(() => expect(screen.queryByRole("article", { name: "Welcome Evening" })).not.toBeInTheDocument());
     expect(screen.getByRole("article", { name: "Spring Gala" })).toBeInTheDocument();
     expect(getLeadQueue).toHaveBeenCalledTimes(2);
+  });
+
+  // If the refresh after a refusal also fails, the refusal reason stays and the request is still listed.
+  it("LEAD-ASN-06-G keeps the refusal reason and the request when the refresh after a refusal fails", async () => {
+    // Arrange: the server refuses; the queue reload that follows fails.
+    const user = userEvent.setup();
+    assignRequest.mockRejectedValue(new ApiError("This coordinator is unavailable.", undefined, undefined, 409));
+    getLeadQueue
+      .mockResolvedValueOnce([welcome])
+      .mockRejectedValueOnce(new ApiError("Unable to reach the server. Check your connection and try again."));
+    render(<AssignmentQueuePage />);
+    const request = within(await screen.findByRole("article", { name: "Welcome Evening" }));
+
+    // Act: try to assign to Coordinator 1.
+    await user.selectOptions(request.getByLabelText("Assign to"), "c1");
+    await user.click(request.getByRole("button", { name: "Assign" }));
+
+    // Assert: the refusal reason is the only alert, there is no confirmation, the request remains, and the reload was attempted.
+    expect(await screen.findByRole("alert")).toHaveTextContent("This coordinator is unavailable.");
+    await waitFor(() => expect(getLeadQueue).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Welcome Evening" })).toBeInTheDocument();
   });
 
   // With nobody available, the Lead is told and the request stays queued.
