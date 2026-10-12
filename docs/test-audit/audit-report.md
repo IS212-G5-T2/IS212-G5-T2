@@ -1,4 +1,4 @@
-Written for: the story owner and the PO, to decide what remains. Test-only audit; no production file changed.
+Written for: the story owner and the PO, to decide what remains. Test audit. Production code: one approved text change (see section 21); nothing else.
 
 # Test audit: SPM-39, SPM-61, SPM-62, SPM-63, SPM-120
 
@@ -339,14 +339,39 @@ Causes (from the saved run output):
 2. Testing Library's default 1000ms budget for `findBy*` and `waitFor` was too short for a page to render under load (EVENT-VIEW-01-A).
 3. Per-keystroke delay: 201 `userEvent.setup()` calls use the default delay. Removing it from the three failing files did not fix the failures alone, but it cuts the time per test.
 
-Changes (test infrastructure only; no assertions weakened):
+Changes (shared test infrastructure only; no assertions weakened):
 - `frontend/vitest.config.ts`: `testTimeout: 20000` with a comment. This is the config Vitest actually reads (it takes precedence over `vite.config.ts`).
 - `frontend/src/test/setup.ts`: `configure({ asyncUtilTimeout: 5000 })`.
-- `EventCreatePage.test.tsx`, `VenueCreatePage.test.tsx`, `VenueUnavailabilityPanel.test.tsx`: `userEvent.setup({ delay: null })`.
-- `EventCreatePage.test.tsx` EVE-CRE-04-A: synchronous `getByText` for validation messages changed to `await findByText`, so the check waits for the message to render.
+
+Owner-file edits (follow-up): the per-keystroke `delay: null` and `findByText` edits in `EventCreatePage.test.tsx`, `VenueCreatePage.test.tsx` and `VenueUnavailabilityPanel.test.tsx` were reverted to their `dev` contents. Those files belong to SPM-36 and SPM-50/122. The shared config alone is sufficient (see Verification in section 22).
 
 Verification (machine load average about 10 to 12 from an unrelated Python job, `preprocess_celeba.py`, plus editor processes; not stopped):
 - Full frontend suite: 4 consecutive runs, 872 passed, 1 todo, 0 failed (before: 3 to 7 failed per run).
 - `npm run lint` (`eslint .`): exit 0. The two pre-existing lint errors are no longer reported.
 
 Not changed: `vmThreads` pool in `vitest.config.ts`. It was added deliberately in commit 8d008ae ("speed up vitest").
+
+## 21. Approved production exception
+
+The brief's acceptance criterion 5 requires no production change. You approved one text change, and it is the only production change against `dev`:
+
+```diff
+# backend/src/clarifications/clarifications.service.ts
+-    const message = validateMessage(body, 'Clarification message cannot be blank.');
++    const message = validateMessage(body, 'Clarification message is required');
+
+# frontend/src/features/events/pages/detail/ClarificationThread.tsx
+-      setDraftError("Clarification message cannot be blank.");
++      setDraftError("Clarification message is required");
+```
+
+Reply text ("Reply message cannot be blank.") is unchanged. The change is in commit `b5f470a` on `chore/SPM-145-…`, which is already on `origin`. It has not been split out into its own commit. Reporting it in the PR description as an approved exception is required.
+
+## 22. Follow-up: owner files reverted; config-only verification
+
+- Owner files reverted to `dev` (working tree): `EventCreatePage.test.tsx` (SPM-36), `VenueCreatePage.test.tsx` and `VenueUnavailabilityPanel.test.tsx` (SPM-50/122). They now match `dev` exactly.
+- Config only (`vitest.config.ts` `testTimeout: 20000`, `setup.ts` `asyncUtilTimeout: 5000`, owner files at `dev`):
+  - 4 consecutive full frontend runs: 872 passed, 1 todo.
+  - Stress: 2 rounds of 2 concurrent full runs (load average 12 to 13): 4 of 4 green, 872 passed each.
+- Evidence the config is the fix: with the owner-file edits applied but the config unchanged, the suite still failed 3 to 5 tests per run under load (section 20).
+- Earlier `delay: null` and `findByText` edits did not fix the failures alone.
