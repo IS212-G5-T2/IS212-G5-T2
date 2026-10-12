@@ -408,7 +408,7 @@ describe('WITHDRAW-EVENT-REG-03-A (AC3, AC5): an empty JSON object body is accep
 // SPM-62 findMine (the attendee's own registration)
 // ---------------------------------------------------------------------------
 
-const mineRow = (status: 'Registered' | 'Withdrawn', withdrawnAt: Date | null = null): Row => ({
+const mineRow = (status: 'Registered' | 'Withdrawn' | 'Cancelled', withdrawnAt: Date | null = null): Row => ({
   ...insertedRow(),
   status,
   withdrawn_at: withdrawnAt,

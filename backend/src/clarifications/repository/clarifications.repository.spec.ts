@@ -31,9 +31,14 @@ function fakeQuery(rows: unknown[] = []) {
   return { query, calls };
 }
 
+/** The repository takes a pg client; the fake answers only `query`, so the cast is confined to this helper. */
+function asClient(query: unknown): never {
+  return { query } as never;
+}
+
 function repositoryWith(rows: unknown[] = []) {
   const fake = fakeQuery(rows);
-  const database = { query: fake.query } as unknown as DatabaseService;
+  const database = asClient(fake.query) as unknown as DatabaseService;
   return { repository: new ClarificationsRepository(database), database, ...fake };
 }
 
@@ -57,7 +62,7 @@ describe('ClarificationsRepository.findEventForUpdate', () => {
     // Kills: FOR UPDATE dropped (two replies could race on the same event)
     const fake = fakeQuery([{ id: EVENT_ID }]);
     const repository = new ClarificationsRepository({} as DatabaseService);
-    await repository.findEventForUpdate({ query: fake.query }, EVENT_ID);
+    await repository.findEventForUpdate(asClient(fake.query), EVENT_ID);
     expect(fake.calls[0].sql).toMatch(/FOR UPDATE/);
     expect(fake.calls[0].params).toEqual([EVENT_ID]);
   });
@@ -69,7 +74,7 @@ describe('ClarificationsRepository.findClarificationForUpdate', () => {
     // the type filter dropped (a reply could be resolved as if it were a clarification), parameters swapped.
     const fake = fakeQuery([{ id: CLARIFICATION_ID, resolved: false }]);
     const repository = new ClarificationsRepository({} as DatabaseService);
-    const row = await repository.findClarificationForUpdate({ query: fake.query }, EVENT_ID, CLARIFICATION_ID);
+    const row = await repository.findClarificationForUpdate(asClient(fake.query), EVENT_ID, CLARIFICATION_ID);
     expect(row).toEqual({ id: CLARIFICATION_ID, resolved: false });
     expect(fake.calls[0].sql).toMatch(/event_id = \$2/);
     expect(fake.calls[0].sql).toMatch(/type = 'clarification'/);
@@ -84,7 +89,7 @@ describe('ClarificationsRepository.insertComment', () => {
     const inserted = { id: 'x', message: 'Please confirm the layout.', awaiting_reply: true };
     const fake = fakeQuery([inserted]);
     const repository = new ClarificationsRepository({} as DatabaseService);
-    const row = await repository.insertComment({ query: fake.query }, {
+    const row = await repository.insertComment(asClient(fake.query), {
       eventId: EVENT_ID,
       parentId: null,
       type: 'clarification',
@@ -116,8 +121,8 @@ describe('ClarificationsRepository.insertComment', () => {
       eventId: EVENT_ID, parentId: null, type: 'clarification' as const, authorId: 'c', authorName: 'n',
       authorRole: 'coordinator' as const, message: 'm', awaitingReply: true,
     };
-    await repository.insertComment({ query: fake.query }, input);
-    await repository.insertComment({ query: fake.query }, input);
+    await repository.insertComment(asClient(fake.query), input);
+    await repository.insertComment(asClient(fake.query), input);
     expect(fake.calls[0].params[0]).not.toBe(fake.calls[1].params[0]);
   });
 });
@@ -127,7 +132,7 @@ describe('ClarificationsRepository.resolveClarification', () => {
     // Kills: awaiting_reply left true on resolve, or resolve applied to a different row.
     const fake = fakeQuery([{ id: CLARIFICATION_ID, resolved: true, awaiting_reply: false }]);
     const repository = new ClarificationsRepository({} as DatabaseService);
-    const row = await repository.resolveClarification({ query: fake.query }, CLARIFICATION_ID);
+    const row = await repository.resolveClarification(asClient(fake.query), CLARIFICATION_ID);
     expect(row).toMatchObject({ resolved: true, awaiting_reply: false });
     expect(fake.calls[0].sql).toMatch(/SET resolved = true, awaiting_reply = false/);
     expect(fake.calls[0].sql).toMatch(/WHERE id = \$1/);
@@ -140,7 +145,7 @@ describe('ClarificationsRepository.insertNotification', () => {
     // AC5/notification side effect. Kills: recipient and related event swapped.
     const fake = fakeQuery([]);
     const repository = new ClarificationsRepository({} as DatabaseService);
-    await repository.insertNotification({ query: fake.query }, {
+    await repository.insertNotification(asClient(fake.query), {
       recipientId: 'organiser-1',
       type: 'clarification',
       message: 'New clarification on Community Welcome Evening.',
