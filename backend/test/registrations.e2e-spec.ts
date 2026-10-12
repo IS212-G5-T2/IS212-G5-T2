@@ -171,9 +171,9 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
-  // EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
-  describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants (injected clock)', () => {
-    // Expected: inclusive at open, exclusive at close, driven only by the injected clock.
+  // EVENT-REG-01-BND-1: the opening boundary (injected clock)
+  describe('EVENT-REG-01-BND-1: the opening boundary (injected clock)', () => {
+    // Expected: inclusive at open, driven only by the injected clock.
     it('[A] 1s before open: registrationOpen=false, POST -> 422 MSG-02', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
@@ -190,7 +190,12 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       expect(detail.body.registrationOpen).toBe(true);
       await post(id, cookie).expect(201);
     });
-    it('[C] 1 min before close: registrationOpen=true, POST -> 201', async () => {
+  });
+
+  // EVENT-REG-02-BND-1: the closing boundary (injected clock)
+  describe('EVENT-REG-02-BND-1: the closing boundary (injected clock)', () => {
+    // Expected: exclusive at close, accepted one minute before it.
+    it('[C] one minute before the closing instant, registration is still accepted: registrationOpen=true, POST -> 201', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
       now = at(HOUR - 60_000);
@@ -198,7 +203,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       expect(detail.body.registrationOpen).toBe(true);
       await post(id, cookie).expect(201);
     });
-    it('[D] exactly at close: registrationOpen=false, POST -> 422 MSG-01', async () => {
+    it('[D] exactly at the closing instant, registration is closed: registrationOpen=false, POST -> 422 MSG-01', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
       now = at(HOUR);
