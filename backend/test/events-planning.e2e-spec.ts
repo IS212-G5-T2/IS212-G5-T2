@@ -125,7 +125,7 @@ describe.skipIf(!database)(
         await db.query(
           await readFile(
             new URL(
-              `../../../database/postgresql/init/${file}`,
+              `../../database/postgresql/init/${file}`,
               import.meta.url,
             ),
             'utf8',
