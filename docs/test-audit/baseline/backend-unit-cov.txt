@@ -1,0 +1,63 @@
+
+ RUN  v5.0.0 /Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend
+      Coverage enabled with v8
+
+
+ Test Files  43 passed (43)
+      Tests  1073 passed (1073)
+   Start at  13:56:44
+   Duration  5.18s (import 56%, tests 24%, transform 13%, worker 7%)
+
+    Isolate  43 workers spawned · ~379ms startup each (spawn + environment, per file)
+             at least ~1.43s faster with isolate: false — reuses workers across files instead of one per file
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+-------------------|---------|----------|---------|---------|-------------------
+File               | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s 
+-------------------|---------|----------|---------|---------|-------------------
+All files          |   89.37 |    87.67 |   85.59 |   90.13 |                   
+ src               |     100 |       50 |     100 |     100 |                   
+  ...controller.ts |     100 |       50 |     100 |     100 | 4                 
+ ...ion/repository |     100 |       75 |     100 |     100 |                   
+  ...repository.ts |     100 |       75 |     100 |     100 | 9                 
+ ...clarifications |   93.87 |    85.29 |     100 |   97.72 |                   
+  ...controller.ts |     100 |       75 |     100 |     100 | 11                
+  ...ns.service.ts |    93.1 |    85.93 |     100 |   97.43 | 89,147            
+ ...ifications/dto |     100 |     90.9 |     100 |     100 |                   
+  ...tion-input.ts |     100 |     90.9 |     100 |     100 | 19                
+ ...ons/repository |    12.5 |       50 |       0 |    12.5 |                   
+  ...repository.ts |    12.5 |       50 |       0 |    12.5 | 55-143            
+ ...r-availability |     100 |     93.1 |     100 |     100 |                   
+  ...ty.service.ts |     100 |     93.1 |     100 |     100 | 76,87             
+ src/equipment     |   86.84 |     87.5 |   81.81 |   88.23 |                   
+  ...nt.service.ts |   86.84 |     87.5 |   81.81 |   88.23 | 66,198-203        
+ src/events        |   86.96 |    83.44 |   80.18 |   87.83 |                   
+  ...repository.ts |    6.89 |     2.04 |       0 |    7.84 | 158-164,169-451   
+  ...ng.service.ts |   97.95 |    92.77 |     100 |   98.88 | 518,751           
+  ...date-input.ts |   92.77 |    88.46 |     100 |    92.3 | ...56-157,168-169 
+  ...ts.service.ts |     100 |    95.32 |     100 |     100 | 70,154,238        
+ src/registrations |   42.04 |    40.96 |   42.85 |   40.27 |                   
+  ...ns.service.ts |   42.04 |    40.96 |   42.85 |   40.27 | ...44,205-265,294 
+ ...ations/helpers |      80 |      100 |      50 |   78.57 |                   
+  messages.ts      |   57.14 |      100 |      25 |   57.14 | 30,38-41          
+ ...rations/report |   93.57 |    93.33 |   88.57 |    92.7 |                   
+  ...rt.service.ts |      90 |    91.66 |      80 |   89.06 | 117-119,162-174   
+  report-format.ts |     100 |     87.5 |     100 |     100 | 30                
+ src/venues        |   94.33 |    97.22 |    87.5 |   93.61 |                   
+  ...controller.ts |   66.66 |      100 |   66.66 |   66.66 | 40-53             
+  ...es.service.ts |   97.77 |    97.22 |     100 |   97.43 | 111               
+ ...ues/repository |   74.24 |    62.85 |    82.6 |   76.36 |                   
+  ...repository.ts |   74.24 |    62.85 |    82.6 |   76.36 | 185-257,375       
+-------------------|---------|----------|---------|---------|-------------------
+
+=============================== Coverage summary ===============================
+Statements   : 89.37% ( 1430/1600 )
+Branches     : 87.67% ( 1124/1282 )
+Functions    : 85.59% ( 315/368 )
+Lines        : 90.13% ( 1315/1459 )
+================================================================================
+npm notice
+npm notice New minor version of npm available! 11.12.1 -> 11.21.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.21.0
+npm notice To update run: npm install -g npm@11.21.0
+npm notice

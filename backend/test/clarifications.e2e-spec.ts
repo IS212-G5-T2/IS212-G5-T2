@@ -2,6 +2,15 @@
  * End-to-end tests for SPM-39 (coordinator clarification/amendment requests)
  * against a real PostgreSQL database and PostgreSQL-backed sessions, mirroring
  * test/auth.e2e-spec.ts's fixture pattern.
+ *
+ * SPM-39 test case map (source: "SPM-39 Test Cases" document, REQ-CLAR-*):
+ *   REQ-CLAR-01-A  AC1          valid request, status unchanged     -> it('REQ-CLAR-01-A ...')
+ *   REQ-CLAR-01-B  AC2          blank message rejected              -> it('REQ-CLAR-01-B ...')
+ *   REQ-CLAR-01-C  AC2          whitespace-only message rejected    -> it('REQ-CLAR-01-C ...')
+ *   REQ-CLAR-02-A  AC3, AC4     chronological history, attribution  -> it('REQ-CLAR-02-A ...')
+ *   REQ-CLAR-02-B  AC5          awaiting-reply state, cleared only by resolve -> it('REQ-CLAR-02-B ...')
+ *                               (the on-screen "Pending" badge is tested in the frontend file)
+ * Not in the SPM-39 document: REQ-CLAR-03 (cross-coordinator refusal) and the 401/403 cases below it.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -47,7 +56,7 @@ describe('Clarifications (e2e)', () => {
     }
   });
 
-  // REQ-CLAR-01-A
+  // SPM-39 REQ-CLAR-01-A (AC1): valid clarification request; status unchanged; organiser notified
   it('REQ-CLAR-01-A: Event Coordinator can send a clarification request without changing status, and Organiser is notified', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -81,7 +90,7 @@ describe('Clarifications (e2e)', () => {
     );
     expect(statusResult.rows[0].status).toBe('Submitted');
 
-    // CLAR-01-A / AC6: organiser is notified in-app when the clarification is opened.
+    // Organiser notified when the clarification is opened. Not one of the five SPM-39 ACs; kept as existing behaviour.
     const notificationsAfterCreate = await pool.query<{
       recipient_id: string;
       type: string;
@@ -97,7 +106,7 @@ describe('Clarifications (e2e)', () => {
       }),
     ]);
 
-    // AC7/AC8
+    // SPM-39 AC4: the thread is visible to the organiser before a reply.
     const threadBeforeReply = await request(app.getHttpServer())
       .get(`/api/events/${eventId}/comments`)
       .set('Cookie', organiser.cookie)
@@ -134,7 +143,7 @@ describe('Clarifications (e2e)', () => {
       authorName: 'Priya Nair',
     });
 
-    // CLAR-02-B / AC6: coordinator is notified in-app once the organiser replies.
+    // Coordinator notified once the organiser replies. Not one of the five SPM-39 ACs; kept as existing behaviour.
     const notificationsAfterReply = await pool.query<{ recipient_id: string; type: string }>(
       'SELECT recipient_id, type FROM notifications WHERE related_event_id = $1 ORDER BY created_at ASC',
       [eventId],
@@ -190,8 +199,7 @@ describe('Clarifications (e2e)', () => {
     );
   });
 
-  // AC2/AC3
-  // REQ-CLAR-01-B
+  // SPM-39 REQ-CLAR-01-B (AC2): blank message rejected, no comment written
   it('REQ-CLAR-01-B: Event Coordinator cannot submit a blank clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -225,7 +233,7 @@ describe('Clarifications (e2e)', () => {
     expect(notificationCount.rows[0].count).toBe('0');
   });
 
-  // REQ-CLAR-01-C
+  // SPM-39 REQ-CLAR-01-C (AC2): whitespace-only message rejected, no comment written
   it('REQ-CLAR-01-C: Event Coordinator cannot submit a whitespace-only clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -253,7 +261,7 @@ describe('Clarifications (e2e)', () => {
     expect(commentCount.rows[0].count).toBe('0');
   });
 
-  // REQ-CLAR-02-A
+  // SPM-39 REQ-CLAR-02-A (AC3, AC4): history in order with author and timestamp
   it('REQ-CLAR-02-A: Event Coordinator can see full chronological history with attribution and distinguishable types', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -320,7 +328,61 @@ describe('Clarifications (e2e)', () => {
     });
   });
 
-  // REQ-CLAR-03
+  // SPM-39 REQ-CLAR-02-B (AC5): the awaiting-reply state of a clarification, as both parties see it.
+  // Design (confirmed with the PO): a reply does NOT clear the state; only an explicit resolve does.
+  it('REQ-CLAR-02-B: clarification is awaiting reply for both parties until resolved, not cleared by a reply', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const eventId = await seedEvent({
+      organiserId: organiser.uid,
+      coordinatorId: coordinator.uid,
+    });
+
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the room layout, required for final approval.' })
+      .expect(201);
+    const clarificationId = created.body.id as string;
+
+    // Open: the coordinator and the organiser both see it as awaiting a reply.
+    for (const actor of [coordinator, organiser]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body[0]).toMatchObject({ id: clarificationId, awaitingReply: true, resolved: false });
+    }
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/reply`)
+      .set('Cookie', organiser.cookie)
+      .send({ message: 'Room layout confirmed: Classroom setup.' })
+      .expect(201);
+
+    // After the organiser replies: still awaiting and still open, for both parties.
+    for (const actor of [coordinator, organiser]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body[0]).toMatchObject({ id: clarificationId, awaitingReply: true, resolved: false });
+    }
+
+    // Only resolve clears it.
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${clarificationId}/resolve`)
+      .set('Cookie', coordinator.cookie)
+      .expect(201);
+
+    const threadAfterResolve = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', organiser.cookie)
+      .expect(200);
+    expect(threadAfterResolve.body[0]).toMatchObject({ id: clarificationId, awaitingReply: false, resolved: true });
+  });
+
+  // Not in the SPM-39 document. Cross-coordinator refusal; kept as an extra case.
   it('REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator', async () => {
     const assignedCoordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const otherCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');

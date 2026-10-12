@@ -42,7 +42,7 @@ export class ClarificationsService {
   ): Promise<CommentDto> {
 
     this.requireValidEventId(eventId);
-    const message = validateMessage(body, 'Clarification message cannot be blank.');
+    const message = validateMessage(body, 'Clarification message is required');
 
     return this.database.transaction(async (client) => {
       const event = await this.repository.findEventForUpdate(client, eventId);

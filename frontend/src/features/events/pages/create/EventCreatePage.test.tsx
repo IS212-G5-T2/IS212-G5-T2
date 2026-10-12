@@ -110,7 +110,7 @@ beforeEach(() => {
 describe("EventCreatePage", () => {
   // SPM-36 Test Case EVE-CRE-02-A
   it("EVE-CRE-02-A exposes every Event Request field with an accessible label", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderCreate();
 
     expect(screen.getByRole("textbox", { name: /event name/i })).toBeTruthy();
@@ -135,15 +135,15 @@ describe("EventCreatePage", () => {
 
   // SPM-36 Test Cases EVE-CRE-04-A and EVE-CRE-05-A
   it("EVE-CRE-04-A EVE-CRE-05-A blocks blank basic fields with field errors and retains valid input", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderCreate();
 
     await user.type(screen.getByRole("textbox", { name: /event name/i }), "   ");
     await user.type(screen.getByRole("textbox", { name: /purpose/i }), "Community building");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
-    expect(screen.getByText("Enter an event name.")).toBeTruthy();
-    expect(screen.getByText("Enter a description of your event.")).toBeTruthy();
+    expect(await screen.findByText("Enter an event name.")).toBeTruthy();
+    expect(await screen.findByText("Enter a description of your event.")).toBeTruthy();
     expect(screen.getByRole("textbox", { name: /purpose/i })).toHaveProperty(
       "value",
       "Community building",
@@ -154,7 +154,7 @@ describe("EventCreatePage", () => {
 
   // SPM-36 Test Cases EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
   it("blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderCreate();
     await enterBasicInformation(user);
 
@@ -173,7 +173,7 @@ describe("EventCreatePage", () => {
     ["EVE-CRE-05-C", "past start", "80", "21:00", /must be in the future/i],
     ["EVE-CRE-05-D", "end before start", "80", "17:00", /end must be after start/i],
   ])("%s rejects %s and keeps the schedule step open", async (_id, kind, attendance, endTime, error) => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderCreate();
     await enterBasicInformation(user);
 
@@ -194,7 +194,7 @@ describe("EventCreatePage", () => {
 
   // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A
   it("submits a valid request and shows the submission confirmation", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const saved = eventRecord();
     apiMock.mockImplementation(async (_path, init) => {
       if (init?.method === "POST") return { event: saved, message: "Submitted" };
@@ -231,7 +231,7 @@ describe("EventCreatePage", () => {
 
   // SPM-36 Test Case EVE-CRE-08-A
   it("keeps registration enabled and appends optional supporting files", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const saved = {
       ...eventRecord(),
       attachments: [
@@ -386,7 +386,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
   // Continuity: saving persists the current wizard step alongside the fields.
   it("saves the current step with the draft fields", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     apiMock.mockResolvedValue(draft);
     renderCreate();
     await enterBasicInformation(user);

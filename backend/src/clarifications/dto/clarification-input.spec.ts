@@ -2,13 +2,22 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { validateMessage } from './clarification-input.js';
 
+/*
+ * SPM-39 test case map (unit level, input validation only):
+ *   REQ-CLAR-01-B (AC2): "rejects a blank message"
+ *   REQ-CLAR-01-C (AC2): "rejects a whitespace-only message"
+ * The other cases in this file (missing field, non-string, length limit, trim, caller-supplied text) support AC2
+ * but are not named in the SPM-39 document.
+ */
 describe('validateMessage', () => {
+  // SPM-39 REQ-CLAR-01-B (AC2)
   it('rejects a blank message', () => {
     expect(() => validateMessage({ message: '' }, 'Message cannot be blank.')).toThrow(
       BadRequestException,
     );
   });
 
+  // SPM-39 REQ-CLAR-01-C (AC2)
   it('rejects a whitespace-only message', () => {
     expect(() =>
       validateMessage({ message: ' \n\t ' }, 'Message cannot be blank.'),

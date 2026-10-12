@@ -182,7 +182,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-02-A, VEN-CRE-02-B: first-page data survives moving forward and back.
   it("retains location and accessibility details across pages", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
 
@@ -199,7 +199,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-03-A: missing required venue fields block the next page.
   it("reports every missing first-page value", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
@@ -210,7 +210,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-03-A: every required venue field independently prevents progression.
   it.each(Object.entries(locationValues))("rejects a missing %s", async (label) => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fillVenueDetails(user);
     await user.clear(
@@ -225,7 +225,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 business rule: a venue without accessibility features can continue to facilities and layouts.
   it("allows a venue with no accessibility selection", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fillVenueDetails(user, false);
 
@@ -236,7 +236,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-03-A: a schedule requires a selected day and an end time after its start.
   it("rejects an empty operating-day selection and an inverted time range", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fillVenueDetails(user);
     for (const day of venue.operatingDays)
@@ -254,7 +254,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / AC3: numeric boundaries are enforced before continuing.
   it("rejects invalid capacity and duration values", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fillVenueDetails(user);
     await user.clear(screen.getByLabelText(/capacity/i));
@@ -271,7 +271,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / AC3: capacity above the supported upper boundary is rejected.
   it("rejects an excessive capacity", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fillVenueDetails(user);
     await user.clear(screen.getByLabelText(/capacity/i));
@@ -284,7 +284,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-03-A: each normalized relationship requires at least one selection.
   it("requires facilities and room layouts on the second page", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
 
@@ -297,7 +297,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / AC3: a schedule error returned after page two sends staff back to the field that needs correction.
   it("returns to venue details for a backend operating-schedule error", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(
@@ -317,7 +317,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-03-C: correcting both relationship selections clears their errors.
   it("clears facility and layout errors after correction", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
     await user.click(screen.getByRole("button", { name: "Create Venue" }));
@@ -331,7 +331,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-07-A: successful creation redirects Venue Staff to the catalogue with confirmation.
   it("creates a venue then redirects to the catalogue", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockResolvedValueOnce({ venue, message: "Venue created successfully." });
@@ -349,7 +349,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 follow-up: a valid optional image is previewed and included in creation.
   it("reuses the shared image upload flow", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     const file = new File(["test"], "orchid-hall.png", { type: "image/png" });
@@ -372,7 +372,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 image follow-up: removing a preview excludes the optional image from creation.
   it("removes a selected image before submission", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     await user.upload(
@@ -390,7 +390,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 image follow-up: images above the backend's five-megabyte limit are blocked locally.
   it("rejects an oversized image upload", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
     const file = new File(["test"], "large.png", { type: "image/png" });
@@ -406,7 +406,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 image follow-up: a FileReader failure is visible and does not discard the form.
   it("shows a retryable error when the selected image cannot be read", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
     readFileMock.mockRejectedValueOnce(new Error("read failed"));
@@ -423,7 +423,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 follow-up: non-image files are rejected before reading or submission.
   it("rejects a non-image upload", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
 
@@ -439,7 +439,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 image follow-up: cancelling the file chooser leaves the optional image unset.
   it("ignores a file selection with no file", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await continueToOptions(user);
 
@@ -454,7 +454,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-04-B: server field errors remain visible on their owning page.
   it("returns to venue details for a server validation error", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(
@@ -469,7 +469,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 duplicate prevention: a duplicate natural key displays both backend field errors on Venue details.
   it("shows a duplicate venue name and location conflict", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(
@@ -487,7 +487,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / AC5: a persistence error without a field map stays visible as a form error.
   it("shows a form-level persistence error", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(new ApiError("Unable to save the venue."));
@@ -501,7 +501,7 @@ describe("SPM-50 venue creation", () => {
   it("ignores a duplicate submit while creation is pending", async () => {
     let resolve!: (value: unknown) => void;
     apiMock.mockImplementationOnce(() => new Promise((done) => { resolve = done; }));
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     const view = renderRoutes();
     await fill(user);
 
@@ -515,7 +515,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / AC4: an unexpected persistence failure is visible and retryable.
   it("shows a retryable message after an unexpected failure", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(new Error("offline"));
@@ -527,7 +527,7 @@ describe("SPM-50 venue creation", () => {
 
   // SPM-50 / VEN-CRE-07-B: a failed creation remains in the form instead of redirecting.
   it("keeps the user in the form after a failed creation", async () => {
-    const user = userEvent.setup();
+    const user = userEvent.setup({ delay: null });
     renderRoutes();
     await fill(user);
     apiMock.mockRejectedValueOnce(new ApiError("Unable to save the venue."));
