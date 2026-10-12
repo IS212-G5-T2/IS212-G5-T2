@@ -215,10 +215,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-CLOSE-1
+  // VIEW-REG-INFO-01-E
   // Oracle (SPEC: click inside does not close)
   // Kills: any click closes; backdrop click not checked
-  it("VIEW-REG-INFO-CLOSE-1: a click inside the modal does not close it", async () => {
+  it("VIEW-REG-INFO-01-E: a click inside the modal does not close it", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -227,10 +227,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // VIEW-REG-INFO-CLOSE-2
+  // VIEW-REG-INFO-01-F
   // Oracle (SPEC: close button closes)
   // Kills: close button does nothing
-  it("VIEW-REG-INFO-CLOSE-2: the close button closes the modal", async () => {
+  it("VIEW-REG-INFO-01-F: the close button closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -239,10 +239,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // VIEW-REG-INFO-CLOSE-3
+  // VIEW-REG-INFO-01-G
   // Oracle (SPEC: Escape closes)
   // Kills: Escape ignored
-  it("VIEW-REG-INFO-CLOSE-3: Escape closes the modal", async () => {
+  it("VIEW-REG-INFO-01-G: Escape closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -251,10 +251,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // VIEW-REG-INFO-CLOSE-4
+  // VIEW-REG-INFO-01-H
   // Oracle (SPEC: backdrop click closes)
   // Kills: backdrop click not wired
-  it("VIEW-REG-INFO-CLOSE-4: a click on the backdrop closes the modal", async () => {
+  it("VIEW-REG-INFO-01-H: a click on the backdrop closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);

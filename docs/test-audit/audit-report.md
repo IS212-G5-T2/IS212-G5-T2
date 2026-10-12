@@ -18,7 +18,7 @@ Framework assumptions:
 - E2E credentials: the container user is `spm` with password `spm_dev_password` (docker-compose/.env.example). backend/.env.example still says `spm:spm`, which is stale.
 - Test guide: found at ~/Desktop/test_gen_based_on_ACs/test-code-generation-guide-updated.md. The brief's name (test-code-generation-guide.md) is not in the repo.
 Oracle assumptions:
-- A-NULL: blank strings for NULL legacy detail columns (VIEW-REG-INFO-03-A-NULL, VIEW-REG-DET-02-A). The AC is silent.
+- A-NULL: blank strings for NULL legacy detail columns (VIEW-REG-INFO-03-A-NULL, VIEW-REG-DET-03-A). The AC is silent.
 Interface assumptions:
 - Route names and error codes are taken from helpers/messages.ts (locked MSG wording) and the in-code comments. Not from Confluence (see Gap List).
 Clarifications needed: see section 9.
@@ -112,10 +112,10 @@ Coverage figures come from `vitest run --coverage` in backend. Backend totals: b
 | EVENT-REG-05-SEC-1 (1-4) | Auth | Unit | Role and visibility rules | Role guard removed; draft visible |
 | EVENT-REG-03-D | AC3 | Unit | Strict body (D15) | Validation moved inside transaction |
 | WITHDRAW-EVENT-REG-03-A | AC3, AC5 | Unit | AC3/AC5; message literal | Empty body rejected |
-| VIEW-REG-DET-01-A (1-2) | AC2, AC3 | Unit | AC2/AC3; SPM-120 AC6 | Withdrawn row hidden; withdrawnAt dropped; status mapping |
-| VIEW-REG-DET-02-A | AC3 | Unit | AC3; A-NULL | Requirements dropped; NULL shown as "null" |
-| VIEW-REG-DET-03-A (1-2) | AC1 | Unit | Caller scoping and visible-status list | Owner filter dropped; any attendee reads |
-| VIEW-REG-DET-04-A | AC4 | Unit | null for none | Error thrown instead of null |
+| VIEW-REG-DET-02-A (1-2) | AC2 | Unit | AC2; SPM-120 AC6 | Withdrawn row hidden; withdrawnAt dropped; status mapping |
+| VIEW-REG-DET-03-A | AC3 | Unit | AC3; A-NULL | Requirements dropped; NULL shown as "null" |
+| VIEW-REG-DET-01-A (1-2) | AC1 | Unit | Caller scoping | Owner filter dropped; any attendee reads |
+| VIEW-REG-DET-01-A (3) and VIEW-REG-DET-04-A | AC1, AC4 | Unit | null for none; visible-status list | Error thrown instead of null; Completed/Cancelled dropped from the lookup |
 | VIEW-REG-INFO-02-A (1-3) | AC2 | Unit | Count and availableSpots literals | Spaces unclamped |
 | VIEW-REG-INFO-03-A | AC3 | Unit | Requirements in report | Requirements dropped |
 | VIEW-REG-INFO-03-A-NULL | AC3 | Unit | A-NULL | Literal "null" shown |
@@ -178,7 +178,7 @@ Totals: 22 mutants, 21 killed, 1 equivalent (M15), 0 non-equivalent survivors. T
 
 | Assumption | Used by | Needs PO |
 |---|---|---|
-| A-NULL: NULL legacy details display as blank text; no requirements line when NULL | VIEW-REG-INFO-03-A-NULL, VIEW-REG-DET-02-A | Yes |
+| A-NULL: NULL legacy details display as blank text; no requirements line when NULL | VIEW-REG-INFO-03-A-NULL, VIEW-REG-DET-03-A | Yes |
 | A4 (registration status Confirmed/Withdrawn/Cancelled) | Not used by any new test. The schema allows only Registered/Withdrawn. | Yes (F12) |
 | A5 (re-register after withdrawal), A7 (cut-off = start time), A8 (report excludes Withdrawn) | Covered by existing specs; not re-checked in this run beyond the report query filter (status = 'Registered'). | No, already in place |
 
@@ -456,3 +456,21 @@ Database: `spm_audit_e2e`, built from the init scripts and `backend/migrations/0
 - Items 5 and 6 (traceability matrices and Confluence drafts for SPM-39 and the rest) are for later, as agreed.
 - The SPM-37 drafts failures (item 3) are not edited, as agreed.
 - Open PO questions: A-NULL display, SPM-62 "Cancelled" status, unbounded registration window.
+
+
+## 28. SPM-62 renumbering (2026-10-12)
+
+The SPM-62 test IDs now match their ACs: `VIEW-REG-DET-01` access (AC1), `-02` status (AC2), `-03` details (AC3), `-04` visible after the event (AC4). The earlier numbers did not match the content. The change is in the test names and comments only.
+
+| Old ID | New ID | Content |
+|---|---|---|
+| VIEW-REG-DET-01-A (status) | VIEW-REG-DET-02-A | Registered and withdrawn status |
+| VIEW-REG-DET-02-A (details) | VIEW-REG-DET-03-A | Details, requirements, legacy NULL |
+| VIEW-REG-DET-03-A (scoped lookup, 403) | VIEW-REG-DET-01-A | Caller scoping, non-attendee refused |
+| VIEW-REG-DET-04-A (null) | VIEW-REG-DET-01-A | No registration returns null |
+| (new) | VIEW-REG-DET-04-A | Visible-status list keeps Completed and Cancelled |
+| VIEW-REG-DETAIL-01-A, -01-A-NON-OWNING | VIEW-REG-INFO-05-E, -05-F | Who may see the report button (SPM-63 AC5) |
+| VIEW-REG-DETAIL-02-A | VIEW-REG-INFO-01-D | Modal opens (SPM-63 AC1) |
+| VIEW-REG-INFO-CLOSE-1 to -4 | VIEW-REG-INFO-01-E to -01-H | Modal closes (SPM-63 AC1) |
+| EVENT-REG-01-C (e2e, after-close cases) | EVENT-REG-02-A | Error after the period closed (AC2) |
+| VIEW-REG-DET-01-A (EventListPage) | removed | The browse filters are SPM-61; only the status badge (VIEW-REG-DET-02-A) remains |

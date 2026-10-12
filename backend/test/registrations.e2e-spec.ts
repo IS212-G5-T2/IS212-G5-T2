@@ -150,7 +150,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
   });
 
   // EVENT-REG-01-C, EVENT-REG-02-A
-  describe('EVENT-REG-01-C / EVENT-REG-02-A: closed (AC2: "error message if I register after the period has closed")', () => {
+  describe('EVENT-REG-02-A: closed (AC2: "error message if I register after the period has closed")', () => {
     // [A] time-based close: registrationOpen=false and POST -> 422 MSG-01, nothing stored.
     it('[A] time-based close: POST -> 422 registration_closed (MSG-01) and no row', async () => {
       const id = await seedEvent({ opens: -48 * HOUR, closes: -HOUR });

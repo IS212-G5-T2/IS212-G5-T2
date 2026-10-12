@@ -3,7 +3,8 @@
  * the attendee's own registration), SPM-63 View Registration Information (AC5, access to a
  * report for events the caller does not manage).
  * Test cases: EVENT-REG-01-B, EVENT-REG-02-A, EVENT-REG-03-A, EVENT-REG-05-A, EVENT-REG-05-C,
- * EVENT-REG-05-SEC-1, VIEW-REG-DET-01-A, VIEW-REG-DET-03-A, VIEW-REG-DET-04-A, VIEW-REG-INFO-05-A.
+ * EVENT-REG-05-SEC-1, VIEW-REG-DET-01-A (access), VIEW-REG-DET-02-A (status), VIEW-REG-DET-03-A (details),
+ * VIEW-REG-DET-04-A (after the event), VIEW-REG-INFO-05-A.
  *
  * Why this file exists: RegistrationsService.register, findMine and getReport had no unit
  * coverage (about 40% of the file ran in unit tests; the rest only in the PostgreSQL e2e suite,
@@ -414,8 +415,9 @@ const mineRow = (status: 'Registered' | 'Withdrawn', withdrawnAt: Date | null = 
   event_name: EVENT_NAME,
 });
 
-describe('VIEW-REG-DET-01-A (AC1, AC2): the attendee sees their own registration and its status', () => {
-  it('a Registered row -> status "registered" with the event name and the stored details', async () => {
+describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration status', () => {
+  // Kills: the status mapping (registered/withdrawn) broken, or the event name or stored details dropped.
+  it('VIEW-REG-DET-02-A: a Registered row -> status "registered" with the event name and the stored details', async () => {
     const fake = scripted({ mine: [mineRow('Registered')] });
     const result = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
     expect(result.registration).toMatchObject({
@@ -429,27 +431,28 @@ describe('VIEW-REG-DET-01-A (AC1, AC2): the attendee sees their own registration
     expect(result.registration?.withdrawnAt).toBeUndefined();
   });
 
-  it('VIEW-REG-DET-01-A: a Withdrawn row is still returned, with status "withdrawn" and the withdrawal time (SPM-120 AC6)', async () => {
+  it('VIEW-REG-DET-02-A: a Withdrawn row is still returned, with status "withdrawn" and the withdrawal time (SPM-120 AC6)', async () => {
     const withdrawn = new Date('2026-10-04T05:00:00Z');
     const fake = scripted({ mine: [mineRow('Withdrawn', withdrawn)] });
     const result = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
     expect(result.registration).toMatchObject({ status: 'withdrawn', withdrawnAt: '2026-10-04T05:00:00.000Z' });
   });
 
-  it('VIEW-REG-DET-03-A: the lookup is scoped to this event and this caller, with the visible-status list', async () => {
+  it('VIEW-REG-DET-01-A: the lookup is scoped to this event and this caller (own registration only)', async () => {
     const fake = scripted({ mine: [] });
     await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
     const lookup = fake.statements.find((s) => /FROM event_registrations r/.test(s.sql));
-    // Kills: attendee id taken from anywhere but the session, or the visible-status filter dropped
-    expect(lookup?.params).toEqual([EVENT_ID, ATTENDEE.uid, ['Confirmed', 'Completed', 'Cancelled']]);
+    // Kills: the attendee id taken from anywhere but the session (another attendee's registration could be read)
+    expect(lookup?.params?.[0]).toBe(EVENT_ID);
+    expect(lookup?.params?.[1]).toBe(ATTENDEE.uid);
   });
 
-  it('VIEW-REG-DET-04-A: no registration for this event -> null, not an error', async () => {
+  it('VIEW-REG-DET-01-A: no registration for this event -> null, not an error', async () => {
     const fake = scripted({ mine: [] });
     await expect(serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID)).resolves.toEqual({ registration: null });
   });
 
-  it('VIEW-REG-DET-03-A: a non-attendee cannot read a registration -> 403, nothing queried', async () => {
+  it('VIEW-REG-DET-01-A: a non-attendee cannot read a registration -> 403, nothing queried', async () => {
     const fake = scripted({ mine: [mineRow('Registered')] });
     const coordinator: AuthenticatedUser = { uid: '66666666-6666-4666-8666-666666666666', roles: ['COORDINATOR'] };
     const error = await refusal(serviceFor(fake.database).findMine(coordinator, EVENT_ID));
@@ -458,8 +461,8 @@ describe('VIEW-REG-DET-01-A (AC1, AC2): the attendee sees their own registration
   });
 });
 
-describe('VIEW-REG-DET-02-A (AC2, AC3): the attendee sees the details they submitted, including the optional requirements', () => {
-  it('special requirements present -> shown; a legacy row with NULL details -> blank name and email, no requirements (ASSUMPTION A-NULL)', async () => {
+describe('VIEW-REG-DET-03-A (AC3): the attendee sees the details they submitted, including the optional requirements', () => {
+  it('VIEW-REG-DET-03-A: special requirements present -> shown; a legacy row with NULL details -> blank name and email, no requirements (ASSUMPTION A-NULL)', async () => {
     // ASSUMPTION A-NULL as in VIEW-REG-INFO-03-A-NULL: blank strings for NULL legacy details.
     const fake = scripted({ mine: [mineRow('Registered')] });
     const withRequirements = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
@@ -485,6 +488,18 @@ const registeredRow = (id: string, name: string, createdAt: Date): Row => ({
   contact_number: '+6590000000',
   created_at: createdAt,
   special_requirements: null,
+});
+
+describe('VIEW-REG-DET-04-A (AC4): the attendee can view the registration before or after the event', () => {
+  // Kills: the visible-status list narrowed to Confirmed (the registration disappears once the event has completed
+  // or been cancelled), or the list reordered so the statuses no longer match the lookup.
+  it('VIEW-REG-DET-04-A: the lookup keeps Completed and Cancelled events visible', async () => {
+    const fake = scripted({ mine: [mineRow('Registered')] });
+    const result = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
+    const lookup = fake.statements.find((s) => /FROM event_registrations r/.test(s.sql));
+    expect(lookup?.params?.[2]).toEqual(['Confirmed', 'Completed', 'Cancelled']);
+    expect(result.registration).toMatchObject({ status: 'registered' });
+  });
 });
 
 describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning organiser may open the report', () => {

@@ -62,7 +62,7 @@ beforeEach(() => {
 });
 
 describe("SPM-63 registrations modal on the event detail page", () => {
-  // VIEW-REG-DETAIL-01-A
+  // VIEW-REG-INFO-05-E
   // Oracle (SPEC: assigned coordinator and owning organiser only see button)
   // Kills: any coordinator or organiser shown; wrong column compared
   it.each([
@@ -70,7 +70,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     ["owning organiser", ORG_01, true],
     ["unassigned coordinator", COO_02, false],
     ["attendee", ATT_01, false],
-  ])("VIEW-REG-DETAIL-01-A: %s sees button: %s", async (_who, user, shouldSee) => {
+  ])("VIEW-REG-INFO-05-E: %s sees button: %s", async (_who, user, shouldSee) => {
     renderAs(user);
     await screen.findByRole("heading", { name: "People" });
 
@@ -82,10 +82,10 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     }
   });
 
-  // VIEW-REG-DETAIL-01-A-NON-OWNING
+  // VIEW-REG-INFO-05-F
   // Oracle (SPEC: non-owning organiser does not see button)
   // Kills: organiser access check dropped; column matched wrong way
-  it("VIEW-REG-DETAIL-01-A-NON-OWNING: a non-owning organiser does not see the button", async () => {
+  it("VIEW-REG-INFO-05-F: a non-owning organiser does not see the button", async () => {
     // Adjust the event to be owned by a different organiser
     const nonOwnedEvent = { ...event, organiserId: "ORG-OTHER" };
     apiMock.mockImplementation((path: string) => {
@@ -115,10 +115,10 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     expect(screen.queryByRole("button", { name: "View registrations" })).not.toBeInTheDocument();
   });
 
-  // VIEW-REG-DETAIL-02-A
+  // VIEW-REG-INFO-01-D
   // Oracle (SPEC: modal opens and closes from the button and x button)
   // Kills: button does nothing; wrong event's data shown
-  it("VIEW-REG-DETAIL-02-A: opens modal on button click and closes on x button", async () => {
+  it("VIEW-REG-INFO-01-D: opens modal on button click and closes on x button", async () => {
     const user = userEvent.setup();
     renderAs(COO_01);
 
