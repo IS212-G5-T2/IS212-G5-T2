@@ -401,7 +401,8 @@ describe("SPM-63 AC5: people who may not view the report are refused on screen",
     // Act
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
-    // Assert
+    // Assert: Retry itself fetches again. Checked before the 5-second poll could fetch on its own.
+    expect(calls).toBe(2);
     expect(await screen.findByText("3 Attendees Registered (3 / 50)")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

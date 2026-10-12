@@ -1,3 +1,16 @@
+/*
+ * SPM-39 test case map (source: "SPM-39 Test Cases" document, REQ-CLAR-*):
+ *   REQ-CLAR-01-A  AC1          submit a clarification, status unchanged    -> it("REQ-CLAR-01-A: ...")
+ *   REQ-CLAR-01-B  AC2          blank message shows an error                -> it("REQ-CLAR-01-B: ...")
+ *   REQ-CLAR-01-C  AC2          whitespace-only message shows an error      -> it("REQ-CLAR-01-C: ...")
+ *   REQ-CLAR-02-A  AC3, AC4     full chronological thread                   -> it("REQ-CLAR-02-A: ...")
+ *   REQ-CLAR-02-B  AC5          pending-reply indicator, Organiser and Coordinator views
+ *                              -> it("REQ-CLAR-02-B (Organiser view): ...") and it("REQ-CLAR-02-B (Coordinator view): ...")
+ *
+ * Design (confirmed): the indicator is "Pending" until a clarification is resolved. A reply does not clear it.
+ * There is no real-time update; the page shows the state it loads.
+ * REQ-CLAR-03 is not in the SPM-39 document. It is kept as an extra case.
+ */
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -73,6 +86,7 @@ beforeEach(() => {
 describe("EventDetailPage clarification thread", () => {
   // "Under Review" was retired as a distinct status (SPM-38 follow-up): a
   // clarification request no longer changes the event's status.
+  // SPM-39 REQ-CLAR-01-A (AC1)
   it("REQ-CLAR-01-A: Event Coordinator can submit a clarification request without changing the event's status", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -111,6 +125,7 @@ describe("EventDetailPage clarification thread", () => {
     });
   });
 
+  // SPM-39 REQ-CLAR-01-B (AC2)
   it("REQ-CLAR-01-B: Event Coordinator will see an error message if they try to submit a blank clarification message", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -128,14 +143,14 @@ describe("EventDetailPage clarification thread", () => {
     await screen.findByPlaceholderText("Type a question or clarification…");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(await screen.findByText("Clarification message cannot be blank.")).toBeInTheDocument();
+    expect(await screen.findByText("Clarification message is required")).toBeInTheDocument();
     expect(apiMock).not.toHaveBeenCalledWith(
       "/events/event-1/clarifications",
       expect.anything(),
     );
   });
 
-  // REQ-CLAR-01-C
+  // SPM-39 REQ-CLAR-01-C (AC2)
   it("REQ-CLAR-01-C: Event Coordinator will see an error message if they try to submit a whitespace-only clarification message", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -154,13 +169,14 @@ describe("EventDetailPage clarification thread", () => {
     await user.type(input, "   \n\t  ");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(await screen.findByText("Clarification message cannot be blank.")).toBeInTheDocument();
+    expect(await screen.findByText("Clarification message is required")).toBeInTheDocument();
     expect(apiMock).not.toHaveBeenCalledWith(
       "/events/event-1/clarifications",
       expect.anything(),
     );
   });
 
+  // Not in the SPM-39 document. Extra case: cross-coordinator refusal.
   it("REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator", async () => {
     const event = baseEvent();
     apiMock.mockImplementation((path: string) =>
@@ -180,7 +196,9 @@ describe("EventDetailPage clarification thread", () => {
     expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/comments");
   });
 
-  it("REQ-CLAR-02-B: Event Coordinator can see a clear indicator when a clarification request is awaiting Organiser's reply", async () => {
+  // SPM-39 REQ-CLAR-02-B (AC5), Organiser view: the Organiser sees the open clarification as Pending, and it
+  // stays Pending after their reply because only a resolve clears it.
+  it("REQ-CLAR-02-B (Organiser view): the pending indicator shows on an open clarification and stays after a reply", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
     const openClarification = comment();
@@ -239,6 +257,27 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.getByRole("button", { name: "Reply" })).toBeInTheDocument();
   });
 
+  // SPM-39 REQ-CLAR-02-B (AC5), Coordinator view: the Coordinator who raised an open clarification sees the indicator.
+  it("REQ-CLAR-02-B (Coordinator view): the Coordinator sees the Pending indicator on an open clarification they raised", async () => {
+    const event = baseEvent();
+    const openClarification = comment();
+    apiMock.mockImplementation((path: string) => {
+      if (path === "/events/event-1/comments") return Promise.resolve([openClarification]);
+      return Promise.resolve(event);
+    });
+
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Marcus Lee", email: "marcus@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText("Pending")).toBeInTheDocument();
+    expect(screen.getByText("Pending (1)")).toBeInTheDocument();
+    expect(screen.queryByText("Answered")).not.toBeInTheDocument();
+  });
+
   it("both organiser and coordinator can resolve a clarification, which hides the reply button and marks it Answered", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -284,7 +323,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
   });
 
-  // REQ-CLAR-02-A
+  // SPM-39 REQ-CLAR-02-A (AC3, AC4)
   it("REQ-CLAR-02-A: Event Coordinator can see the full chronological history of comments and clarifications", async () => {
     const event = baseEvent();
     const answeredClarification = comment({

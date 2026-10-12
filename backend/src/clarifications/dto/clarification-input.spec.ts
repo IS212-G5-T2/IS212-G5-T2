@@ -2,13 +2,22 @@ import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import { validateMessage } from './clarification-input.js';
 
+/*
+ * SPM-39 test case map (unit level, input validation only):
+ *   REQ-CLAR-01-B (AC2): "rejects a blank message"
+ *   REQ-CLAR-01-C (AC2): "rejects a whitespace-only message"
+ * The other cases in this file (missing field, non-string, length limit, trim, caller-supplied text) support AC2
+ * but are not named in the SPM-39 document.
+ */
 describe('validateMessage', () => {
+  // SPM-39 REQ-CLAR-01-B (AC2)
   it('rejects a blank message', () => {
     expect(() => validateMessage({ message: '' }, 'Message cannot be blank.')).toThrow(
       BadRequestException,
     );
   });
 
+  // SPM-39 REQ-CLAR-01-C (AC2)
   it('rejects a whitespace-only message', () => {
     expect(() =>
       validateMessage({ message: ' \n\t ' }, 'Message cannot be blank.'),
@@ -49,5 +58,13 @@ describe('validateMessage', () => {
         message: 'Reply message cannot be blank.',
       });
     }
+  });
+});
+
+describe('validateMessage: a body that is not an object', () => {
+  // SPM-39 REQ-CLAR-01-B (AC2): a missing or malformed body is treated as a blank message.
+  // Kills: the object check removed (null or an array is read as a message), or the fallback changed.
+  it.each([null, undefined, ['Please confirm.'], 'Please confirm.'])('rejects the body %j as a blank message', (body) => {
+    expect(() => validateMessage(body, 'Message cannot be blank.')).toThrow(BadRequestException);
   });
 });

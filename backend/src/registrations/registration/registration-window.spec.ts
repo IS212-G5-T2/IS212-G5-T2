@@ -11,23 +11,15 @@ const closesAt = new Date('2030-01-20T02:00:00.000Z');
 const at = (offsetMs: number, base = opensAt) => new Date(base.getTime() + offsetMs);
 const event = { registrationEnabled: true, status: 'Confirmed', opensAt, closesAt };
 
-// EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
-describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants', () => {
+// EVENT-REG-01-BND-1: the opening boundary and the open-state rules
+describe('EVENT-REG-01-BND-1: the opening boundary and the open-state rules', () => {
   // [A] one second before the window opens registration is not open.
-  it('[A] 1s before open: closed', () => {
+  it('[A] one second before the opening instant, registration is not open', () => {
     expect(isRegistrationOpen(event, at(-1000))).toBe(false);
   });
   // [B] the opening instant itself is open (inclusive).
-  it('[B] exactly at open: open', () => {
+  it('[B] exactly at the opening instant, registration is open', () => {
     expect(isRegistrationOpen(event, opensAt)).toBe(true);
-  });
-  // [C] one minute before closing is still open.
-  it('[C] 1 min before close: open', () => {
-    expect(isRegistrationOpen(event, at(-60_000, closesAt))).toBe(true);
-  });
-  // [D] the closing instant is already closed (exclusive).
-  it('[D] exactly at close: closed', () => {
-    expect(isRegistrationOpen(event, closesAt)).toBe(false);
   });
   // Only Confirmed events are registrable; Approved is internal workflow state.
   it('is never open for an Approved event', () => {
@@ -45,5 +37,17 @@ describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants'
   it('treats a missing bound as unbounded', () => {
     expect(isRegistrationOpen({ ...event, opensAt: null }, at(-1_000_000))).toBe(true);
     expect(isRegistrationOpen({ ...event, closesAt: null }, at(1e12))).toBe(true);
+  });
+});
+
+// EVENT-REG-02-BND-1: the closing boundary
+describe('EVENT-REG-02-BND-1: the closing boundary', () => {
+  // [C] one minute before the closing instant, registration is still accepted (open side of the close boundary).
+  it('[C] one minute before the closing instant, registration is still accepted', () => {
+    expect(isRegistrationOpen(event, at(-60_000, closesAt))).toBe(true);
+  });
+  // [D] the closing instant is already closed (exclusive).
+  it('[D] exactly at the closing instant, registration is closed', () => {
+    expect(isRegistrationOpen(event, closesAt)).toBe(false);
   });
 });

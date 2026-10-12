@@ -24,7 +24,7 @@ const CONTROLLER = 'src/registrations/registrations.controller.ts';
 const both = ['unit', 'e2e'];
 
 export const MUTANTS = [
-  { id: 'M1', name: "status filter `= 'Registered'` -> `<> 'Withdrawn'` (equivalent: the CHECK constraint allows only these two statuses, Q8)", file: SERVICE, equivalent: true,
+  { id: 'M1', name: "status filter `= 'Registered'` -> `<> 'Withdrawn'` (a Cancelled row would be reported; Cancelled is allowed since SPM-62 state-only, migration 011)", file: SERVICE,
     edits: [["WHERE event_id = $1 AND status = 'Registered'\n        ORDER BY created_at ASC", "WHERE event_id = $1 AND status <> 'Withdrawn'\n        ORDER BY created_at ASC"]], suites: ['e2e'] },
   { id: 'M2', name: 'assignment check removed (any coordinator)', file: ACCESS,
     edits: [["user.roles.includes('COORDINATOR') && event.coordinatorId === user.uid", "user.roles.includes('COORDINATOR')"]], suites: both },

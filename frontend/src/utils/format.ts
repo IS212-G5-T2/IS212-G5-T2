@@ -54,3 +54,6 @@ export function timeAgo(value: string): string {
   const diffDays = Math.round(diffHours / 24);
   return `${diffDays}d ago`;
 }
+
+/** Shown in place of a detail that a legacy registration does not have (SPM-61 A-NULL). */
+export const NOT_PROVIDED = "Not provided";

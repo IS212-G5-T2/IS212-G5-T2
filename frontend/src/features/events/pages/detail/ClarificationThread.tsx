@@ -57,7 +57,7 @@ export function ClarificationThread({
 
   const submitClarification = async () => {
     if (!draft.trim()) {
-      setDraftError("Clarification message cannot be blank.");
+      setDraftError("Clarification message is required");
       return;
     }
     setDraftError("");

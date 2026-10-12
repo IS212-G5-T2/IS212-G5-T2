@@ -193,8 +193,7 @@ describe("EventListPage", () => {
     expect(panel).toHaveTextContent('New event request "Welcome Evening" is awaiting your review.');
   });
 
-  // VIEW-REG-DET-01-A
-  // VIEW-REG-DET-02-A
+  // VIEW-REG-DET-02-A (status badge beside the event status)
   // SPM-61: attendees get Upcoming/Registered/Past/Cancelled filters, see
   // "Confirmed" for Approved events, and a Registered badge beside the status.
   it("gives attendees personal filters and a Registered badge", async () => {

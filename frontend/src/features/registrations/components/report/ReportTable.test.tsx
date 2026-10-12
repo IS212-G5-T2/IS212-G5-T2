@@ -36,13 +36,13 @@ describe("SPM-63 AC3: the table shows each attendee's details", () => {
   // VIEW-REG-INFO-03-A-NULL
   // Oracle (derived from SPM-61: contact number optional): a missing contact number is an empty cell, not "null".
   // Kills: "undefined" or "null" printed.
-  it("VIEW-REG-INFO-03-A-NULL: an empty contact number leaves an empty cell", () => {
+  it("VIEW-REG-INFO-03-A-NULL: a missing contact number shows Not provided (A-NULL display rule)", () => {
     // Arrange / Act
     render(<ReportTable registrations={[{ ...DEV_PATEL, contactNumber: "" }]} />);
 
     // Assert
     const cells = within(screen.getAllByRole("row")[1]).getAllByRole("cell").map((c) => c.textContent);
-    expect(cells[2]).toBe("");
+    expect(cells[2]).toBe("Not provided");
   });
 });
 
