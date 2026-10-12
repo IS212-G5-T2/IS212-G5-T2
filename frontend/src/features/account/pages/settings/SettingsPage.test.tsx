@@ -184,8 +184,8 @@ describe("AC3: view and change availability at any time", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  // A superseded status load that succeeds late must not update the page.
-  it("COOR-AVAIL-03-S ignores a superseded status load that resolves after a newer load", async () => {
+  // A superseded status load that succeeds late must not update the page, and the newer load's status is then shown.
+  it("COOR-AVAIL-03-S ignores a superseded status load that resolves after a newer load and then shows the newer load's status", async () => {
     // Arrange: StrictMode runs the load effect twice, so the first load is superseded by the second.
     const stale = deferred<{ available: boolean }>();
     const current = deferred<{ available: boolean }>();
@@ -207,10 +207,21 @@ describe("AC3: view and change availability at any time", () => {
     // Assert: the page is still loading and shows no status from the stale result.
     expect(screen.getByText("Loading your availability…")).toBeInTheDocument();
     expect(screen.queryByText(/Current status:/)).not.toBeInTheDocument();
+
+    // Act: settle the newer load with a status that differs from the stale one.
+    await act(async () => {
+      current.resolve({ available: true });
+      await current.promise;
+    });
+
+    // Assert: loading ends and the newer load's status is shown, not the stale "Unavailable".
+    expect(screen.queryByText("Loading your availability…")).not.toBeInTheDocument();
+    expect(await screen.findByText("Current status: Available")).toBeInTheDocument();
+    expect(screen.queryByText("Current status: Unavailable")).not.toBeInTheDocument();
   });
 
-  // A superseded status load that fails late must not show a load error.
-  it("COOR-AVAIL-03-T does not show a load error from a superseded status load", async () => {
+  // A superseded status load that fails late must not show a load error, and the newer load's status is then shown.
+  it("COOR-AVAIL-03-T does not show a load error from a superseded status load and then shows the newer load's status", async () => {
     // Arrange: StrictMode runs the load effect twice, so the first load is superseded by the second.
     const stale = deferred<{ available: boolean }>();
     const current = deferred<{ available: boolean }>();
@@ -231,6 +242,17 @@ describe("AC3: view and change availability at any time", () => {
 
     // Assert: the page is still loading and no error alert is shown.
     expect(screen.getByText("Loading your availability…")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Act: settle the newer load successfully with a status that differs from anything the stale load carried.
+    await act(async () => {
+      current.resolve({ available: false });
+      await current.promise;
+    });
+
+    // Assert: loading ends, the newer load's status is shown, and still no error alert.
+    expect(screen.queryByText("Loading your availability…")).not.toBeInTheDocument();
+    expect(await screen.findByText("Current status: Unavailable")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });

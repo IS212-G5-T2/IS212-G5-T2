@@ -1,7 +1,7 @@
 // SPM-47 AC10: the Event Coordinator Lead is told when a coordinator with active
 // events becomes unavailable, with a link to the reassignment page.
-// Test cases: LEAD-REASN-10-E, 10-I, 10-J, 10-K.
-import { render, screen, waitFor } from "@testing-library/react";
+// Test cases: LEAD-REASN-10-E, 10-I, 10-J, 10-K, 10-L.
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -106,5 +106,28 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load coordinator availability notices.");
     expect(screen.getByRole("region", { name: "Coordinator availability" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Mark as read" })).not.toBeInTheDocument();
+  });
+
+  // After a failed load, the error clears and the notice appears once the window regains focus and the reload succeeds.
+  it("LEAD-REASN-10-L clears the load error and shows the notice after a focus reload succeeds", async () => {
+    // Arrange: the first load fails; every later load returns one unread notice.
+    api.mockRejectedValueOnce(new Error("offline")).mockResolvedValue([notice]);
+
+    // Act: render the panel, which fails to load.
+    renderPanel();
+
+    // Assert: the load error is shown and no notice is listed yet.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load coordinator availability notices.");
+    expect(screen.queryByText(notice.message)).not.toBeInTheDocument();
+
+    // Act: the window regains focus, which triggers a reload.
+    fireEvent.focus(window);
+
+    // Assert: the reload succeeds, the alert disappears, and the notice shows its message, review link and Mark as read button.
+    expect(await screen.findByText(notice.message)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review assigned events" })).toHaveAttribute("href", "/lead/reassign");
+    expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
+    expect(api).toHaveBeenCalledTimes(2);
   });
 });
