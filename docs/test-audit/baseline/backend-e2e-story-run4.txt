@@ -1,9 +1,0 @@
-
- RUN  v5.0.0 /Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend
-
-
- Test Files  4 passed (4)
-      Tests  124 passed | 1 todo (125)
-   Start at  16:07:59
-   Duration  27.70s (tests 92%, import 6%, transform 2%)
-

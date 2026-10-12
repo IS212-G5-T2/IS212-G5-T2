@@ -406,6 +406,25 @@ describe('SPM-63 AC4: a long attendee list continues on further PDF pages', () =
 // A8: a missing contact number is an empty cell                           -> 04-A (empty contact)
 // A9: filename token is the event id (F8 / Q10)                           -> 04-A filename tests
 
+describe('SPM-61 A-NULL: a legacy registration without details shows Not provided in the PDF, and an empty cell in the CSV', () => {
+  // VIEW-REG-INFO-03-A-NULL
+  // Kills: the placeholder missing from the PDF (the cells print nothing), or the CSV given the placeholder (a
+  // machine-readable file must keep the empty cell).
+  it('VIEW-REG-INFO-03-A-NULL: the PDF prints Not provided for the missing name, email and contact', async () => {
+    const legacy = makeRow({ registrationId: 'REG-LEGACY-1', fullName: '', email: '', contactNumber: '' });
+    const report = makeReport({ registrations: [legacy], totalConfirmed: 1, availableSpots: 49 });
+    const parser = new PDFParse({ data: new Uint8Array(await buildPdf(report)) });
+    const text = (await parser.getText()).text.replace(/\s+/g, ' ');
+    expect(text.split('Not provided').length - 1).toBe(3);
+  });
+
+  it('VIEW-REG-INFO-03-A-NULL: the CSV keeps the empty cells', () => {
+    const legacy = makeRow({ registrationId: 'REG-LEGACY-1', fullName: '', email: '', contactNumber: '' });
+    const csv = buildCsv(makeReport({ registrations: [legacy], totalConfirmed: 1, availableSpots: 49 })).toString('utf8');
+    expect(csv).not.toContain('Not provided');
+  });
+});
+
 describe('SPM-63 AC4: an empty report still exports, and the ExportService methods match the pure functions', () => {
   // VIEW-REG-INFO-04-E
   // Oracle: with no registrations the PDF states "No registrations to display" (MESSAGES.reportEmptyPdf) and draws no

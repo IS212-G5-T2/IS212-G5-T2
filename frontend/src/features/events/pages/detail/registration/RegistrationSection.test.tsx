@@ -276,8 +276,8 @@ describe("EVENT-REG-03-SEC-1: escape on output", () => {
   });
 });
 
-// EVENT-REG-05-A, EVENT-REG-05-C
-describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
+// EVENT-REG-05-A (AC5), SUP-EVENT-REG-REREG-B (supporting, no Jira AC)
+describe("EVENT-REG-05-A (AC5) and supporting re-registration: already registered", () => {
   // EVENT-REG-05-A
   // VIEW-REG-DET-02-A
   // 05-A: "I cannot register twice for the same event": no button when registered.
@@ -302,11 +302,11 @@ describe("EVENT-REG-05-A / 05-C: already registered (AC5)", () => {
     expect(alerts.some((a) => within(a).queryByText("You are already registered for this event.") !== null || a.textContent?.includes("You are already registered"))).toBe(true);
     expect(apiMock).toHaveBeenCalledWith("/events/event-1/registrations/me");
   });
-  // EVENT-REG-05-C
-  // 05-C: a withdrawn registration does not block registering again. SPM-120 card redesign:
+  // SUP-EVENT-REG-REREG-B (supporting, no Jira AC)
+  // A withdrawn registration does not block registering again. SPM-120 card redesign:
   // the action is now the withdrawn card's "Register again" footer button, not the plain
   // top-right "Register" button (which is hidden once withdrawn).
-  it("05-C withdrawn registration shows Register again, not the plain Register button", () => {
+  it("SUP-EVENT-REG-REREG-B: withdrawn registration shows Register again, not the plain Register button", () => {
     renderSection(baseEvent, { ...created, status: "withdrawn", withdrawnAt: iso(0) });
     expect(registerButton()).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Register again" })).toBeEnabled();
@@ -869,5 +869,26 @@ describe("SPM-120: a failed reload after a conflict does not leave the dialog op
     await u.click(screen.getByRole("button", { name: "Withdraw" }));
     await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
     await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm Withdrawal" })).not.toBeInTheDocument());
+  });
+});
+
+describe("VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is shown with its status and no action", () => {
+  // Kills: a cancelled registration shown as "not registered" (Register offered), or any action offered for it.
+  it("shows the cancelled heading, the Cancelled badge and the details, with no Register or Withdraw button", () => {
+    renderSection(baseEvent, { ...created, status: "cancelled", fullName: "Alice Tan", email: "alice@example.com" });
+    expect(screen.getByRole("heading", { name: "Registration cancelled" })).toBeInTheDocument();
+    expect(screen.getByText("Cancelled", { selector: "span" })).toBeInTheDocument();
+    expect(within(screen.getByText("Registration ID").parentElement!).getByText("REG-9001")).toBeInTheDocument();
+    expect(registerButton()).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Withdraw" })).not.toBeInTheDocument();
+  });
+});
+
+describe("VIEW-REG-DET-03-D (AC3, A-NULL): a legacy record without a name or email shows Not provided", () => {
+  // Kills: a blank value for a required detail (the attendee sees an empty row), or the placeholder wording changed.
+  it("shows Not provided for the full name and email when the record has none", () => {
+    renderSection(baseEvent, { ...created, attendeeName: "", fullName: "", email: "" });
+    expect(within(screen.getByText("Full name").parentElement!).getByText("Not provided")).toBeInTheDocument();
+    expect(within(screen.getByText("Email").parentElement!).getByText("Not provided")).toBeInTheDocument();
   });
 });

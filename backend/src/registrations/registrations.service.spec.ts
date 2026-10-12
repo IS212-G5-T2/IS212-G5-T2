@@ -2,7 +2,7 @@
  * Stories: SPM-61 Register for an Event (ACs 1-5), SPM-62 View Registration Details (ACs 1-4,
  * the attendee's own registration), SPM-63 View Registration Information (AC5, access to a
  * report for events the caller does not manage).
- * Test cases: EVENT-REG-01-B, EVENT-REG-02-A, EVENT-REG-03-A, EVENT-REG-05-A, EVENT-REG-05-C,
+ * Test cases: EVENT-REG-01-B, EVENT-REG-02-A, EVENT-REG-03-A, EVENT-REG-05-A, SUP-EVENT-REG-CAP-A and -B (supporting, no Jira AC),
  * EVENT-REG-05-SEC-1, VIEW-REG-DET-01-A (access), VIEW-REG-DET-02-A (status), VIEW-REG-DET-03-A (details),
  * VIEW-REG-DET-04-A (after the event), VIEW-REG-INFO-05-A.
  *
@@ -294,7 +294,7 @@ describe('EVENT-REG-05-A (AC5): a second active registration for the same event 
   });
 });
 
-describe('EVENT-REG-05-C (AC5 capacity): the last place is granted and the next attempt is refused', () => {
+describe('SUP-EVENT-REG-CAP-A (supporting coverage, no Jira AC): the last place is granted and the next attempt is refused', () => {
   it('capacity 3 with 2 taken (N-1) -> the registration succeeds', async () => {
     const fake = scripted({ event: [openEvent({ registration_limit: 3 })], existing: [], taken: 2, inserted: [insertedRow()] });
     await expect(serviceFor(fake.database).register(ATTENDEE, EVENT_ID, VALID_BODY)).resolves.toMatchObject({
@@ -316,7 +316,7 @@ describe('EVENT-REG-05-C (AC5 capacity): the last place is granted and the next 
     expect(fake.statements.some(isInsert)).toBe(false);
   });
 
-  it('EVENT-REG-05-C: the Registered-row count is taken for this event only, under the row lock', async () => {
+  it('SUP-EVENT-REG-CAP-B: the Registered-row count is taken for this event only, under the row lock', async () => {
     const fake = scripted({ event: [openEvent()], existing: [], taken: 0, inserted: [insertedRow()] });
     await serviceFor(fake.database).register(ATTENDEE, EVENT_ID, VALID_BODY);
     const lock = fake.statements.findIndex((s) => /FOR UPDATE/.test(s.sql));
@@ -458,6 +458,15 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
     const error = await refusal(serviceFor(fake.database).findMine(coordinator, EVENT_ID));
     expect(error).toBeInstanceOf(ForbiddenException);
     expect(fake.statements).toHaveLength(0);
+  });
+});
+
+describe('VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is read back with its status', () => {
+  // Kills: the Cancelled value dropped by the status mapping, or a cancelled row hidden from the attendee.
+  it('VIEW-REG-DET-02-B: a Cancelled row is returned with status "cancelled"', async () => {
+    const fake = scripted({ mine: [mineRow('Cancelled')] });
+    const result = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
+    expect(result.registration).toMatchObject({ status: 'cancelled', eventName: EVENT_NAME });
   });
 });
 

@@ -528,8 +528,8 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  // WITHDRAW-EVENT-REG-CAP-01
-  describe('WITHDRAW-EVENT-REG-CAP-01 (story goal): the spot is freed', () => {
+  // SUP-WITHDRAW-EVENT-REG-CAP-01 (supporting coverage, no Jira AC)
+  describe('SUP-WITHDRAW-EVENT-REG-CAP-01 (supporting coverage, no Jira AC): the spot is freed', () => {
     // Oracle (CAP-01): EVT-105 capacity 2; 2 confirmed -> 0 spots; ATT-02 withdraws -> 1 spot, stable.
     // Kills: spot not released; stale value; counter not decremented; wrong registration withdrawn.
     it('available spots go 0 -> 1 after ATT-02 withdraws, REG-9011 untouched', async () => {

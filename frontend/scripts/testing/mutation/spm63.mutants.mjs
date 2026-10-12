@@ -62,7 +62,7 @@ export const MUTANTS = [
   { id: 'X15', name: 'coordinator link compared with the organiser column', file: UTIL, suites,
     edits: [['event.coordinatorId !== undefined && event.coordinatorId === user.id', 'event.organiserId !== undefined && event.organiserId === user.id']] },
   { id: 'X16', name: 'attendee names rendered as HTML', file: TABLE, suites,
-    edits: [['<td className="px-4 py-2 text-gray-900 dark:text-gray-100">{row.fullName}</td>', '<td className="px-4 py-2 text-gray-900 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: row.fullName }} />']] },
+    edits: [['<td className="px-4 py-2 text-gray-900 dark:text-gray-100">{row.fullName || NOT_PROVIDED}</td>', '<td className="px-4 py-2 text-gray-900 dark:text-gray-100" dangerouslySetInnerHTML={{ __html: row.fullName }} />']] },
   { id: 'X17', name: 'SGT suffix dropped from displayed dates', file: UTIL, suites,
     edits: [['return `${date} ${time} SGT`;', 'return `${date} ${time}`;']] },
   { id: 'X18', name: 'spots line always plural', file: UTIL, suites,

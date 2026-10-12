@@ -1,3 +1,4 @@
+import { NOT_PROVIDED } from "@/utils/format";
 import { REPORT_MESSAGES, formatReportDateTimeSgt, type ReportRow } from "@/features/registrations/lib/registrationReport";
 
 const COLUMNS = ["Name", "Email", "Contact Number", "Registration Date", "Status"] as const;
@@ -29,9 +30,9 @@ export function ReportTable({ registrations }: { registrations: ReportRow[] }) {
         <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
           {registrations.map((row) => (
             <tr key={row.registrationId}>
-              <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{row.fullName}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.email}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.contactNumber}</td>
+              <td className="px-4 py-2 text-gray-900 dark:text-gray-100">{row.fullName || NOT_PROVIDED}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.email || NOT_PROVIDED}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.contactNumber || NOT_PROVIDED}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatReportDateTimeSgt(row.registeredAt)}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.status}</td>
             </tr>

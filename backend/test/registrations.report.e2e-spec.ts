@@ -171,7 +171,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   async function seedRegistration(
     eventId: string,
     attendeeId: string,
-    options: { fullName: string; email: string; contact?: string | null; at: string; status?: 'Registered' | 'Withdrawn'; id?: string },
+    options: { fullName: string; email: string; contact?: string | null; at: string; status?: 'Registered' | 'Withdrawn' | 'Cancelled'; id?: string },
   ) {
     const result = await pool.query<{ id: string }>(
       `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at)
@@ -308,6 +308,22 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   });
 
   describe('AC2: the report states how many attendees are registered', () => {
+    // VIEW-REG-DET-02-B (state only)
+    // Oracle: a Cancelled registration is neither listed nor counted; only Registered rows are reported (the same
+    // rule as the Withdrawn row in the 01-A fixture).
+    // Kills: the report counting every non-Withdrawn row (a Cancelled attendee shown and counted).
+    it('VIEW-REG-DET-02-B: a Cancelled registration is absent from the report and not counted', async () => {
+      const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
+      await addRegistration(eventId, { id: 'eeeeeeee-0000-4000-8000-00000000c001', fullName: 'Cara Teo', email: 'cara.teo@example.com', contact: '93334444', at: CHLOE_AT, status: 'Cancelled' });
+
+      const res = await call(reportPath(eventId), coo01.cookie);
+
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.text);
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice]);
+      expect(body.totalConfirmed).toBe(2);
+    });
+
     // VIEW-REG-INFO-02-A
     // Oracle (SPEC 02-A, R5): 3 Confirmed + 1 Withdrawn, capacity 50 -> totalConfirmed 3, availableSpots 47, 3 rows.
     // Kills: count taken from all rows (4); capacity arithmetic wrong; Withdrawn counted.

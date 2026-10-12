@@ -54,5 +54,7 @@ export const MESSAGES = {
   // SPM-63. MSG-08 is fixed by the test cases; the PDF empty state and the 400 are picked (D17 / A11).
   reportForbidden: "You do not have access to this event's registrations.",
   reportEmptyPdf: 'No registrations to display',
+  // SPM-61 A-NULL: a legacy registration without a name, email or contact number (CSV keeps the cell empty).
+  reportNotProvided: 'Not provided',
   exportFormatInvalid: 'Export format must be csv or pdf.',
 } as const;

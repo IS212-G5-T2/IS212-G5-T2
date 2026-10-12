@@ -1,6 +1,7 @@
 import clsx from "clsx";
 import type { EventRecord, Registration } from "@/types";
 import { Button } from "@/components/ui/Button";
+import { NOT_PROVIDED } from "@/utils/format";
 import { withdrawnCardFooterState } from "@/features/events/lib/EventView";
 import { REREGISTER_FOOTER, daysUntilLabel, formatSgtDateTime } from "@/features/events/lib/registration";
 
@@ -50,8 +51,8 @@ export function WithdrawnRegistrationStatus({ event, registration, now, onRegist
   ];
   const detailFields = [
     { label: "Registration ID", value: registration.id },
-    { label: "Full name", value: registration.fullName || registration.attendeeName },
-    ...(registration.email ? [{ label: "Email", value: registration.email }] : []),
+    { label: "Full name", value: registration.fullName || registration.attendeeName || NOT_PROVIDED },
+    { label: "Email", value: registration.email || NOT_PROVIDED },
     ...(registration.contactNumber ? [{ label: "Contact number", value: registration.contactNumber }] : []),
   ];
 

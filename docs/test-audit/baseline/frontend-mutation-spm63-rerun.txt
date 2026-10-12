@@ -1,8 +1,0 @@
-baseline spm63: green
-X8       killed     spm63  dates formatted in UTC instead of Asia/Singapore
-X17      killed     spm63  SGT suffix dropped from displayed dates
-X19      killed     spm63  a failed export is swallowed
-X21      killed     spm63  first-load failure not retryable
-
-4 mutants: 4 killed, 0 equivalent, 0 survived, 0 misapplied, 0 skipped
-original files untouched: yes

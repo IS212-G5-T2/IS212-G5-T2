@@ -106,10 +106,10 @@ describe("SPM-63 registrations modal: expandable cards", () => {
 });
 
 describe("SPM-63 registrations modal: search and filter", () => {
-  // VIEW-REG-INFO-03-SEARCH
+  // SUP-VIEW-REG-INFO-SEARCH (supporting coverage, no Jira AC)
   // Oracle (SPEC: name, email, phone with case-insensitivity; 150 ms debounce)
   // Kills: search ignores phone; debounce removed or wrong interval
-  it("VIEW-REG-INFO-03-SEARCH: filters by name, email and phone, with 150ms debounce", async () => {
+  it("SUP-VIEW-REG-INFO-SEARCH: filters by name, email and phone, with 150ms debounce", async () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, { ...ALICE_TAN, contactNumber: "+65 91234567" }, CHLOE_NG] }));
     renderModal();
@@ -130,10 +130,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-TODAY
+  // SUP-VIEW-REG-INFO-TODAY (supporting coverage, no Jira AC)
   // Oracle (SPEC: Singapore calendar day, 150ms debounce)
   // Kills: UTC day used; debounce ignored on filter change
-  it("VIEW-REG-INFO-03-TODAY: filters to attendees registered today and combines with search", async () => {
+  it("SUP-VIEW-REG-INFO-TODAY: filters to attendees registered today and combines with search", async () => {
     const user = userEvent.setup();
     renderModal();
     await screen.findByText(/Dev Patel/);
@@ -147,10 +147,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(await screen.findByText("No registrations match your criteria")).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-SPECIAL
+  // SUP-VIEW-REG-INFO-SPECIAL (supporting coverage, no Jira AC)
   // Oracle (SPEC: non-empty specialRequirements field only)
   // Kills: filter matches everyone; empty string treated as present
-  it("VIEW-REG-INFO-03-SPECIAL: filters to attendees with indicated special requirements", async () => {
+  it("SUP-VIEW-REG-INFO-SPECIAL: filters to attendees with indicated special requirements", async () => {
     const user = userEvent.setup();
     const withRequirements = { ...ALICE_TAN, specialRequirements: "Vegetarian menu" };
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, withRequirements, CHLOE_NG] }));
@@ -163,10 +163,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(screen.queryByText(/Chloe Ng/)).not.toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-TODAY-BND
+  // SUP-VIEW-REG-INFO-TODAY-BND (supporting coverage, no Jira AC)
   // Oracle (SPEC 2.5): Singapore calendar day boundary at UTC+8, not UTC
   // Kills: UTC day used; off-by-one at midnight
-  it("VIEW-REG-INFO-03-TODAY-BND: treats the day boundary as Singapore time", () => {
+  it("SUP-VIEW-REG-INFO-TODAY-BND: treats the day boundary as Singapore time", () => {
     const lateYesterday = { ...ALICE_TAN, registeredAt: "2026-09-28T15:30:00.000Z" };
     const justToday = { ...ALICE_TAN, registeredAt: "2026-09-28T16:10:00.000Z" };
     const now = new Date("2026-09-28T16:20:00.000Z");
@@ -279,14 +279,14 @@ describe("SPM-63 registrations modal: missing bounds and contact details", () =>
     expect(await screen.findByText(/Opens: — · Closes: 8 Oct 2026 23:59 SGT/)).toBeInTheDocument();
   });
 
-  // Kills: an empty contact number shown as blank rather than the dash placeholder.
-  it("shows a dash for an attendee with no contact number", async () => {
+  // Kills: an empty contact number shown as blank rather than the "Not provided" placeholder (A-NULL display rule).
+  it("shows Not provided for an attendee with no contact number", async () => {
     const user = userEvent.setup({ delay: null });
     apiMock.mockResolvedValue(buildReport({ registrations: [{ ...CHLOE_NG, contactNumber: "" }] }));
     renderModal();
     await user.click(await screen.findByRole("button", { name: /Chloe Ng/ }));
     const dt = await screen.findByText("Contact number");
-    expect(dt.nextElementSibling).toHaveTextContent("—");
+    expect(dt.nextElementSibling).toHaveTextContent("Not provided");
   });
 });
 
