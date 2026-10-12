@@ -3,10 +3,11 @@
 // (reassign to a different coordinator), AC4 (unavailable refused), AC7
 // (confirmation; refusal refreshes), AC11 (unavailable coordinator flagged).
 // Test cases: LEAD-REASN-01-C, 01-D, 01-E, 02-A, 03-D, 03-H, 03-BND-1, 04-C,
-// 07-A, 07-D, 11-B.
+// 07-A, 07-D, 07-E, 07-F, 07-G, 11-B.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "@/test/deferred";
 import { ApiError } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
 import { ReassignmentPage } from "./ReassignmentPage";
@@ -40,15 +41,6 @@ const away = { id: "c3", name: "Coordinator 3", available: false, activeAssignme
 // The card that holds a given event name.
 function card(name: string) {
   return within(screen.getByRole("article", { name }));
-}
-
-// A promise that stays pending until the test resolves it.
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((r) => {
-    resolve = r;
-  });
-  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -240,5 +232,67 @@ describe("AC7: confirmation and refusals", () => {
     expect(getLeadCoordinators).toHaveBeenCalledTimes(2);
     expect(await card("Welcome Evening").findByText("Coordinator: Coordinator 4")).toBeInTheDocument();
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  // A failure that is not a server response still gets a readable message.
+  it("LEAD-REASN-07-E shows a generic message when reassigning fails for a reason other than a server response", async () => {
+    // Arrange: the reassignment fails with a plain error, not an ApiError.
+    const user = userEvent.setup();
+    reassignEvent.mockRejectedValue(new Error("socket hang up"));
+    render(<ReassignmentPage />);
+
+    // Act: choose Coordinator 2 and reassign.
+    await user.selectOptions(await screen.findByLabelText("Reassign to"), "c2");
+    await user.click(card("Welcome Evening").getByRole("button", { name: "Reassign" }));
+
+    // Assert: the generic message is shown instead of the raw error, with no confirmation, and the event stays on its coordinator.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not reassign this event. Please try again.");
+    expect(screen.queryByText(/socket hang up/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(card("Welcome Evening").getByText("Coordinator: Coordinator 1")).toBeInTheDocument();
+  });
+
+  // If reloading the list fails after a successful reassignment, the confirmation still stands.
+  it("LEAD-REASN-07-F keeps the confirmation and adds no error when reloading after a successful reassignment fails", async () => {
+    // Arrange: the reassignment succeeds; the reload that follows fails.
+    const user = userEvent.setup();
+    reassignEvent.mockResolvedValue({ message: 'Event "Welcome Evening" reassigned to Coordinator 2.' });
+    getAssignedEvents
+      .mockResolvedValueOnce([welcome])
+      .mockRejectedValueOnce(new ApiError("Unable to reach the server. Check your connection and try again."));
+    render(<ReassignmentPage />);
+
+    // Act: choose Coordinator 2 and reassign.
+    await user.selectOptions(await screen.findByLabelText("Reassign to"), "c2");
+    await user.click(card("Welcome Evening").getByRole("button", { name: "Reassign" }));
+
+    // Assert: the confirmation is shown, no error appears, and the reload was attempted.
+    expect(await screen.findByRole("status")).toHaveTextContent('Event "Welcome Evening" reassigned to Coordinator 2.');
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await waitFor(() => expect(getAssignedEvents).toHaveBeenCalledTimes(2));
+  });
+
+  // If reloading the list fails after a refusal, the refusal reason stays and the event is still listed.
+  it("LEAD-REASN-07-G keeps the refusal reason and the event when reloading after a refusal fails", async () => {
+    // Arrange: the server refuses as stale; the reload that follows fails.
+    const user = userEvent.setup();
+    reassignEvent.mockRejectedValue(
+      new ApiError("This event was changed since you loaded the page. Refresh and try again.", undefined, undefined, 409),
+    );
+    getAssignedEvents
+      .mockResolvedValueOnce([welcome])
+      .mockRejectedValueOnce(new ApiError("Unable to reach the server. Check your connection and try again."));
+    render(<ReassignmentPage />);
+
+    // Act: try to reassign to Coordinator 2.
+    await user.selectOptions(await screen.findByLabelText("Reassign to"), "c2");
+    await user.click(card("Welcome Evening").getByRole("button", { name: "Reassign" }));
+
+    // Assert: the refusal reason is the only alert, there is no confirmation, the event remains, and the reload was attempted.
+    expect(await screen.findByRole("alert")).toHaveTextContent("This event was changed since you loaded the page. Refresh and try again.");
+    await waitFor(() => expect(getAssignedEvents).toHaveBeenCalledTimes(2));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(card("Welcome Evening").getByText("Coordinator: Coordinator 1")).toBeInTheDocument();
   });
 });

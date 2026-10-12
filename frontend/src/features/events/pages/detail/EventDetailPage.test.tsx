@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import { api } from "@/utils/api";
 import type { EventRecord } from "@/types";
 
@@ -195,6 +197,216 @@ describe("EventDetailPage", () => {
 
     const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
     expect((blob as Blob).type).toBe("application/octet-stream");
+  });
+
+  // SPM-38 Test Case EVE-REV-03-E: when the data URL has no MIME type, the
+  // preview uses the attachment's recorded type, not the generic default. A
+  // distinctive type makes it obvious if the recorded type is ignored.
+  it("EVE-REV-03-E opens the attachment with its recorded type when the data URL has no MIME type", async () => {
+    // Arrange: an attachment with a distinctive recorded type and a data URL with no MIME type.
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-5",
+          name: "notes.x-notes",
+          type: "application/x-notes",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Act: open the attachment.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    // Assert: the Blob handed to the browser carries the recorded type.
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/x-notes");
+  });
+
+  // SPM-38 Test Case EVE-REV-03-F: when the data URL has no MIME type and the
+  // attachment records no type either, the preview uses the generic
+  // application/octet-stream type. The upload helper always records a type, so
+  // this covers an event record returned by the API without one.
+  it("EVE-REV-03-F uses the generic application/octet-stream type when neither the data URL nor the attachment has a type", async () => {
+    // Arrange: an attachment with an empty recorded type and a data URL with no MIME type.
+    const event = {
+      ...assignedEvent(),
+      attachments: [
+        {
+          id: "attachment-3",
+          name: "unknown.dat",
+          type: "",
+          size: 4,
+          dataUrl: "data:base64,cHJvcG9zYWw=",
+        },
+      ],
+    };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Act: open the attachment.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+    // Assert: the Blob handed to the browser has the generic type.
+    const [blob] = vi.mocked(window.URL.createObjectURL).mock.calls[0];
+    expect((blob as Blob).type).toBe("application/octet-stream");
+  });
+
+  // SPM-38 Test Case EVE-REV-03-G: the temporary link made for the preview is
+  // released 60 seconds after opening, not sooner and not never.
+  it("EVE-REV-03-G releases the preview's temporary link 60 seconds after the attachment opens", async () => {
+    // Arrange: render the event and open its attachment on the real clock.
+    const event = assignedEvent();
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+
+    // Take control of the timer before the click so the 60-second release can be advanced by hand.
+    vi.useFakeTimers();
+    try {
+      // Act: open the attachment.
+      fireEvent.click(screen.getByRole("button", { name: "View" }));
+
+      // Assert: the link is still in use just before 60 seconds have passed.
+      vi.advanceTimersByTime(59_999);
+      expect(window.URL.revokeObjectURL).not.toHaveBeenCalled();
+
+      // Assert: at 60 seconds the same link that was opened is released.
+      vi.advanceTimersByTime(1);
+      expect(window.URL.revokeObjectURL).toHaveBeenCalledTimes(1);
+      expect(window.URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
+    } finally {
+      // Restore real timers so the fake clock cannot leak into other tests.
+      vi.useRealTimers();
+    }
+  });
+
+  // SPM-38 Test Case EVE-REV-01-C: StrictMode runs the load effect twice, so
+  // the first event load is superseded. If that stale load succeeds late, its
+  // event data must not replace what the user is waiting for.
+  it("EVE-REV-01-C ignores a superseded event load that succeeds after a newer load", async () => {
+    // Arrange: two pending event loads; the first one is superseded by the second.
+    const event = assignedEvent();
+    const stale = deferred<EventRecord>();
+    const current = deferred<EventRecord>();
+    const eventLoads: Promise<EventRecord>[] = [stale.promise, current.promise];
+    apiMock.mockImplementation((path: string) => {
+      if (path !== `/events/${event.id}`) return Promise.resolve([]);
+      return eventLoads.shift() ?? Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
+
+    // Act: settle only the superseded load with a different event name.
+    await act(async () => {
+      stale.resolve({ ...event, name: "Superseded Event" });
+      await stale.promise;
+    });
+
+    // Assert: the page still shows loading, and the stale data is neither shown nor stored.
+    expect(screen.getByText("Loading event…")).toBeTruthy();
+    expect(screen.queryByText("Superseded Event")).toBeNull();
+    expect(useAppStore.getState().events).toEqual([]);
+
+    // Act: settle the current load.
+    await act(async () => {
+      current.resolve(event);
+      await current.promise;
+    });
+
+    // Assert: the current event is shown.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByText("Superseded Event")).toBeNull();
+  });
+
+  // SPM-38 Test Case EVE-REV-01-D: if a superseded event load fails late, its
+  // error must not be shown while the current load is still in progress.
+  it("EVE-REV-01-D does not show a load error from a superseded event load that fails late", async () => {
+    // Arrange: two pending event loads; the first one is superseded by the second.
+    const event = assignedEvent();
+    const stale = deferred<EventRecord>();
+    const current = deferred<EventRecord>();
+    const eventLoads: Promise<EventRecord>[] = [stale.promise, current.promise];
+    apiMock.mockImplementation((path: string) => {
+      if (path !== `/events/${event.id}`) return Promise.resolve([]);
+      return eventLoads.shift() ?? Promise.resolve(event);
+    });
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+          <Routes>
+            <Route path="/events/:id" element={<EventDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`)).toHaveLength(2);
+
+    // Act: settle only the superseded load with a failure.
+    await act(async () => {
+      stale.reject(new Error("Network offline."));
+      await stale.promise.catch(() => undefined);
+    });
+
+    // Assert: the page still shows loading and no alert is shown.
+    expect(screen.getByText("Loading event…")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Act: settle the current load.
+    await act(async () => {
+      current.resolve(event);
+      await current.promise;
+    });
+
+    // Assert: the current event is shown with no error.
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   // SPM-36 EVE-CRE-07-C: straight after submitting, the page must not offer "← Back": history -1 is

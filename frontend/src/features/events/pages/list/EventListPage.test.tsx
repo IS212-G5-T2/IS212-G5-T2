@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { StrictMode } from "react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -6,6 +7,7 @@ import { EventCreatePage } from "@/features/events/pages/create/EventCreatePage"
 import { EventListPage } from "@/features/events/pages/list/EventListPage";
 import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
+import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
@@ -52,6 +54,8 @@ afterEach(cleanup);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  // clearAllMocks keeps queued *Once values; reset them so one test's leftovers can't reach the next.
+  apiMock.mockReset();
   apiMock.mockResolvedValue([]);
   useAppStore.setState({
     authLoading: false,
@@ -242,5 +246,119 @@ describe("EventListPage", () => {
     await user.selectOptions(screen.getByLabelText("Show"), "cancelled");
     expect(screen.getByText("My Cancelled Event")).toBeInTheDocument();
     expect(screen.queryByText("My Past Event")).not.toBeInTheDocument();
+  });
+
+  // SPM-36 Test Case EVE-CRE-07-F: when the event list cannot be loaded, the
+  // user sees the error with a Retry button; Retry loads the list again.
+  it("EVE-CRE-07-F shows a load error with Retry and loads the events again when Retry is clicked", async () => {
+    const user = userEvent.setup();
+    // Arrange: the first load fails and the second load succeeds.
+    apiMock
+      .mockRejectedValueOnce(new Error("Could not load events."))
+      .mockResolvedValueOnce([submittedEvent()]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the error is shown in an alert, no events are listed, and the store holds none.
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Could not load events.");
+    expect(screen.queryByText("Welcome Evening")).toBeNull();
+    expect(useAppStore.getState().events).toEqual([]);
+
+    // Act: click Retry.
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    // Assert: the list is requested again, the event appears, and the alert is gone.
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // SPM-36 Test Case EVE-CRE-07-G: StrictMode runs the load effect twice, so the
+  // first load is superseded. If that stale load succeeds late, it must not
+  // replace the list the user is waiting for.
+  it("EVE-CRE-07-G ignores a superseded event list load that succeeds after a newer load", async () => {
+    // Arrange: two pending loads; the first one is superseded by the second.
+    const stale = deferred<EventRecord[]>();
+    const current = deferred<EventRecord[]>();
+    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/events"]}>
+          <Routes>
+            <Route path="/events" element={<EventListPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock).toHaveBeenCalledTimes(2);
+
+    // Act: settle only the superseded load with a different event.
+    await act(async () => {
+      stale.resolve([{ ...submittedEvent(), name: "Superseded Gala" }]);
+      await stale.promise;
+    });
+
+    // Assert: the page is still loading and the stale event never reached the store or the screen.
+    expect(screen.getByText("Loading events…")).toBeTruthy();
+    expect(useAppStore.getState().events).toEqual([]);
+    expect(screen.queryByText("Superseded Gala")).toBeNull();
+
+    // Act: settle the current load.
+    await act(async () => {
+      current.resolve([submittedEvent()]);
+      await current.promise;
+    });
+
+    // Assert: only the current load's event is shown.
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByText("Superseded Gala")).toBeNull();
+  });
+
+  // SPM-36 Test Case EVE-CRE-07-H: if a superseded event list load fails late,
+  // its error must not be shown while the current load is still in progress.
+  it("EVE-CRE-07-H does not show an error from a superseded event list load that fails late", async () => {
+    // Arrange: two pending loads; the first one is superseded by the second.
+    const stale = deferred<EventRecord[]>();
+    const current = deferred<EventRecord[]>();
+    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+
+    render(
+      <StrictMode>
+        <MemoryRouter initialEntries={["/events"]}>
+          <Routes>
+            <Route path="/events" element={<EventListPage />} />
+          </Routes>
+        </MemoryRouter>
+      </StrictMode>,
+    );
+    expect(apiMock).toHaveBeenCalledTimes(2);
+
+    // Act: settle only the superseded load with a failure.
+    await act(async () => {
+      stale.reject(new Error("Network offline."));
+      await stale.promise.catch(() => undefined);
+    });
+
+    // Assert: the page is still loading and no error alert is shown.
+    expect(screen.getByText("Loading events…")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+
+    // Act: settle the current load successfully.
+    await act(async () => {
+      current.resolve([submittedEvent()]);
+      await current.promise;
+    });
+
+    // Assert: the list is shown and the stale failure never surfaces as an alert.
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });
