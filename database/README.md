@@ -2,8 +2,8 @@
 
 This directory contains database initialization files shared by local development tooling.
 
-The base schema and seed scripts are followed by additive feature init scripts
-in filename order. Git history records how the local schema evolved.
+The local initializer consists of one complete schema script and one complete
+seed-data script. Git history records how the local schema evolved.
 
 ## PostgreSQL
 
@@ -36,9 +36,8 @@ docker run --rm --name spm-postgresql \
 Pass PostgreSQL credentials at runtime. The Compose stack reads local-only defaults from `docker-compose/.env.example` and optional `.env`; standalone runs should pass their own `-e` values.
 
 The PostgreSQL entrypoint runs the init files by filename order when it creates
-a fresh database: `001_schema.sql` creates the base and SPM-50 venue schema,
-`002_seed_data.sql` creates local RBAC, venue lookups, and sample data, and later
-numbered scripts apply additive feature changes:
+a fresh database: `001_schema.sql` creates the complete local schema and
+`002_seed_data.sql` creates local RBAC, venue lookups, and sample data:
 
 | Table | Purpose |
 | --- | --- |
@@ -125,21 +124,11 @@ backend migrations that correspond to the missing schema change; do not apply
 the schema file as a replacement migration or delete the volume merely to pick
 up initializer refactoring.
 
-For existing local volumes, apply only missing, relevant changes in order:
-backend migrations `001`–`009` upgrade drafts, events, and venues; additive
-`postgresql/init/` scripts cover later registration, coordinator, equipment,
-and reassignment fields. In particular, registration details use
-`004_spm61_event_registration.sql`, withdrawal time uses
-`007_spm120_withdraw_registration.sql`, coordinator availability uses
-`007_spm80_coordinator_availability.sql`, the Lead role uses
-`008_spm123_coordinator_lead.sql`, notification linkage uses
-`009_spm47_notification_related_user.sql`, and reassignment/audit tables use
-the two `010_*` scripts. Apply each with `psql -v ON_ERROR_STOP=1` against the
-intended database; numbering is shared across separate feature scripts, so
-check filenames and the current schema rather than assuming one script per
-number. `005_spm61_dev_seed_fixes.sql` and `008_spm124_sample_venues.sql` are
-optional local data updates, not schema migrations. Never reset a shared
-volume merely to pick up an initializer change.
+For existing local volumes, apply only relevant backend migrations; the two
+initializer files are a fresh-database contract and are not upgrade scripts.
+If a disposable local volume is missing a schema feature without a matching
+backend migration, recreate that local volume rather than applying part of the
+fresh initializer to a shared or long-lived database.
 
 SPM-50 venue creation uses `venues`, controlled accessibility/facility/layout
 lookups and junctions, plus optional `venue_images` on fresh databases.
@@ -162,17 +151,14 @@ Fresh PostgreSQL images receive the final event lifecycle directly from `001_sch
 
 ## SPM-124 venue schedule
 
-The SPM-50 venue tables and lookup records are copied into `001_schema.sql`
-and `002_seed_data.sql` from `feature/SPM-50-Create-Venue-Records`. On a fresh
-volume, `007_spm124_venue_schedule.sql` then creates one `venue_bookings` table
-for event reservations and staff blockouts, followed by the local sample venues
-in `008_spm124_sample_venues.sql`.
+The SPM-50 venue tables, SPM-124 `venue_bookings` table, and their lookup
+records are included in `001_schema.sql` and `002_seed_data.sql`. Fresh
+databases also receive the local sample venues and their blockout booking.
 For an existing volume, apply backend migrations 005–008, then
 `backend/migrations/009_venue_availability.sql`; init scripts do not rerun on
 an existing volume.
 
-`008_spm124_sample_venues.sql` adds two clearly named local sample venues,
-small illustrative images, and one short blockout booking so the Venue Staff catalogue has records on a
-fresh development database. For an existing local volume, apply it manually
-after migration 009 if sample data is wanted. It is idempotent and does not
-replace staff-created venues.
+`002_seed_data.sql` adds two clearly named local sample venues, small
+illustrative images, and one short blockout booking so the Venue Staff
+catalogue has records on a fresh development database. It is idempotent and
+does not replace staff-created venues.

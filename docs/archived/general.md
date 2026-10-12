@@ -4,6 +4,10 @@ Entries without a single Jira ticket.
 
 ## 2026-10-10
 
+- swr - bug fix - refactor/file_structure_and_modularization - Make venue unavailability datetime conversion explicitly use Singapore time and assert UTC instants without host-timezone-dependent getHours(); verify frontend CI unit tests.
+
+## 2026-10-10
+
 - swr - fix - refactor/file_structure_and_modularization - Preserve event-planning integration during conflict resolution: Kept the refactor branch's module and page organization while restoring planning controller registration and planning UI behavior. The focused planning page suite passes (30 tests); backend/frontend builds and linters pass. CI E2E rerun pending.
 
 ## 2026-10-09

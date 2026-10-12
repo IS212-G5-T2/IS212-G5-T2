@@ -8,7 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/event-status.js';
+import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/types/event-status.js';
 
 type AvailabilityRow = { is_available: boolean };
 type UpdatedAvailabilityRow = AvailabilityRow & { display_name?: string; was_available?: boolean };

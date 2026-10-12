@@ -20,13 +20,13 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import {
   assessVenueBookings,
   withinWindow,
   type BookingImpact,
   type ProposedChange,
-} from './event-impact.js';
+} from './helpers/event-impact.js';
 import {
   EventPlanningRepository,
   type EquipmentArrangementRow,
@@ -43,7 +43,7 @@ import {
   validateEventUpdate,
   type EventFieldKey,
   type EventUpdatePatch,
-} from './event-update-input.js';
+} from './dto/event-update-input.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
