@@ -3,7 +3,7 @@
  * matrix (docs/specs/SPM-61-test-cases.md is absent); quotes are Jira AC
  * wording. Time is frozen with setSystemTime; windows are offsets from it.
  */
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationSection } from "./RegistrationSection";
@@ -778,3 +778,96 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
  *  BRIEF the form is prefilled from the withdrawn registration; the footer steps aside while it is open -> CARD-10 to CARD-13
  *  409  an already-registered answer reloads the real registration (SPM-61 rule) -> CARD-13
  */
+
+describe("SPM-61 registration details: remaining form and availability branches (AC1, AC3)", () => {
+  // Kills: the singular "spot" replaced by "spots" when one place is left.
+  it("shows '1 spot' in the singular when one place is left before registration opens", () => {
+    renderSection({ ...baseEvent, registrationOpensAt: iso(HOUR), availableRegistrationSpots: 1 });
+    expect(screen.getByText("1 spot")).toBeInTheDocument();
+  });
+
+  // Kills: a "Closes" row shown with no closing time (the row is optional when no bound is set).
+  it("omits the Closes row before opening when no closing time is set", () => {
+    renderSection({ ...baseEvent, registrationOpensAt: iso(HOUR), registrationClosesAt: undefined, availableRegistrationSpots: 5 });
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.queryByText("Closes")).not.toBeInTheDocument();
+  });
+
+  // Kills: an "Opens" row shown with no opening time while open.
+  it("omits the Opens row while open when no opening time is set", () => {
+    renderSection({ ...baseEvent, registrationOpensAt: undefined, availableRegistrationSpots: 5 });
+    expect(screen.getByText("Closes")).toBeInTheDocument();
+    expect(screen.queryByText("Opens")).not.toBeInTheDocument();
+  });
+
+  // Kills: a "Closes" row shown for a full event that has no closing time.
+  it("omits the Closes row for a full event with no closing time", () => {
+    renderSection({ ...baseEvent, registrationClosesAt: undefined, availableRegistrationSpots: 0 });
+    expect(screen.getByText("This event is fully booked.")).toBeInTheDocument();
+    expect(screen.queryByText("Closes")).not.toBeInTheDocument();
+  });
+
+  // Kills: a "Closed on" row shown for a closed event that has no closing time.
+  it("omits the Closed on row for a closed event with no closing time", () => {
+    renderSection({ ...baseEvent, status: "cancelled", registrationClosesAt: undefined });
+    expect(screen.getByText("Registration closed")).toBeInTheDocument();
+    expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
+  });
+
+  // Kills: the in-flight guard removed, so a second submit while the first is pending posts again.
+  it("a second submit while the first is in flight does not post again", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let release!: (value: unknown) => void;
+    mockPost(() => new Promise((resolve) => (release = resolve)));
+    renderSection();
+    await user.click(registerButton()!);
+
+    const form = screen.getByRole("button", { name: "Submit registration" }).closest("form")!;
+    fireEvent.submit(form);
+    fireEvent.submit(form);
+
+    expect(apiMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(1);
+    release({ registration: created });
+    expect(await screen.findByText(/Registration successful/)).toBeInTheDocument();
+  });
+
+  // Kills: focus moved to the first field when the server named no field, so the error is not announced.
+  it("moves focus to the error summary when the server names no invalid field", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockPost(() => Promise.reject(new ApiError("Please correct the highlighted fields.", {}, "validation_error", 400)));
+    renderSection();
+    await user.click(registerButton()!);
+    await user.click(screen.getByRole("button", { name: "Submit registration" }));
+    const message = await screen.findByText("Please correct the highlighted fields.");
+    await waitFor(() => expect(message.closest("[tabindex]")).toHaveFocus());
+  });
+
+  // Kills: a server validation answer without a field list crashing the form, or its message not shown.
+  it("shows the server's validation message when the answer carries no field errors", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockPost(() => Promise.reject(new ApiError("Please correct the highlighted fields.", undefined, "validation_error", 400)));
+    renderSection();
+    await user.click(registerButton()!);
+    await user.click(screen.getByRole("button", { name: "Submit registration" }));
+    expect(await screen.findByText("Please correct the highlighted fields.")).toBeInTheDocument();
+  });
+});
+
+describe("SPM-120: a failed reload after a conflict does not leave the dialog open", () => {
+  beforeEach(() => vi.setSystemTime(T0));
+
+  // Kills: the reload failure propagating, or the dialog staying open when the conflict is reported.
+  it("closes the dialog on a conflict even when the reload also fails", async () => {
+    const u = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    apiMock.mockImplementation((path: string) =>
+      path.endsWith("/withdraw")
+        ? Promise.reject(new ApiError("This registration has already been withdrawn.", undefined, "registration_already_withdrawn", 422))
+        : Promise.reject(new Error("reload failed")),
+    );
+    useAppStore.setState({ isAuthenticated: true, currentUser: ATT_01, registrations: [buildRegistration({ eventId: buildEvent().id })] });
+    render(<RegistrationSection event={buildEvent()} currentUser={ATT_01} registration={buildRegistration({ eventId: buildEvent().id })} />);
+    await u.click(screen.getByRole("button", { name: "Withdraw" }));
+    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm Withdrawal" })).not.toBeInTheDocument());
+  });
+});

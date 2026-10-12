@@ -1,0 +1,273 @@
+
+ RUN  v5.0.0 /Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend
+
+ ❯ test/drafts.e2e-spec.ts (11 tests | 11 failed) 225ms
+   ❯ SPM-37 draft API and PostgreSQL (11)
+     × saves an incomplete Draft without submitting 41ms
+     × lists and reopens all saved values 10ms
+     × retries idempotently and rejects stale concurrent updates 5ms
+     × retains the saved values after validation failure 3ms
+     × submits once and blocks later draft saves 4ms
+     × rolls back an invalid submission and leaves the draft editable 3ms
+     × Q1-038 malformed and missing IDs return 404 without insertion 2ms
+     × Q1-039 stale submit preserves latest saved data and creates no event 2ms
+     × Q1-040 data survives a backend restart and a new database connection 3ms
+     × Q1-041 simultaneous submissions create one event and close the draft 9ms
+     × does not expose a row belonging to a different server-side owner 5ms
+[31m[Nest] 88866  - [39m10/12/2026, 4:08:53 PM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39merror: history store down
+    at [90m/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4mpg[24m/lib/client.js:694:17
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39msrc/lead/lead-assignment.service.ts:241:7
+    at DatabaseService.transaction [90m(/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39msrc/database/database.service.ts:41:22[90m)[39m
+    at [90mfile:///Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4m@nestjs/core[24m/router/router-execution-context.js:58:62
+    at [90mfile:///Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4m@nestjs/core[24m/router/router-proxy.js:6:17 {
+  length: [33m136[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'P0001'[39m,
+  detail: [90mundefined[39m,
+  hint: [90mundefined[39m,
+  position: [90mundefined[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [32m'PL/pgSQL function spm46_fail_history() line 2 at RAISE'[39m,
+  schema: [90mundefined[39m,
+  table: [90mundefined[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [90mundefined[39m,
+  file: [32m'pl_exec.c'[39m,
+  line: [32m'3897'[39m,
+  routine: [32m'exec_stmt_raise'[39m
+}
+[31m[Nest] 89006  - [39m10/12/2026, 4:09:00 PM [31m  ERROR[39m [38;5;3m[ExceptionsHandler] [39merror: SPM-119 audit failure
+    at [90m/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4mpg[24m/lib/client.js:694:17
+[90m    at processTicksAndRejections (node:internal/process/task_queues:104:5)[39m
+    at [90m/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39msrc/equipment/equipment.service.ts:174:7
+    at DatabaseService.transaction [90m(/Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39msrc/database/database.service.ts:41:22[90m)[39m
+    at [90mfile:///Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4m@nestjs/core[24m/router/router-execution-context.js:58:62
+    at [90mfile:///Users/tanwz/Desktop/Projects/IS212-G5-T2_GITHUB/IS212-G5-T2/backend/[39mnode_modules/[4m@nestjs/core[24m/router/router-proxy.js:6:17 {
+  length: [33m147[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'P0001'[39m,
+  detail: [90mundefined[39m,
+  hint: [90mundefined[39m,
+  position: [90mundefined[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [32m'PL/pgSQL function spm119_reject_audit_insert() line 1 at RAISE'[39m,
+  schema: [90mundefined[39m,
+  table: [90mundefined[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [90mundefined[39m,
+  file: [32m'pl_exec.c'[39m,
+  line: [32m'3897'[39m,
+  routine: [32m'exec_stmt_raise'[39m
+}
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > saves an incomplete Draft without submitting
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:66:61
+     64|   it('saves an incomplete Draft without submitting', async () => {
+     65|     const id = newId();
+     66|     const response = await save(id, { name: 'Incomplete' }).expect(200…
+       |                                                             ^
+     67|     expect(response.body).toMatchObject({ id, status: 'Draft', version…
+     68|     expect(
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > lists and reopens all saved values
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:99:28
+     97|       ],
+     98|     };
+     99|     await save(id, fields).expect(200);
+       |                            ^
+    100|     expect(
+    101|       (
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > retries idempotently and rejects stale concurrent updates
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:117:53
+    115|     const id = newId(),
+    116|       operation = randomUUID();
+    117|     await save(id, { name: 'First' }, 0, operation).expect(200);
+       |                                                     ^
+    118|     expect(
+    119|       (await save(id, { name: 'First' }, 0, operation).expect(200)).bo…
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > retains the saved values after validation failure
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:140:44
+    138|   it('retains the saved values after validation failure', async () => {
+    139|     const id = newId();
+    140|     await save(id, { name: 'Safe value' }).expect(200);
+       |                                            ^
+    141|     await save(id, { name: 123 }, 1).expect(400);
+    142|     expect(
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > submits once and blocks later draft saves
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:160:8
+    158|       expectedAttendance: '25',
+    159|       layout: 'Theatre',
+    160|     }).expect(200);
+       |        ^
+    161|     const payload = { version: 1, startDateTime, endDateTime };
+    162|     const first = await request(app.getHttpServer())
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > rolls back an invalid submission and leaves the draft editable
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:184:24
+    182|   it('rolls back an invalid submission and leaves the draft editable',…
+    183|     const id = newId();
+    184|     await save(id, {}).expect(200);
+       |                        ^
+    185|     await request(app.getHttpServer())
+    186|       .post(`/api/requests/${id}/submit`)
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > Q1-038 malformed and missing IDs return 404 without insertion
+Error: expected 404 "Not Found", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:196:69
+    194|   it('Q1-038 malformed and missing IDs return 404 without insertion', …
+    195|     for (const id of ['bad-id', newId()]) {
+    196|       await request(app.getHttpServer()).get(`/api/requests/${id}`).ex…
+       |                                                                     ^
+    197|       await save(id, {}, 1).expect(404);
+    198|       await request(app.getHttpServer())
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > Q1-039 stale submit preserves latest saved data and creates no event
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:206:39
+    204|   it('Q1-039 stale submit preserves latest saved data and creates no e…
+    205|     const id = newId();
+    206|     await save(id, { name: 'First' }).expect(200);
+       |                                       ^
+    207|     await save(id, { name: 'Latest' }, 1).expect(200);
+    208|     await request(app.getHttpServer())
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > Q1-040 data survives a backend restart and a new database connection
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:225:63
+    223|   it('Q1-040 data survives a backend restart and a new database connec…
+    224|     const id = newId();
+    225|     await save(id, { name: 'Restart evidence', formStep: 2 }).expect(2…
+       |                                                               ^
+    226|     await app.close();
+    227|     app = await NestFactory.create(AppModule, { logger: false });
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > Q1-041 simultaneous submissions create one event and close the draft
+Error: expected 200 "OK", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:249:8
+    247|       layout: 'Theatre',
+    248|       expectedAttendance: '1',
+    249|     }).expect(200);
+       |        ^
+    250|     const body = {
+    251|       version: 1,
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  test/drafts.e2e-spec.ts > SPM-37 draft API and PostgreSQL > does not expose a row belonging to a different server-side owner
+Error: expected 404 "Not Found", got 401 "Unauthorized"
+ ❯ test/drafts.e2e-spec.ts:280:67
+    278|       [id],
+    279|     );
+    280|     await request(app.getHttpServer()).get(`/api/requests/${id}`).expe…
+       |                                                                   ^
+    281|     await save(id, {}).expect(404);
+    282|     expect(
+ ❯ Test._assertStatus node_modules/supertest/lib/test.js:309:14
+ ❯ node_modules/supertest/lib/test.js:365:13
+ ❯ Test._assertFunction node_modules/supertest/lib/test.js:342:13
+ ❯ Test.assert node_modules/supertest/lib/test.js:195:23
+ ❯ localAssert node_modules/supertest/lib/test.js:138:14
+ ❯ Server.<anonymous> node_modules/supertest/lib/test.js:152:11
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  1 failed | 15 passed (16)
+      Tests  11 failed | 245 passed | 1 todo (257)
+   Start at  16:08:28
+   Duration  93.72s (tests 92%, import 7%, transform 1%)
+

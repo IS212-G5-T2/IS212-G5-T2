@@ -263,7 +263,9 @@ describe('EVENT-REG-02-A (AC2): registration is refused once the period has clos
       taken: 0,
       inserted: [insertedRow()],
     });
-    await expect(serviceFor(fake.database).register(ATTENDEE, EVENT_ID, VALID_BODY)).resolves.toBeDefined();
+    await expect(serviceFor(fake.database).register(ATTENDEE, EVENT_ID, VALID_BODY)).resolves.toMatchObject({
+      registration: { status: 'registered', eventId: EVENT_ID },
+    });
     expect(fake.statements.filter(isInsert)).toHaveLength(1);
   });
 });

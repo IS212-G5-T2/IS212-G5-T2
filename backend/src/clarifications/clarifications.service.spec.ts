@@ -137,7 +137,7 @@ describe('ClarificationsService.createClarification', () => {
 
       await expect(
         service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
-      ).resolves.toBeDefined();
+      ).resolves.toMatchObject({ type: 'clarification', awaitingReply: true, resolved: false });
     },
   );
 
@@ -522,5 +522,97 @@ describe('ClarificationsService ownership with the retired demo flag set', () =>
       service.reply(EVENT_ID, CLARIFICATION_ID, organiser({ uid: 'someone-else' }), { message: 'Hi' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+});
+
+// Not-found paths and display-name fallbacks (SPM-39 AC1, AC3, AC4). Unit level; each refusal must happen
+// before any transaction is opened, except where the event lookup itself is the check.
+describe('ClarificationsService not-found paths and author names', () => {
+  it('reply: a malformed clarification id -> 404 "Clarification request not found.", no transaction', async () => {
+    // Kills: the UUID check removed (a malformed id reaches the database)
+    const { service, database } = buildService();
+    await expect(
+      service.reply(EVENT_ID, 'not-a-uuid', organiser(), { message: 'Yes.' }),
+    ).rejects.toMatchObject({ status: 404, message: 'Clarification request not found.' });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it('reply: an unknown event -> 404 "Event not found.", no comment inserted', async () => {
+    // Kills: the event-existence check dropped inside the transaction
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, organiser(), { message: 'Yes.' }),
+    ).rejects.toMatchObject({ status: 404, message: 'Event not found.' });
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  it('resolve: a malformed clarification id -> 404, no transaction', async () => {
+    // Kills: the UUID check removed from resolve
+    const { service, database } = buildService();
+    await expect(service.resolve(EVENT_ID, 'not-a-uuid', organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Clarification request not found.',
+    });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  it('resolve: an unknown event -> 404 "Event not found.", nothing resolved', async () => {
+    // Kills: the event-existence check dropped from resolve
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(service.resolve(EVENT_ID, CLARIFICATION_ID, organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Event not found.',
+    });
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('resolve: an already-resolved clarification missing from the thread -> 404, nothing written', async () => {
+    // Kills: the "already resolved" branch returning a comment that is not in the thread (undefined dto)
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({ id: CLARIFICATION_ID, resolved: true });
+    vi.mocked(repository.listComments).mockResolvedValue([]);
+    await expect(service.resolve(EVENT_ID, CLARIFICATION_ID, organiser())).rejects.toMatchObject({
+      status: 404,
+      message: 'Clarification request not found.',
+    });
+    expect(repository.resolveClarification).not.toHaveBeenCalled();
+  });
+
+  it('listComments: an unknown event -> 404 "Event not found."', async () => {
+    // Kills: a missing event treated as an empty thread
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEvent).mockResolvedValue(undefined as unknown as EventForReview);
+    await expect(service.listComments(EVENT_ID, coordinator())).rejects.toMatchObject({
+      status: 404,
+      message: 'Event not found.',
+    });
+  });
+
+  it('the author name falls back to the email, then to the uid, when no name is set', async () => {
+    // Kills: the fallback order changed (uid first, or the name always required)
+    const withEmail = buildService();
+    vi.mocked(withEmail.repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(withEmail.repository.insertComment).mockResolvedValue(commentRow({ author_name: 'marcus@example.test' }));
+    await withEmail.service.createClarification(EVENT_ID, coordinator({ name: undefined, email: 'marcus@example.test' }), {
+      message: 'Please confirm.',
+    });
+    expect(withEmail.repository.insertComment).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ authorName: 'marcus@example.test' }),
+    );
+
+    const withUid = buildService();
+    vi.mocked(withUid.repository.findEventForUpdate).mockResolvedValue(eventRow());
+    vi.mocked(withUid.repository.insertComment).mockResolvedValue(commentRow({ author_name: 'coordinator-1' }));
+    await withUid.service.createClarification(EVENT_ID, coordinator({ name: undefined, email: undefined }), {
+      message: 'Please confirm.',
+    });
+    expect(withUid.repository.insertComment).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({ authorName: 'coordinator-1' }),
+    );
   });
 });

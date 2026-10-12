@@ -375,3 +375,84 @@ Reply text ("Reply message cannot be blank.") is unchanged. The change is in com
   - Stress: 2 rounds of 2 concurrent full runs (load average 12 to 13): 4 of 4 green, 872 passed each.
 - Evidence the config is the fix: with the owner-file edits applied but the config unchanged, the suite still failed 3 to 5 tests per run under load (section 20).
 - Earlier `delay: null` and `findByText` edits did not fix the failures alone.
+
+## 23. Coverage (unit and component only; my lines), final
+
+Backend (`vitest run --coverage`, 1135 tests):
+
+| File | Lines | Branches | Uncovered branches and reason |
+|---|---|---|---|
+| clarifications/clarifications.controller.ts | 100% | 75% | `@Controller('api')` conditional: TypeScript decorator output, not application logic. |
+| clarifications/clarifications.service.ts | 100% | 98.4% | `@Injectable()` conditional: decorator output. |
+| clarifications/dto/clarification-input.ts | 100% | 100% | none |
+| clarifications/repository/clarifications.repository.ts | 100% | 50% | `@Injectable()` conditional: decorator output. Repository SQL and parameters are covered by clarifications/repository/clarifications.repository.spec.ts (new, 9 tests). |
+| registrations/registrations.service.ts | 100% | 97.6% | Lines 65-66: `registration_opens_at ?? null` and `registration_closes_at ?? null` when a bound is absent. Open PO decision (unbounded window, see section 3, F13). |
+| registrations/report/report-format.ts | 100% | 87.5% | Line 30: `parts.find(...)?.value ?? ''`. The date options always produce every part, so the fallback cannot run. |
+| registrations/report/export.service.ts | 100% | 100% | none (empty-report PDF and ExportService methods now covered) |
+| registrations/helpers/messages.ts, sanitization.ts, registration-window.ts, dto/validation.ts, report-access.ts, event-start.ts | 100% | 100% | none |
+
+Frontend (`vitest run --coverage`, 911 tests, 1 todo):
+
+| File | Remaining uncovered | Reason |
+|---|---|---|
+| events/pages/detail/ClarificationThread.tsx | Labels and avatar for a clarification authored by an Organiser (lines 175, 214, 224); two colour-class arms (211, 245) | Only a Coordinator can create a clarification (backend `createClarification` sets `authorRole: 'coordinator'`), so the Organiser arm cannot be reached through the API. Colour classes are presentational and not asserted. |
+| events/pages/detail/registration/WithdrawalConfirmation.tsx | Line 47: `if (!panel) return;` | The Escape listener is removed on unmount and the panel is mounted for the component's lifetime, so the guard cannot run. |
+| registrations/lib/registrationReport.ts | Line 71 and the implicit else at 68 | `FilterType` is a closed union (`all`, `today`, `special-requirements`); the last return cannot be reached. |
+
+Covered in this pass (new tests): clarification service not-found paths and author-name fallbacks; repository SQL and parameters; CSV/PDF empty report and ExportService; DTO non-object bodies; ClarificationThread (errors, filter, empty states, labels, coordinator reply); report download (network, 5xx, 4xx JSON and non-JSON, filename); report hooks (export 401 and error text, load error text, late 401 after unmount); modal (partial bounds, empty contact, load error with Retry); registration section and form (1 spot, optional rows, double-submit guard, server validation without fields, focus fallback, failed reload after conflict).
+
+## 24. Mutation results
+
+| Check | Scope | Mutants | Killed | Equivalent | Survived |
+|---|---|---|---|---|---|
+| Scratch, new registrations spec | registrations.service.ts | 22 | 21 | 1 (M15) | 0 |
+| Scratch, new clarification tests (section 22 and 19) | service, e2e | 3 | 3 | 0 | 0 |
+| Scratch, new frontend tests (section 21 follow-up) | hooks, download, modal, section, form | 8 | 8 | 0 | 0 |
+| Repo harness, backend SPM-120 | backend withdrawal | 16 | 16 | 0 | 0 |
+| Repo harness, backend SPM-63 | backend report | 44 | 42 | 2 (M1, M6a) | 0 |
+| Repo harness, frontend SPM-63 (after fixes) | frontend report | 25 | 25 | 0 | 0 |
+| Repo harness, frontend SPM-120 (after fixes) | frontend withdrawal | 29 | 28 | 1 | 0 |
+
+Frontend harness fixes (test tooling, not production):
+- Stale targets repointed to the current code: SPM-63 X8 and X17 (SGT formatting moved to `src/utils/sgtDate.ts` and `registrationReport.ts`), X19 (export error handling moved to `useReportExport.ts`); SPM-120 M8-fe and M21 (`src/utils/sgtDate.ts`).
+- SPM-63 suite group now includes `registrationReport.download.test.ts`, which had been missing.
+
+Test strengthening found by the harness:
+- X21 (first-load failure not retryable) survived. The existing retry test passed because the 5-second poll refetched on its own. It now asserts the refetch immediately after Retry is clicked. The modal retry test was given the same check.
+
+Frontend mutant results in `docs/test-audit/baseline/frontend-mutation-spm63*.txt` and `frontend-mutation-spm120*.txt`.
+
+## 25. Review of existing tests (dimensions A-H, sampled)
+
+Anti-pattern scan over the in-scope test files (31 files):
+- `toBeDefined`/`toBeTruthy`: 3 weak assertions, all replaced by exact checks: a clarification status test (now checks type, awaiting reply and resolved), the registration service 1-ms-before-close test (now checks status), and the e2e registration id (now equals the stored row's id).
+- `toHaveBeenCalled()`: 31 uses, each paired with an outcome assertion (returned value, rendered text, or stored row). No mock-only test found.
+- `not.toThrow()`: 6 uses; checked as part of outcome assertions.
+- Skipped tests: none. Todos: 1 frontend (blocked by design in the repo spec) and EVENT-REG-01-C [B] (manual close, blocked by design).
+- No `Date.now()`, `Math.random()`, real timers, console logging or snapshots in in-scope tests.
+
+Dimension A (traceability) and B (oracles): the new tests carry AC or test-case IDs. Existing headers that cite superseded AC numbers were relabelled (section 19). The thread-listing unit test now verifies order, author, role, message, flags and timestamps.
+
+Not done in this pass: a line-by-line review of every frontend SPM-62, SPM-63 and SPM-120 test. Those files were run and mutation-checked, but not fully read for weak assertions.
+
+## 26. Determinism
+
+| Run | Result |
+|---|---|
+| Backend unit, normal order, two runs | 1135 passed both times |
+| Backend unit, shuffled | 1135 passed |
+| Frontend unit, normal order | 911 passed, 1 todo |
+| Frontend unit, shuffled | 911 passed, 1 todo |
+| Frontend unit under stress (two concurrent runs, load average 12-13), 4 runs | 872 passed each (before the coverage tests; config-only fix, section 22) |
+| Story e2e (registrations, withdraw, report, clarifications), runs A and B | 124 passed, 1 todo, identical |
+| Full backend e2e | 245 passed, 11 failed (SPM-37 drafts, pre-existing, not my story, not edited), 1 todo |
+
+Database: `spm_audit_e2e`, built from the init scripts and `backend/migrations/001`. Docker was stopped during part of the session (PostgreSQL unreachable), which is why the earlier e2e results came from a restored run; the stack is up again.
+
+## 27. Remaining items before wrap-up
+
+- Decision on the commit `b5f470a` on `origin` (see the earlier question). Nothing has been rewritten.
+- Decision on the 3 owner-file reverts (uncommitted in the working tree).
+- Items 5 and 6 (traceability matrices and Confluence drafts for SPM-39 and the rest) are for later, as agreed.
+- The SPM-37 drafts failures (item 3) are not edited, as agreed.
+- Open PO questions: A-NULL display, SPM-62 "Cancelled" status, unbounded registration window.

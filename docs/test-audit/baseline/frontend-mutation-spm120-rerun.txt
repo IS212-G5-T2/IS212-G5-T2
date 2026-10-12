@@ -1,0 +1,6 @@
+baseline spm120: green
+M8-fe    killed     spm120 timestamps formatted in UTC instead of Asia/Singapore
+M21      killed     spm120 month names taken from Intl ("Sept")
+
+2 mutants: 2 killed, 0 equivalent, 0 survived, 0 misapplied, 0 skipped
+original files untouched: yes

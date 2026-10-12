@@ -263,3 +263,48 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("SPM-63 registrations modal: missing bounds and contact details", () => {
+  // Kills: a missing closing time shown as blank or as "Invalid Date" instead of a dash.
+  it("shows a dash for the closing time when only the opening time is set", async () => {
+    apiMock.mockResolvedValue(buildReport());
+    render(<RegistrationsModal eventId="EVT-101" registrationOpensAt={OPENS} onClose={vi.fn()} />);
+    expect(await screen.findByText(/Opens: 20 Sep 2026 08:00 SGT · Closes: —/)).toBeInTheDocument();
+  });
+
+  // Kills: a missing opening time shown as blank or as "Invalid Date" instead of a dash.
+  it("shows a dash for the opening time when only the closing time is set", async () => {
+    apiMock.mockResolvedValue(buildReport());
+    render(<RegistrationsModal eventId="EVT-101" registrationClosesAt={CLOSES} onClose={vi.fn()} />);
+    expect(await screen.findByText(/Opens: — · Closes: 8 Oct 2026 23:59 SGT/)).toBeInTheDocument();
+  });
+
+  // Kills: an empty contact number shown as blank rather than the dash placeholder.
+  it("shows a dash for an attendee with no contact number", async () => {
+    const user = userEvent.setup({ delay: null });
+    apiMock.mockResolvedValue(buildReport({ registrations: [{ ...CHLOE_NG, contactNumber: "" }] }));
+    renderModal();
+    await user.click(await screen.findByRole("button", { name: /Chloe Ng/ }));
+    const dt = await screen.findByText("Contact number");
+    expect(dt.nextElementSibling).toHaveTextContent("—");
+  });
+});
+
+describe("SPM-63 registrations modal: a failed load", () => {
+  // Kills: a failed first load shown as an empty report, or the retry not reloading the report.
+  it("shows the load error with a Retry that loads the report again", async () => {
+    const user = userEvent.setup({ delay: null });
+    apiMock.mockRejectedValueOnce(new Error("We could not reach the report service."));
+    apiMock.mockResolvedValue(buildReport());
+    renderModal();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("We could not reach the report service.");
+    expect(screen.queryByText("No registrations yet.")).not.toBeInTheDocument();
+
+    await user.click(within(alert).getByRole("button", { name: /retry/i }));
+    // Retry itself fetches again; checked before the poll could fetch on its own.
+    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
+  });
+});

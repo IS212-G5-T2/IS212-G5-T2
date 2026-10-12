@@ -13,7 +13,14 @@
 import { PDFParse } from 'pdf-parse';
 import { describe, expect, it } from 'vitest';
 import { neutralizeCsvCell } from '../helpers/sanitization.js';
-import { buildCsv, buildPdf, reportContentDisposition, reportFilename, toCsvCell } from './export.service.js';
+import {
+  ExportService,
+  buildCsv,
+  buildPdf,
+  reportContentDisposition,
+  reportFilename,
+  toCsvCell,
+} from './export.service.js';
 import { ALICE_TAN, makeReport, makeRow } from './report.fixtures.js';
 
 const BOM = '﻿';
@@ -398,3 +405,37 @@ describe('SPM-63 AC4: a long attendee list continues on further PDF pages', () =
 // A7: the SQL payload is placed in the Full Name column (D6 excludes Special Requirements) -> 04-E
 // A8: a missing contact number is an empty cell                           -> 04-A (empty contact)
 // A9: filename token is the event id (F8 / Q10)                           -> 04-A filename tests
+
+describe('SPM-63 AC4: an empty report still exports, and the ExportService methods match the pure functions', () => {
+  // VIEW-REG-INFO-04-E
+  // Oracle: with no registrations the PDF states "No registrations to display" (MESSAGES.reportEmptyPdf) and draws no
+  // attendee table. Kills: the empty branch removed (an empty table with headings is drawn) or the message changed.
+  it('VIEW-REG-INFO-04-E: a PDF for a report with no registrations says so and has no table headings', async () => {
+    const report = makeReport({ registrations: [], totalConfirmed: 0, availableSpots: 50 });
+    const parser = new PDFParse({ data: new Uint8Array(await buildPdf(report)) });
+    const text = (await parser.getText()).text.replace(/\s+/g, ' ');
+    expect(text).toContain('No registrations to display');
+    expect(text).not.toContain('Registration Date');
+  });
+
+  // VIEW-REG-INFO-04-A
+  // Kills: the service method returning a different format or a different filename or header than the pure function.
+  it('VIEW-REG-INFO-04-A: ExportService.csv returns the same bytes as buildCsv', () => {
+    const report = makeReport();
+    expect(new ExportService().csv(report).equals(buildCsv(report))).toBe(true);
+  });
+
+  it('VIEW-REG-INFO-04-A: ExportService.pdf returns a PDF file', async () => {
+    const buffer = await new ExportService().pdf(makeReport());
+    expect(buffer.subarray(0, 5).toString('latin1')).toBe('%PDF-');
+  });
+
+  it('VIEW-REG-INFO-04-A: ExportService.filename and contentDisposition name the file after the event', () => {
+    const service = new ExportService();
+    const report = makeReport({ event: { ...makeReport().event, name: 'Cloud 101 Workshop' } });
+    expect(service.filename(report, 'csv')).toBe('cloud_101_workshop_registrations.csv');
+    expect(service.contentDisposition(report, 'pdf')).toBe(
+      `attachment; filename="cloud_101_workshop_registrations.pdf"; filename*=UTF-8''${encodeURIComponent('cloud_101_workshop_registrations.pdf')}`,
+    );
+  });
+});

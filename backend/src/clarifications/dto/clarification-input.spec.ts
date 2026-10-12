@@ -60,3 +60,11 @@ describe('validateMessage', () => {
     }
   });
 });
+
+describe('validateMessage: a body that is not an object', () => {
+  // SPM-39 REQ-CLAR-01-B (AC2): a missing or malformed body is treated as a blank message.
+  // Kills: the object check removed (null or an array is read as a message), or the fallback changed.
+  it.each([null, undefined, ['Please confirm.'], 'Please confirm.'])('rejects the body %j as a blank message', (body) => {
+    expect(() => validateMessage(body, 'Message cannot be blank.')).toThrow(BadRequestException);
+  });
+});

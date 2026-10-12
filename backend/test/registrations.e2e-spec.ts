@@ -217,9 +217,10 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       const res = await post(id, cookie).expect(201);
       expect(res.body.message).toBe('Registration successful. You are registered for Innovation Expo.');
       expect(res.body.registration).toMatchObject({ eventId: id, attendeeId: uid, status: 'registered', fullName: 'Alice Tan', email: 'alice@example.com', contactNumber: '91234567', specialRequirements: 'Vegetarian meal' });
-      expect(res.body.registration.id).toBeTruthy();
       const stored = await rows(id);
       expect(stored).toHaveLength(1);
+      // The id the API returns is the stored row's id (not just any non-empty value).
+      expect(res.body.registration.id).toBe(stored[0].id);
       expect(stored[0]).toMatchObject({ attendee_id: uid, status: 'Registered', full_name: 'Alice Tan', contact_number: '91234567' });
       // The "me" endpoint now returns the same registration.
       const mine = await request(app.getHttpServer()).get(`/api/events/${id}/registrations/me`).set('Cookie', cookie).expect(200);
