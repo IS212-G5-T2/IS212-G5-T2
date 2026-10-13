@@ -168,8 +168,8 @@ permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar locat
 positive integer capacity, non-empty facilities and layouts, optional
 accessibility features, one free-text operating information value, and
 non-negative whole-minute setup and turnaround durations. Operating days and
-opening times are not required from the creation client; omitted schedules are
-stored as every day from 00:00 to 23:59 for availability views. Facilities and
+opening-time fields are not part of the venue model; staff provide any relevant
+hours or closure information in the free-text operating information value. Facilities and
 layouts must match the controlled lookup values; an optional image must be an
 image data URL no larger than 5 MB. Successful requests persist the venue, its normalized
 relationships, optional image, and the authenticated Venue Staff account ID
@@ -179,12 +179,17 @@ venue UUID; the server derives ownership from the verified session, never from
 request fields. Missing or invalid fields
 return field-specific `400` errors. A case-insensitive, trimmed name/location
 pair must be unique; duplicates return a field-level `409` conflict while the
-UUID remains the stable identifier.
+UUID remains the stable identifier. `operatingInformation` is the only
+operating data; the backend does not store operating days or opening/closing
+times and does not create a compatibility schedule.
 
 Apply `migrations/005_venues.sql` followed by
 `migrations/006_venue_operating_information.sql`, then
 `migrations/007_venue_operating_schedule.sql`, then
-`migrations/008_venue_owner_user_id.sql` to existing databases. The owner
+`migrations/008_venue_owner_user_id.sql`, `migrations/009_venue_availability.sql`,
+and `migrations/010_remove_venue_operating_schedule.sql` to existing databases,
+in that order. Migration 010 removes legacy schedule columns after the
+availability migration is installed. The owner
 migration leaves historical venues with unknown ownership unassigned, while
 requiring an owner for new rows and enforcing a foreign key to `users(id)`.
 Fresh local databases
@@ -200,9 +205,10 @@ the list to venues whose `owner_user_id` matches the verified session; no client
 owner ID is accepted. Responses include venue fields, image,
 current and scheduled staff blockouts, approved bookings, and active pending
 holds. A booking is marked affected when a blockout overlaps its occupied
-setup-to-turnaround period. Apply migration `009_venue_availability.sql` after
-migrations 005–008 for existing databases; fresh local initialization includes
-the schedule and sample venues.
+setup-to-turnaround period. For an existing database, apply migrations 005–009
+in order, then `010_remove_venue_operating_schedule.sql`; fresh local
+initialization includes availability and sample venues without operating-hours
+columns.
 
 ### Mark venue unavailable (SPM-122)
 

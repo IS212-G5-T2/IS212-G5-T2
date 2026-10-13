@@ -166,29 +166,23 @@ DO $$
 BEGIN
     INSERT INTO venues (
         id, owner_user_id, name, location, capacity, operating_information,
-        operating_days, operating_start_time, operating_end_time,
         setup_time_minutes, turnaround_time_minutes
     )
     SELECT
         '00000000-0000-4000-8000-000000000124'::uuid, u.id,
         'Sample Orchid Hall', 'Main Building, Level 2', 120,
-        'Local development sample venue.',
-        ARRAY['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']::varchar[],
-        '08:00'::time, '22:00'::time, 30, 45
+        'Local development sample venue.', 30, 45
     FROM users u WHERE u.email = 'venue_staff1@connectsphere.test'
     ON CONFLICT DO NOTHING;
 
     INSERT INTO venues (
         id, owner_user_id, name, location, capacity, operating_information,
-        operating_days, operating_start_time, operating_end_time,
         setup_time_minutes, turnaround_time_minutes
     )
     SELECT
         '00000000-0000-4000-8000-000000000125'::uuid, u.id,
         'Sample Cedar Studio', 'West Wing, Level 1', 40,
-        'Local development sample venue.',
-        ARRAY['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']::varchar[],
-        '09:00'::time, '19:00'::time, 15, 20
+        'Local development sample venue.', 15, 20
     FROM users u WHERE u.email = 'venue_staff1@connectsphere.test'
     ON CONFLICT DO NOTHING;
 

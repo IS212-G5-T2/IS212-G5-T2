@@ -263,9 +263,8 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     const owner = await createDatabaseUser('VENUE_STAFF', 'HTTP Venue Staff');
     const result = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
-         operating_days, operating_start_time, operating_end_time,
          setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1,'HTTP Hall',$2,$3,'Open weekdays',ARRAY['Monday'],'08:00','22:00',0,0)
+       VALUES ($1,'HTTP Hall',$2,$3,'Open weekdays',0,0)
        RETURNING id`,
       [owner.uid, `HTTP ${randomUUID()}`, capacity],
     );

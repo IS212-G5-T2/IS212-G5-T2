@@ -13,9 +13,6 @@ const venue: Venue = {
   accessibility: ["Wheelchair access"],
   layouts: ["Classroom"],
   operatingInformation: "Closed on public holidays",
-  operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  operatingStartTime: "08:00",
-  operatingEndTime: "22:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
 };
@@ -33,14 +30,12 @@ function renderCard(
 }
 
 describe("VenueCard", () => {
-  // SPM-50 / AC2: a saved schedule and operating information remain distinct on a catalogue card.
-  it("renders operating information, schedule, and durations without an image", () => {
+  // Operating information remains visible; deprecated hours never appear on a catalogue card.
+  it("renders operating information and durations without an image", () => {
     renderCard(venue);
 
     expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
-    expect(
-      screen.getByText("Hours: Monday, Tuesday, Wednesday, Thursday, Friday · 08:00–22:00"),
-    ).toBeTruthy();
+    expect(screen.queryByText(/Hours:/i)).toBeNull();
     expect(screen.getByText("Info: Closed on public holidays")).toBeTruthy();
     expect(screen.getByText("Setup: 30 min · Turnaround: 45 min")).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();

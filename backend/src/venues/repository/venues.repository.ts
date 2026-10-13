@@ -16,9 +16,6 @@ export interface VenueRecord {
   accessibility: string[];
   layouts: string[];
   operatingInformation: string;
-  operatingDays: string[];
-  operatingStartTime: string;
-  operatingEndTime: string;
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImageInput;
@@ -55,16 +52,10 @@ type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
   VenueRecord,
   | 'operatingInformation'
-  | 'operatingDays'
-  | 'operatingStartTime'
-  | 'operatingEndTime'
   | 'setupTimeMinutes'
   | 'turnaroundTimeMinutes'
 > & {
   operating_information: string;
-  operating_days: string[];
-  operating_start_time: string;
-  operating_end_time: string;
   setup_time_minutes: number;
   turnaround_time_minutes: number;
   image_name?: string | null;
@@ -93,14 +84,8 @@ interface BookingRow {
   affected: boolean;
 }
 
-/** PostgreSQL serializes `time` columns with seconds; the venue API uses HH:MM. */
-function toMinuteTime(value: string): string {
-  return value.slice(0, 5);
-}
-
 const venueSelect = `
   SELECT v.id, v.name, v.location, v.capacity, v.operating_information,
-    v.operating_days, v.operating_start_time, v.operating_end_time,
     v.setup_time_minutes, v.turnaround_time_minutes,
     COALESCE((SELECT array_agg(f.name ORDER BY f.name)
       FROM venue_facilities vf JOIN facilities f ON f.id = vf.facility_id
@@ -280,9 +265,6 @@ export class VenuesRepository {
       accessibility: row.accessibility,
       layouts: row.layouts,
       operatingInformation: row.operating_information,
-      operatingDays: row.operating_days,
-      operatingStartTime: toMinuteTime(row.operating_start_time),
-      operatingEndTime: toMinuteTime(row.operating_end_time),
       setupTimeMinutes: row.setup_time_minutes,
       turnaroundTimeMinutes: row.turnaround_time_minutes,
       ...(row.image_name &&
@@ -383,16 +365,13 @@ export class VenuesRepository {
     venue: VenueInput,
   ) {
     const result = await client.query(
-      'INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',
+      'INSERT INTO venues (owner_user_id, name, location, capacity, operating_information, setup_time_minutes, turnaround_time_minutes) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *',
       [
         ownerUserId,
         venue.name,
         venue.location,
         venue.capacity,
         venue.operatingInformation,
-        venue.operatingDays,
-        venue.operatingStartTime,
-        venue.operatingEndTime,
         venue.setupTimeMinutes,
         venue.turnaroundTimeMinutes,
       ],

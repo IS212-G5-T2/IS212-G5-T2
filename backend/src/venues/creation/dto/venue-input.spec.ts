@@ -10,9 +10,6 @@ const valid = () => ({
   accessibility: ['Wheelchair access'],
   layouts: ['Classroom', 'Theatre'],
   operatingInformation: 'Closed on public holidays',
-  operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-  operatingStartTime: '08:00',
-  operatingEndTime: '22:00',
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
 });
@@ -117,42 +114,17 @@ describe('SPM-50 venue input', () => {
     expect(validateVenue({ ...valid(), capacity }).capacity).toBe(capacity);
   });
 
-  // SPM-50 correction: omitted opening hours receive a full-week compatibility schedule.
-  it('does not require operating days or opening hours', () => {
-    const input = { ...valid() };
-    delete input.operatingDays;
-    delete input.operatingStartTime;
-    delete input.operatingEndTime;
-
-    expect(validateVenue(input)).toMatchObject({
-      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      operatingStartTime: '00:00',
-      operatingEndTime: '23:59',
+  // SPM-50 correction: operatingInformation is the only venue operating data.
+  it('silently discards legacy schedule properties from older clients', () => {
+    const venue = validateVenue({
+      ...valid(),
+      operatingDays: ['Monday'],
+      operatingStartTime: '09:00',
+      operatingEndTime: '18:00',
     });
-  });
-
-  // SPM-50 / AC2 boundary: the first and last minute values are valid when ordered.
-  it.each([
-    ['00:00', '00:01'],
-    ['23:58', '23:59'],
-  ])('accepts operating hours from %s to %s', (operatingStartTime, operatingEndTime) => {
-    expect(
-      validateVenue({ ...valid(), operatingStartTime, operatingEndTime }),
-    ).toMatchObject({ operatingStartTime, operatingEndTime });
-  });
-
-  // SPM-50 / VEN-CRE-03-A: schedules reject malformed values, duplicate days, and non-increasing ranges.
-  it.each([
-    [{ operatingDays: [] }, 'operatingDays'],
-    [{ operatingDays: ['Funday'] }, 'operatingDays'],
-    [{ operatingDays: ['Monday', 'Monday'] }, 'operatingDays'],
-    [{ operatingStartTime: '8:00' }, 'operatingStartTime'],
-    [{ operatingStartTime: '24:00' }, 'operatingStartTime'],
-    [{ operatingEndTime: '08:60' }, 'operatingEndTime'],
-    [{ operatingEndTime: '08:00' }, 'operatingEndTime'],
-    [{ operatingStartTime: '23:59', operatingEndTime: '00:00' }, 'operatingEndTime'],
-  ] as const)('rejects invalid operating schedule %#', (schedule, field) => {
-    expect(fieldError({ ...valid(), ...schedule }).errors[field]).toBeTruthy();
+    expect(venue).not.toHaveProperty('operatingDays');
+    expect(venue).not.toHaveProperty('operatingStartTime');
+    expect(venue).not.toHaveProperty('operatingEndTime');
   });
 
   // SPM-50 / VEN-CRE-06-B, VEN-CRE-06-D: negative or malformed setup durations are rejected.

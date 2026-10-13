@@ -1,5 +1,5 @@
-// SPM-50 reopened correction mutants, run by run.mjs with --mutants spm50.mutants.mjs.
-// Exact test mappings are checked by the runner and are used to run only each mutant's kill test.
+// SPM-50 operating-data removal mutants, run by run.mjs with --mutants spm50.mutants.mjs.
+// Exact test mappings are checked by the runner and run alone for each mutant.
 export const SUITES = {
   unit: {
     args: ['run', 'src/venues/creation/dto/venue-input.spec.ts'],
@@ -12,83 +12,41 @@ export const SUITES = {
 
 const DTO = 'src/venues/creation/dto/venue-input.ts';
 const REPOSITORY = 'src/venues/repository/venues.repository.ts';
+const MIGRATION = 'migrations/010_remove_venue_operating_schedule.sql';
 const UNIT_TEST = 'src/venues/creation/dto/venue-input.spec.ts';
 const E2E_TEST = 'test/venues.e2e-spec.ts';
+const REMOVAL_TEST = 'discards legacy schedule fields and exposes operating information without schedule properties';
 
 export const MUTANTS = [
   {
     id: 'BE-50-01',
-    name: 'operating days and opening times are required again',
+    name: 'legacy operating schedule properties leak into normalized venue input',
     file: DTO,
-    suites: ['unit', 'e2e'],
-    testMappings: [
-      {
-        suite: 'unit',
-        file: UNIT_TEST,
-        title: 'does not require operating days or opening hours',
-      },
-      {
-        suite: 'e2e',
-        file: E2E_TEST,
-        title: 'creates a venue without operating hours and persists operating information with a full-week compatibility schedule',
-      },
-    ],
+    suites: ['unit'],
+    testMappings: [{
+      suite: 'unit',
+      file: UNIT_TEST,
+      title: 'silently discards legacy schedule properties from older clients',
+    }],
     edits: [[
-      '    body.operatingDays === undefined\n      ? [...operatingDayNames]\n      : array(\'operatingDays\');',
-      '    array(\'operatingDays\');',
+      '    operatingInformation,',
+      '    operatingDays: body.operatingDays,\n    operatingStartTime: body.operatingStartTime,\n    operatingEndTime: body.operatingEndTime,\n    operatingInformation,',
     ]],
   },
   {
     id: 'BE-50-02',
-    name: 'omitted opening hours get a restricted or incorrect compatibility schedule',
-    file: DTO,
-    suites: ['unit', 'e2e'],
-    testMappings: [
-      {
-        suite: 'unit',
-        file: UNIT_TEST,
-        title: 'does not require operating days or opening hours',
-      },
-      {
-        suite: 'e2e',
-        file: E2E_TEST,
-        title: 'creates a venue without operating hours and persists operating information with a full-week compatibility schedule',
-      },
-    ],
-    edits: [
-      [
-        'body.operatingDays === undefined\n      ? [...operatingDayNames]',
-        'body.operatingDays === undefined\n      ? operatingDayNames.slice(0, 5)',
-      ],
-      ["time('operatingStartTime', '00:00')", "time('operatingStartTime', '08:00')"],
-      ["time('operatingEndTime', '23:59')", "time('operatingEndTime', '18:00')"],
-    ],
-  },
-  {
-    id: 'BE-50-05',
-    name: 'opening times become required again',
-    file: DTO,
-    suites: ['unit', 'e2e'],
-    testMappings: [
-      {
-        suite: 'unit',
-        file: UNIT_TEST,
-        title: 'does not require operating days or opening hours',
-      },
-      {
-        suite: 'e2e',
-        file: E2E_TEST,
-        title: 'creates a venue without operating hours and persists operating information with a full-week compatibility schedule',
-      },
-    ],
+    name: 'operating schedule migration leaves the legacy database columns in place',
+    file: MIGRATION,
+    suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: E2E_TEST, title: REMOVAL_TEST }],
     edits: [[
-      '    if (body[key] === undefined) return fallback;',
-      "    if (body[key] === undefined) return '';",
+      '    DROP COLUMN IF EXISTS operating_days,',
+      '    ADD COLUMN IF NOT EXISTS operating_days text,',
     ]],
   },
   {
     id: 'BE-50-03',
-    name: 'operating information is optional instead of required',
+    name: 'operating information becomes optional instead of required',
     file: DTO,
     suites: ['unit'],
     testMappings: [{
@@ -106,11 +64,7 @@ export const MUTANTS = [
     name: 'persisted operating information is replaced with an empty value',
     file: REPOSITORY,
     suites: ['e2e'],
-    testMappings: [{
-      suite: 'e2e',
-      file: E2E_TEST,
-      title: 'creates a venue without operating hours and persists operating information with a full-week compatibility schedule',
-    }],
+    testMappings: [{ suite: 'e2e', file: E2E_TEST, title: REMOVAL_TEST }],
     edits: [['        venue.operatingInformation,', "        '',"]],
   },
 ];
