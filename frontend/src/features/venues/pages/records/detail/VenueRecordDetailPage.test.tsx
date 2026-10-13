@@ -791,6 +791,51 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  /** VEN-AVL-05-B: changing venues replaces schedule entries instead of retaining the previous venue's bookings. */
+  it("loads only the newly selected venue's schedule", async () => {
+    const user = userEvent.setup();
+    const secondId = "00000000-0000-4000-8000-000000000225";
+    const secondVenue: VenueRecord = {
+      ...venue,
+      id: secondId,
+      name: "Second Schedule Venue",
+      unavailablePeriods: [],
+      reservations: [
+        {
+          id: "second-venue-booking",
+          eventName: "Second venue booking",
+          start: "2026-10-05T12:00:00.000Z",
+          end: "2026-10-05T13:00:00.000Z",
+          status: "booked",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    };
+    apiMock.mockImplementation(async (path) =>
+      path === `/venues/${id}` ? venue as never : secondVenue as never,
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/venue-records/${id}`]}>
+        <Link to={`/venue-records/${secondId}`}>Select second venue</Link>
+        <Routes>
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("heading", { name: "Conference Room" });
+
+    await user.click(screen.getByRole("link", { name: "Select second venue" }));
+    await screen.findByRole("heading", { name: "Second Schedule Venue" });
+    await user.click(screen.getByRole("button", { name: "List" }));
+
+    const schedule = screen.getByRole("list", { name: "Venue schedule" });
+    expect(schedule).toHaveTextContent("Second venue booking");
+    expect(schedule).not.toHaveTextContent("Welcome Evening");
+    expect(schedule).not.toHaveTextContent("Workshop");
+    expect(schedule).not.toHaveTextContent("Maintenance");
+  });
+
   /** VEN-AVL-02 / SPM-51 AC5: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
   it("navigates the real time grid and shows availability in the newly visible week", async () => {
     const originalNow = Date.now();
