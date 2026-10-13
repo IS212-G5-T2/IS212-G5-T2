@@ -11,6 +11,10 @@ import { CLOCK } from '../src/common/clock.js';
 
 const databaseUrl = process.env.DATABASE_URL;
 const fixedNow = new Date('2030-01-10T12:00:00.000Z');
+if (!databaseUrl && process.env.CI)
+  throw new Error(
+    'SPM-51 venue booking PostgreSQL tests must run in CI: set DATABASE_URL.',
+  );
 
 describe.skipIf(!databaseUrl)(
   'SPM-51 booking request HTTP and PostgreSQL',
@@ -235,13 +239,18 @@ describe.skipIf(!databaseUrl)(
       const seededEvents = await pool.query<{ id: string; event_name: string }>(
         `SELECT id, event_name FROM events
          WHERE id BETWEEN $2::uuid AND $3::uuid AND coordinator_id = $1::text`,
-        [seedCoordinator.rows[0].id,
+        [
+          seedCoordinator.rows[0].id,
           '00000000-0000-4000-8000-000000000201',
-          '00000000-0000-4000-8000-000000000205'],
+          '00000000-0000-4000-8000-000000000205',
+        ],
       );
       const seededVenues = await pool.query<{ id: string }>(
         `SELECT id FROM venues WHERE id BETWEEN $1::uuid AND $2::uuid`,
-        ['00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000324'],
+        [
+          '00000000-0000-4000-8000-000000000301',
+          '00000000-0000-4000-8000-000000000324',
+        ],
       );
       const seededVenueImages = await pool.query<{
         id: string;
@@ -253,26 +262,42 @@ describe.skipIf(!databaseUrl)(
         `SELECT v.id, image.file_name, image.mime_type, image.byte_size, image.data_url
          FROM venues v LEFT JOIN venue_images image ON image.venue_id = v.id
          WHERE v.id BETWEEN $1::uuid AND $2::uuid ORDER BY v.id`,
-        ['00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000324'],
+        [
+          '00000000-0000-4000-8000-000000000301',
+          '00000000-0000-4000-8000-000000000324',
+        ],
       );
       expect(seededEvents.rows).toHaveLength(5);
-      expect(seededEvents.rows.every(({ event_name }) =>
-        !event_name.startsWith('SPM-51 Seed:'),
-      )).toBe(true);
+      expect(
+        seededEvents.rows.every(
+          ({ event_name }) => !event_name.startsWith('SPM-51 Seed:'),
+        ),
+      ).toBe(true);
       expect(seededVenues.rows).toHaveLength(24);
       expect(seededVenueImages.rows).toHaveLength(24);
-      expect(new Set(seededVenueImages.rows.map(({ data_url }) => data_url)).size).toBe(24);
-      expect(seededVenueImages.rows.every((image) => {
-        if (!image.file_name ||
+      expect(
+        new Set(seededVenueImages.rows.map(({ data_url }) => data_url)).size,
+      ).toBe(24);
+      expect(
+        seededVenueImages.rows.every((image) => {
+          if (
+            !image.file_name ||
             image.file_name !== `sample-venue-${image.id.slice(-3)}.svg` ||
             image.mime_type !== 'image/svg+xml' ||
-            !image.byte_size || image.byte_size > 5 * 1024 * 1024 || !image.data_url)
-          return false;
-        const prefix = 'data:image/svg+xml;base64,';
-        return image.data_url.startsWith(prefix) &&
-          Buffer.from(image.data_url.slice(prefix.length), 'base64')
-            .toString('utf8').startsWith('<svg ');
-      })).toBe(true);
+            !image.byte_size ||
+            image.byte_size > 5 * 1024 * 1024 ||
+            !image.data_url
+          )
+            return false;
+          const prefix = 'data:image/svg+xml;base64,';
+          return (
+            image.data_url.startsWith(prefix) &&
+            Buffer.from(image.data_url.slice(prefix.length), 'base64')
+              .toString('utf8')
+              .startsWith('<svg ')
+          );
+        }),
+      ).toBe(true);
     });
 
     /** VEN-AVL-06-B: only the event's assigned coordinator can create its booking request. */
@@ -281,7 +306,10 @@ describe.skipIf(!databaseUrl)(
       const assigned = await createUser('COORDINATOR');
       const otherCoordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
-      const eventId = await createAssignedEvent(assigned.id, 'Assigned elsewhere');
+      const eventId = await createAssignedEvent(
+        assigned.id,
+        'Assigned elsewhere',
+      );
 
       await request(app.getHttpServer())
         .post(`/api/venues/${venueId}/booking-requests`)
@@ -299,8 +327,8 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([]);
     });
 
-    /** SPM-54 AC5 / SPM-51 AC7: a pending request without Venue Staff hold expiry is not a tentative blocker. */
-    it('keeps a pending booking request but excludes it from holds and conflict checks', async () => {
+    /** SPM-54 AC5 / SPM-51 AC7: a pending request without Venue Staff hold expiry is not a tentative blocker. Kills: unbounded pending request treated as an active hold (B11). */
+    it('keeps a pending request without expiry out of holds and conflict checks', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -343,7 +371,7 @@ describe.skipIf(!databaseUrl)(
         .expect(201);
     });
 
-    /** VEN-AVL-02-C: pending requests are not confirmed bookings, and rejected requests are absent from the schedule. */
+    /** VEN-AVL-02-C: pending requests are tentative, not confirmed; rejected requests are absent. The schema supports rejected, not cancelled. */
     it('does not expose pending or rejected requests as confirmed venue bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -391,7 +419,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-07-SEC-1: a conflict returns 409 and records no booking request. */
+    /** VEN-AVL-07-SEC-1: a fresh confirmed-booking conflict returns 409 and records no request. Kills: conflict result ignored before insert (B09). */
     it('rejects a fresh confirmed-booking conflict without persisting a request', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -428,8 +456,8 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([{ status: 'approved' }]);
     });
 
-    /** SPM-51 AC1/AC7: the booking API rejects a zero-duration event and writes no request. */
-    it('rejects an equal start and end time without recording a booking request', async () => {
+    /** SPM-51 AC1/AC7: the API rejects equal start and end and writes no request. Kills: equal start and end accepted (B06). */
+    it('rejects equal start and end without recording a request', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -452,8 +480,8 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([]);
     });
 
-    /** VEN-AVL-10-A/B/BND-1: only holds expiring after server now are returned and conflict with submission. */
-    it('filters expired and exact-expiry holds from the API while active holds remain blockers', async () => {
+    /** SPM-51 AC10: only holds expiring after server now are returned and conflict with submission. Kills: exact-expiry hold remains active (B10). */
+    it('filters expired and exact-expiry holds while active holds remain blockers', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -537,8 +565,8 @@ describe.skipIf(!databaseUrl)(
       expect(activeConflict.body.message).toContain('Active hold');
     });
 
-    /** VEN-AVL-08-A/B/VAR-1: turnaround before a candidate and setup before an existing booking conflict in PostgreSQL. */
-    it('rejects a candidate after a booking when only the turnaround buffers overlap', async () => {
+    /** VEN-AVL-08-A/VAR-1: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
+    it('rejects a candidate after a booking when turnaround occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id, {
@@ -568,8 +596,8 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A/B/VAR-1: setup before a candidate and turnaround after an existing booking conflict in PostgreSQL. */
-    it('rejects a candidate before a booking when only the setup buffers overlap', async () => {
+    /** VEN-AVL-08-A/B/VAR-1: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
+    it('rejects a candidate before a booking when setup occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id, {
@@ -599,7 +627,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-07-C: an unavailable Maintenance period blocks a request and reports its reason without inserting a booking. */
+    /** VEN-AVL-07-C: a Maintenance blockout rejects a request, reports its reason, and inserts no booking. */
     it('rejects a request inside a Maintenance blockout without persisting it', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -625,8 +653,8 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A/B/BND-1/VAR-1: unavailable periods intersecting setup or turnaround both reject without insertion. */
-    it('rejects setup-only and turnaround-only blockout conflicts without recording either request', async () => {
+    /** VEN-AVL-08-A/B/BND-1/VAR-1: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
+    it('rejects setup-only and turnaround-only blockout conflicts without insertion', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const setupVenueId = await createVenue(owner.id, {

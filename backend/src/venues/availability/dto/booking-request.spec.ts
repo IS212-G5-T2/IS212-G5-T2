@@ -10,32 +10,43 @@ const valid = {
 
 describe('validateBookingRequest', () => {
   /** SPM-51 AC1: only a JSON object can represent a booking request. */
-  it.each([undefined, null, [], 'request'])(
-    'rejects non-object request values',
-    (value) => {
-      expect(() => validateBookingRequest(value)).toThrow(BadRequestException);
-    },
-  );
+  it.each([
+    { label: 'undefined', value: undefined },
+    { label: 'null', value: null },
+    { label: 'array', value: [] },
+    { label: 'string', value: 'request' },
+  ])('rejects a $label request value', ({ value }) => {
+    expect(() => validateBookingRequest(value)).toThrow(BadRequestException);
+  });
 
   /** SPM-51 AC1: the request must reference a UUID event. */
-  it.each([undefined, 12, 'not-a-uuid'])(
-    'rejects malformed event IDs',
-    (eventId) => {
-      expect(() => validateBookingRequest({ ...valid, eventId })).toThrow(
-        'Choose a valid event.',
-      );
-    },
-  );
+  it.each([
+    { label: 'missing', eventId: undefined },
+    { label: 'number', eventId: 12 },
+    { label: 'malformed string', eventId: 'not-a-uuid' },
+  ])('rejects a $label event ID', ({ eventId }) => {
+    expect(() => validateBookingRequest({ ...valid, eventId })).toThrow(
+      'Choose a valid event.',
+    );
+  });
 
   /** SPM-51 AC1: event dates need absolute ISO instants and a positive duration. */
   it.each([
-    { start: '2030-01-12T04:00', end: valid.end },
-    { start: '2030-02-30T04:00:00Z', end: valid.end },
-    { start: valid.start, end: 'not-a-time' },
-    { start: valid.start, end: valid.start },
-    { start: valid.end, end: valid.start },
-  ])('rejects invalid or reversed event times', (times) => {
-    expect(() => validateBookingRequest({ ...valid, ...times })).toThrow(
+    {
+      label: 'start without a timezone',
+      start: '2030-01-12T04:00',
+      end: valid.end,
+    },
+    {
+      label: 'impossible calendar date',
+      start: '2030-02-30T04:00:00Z',
+      end: valid.end,
+    },
+    { label: 'invalid end', start: valid.start, end: 'not-a-time' },
+    { label: 'equal start and end', start: valid.start, end: valid.start },
+    { label: 'end before start', start: valid.end, end: valid.start },
+  ])('rejects event times with $label', ({ start, end }) => {
+    expect(() => validateBookingRequest({ ...valid, start, end })).toThrow(
       'Enter a valid event start and end time.',
     );
   });

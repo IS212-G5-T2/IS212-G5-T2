@@ -1,4 +1,4 @@
-// Fault-injection (mutation) check, as described in the test-code-generation guide, section 7.
+// Fault-injection (mutation) check, as described in the test-generation guide, section 7.
 // It copies this component to a scratch directory, applies ONE mutant at a time to the copy, runs the
 // mutant's suites there, and reports which mutants the suites killed. The original tree is never edited
 // (the script hashes the mutated files before and after to prove it).
@@ -13,7 +13,14 @@
 // Each component owns its own runner; its root URL follows the tooling folder depth.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -21,41 +28,85 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = fileURLToPath(new URL('.', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2);
-const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const { SUITES, MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);
+const flag = (name) =>
+  args.includes(name) ? args[args.indexOf(name) + 1] : undefined;
+const { SUITES, MUTANTS } = await import(
+  pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href
+);
 const only = flag('--only')?.split(',');
 const suiteOnly = flag('--suite');
-const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
-const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
+const suitesOf = (m) =>
+  suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites;
+const selected = MUTANTS.filter(
+  (m) => (!only || only.includes(m.id)) && suitesOf(m).length,
+);
+const suiteNames = new Set(Object.keys(SUITES));
+if (suiteOnly && !suiteNames.has(suiteOnly)) {
+  console.error(
+    `Unknown suite "${suiteOnly}". Available suites: ${[...suiteNames].join(', ')}`,
+  );
+  process.exit(2);
+}
+if (only?.some((id) => !MUTANTS.some((m) => m.id === id))) {
+  const unknown = only.filter((id) => !MUTANTS.some((m) => m.id === id));
+  console.error(`Unknown mutant ID(s): ${unknown.join(', ')}`);
+  process.exit(2);
+}
+if (!selected.length) {
+  console.error('No mutants selected for the requested suite/filter.');
+  process.exit(2);
+}
+for (const mutant of selected) {
+  if (!Array.isArray(mutant.kills) || mutant.kills.length === 0) {
+    console.error(
+      `${mutant.id} is missing test traceability metadata (kills).`,
+    );
+    process.exit(2);
+  }
+}
 
 if (args.includes('--list')) {
-  for (const m of selected) console.log(`${m.id.padEnd(8)} ${m.equivalent ? '[equivalent] ' : ''}${m.name}`);
+  for (const m of selected)
+    console.log(
+      `${m.id.padEnd(8)} ${m.equivalent ? '[equivalent] ' : ''}${m.name} | Kills: ${m.kills.join('; ')}`,
+    );
   process.exit(0);
 }
 
-const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
-const originals = new Map([...new Set(selected.map((m) => m.file))].map((f) => [f, sha(join(root, f))]));
+const sha = (path) =>
+  createHash('sha256').update(readFileSync(path)).digest('hex');
+const originals = new Map(
+  [...new Set(selected.map((m) => m.file))].map((f) => [f, sha(join(root, f))]),
+);
 
-const scratch = mkdtempSync(join(tmpdir(), 'spm120-mutation-'));
+const scratch = mkdtempSync(join(tmpdir(), 'spm-mutation-'));
 cpSync(root, scratch, {
   recursive: true,
-  filter: (src) => !/(^|[\\/])(node_modules|dist|coverage|test-results)([\\/]|$)/.test(relative(root, src)),
+  filter: (src) =>
+    !/(^|[\\/])(node_modules|dist|coverage|test-results)([\\/]|$)/.test(
+      relative(root, src),
+    ),
 });
 symlinkSync(join(root, 'node_modules'), join(scratch, 'node_modules'));
 
 const run = (suite) =>
-  spawnSync(process.execPath, [join(scratch, 'node_modules/vitest/vitest.mjs'), ...SUITES[suite].args], {
-    cwd: scratch,
-    env: {
-      ...process.env,
-      ...SUITES[suite].env,
-      SPM51_DATABASE_INIT_DIR: join(root, '../database/postgresql/init'),
-      CI: '1',
+  spawnSync(
+    process.execPath,
+    [join(scratch, 'node_modules/vitest/vitest.mjs'), ...SUITES[suite].args],
+    {
+      cwd: scratch,
+      env: {
+        ...process.env,
+        ...SUITES[suite].env,
+        SPM51_DATABASE_INIT_DIR: join(root, '../database/postgresql/init'),
+        CI: '1',
+      },
+      encoding: 'utf8',
+      timeout: 180_000,
     },
-    encoding: 'utf8',
-    timeout: 180_000,
-  });
-const skipped = (suite) => SUITES[suite].needsEnv?.find((name) => !process.env[name]);
+  );
+const skipped = (suite) =>
+  SUITES[suite].needsEnv?.find((name) => !process.env[name]);
 
 let exitCode = 0;
 try {
@@ -67,14 +118,24 @@ try {
       continue;
     }
     const result = run(suite);
-    console.log(`baseline ${suite}: ${result.status === 0 ? 'green' : 'NOT GREEN'}`);
+    console.log(
+      `baseline ${suite}: ${result.status === 0 ? 'green' : 'NOT GREEN'}`,
+    );
     if (result.status !== 0) {
-      console.log((result.stdout + result.stderr).split('\n').slice(-25).join('\n'));
+      console.log(
+        (result.stdout + result.stderr).split('\n').slice(-25).join('\n'),
+      );
       exitCode = 2;
     }
   }
   if (exitCode === 0) {
-    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0 };
+    const tally = {
+      killed: 0,
+      survived: 0,
+      equivalent: 0,
+      misapplied: 0,
+      skipped: 0,
+    };
     for (const m of selected) {
       const path = join(scratch, m.file);
       const source = readFileSync(path, 'utf8');
@@ -90,15 +151,18 @@ try {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
       } else {
-        writeFileSync(path, mutated);
         const runnable = suitesOf(m).filter((s) => !skipped(s));
-        for (const suite of runnable) {
-          if (run(suite).status !== 0) {
-            by = suite;
-            break;
+        try {
+          writeFileSync(path, mutated);
+          for (const suite of runnable) {
+            if (run(suite).status !== 0) {
+              by = suite;
+              break;
+            }
           }
+        } finally {
+          writeFileSync(path, source);
         }
-        writeFileSync(path, source);
         if (by) {
           status = 'killed';
           tally.killed += 1;
@@ -113,10 +177,15 @@ try {
           tally.survived += 1;
         }
       }
-      console.log(`${m.id.padEnd(8)} ${status.padEnd(10)} ${by.padEnd(6)} ${m.name}`);
+      console.log(
+        `${m.id.padEnd(8)} ${status.padEnd(10)} ${by.padEnd(6)} ${m.name} | Kills: ${m.kills.join('; ')}`,
+      );
     }
-    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
+    console.log(
+      `\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`,
+    );
     if (tally.survived || tally.misapplied) exitCode = 1;
+    else if (tally.skipped) exitCode = 3;
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
