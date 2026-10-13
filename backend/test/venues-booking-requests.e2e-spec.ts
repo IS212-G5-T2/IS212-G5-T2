@@ -343,6 +343,54 @@ describe.skipIf(!databaseUrl)(
         .expect(201);
     });
 
+    /** VEN-AVL-02-C: pending requests are not confirmed bookings, and rejected requests are absent from the schedule. */
+    it('does not expose pending or rejected requests as confirmed venue bookings', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const pendingEvent = await createAssignedEvent(
+        coordinator.id,
+        'Pending schedule request',
+      );
+      const rejectedEvent = await createAssignedEvent(
+        coordinator.id,
+        'Rejected schedule request',
+      );
+      const period = {
+        start: '2030-01-12T06:00:00Z',
+        end: '2030-01-12T07:00:00Z',
+      };
+
+      await addBooking(venueId, pendingEvent, {
+        ...period,
+        status: 'pending',
+        expires: new Date('2030-01-11T12:00:00.000Z'),
+      });
+      await addBooking(venueId, rejectedEvent, {
+        ...period,
+        status: 'rejected',
+      });
+
+      const schedule = await request(app.getHttpServer())
+        .get(`/api/venues/${venueId}`)
+        .set('Cookie', coordinator.cookie)
+        .expect(200);
+
+      expect(schedule.body.reservations).toEqual([
+        expect.objectContaining({
+          eventName: 'Pending schedule request',
+          status: 'tentative',
+        }),
+      ]);
+      expect(schedule.body.reservations).not.toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            eventName: 'Rejected schedule request',
+          }),
+        ]),
+      );
+    });
+
     /** VEN-AVL-07-SEC-1: a conflict returns 409 and records no booking request. */
     it('rejects a fresh confirmed-booking conflict without persisting a request', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -548,6 +596,32 @@ describe.skipIf(!databaseUrl)(
         '2030-01-12T04:00:00Z',
         '2030-01-12T05:00:00Z',
         'Existing later event',
+      );
+    });
+
+    /** VEN-AVL-07-C: an unavailable Maintenance period blocks a request and reports its reason without inserting a booking. */
+    it('rejects a request inside a Maintenance blockout without persisting it', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const candidate = await createAssignedEvent(
+        coordinator.id,
+        'Maintenance blockout candidate',
+      );
+      await addBlockout(
+        venueId,
+        '2030-01-12T04:00:00Z',
+        '2030-01-12T05:00:00Z',
+        'Maintenance',
+      );
+
+      await expectConflictWithoutRequest(
+        venueId,
+        coordinator.cookie,
+        candidate,
+        '2030-01-12T04:00:00Z',
+        '2030-01-12T05:00:00Z',
+        'Maintenance',
       );
     });
 
