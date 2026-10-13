@@ -64,9 +64,9 @@ type Handler = (
 @Injectable()
 export class StatusService {
   /** One handler per target status (D16). SPM-136 adds `Cancelled` here. */
-  private readonly handlers: Record<string, Handler> = {
-    Confirmed: (client, context) => this.confirm(client, context),
-  };
+  private readonly handlers = new Map<string, Handler>([
+    ['Confirmed', (client, context) => this.confirm(client, context)],
+  ]);
 
   constructor(
     private readonly database: DatabaseService,
@@ -80,9 +80,7 @@ export class StatusService {
     const user = this.requireUser(identity);
     const targetStatus = this.targetStatusOf(body);
     const event = await this.assignedEventOrThrow(user, eventId);
-    const handler = Object.prototype.hasOwnProperty.call(this.handlers, targetStatus)
-      ? this.handlers[targetStatus]
-      : undefined;
+    const handler = this.handlers.get(targetStatus);
     if (!handler)
       throw new BadRequestException({
         code: STATUS_CODES.unsupportedTarget,
