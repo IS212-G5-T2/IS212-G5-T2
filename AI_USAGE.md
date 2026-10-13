@@ -15,6 +15,8 @@ Where user is the user's github username.
 
 ## 2026-10-13
 
+- swr - documentation - SPM-51 - Require labelled mutation kill targets: Update the Test Code Reviewer guidance to require and validate each mutant's exact test-file and test-title kill mapping.
+- swr - testing - SPM-51 - Trace and run frontend venue mutations: Assign FE-B06–FE-B17 IDs and explicit test-case mappings to all 10 frontend mutants; runner validates test references and reports skipped/error outcomes distinctly. Full frontend mutation run passed (10/10 killed, 11 mapped test links, both baselines green); `npm run test:cov` passed (70 files, 1,012 passed, 1 todo); targeted ESLint and `git diff --check` passed.
 - swr - documentation - SPM-51 - Correct VEN-AVL procedures and matrix: Revised all 27 Confluence test cases for reproducible fixtures and current UI behavior, corrected AC mapping and evidence citations, and reconciled blocked backend E2E/manual evidence in the matrix.
 - swr - verification - SPM-51 - Run VEN-AVL E2E against local PostgreSQL: Using the configured DATABASE_URL, `test/venues-booking-requests.e2e-spec.ts` passed 12/12, including VEN-AVL-02-C and VEN-AVL-07-C.
 - swr - testing - SPM-51 - Trace backend tests to booking-request mutants: Name DTO parameter rows, map B06–B14 to exact test locations, replace wall-clock expiry fixtures with PostgreSQL-clock values, and document the rejected-versus-cancelled schema limit. Focused unit tests passed (19); full backend coverage tests passed (1,176); database E2E (25) and nine database mutants were skipped because DATABASE_URL was unavailable.
