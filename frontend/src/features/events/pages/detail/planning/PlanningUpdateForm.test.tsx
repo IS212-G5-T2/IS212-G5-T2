@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
+import { PlanningUpdateForm , toLocalInput } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { ApiError } from "@/utils/api";
 import { formatDateTime } from "@/utils/format";
 import type { EventRecord } from "@/types";
@@ -451,5 +451,104 @@ describe("PlanningUpdateForm: authoritative values and pending proposals (SPM-49
     rerender(<PlanningUpdateForm {...props} event={{ ...eventRecord(), expectedAttendance: 150, purpose: "Server purpose" }} />);
     expect(screen.getByLabelText(/expected attendance/i)).toHaveValue(150);
     expect(screen.getByLabelText(/^purpose/i)).toHaveValue("Typed purpose");
+  });
+});
+
+describe("PlanningUpdateForm: unusual inputs and server replies (SPM-49)", () => {
+  const WINDOW = { kind: "within_window" as const, start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z" };
+  const DATE_FIELDS = (["startDateTime", "endDateTime"] as const).map((field) => ({
+    field,
+    mode: "conditional" as const,
+    condition: WINDOW,
+  }));
+
+  /**
+   * EVENT-UPDATE-01-E: an event whose stored date cannot be read opens with
+   * that date input empty instead of showing an invalid value. This checks the
+   * outcome the coordinator sees; browsers (and jsdom) also clear an invalid
+   * datetime-local value, so it does not by itself prove the form's guard.
+   */
+  it("EVENT-UPDATE-01-E opens with an empty date input when the stored date is unreadable", () => {
+    const event = { ...eventRecord(), startDateTime: "not-a-date" };
+    render(<PlanningUpdateForm event={event} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} onSave={vi.fn()} />);
+    expect(screen.getByLabelText(/start date & time/i)).toHaveValue("");
+    expect(screen.getByLabelText(/end date & time/i)).not.toHaveValue("");
+  });
+
+  it("EVENT-UPDATE-01-E toLocalInput returns an empty string for an unreadable date", () => {
+    expect(toLocalInput("not-a-date")).toBe("");
+    expect(toLocalInput("")).toBe("");
+  });
+
+  /**
+   * EVENT-UPDATE-02-C: a field the server sent no edit policy for shows no
+   * badge, rather than a wrong one.
+   */
+  it("EVENT-UPDATE-02-C shows no badge for a field without an edit policy", () => {
+    render(
+      <PlanningUpdateForm
+        event={eventRecord()}
+        editableFields={[{ field: "name", mode: "direct" }]}
+        lastUpdatedAt={LAST_UPDATED}
+        onSave={vi.fn()}
+      />,
+    );
+    expect(screen.getAllByText("Applies immediately")).toHaveLength(1);
+    expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
+    expect(screen.queryByText("Review if it affects bookings")).not.toBeInTheDocument();
+  });
+
+  /**
+   * EVENT-UPDATE-05-C: clearing a date that must stay inside the booked
+   * window is predicted to need review, because an empty time cannot be shown
+   * to fit the booking.
+   */
+  it("EVENT-UPDATE-05-C predicts review when a booked date is cleared", () => {
+    render(<PlanningUpdateForm event={eventRecord()} editableFields={DATE_FIELDS} lastUpdatedAt={LAST_UPDATED} onSave={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/start date & time/i), { target: { value: "" } });
+    expect(screen.getAllByText("This change will be sent for review.").length).toBeGreaterThan(0);
+    expect(screen.queryByText("This change will apply immediately.")).not.toBeInTheDocument();
+  });
+
+  /**
+   * EVENT-UPDATE-04-H: server errors for the facilities and accessibility
+   * lists are shown under those lists, and the coordinator's other edits stay.
+   */
+  it("EVENT-UPDATE-04-H shows server errors for the facility and accessibility lists", async () => {
+    const user = userEvent.setup();
+    renderForm(
+      vi.fn().mockRejectedValue(
+        new ApiError("Please correct the highlighted fields.", {
+          facilities: "Choose valid facilities.",
+          accessibility: "Choose valid accessibility needs.",
+        }),
+      ),
+    );
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    await screen.findByText("Choose valid facilities.");
+    // Each error sits directly after its own list, not under the other one.
+    const errorAfter = (groupName: string) =>
+      screen.getByRole("group", { name: groupName }).parentElement?.nextElementSibling;
+    expect(errorAfter("Required facilities")).toHaveTextContent("Choose valid facilities.");
+    expect(errorAfter("Required facilities")).toHaveAttribute("role", "alert");
+    expect(errorAfter("Accessibility needs")).toHaveTextContent("Choose valid accessibility needs.");
+    expect(errorAfter("Accessibility needs")).toHaveAttribute("role", "alert");
+    expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
+  });
+
+  /**
+   * EVENT-UPDATE-04-H: a refusal with a message but no field errors shows the
+   * message, marks no field, and keeps what was typed.
+   */
+  it("EVENT-UPDATE-04-H shows a refusal that has no field errors without marking any field", async () => {
+    const user = userEvent.setup();
+    renderForm(vi.fn().mockRejectedValue(new ApiError("Event information can only be changed after approval.")));
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    const alerts = (await screen.findAllByRole("alert")).map((a) => a.textContent);
+    expect(alerts).toEqual(["Event information can only be changed after approval."]);
+    expect(screen.getByLabelText(/event name/i)).toHaveValue("Welcome Evening 2");
+    expect(screen.getByLabelText(/event name/i)).not.toHaveAttribute("aria-invalid", "true");
   });
 });
