@@ -8,14 +8,17 @@ export interface VenueUnavailablePeriod {
   current?: boolean;
 }
 
-export interface VenueReservation {
+interface VenueReservationBase {
   id: string;
   eventName: string;
   start: string;
   end: string;
-  status: "booked" | "tentative";
   affectedByUnavailablePeriod: boolean;
 }
+
+export type VenueReservation =
+  | (VenueReservationBase & { status: "booked"; holdExpiresAt?: never })
+  | (VenueReservationBase & { status: "tentative"; holdExpiresAt: string });
 
 /** Read-only venue catalogue view of the SPM-50 venue record and schedule. */
 export interface VenueRecord extends Venue {
@@ -50,6 +53,8 @@ export function visibleVenues(
             ).localeCompare(
               sortKey === "status" ? b.availabilityStatus : b[sortKey],
             );
-      return (descending ? -comparison : comparison) || a.id.localeCompare(b.id);
+      return (
+        (descending ? -comparison : comparison) || a.id.localeCompare(b.id)
+      );
     });
 }

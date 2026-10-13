@@ -15,7 +15,6 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   ],
   coordinator: [
     { label: "Events", to: "/events", icon: "📅", feature: "Feature 3, 4, 5, 6" },
-    { label: "Venues", to: "/venues", icon: "🏛️", feature: "Feature 7, 8" },
     { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
     { label: "Venue Availability", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Bookings", to: "/bookings", icon: "📝", feature: "Feature 9, 11" },

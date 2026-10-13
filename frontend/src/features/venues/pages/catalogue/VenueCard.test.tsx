@@ -27,7 +27,7 @@ function renderCard(
 ) {
   return render(
     <MemoryRouter>
-      <VenueCard venue={value} highlightSuitable={highlightSuitable} onBook={onBook} />
+      <VenueCard venue={value} highlightSuitable={highlightSuitable} onCheckAvailability={onBook} />
     </MemoryRouter>,
   );
 }
@@ -50,8 +50,8 @@ describe("VenueCard", () => {
     expect(screen.getByText("Suitable")).toBeTruthy();
   });
 
-  // Optional saved images and booking callbacks must remain connected to the card UI.
-  it("shows the venue image and invokes the optional booking action", () => {
+  // Optional saved images and availability navigation must remain connected to the card UI.
+  it("shows the venue image and invokes the availability action", () => {
     const onBook = vi.fn();
     renderCard(
       {
@@ -69,7 +69,7 @@ describe("VenueCard", () => {
     expect(screen.getByRole("img", { name: "Orchid Hall venue" }).getAttribute("src")).toBe(
       "data:image/png;base64,dGVzdA==",
     );
-    screen.getByRole("button", { name: "Submit Booking Request" }).click();
+    screen.getByRole("button", { name: "Check Availability" }).click();
     expect(onBook).toHaveBeenCalledOnce();
   });
 
