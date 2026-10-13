@@ -42,6 +42,7 @@ describe.skipIf(!database)(
   () => {
     let db: pg.Pool;
     let service: EventPlanningService;
+    let repository: EventPlanningRepository;
     let databaseService: DatabaseService;
     const eventIds: string[] = [];
     let eventId: string;
@@ -107,11 +108,13 @@ describe.skipIf(!database)(
       venueId: string,
       start: string,
       end: string,
+      status: 'pending' | 'approved' = 'approved',
+      holdExpiresAt: string | null = null,
     ) {
       const result = await db.query<{ id: string }>(
-        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status)
-       VALUES ($1,$2,$3,$4,'approved') RETURNING id`,
-        [event, venueId, start, end],
+        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, hold_expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [event, venueId, start, end, status, holdExpiresAt],
       );
       return result.rows[0].id;
     }
@@ -138,6 +141,7 @@ describe.skipIf(!database)(
         ],
       }).compile();
       service = module.get(EventPlanningService);
+      repository = module.get(EventPlanningRepository);
       const owner = await db.query<{ id: string }>(
         `INSERT INTO users (email, display_name, password_hash)
          VALUES ($1,'E2E Venue Staff','not-a-real-hash') RETURNING id`,
@@ -202,6 +206,58 @@ describe.skipIf(!database)(
           status: 'Reserved',
         }),
       ]);
+    });
+
+    /** SPM-51 AC10: only explicit future-expiry pending holds are active; unbounded requests and expired holds are not booked. */
+    it('maps pending venue rows by explicit hold expiry and preserves approved bookings', async () => {
+      const venueId = (await db.query<{ venue_id: string }>(
+        'SELECT venue_id FROM venue_bookings WHERE id = $1',
+        [hallA],
+      )).rows[0].venue_id;
+      const unboundedRequest = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 360),
+        at(END, 360),
+        'pending',
+      );
+      const expiredHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 720),
+        at(END, 720),
+        'pending',
+        new Date(Date.now() - MINUTE).toISOString(),
+      );
+      const activeHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 1080),
+        at(END, 1080),
+        'pending',
+        new Date(Date.now() + 60 * MINUTE).toISOString(),
+      );
+      const exactExpiryHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 1440),
+        at(END, 1440),
+        'pending',
+        new Date(Date.now() + 60 * MINUTE).toISOString(),
+      );
+      await db.query(
+        'UPDATE venue_bookings SET hold_expires_at = now() WHERE id = $1',
+        [exactExpiryHold],
+      );
+
+      const bookings = await repository.listVenueBookings(eventId);
+      const byId = new Map(bookings.map((booking) => [booking.id, booking.status]));
+
+      expect(byId.get(unboundedRequest)).toBe('Cancelled');
+      expect(byId.get(expiredHold)).toBe('Cancelled');
+      expect(byId.get(exactExpiryHold)).toBe('Cancelled');
+      expect(byId.get(activeHold)).toBe('Booked');
+      expect(byId.get(hallA)).toBe('Booked');
     });
 
     // SPM-49 AC3 + SPM-85 AC1/AC2/AC6: direct field applies, booking field is flagged per venue.
