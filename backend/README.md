@@ -166,11 +166,12 @@ unavailable records unless `includeUnavailable=true` is requested.
 `POST /api/venues` requires a valid local session and the RBAC `Venue:create`
 permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
 positive integer capacity, non-empty facilities and layouts, optional
-accessibility features, separate operating information and operating
-days with valid daily start/end times, and non-negative
-whole-minute setup and turnaround durations. Facilities and layouts must match
-the controlled lookup values; an optional image must be an image data URL no
-larger than 5 MB. Successful requests persist the venue, its normalized
+accessibility features, one free-text operating information value, and
+non-negative whole-minute setup and turnaround durations. Operating days and
+opening times are not required from the creation client; omitted schedules are
+stored as every day from 00:00 to 23:59 for availability views. Facilities and
+layouts must match the controlled lookup values; an optional image must be an
+image data URL no larger than 5 MB. Successful requests persist the venue, its normalized
 relationships, optional image, and the authenticated Venue Staff account ID
 (`venues.owner_user_id`) atomically and return
 the saved record with `Venue created successfully.` PostgreSQL generates the

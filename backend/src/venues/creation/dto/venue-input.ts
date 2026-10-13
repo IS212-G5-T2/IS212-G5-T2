@@ -46,9 +46,6 @@ export const venueFields = [
   'facilities',
   'layouts',
   'operatingInformation',
-  'operatingDays',
-  'operatingStartTime',
-  'operatingEndTime',
   'setupTimeMinutes',
   'turnaroundTimeMinutes',
 ] as const;
@@ -96,7 +93,10 @@ export function validateVenue(value: unknown): VenueInput {
   const name = text('name', 200);
   const location = text('location', 300);
   const operatingInformation = text('operatingInformation', 200);
-  const operatingDays = array('operatingDays');
+  const operatingDays =
+    body.operatingDays === undefined
+      ? [...operatingDayNames]
+      : array('operatingDays');
   if (
     operatingDays.some(
       (day) => !operatingDayNames.includes(day as (typeof operatingDayNames)[number]),
@@ -105,14 +105,18 @@ export function validateVenue(value: unknown): VenueInput {
     errors.operatingDays = 'Choose one or more valid operating days.';
   if (new Set(operatingDays).size !== operatingDays.length)
     errors.operatingDays = 'Choose each operating day only once.';
-  const time = (key: 'operatingStartTime' | 'operatingEndTime'): string => {
+  const time = (
+    key: 'operatingStartTime' | 'operatingEndTime',
+    fallback: string,
+  ): string => {
+    if (body[key] === undefined) return fallback;
     const value = text(key, 5);
     if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value))
       errors[key] = 'Enter a valid time.';
     return value;
   };
-  const operatingStartTime = time('operatingStartTime');
-  const operatingEndTime = time('operatingEndTime');
+  const operatingStartTime = time('operatingStartTime', '00:00');
+  const operatingEndTime = time('operatingEndTime', '23:59');
   if (operatingStartTime && operatingEndTime && operatingStartTime >= operatingEndTime)
     errors.operatingEndTime = 'End time must be after start time.';
   const duration = (key: 'setupTimeMinutes' | 'turnaroundTimeMinutes') => {

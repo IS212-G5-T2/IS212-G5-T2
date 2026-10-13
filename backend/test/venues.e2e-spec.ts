@@ -233,6 +233,50 @@ describe.skipIf(!databaseUrl)(
       ).toBe(1);
     });
 
+    /** SPM-50 / AC4: current creation fields save operating information without requiring an opening schedule. */
+    it('creates a venue without operating hours and persists operating information with a full-week compatibility schedule', async () => {
+      const staff = await authenticate(staffEmail);
+      const inputWithoutHours = Object.fromEntries(
+        Object.entries(venueInput).filter(
+          ([field]) =>
+            !['operatingDays', 'operatingStartTime', 'operatingEndTime'].includes(field),
+        ),
+      );
+
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...inputWithoutHours, name: 'SPM-50 No Hours Venue' })
+        .expect(201);
+
+      const venueId = created.body.venue.id as string;
+      venueIds.push(venueId);
+      expect(created.body).toMatchObject({
+        venue: {
+          id: expect.stringMatching(uuidPattern),
+          operatingInformation: venueInput.operatingInformation,
+          operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          operatingStartTime: '00:00',
+          operatingEndTime: '23:59',
+        },
+        message: 'Venue created successfully.',
+      });
+      const persisted = await pool.query(
+        `SELECT operating_information, operating_days,
+                to_char(operating_start_time, 'HH24:MI') AS operating_start_time,
+                to_char(operating_end_time, 'HH24:MI') AS operating_end_time
+         FROM venues WHERE id = $1`,
+        [venueId],
+      );
+      expect(persisted.rows).toEqual([
+        {
+          operating_information: venueInput.operatingInformation,
+          operating_days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+          operating_start_time: '00:00',
+          operating_end_time: '23:59',
+        },
+      ]);
+    });
+
     // SPM-50 owner rule: another staff member owns only the venue created through their own session.
     it('uses the verified second staff identity despite spoofed owner fields', async () => {
       // Arrange a second seeded Venue Staff account and client-controlled owner values.

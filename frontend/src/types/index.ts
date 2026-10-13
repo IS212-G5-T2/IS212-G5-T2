@@ -140,7 +140,10 @@ export interface VenueImage {
 }
 
 /** Venue details supplied by staff before the backend generates its UUID. */
-export type VenueCreateInput = Omit<Venue, "id">;
+export type VenueCreateInput = Omit<
+  Venue,
+  "id" | "operatingDays" | "operatingStartTime" | "operatingEndTime"
+>;
 
 export type BookingStatus = "pending" | "approved" | "rejected";
 

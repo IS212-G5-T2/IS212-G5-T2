@@ -19,9 +19,6 @@ function venueCreateInput(venue: Venue): VenueCreateInput {
     accessibility: venue.accessibility,
     layouts: venue.layouts,
     operatingInformation: venue.operatingInformation,
-    operatingDays: venue.operatingDays,
-    operatingStartTime: venue.operatingStartTime,
-    operatingEndTime: venue.operatingEndTime,
     setupTimeMinutes: venue.setupTimeMinutes,
     turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
   };

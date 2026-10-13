@@ -75,6 +75,14 @@ describe('SPM-50 venue input', () => {
     expect(fieldError(input).errors[field]).toBeTruthy();
   });
 
+  /** SPM-50 / AC3: operating information remains a required free-text venue field. */
+  it('rejects missing operating information independently of venueFields', () => {
+    const input = { ...valid() };
+    delete input.operatingInformation;
+
+    expect(fieldError(input).errors.operatingInformation).toBeTruthy();
+  });
+
   // SPM-50 / VEN-CRE-03-B: combined omissions report every affected field.
   it('reports multiple missing fields and a non-object payload', () => {
     // Arrange two missing values.
@@ -109,14 +117,17 @@ describe('SPM-50 venue input', () => {
     expect(validateVenue({ ...valid(), capacity }).capacity).toBe(capacity);
   });
 
-  // SPM-50 / VEN-CRE-02-A: selected days and a same-day time range form one operating schedule.
-  it('accepts a valid structured operating schedule', () => {
-    const venue = validateVenue(valid());
+  // SPM-50 correction: omitted opening hours receive a full-week compatibility schedule.
+  it('does not require operating days or opening hours', () => {
+    const input = { ...valid() };
+    delete input.operatingDays;
+    delete input.operatingStartTime;
+    delete input.operatingEndTime;
 
-    expect(venue).toMatchObject({
-      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-      operatingStartTime: '08:00',
-      operatingEndTime: '22:00',
+    expect(validateVenue(input)).toMatchObject({
+      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+      operatingStartTime: '00:00',
+      operatingEndTime: '23:59',
     });
   });
 

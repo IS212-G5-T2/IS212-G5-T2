@@ -41,9 +41,6 @@ const venueInput: VenueCreateInput = {
   accessibility: venue.accessibility,
   layouts: venue.layouts,
   operatingInformation: venue.operatingInformation,
-  operatingDays: venue.operatingDays,
-  operatingStartTime: venue.operatingStartTime,
-  operatingEndTime: venue.operatingEndTime,
   setupTimeMinutes: venue.setupTimeMinutes,
   turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
 };
@@ -52,8 +49,6 @@ const locationValues = {
   Location: venue.location,
   Capacity: String(venue.capacity),
   "Operating information": venue.operatingInformation,
-  "Operating start time": venue.operatingStartTime,
-  "Operating end time": venue.operatingEndTime,
   "Setup time (minutes)": String(venue.setupTimeMinutes),
   "Turnaround time (minutes)": String(venue.turnaroundTimeMinutes),
 };
@@ -81,8 +76,6 @@ async function fillVenueDetails(
   // Enter every required venue field; accessibility is deliberately optional.
   for (const [label, value] of Object.entries(locationValues))
     await user.type(screen.getByLabelText(label, { exact: false }), value);
-  for (const day of venue.operatingDays)
-    await user.click(screen.getByLabelText(day));
   if (includeAccessibility) await user.click(screen.getByLabelText("Wheelchair access"));
 }
 
@@ -140,15 +133,7 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByLabelText("Operating information", { exact: false })).toBeInstanceOf(
       HTMLTextAreaElement,
     );
-    expect(screen.getByLabelText("Operating start time", { exact: false })).toBeInstanceOf(
-      HTMLInputElement,
-    );
-    expect(screen.getByLabelText("Operating end time", { exact: false })).toBeInstanceOf(
-      HTMLInputElement,
-    );
-    expect(screen.getByLabelText("Operating start time", { exact: false }).closest(".grid")?.className).toContain(
-      "sm:grid-cols-2",
-    );
+    expect(screen.queryByLabelText(/operating (start|end) time|operating days/i)).toBeNull();
     expect(screen.getByLabelText("Setup time (minutes)", { exact: false }).closest(".grid")?.className).toContain(
       "sm:grid-cols-2",
     );
@@ -194,7 +179,6 @@ describe("SPM-50 venue creation", () => {
         screen.getByLabelText(label, { exact: false }),
       ).toHaveProperty("value", value);
     expect(screen.getByLabelText("Wheelchair access")).toHaveProperty("checked", true);
-    expect(screen.getByLabelText("Monday")).toHaveProperty("checked", true);
   });
 
   // SPM-50 / VEN-CRE-03-A: missing required venue fields block the next page.
@@ -204,7 +188,7 @@ describe("SPM-50 venue creation", () => {
 
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getAllByRole("alert")).toHaveLength(9);
+    expect(screen.getAllByRole("alert")).toHaveLength(6);
     expect(screen.queryByRole("heading", { name: /facilities & room layouts/i })).toBeNull();
   });
 
@@ -234,22 +218,14 @@ describe("SPM-50 venue creation", () => {
     expect(screen.getByRole("heading", { name: /facilities & room layouts/i })).toBeTruthy();
   });
 
-  // SPM-50 / VEN-CRE-03-A: a schedule requires a selected day and an end time after its start.
-  it("rejects an empty operating-day selection and an inverted time range", async () => {
+  // SPM-50 correction: operating hours are not requested as venue creation input.
+  it("allows creation details without operating-day or opening-hour input", async () => {
     const user = userEvent.setup();
     renderRoutes();
     await fillVenueDetails(user);
-    for (const day of venue.operatingDays)
-      await user.click(screen.getByLabelText(day));
-    fireEvent.change(screen.getByLabelText("Operating end time", { exact: false }), {
-      target: { value: "08:00" },
-    });
-
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
-    expect(screen.getByText("Choose at least one operating day.")).toBeTruthy();
-    expect(screen.getByText("End time must be after start time.")).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: /facilities & room layouts/i })).toBeNull();
+    expect(screen.getByRole("heading", { name: /facilities & room layouts/i })).toBeTruthy();
   });
 
   // SPM-50 / AC3: numeric boundaries are enforced before continuing.
@@ -295,25 +271,6 @@ describe("SPM-50 venue creation", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  // SPM-50 / AC3: a schedule error returned after page two sends staff back to the field that needs correction.
-  it("returns to venue details for a backend operating-schedule error", async () => {
-    const user = userEvent.setup();
-    renderRoutes();
-    await fill(user);
-    apiMock.mockRejectedValueOnce(
-      new ApiError(
-        "Check the venue details.",
-        { operatingEndTime: "End time must be after start time." },
-        undefined,
-        400,
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "Create Venue" }));
-
-    expect(await screen.findByRole("heading", { name: "Venue details" })).toBeTruthy();
-    expect(screen.getByText("End time must be after start time.")).toBeTruthy();
-  });
 
   // SPM-50 / VEN-CRE-03-C: correcting both relationship selections clears their errors.
   it("clears facility and layout errors after correction", async () => {
