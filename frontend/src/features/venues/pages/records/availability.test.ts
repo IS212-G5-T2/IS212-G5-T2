@@ -91,6 +91,9 @@ describe("checkVenueAvailability (SPM-51)", () => {
     expect(
       formatVenueRange("2030-01-12T04:00:00.000Z", "2030-01-12T05:00:00.000Z"),
     ).toBe("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)");
+    expect(formatVenueRange("2030-01-12T12:00", "2030-01-12T13:00")).toBe(
+      "12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)",
+    );
     expect(formatVenueInstant("2030-01-12T04:30:00.000Z")).toBe(
       "12 Jan 2030, 12:30 SGT",
     );
