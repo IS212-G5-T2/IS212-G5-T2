@@ -7,6 +7,10 @@ import { useAppStore } from "@/store/useAppStore";
 import { VenueRecordDetailPage } from "./VenueRecordDetailPage";
 import type { VenueRecord } from "../venue-records";
 
+// ASSUMPTION INDEX
+// A1: AC10 defines expired holds as available but gives no grace interval; this test treats the expiry instant as the boundary.
+// A2: AC4 requires available slots to be distinguishable but does not prescribe a label; the current UI label is "Available slot".
+
 vi.mock("@fullcalendar/react", () => ({
   default: (props: Record<string, unknown>) => createElement(
     "button",
@@ -176,7 +180,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     expect(apiMock).toHaveBeenCalledOnce();
   });
 
-  /** VEN-AVL-10-A/B/BND-1: a hold becomes available exactly when the server expiry instant arrives. */
+  /** VEN-AVL-10-A/B/BND-1 / ASSUMPTION A1: a hold becomes available at its expiry instant. */
   it("removes an expired hold from the displayed schedule when its expiry timer fires", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
@@ -205,7 +209,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
 
     try {
       renderPage();
-      await act(async () => { for (let i = 0; i < 5; i += 1) await Promise.resolve(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByRole("heading", { name: "Conference Room" })).toBeInTheDocument();
       fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T12:00" } });
       fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T13:00" } });
@@ -218,6 +222,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
       expect(screen.getByRole("list", { name: "Venue schedule" })).not.toHaveTextContent("Expiring hold");
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Later hold");
       expect(screen.getByRole("status")).toHaveTextContent("available");
+      // ASSUMPTION A2: the product requires distinct available slots; it does not prescribe this exact visible label.
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Available slot");
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)");
     } finally {
