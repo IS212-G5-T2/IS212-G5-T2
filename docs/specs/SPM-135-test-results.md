@@ -216,7 +216,7 @@ The frontend mutant M19 is not in this runner (run.mjs copies the backend tree o
 | NP2 | Approved accepted as a source | KILLED | e2e TR-03 |
 | M11 | Unconditional UPDATE under the row lock | EQUIVALENT | The status is re-read under `FOR UPDATE` |
 | M11c | No row lock and unconditional UPDATE | KILLED | e2e 04-B (B, deterministic) |
-| M12 | Notification written before the guards | KILLED | e2e 05-A (duplicate on success); blocked attempts roll back |
+| M12 | Notification written before the guards | KILLED | The partial unique index with `ON CONFLICT ... DO NOTHING` means no duplicate notification is ever written; M12 is caught on success by the 05-A message text ('early' instead of MSG-CF-01), and on the 04-B re-sends by the unique violation returning a 500 instead of 409 |
 | M13 | Notification to the coordinator (wrong recipient) | KILLED | e2e 05-A, 05-C |
 | M14 | Event row spread into the organiser response | KILLED | e2e 05-B (exact keys) |
 | M15 | History actor is the organiser | KILLED | e2e 01-A |

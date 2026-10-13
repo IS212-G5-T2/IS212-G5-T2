@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
@@ -298,6 +298,147 @@ describe("SPM-135 AC4 and AC5: success is announced once, and a double click is 
     gate.resolve({ eventId: EVENT_ID, status: "Confirmed", message: "Product Launch Mixer has been confirmed." });
     await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Product Launch Mixer has been confirmed."));
     expect(onConfirmed).toHaveBeenCalledTimes(1);
+  });
+});
+
+/** The onClick the DOM button currently holds (the handler a click would run, as of the last render). */
+function currentOnClick(button: HTMLElement): (() => void) | undefined {
+  const key = Object.keys(button).find((name) => name.startsWith("__reactProps$"));
+  return key ? (button as unknown as Record<string, { onClick?: () => void }>)[key].onClick : undefined;
+}
+
+const confirmCalls = (calls: { path: string }[]) => calls.filter((c) => c.path.endsWith("/status-change")).length;
+
+describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
+  beforeEach(() => {
+    apiMock.mockReset();
+  });
+  afterEach(cleanup);
+
+  it("SPM-135 AC4 (FE, re-entrancy): a confirm invoked again while one is in flight sends no second request", async () => {
+    // Arrange: the first confirm is held open until the test releases it
+    const gate = deferred<unknown>();
+    const calls = route({ arrangements: { ready: true, outstanding: [] }, confirm: () => gate.promise });
+    const { onConfirmed } = renderPanel();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
+    expect(confirmCalls(calls)).toBe(1);
+
+    // Act: the handler the button holds while pending runs again (a re-entrant call; the disabled button hides it from a click)
+    await act(async () => {
+      currentOnClick(screen.getByRole("button", { name: "Confirm Event" }))?.();
+    });
+
+    // Assert: still one request; releasing the first request announces success once
+    expect(confirmCalls(calls)).toBe(1);
+    gate.resolve({ eventId: EVENT_ID, status: "Confirmed", message: "Product Launch Mixer has been confirmed." });
+    expect(await screen.findByRole("status")).toHaveTextContent("Product Launch Mixer has been confirmed.");
+    expect(onConfirmed).toHaveBeenCalledTimes(1);
+  });
+
+  it("SPM-135 AC4 (FE, other error): a 409 EVENT_ALREADY_CONFIRMED shows its message in an alert, keeps the button, and changes nothing else", async () => {
+    // Arrange: the server answers 409 for an event that is already Confirmed (backend status.messages.ts)
+    const calls = route({
+      arrangements: { ready: true, outstanding: [] },
+      confirm: () => Promise.reject(new ApiError("This event is already confirmed.", undefined, "EVENT_ALREADY_CONFIRMED", 409)),
+    });
+    const { onConfirmed } = renderPanel();
+    const user = userEvent.setup();
+
+    // Act
+    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
+
+    // Assert: the exact message in the alert; no success, no outstanding list, no status change; the button is usable again
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("This event is already confirmed.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Outstanding arrangements" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm Event" })).toBeEnabled();
+    expect(onConfirmed).not.toHaveBeenCalled();
+    // Only the error is not a blocked answer, so the readiness list is not requested again (only the load-time request)
+    expect(calls.filter((c) => c.path.endsWith("/arrangements-status"))).toHaveLength(1);
+  });
+
+  it("SPM-135 AC4 (FE, unexpected failure): a non-Error failure shows the fallback text in an alert and changes nothing", async () => {
+    // Arrange: the confirm rejects with a value that is not an Error
+    route({
+      arrangements: { ready: true, outstanding: [] },
+      confirm: () => Promise.reject("connection reset"),
+    });
+    const { onConfirmed } = renderPanel();
+    const user = userEvent.setup();
+
+    // Act
+    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
+
+    // Assert
+    expect((await screen.findByRole("alert")).textContent).toBe("Could not confirm the event.");
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(onConfirmed).not.toHaveBeenCalled();
+  });
+
+  it("SPM-135 AC2 (FE, load): a readiness request that fails on load is best effort: the button stays and no list is shown", async () => {
+    // Arrange: the readiness request is refused when the panel loads
+    apiMock.mockImplementation((path: string) => {
+      if (path.endsWith("/arrangements-status")) return Promise.reject(new ApiError("Service unavailable", undefined, undefined, 503));
+      return Promise.reject(new Error(`unexpected ${path}`));
+    });
+
+    // Act
+    renderPanel();
+
+    // Assert
+    expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeEnabled();
+    expect(screen.queryByRole("list", { name: "Outstanding arrangements" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("SPM-135 AC3 (FE, stale response): a readiness answer for the previous event is ignored once the event changes", async () => {
+    // Arrange: the readiness request for EVT-201 is held open; EVT-202 answers at once with a different item
+    const OTHER_EVENT_ID = "00000000-0000-4000-8000-000000000202";
+    const previous = deferred<unknown>();
+    apiMock.mockImplementation((path: string) => {
+      if (path === `/events/${EVENT_ID}/arrangements-status`) return previous.promise;
+      if (path === `/events/${OTHER_EVENT_ID}/arrangements-status`) {
+        return Promise.resolve({ eventId: OTHER_EVENT_ID, ready: false, outstanding: [outstandingVenue("Breakout Room 1")] });
+      }
+      return Promise.reject(new Error(`unexpected ${path}`));
+    });
+    const { rerender } = render(
+      <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />,
+    );
+    rerender(<ConfirmEventPanel eventId={OTHER_EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />);
+    expect(await screen.findByText("Venue booking approval: Breakout Room 1 (Pending)")).toBeInTheDocument();
+
+    // Act: the late answer for EVT-201 arrives
+    await act(async () => {
+      previous.resolve({ eventId: EVENT_ID, ready: false, outstanding: [outstandingVenue("Main Hall")] });
+    });
+
+    // Assert: EVT-202's list stays; EVT-201's item is never shown
+    expect(screen.queryByText("Venue booking approval: Main Hall (Pending)")).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Outstanding arrangements" })).toHaveTextContent("Breakout Room 1");
+  });
+
+  it("SPM-135 AC3 (FE, unmount): a readiness answer that arrives after unmount is dropped without an error", async () => {
+    // Arrange: the readiness request is still open when the panel unmounts
+    const late = deferred<unknown>();
+    apiMock.mockImplementation((path: string) => {
+      if (path.endsWith("/arrangements-status")) return late.promise;
+      return Promise.reject(new Error(`unexpected ${path}`));
+    });
+    const { container, unmount } = render(
+      <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />,
+    );
+    unmount();
+
+    // Act: the answer arrives after unmount
+    await act(async () => {
+      late.resolve({ eventId: EVENT_ID, ready: false, outstanding: [outstandingVenue("Main Hall")] });
+    });
+
+    // Assert: nothing is rendered into the container and nothing throws
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
