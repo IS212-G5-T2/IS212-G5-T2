@@ -7,6 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
@@ -123,16 +124,12 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
-      for (const file of ['001_schema.sql'])
-        await db.query(
-          await readFile(
-            new URL(
-              `../../database/postgresql/init/${file}`,
-              import.meta.url,
-            ),
-            'utf8',
-          ),
-        );
+      for (const file of ['001_schema.sql']) {
+        const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
+          ? join(process.env.SPM51_DATABASE_INIT_DIR, file)
+          : new URL(`../../database/postgresql/init/${file}`, import.meta.url);
+        await db.query(await readFile(schemaPath, 'utf8'));
+      }
       const module = await Test.createTestingModule({
         providers: [
           DatabaseService,

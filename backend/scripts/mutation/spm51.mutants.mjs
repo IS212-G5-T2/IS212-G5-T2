@@ -14,11 +14,16 @@ export const SUITES = {
     args: ['run', '--config', './vitest.config.e2e.ts', 'test/venues-booking-requests.e2e-spec.ts'],
     needsEnv: ['DATABASE_URL'],
   },
+  planning: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-planning.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
 };
 
 const DTO = 'src/venues/availability/dto/booking-request.ts';
 const SERVICE = 'src/venues/venues.service.ts';
 const REPOSITORY = 'src/venues/repository/venues.repository.ts';
+const PLANNING_REPOSITORY = 'src/events/planning/event-planning.repository.ts';
 
 export const MUTANTS = [
   { id: 'B06', name: 'equal start and end is accepted', file: DTO, suites: ['unit', 'e2e'],
@@ -39,4 +44,8 @@ export const MUTANTS = [
     edits: [['start_at < $3::timestamptz + make_interval(mins => $5::int)', 'start_at < $3::timestamptz']] },
   { id: 'B12-C', name: 'setup occupancy before a candidate is ignored for blockouts', file: REPOSITORY, suites: ['e2e'],
     edits: [['end_at > $2::timestamptz - make_interval(mins => $4::int)', 'end_at > $2::timestamptz']] },
+  { id: 'B13', name: 'pending request without a Venue Staff expiry is shown as booked in event planning', file: PLANNING_REPOSITORY, suites: ['planning'],
+    edits: [["WHEN b.status = 'pending' AND b.hold_expires_at > now() THEN 'Booked'", "WHEN b.status = 'pending' THEN 'Booked'"]] },
+  { id: 'B14', name: 'expired tentative hold remains booked after an added expiry grace period', file: PLANNING_REPOSITORY, suites: ['planning'],
+    edits: [['b.hold_expires_at > now()', "b.hold_expires_at > now() - interval '2 minutes'"]] },
 ];

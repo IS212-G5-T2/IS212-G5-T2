@@ -60,7 +60,9 @@ export function VenueDetailPage() {
     );
   }
 
-  const venueBookings = venue.reservations;
+  // The detail endpoint normally supplies the current schedule. Keep the
+  // informational list resilient if an older API response omits it.
+  const venueBookings = venue.reservations ?? [];
 
   return (
     <div>

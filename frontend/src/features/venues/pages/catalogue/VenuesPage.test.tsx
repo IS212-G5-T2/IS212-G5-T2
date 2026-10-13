@@ -104,6 +104,10 @@ describe("VenuesPage catalogue loading", () => {
     renderPage("/venues?eventId=event-51");
 
     expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View details →" })).toHaveAttribute(
+      "href",
+      "/venues/venue-51?eventId=event-51",
+    );
     expect(apiMock).toHaveBeenCalledWith("/venues");
     expect(screen.getByText(/Searching venues suitable for/).textContent).toContain("Planning Workshop");
     expect(screen.getByText("Suitable")).toBeTruthy();
@@ -190,6 +194,10 @@ describe("VenuesPage catalogue loading", () => {
 
     await screen.findByRole("heading", { name: "Orchid Hall" });
     expect(screen.queryByRole("link", { name: "Back to event" })).toBeNull();
+    expect(screen.getByRole("link", { name: "View details →" })).toHaveAttribute(
+      "href",
+      "/venues/venue-51",
+    );
   });
 
   /** SPM-51 filtering retains matching venues and applies capacity, facility, accessibility and location controls. */

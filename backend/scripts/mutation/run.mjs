@@ -70,7 +70,12 @@ const run = (suite, mapping) =>
     ...(mapping ? ['--testNamePattern', mapping.title] : []),
   ], {
     cwd: scratch,
-    env: { ...process.env, ...SUITES[suite].env, CI: '1' },
+    env: {
+      ...process.env,
+      ...SUITES[suite].env,
+      SPM51_DATABASE_INIT_DIR: join(root, '../database/postgresql/init'),
+      CI: '1',
+    },
     encoding: 'utf8',
     timeout: 180_000,
   });
