@@ -57,6 +57,70 @@ FROM spm51_seed_venues seed
 JOIN users owner ON owner.email = seed.owner_email
 ON CONFLICT DO NOTHING;
 
+-- Each sample venue gets its own small, labelled illustration. The artwork is
+-- generated as SVG so it remains crisp in catalogue and detail views without
+-- adding external image dependencies.
+WITH image_styles (venue_id, accent, sky) AS (
+    VALUES
+    ('00000000-0000-4000-8000-000000000301'::uuid, '#4F83CC', '#DCEEFF'),
+    ('00000000-0000-4000-8000-000000000302'::uuid, '#A36E4D', '#F6E9D9'),
+    ('00000000-0000-4000-8000-000000000303'::uuid, '#B94F6A', '#F9E1E5'),
+    ('00000000-0000-4000-8000-000000000304'::uuid, '#6552A3', '#E9E3FA'),
+    ('00000000-0000-4000-8000-000000000305'::uuid, '#3F947C', '#DDF3EA'),
+    ('00000000-0000-4000-8000-000000000306'::uuid, '#C27A3A', '#FBEBD8'),
+    ('00000000-0000-4000-8000-000000000307'::uuid, '#557E65', '#E0F0E4'),
+    ('00000000-0000-4000-8000-000000000308'::uuid, '#268A9A', '#D9F1F5'),
+    ('00000000-0000-4000-8000-000000000309'::uuid, '#7B68A6', '#EEE8F8'),
+    ('00000000-0000-4000-8000-000000000310'::uuid, '#BD6C47', '#F9E5D9'),
+    ('00000000-0000-4000-8000-000000000311'::uuid, '#3F78A8', '#DFECF8'),
+    ('00000000-0000-4000-8000-000000000312'::uuid, '#8A9B42', '#EEF2D8'),
+    ('00000000-0000-4000-8000-000000000313'::uuid, '#4F927D', '#DDF1E8'),
+    ('00000000-0000-4000-8000-000000000314'::uuid, '#B06F9D', '#F5E4F0'),
+    ('00000000-0000-4000-8000-000000000315'::uuid, '#D0784D', '#FBE7DA'),
+    ('00000000-0000-4000-8000-000000000316'::uuid, '#547E9A', '#E0EEF4'),
+    ('00000000-0000-4000-8000-000000000317'::uuid, '#9A784A', '#F3EBD9'),
+    ('00000000-0000-4000-8000-000000000318'::uuid, '#548C70', '#E1F0E4'),
+    ('00000000-0000-4000-8000-000000000319'::uuid, '#8F638B', '#F1E5F0'),
+    ('00000000-0000-4000-8000-000000000320'::uuid, '#B65D5D', '#F7E2DE'),
+    ('00000000-0000-4000-8000-000000000321'::uuid, '#6D748B', '#E7EAF2'),
+    ('00000000-0000-4000-8000-000000000322'::uuid, '#9C5D76', '#F4E3EB'),
+    ('00000000-0000-4000-8000-000000000323'::uuid, '#4F8D91', '#DDF0F0'),
+    ('00000000-0000-4000-8000-000000000324'::uuid, '#3D87A1', '#DCEFF5')
+), image_art AS (
+    SELECT seed.id AS venue_id,
+        'sample-venue-' || right(seed.id::text, 3) || '.svg' AS file_name,
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">' ||
+        '<rect width="640" height="400" fill="' || style.sky || '"/>' ||
+        '<circle cx="525" cy="70" r="34" fill="#FFFFFF" opacity="0.72"/>' ||
+        '<path d="M0 274 Q130 235 255 276 T510 267 T640 270 V400 H0Z" fill="#B9D7C4"/>' ||
+        '<path d="M92 164 320 73l228 91H92Z" fill="' || style.accent || '"/>' ||
+        '<rect x="112" y="158" width="416" height="184" rx="8" fill="#FFFDF8" stroke="#34495E" stroke-width="5"/>' ||
+        '<path d="M102 162h436" stroke="#34495E" stroke-width="8" stroke-linecap="round"/>' ||
+        '<rect x="145" y="190" width="82" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M186 190v67M145 224h82" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<rect x="267" y="190" width="106" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M320 190v67M267 224h106" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<rect x="413" y="190" width="82" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M454 190v67M413 224h82" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<path d="M280 342v-61a40 40 0 0 1 80 0v61Z" fill="' || style.accent || '"/>' ||
+        '<circle cx="347" cy="310" r="4" fill="#FFFDF8"/>' ||
+        '<path d="M75 342h490" stroke="#728C70" stroke-width="9" stroke-linecap="round"/>' ||
+        '<text x="320" y="378" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="700" fill="#263746">' || seed.name || '</text>' ||
+        '<text x="320" y="143" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">CAPACITY ' || seed.capacity::text || '</text>' ||
+        '</svg>' AS svg_markup
+    FROM spm51_seed_venues seed
+    JOIN image_styles style ON style.venue_id = seed.id
+    JOIN venues venue ON venue.id = seed.id
+)
+INSERT INTO venue_images (venue_id, file_name, mime_type, byte_size, data_url)
+SELECT venue_id, file_name, 'image/svg+xml',
+    octet_length(convert_to(svg_markup, 'UTF8')),
+    'data:image/svg+xml;base64,' || translate(
+        encode(convert_to(svg_markup, 'UTF8'), 'base64'), E'\n\r', ''
+    )
+FROM image_art
+ON CONFLICT (venue_id) DO NOTHING;
+
 INSERT INTO venue_facilities (venue_id, facility_id)
 SELECT seed.id, facility.id
 FROM spm51_seed_venues seed

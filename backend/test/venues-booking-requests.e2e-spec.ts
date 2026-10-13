@@ -232,17 +232,47 @@ describe.skipIf(!databaseUrl)(
         "SELECT id FROM users WHERE email = 'coordinator1@connectsphere.test'",
       );
       expect(seedCoordinator.rows).toHaveLength(1);
-      const seededEvents = await pool.query<{ id: string }>(
-        `SELECT id FROM events
-         WHERE event_name LIKE 'SPM-51 Seed:%' AND coordinator_id = $1::text`,
-        [seedCoordinator.rows[0].id],
+      const seededEvents = await pool.query<{ id: string; event_name: string }>(
+        `SELECT id, event_name FROM events
+         WHERE id BETWEEN $2::uuid AND $3::uuid AND coordinator_id = $1::text`,
+        [seedCoordinator.rows[0].id,
+          '00000000-0000-4000-8000-000000000201',
+          '00000000-0000-4000-8000-000000000205'],
       );
       const seededVenues = await pool.query<{ id: string }>(
         `SELECT id FROM venues WHERE id BETWEEN $1::uuid AND $2::uuid`,
         ['00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000324'],
       );
+      const seededVenueImages = await pool.query<{
+        id: string;
+        file_name: string | null;
+        mime_type: string | null;
+        byte_size: number | null;
+        data_url: string | null;
+      }>(
+        `SELECT v.id, image.file_name, image.mime_type, image.byte_size, image.data_url
+         FROM venues v LEFT JOIN venue_images image ON image.venue_id = v.id
+         WHERE v.id BETWEEN $1::uuid AND $2::uuid ORDER BY v.id`,
+        ['00000000-0000-4000-8000-000000000301', '00000000-0000-4000-8000-000000000324'],
+      );
       expect(seededEvents.rows).toHaveLength(5);
+      expect(seededEvents.rows.every(({ event_name }) =>
+        !event_name.startsWith('SPM-51 Seed:'),
+      )).toBe(true);
       expect(seededVenues.rows).toHaveLength(24);
+      expect(seededVenueImages.rows).toHaveLength(24);
+      expect(new Set(seededVenueImages.rows.map(({ data_url }) => data_url)).size).toBe(24);
+      expect(seededVenueImages.rows.every((image) => {
+        if (!image.file_name ||
+            image.file_name !== `sample-venue-${image.id.slice(-3)}.svg` ||
+            image.mime_type !== 'image/svg+xml' ||
+            !image.byte_size || image.byte_size > 5 * 1024 * 1024 || !image.data_url)
+          return false;
+        const prefix = 'data:image/svg+xml;base64,';
+        return image.data_url.startsWith(prefix) &&
+          Buffer.from(image.data_url.slice(prefix.length), 'base64')
+            .toString('utf8').startsWith('<svg ');
+      })).toBe(true);
     });
 
     /** VEN-AVL-06-B: only the event's assigned coordinator can create its booking request. */
