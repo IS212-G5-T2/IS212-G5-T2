@@ -200,10 +200,11 @@ export class EventPlanningRepository {
     eventId: string,
     window: BookingWindow = {},
   ): Promise<VenueBookingRow[]> {
-    // SPM-124 owns venue_bookings. Its statuses map onto planning's as follows:
-    //   approved, or a pending hold that has not expired -> 'Booked' (holds the venue)
-    //   rejected                                         -> 'Unavailable' (replacement needed)
-    //   pending hold that has expired                    -> 'Cancelled' (holds nothing)
+    // SPM-124 owns venue_bookings. An approved booking is confirmed; a pending
+    // row is a venue hold only while it has an explicit future expiry. Pending
+    // booking requests without a hold expiry are not tentative holds, and an
+    // expired hold has been released. Rejected rows remain unavailable for
+    // planning because they require a replacement venue.
     // Neighbours are other events' approved bookings plus Venue Staff blockouts
     // ('blocked', no event), the same rows SPM-124 treats as occupying a venue.
     const result = await this.db().query(
@@ -211,8 +212,7 @@ export class EventPlanningRepository {
               b.start_at, b.end_at, b.created_at,
               CASE
                 WHEN b.status = 'approved' THEN 'Booked'
-                WHEN b.status = 'pending'
-                     AND (b.hold_expires_at IS NULL OR b.hold_expires_at > now()) THEN 'Booked'
+                WHEN b.status = 'pending' AND b.hold_expires_at > now() THEN 'Booked'
                 WHEN b.status = 'rejected' THEN 'Unavailable'
                 ELSE 'Cancelled'
               END AS planning_status,
