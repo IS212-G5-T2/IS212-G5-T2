@@ -4,10 +4,10 @@
  * arrangements and flagged changes. Business rules live in
  * EventPlanningService; this class only reads and writes rows.
  *
- * `venue_bookings` is owned by SPM-124 (database/postgresql/init/007_spm124_venue_schedule.sql);
+ * `venue_bookings` is initialized in database/postgresql/init/001_schema.sql;
  * listVenueBookings() maps its rows onto planning's booking shape.
  * `equipment_reservations` and `event_flagged_changes` come from
- * 007_spm49_spm85_spm97_event_planning.sql; equipment_reservations is a
+ * 001_schema.sql; equipment_reservations is a
  * placeholder until the equipment-reservation story owns it. If either story
  * changes the shape, only the SQL in this file needs to follow.
  *
@@ -21,13 +21,13 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
-import { DatabaseService } from '../database/database.service.js';
+import { DatabaseService } from '../../database/database.service.js';
 import {
   TURNAROUND_MINUTES,
   type BookingImpact,
   type NeighbourBooking,
-} from './event-impact.js';
-import type { EventFieldKey, EventUpdatePatch } from './event-update-input.js';
+} from './helpers/event-impact.js';
+import type { EventFieldKey, EventUpdatePatch } from './dto/event-update-input.js';
 
 /** Flat, camel-cased event row used by the planning service. */
 export interface PlanningEventRow {

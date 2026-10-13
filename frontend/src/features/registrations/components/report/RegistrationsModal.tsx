@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { NOT_PROVIDED } from "@/utils/format";
 import { Modal } from "@/components/ui/Modal";
 import { useRegistrationReport } from "@/features/registrations/components/report/useRegistrationReport";
 import { useReportExport } from "@/features/registrations/components/report/useReportExport";
@@ -99,8 +100,8 @@ function RegistrationCard({ row, expanded, onToggle }: { row: ReportRow; expande
       >
         <ChevronIcon expanded={expanded} />
         <span className="min-w-0 flex-1 break-words text-sm">
-          <span className="font-medium text-gray-900 dark:text-gray-100">{row.fullName}</span>{" "}
-          <span className="text-gray-500 dark:text-gray-400">({row.email})</span>
+          <span className="font-medium text-gray-900 dark:text-gray-100">{row.fullName || NOT_PROVIDED}</span>{" "}
+          <span className="text-gray-500 dark:text-gray-400">({row.email || NOT_PROVIDED})</span>
         </span>
         <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{formatReportDateSgt(row.registeredAt)}</span>
       </button>
@@ -108,12 +109,12 @@ function RegistrationCard({ row, expanded, onToggle }: { row: ReportRow; expande
         <div id={panelId} className="border-t border-gray-100 px-4 py-3 dark:border-gray-700">
           <dl className="grid grid-cols-[8.5rem_1fr] gap-x-4 gap-y-2 text-sm">
             <dt className="font-medium text-gray-500 dark:text-gray-400">Full name</dt>
-            <dd className="break-words text-gray-900 dark:text-gray-100">{row.fullName}</dd>
+            <dd className="break-words text-gray-900 dark:text-gray-100">{row.fullName || NOT_PROVIDED}</dd>
             <dt className="font-medium text-gray-500 dark:text-gray-400">Email</dt>
-            <dd className="break-words text-gray-900 dark:text-gray-100">{row.email}</dd>
+            <dd className="break-words text-gray-900 dark:text-gray-100">{row.email || NOT_PROVIDED}</dd>
             <dt className="font-medium text-gray-500 dark:text-gray-400">Contact number</dt>
             <dd className="break-words text-gray-900 dark:text-gray-100">
-              {row.contactNumber || <span className="text-gray-400 dark:text-gray-500">—</span>}
+              {row.contactNumber || NOT_PROVIDED}
             </dd>
             {row.specialRequirements && (
               <>

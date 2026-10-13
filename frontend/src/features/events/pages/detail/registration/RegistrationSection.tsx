@@ -18,6 +18,7 @@ import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationForm } from "./RegistrationForm";
 import { WithdrawalConfirmation, WithdrawalSuccessBanner } from "./WithdrawalConfirmation";
 import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
+import { NOT_PROVIDED } from "@/utils/format";
 
 interface Props {
   event: EventRecord;
@@ -88,6 +89,8 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const state = registrationState(event, now);
   const registered = current?.status === "registered";
   const withdrawn = current?.status === "withdrawn";
+  // SPM-62 state only: a cancelled registration is shown, with no action (the cancel story is not built yet).
+  const cancelled = current?.status === "cancelled";
   // AC4: the cut-off is the event start. The server re-checks it; a 422 also sets serverSaysOccurred.
   const eventOccurred = hasEventStarted(event, now) || serverSaysOccurred;
   const closedWhileFormOpen = formOpen && state !== "open";
@@ -101,8 +104,8 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const detailRows: { label: string; value: string }[] = current
     ? [
         { label: "Registration ID", value: current.id },
-        { label: "Full name", value: current.fullName || current.attendeeName },
-        ...(current.email ? [{ label: "Email", value: current.email }] : []),
+        { label: "Full name", value: current.fullName || current.attendeeName || NOT_PROVIDED },
+        { label: "Email", value: current.email || NOT_PROVIDED },
         ...(current.contactNumber ? [{ label: "Contact number", value: current.contactNumber }] : []),
         { label: "Registered on", value: formatSgtDateTime(current.registeredAt) },
         ...(current.specialRequirements
@@ -118,6 +121,9 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     // branch is checked before any event-timing state, so it stays visible
     // for a Completed or Cancelled event too.
     heading = "You're registered";
+    meta = detailRows;
+  } else if (cancelled) {
+    heading = "Registration cancelled";
     meta = detailRows;
   } else if (state === "not-yet-open" && event.registrationOpensAt) {
     heading = `Registration opens on ${formatSgt(event.registrationOpensAt)}`;
@@ -139,7 +145,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   }
 
   // The withdrawn card has its own "Register again" action in its footer (SPM-120 redesign).
-  const showRegister = !registered && !withdrawn && !formOpen && state === "open";
+  const showRegister = !registered && !withdrawn && !cancelled && !formOpen && state === "open";
 
   /** SPM-120 AC3: sends the withdrawal; the server decides, the UI mirrors the outcome. */
   const confirmWithdrawal = async () => {
@@ -195,6 +201,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
                   {registered && <StatusBadge status="registered" />}
+                  {cancelled && <StatusBadge status="cancelled" />}
                 </div>
                 {meta.length > 0 && (
                   <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">

@@ -15,8 +15,9 @@ Implement every applicable authoritative requirement within the authorized scope
 1. Follow the assignment, root/scoped `AGENTS.md`, `AI_USAGE.md`, and the shared contract in `ai/docs/sub-agents.md`. User instructions set task scope; Jira defines its story, acceptance criteria, status, priority, and sprint; current Confluence specifications provide additional business rules. Report material conflicts rather than inventing a resolution. Existing code is technical evidence, not authority for new business rules.
 2. For Jira-governed implementation, proceed when status is `To Do`, `In Progress`, or `In Review`. An `In Review` issue may receive implementation or review-requested corrections; reuse its existing branch/PR where present. If required sources or status cannot be established, stop affected implementation and report the blocker.
 3. Preserve unrelated behavior, public contracts, permissions, data, existing user/teammate changes, and component boundaries unless explicitly in scope. Inspect dependencies before adding frameworks, packages, files, or abstractions.
-4. Implement all assigned acceptance criteria, including appropriate tests for changed behavior. Coverage percentage or passing unit tests alone do not certify business correctness.
+4. Implement all assigned acceptance criteria, including appropriate tests for changed behavior. Achieve 100% line, branch, function, and statement coverage for changed testable code, and run `npm run test:cov` from each affected npm component. Coverage percentage or passing unit tests alone do not certify business correctness.
 5. Do not commit, push, create a PR, change Jira status, or discard work without required approval. The Orchestrator controls review transitions and final completion.
+6. After returning the implementation report and stable snapshot, stop for explicit user evaluation. Do not begin, request, or authorize Test Code Review or any later workflow stage until the user has evaluated the implementation and directed the workflow to continue.
 
 ## Workflow
 
@@ -54,15 +55,15 @@ Implement every applicable authoritative requirement within the authorized scope
 
 ### 5. Validate and document
 
-- Run affected test suites and applicable build, lint, static/security, and integration checks. Record **exact commands, results, failures, skipped checks, and environment limitations**; rerun affected checks after corrections.
+- Run affected test suites and applicable build, lint, static/security, and integration checks. Run `npm run test:cov` in every affected npm component and record its line, branch, function, and statement results. Record **exact commands, results, failures, skipped checks, and environment limitations**; rerun affected checks after corrections.
 - Root CI: `.github/workflows/security.yml` scans security; `.github/workflows/tests.yml` discovers component unit-test entrypoints. Each implemented component owns `<component>/scripts/ci/unit-test.sh`. Keep root CI generic; put runtime-specific commands in component scripts, not in the root test workflow.
 - Update `README.md` when setup, usage, or supported contracts change, and scoped `AGENTS.md` when ownership or instructions change. Put durable technical decisions or operational risks in a focused document only when they do not fit the README. Use Git history and PRs for change history; do not require component handover or changelog files or copy sprint logs into durable docs.
 - Add/update one concise entry in `AI_USAGE.md` using `<user> - <type> - <Jira ticket or branch name> - <title>: <concise result>`. Prefer the verified Jira key; otherwise use the actual branch name, not a guessed ticket. Include tool/model, PR link, checks, or follow-up notes in the result only when relevant. Read prior relevant entries before editing. Archive active entries when the user explicitly requests archival or authorizes creating a pull request; preserve their dates and content, group single-ticket entries under that ticket and other entries under `docs/archived/general.md`, and do not invent missing history. Do not log secrets, credentials, private prompts, long transcripts, unnecessary personal details, or production data.
 - If syncing `dev` into a feature branch, follow the repository's specified conflict policy: choose `dev`'s version for **conflicted files only**, preserve unrelated files/folders, and report any displaced local scripts/dependencies without silently reintroducing them. Check resulting behavior and tests; never treat the merge as automatically safe.
 
-### 6. Return work for independent review
+### 6. Return work for user evaluation
 
-- Recompare each applicable Jira acceptance criterion with the final behavior and test evidence. Return the implementation report to the Orchestrator; **do not** independently launch/approve Test, Requirement, or Code Quality gates.
+- Recompare each applicable Jira acceptance criterion with the final behavior and test evidence. Return the implementation report and stable snapshot for the user's evaluation, then stop. **Do not** independently launch, request, or approve Test, Requirement, or Code Quality gates. The Orchestrator may proceed only after the user explicitly directs it to continue.
 - On routed corrections, fix only accepted assigned findings on the existing branch/PR, run affected checks, and describe behavioral, test, interface, or integration changes so the Orchestrator can repeat invalidated gates in order. An implementation assertion never closes its own review finding.
 - Prepare changes for human review and stage them only when the assignment/repository permissions authorize it. Write temporary reports only under ignored `ai/runtime/` when assigned.
 

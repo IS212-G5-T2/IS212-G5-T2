@@ -150,7 +150,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
   });
 
   // EVENT-REG-01-C, EVENT-REG-02-A
-  describe('EVENT-REG-01-C / EVENT-REG-02-A: closed (AC2: "error message if I register after the period has closed")', () => {
+  describe('EVENT-REG-02-A: closed (AC2: "error message if I register after the period has closed")', () => {
     // [A] time-based close: registrationOpen=false and POST -> 422 MSG-01, nothing stored.
     it('[A] time-based close: POST -> 422 registration_closed (MSG-01) and no row', async () => {
       const id = await seedEvent({ opens: -48 * HOUR, closes: -HOUR });
@@ -171,9 +171,9 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
-  // EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
-  describe('EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants (injected clock)', () => {
-    // Expected: inclusive at open, exclusive at close, driven only by the injected clock.
+  // EVENT-REG-01-BND-1: the opening boundary (injected clock)
+  describe('EVENT-REG-01-BND-1: the opening boundary (injected clock)', () => {
+    // Expected: inclusive at open, driven only by the injected clock.
     it('[A] 1s before open: registrationOpen=false, POST -> 422 MSG-02', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
@@ -190,7 +190,12 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       expect(detail.body.registrationOpen).toBe(true);
       await post(id, cookie).expect(201);
     });
-    it('[C] 1 min before close: registrationOpen=true, POST -> 201', async () => {
+  });
+
+  // EVENT-REG-02-BND-1: the closing boundary (injected clock)
+  describe('EVENT-REG-02-BND-1: the closing boundary (injected clock)', () => {
+    // Expected: exclusive at close, accepted one minute before it.
+    it('[C] one minute before the closing instant, registration is still accepted: registrationOpen=true, POST -> 201', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
       now = at(HOUR - 60_000);
@@ -198,7 +203,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       expect(detail.body.registrationOpen).toBe(true);
       await post(id, cookie).expect(201);
     });
-    it('[D] exactly at close: registrationOpen=false, POST -> 422 MSG-01', async () => {
+    it('[D] exactly at the closing instant, registration is closed: registrationOpen=false, POST -> 422 MSG-01', async () => {
       const id = await seedEvent({ opens: 0, closes: HOUR });
       const { cookie } = await createUser('ATTENDEE');
       now = at(HOUR);
@@ -217,9 +222,10 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       const res = await post(id, cookie).expect(201);
       expect(res.body.message).toBe('Registration successful. You are registered for Innovation Expo.');
       expect(res.body.registration).toMatchObject({ eventId: id, attendeeId: uid, status: 'registered', fullName: 'Alice Tan', email: 'alice@example.com', contactNumber: '91234567', specialRequirements: 'Vegetarian meal' });
-      expect(res.body.registration.id).toBeTruthy();
       const stored = await rows(id);
       expect(stored).toHaveLength(1);
+      // The id the API returns is the stored row's id (not just any non-empty value).
+      expect(res.body.registration.id).toBe(stored[0].id);
       expect(stored[0]).toMatchObject({ attendee_id: uid, status: 'Registered', full_name: 'Alice Tan', contact_number: '91234567' });
       // The "me" endpoint now returns the same registration.
       const mine = await request(app.getHttpServer()).get(`/api/events/${id}/registrations/me`).set('Cookie', cookie).expect(200);
@@ -300,10 +306,10 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
   });
 
-  // EVENT-REG-05-C
-  describe('EVENT-REG-05-C: withdrawn and capacity (D16; capacity is a locked hard limit, no waitlist in R1)', () => {
+  // SUP-EVENT-REG-REREG-A, SUP-EVENT-REG-CAP-C (supporting coverage, no Jira AC)
+  describe('Supporting coverage, no Jira AC: re-registration after withdrawal and capacity (D16; capacity is a locked hard limit, no waitlist in R1)', () => {
     // Expected: a withdrawn attendee can register again; the same row is reactivated.
-    it('re-registration after withdrawal -> 201 reusing the registration id', async () => {
+    it('SUP-EVENT-REG-REREG-A: re-registration after withdrawal -> 201 reusing the registration id', async () => {
       const id = await seedEvent();
       const { cookie, uid } = await createUser('ATTENDEE');
       const first = await post(id, cookie).expect(201);
@@ -319,7 +325,7 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
       expect(stored[0]).toMatchObject({ status: 'Registered', full_name: 'Alice T.' });
     });
     // Expected: a full event refuses registration and stores nothing; concurrency cannot overflow.
-    it('capacity 2 with 5 concurrent attendees -> exactly 2 succeed, rest 422 registration_full', async () => {
+    it('SUP-EVENT-REG-CAP-C: capacity 2 with 5 concurrent attendees -> exactly 2 succeed, rest 422 registration_full', async () => {
       const id = await seedEvent({ limit: 2 });
       const attendees = await Promise.all(Array.from({ length: 5 }, () => createUser('ATTENDEE')));
       const responses = await Promise.all(attendees.map((a) => post(id, a.cookie)));
@@ -365,6 +371,26 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     it('[E] malformed id -> 404', async () => {
       const { cookie } = await createUser('ATTENDEE');
       await post('not-a-uuid', cookie).expect(404);
+    });
+  });
+  // VIEW-REG-DET-02-B (AC2, state only; the cancel action is a later story)
+  describe('VIEW-REG-DET-02-B (AC2, state only): a cancelled registration is read back as cancelled and takes no place', () => {
+    // Kills: the Cancelled value rejected by the database check (the row cannot be stored), the status not read back,
+    // or the capacity count taking Cancelled rows as places taken.
+    it('VIEW-REG-DET-02-B: /me reports "cancelled", and the place is free for another attendee (limit 1)', async () => {
+      const id = await seedEvent({ limit: 1 });
+      const { cookie, uid } = await createUser('ATTENDEE');
+      await pool.query(
+        `INSERT INTO event_registrations (event_id, attendee_id, status, full_name, email, contact_number)
+         VALUES ($1, $2, 'Cancelled', 'Alice Tan', 'alice@example.com', '91234567')`,
+        [id, uid],
+      );
+
+      const me = await request(app.getHttpServer()).get(`/api/events/${id}/registrations/me`).set('Cookie', cookie).expect(200);
+      expect(me.body.registration).toMatchObject({ status: 'cancelled', fullName: 'Alice Tan' });
+
+      const other = await createUser('ATTENDEE', 'Bob Lim');
+      await post(id, other.cookie).expect(201);
     });
   });
 });

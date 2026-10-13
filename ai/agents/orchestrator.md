@@ -67,7 +67,7 @@ Use these sub-agent definitions:
 - `requirement-reviewer.md`
 - `code-quality-reviewer.md`
 
-For the complete implementation workflow, all three reviews are mandatory. Accept Test Review first; then assign Requirement Review and Code Quality Review against the same snapshot. They may run concurrently when the platform supports it, or one after the other without a gate dependency between them.
+For the complete implementation workflow, all three reviews are mandatory. After Implementation returns its report and stable snapshot, stop for explicit user evaluation. Only after the user directs the workflow to continue may the Orchestrator assign Test Review. Accept Test Review first; then assign Requirement Review and Code Quality Review against the same snapshot. They may run concurrently when the platform supports it, or one after the other without a gate dependency between them.
 
 For targeted requests, do not invoke unrelated reviewers.
 

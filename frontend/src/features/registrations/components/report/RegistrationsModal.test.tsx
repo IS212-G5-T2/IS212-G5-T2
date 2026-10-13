@@ -106,10 +106,10 @@ describe("SPM-63 registrations modal: expandable cards", () => {
 });
 
 describe("SPM-63 registrations modal: search and filter", () => {
-  // VIEW-REG-INFO-03-SEARCH
+  // SUP-VIEW-REG-INFO-SEARCH (supporting coverage, no Jira AC)
   // Oracle (SPEC: name, email, phone with case-insensitivity; 150 ms debounce)
   // Kills: search ignores phone; debounce removed or wrong interval
-  it("VIEW-REG-INFO-03-SEARCH: filters by name, email and phone, with 150ms debounce", async () => {
+  it("SUP-VIEW-REG-INFO-SEARCH: filters by name, email and phone, with 150ms debounce", async () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, { ...ALICE_TAN, contactNumber: "+65 91234567" }, CHLOE_NG] }));
     renderModal();
@@ -130,10 +130,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-TODAY
+  // SUP-VIEW-REG-INFO-TODAY (supporting coverage, no Jira AC)
   // Oracle (SPEC: Singapore calendar day, 150ms debounce)
   // Kills: UTC day used; debounce ignored on filter change
-  it("VIEW-REG-INFO-03-TODAY: filters to attendees registered today and combines with search", async () => {
+  it("SUP-VIEW-REG-INFO-TODAY: filters to attendees registered today and combines with search", async () => {
     const user = userEvent.setup();
     renderModal();
     await screen.findByText(/Dev Patel/);
@@ -147,10 +147,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(await screen.findByText("No registrations match your criteria")).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-SPECIAL
+  // SUP-VIEW-REG-INFO-SPECIAL (supporting coverage, no Jira AC)
   // Oracle (SPEC: non-empty specialRequirements field only)
   // Kills: filter matches everyone; empty string treated as present
-  it("VIEW-REG-INFO-03-SPECIAL: filters to attendees with indicated special requirements", async () => {
+  it("SUP-VIEW-REG-INFO-SPECIAL: filters to attendees with indicated special requirements", async () => {
     const user = userEvent.setup();
     const withRequirements = { ...ALICE_TAN, specialRequirements: "Vegetarian menu" };
     apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, withRequirements, CHLOE_NG] }));
@@ -163,10 +163,10 @@ describe("SPM-63 registrations modal: search and filter", () => {
     expect(screen.queryByText(/Chloe Ng/)).not.toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-03-TODAY-BND
+  // SUP-VIEW-REG-INFO-TODAY-BND (supporting coverage, no Jira AC)
   // Oracle (SPEC 2.5): Singapore calendar day boundary at UTC+8, not UTC
   // Kills: UTC day used; off-by-one at midnight
-  it("VIEW-REG-INFO-03-TODAY-BND: treats the day boundary as Singapore time", () => {
+  it("SUP-VIEW-REG-INFO-TODAY-BND: treats the day boundary as Singapore time", () => {
     const lateYesterday = { ...ALICE_TAN, registeredAt: "2026-09-28T15:30:00.000Z" };
     const justToday = { ...ALICE_TAN, registeredAt: "2026-09-28T16:10:00.000Z" };
     const now = new Date("2026-09-28T16:20:00.000Z");
@@ -215,10 +215,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();
   });
 
-  // VIEW-REG-INFO-CLOSE-1
+  // VIEW-REG-INFO-01-E
   // Oracle (SPEC: click inside does not close)
   // Kills: any click closes; backdrop click not checked
-  it("VIEW-REG-INFO-CLOSE-1: a click inside the modal does not close it", async () => {
+  it("VIEW-REG-INFO-01-E: a click inside the modal does not close it", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -227,10 +227,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // VIEW-REG-INFO-CLOSE-2
+  // VIEW-REG-INFO-01-F
   // Oracle (SPEC: close button closes)
   // Kills: close button does nothing
-  it("VIEW-REG-INFO-CLOSE-2: the close button closes the modal", async () => {
+  it("VIEW-REG-INFO-01-F: the close button closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -239,10 +239,10 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // VIEW-REG-INFO-CLOSE-3
+  // VIEW-REG-INFO-01-G
   // Oracle (SPEC: Escape closes)
   // Kills: Escape ignored
-  it("VIEW-REG-INFO-CLOSE-3: Escape closes the modal", async () => {
+  it("VIEW-REG-INFO-01-G: Escape closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
@@ -251,15 +251,60 @@ describe("SPM-63 registrations modal: export and close", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  // VIEW-REG-INFO-CLOSE-4
+  // VIEW-REG-INFO-01-H
   // Oracle (SPEC: backdrop click closes)
   // Kills: backdrop click not wired
-  it("VIEW-REG-INFO-CLOSE-4: a click on the backdrop closes the modal", async () => {
+  it("VIEW-REG-INFO-01-H: a click on the backdrop closes the modal", async () => {
     const user = userEvent.setup();
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
 
     await user.click(screen.getByRole("dialog"));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("SPM-63 registrations modal: missing bounds and contact details", () => {
+  // Kills: a missing closing time shown as blank or as "Invalid Date" instead of a dash.
+  it("shows a dash for the closing time when only the opening time is set", async () => {
+    apiMock.mockResolvedValue(buildReport());
+    render(<RegistrationsModal eventId="EVT-101" registrationOpensAt={OPENS} onClose={vi.fn()} />);
+    expect(await screen.findByText(/Opens: 20 Sep 2026 08:00 SGT · Closes: —/)).toBeInTheDocument();
+  });
+
+  // Kills: a missing opening time shown as blank or as "Invalid Date" instead of a dash.
+  it("shows a dash for the opening time when only the closing time is set", async () => {
+    apiMock.mockResolvedValue(buildReport());
+    render(<RegistrationsModal eventId="EVT-101" registrationClosesAt={CLOSES} onClose={vi.fn()} />);
+    expect(await screen.findByText(/Opens: — · Closes: 8 Oct 2026 23:59 SGT/)).toBeInTheDocument();
+  });
+
+  // Kills: an empty contact number shown as blank rather than the "Not provided" placeholder (A-NULL display rule).
+  it("shows Not provided for an attendee with no contact number", async () => {
+    const user = userEvent.setup({ delay: null });
+    apiMock.mockResolvedValue(buildReport({ registrations: [{ ...CHLOE_NG, contactNumber: "" }] }));
+    renderModal();
+    await user.click(await screen.findByRole("button", { name: /Chloe Ng/ }));
+    const dt = await screen.findByText("Contact number");
+    expect(dt.nextElementSibling).toHaveTextContent("Not provided");
+  });
+});
+
+describe("SPM-63 registrations modal: a failed load", () => {
+  // Kills: a failed first load shown as an empty report, or the retry not reloading the report.
+  it("shows the load error with a Retry that loads the report again", async () => {
+    const user = userEvent.setup({ delay: null });
+    apiMock.mockRejectedValueOnce(new Error("We could not reach the report service."));
+    apiMock.mockResolvedValue(buildReport());
+    renderModal();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("We could not reach the report service.");
+    expect(screen.queryByText("No registrations yet.")).not.toBeInTheDocument();
+
+    await user.click(within(alert).getByRole("button", { name: /retry/i }));
+    // Retry itself fetches again; checked before the poll could fetch on its own.
+    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
   });
 });

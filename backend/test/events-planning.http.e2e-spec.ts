@@ -3,7 +3,7 @@
  * PostgreSQL-backed AuthenticationMiddleware (session cookies from
  * /api/auth/login) and EventPlanningController, against real PostgreSQL.
  *
- * test/event-planning.e2e-spec.ts proves the service + repository SQL;
+ * test/events-planning.e2e-spec.ts proves the service + repository SQL;
  * this suite proves the routes are wired to it with the authenticated identity
  * taken from the session, never from the request body. Mirrors the fixture
  * pattern of test/events-assign.e2e-spec.ts.

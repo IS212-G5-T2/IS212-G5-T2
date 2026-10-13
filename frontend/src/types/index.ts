@@ -220,7 +220,7 @@ export interface EquipmentRequest {
   createdAt: string;
 }
 
-export type RegistrationStatus = "registered" | "withdrawn";
+export type RegistrationStatus = "registered" | "withdrawn" | "cancelled";
 
 export interface Registration {
   id: string;

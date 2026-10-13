@@ -11,9 +11,9 @@ import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
 import { DatabaseService } from '../src/database/database.service.js';
-import { TURNAROUND_MINUTES } from '../src/events/event-impact.js';
-import { EventPlanningRepository } from '../src/events/event-planning.repository.js';
-import { EventPlanningService } from '../src/events/event-planning.service.js';
+import { TURNAROUND_MINUTES } from '../src/events/planning/helpers/event-impact.js';
+import { EventPlanningRepository } from '../src/events/planning/event-planning.repository.js';
+import { EventPlanningService } from '../src/events/planning/event-planning.service.js';
 
 /**
  * SPM-97 / SPM-49 / SPM-85 against real PostgreSQL: proves the repository SQL
@@ -121,14 +121,13 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
-      for (const file of [
-        '001_schema.sql',
-        '007_spm124_venue_schedule.sql',
-        '007_spm49_spm85_spm97_event_planning.sql',
-      ])
+      for (const file of ['001_schema.sql'])
         await db.query(
           await readFile(
-            new URL(`../../database/postgresql/init/${file}`, import.meta.url),
+            new URL(
+              `../../database/postgresql/init/${file}`,
+              import.meta.url,
+            ),
             'utf8',
           ),
         );

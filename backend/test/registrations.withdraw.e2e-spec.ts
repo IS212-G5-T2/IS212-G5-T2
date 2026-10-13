@@ -2,7 +2,7 @@
  * Story: SPM-120 Withdraw Registration (attendee), backend half.
  * ACs: AC3 (confirm/cancel), AC4 (not after event date), AC5 (status "Withdrawn"), AC6 (message).
  * Story goal (CAP-01): the freed spot is available.
- * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 04-D, 05-B, 05-C, 05-D, 05-E, 05-F,
+ * Test cases: WITHDRAW-EVENT-REG-03-A, 04-B, 04-C, 04-D, 05-B, 05-C, 05-D, 05-E (re-registration is SUP-EVENT-REG-REREG-C),
  *             07-A, 07-B, 07-INT-1 to 07-INT-5, 08-A, CAP-01.
  * Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  *
@@ -505,8 +505,8 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  // WITHDRAW-EVENT-REG-05-F
-  describe('WITHDRAW-EVENT-REG-05-F (derived): re-registering after a withdrawal', () => {
+  // SUP-EVENT-REG-REREG-C (supporting coverage, no Jira AC)
+  describe('SUP-EVENT-REG-REREG-C (supporting coverage, no Jira AC): re-registering after a withdrawal', () => {
     // Oracle (DERIVED, SPM-61 A5 / D16): the same row is reactivated and withdrawn_at is cleared.
     // Kills: a re-registered attendee still showing the old withdrawal time.
     it('reactivates the withdrawn row and clears withdrawn_at', async () => {
@@ -528,8 +528,8 @@ describe.skipIf(!database)('SPM-120 withdraw registration (e2e, PostgreSQL)', ()
     });
   });
 
-  // WITHDRAW-EVENT-REG-CAP-01
-  describe('WITHDRAW-EVENT-REG-CAP-01 (story goal): the spot is freed', () => {
+  // SUP-WITHDRAW-EVENT-REG-CAP-01 (supporting coverage, no Jira AC)
+  describe('SUP-WITHDRAW-EVENT-REG-CAP-01 (supporting coverage, no Jira AC): the spot is freed', () => {
     // Oracle (CAP-01): EVT-105 capacity 2; 2 confirmed -> 0 spots; ATT-02 withdraws -> 1 spot, stable.
     // Kills: spot not released; stale value; counter not decremented; wrong registration withdrawn.
     it('available spots go 0 -> 1 after ATT-02 withdraws, REG-9011 untouched', async () => {

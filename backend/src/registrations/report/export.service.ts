@@ -144,9 +144,9 @@ export function buildPdf(report: RegistrationReport): Promise<Buffer> {
     drawRow(PDF_COLUMNS.map((c) => c.title));
     for (const row of report.registrations) {
       drawRow([
-        row.fullName,
-        row.email,
-        row.contactNumber,
+        row.fullName || MESSAGES.reportNotProvided,
+        row.email || MESSAGES.reportNotProvided,
+        row.contactNumber || MESSAGES.reportNotProvided,
         row.specialRequirements ?? '',
         formatReportDateTimeSgt(new Date(row.registeredAt)),
         row.status,

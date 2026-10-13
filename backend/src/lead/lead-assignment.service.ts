@@ -11,7 +11,7 @@ import type pg from 'pg';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
-import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/event-status.js';
+import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/types/event-status.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.

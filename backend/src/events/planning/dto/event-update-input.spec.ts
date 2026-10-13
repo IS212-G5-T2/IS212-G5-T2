@@ -1,6 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
-import { ACCESSIBILITY, FACILITIES } from './dto/event-input.js';
+import { ACCESSIBILITY, FACILITIES } from '../../dto/event-input.js';
 import {
   FIELD_POLICY,
   classifyUpdate,

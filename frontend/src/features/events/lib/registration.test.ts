@@ -23,28 +23,32 @@ const period = { opensAt, closesAt };
 const at = (iso: string, offsetMs: number) => new Date(new Date(iso).getTime() + offsetMs);
 const valid = { fullName: "Alice Tan", email: "alice@example.com", contactNumber: "", specialRequirements: "" };
 
-// EVENT-REG-01-BND-1, EVENT-REG-02-BND-1
-describe("EVENT-REG-01-BND-1 / EVENT-REG-02-BND-1: registration window instants (period util)", () => {
+// EVENT-REG-01-BND-1: the opening boundary
+describe("EVENT-REG-01-BND-1: the opening boundary (period util)", () => {
   // [A] one second before opening, registration is not open.
-  it("[A] 1s before open: not open", () => {
+  it("[A] one second before the opening instant, registration is not open", () => {
     expect(isRegistrationOpen(period, at(opensAt, -1000))).toBe(false);
   });
   // [B] the opening instant is open (inclusive).
-  it("[B] exactly at open: open", () => {
+  it("[B] exactly at the opening instant, registration is open", () => {
     expect(isRegistrationOpen(period, new Date(opensAt))).toBe(true);
-  });
-  // [C] one minute before closing is still open.
-  it("[C] 1 min before close: open", () => {
-    expect(isRegistrationOpen(period, at(closesAt, -60_000))).toBe(true);
-  });
-  // [D] the closing instant is closed (exclusive).
-  it("[D] exactly at close: closed", () => {
-    expect(isRegistrationOpen(period, new Date(closesAt))).toBe(false);
   });
   // A missing bound is unbounded on that side.
   it("treats a missing bound as unbounded", () => {
     expect(isRegistrationOpen({ closesAt }, new Date("2000-01-01"))).toBe(true);
     expect(isRegistrationOpen({ opensAt }, new Date("2999-01-01"))).toBe(true);
+  });
+});
+
+// EVENT-REG-02-BND-1: the closing boundary (period util)
+describe("EVENT-REG-02-BND-1: the closing boundary (period util)", () => {
+  // [C] one minute before the closing instant, registration is still accepted.
+  it("[C] one minute before the closing instant, registration is still accepted", () => {
+    expect(isRegistrationOpen(period, at(closesAt, -60_000))).toBe(true);
+  });
+  // [D] the closing instant is closed (exclusive).
+  it("[D] exactly at the closing instant, registration is closed", () => {
+    expect(isRegistrationOpen(period, new Date(closesAt))).toBe(false);
   });
 });
 
