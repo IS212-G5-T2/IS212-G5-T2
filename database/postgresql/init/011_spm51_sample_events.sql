@@ -1,5 +1,5 @@
 -- SPM-51 local sample events for exercising venue availability permutations.
--- Idempotent: reruns preserve any local edits to these clearly named samples.
+-- Idempotent: reruns preserve local sample edits and only normalize legacy generated titles.
 -- All five events are assigned to the seeded Coordinator 1 account so they are
 -- available in the coordinator's venue booking-request event selector.
 INSERT INTO events (
@@ -21,7 +21,7 @@ SELECT sample.id, organiser.id::text, organiser.display_name, organiser.email,
 FROM (VALUES
     (
         '00000000-0000-4000-8000-000000000201'::uuid,
-        'SPM-51 Seed: Small classroom workshop', 'Hands-on learning',
+        'Small classroom workshop', 'Hands-on learning',
         'Short weekday workshop with a small group.', 14, '09:00'::time,
         14, '10:30'::time, 24, 'Classroom', ARRAY['Projector']::text[],
         ARRAY[]::text[], 'Projector and whiteboard markers.', false, 'Confirmed',
@@ -29,7 +29,7 @@ FROM (VALUES
     ),
     (
         '00000000-0000-4000-8000-000000000202'::uuid,
-        'SPM-51 Seed: Accessible hybrid seminar', 'Share research',
+        'Accessible hybrid seminar', 'Share research',
         'Medium-length seminar with hybrid presentation equipment.', 21,
         '10:00'::time, 21, '13:00'::time, 80, 'Theatre',
         ARRAY['AV System', 'Wi-Fi']::text[],
@@ -39,7 +39,7 @@ FROM (VALUES
     ),
     (
         '00000000-0000-4000-8000-000000000203'::uuid,
-        'SPM-51 Seed: Student innovation expo', 'Showcase prototypes',
+        'Student innovation expo', 'Showcase prototypes',
         'Large daytime expo with extended setup and attendee flow.', 28,
         '08:00'::time, 28, '17:00'::time, 320, 'Exhibition',
         ARRAY['Power outlets', 'Wi-Fi', 'AV System']::text[],
@@ -49,7 +49,7 @@ FROM (VALUES
     ),
     (
         '00000000-0000-4000-8000-000000000204'::uuid,
-        'SPM-51 Seed: Evening alumni networking', 'Connect alumni and students',
+        'Evening alumni networking', 'Connect alumni and students',
         'Evening networking reception with catering and flexible seating.', 35,
         '18:30'::time, 35, '22:00'::time, 145, 'Cocktail',
         ARRAY['Catering', 'AV System']::text[],
@@ -59,7 +59,7 @@ FROM (VALUES
     ),
     (
         '00000000-0000-4000-8000-000000000205'::uuid,
-        'SPM-51 Seed: Overnight production rehearsal', 'Prepare a live production',
+        'Overnight production rehearsal', 'Prepare a live production',
         'Late-night rehearsal crossing midnight with a compact crew.', 42,
         '22:00'::time, 43, '02:00'::time, 36, 'Boardroom',
         ARRAY['AV System', 'Power outlets']::text[],
@@ -74,4 +74,6 @@ FROM (VALUES
 )
 JOIN users organiser ON organiser.email = sample.organiser_email
 JOIN users coordinator ON coordinator.email = 'coordinator1@connectsphere.test'
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE
+SET event_name = EXCLUDED.event_name
+WHERE events.event_name LIKE 'SPM-51 Seed:%';
