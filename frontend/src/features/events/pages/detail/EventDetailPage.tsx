@@ -22,6 +22,8 @@ import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
+import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
+import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
 import {
   PLANNING_REFRESH_MS,
   PLANNING_STATUSES,
@@ -100,6 +102,7 @@ export function EventDetailPage() {
   const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+  const setEventStatus = useAppStore((s) => s.setEventStatus);
 
   // SPM-61 AC5: the server is the source of truth for "already registered".
   useEffect(() => {
@@ -465,6 +468,17 @@ export function EventDetailPage() {
       )}
 
       {planningView && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
+      {isAssignedCoordinator && (
+        <ConfirmEventPanel
+          eventId={event.id}
+          status={event.status}
+          isAssignedCoordinator={isAssignedCoordinator}
+          onConfirmed={() => setEventStatus(event.id, "confirmed")}
+        />
+      )}
+      {isOwner && event.status === "confirmed" && event.organiserId === currentUser.id && (
+        <ConfirmedArrangementsPanel eventId={event.id} />
+      )}
       {!planningView && planningEnabled && planningError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {planningError}

@@ -355,7 +355,7 @@ export class EventsService {
   private notificationTypesFor(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const types = [
-      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval'] : []),
+      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval', 'EventConfirmed'] : []),
       ...(user.roles.includes('COORDINATOR')
         ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment']
         : []),

@@ -31,6 +31,9 @@ import { VenuesController } from './venues/venues.controller.js';
 import { VenuesModule } from './venues/venues.module.js';
 import { LeadAssignmentController } from './lead/lead-assignment.controller.js';
 import { LeadAssignmentService } from './lead/lead-assignment.service.js';
+import { StatusController } from './events/status/status.controller.js';
+import { StatusService } from './events/status/status.service.js';
+import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
@@ -44,6 +47,7 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
     EquipmentController,
     CoordinatorAvailabilityController,
     LeadAssignmentController,
+    StatusController,
   ],
   providers: [
     AppService,
@@ -56,6 +60,10 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
     LeadAssignmentService,
     EventPlanningService,
     EventPlanningRepository,
+    ArrangementsReader,
+    NoSafetyRecordSource,
+    { provide: SAFETY_OUTCOME_SOURCE, useExisting: NoSafetyRecordSource },
+    StatusService,
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -77,6 +85,7 @@ export class AppModule implements NestModule {
         ClarificationsController,
         CoordinatorAvailabilityController,
         LeadAssignmentController,
+        StatusController,
       );
   }
 }

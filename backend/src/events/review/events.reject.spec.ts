@@ -304,7 +304,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     });
     expect(result[0].message).toContain(VALID_REASON);
     // The organiser's query asks only for their decision notification types.
-    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval']]);
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed']]);
   });
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
@@ -393,7 +393,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     // Assert: an organiser's query still asks only for their decision types.
     db.query.mockResolvedValueOnce({ rows: [] });
     await service.notifications(organiser());
-    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval']]);
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed']]);
   });
 });
 
