@@ -125,8 +125,11 @@ export function parseRequestTime(value: string): number {
 
 /** Render schedule instants in the business timezone used by venue operations. */
 export function formatVenueRange(start: string, end: string): string {
-  const startParts = sgtDateTimeParts(start);
-  const endParts = sgtDateTimeParts(end);
+  // Form controls provide SGT wall times without an offset; venue records and
+  // reservations provide ISO instants. Normalize both through the same parser
+  // so rendering does not depend on the host machine's timezone.
+  const startParts = sgtDateTimeParts(new Date(parseRequestTime(start)));
+  const endParts = sgtDateTimeParts(new Date(parseRequestTime(end)));
   return `${startParts.date}, ${startParts.time} – ${endParts.date}, ${endParts.time} (SGT)`;
 }
 
