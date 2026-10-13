@@ -224,6 +224,19 @@ Existing bookings and events are unchanged.
 to the server clock time. `GET /api/venues/:id` exposes current and scheduled
 periods with reasons and a `current` flag for the early-end control.
 
+## Venue availability and booking requests (SPM-51)
+
+`GET /api/venues/:id` returns confirmed bookings, active tentative holds and
+unavailable periods for the venue. Pending holds include `holdExpiresAt`; holds
+whose expiry is at or before the server clock are omitted. Coordinators submit
+an assigned event's requested interval through
+`POST /api/venues/:id/booking-requests` with `{ "eventId", "start", "end" }`,
+where start/end are ISO instants. The request is stored as `pending` and the
+response includes its booking reference. The backend locks the venue, checks
+the fresh schedule against setup/turnaround buffers and blockouts, and returns
+409 without inserting when it finds a conflict. Only the event's currently
+assigned Coordinator may submit it.
+
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's

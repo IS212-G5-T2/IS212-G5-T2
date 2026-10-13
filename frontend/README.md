@@ -46,6 +46,18 @@ catalogue scope by name or location, sort by name/capacity/location/status,
 and click any part of a card to open `/venue-records/:id` for
 accessibility, setup and turnaround details plus availability, bookings and
 tentative holds. Each card shows counts of bookings and active tentative holds.
+Coordinators can check an event date and time from the venue detail. Calendar
+view uses a navigable Singapore-time week/day grid with hourly rows, time-sized
+booking, hold, unavailable, free, setup-buffer, and turnaround-buffer entries;
+List view shows the same schedule records as date-grouped cards. Free periods
+follow each venue's operating days and hours as the calendar moves between dates.
+Coordinators can switch between the calendar and list schedule views, review booking/hold/blockout conflicts,
+and submit a booking request only when the requested range is clear. The check
+includes the venue's configured setup and turnaround buffers; active holds show
+their expiry time and expired holds are omitted by the API. Submission posts to
+`POST /api/venues/:id/booking-requests`, which rechecks the live schedule and
+returns a booking reference only after the pending request is persisted.
+When Search Venues is opened from an event, the catalogue includes a **Back to event** link.
 The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
