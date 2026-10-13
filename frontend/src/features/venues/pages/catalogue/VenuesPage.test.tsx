@@ -98,7 +98,7 @@ describe("VenuesPage catalogue loading", () => {
     expect(apiMock).toHaveBeenCalledWith("/venues");
   });
 
-  /** SPM-51 AC1: event-specific catalogue links preserve event context when opening venue details. Kills B15: dropping eventId from the venue-details link. */
+  /** SPM-51 AC1: event-specific catalogue links preserve event context when opening venue details. Kills: FE-B15 (dropping eventId from the venue-details link). */
   it("fetches and renders catalogue records when opened for a specific event", async () => {
     apiMock.mockResolvedValue([venue]);
     renderPage("/venues?eventId=event-51");
@@ -248,7 +248,7 @@ describe("VenuesPage catalogue loading", () => {
     expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeInTheDocument();
   });
 
-  /** SPM-51 catalogue availability action is shown to coordinator roles, including a secondary grant. Kills B12: checking only the primary role. */
+  /** SPM-51 catalogue availability action is shown to coordinator roles, including a secondary grant. Kills: FE-B12 (checking only the primary role). */
   it("shows the availability action to coordinator roles and hides it from other roles", async () => {
     apiMock.mockResolvedValue([venue]);
     useAppStore.setState({ currentUser: { id: "organiser", name: "Organiser", email: "", role: "organiser" } });
