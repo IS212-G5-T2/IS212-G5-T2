@@ -124,7 +124,7 @@ describe("VenueDetailPage", () => {
         {
           id: "booking-1",
           eventId: "event-1",
-          eventName: "Planning Workshop",
+          eventName: "Stale Store Workshop",
           venueId: venue.id,
           venueName: venue.name,
           requestedBy: "staff-1",
@@ -150,6 +150,7 @@ describe("VenueDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByText("Planning Workshop")).toBeTruthy();
+    expect(screen.queryByText("Stale Store Workshop")).toBeNull();
     expect(screen.getByText("Confirmed")).toBeTruthy();
     expect(screen.getByText("Tentative Workshop")).toBeTruthy();
     expect(screen.getByText("Tentative hold")).toBeTruthy();
