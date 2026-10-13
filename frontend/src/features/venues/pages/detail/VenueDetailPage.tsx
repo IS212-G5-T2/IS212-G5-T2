@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { useAppStore } from "@/store/useAppStore";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { StatusBadge } from "@/components/ui/StatusBadge";
 import { api, ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
-import type { Venue } from "@/types";
+import type { VenueRecord } from "@/features/venues/pages/records/venue-records";
 
 export function VenueDetailPage() {
   const { id } = useParams();
-  const bookings = useAppStore((s) => s.bookings);
-  const [venue, setVenue] = useState<Venue>();
+  const [searchParams] = useSearchParams();
+  const eventId = searchParams.get("eventId");
+  const catalogueHref = eventId
+    ? `/venues?${new URLSearchParams({ eventId }).toString()}`
+    : "/venues";
+  const [venue, setVenue] = useState<VenueRecord>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
@@ -27,7 +29,7 @@ export function VenueDetailPage() {
       return () => { active = false; };
     }
 
-    api<Venue>(`/venues/${encodeURIComponent(id)}`).then(
+    api<VenueRecord>(`/venues/${encodeURIComponent(id)}`).then(
       (record) => {
         if (active) setVenue(record);
       },
@@ -58,7 +60,7 @@ export function VenueDetailPage() {
     );
   }
 
-  const venueBookings = bookings.filter((b) => b.venueId === venue.id);
+  const venueBookings = venue.reservations;
 
   return (
     <div>
@@ -66,7 +68,7 @@ export function VenueDetailPage() {
         title={venue.name}
         description={venue.location}
         actions={
-          <Link to="/venues">
+          <Link to={catalogueHref}>
             <Button variant="secondary">Back to Catalogue</Button>
           </Link>
         }
@@ -137,7 +139,13 @@ export function VenueDetailPage() {
               <div key={b.id} className="rounded-lg border border-gray-100 dark:border-gray-800 p-3 text-sm">
                 <div className="flex items-center justify-between">
                   <span className="font-medium text-gray-800 dark:text-gray-200">{b.eventName}</span>
-                  <StatusBadge status={b.status} />
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    b.status === "booked"
+                      ? "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300"
+                      : "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300"
+                  }`}>
+                    {b.status === "booked" ? "Confirmed" : "Tentative hold"}
+                  </span>
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{formatDateRange(b.start, b.end)}</p>
               </div>

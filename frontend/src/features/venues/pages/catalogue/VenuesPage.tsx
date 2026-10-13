@@ -212,6 +212,7 @@ export function VenuesPage() {
               key={v.id}
               venue={v}
               highlightSuitable={isSuitable(v)}
+              eventId={eventId || undefined}
               onCheckAvailability={canBook && selectedEvent ? () => {
                 const query = new URLSearchParams({ eventId: selectedEvent.id });
                 navigate(`/venue-records/${encodeURIComponent(v.id)}?${query.toString()}`);
