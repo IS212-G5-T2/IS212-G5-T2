@@ -3,8 +3,12 @@ import type pg from 'pg';
 import { DatabaseService } from '../../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { accessibilityOptions } from '../helpers/accessibility-options.js';
-import type { VenueImageInput, VenueInput } from '../creation/dto/venue-input.js';
+import type {
+  VenueImageInput,
+  VenueInput,
+} from '../creation/dto/venue-input.js';
 import type { UnavailabilityInput } from '../availability/dto/venue-unavailability.js';
+import type { BookingRequestInput } from '../availability/dto/booking-request.js';
 
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {
@@ -38,18 +42,19 @@ export interface VenueUnavailablePeriod {
   current?: boolean;
 }
 
-export interface VenueReservation {
+interface VenueReservationBase {
   id: string;
   eventName: string;
   start: string;
   end: string;
-  status: 'booked' | 'tentative';
   affectedByUnavailablePeriod: boolean;
 }
 
-export interface AffectedVenueReservation extends VenueReservation {
-  eventId: string;
-}
+export type VenueReservation =
+  | (VenueReservationBase & { status: 'booked'; holdExpiresAt?: never })
+  | (VenueReservationBase & { status: 'tentative'; holdExpiresAt: string });
+
+export type AffectedVenueReservation = VenueReservation & { eventId: string };
 
 type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
@@ -89,6 +94,7 @@ interface BookingRow {
   start_at: Date;
   end_at: Date;
   status: 'pending' | 'approved';
+  hold_expires_at?: Date | null;
   current: boolean;
   affected: boolean;
 }
@@ -171,6 +177,86 @@ export class VenuesRepository {
     return (await this.withSchedules([this.toReadRecord(result.rows[0])]))[0];
   }
 
+  /** Atomically rechecks a venue schedule and records an assigned coordinator's request. */
+  async submitBookingRequest(
+    venueId: string,
+    coordinatorId: string,
+    input: BookingRequestInput,
+  ): Promise<
+    | { kind: 'venue-not-found' }
+    | { kind: 'event-not-assigned' }
+    | { kind: 'conflict'; reason: string }
+    | { kind: 'created'; id: string; start: string; end: string }
+  > {
+    return this.database.transaction(async (client) => {
+      const venue = await client.query<{
+        id: string;
+        setup_time_minutes: number;
+        turnaround_time_minutes: number;
+      }>(
+        'SELECT id, setup_time_minutes, turnaround_time_minutes FROM venues WHERE id = $1::uuid FOR UPDATE',
+        [venueId],
+      );
+      const venueRow = venue.rows[0];
+      if (!venueRow) return { kind: 'venue-not-found' };
+
+      const event = await client.query(
+        'SELECT id FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR SHARE',
+        [input.eventId, coordinatorId],
+      );
+      if (!event.rows[0]) return { kind: 'event-not-assigned' };
+
+      const conflict = await client.query<{ reason: string }>(
+        `SELECT reason FROM (
+           SELECT COALESCE(reason, 'Venue unavailable') AS reason
+             FROM venue_bookings
+            WHERE venue_id = $1::uuid AND status = 'blocked'
+              AND start_at < $3::timestamptz + make_interval(mins => $5::int)
+              AND end_at > $2::timestamptz - make_interval(mins => $4::int)
+           UNION ALL
+           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason
+             FROM venue_bookings b
+             LEFT JOIN events e ON e.id = b.event_id
+            WHERE b.venue_id = $1::uuid
+              AND (b.status = 'approved' OR
+                (b.status = 'pending' AND b.hold_expires_at > $6::timestamptz))
+              AND b.start_at - make_interval(mins => $4::int)
+                    < $3::timestamptz + make_interval(mins => $5::int)
+              AND b.end_at + make_interval(mins => $5::int)
+                    > $2::timestamptz - make_interval(mins => $4::int)
+         ) conflicts LIMIT 1`,
+        [
+          venueId,
+          input.start,
+          input.end,
+          venueRow.setup_time_minutes,
+          venueRow.turnaround_time_minutes,
+          this.clock.now(),
+        ],
+      );
+      if (conflict.rows[0])
+        return { kind: 'conflict', reason: conflict.rows[0].reason };
+
+      const saved = await client.query<{
+        id: string;
+        start_at: Date;
+        end_at: Date;
+      }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending')
+         RETURNING id, start_at, end_at`,
+        [venueId, input.eventId, input.start, input.end],
+      );
+      const row = saved.rows[0];
+      return {
+        kind: 'created',
+        id: row.id,
+        start: row.start_at.toISOString(),
+        end: row.end_at.toISOString(),
+      };
+    });
+  }
+
   /** Block a venue without altering existing event bookings or holds. */
   async markUnavailable(
     venueId: string,
@@ -183,6 +269,7 @@ export class VenuesRepository {
     | undefined
   > {
     return this.database.transaction(async (client) => {
+      const now = this.clock.now();
       const venue = await client.query(
         'SELECT id FROM venues WHERE id = $1::uuid FOR UPDATE',
         [venueId],
@@ -199,17 +286,18 @@ export class VenuesRepository {
         [venueId, input.start, input.end, input.reason],
       );
       const affected = await client.query<BookingRow & { event_id: string }>(
-        `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status
+        `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
+           b.hold_expires_at
          FROM venue_bookings b JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          WHERE b.venue_id = $1::uuid
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $3::timestamptz
            AND (b.status = 'approved' OR
-             (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)))
+             (b.status = 'pending' AND b.hold_expires_at > $3::timestamptz))
            AND b.start_at - make_interval(mins => v.setup_time_minutes) < $2::timestamptz
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $4::timestamptz
          ORDER BY b.start_at, b.id`,
-        [venueId, input.end, this.clock.now(), input.start],
+        [venueId, input.end, now, input.start],
       );
       const row = saved.rows[0];
       return {
@@ -219,18 +307,31 @@ export class VenuesRepository {
           end: row.end_at.toISOString(),
           reason: row.reason,
         },
-        affectedBookings: affected.rows.map((booking) => ({
-          id: booking.id,
-          eventId: booking.event_id,
-          eventName: booking.event_name,
-          start: booking.start_at.toISOString(),
-          end: booking.end_at.toISOString(),
-          status:
-            booking.status === 'approved'
-              ? ('booked' as const)
-              : ('tentative' as const),
-          affectedByUnavailablePeriod: true,
-        })),
+        affectedBookings: affected.rows
+          .filter(
+            (booking) =>
+              booking.status === 'approved' ||
+              (booking.hold_expires_at !== null &&
+                booking.hold_expires_at !== undefined &&
+                booking.hold_expires_at.getTime() > now.getTime()),
+          )
+          .map((booking): AffectedVenueReservation => {
+            const affectedBooking = {
+              id: booking.id,
+              eventId: booking.event_id,
+              eventName: booking.event_name,
+              start: booking.start_at.toISOString(),
+              end: booking.end_at.toISOString(),
+              affectedByUnavailablePeriod: true as const,
+            };
+            return booking.status === 'approved'
+              ? { ...affectedBooking, status: 'booked' }
+              : {
+                  ...affectedBooking,
+                  status: 'tentative',
+                  holdExpiresAt: booking.hold_expires_at!.toISOString(),
+                };
+          }),
       };
     });
   }
@@ -326,7 +427,7 @@ export class VenuesRepository {
         [ids, now],
       ),
       this.database.query<BookingRow>(
-        `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
+        `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status, b.hold_expires_at,
          b.start_at - make_interval(mins => v.setup_time_minutes) <= $2::timestamptz
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz AS current,
          EXISTS (
@@ -342,7 +443,7 @@ export class VenuesRepository {
        WHERE b.venue_id = ANY($1::uuid[])
          AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz
          AND (b.status = 'approved' OR
-           (b.status = 'pending' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz)))
+           (b.status = 'pending' AND b.hold_expires_at > $2::timestamptz))
          ORDER BY b.start_at, b.id`,
         [ids, now],
       ),
@@ -363,14 +464,28 @@ export class VenuesRepository {
     for (const row of bookings.rows) {
       const venue = byId.get(row.venue_id);
       if (!venue) continue;
-      venue.reservations.push({
+      if (
+        row.status === 'pending' &&
+        (!row.hold_expires_at ||
+          row.hold_expires_at.getTime() <= now.getTime())
+      )
+        continue;
+      const reservation = {
         id: row.id,
         eventName: row.event_name,
         start: row.start_at.toISOString(),
         end: row.end_at.toISOString(),
-        status: row.status === 'approved' ? 'booked' : 'tentative',
         affectedByUnavailablePeriod: row.affected,
-      });
+      };
+      if (row.status === 'approved') {
+        venue.reservations.push({ ...reservation, status: 'booked' });
+      } else {
+        venue.reservations.push({
+          ...reservation,
+          status: 'tentative',
+          holdExpiresAt: row.hold_expires_at!.toISOString(),
+        });
+      }
       if (row.current && row.status === 'approved')
         venue.availabilityStatus = 'unavailable';
     }

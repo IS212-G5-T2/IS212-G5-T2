@@ -16,6 +16,7 @@ import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
+import { validateBookingRequest } from './availability/dto/booking-request.js';
 import { VenuesRepository } from './repository/venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
@@ -109,6 +110,43 @@ export class VenuesService {
     const venue = await this.repository.get(id);
     if (!venue) throw new NotFoundException('Venue not found.');
     return venue;
+  }
+
+  /** Validates and atomically submits a booking request for an event assigned to the caller. */
+  async submitBookingRequest(
+    identity: AuthenticatedUser | undefined,
+    venueId: string,
+    body: unknown,
+  ) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    if (!UUID.test(venueId)) throw new NotFoundException('Venue not found.');
+
+    const input = validateBookingRequest(body);
+    const result = await this.repository.submitBookingRequest(
+      venueId,
+      identity.uid,
+      input,
+    );
+    if (result.kind === 'venue-not-found')
+      throw new NotFoundException('Venue not found.');
+    if (result.kind === 'event-not-assigned')
+      throw new NotFoundException('Assigned event not found.');
+    if (result.kind === 'conflict')
+      throw new ConflictException(
+        `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
+      );
+    return {
+      id: result.id,
+      eventId: input.eventId,
+      venueId,
+      start: result.start,
+      end: result.end,
+      status: 'pending' as const,
+      bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    };
   }
 
   /** Venue Staff can save blockouts even when existing bookings are affected. */
