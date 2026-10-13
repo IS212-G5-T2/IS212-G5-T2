@@ -56,18 +56,8 @@ interface StatusChangeContext {
   now: Date;
 }
 
-type Handler = (
-  client: pg.PoolClient,
-  context: StatusChangeContext,
-) => Promise<{ status: string; message: string }>;
-
 @Injectable()
 export class StatusService {
-  /** One handler per target status (D16). SPM-136 adds `Cancelled` here. */
-  private readonly handlers = new Map<string, Handler>([
-    ['Confirmed', (client, context) => this.confirm(client, context)],
-  ]);
-
   constructor(
     private readonly database: DatabaseService,
     private readonly reader: ArrangementsReader,
@@ -80,15 +70,15 @@ export class StatusService {
     const user = this.requireUser(identity);
     const targetStatus = this.targetStatusOf(body);
     const event = await this.assignedEventOrThrow(user, eventId);
-    const handler = this.handlers.get(targetStatus);
-    if (!handler)
+    // SPM-136 adds `Cancelled` here.
+    if (targetStatus !== 'Confirmed')
       throw new BadRequestException({
         code: STATUS_CODES.unsupportedTarget,
         message: STATUS_MESSAGES.unsupportedTarget,
       });
 
     return this.database.transaction((client) =>
-      handler(client, { identity: user, event, now: this.clock.now() }),
+      this.confirm(client, { identity: user, event, now: this.clock.now() }),
     );
   }
 
