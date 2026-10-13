@@ -41,12 +41,12 @@ and venue routes. When the middleware is applied to a controller, it:
 
 Auth code is organized by responsibility:
 
-| Path | Purpose |
-| --- | --- |
-| `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
-| `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
-| `src/auth/authorization/` | RBAC permission and ownership checks. |
-| `src/auth/types/` | Shared auth user, role, permission, and public-route types. |
+| Path                        | Purpose                                                           |
+| --------------------------- | ----------------------------------------------------------------- |
+| `src/config/auth.config.ts` | Authentication session environment parsing and validation.        |
+| `src/auth/authentication/`  | Session authentication, login/logout API, and request middleware. |
+| `src/auth/authorization/`   | RBAC permission and ownership checks.                             |
+| `src/auth/types/`           | Shared auth user, role, permission, and public-route types.       |
 
 ## Database Access
 
@@ -59,12 +59,12 @@ Use `DatabaseService.query()` for single SQL statements and `DatabaseService.tra
 
 Required runtime configuration:
 
-| Variable | Purpose |
-| --- | --- |
-| `DATABASE_URL` | PostgreSQL connection string used for RBAC lookups. |
-| `AUTH_COOKIE_NAME` | Name of the HTTP-only session cookie. |
-| `AUTH_COOKIE_SECURE` | Set `true` when the backend is served over HTTPS. |
-| `AUTH_SESSION_TTL_HOURS` | Session lifetime; defaults to `8`, maximum `168`. |
+| Variable                 | Purpose                                             |
+| ------------------------ | --------------------------------------------------- |
+| `DATABASE_URL`           | PostgreSQL connection string used for RBAC lookups. |
+| `AUTH_COOKIE_NAME`       | Name of the HTTP-only session cookie.               |
+| `AUTH_COOKIE_SECURE`     | Set `true` when the backend is served over HTTPS.   |
+| `AUTH_SESSION_TTL_HOURS` | Session lifetime; defaults to `8`, maximum `168`.   |
 
 ## Setup
 
@@ -86,12 +86,12 @@ The service listens on `PORT` when set, otherwise `3000`.
 
 Routes (all behind `AuthenticationMiddleware`; the service checks role, ownership/assignment and event status):
 
-| Route | Who | Purpose |
-| --- | --- | --- |
-| `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`) |
-| `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
-| `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | `{ decision: 'confirm' \| 'reject', bookingId? }` |
-| `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Resolved changes, newest first |
+| Route                                                     | Who                                                | Purpose                                                                                                                                                                                                                        |
+| --------------------------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET /api/events/:id/planning`                            | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`)                                                  |
+| `PATCH /api/events/:id/planning`                          | Assigned coordinator                               | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
+| `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator                               | `{ decision: 'confirm' \| 'reject', bookingId? }`                                                                                                                                                                              |
+| `GET /api/events/:id/planning/history`                    | Owning organiser, assigned coordinator             | Resolved changes, newest first                                                                                                                                                                                                 |
 
 Rules, assumptions and the placeholder tables behind this are in `HANDOVER.md`; test cases are indexed in `../docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`.
 
@@ -237,6 +237,29 @@ the fresh schedule against setup/turnaround buffers and blockouts, and returns
 409 without inserting when it finds a conflict. Only the event's currently
 assigned Coordinator may submit it.
 
+Backend evidence for the booking-request rules is in
+`src/venues/availability/booking-request.spec.ts`,
+`src/venues/availability/dto/booking-request.spec.ts`, and
+`test/venues-booking-requests.e2e-spec.ts`. The schedule schema supports
+`rejected` as the declined request status; it has no `cancelled` booking status.
+Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
+requests are tentative and rejected requests are absent, without claiming a
+cancelled status exists.
+
+Run SPM-51 fault-injection checks with a PostgreSQL database configured in
+`DATABASE_URL`:
+
+```sh
+node scripts/mutation/run.mjs --mutants spm51.mutants.mjs
+```
+
+The runner prints baseline and per-mutant results with the mapped test evidence;
+it does not persist a result report. Exit code `0` means all selected mutants
+were killed or marked equivalent, `1` means a non-equivalent mutant survived or
+could not be applied exactly once, `2` means setup/baseline validation failed,
+and `3` means one or more required suites were skipped because their database
+environment was unavailable. A skipped suite is not counted as a kill.
+
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's
@@ -270,9 +293,9 @@ Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_
 - Approval locks the event and commits Approved status plus an organiser-addressed `approval` notification in one transaction. Any later attempt to approve or move the same request through this decision endpoint returns 409, preserving the forward-only status transition.
 - Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.
 - `GET /api/notifications` returns only the verified ORGANISER's approval and rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
-Notifications are persistent in-app messages, not email. The frontend checks
-for them on sign-in, focus, and every 30 seconds. Identity and recipient
-scoping come from the local session.
+  Notifications are persistent in-app messages, not email. The frontend checks
+  for them on sign-in, focus, and every 30 seconds. Identity and recipient
+  scoping come from the local session.
 
 ## Registration report and exports
 

@@ -205,12 +205,14 @@ describe.skipIf(!database)(
       ]);
     });
 
-    /** SPM-51 AC10: only explicit future-expiry pending holds are active; unbounded requests and expired holds are not booked. */
+    /** SPM-51 AC10: only pending rows with a future hold expiry are Booked; expired and unbounded requests are Cancelled. Kills: B13, B14. */
     it('maps pending venue rows by explicit hold expiry and preserves approved bookings', async () => {
-      const venueId = (await db.query<{ venue_id: string }>(
-        'SELECT venue_id FROM venue_bookings WHERE id = $1',
-        [hallA],
-      )).rows[0].venue_id;
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
       const unboundedRequest = await insertBooking(
         eventId,
         venueId,
@@ -224,7 +226,11 @@ describe.skipIf(!database)(
         at(START, 720),
         at(END, 720),
         'pending',
-        new Date(Date.now() - MINUTE).toISOString(),
+        null,
+      );
+      await db.query(
+        "UPDATE venue_bookings SET hold_expires_at = now() - interval '1 minute' WHERE id = $1",
+        [expiredHold],
       );
       const activeHold = await insertBooking(
         eventId,
@@ -232,7 +238,11 @@ describe.skipIf(!database)(
         at(START, 1080),
         at(END, 1080),
         'pending',
-        new Date(Date.now() + 60 * MINUTE).toISOString(),
+        null,
+      );
+      await db.query(
+        "UPDATE venue_bookings SET hold_expires_at = now() + interval '60 minutes' WHERE id = $1",
+        [activeHold],
       );
       const exactExpiryHold = await insertBooking(
         eventId,
@@ -240,15 +250,21 @@ describe.skipIf(!database)(
         at(START, 1440),
         at(END, 1440),
         'pending',
-        new Date(Date.now() + 60 * MINUTE).toISOString(),
+        null,
       );
+      // PostgreSQL now() is deliberately used here: the repository under test
+      // compares expiry with PostgreSQL's now() in the same statement. Setting
+      // both through one DB clock proves the exact-expiry boundary without a
+      // wall-clock race between JavaScript and PostgreSQL.
       await db.query(
         'UPDATE venue_bookings SET hold_expires_at = now() WHERE id = $1',
         [exactExpiryHold],
       );
 
       const bookings = await repository.listVenueBookings(eventId);
-      const byId = new Map(bookings.map((booking) => [booking.id, booking.status]));
+      const byId = new Map(
+        bookings.map((booking) => [booking.id, booking.status]),
+      );
 
       expect(byId.get(unboundedRequest)).toBe('Cancelled');
       expect(byId.get(expiredHold)).toBe('Cancelled');

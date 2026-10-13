@@ -72,7 +72,7 @@ describe('SPM-51 venue booking request submission', () => {
     });
   });
 
-  /** VEN-AVL-07-SEC-1: only the assigned coordinator role can submit a request. */
+  /** SPM-51 AC6: only a coordinator role can submit a request. Kills: role-check removal (B07). */
   it('rejects anonymous and non-coordinator callers before persistence', async () => {
     await expect(
       service.submitBookingRequest(undefined, venueId, body),
@@ -87,7 +87,7 @@ describe('SPM-51 venue booking request submission', () => {
     expect(submitBookingRequest).not.toHaveBeenCalled();
   });
 
-  /** SPM-51 AC1: malformed venue identifiers are rejected before repository access. */
+  /** SPM-51 AC6: malformed venue identifiers are rejected before repository access. */
   it('returns not found for an invalid venue identifier', async () => {
     await expect(
       service.submitBookingRequest(coordinator, 'bad-id', body),
@@ -95,7 +95,7 @@ describe('SPM-51 venue booking request submission', () => {
     expect(submitBookingRequest).not.toHaveBeenCalled();
   });
 
-  /** VEN-AVL-06-B: a request cannot be attached to another coordinator's event. */
+  /** VEN-AVL-06-B: a request cannot be attached to another coordinator's event. Kills: event-assignment predicate removal (B08). */
   it('returns not found when the selected event is not assigned to the caller', async () => {
     submitBookingRequest.mockResolvedValue({ kind: 'event-not-assigned' });
 
