@@ -89,6 +89,28 @@ describe("EventEditForm", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  /** The read-only Venue field shows the venue text the server sent, unchanged. */
+  it("shows the server venue text in the read-only Venue field", () => {
+    render(
+      <EventEditForm
+        event={{ ...event, venueName: "Main Hall (unavailable)" }}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
+
+    const venue = screen.getByLabelText("Venue");
+    expect(venue).toHaveValue("Main Hall (unavailable)");
+    expect(venue).toHaveAttribute("readonly");
+  });
+
+  /** With no booking the read-only Venue field shows the "Not yet booked" fallback. */
+  it("shows Not yet booked in the Venue field when the event has no venue", () => {
+    render(<EventEditForm event={{ ...event, venueName: undefined }} onSave={vi.fn()} onCancel={vi.fn()} />);
+
+    expect(screen.getByLabelText("Venue")).toHaveValue("Not yet booked");
+  });
+
   // The module-level option extraction must keep the editor's controlled selections available.
   it("offers supported shared facility and room layout choices", () => {
     render(<EventEditForm event={event} onSave={vi.fn()} onCancel={vi.fn()} />);

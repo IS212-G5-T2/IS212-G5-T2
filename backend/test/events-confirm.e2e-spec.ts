@@ -531,11 +531,11 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await notificationCount(coordinator.uid, eventId)).toBe(0);
   });
 
-  // CONFIRM-EVENT-06-A / 06-B (BE): Rejected and Cancelled events cannot be confirmed.
+  // CONFIRM-EVENT-06-A (Rejected) / 06-B (Cancelled) (BE): these events cannot be confirmed.
   it.each([
-    ['Rejected', 'EVT-207'],
-    ['Cancelled', 'EVT-208'],
-  ])('CONFIRM-EVENT-06: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and stays %s', async (status, label) => {
+    ['CONFIRM-EVENT-06-A', 'Rejected', 'EVT-207'],
+    ['CONFIRM-EVENT-06-B', 'Cancelled', 'EVT-208'],
+  ])('%s: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and stays %s', async (_caseId, status, label) => {
     // Arrange: a ready arrangement set on an event that is Rejected or Cancelled, assigned to COO-01
     const eventId = await seedEvent({
       name: label,

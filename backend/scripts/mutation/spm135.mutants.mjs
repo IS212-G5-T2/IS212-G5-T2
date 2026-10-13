@@ -7,21 +7,52 @@
 // IDs M1 to M18 and M7b to M9c follow docs/specs/SPM-135-test-results.md. Extra mutants cover the
 // reader's overlap SQL (R*), the hold-expiry boundary (M-HOLD-EQ), the non-Planning branch (NP*),
 // the organiser allowlist guards (CA*) and the GET assignment check (GET*).
+// CK* mutate the planning checklist (checklist.ts, unit suite), SF* the stored-status mapping
+// (safety-check.source.ts, safetyUnit and confirmRealSafety), VS* the venue text SQL (venue-summary.ts,
+// venueSummary suite), and RV*/EQ* the venue and equipment removal endpoints (status.service.ts, removal suite).
 //
 // M19 (the Confirm button not disabled while pending) is a FRONTEND mutant. It cannot be run from this
 // backend runner because run.mjs copies only the backend tree. It is documented in
 // docs/specs/SPM-135-test-results.md and must be run from a frontend runner.
 //
+// The venue_bookings and equipment_reservations safety-reset triggers (database/postgresql/init 014 and 016)
+// are NOT in this runner. run.mjs edits only backend/ files. Their mutants (TG*) are in
+// spm135.triggers.mutants.mjs and run through run-triggers.mjs, which builds a fresh scratch database per
+// mutant from copies of the init scripts and drops it afterwards. Those mutants never touch the shared
+// spm_test database.
+//
 // `equivalent: true` is a claim that the survivor cannot change observable behaviour through the routes.
 // Each claim is explained in its name; the runner reports any non-equivalent survivor and exits 1.
 export const SUITES = {
-  // Pure rule spec for the readiness function (fail-closed table, hold boundary, ordering).
+  // Pure rule specs: the readiness function (fail-closed table, hold boundary, ordering) and the planning checklist.
   unit: {
-    args: ['run', 'src/events/status/readiness.spec.ts'],
+    args: ['run', 'src/events/status/readiness.spec.ts', 'src/events/status/checklist.spec.ts'],
+  },
+  // Pure FACT_STATE mapping of the stored safety check status (safety-check.source.ts).
+  safetyUnit: {
+    args: ['run', 'src/events/status/safety-check.source.spec.ts'],
   },
   // PostgreSQL integration suite; needs DATABASE_URL with database/postgresql/init 001 to 012 applied.
   e2e: {
     args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-confirm.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
+  // Confirm gate against the real safety source (no SAFETY_OUTCOME_SOURCE override).
+  confirmRealSafety: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-confirm-safety-source.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
+  // Venue and equipment removal through HTTP (removeVenueRequest / removeEquipmentRequest).
+  removal: {
+    args: [
+      'run', '--config', './vitest.config.e2e.ts',
+      'test/events-venue-removal.e2e-spec.ts', 'test/events-equipment-removal.e2e-spec.ts',
+    ],
+    needsEnv: ['DATABASE_URL'],
+  },
+  // The venue text SQL (venue-summary.ts) through GET /api/events and GET /api/events/:id.
+  venueSummary: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-venue-summary.e2e-spec.ts'],
     needsEnv: ['DATABASE_URL'],
   },
 };
@@ -29,8 +60,15 @@ export const SUITES = {
 const READER = 'src/events/status/arrangements.reader.ts';
 const READINESS = 'src/events/status/readiness.ts';
 const SERVICE = 'src/events/status/status.service.ts';
+const CHECKLIST = 'src/events/status/checklist.ts';
+const SAFETY = 'src/events/status/safety-check.source.ts';
+const VENUE_SUMMARY = 'src/events/venue-summary.ts';
 const both = ['unit', 'e2e'];
 const e2eOnly = ['e2e'];
+const unitOnly = ['unit'];
+const removalOnly = ['removal'];
+const summaryOnly = ['venueSummary'];
+const safetySource = ['safetyUnit', 'confirmRealSafety'];
 
 const ASSIGNED = "const isAssigned = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;";
 const LOCK_RECHECK = 'if (current.coordinator_id !== identity.uid)';
@@ -110,7 +148,7 @@ export const MUTANTS = [
   { id: 'M6', name: 'readiness taken from a page-load snapshot (cache filled by GET, reused by confirm)', file: SERVICE,
     edits: [
       ['@Injectable()\nexport class StatusService', 'const pageLoadCache = new Map<string, ReadinessResult>();\n\n@Injectable()\nexport class StatusService'],
-      ['    return { eventId, ready: result.ready, outstanding: result.outstanding };', '    pageLoadCache.set(eventId, result);\n    return { eventId, ready: result.ready, outstanding: result.outstanding };'],
+      ['    const result: ReadinessResult = evaluateReadiness(\n      { ...snapshot, safety: await this.safety.read(eventId) },\n      now,\n    );\n', '    const result: ReadinessResult = evaluateReadiness(\n      { ...snapshot, safety: await this.safety.read(eventId) },\n      now,\n    );\n    pageLoadCache.set(eventId, result);\n'],
       ['    const result = evaluateReadiness({ ...snapshot, safety: await this.safety.read(event.id) }, now);', '    const result = pageLoadCache.get(event.id) ?? evaluateReadiness({ ...snapshot, safety: await this.safety.read(event.id) }, now);'],
     ],
     suites: e2eOnly },
@@ -124,7 +162,7 @@ export const MUTANTS = [
   { id: 'M11', name: 'unconditional UPDATE under the row lock (equivalent: the status is re-read under FOR UPDATE)', file: SERVICE, equivalent: true,
     edits: [["WHERE id = $1 AND status = 'Planning'", 'WHERE id = $1']], suites: e2eOnly },
   { id: 'M11c', name: 'no row lock and unconditional UPDATE (kills 04-B deterministic)', file: SERVICE,
-    edits: [["WHERE id = $1 FOR UPDATE',", "WHERE id = $1',"], ["WHERE id = $1 AND status = 'Planning'", 'WHERE id = $1']],
+    edits: [["'SELECT id, status, event_name, organiser_id, coordinator_id FROM events WHERE id = $1 FOR UPDATE',", "'SELECT id, status, event_name, organiser_id, coordinator_id FROM events WHERE id = $1',"], ["WHERE id = $1 AND status = 'Planning'", 'WHERE id = $1']],
     suites: e2eOnly },
 
   // ---- status.service.ts: side effects (history, notification, organiser allowlist) ----
@@ -147,4 +185,129 @@ export const MUTANTS = [
   { id: 'CA3', name: 'Confirmed-status check removed from confirmedArrangements (owner reads a Planning event)', file: SERVICE,
     edits: [["if (event.status !== 'Confirmed') throw new NotFoundException(STATUS_MESSAGES.notFound);", 'void event;']],
     suites: e2eOnly },
+
+  // ---- checklist.ts: per-request statuses and the combined section status (SPM-135 planning checklist) ----
+  { id: 'CK1', name: 'approved booking shown confirmed even when its venue is blocked for the window', file: CHECKLIST,
+    edits: [["if (booking.status === 'approved') return booking.venueUnavailable ? 'unavailable' : 'confirmed';", "if (booking.status === 'approved') return 'confirmed';"]],
+    suites: unitOnly },
+  { id: 'CK2', name: 'rejected booking shown pending instead of unavailable', file: CHECKLIST,
+    edits: [["if (booking.status === 'rejected') return 'unavailable';", "if (booking.status === 'rejected') return 'pending';"]],
+    suites: unitOnly },
+  { id: 'CK3', name: 'pending booking shown confirmed', file: CHECKLIST,
+    edits: [["  if (booking.status === 'approved') return booking.venueUnavailable ? 'unavailable' : 'confirmed';\n  return 'pending';", "  if (booking.status === 'approved') return booking.venueUnavailable ? 'unavailable' : 'confirmed';\n  return 'confirmed';"]],
+    suites: unitOnly },
+  { id: 'CK4', name: 'pending beats unavailable in the combined venue status', file: CHECKLIST,
+    edits: [["  if (statuses.includes('unavailable')) return 'unavailable';\n  if (statuses.includes('pending')) return 'pending';", "  if (statuses.includes('pending')) return 'pending';\n  if (statuses.includes('unavailable')) return 'unavailable';"]],
+    suites: unitOnly },
+  { id: 'CK5', name: 'pending ignored when another request is confirmed (section ticked with a pending request)', file: CHECKLIST,
+    edits: [["  if (statuses.includes('pending')) return 'pending';", "  if (statuses.includes('pending') && statuses.includes('unavailable')) return 'pending';"]],
+    suites: unitOnly },
+  { id: 'CK6', name: 'equipment Requested shown confirmed', file: CHECKLIST,
+    edits: [["return line.status === 'Reserved' ? 'confirmed' : 'pending';", "return 'confirmed';"]],
+    suites: unitOnly },
+  { id: 'CK7', name: 'unavailable equipment line shown pending instead of unavailable', file: CHECKLIST,
+    edits: [["if (UNAVAILABLE_EQUIPMENT.has(line.status.toLowerCase())) return 'unavailable';", "if (UNAVAILABLE_EQUIPMENT.has(line.status.toLowerCase())) return 'pending';"]],
+    suites: unitOnly },
+  { id: 'CK8', name: 'Released equipment lines counted as outstanding', file: CHECKLIST,
+    edits: [["const INACTIVE = new Set(['Cancelled', 'Released']);", "const INACTIVE = new Set(['Cancelled']);"]],
+    suites: unitOnly },
+  { id: 'CK9', name: 'no-equipment section satisfied without the coordinator confirmation', file: CHECKLIST,
+    edits: [['  const noneConfirmed = lines.length === 0 && equipmentConfirmedAt !== null;', '  const noneConfirmed = lines.length === 0;']],
+    suites: unitOnly },
+  { id: 'CK10', name: 'safety check shown while a prerequisite is still blocking', file: CHECKLIST,
+    edits: [["safetyCheck: blocking.length === 0 || safety.status === 'not_requested' ? safety : { status: 'not_requested' },", 'safetyCheck: safety,']],
+    suites: unitOnly },
+  { id: 'CK11', name: 'safety check request allowed while a prerequisite is blocking', file: CHECKLIST,
+    edits: [['    canRequestSafetyCheck: blocking.length === 0,', '    canRequestSafetyCheck: true,']],
+    suites: unitOnly },
+  { id: 'CK12', name: 'the text "None" treated as an equipment requirement', file: CHECKLIST,
+    edits: [["return text !== '' && text !== 'none';", "return text !== '';"]],
+    suites: unitOnly },
+  { id: 'CK13', name: 'equipment section confirmed by statuses alone (no-equipment confirmation ignored)', file: CHECKLIST,
+    edits: [['  const equipmentConfirmed = equipmentStatus === \'confirmed\' || noneConfirmed;', "  const equipmentConfirmed = equipmentStatus === 'confirmed';"]],
+    suites: unitOnly },
+  { id: 'CK14', name: 'a pending venue request does not block the safety check', file: CHECKLIST,
+    edits: [["if (venueStatus !== 'confirmed') blocking.push('venue');", "if (venueStatus === 'unavailable') blocking.push('venue');"]],
+    suites: unitOnly },
+  { id: 'CK15', name: 'no venue request shown as confirmed', file: CHECKLIST,
+    edits: [["    bookings.length === 0 ? 'not_requested' : combined(venueItems.map((item) => item.status));", "    bookings.length === 0 ? 'confirmed' : combined(venueItems.map((item) => item.status));"]],
+    suites: unitOnly },
+
+  // ---- safety-check.source.ts: FACT_STATE, the stored status to the readiness state ----
+  { id: 'SF1', name: 'pending safety check mapped to Approved (clears the Confirm gate)', file: SAFETY,
+    edits: [["  pending: 'Awaiting Check',", "  pending: 'Approved',"]], suites: safetySource },
+  { id: 'SF2', name: 'changes_needed safety check mapped to Approved', file: SAFETY,
+    edits: [["  changes_needed: 'Changes Requested',", "  changes_needed: 'Approved',"]], suites: safetySource },
+  { id: 'SF3', name: 'approved safety check mapped to Awaiting Check', file: SAFETY,
+    edits: [["  approved: 'Approved',", "  approved: 'Awaiting Check',"]], suites: safetySource },
+  { id: 'SF4', name: 'pending and changes_needed swapped', file: SAFETY,
+    edits: [["  pending: 'Awaiting Check',\n  changes_needed: 'Changes Requested',", "  pending: 'Changes Requested',\n  changes_needed: 'Awaiting Check',"]], suites: safetySource },
+
+  // ---- venue-summary.ts: the venue text SQL (labels, window overlap, joining) ----
+  { id: 'VS1', name: 'approved unblocked booking labelled unavailable', file: VENUE_SUMMARY,
+    edits: [["WHEN b.status = 'approved' AND NOT EXISTS (", "WHEN b.status = 'approved' AND EXISTS ("]], suites: summaryOnly },
+  { id: 'VS2', name: 'a window block at another venue flags this venue', file: VENUE_SUMMARY,
+    edits: [['WHERE u.venue_id = b.venue_id AND u.event_id IS NULL', 'WHERE u.event_id IS NULL']], suites: summaryOnly },
+  { id: 'VS3', name: 'pending label reads unavailable', file: VENUE_SUMMARY,
+    edits: [["WHEN b.status = 'pending' THEN v.name || ' (pending)'", "WHEN b.status = 'pending' THEN v.name || ' (unavailable)'"]], suites: summaryOnly },
+  { id: 'VS4', name: 'rejected booking labelled pending', file: VENUE_SUMMARY,
+    edits: [["      ELSE v.name || ' (unavailable)'", "      ELSE v.name || ' (pending)'"]], suites: summaryOnly },
+  { id: 'VS5', name: 'blocked status literal changed (window block never recognised)', file: VENUE_SUMMARY,
+    edits: [["AND u.status = 'blocked'", "AND u.status = 'rejected'"]], suites: summaryOnly },
+  { id: 'VS6', name: 'window start bound inclusive (a block starting when the slot ends is flagged)', file: VENUE_SUMMARY,
+    edits: [['AND u.start_at < b.end_at', 'AND u.start_at <= b.end_at']], suites: summaryOnly },
+  { id: 'VS7', name: 'window end bound inclusive (a block ending when the slot starts is flagged)', file: VENUE_SUMMARY,
+    edits: [['AND u.end_at > b.start_at', 'AND u.end_at >= b.start_at']], suites: summaryOnly },
+  { id: 'VS8', name: 'venue names joined with "; " instead of ", "', file: VENUE_SUMMARY,
+    edits: [["    END, ', ' ORDER BY b.start_at)", "    END, '; ' ORDER BY b.start_at)"]], suites: summaryOnly },
+  { id: 'VS9', name: 'venue names joined in reverse start order', file: VENUE_SUMMARY,
+    edits: [['ORDER BY b.start_at)', 'ORDER BY b.start_at DESC)']], suites: summaryOnly },
+  // Overlap predicate forms (venue-summary.ts). The true overlap is "block starts before the booking ends AND
+  // block ends after the booking starts". Each replacement below is a plausible wrong predicate; the partial-
+  // overlap tests (block 01:00-03:00 and 03:00-05:00 against 02:00-04:00) kill the equality and containment forms.
+  { id: 'VS10', name: 'overlap predicate equality-only (a block must match the booking start and end exactly)', file: VENUE_SUMMARY,
+    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at = b.start_at AND u.end_at = b.end_at)']], suites: summaryOnly },
+  { id: 'VS11', name: 'overlap predicate containment-only (the block must fully contain the booking)', file: VENUE_SUMMARY,
+    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at <= b.start_at AND u.end_at >= b.end_at)']], suites: summaryOnly },
+  { id: 'VS12', name: 'overlap predicate containment-only (the booking must fully contain the block)', file: VENUE_SUMMARY,
+    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at >= b.start_at AND u.end_at <= b.end_at)']], suites: summaryOnly },
+
+  // ---- status.service.ts: venue and equipment removal (VENUE-REMOVE, EQUIPMENT-REMOVE, 409/404/403/422) ----
+  { id: 'RV1', name: 'any venue request removable (confirmed one can be deleted)', file: SERVICE,
+    edits: [["const unavailable = booking.status === 'rejected' || booking.venueUnavailable;", 'const unavailable = true;']], suites: removalOnly },
+  { id: 'RV2', name: 'rejected venue request not removable', file: SERVICE,
+    edits: [["const unavailable = booking.status === 'rejected' || booking.venueUnavailable;", 'const unavailable = booking.venueUnavailable;']], suites: removalOnly },
+  { id: 'RV3', name: 'window-blocked venue request not removable (only rejected is)', file: SERVICE,
+    edits: [["const unavailable = booking.status === 'rejected' || booking.venueUnavailable;", "const unavailable = booking.status === 'rejected';"]], suites: removalOnly },
+  { id: 'RV4', name: 'unknown venue request not reported as 404', file: SERVICE,
+    edits: [['      if (!booking)\n        throw new NotFoundException', '      if (false)\n        throw new NotFoundException']], suites: removalOnly },
+  { id: 'RV5', name: 'venue removal allowed on an event that is not in Planning', file: SERVICE,
+    edits: [["    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking",
+      "    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking"]],
+    suites: removalOnly },
+  { id: 'RV6', name: 'venue removal without the assignment check (any coordinator can remove)', file: SERVICE,
+    edits: [["    const event = await this.assignedEventOrThrow(user, eventId);\n    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking",
+      "    const event = (await this.findEvent(eventId))!;\n    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking"]],
+    suites: removalOnly },
+  { id: 'RV7', name: 'venue delete not scoped to the event (equivalent: the lookup above already restricts the id to this event under the row lock)', file: SERVICE, equivalent: true,
+    edits: [["DELETE FROM venue_bookings WHERE id = $1 AND event_id = $2', [venueRequestId, event.id]", "DELETE FROM venue_bookings WHERE id = $1', [venueRequestId]"]],
+    suites: removalOnly },
+  { id: 'EQ1', name: 'any equipment request removable (a reserved line can be deleted)', file: SERVICE,
+    edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", 'const unavailable = true;']], suites: removalOnly },
+  { id: 'EQ2', name: 'unavailable equipment request not removable (status compared case-sensitively)', file: SERVICE,
+    edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", "const unavailable = ['unavailable', 'rejected'].includes(reservation.status);"]], suites: removalOnly },
+  { id: 'EQ3', name: 'unknown equipment request not reported as 404', file: SERVICE,
+    edits: [['      if (!reservation)\n        throw new NotFoundException', '      if (false)\n        throw new NotFoundException']], suites: removalOnly },
+  { id: 'EQ4', name: 'equipment removal allowed on an event that is not in Planning', file: SERVICE,
+    edits: [["    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const reservation",
+      "    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const reservation"]],
+    suites: removalOnly },
+  { id: 'EQ5', name: 'equipment removal without the assignment check (any coordinator can remove)', file: SERVICE,
+    edits: [["    const event = await this.assignedEventOrThrow(user, eventId);\n    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const reservation",
+      "    const event = (await this.findEvent(eventId))!;\n    this.assertPlanning(event.status);\n    return this.database.transaction(async (client) => {\n      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const reservation"]],
+    suites: removalOnly },
+  { id: 'EQ6', name: 'a Requested equipment line removable', file: SERVICE,
+    edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", "const unavailable = ['unavailable', 'rejected', 'requested'].includes(reservation.status.toLowerCase());"]], suites: removalOnly },
+  { id: 'EQ7', name: 'rejected equipment status no longer counted as unavailable (equivalent: equipment_reservations.status CHECK allows only Requested, Reserved, Unavailable, Cancelled, Released)', file: SERVICE, equivalent: true,
+    edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", "const unavailable = ['unavailable'].includes(reservation.status.toLowerCase());"]], suites: removalOnly },
 ];

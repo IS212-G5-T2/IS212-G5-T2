@@ -467,7 +467,8 @@ describe("SPM-135 AC6: a rejected or cancelled event offers no confirm action (D
   });
   afterEach(cleanup);
 
-  it.each(["rejected", "cancelled", "confirmed"])("CONFIRM-EVENT-06 (FE): no Confirm Event button on a %s event, and no request", (status) => {
+  // CONFIRM-EVENT-06-A (rejected) and CONFIRM-EVENT-06-B (cancelled): no action is offered. The confirmed row is a guard beyond those cases.
+  it.each(["rejected", "cancelled", "confirmed"])("CONFIRM-EVENT-06-A/06-B (FE): no Confirm Event button on a %s event, and no request", (status) => {
     // Arrange
     const calls = route({});
 

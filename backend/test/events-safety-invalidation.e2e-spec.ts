@@ -13,7 +13,7 @@ import { AppModule } from '../src/app.module.js';
  * was requested for. A change to the venue booking, the equipment lines or the event details
  * moves it to "changes needed", so the coordinator must re-request it before confirming.
  * Real PostgreSQL, real AppModule, no fixture ports. Needs TEST_DATABASE_URL (or DATABASE_URL)
- * with database/postgresql/init 001 to 013 applied.
+ * with database/postgresql/init 001 to 016 applied.
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -120,6 +120,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     return row.rows[0]?.status;
   }
 
+  /** Changing an equipment line on an approved event resets the safety check to not requested. */
   it('SAFETY-STALE-01: a changed equipment line after approval resets the safety check to not requested', async () => {
     // Arrange: approved safety, ready arrangements
     const { id } = await seedApprovedEvent();
@@ -141,6 +142,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     });
   });
 
+  /** Changing a venue booking on an approved event resets the safety check to not requested. */
   it('SAFETY-STALE-02: a changed venue booking after approval resets the safety check to not requested', async () => {
     // Arrange
     const { id, venueId } = await seedApprovedEvent();
@@ -152,10 +154,16 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
       venueId,
     ]);
 
-    // Assert
+    // Assert: the check is reset and the reason names the venue booking change
     expect(await safetyOf(id)).toBeUndefined();
+    const status = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(status.body.checklist.safetyCheck).toMatchObject({
+      status: 'not_requested',
+      resetReason: 'The venue booking changed',
+    });
   });
 
+  /** Changing an event detail after approval resets the safety check to not requested. */
   it('SAFETY-STALE-03: a changed event detail after approval resets the safety check to not requested', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();
@@ -167,6 +175,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     expect(await safetyOf(id)).toBeUndefined();
   });
 
+  /** Adding a venue request or a pending equipment request sends the safety check back to not requested. */
   it('SAFETY-STALE-05: a new venue request or a pending equipment request sends the safety check back to not requested', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();
@@ -203,6 +212,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     expect(await safetyOf(id)).toBeUndefined();
   });
 
+  /** Saving any event detail through the planning update resets the check and records the reason. */
   it('SAFETY-STALE-06: saving any event detail through the planning update resets the check and records why', async () => {
     // Arrange: approved safety
     const { id } = await seedApprovedEvent();
@@ -234,6 +244,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     expect(after.body.checklist.safetyCheck.resetReason).toBeUndefined();
   });
 
+  /** Saving the planning form without changing anything leaves the approved safety check in place. */
   it('SAFETY-STALE-07: a save that changes nothing does not reset the safety check', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();
@@ -251,6 +262,44 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
     expect(await safetyOf(id)).toBe('approved');
   });
 
+  /**
+   * A reset only records a reason when there was a safety check to reset. An event that was never requested
+   * gets no reset reason when one of its venue bookings changes.
+   */
+  it('SAFETY-STALE (never requested): a changed venue booking on an event with no safety record records no reset reason', async () => {
+    // Arrange: approved arrangements, then the safety record is removed (the event was never requested)
+    const { id } = await seedApprovedEvent();
+    await pool.query('DELETE FROM event_safety_checks WHERE event_id = $1', [id]);
+
+    // Act: the booking moves to a new start time
+    await pool.query("UPDATE venue_bookings SET start_at = $2 WHERE event_id = $1", [id, '2026-11-05T03:00:00.000Z']);
+
+    // Assert: no record exists, so there is no reset reason to show
+    expect(await safetyOf(id)).toBeUndefined();
+    const status = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(status.body.checklist.safetyCheck.status).toBe('not_requested');
+    expect(status.body.checklist.safetyCheck.resetReason).toBeUndefined();
+  });
+
+  /**
+   * A booking removed from an event with no safety record still clears any feedback items left for that
+   * event, so no stale feedback can show up on a later check.
+   */
+  it('SAFETY-STALE (leftover feedback): a removed booking clears leftover feedback even when no safety record exists', async () => {
+    // Arrange: no safety record, but one feedback item is still stored for the event
+    const { id } = await seedApprovedEvent();
+    await pool.query('DELETE FROM event_safety_checks WHERE event_id = $1', [id]);
+    await pool.query(`INSERT INTO safety_check_feedback_items (event_id, feedback_text) VALUES ($1, 'Leftover feedback')`, [id]);
+
+    // Act: the venue booking is deleted (the venue_bookings trigger runs)
+    await pool.query('DELETE FROM venue_bookings WHERE event_id = $1', [id]);
+
+    // Assert: the feedback item is gone
+    const left = await pool.query<{ n: number }>('SELECT count(*)::int AS n FROM safety_check_feedback_items WHERE event_id = $1', [id]);
+    expect(left.rows[0].n).toBe(0);
+  });
+
+  /** Confirming the event (a status change alone) does not invalidate the safety approval. */
   it('SAFETY-STALE-04: a status change alone (Planning to Confirmed) does not invalidate the approval', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();

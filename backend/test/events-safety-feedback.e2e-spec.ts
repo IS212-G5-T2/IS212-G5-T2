@@ -133,6 +133,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     return { id, itemIds };
   }
 
+  /** Resolving a safety feedback item marks it as handled, and unresolving it clears that mark. */
   it('SAFETY-FEEDBACK-01: resolving an item marks it, and unresolving clears it', async () => {
     // Arrange
     const { id, itemIds } = await seedChangesNeededEvent();
@@ -154,6 +155,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(status.body.checklist.safetyCheck.feedback.every((item: { resolvedByCoordinatorAt?: string }) => !item.resolvedByCoordinatorAt)).toBe(true);
   });
 
+  /** Re-requesting the safety check is refused while any feedback item is unresolved and allowed once all are resolved. */
   it('SAFETY-FEEDBACK-02: re-requesting is refused while any item is unresolved, and allowed once all are resolved', async () => {
     // Arrange
     const { id, itemIds } = await seedChangesNeededEvent();
@@ -174,6 +176,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(left.rows[0].n).toBe(0);
   });
 
+  /** An unknown feedback item is reported as not found, and resolving while the check is not in changes-needed is refused. */
   it('SAFETY-FEEDBACK-03: an unknown item is not found, and resolving outside changes-needed is refused', async () => {
     // Arrange
     const { id, itemIds } = await seedChangesNeededEvent();

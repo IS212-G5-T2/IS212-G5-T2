@@ -98,6 +98,21 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
     ]);
   });
 
+  // CONFIRM-EVENT-02-A subtests A to D: each single outstanding arrangement alone blocks readiness (rule level only).
+  it.each([
+    ['venue Pending (EVT-202, subtest A)', ready({ venueBookings: [venue('vb-202', 'Main Hall', 'pending')] }), 'venue'],
+    ['equipment Requested (EVT-203, subtest B)', ready({ equipment: [equipment('eq-203', 'Projector', 1, 'Requested')] }), 'equipment'],
+    ['safety Awaiting Check (EVT-204, subtest C)', ready({ safety: { state: 'Awaiting Check' } }), 'safety'],
+    ['safety Changes Requested (EVT-210, subtest D)', ready({ safety: { state: 'Changes Requested' } }), 'safety'],
+  ])('CONFIRM-EVENT-02-A (rule level): %s is the only outstanding item and blocks readiness', (_label, snapshot, type) => {
+    // Act
+    const result = evaluateReadiness(snapshot, NOW);
+
+    // Assert: not ready, exactly one outstanding item, and it is of the expected kind
+    expect(result.ready).toBe(false);
+    expect(result.outstanding.map((item) => item.type)).toEqual([type]);
+  });
+
   // Kills: M16 (satisfied items listed) and reordering of the list (03-A). Truncation is M1 (see 02-C above).
   it('CONFIRM-EVENT-03-A (rule level): EVT-205 lists venue, equipment and safety in that order with the specified states', () => {
     // Arrange: EVT-205 per fixtures (VB-205 Pending, equipment Requested, safety Awaiting Check)

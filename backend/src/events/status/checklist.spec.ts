@@ -131,7 +131,34 @@ describe('buildChecklist', () => {
     expect(result.equipment.status).toBe('pending');
   });
 
+  /** A request with no recorded request date is listed without a date, and the section shows none either. */
+  it('omits the request date when a venue booking or an equipment line has none', () => {
+    const result = build(
+      [booking({ requestedAt: undefined })],
+      [line({ requestedAt: undefined })],
+    );
+
+    expect(result.venue.items[0]).not.toHaveProperty('requestedDate');
+    expect(result.venue.requestedDate).toBeUndefined();
+    expect(result.equipment.items[0]).not.toHaveProperty('requestedDate');
+    expect(result.equipment.requestedDate).toBeUndefined();
+  });
+
+  /** An equipment line with a request date shows it on the line and on the section. */
+  it('shows the request date of an equipment line that has one', () => {
+    const result = build([booking()], [line({ requestedAt: '2026-10-09T00:00:00.000Z' })]);
+
+    expect(result.equipment.items[0]).toMatchObject({ requestedDate: '2026-10-09T00:00:00.000Z' });
+    expect(result.equipment.requestedDate).toBe('2026-10-09T00:00:00.000Z');
+  });
+
+  /** A cancelled equipment line is no longer part of the event, so it is not listed as outstanding. */
   it('ignores cancelled equipment lines', () => {
     expect(build([booking()], [line({ status: 'Cancelled' })]).equipment.status).toBe('not_requested');
+  });
+
+  /** A released equipment line is no longer part of the event either, so it is not listed as outstanding. */
+  it('ignores released equipment lines', () => {
+    expect(build([booking()], [line({ status: 'Released' })]).equipment.status).toBe('not_requested');
   });
 });

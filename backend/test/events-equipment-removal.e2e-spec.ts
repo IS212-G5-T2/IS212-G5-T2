@@ -16,7 +16,7 @@ import { AppModule } from '../src/app.module.js';
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!database && process.env.CI)
-  throw new Error('SAFETY-STALE tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.');
+  throw new Error('EQUIPMENT-REMOVE tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.');
 
 const SLOT_START = '2026-11-05T02:00:00.000Z';
 const SLOT_END = '2026-11-05T04:00:00.000Z';
@@ -104,20 +104,11 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
       `INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status) VALUES ($1, 'Projector', 1, 'Reserved')`,
       [id],
     );
-    await pool.query(
-      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, decided_at)
-       VALUES ($1, 'approved', now(), $2, 'Safety Officer 1', now())`,
-      [id, coordinator.uid],
-    );
+    await approveSafety(id);
     return { id, venueId: venue.rows[0].id };
   }
 
-  /** The safety record, or undefined once it has been reset to "not requested". */
-  async function safetyOf(eventId: string) {
-    const row = await pool.query<{ status: string }>('SELECT status FROM event_safety_checks WHERE event_id = $1', [eventId]);
-    return row.rows[0]?.status;
-  }
-
+  /** Writes an approved safety record (the Safety Officer's outcome) for the event. */
   async function approveSafety(eventId: string) {
     await pool.query(
       `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, decided_at)
@@ -126,6 +117,7 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     );
   }
 
+  /** The safety record status, or undefined once it has been reset to "not requested". */
   async function safetyOf(eventId: string) {
     const row = await pool.query<{ status: string }>('SELECT status FROM event_safety_checks WHERE event_id = $1', [eventId]);
     return row.rows[0]?.status;
@@ -152,13 +144,18 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     return status.body.checklist;
   }
 
+  /**
+   * An unavailable equipment request can be removed. The response confirms removal, the reservation row
+   * is gone, the approved safety check is reset, and the equipment section is not requested.
+   */
   it('EQUIPMENT-REMOVE-01: removing the only (unavailable) equipment request leaves equipment not requested', async () => {
-    // Arrange
+    // Arrange: the only equipment line is Unavailable; the approved safety check is in place
     const { id } = await seedApprovedEvent();
     await pool.query('DELETE FROM equipment_reservations WHERE event_id = $1', [id]);
     const reservationId = await reserve(id, 'Microphone', 'Unavailable');
     await approveSafety(id);
     expect((await checklistOf(id)).equipment.status).toBe('unavailable');
+    expect(await safetyOf(id)).toBe('approved');
 
     // Act
     const response = await remove(id, reservationId).expect(200);
@@ -169,12 +166,16 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     expect(await safetyOf(id)).toBeUndefined();
     const checklist = await checklistOf(id);
     expect(checklist.equipment).toMatchObject({ status: 'not_requested', items: [] });
+    // The reset reason names the equipment change, so the coordinator knows why a re-request is needed.
+    expect(checklist.safetyCheck).toMatchObject({ status: 'not_requested', resetReason: 'The equipment request changed' });
+    expect(checklist.safetyCheck.resetDate).toEqual(expect.any(String));
   });
 
+  /** A Reserved equipment line is confirmed, not unavailable, so it cannot be removed (409). */
   it('EQUIPMENT-REMOVE-02: a reserved equipment request cannot be removed', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();
-    const reservationId = await reserve(id, 'Projector', 'Reserved');
+    const reservationId = await reserve(id, 'Speakers', 'Reserved');
 
     // Act + Assert
     const response = await remove(id, reservationId).expect(409);
@@ -182,20 +183,27 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     expect(await reservationExists(reservationId)).toBe(1);
   });
 
+  /** An equipment request id that does not belong to the event is reported as not found. */
   it('EQUIPMENT-REMOVE-03: an unknown equipment request is not found', async () => {
     const { id } = await seedApprovedEvent();
     const response = await remove(id, randomUUID()).expect(404);
     expect(response.body.code).toBe('EQUIPMENT_REQUEST_NOT_FOUND');
   });
 
+  /**
+   * Removing one unavailable line leaves the reserved projector in place. The approved safety check is
+   * re-approved after the arrange step, so the reset caused by removal is observed.
+   */
   it('EQUIPMENT-REMOVE-04: removing the unavailable request leaves the other equipment confirmed', async () => {
     // Arrange
     const { id } = await seedApprovedEvent();
     const unavailableId = await reserve(id, 'Microphone', 'Unavailable');
+    // Inserting the line resets the safety check, so re-approve it before acting.
     await approveSafety(id);
     const before = await checklistOf(id);
     expect(before.equipment.status).toBe('unavailable');
     expect(before.equipment.items).toHaveLength(2);
+    expect(await safetyOf(id)).toBe('approved');
 
     // Act
     await remove(id, unavailableId).expect(200);
@@ -207,5 +215,63 @@ describe.skipIf(!database)('EQUIPMENT-REMOVE: coordinator removes an unavailable
     expect(after.equipment.status).toBe('confirmed');
     expect(after.equipment.items.map((item: { status: string }) => item.status)).toEqual(['confirmed']);
     expect(after.blocking).not.toContain('equipment');
+  });
+
+  /** A Requested equipment line is still awaiting the decision, so it cannot be removed (409). */
+  it('EQUIPMENT-REMOVE-05: a requested (not yet decided) equipment line cannot be removed', async () => {
+    // Arrange
+    const { id } = await seedApprovedEvent();
+    const requestedId = await reserve(id, 'Microphone', 'Requested');
+
+    // Act + Assert
+    const response = await remove(id, requestedId).expect(409);
+    expect(response.body.code).toBe('EQUIPMENT_REQUEST_NOT_REMOVABLE');
+    expect(await reservationExists(requestedId)).toBe(1);
+  });
+
+  /** A coordinator who is not assigned to the event gets 403 and the request is left unchanged. */
+  it('EQUIPMENT-REMOVE-06: a coordinator not assigned to the event is refused with 403', async () => {
+    // Arrange: an unavailable line on an event assigned to Coordinator 1, and a different coordinator
+    const { id } = await seedApprovedEvent();
+    const unavailableId = await reserve(id, 'Microphone', 'Unavailable');
+    await approveSafety(id);
+    const otherCoordinator = await createSession('COORDINATOR', 'Coordinator 2');
+
+    // Act
+    const response = await http()
+      .delete(`/api/events/${id}/equipment-reservations/${unavailableId}`)
+      .set('Cookie', otherCoordinator.cookie)
+      .expect(403);
+
+    // Assert
+    expect(response.body.message).toBe('You do not have permission to confirm this event.');
+    expect(await reservationExists(unavailableId)).toBe(1);
+    expect(await safetyOf(id)).toBe('approved');
+  });
+
+  /** Removal is only possible while the event is in Planning; a Confirmed event refuses it (422). */
+  it('EQUIPMENT-REMOVE-07: removal on an event that is not in Planning is refused with 422', async () => {
+    // Arrange: an unavailable line on an event that has already been confirmed
+    const { id } = await seedApprovedEvent();
+    const unavailableId = await reserve(id, 'Microphone', 'Unavailable');
+    await pool.query("UPDATE events SET status = 'Confirmed' WHERE id = $1", [id]);
+
+    // Act
+    const response = await remove(id, unavailableId).expect(422);
+
+    // Assert
+    expect(response.body.code).toBe('EVENT_NOT_CONFIRMABLE');
+    expect(await reservationExists(unavailableId)).toBe(1);
+  });
+
+  /** A request with no session is refused with 401 and nothing is removed. */
+  it('EQUIPMENT-REMOVE-08: no session gets 401 and the equipment request is kept', async () => {
+    // Arrange
+    const { id } = await seedApprovedEvent();
+    const unavailableId = await reserve(id, 'Microphone', 'Unavailable');
+
+    // Act + Assert
+    await http().delete(`/api/events/${id}/equipment-reservations/${unavailableId}`).expect(401);
+    expect(await reservationExists(unavailableId)).toBe(1);
   });
 });

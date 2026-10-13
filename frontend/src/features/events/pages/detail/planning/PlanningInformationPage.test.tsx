@@ -80,6 +80,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PlanningInformationPage", () => {
+  /** The Venues and Equipment tabs show the warning icon and the safety check stays disabled with its blocking reason while nothing is confirmed. */
   it("shows warning icons on Venues and Equipment and a disabled safety check with the blocking reason", async () => {
     renderPage();
     const venuesTab = await screen.findByRole("tab", { name: /Venues/ });
@@ -89,6 +90,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByText("Pending venue and equipment confirmation to proceed")).toBeInTheDocument();
   });
 
+  /** The venue section offers the catalogue link until a venue is requested, then shows the request and its request link. */
   it("offers View Venue Catalogue until a venue is requested, then View Venue Request", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -107,6 +109,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByRole("link", { name: "View Venue Request" })).toBeInTheDocument();
   });
 
+  /** The equipment section shows the not-yet-requested and pending states, each with its own link, and no checkbox while nothing is requested. */
   it("shows the equipment request states", async () => {
     const user = userEvent.setup();
     current = checklist({ equipment: { required: true, status: "not_requested", items: [], confirmedByCoordinator: false } });
@@ -126,6 +129,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByRole("link", { name: "View Equipment Request" })).toBeInTheDocument();
   });
 
+  /** Each venue request is listed with its own badge, and the Venues tab is ticked only when every request is confirmed. */
   it("lists every venue request with its own status and ticks Venues only when all are confirmed", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -141,6 +145,7 @@ describe("PlanningInformationPage", () => {
     await user.click(await screen.findByRole("tab", { name: /Venues/ }));
     const list = await screen.findByRole("list", { name: "Requests" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(list).getAllByRole("img", { name: "Complete" })).toHaveLength(1);
     expect(list).toHaveTextContent("Main Hall");
     expect(list).toHaveTextContent("Breakout Room 1");
     expect(within(list).getByText("Confirmed")).toBeInTheDocument();
@@ -164,7 +169,8 @@ describe("PlanningInformationPage", () => {
     expect(within(screen.getByRole("tab", { name: /Venues/ })).getByLabelText("Complete")).toBeInTheDocument();
   });
 
-  it("shows a red caution and a request-another link when the venue is unavailable", async () => {
+  /** An unavailable venue shows a yellow caution on the Venues tab (not a red one) and offers a link to request another venue. */
+  it("shows a yellow Action needed caution on the Venues tab and a request-another link when the venue is unavailable", async () => {
     const user = userEvent.setup();
     current = checklist({ venue: { status: "unavailable", items: [{ id: "b1", venueName: "Main Hall", status: "unavailable" }] } });
     renderPage();
@@ -175,6 +181,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.queryByText("Venue Yet To Be Requested")).not.toBeInTheDocument();
   });
 
+  /** Only unavailable venue requests offer Remove From List; confirmed and pending ones do not. */
   it("offers Remove From List only on unavailable venue requests", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -189,10 +196,14 @@ describe("PlanningInformationPage", () => {
     });
     renderPage();
     await user.click(await screen.findByRole("tab", { name: /Venues/ }));
-    expect(await screen.findByRole("button", { name: "Remove Seminar Room B From List" })).toBeInTheDocument();
+    const removeButton = await screen.findByRole("button", { name: "Remove Seminar Room B From List" });
+    expect(removeButton).toBeInTheDocument();
+    expect(removeButton).toHaveTextContent("Remove From List");
     expect(screen.getAllByRole("button", { name: /From List/ })).toHaveLength(1);
+    expect(within(screen.getByRole("list", { name: "Requests" })).getByText("Unavailable")).toBeInTheDocument();
   });
 
+  /** Cancelling a venue removal leaves the request listed and sends no DELETE. */
   it("cancelling the removal of a venue request sends no DELETE", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -209,6 +220,7 @@ describe("PlanningInformationPage", () => {
     expect(apiMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toHaveLength(0);
   });
 
+  /** Removing an unavailable venue after confirmation sends one DELETE, drops it from the list, and ticks Venues once only confirmed requests remain. */
   it("removes an unavailable venue, confirms it, and ticks Venues once only confirmed requests remain", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -243,6 +255,7 @@ describe("PlanningInformationPage", () => {
     expect(apiMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toHaveLength(1);
   });
 
+  /** A failed venue removal keeps the request listed and shows the server message. */
   it("keeps the unavailable venue listed and shows an error when removal fails", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -265,6 +278,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.queryByText("Venue removed from list")).not.toBeInTheDocument();
   });
 
+  /** Only unavailable equipment requests offer Remove From List; confirmed and pending ones do not. */
   it("offers Remove From List only on unavailable equipment requests", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -281,10 +295,12 @@ describe("PlanningInformationPage", () => {
     });
     renderPage();
     await user.click(await screen.findByRole("tab", { name: /Equipment/ }));
-    expect(await screen.findByRole("button", { name: "Remove Microphone x2 From List" })).toBeInTheDocument();
+    const removeButton = await screen.findByRole("button", { name: "Remove Microphone x2 From List" });
+    expect(removeButton).toHaveTextContent("Remove From List");
     expect(screen.getAllByRole("button", { name: /From List/ })).toHaveLength(1);
   });
 
+  /** Cancelling an equipment removal leaves the request listed and sends no DELETE. */
   it("cancelling the removal of an equipment request sends no DELETE", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -301,6 +317,7 @@ describe("PlanningInformationPage", () => {
     expect(apiMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toHaveLength(0);
   });
 
+  /** Removing an unavailable equipment request after confirmation drops it from the list and ticks Equipment once only confirmed requests remain. */
   it("removes an unavailable equipment request, confirms it, and ticks Equipment once only confirmed requests remain", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -339,6 +356,7 @@ describe("PlanningInformationPage", () => {
     expect(apiMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE")).toHaveLength(1);
   });
 
+  /** A failed equipment removal keeps the request listed and shows the server message. */
   it("keeps the unavailable equipment listed and shows an error when removal fails", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -361,6 +379,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.queryByText("Equipment removed from list")).not.toBeInTheDocument();
   });
 
+  /** An unavailable equipment request shows a red caution on the Equipment tab and a link to request another item. */
   it("shows a red caution and a request-another link when the equipment is unavailable", async () => {
     const user = userEvent.setup();
     current = checklist({ equipment: { required: true, status: "unavailable", items: [{ id: "e1", name: "Projector", quantity: 1, status: "unavailable" }], confirmedByCoordinator: false } });
@@ -371,6 +390,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByRole("link", { name: "Request Another Equipment" })).toHaveAttribute("href", "/equipment/requests");
   });
 
+  /** Ticking the no-equipment box posts the confirmation and refreshes the checklist. */
   it("posts the no-equipment confirmation from the checkbox and refreshes", async () => {
     const user = userEvent.setup();
     renderPage();
@@ -387,6 +407,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
   });
 
+  /** Request For Safety Check is enabled only once venue and equipment are both confirmed, and posting it sends the request. */
   it("enables Request For Safety Check once both prerequisites are met and posts it", async () => {
     const user = userEvent.setup();
     current = checklist({
@@ -405,6 +426,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.queryByRole("button", { name: "Request For Safety Check" })).not.toBeInTheDocument();
   });
 
+  /** Each safety feedback item is listed, and re-request stays disabled while any item is unresolved. */
   it("lists each feedback item and keeps re-request disabled until every item is resolved", async () => {
     current = checklist({
       venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
@@ -426,6 +448,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
   });
 
+  /** Ticking a feedback item resolves it, and re-request becomes available once every item is ticked. */
   it("resolves a feedback item when its checkbox is ticked, and enables re-request once all are ticked", async () => {
     const items = [
       { id: "f1", text: "Add a second fire exit.", requestedAt: "2026-10-11T07:00:00.000Z" },
@@ -464,6 +487,7 @@ describe("PlanningInformationPage", () => {
     expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
   });
 
+  /** Once the safety check is approved, the verifier is shown with the Confirm Event button. */
   it("shows the verifier and the Confirm Event button once approved", async () => {
     current = checklist({
       venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
@@ -477,6 +501,7 @@ describe("PlanningInformationPage", () => {
     expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeInTheDocument();
   });
 
+  /** A failed action shows its error message instead of failing silently. */
   it("reports a failed action instead of silently doing nothing", async () => {
     const user = userEvent.setup();
     current = checklist({

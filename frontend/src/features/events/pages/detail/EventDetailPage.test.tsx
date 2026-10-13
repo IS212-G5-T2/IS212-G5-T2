@@ -690,4 +690,24 @@ describe("EventDetailPage", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
+
+  /** The detail page's Venue field shows the venue text the server sent, including the "(pending)" label. */
+  it("shows the server venue text, including a pending label, in the Venue field", async () => {
+    const event = { ...assignedEvent(), venueName: "Breakout Room 1 (pending)" };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    const venueTerm = screen.getByText("Venue", { selector: "dt" });
+    expect(venueTerm.nextElementSibling).toHaveTextContent("Breakout Room 1 (pending)");
+  });
 });

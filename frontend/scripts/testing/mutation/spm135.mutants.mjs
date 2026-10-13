@@ -4,7 +4,9 @@
 // Each edit is [from, to]; `from` must occur exactly once in the file at the time it is applied
 // (the runner reports MISAPPLIED otherwise). The runner mutates a scratch copy of this frontend
 // component and restores it; the original files are never edited (the runner hashes them).
-// FM1 to FM10 are the findings named in TR-10. X1 to X9 are extra mutants for the TR-13 branches.
+// FM1 to FM10 are the findings named in TR-10. X1 to X10 are extra mutants for the TR-13 branches.
+// PP1 to PP12 mutate PlanningInformationPage (unavailable-request removal, badges, tab ticks and colours);
+// VT1 to VT4 mutate the venue text shown on the card, the detail page and the edit form.
 export const SUITES = {
   // The SPM-135 frontend specs: the confirm panel, the confirmed-arrangements panel, the client helpers and the page.
   spm135: {
@@ -16,13 +18,32 @@ export const SUITES = {
       'src/utils/arrangements.test.ts',
     ],
   },
+  // The coordinator planning page: removal of unavailable requests, per-request badges, tab ticks and tab colours.
+  planningPage: {
+    args: ['run', 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx'],
+  },
+  // The venue text shown on the list card, the detail page and the edit form (server value, "Not booked" fallback).
+  venueText: {
+    args: [
+      'run',
+      'src/features/events/pages/list/EventCard.test.tsx',
+      'src/features/events/pages/edit/EventEditForm.test.tsx',
+      'src/features/events/pages/detail/EventDetailPage.test.tsx',
+      'src/features/events/pages/detail/EventDetailPage.registration.test.tsx',
+    ],
+  },
 };
 
 const PANEL = 'src/features/events/pages/detail/planning/ConfirmEventPanel.tsx';
 const ARRANGED = 'src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.tsx';
 const PAGE = 'src/features/events/pages/detail/EventDetailPage.tsx';
 const HELPERS = 'src/utils/arrangements.ts';
+const PLANNING = 'src/features/events/pages/detail/planning/PlanningInformationPage.tsx';
+const CARD = 'src/features/events/pages/list/EventCard.tsx';
+const EDIT_FORM = 'src/features/events/pages/edit/EventEditForm.tsx';
 const suites = ['spm135'];
+const planningSuites = ['planningPage'];
+const venueSuites = ['venueText'];
 
 export const MUTANTS = [
   // FM1 (M19): the button is no longer disabled while a confirm is in flight. Killer: ConfirmEventPanel 04-B (C).
@@ -79,7 +100,7 @@ export const MUTANTS = [
     edits: [['error instanceof Error ? error.message : "Could not confirm the event."', 'error instanceof Error ? error.message : ""']] },
   // X5 (TR-13): a readiness answer for the previous event is applied. Killer: ConfirmEventPanel stale-response test.
   { id: 'X5', name: 'stale readiness answer applied (confirm panel)', file: PANEL, suites,
-    edits: [['if (!cancelled) {\n          setOutstanding(view.outstanding);', '{\n          setOutstanding(view.outstanding);']] },
+    edits: [['if (!cancelled) {\n            setOutstanding(view.outstanding);', '{\n            setOutstanding(view.outstanding);']] },
   // X6 (TR-13): a readiness failure is not handled. Killer: ConfirmEventPanel load test (unhandled rejection fails the run).
   { id: 'X6', name: 'readiness failure on load unhandled', file: PANEL, suites,
     edits: [['      .catch(() => undefined);', '      .catch((e) => { throw e; });']] },
@@ -95,4 +116,56 @@ export const MUTANTS = [
   // X10 (TR-13): a malformed readiness answer is accepted. Killer: arrangements helper test.
   { id: 'X10', name: 'malformed readiness answer accepted', file: HELPERS, suites,
     edits: [['if (!isArrangementsStatus(view)) throw', 'if (false) throw']] },
+
+  // ---- PlanningInformationPage.tsx: unavailable requests, per-request badges, tab ticks and tab colours ----
+  // PP1: Remove From List offered on a venue request that is not unavailable (the pending one too).
+  { id: 'PP1', name: 'Remove From List offered on a non-unavailable venue request', file: PLANNING, suites: planningSuites,
+    edits: [['          item.status === "unavailable" && (\n            <RemoveRequestButton\n              label={item.label}\n              busy={busy}', '          true && (\n            <RemoveRequestButton\n              label={item.label}\n              busy={busy}']] },
+  // PP2: the same on the equipment list.
+  { id: 'PP2', name: 'Remove From List offered on a non-unavailable equipment request', file: PLANNING, suites: planningSuites,
+    edits: [['          item.status === "unavailable" && (\n            <RemoveRequestButton\n              label={item.label}\n              busy={pending}', '          true && (\n            <RemoveRequestButton\n              label={item.label}\n              busy={pending}']] },
+  // PP3: the first click removes at once, without the Confirm Remove step.
+  { id: 'PP3', name: 'Remove From List deletes without the confirmation step', file: PLANNING, suites: planningSuites,
+    edits: [['        onClick={onAsk}\n        disabled={busy}\n        aria-label={`Remove ${label} From List`}', '        onClick={onConfirm}\n        disabled={busy}\n        aria-label={`Remove ${label} From List`}']] },
+  // PP4: Cancel sends the removal instead of closing the confirmation.
+  { id: 'PP4', name: 'Cancel sends the removal', file: PLANNING, suites: planningSuites,
+    edits: [['<button type="button" onClick={onCancel} disabled={busy}', '<button type="button" onClick={onConfirm} disabled={busy}']] },
+  // PP5: Confirm Remove does nothing.
+  { id: 'PP5', name: 'Confirm Remove does not send the removal', file: PLANNING, suites: planningSuites,
+    edits: [['        onClick={onConfirm}\n        disabled={busy}\n        aria-busy={busy}', '        onClick={() => undefined}\n        disabled={busy}\n        aria-busy={busy}']] },
+  // PP6: the request badge text for pending requests.
+  { id: 'PP6', name: 'pending request badge text changed', file: PLANNING, suites: planningSuites,
+    edits: [['    label: "Pending",', '    label: "Awaiting",']] },
+  // PP7: the request badge text for unavailable requests.
+  { id: 'PP7', name: 'unavailable request badge text changed', file: PLANNING, suites: planningSuites,
+    edits: [['    label: "Unavailable",', '    label: "Cancelled",']] },
+  // PP8: a pending request gets a tick in its list row.
+  { id: 'PP8', name: 'pending request row shows the complete tick', file: PLANNING, suites: planningSuites,
+    edits: [['          <StatusIcon done={item.status === "confirmed"} unavailable={item.status === "unavailable"} />', '          <StatusIcon done={item.status !== "unavailable"} unavailable={item.status === "unavailable"} />']] },
+  // PP9: the Venues tab is ticked when any request is confirmed, not only when all are.
+  { id: 'PP9', name: 'Venues ticked when any request is confirmed', file: PLANNING, suites: planningSuites,
+    edits: [['  const venueDone = checklist?.venue.status === "confirmed";', '  const venueDone = !!checklist?.venue.items.some((item) => item.status === "confirmed");']] },
+  // PP10: the Equipment tab is not red when an equipment request is unavailable.
+  { id: 'PP10', name: 'Equipment tab not red when unavailable', file: PLANNING, suites: planningSuites,
+    edits: [['unavailable: checklist?.equipment.status === "unavailable" },', 'unavailable: false },']] },
+  // PP11: the Venues tab turns red instead of yellow when the venue is unavailable.
+  { id: 'PP11', name: 'Venues tab red instead of yellow when unavailable', file: PLANNING, suites: planningSuites,
+    edits: [['{ key: "venues", label: "Venues", done: !!venueDone, unavailable: false },', '{ key: "venues", label: "Venues", done: !!venueDone, unavailable: checklist?.venue.status === "unavailable" },']] },
+  // PP12: the Equipment tab is ticked when only one equipment request is confirmed.
+  { id: 'PP12', name: 'Equipment ticked when any request is confirmed', file: PLANNING, suites: planningSuites,
+    edits: [['    checklist?.equipment.status === "confirmed" || (!!checklist && checklist.equipment.confirmedByCoordinator);', '    !!checklist?.equipment.items.some((item) => item.status === "confirmed") || (!!checklist && checklist.equipment.confirmedByCoordinator);']] },
+
+  // ---- the venue text on the card, the detail page and the edit form ----
+  // VT1: the card shows a blank venue instead of the "Not booked" fallback.
+  { id: 'VT1', name: 'card venue fallback blank instead of Not booked', file: CARD, suites: venueSuites,
+    edits: [['                {event.venueName ?? "Not booked"}', '                {event.venueName ?? ""}']] },
+  // VT2: the detail page drops the venue text.
+  { id: 'VT2', name: 'detail Venue field fallback blank instead of Not yet booked', file: 'src/features/events/pages/detail/EventDetailPage.tsx', suites: venueSuites,
+    edits: [['{event.venueName ?? "Not yet booked"}', '{event.venueName ?? ""}']] },
+  // VT3: the detail page shows a fixed text in place of the server value.
+  { id: 'VT3', name: 'detail Venue field ignores the server value', file: 'src/features/events/pages/detail/EventDetailPage.tsx', suites: venueSuites,
+    edits: [['{event.venueName ?? "Not yet booked"}', '{"Not yet booked"}']] },
+  // VT4: the edit form shows the fallback even when a venue is booked.
+  { id: 'VT4', name: 'edit form Venue field ignores the server value', file: EDIT_FORM, suites: venueSuites,
+    edits: [['value={venue || "Not yet booked"}', 'value={"Not yet booked"}']] },
 ];

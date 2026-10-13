@@ -56,9 +56,191 @@
 | CONFIRM-EVENT-06-A | AC6 | BE e2e, FE | SPEC 06-A (MSG-CF-05) | M10 (status guard removed); NP1, NP2 (TR-03 non-Planning source) |
 | CONFIRM-EVENT-06-B | AC6 | BE e2e, FE | SPEC 06-B | M10 |
 
+## Test case results (per test case ID)
+
+Each block is one test case from the matrix (17 cases). Results come from the runs listed under **Runs** below, mapped by the case ID in each test name. Test bodies are counted per test; a parameterised test counts once per row.
+
+Run at HEAD `84699fc` (branch `feature/SPM-135-Confirm-an-Event`). Execution date: 14 Oct 2026.
+
+### CONFIRM-EVENT-01-A: Successful confirmation with all arrangements complete
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 4 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-01-B: Several bookings and equipment lines confirmed
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-01-C: Non-assigned users cannot confirm
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 8 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-02-A: Blocked when one arrangement is outstanding
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 1 |
+| Executed By | Automated (Vitest) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-02-B: Backend rejects confirmation when the UI is bypassed
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 1 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-02-C: Blocked by one unapproved venue booking among several
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 3 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-02-D: Readiness re-checked at submit time
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-03-A: Outstanding list shows every outstanding arrangement
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 3 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-03-B: No outstanding arrangement falsely reported
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-03-C: Outstanding list names the specific venue
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-04-A: Status change and confirmation message
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 1 |
+| Executed By | Automated (Vitest) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-04-B: Concurrent confirmations handled safely
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 4 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-05-A: Organiser notified on confirmation
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 1 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-05-B: Organiser sees confirmed arrangements
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 4 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-05-C: Notifications sent only on success
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 1 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-06-A: Rejected event cannot be confirmed
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+### CONFIRM-EVENT-06-B: Cancelled event cannot be confirmed
+
+| Item | Description |
+|------|-------------|
+| Actual Result | Pass. All test bodies with this ID passed. |
+| Pass/Fail | Pass |
+| Test bodies | 2 |
+| Executed By | Automated (Vitest, PostgreSQL) |
+| Date of Execution | 14 Oct 2026 |
+
+**Notes on this section**
+
+- Not in the 17-case matrix, so not counted above: `CONFIRM-EVENT-03-D` (frontend, 1 body: equipment pending also lists the safety check) and one frontend body under 06 (no Confirm button on a confirmed event). Both pass.
+- Known gaps with no test body, unchanged from the Gap list: 02-A has no backend HTTP twin; 04-A's coordinator-queue step is blocked (SPM-48); 05-A's bell click-through is blocked (SPM-137).
+- The 01-C, 04-B and 05-B bodies are split across layers; the Test bodies count includes all of them.
+
 ## Results table (every test case ID)
 
-Result = Pass, Fail, Blocked (with the upstream story) or Not Automated. Runs (after Test Review remediation, iteration 2): backend unit 46 files / 1167 passed; backend e2e (`events-confirm`) 39/39; frontend 69 files / 952 passed, 1 todo. Counts are from the run commands in the Run commands section.
+Result = Pass, Fail, Blocked (with the upstream story) or Not Automated. Runs (14 Oct 2026, HEAD `84699fc`): backend unit 1200 passed in 48 files, 0 failed (`npx vitest run`, this pass); backend e2e (`events-confirm`, real PostgreSQL `spm_test`) 41/41 (this pass, after the CONFIRM-EVENT-06 rename); `npx vitest run src/events` 379 passed in 10 files; frontend 997 tests, 996 passed, 1 todo, 0 failed (re-run in this pass with `npx vitest run`: 71 files, 996 passed, 1 todo). The earlier counts (1167, 39, 952) were from iteration 2 and are superseded. Counts are from the run commands in the Run commands section.
 
 | Test Case ID | Subtest | file :: test name | Layer | Result | Notes |
 |---|---|---|---|---|---|
@@ -214,7 +396,7 @@ The frontend mutant M19 is not in this runner (run.mjs copies the backend tree o
 | M10 | Rejected and Cancelled guard removed | KILLED | e2e 06-A, 06-B |
 | NP1 | Non-Planning source falls through (no refusal) | KILLED | e2e TR-03 |
 | NP2 | Approved accepted as a source | KILLED | e2e TR-03 |
-| M11 | Unconditional UPDATE under the row lock | EQUIVALENT | The status is re-read under `FOR UPDATE` |
+| M11 | Unconditional UPDATE under the row lock | KILLED in this pass (was listed as EQUIVALENT) | The `spm135.mutants.mjs` entry still carries `equivalent: true`, but the run killed it (e2e failed). The equivalence reason is not supported by the run; see the current-run tables below |
 | M11c | No row lock and unconditional UPDATE | KILLED | e2e 04-B (B, deterministic) |
 | M12 | Notification written before the guards | KILLED | The partial unique index with `ON CONFLICT ... DO NOTHING` means no duplicate notification is ever written; M12 is caught on success by the 05-A message text ('early' instead of MSG-CF-01), and on the 04-B re-sends by the unique violation returning a 500 instead of 409 |
 | M13 | Notification to the coordinator (wrong recipient) | KILLED | e2e 05-A, 05-C |
@@ -241,11 +423,134 @@ Page-level mutants (applied by hand to a copy of `EventDetailPage.tsx` and resto
 | Organiser panel shown for a Planning event (status check removed) | KILLED: 1 failed | "expected document not to contain element, found <h2" (05-B page, Planning) |
 | No store update after confirm (`setEventStatus` removed) | KILLED: 1 failed | timeline pill `confirmed` lacks `text-primary-800` (04-A page) |
 
-Summary: 37 backend runner entries; 32 killed; 5 equivalent (M7b, M8b, M9b, M11, R5, each with the reason above); 0 survived. The earlier claim that M7 to M9 were equivalent was wrong for the GET route and is corrected.
+Summary of the iteration-2 table above: 37 backend runner entries; 32 killed; 5 equivalent; 0 survived. The earlier claim that M7 to M9 were equivalent was wrong for the GET route and is corrected. **This summary is superseded by the current run below** (the iteration-2 table is kept for its "Killed by" notes, which were not re-run in this pass).
+
+### Current run (this pass): backend app-code runner
+
+Command: `cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test node scripts/mutation/run.mjs --mutants spm135.mutants.mjs` (exit 0). Baselines green: unit, e2e, safetyUnit, confirmRealSafety, venueSummary, removal.
+
+Result: **82 mutants: 76 killed, 6 equivalent (R5, M7b, M8b, M9b, RV7, EQ7), 0 survived, 0 misapplied, 0 skipped.** Original files untouched: yes. The runner treats a failing suite as "killed" even for an entry flagged `equivalent`, which is why M11 (flagged equivalent in the file) is reported as killed.
+
+| ID | Change | Status (this run) |
+|---|---|---|
+| R5 | `event_id IS NULL` dropped from the overlap | equivalent |
+| M7b | Assignment removed at the locked re-check only | equivalent |
+| M8b | Lead allowed at the locked re-check only | equivalent |
+| M9b | Organiser allowed at the locked re-check only | equivalent |
+| M11 | Unconditional UPDATE under the row lock | killed (file flags it equivalent; the run killed it) |
+| RV7 | Venue delete not scoped to the event | equivalent |
+| EQ7 | Rejected equipment status no longer counted as unavailable | equivalent |
+| CK1 to CK15 | Checklist mutants (`backend/src/events/status/checklist.ts`) | all 15 killed |
+| SF1 to SF4 | Safety-check state mapping | all 4 killed |
+| VS1 to VS12 | Venue summary (`venue` text, overlap) | all 12 killed |
+| RV1 to RV6 | Venue request removal rules | all 6 killed |
+| EQ1 to EQ6 | Equipment request removal rules | all 6 killed |
+
+Names for the groups above (from `backend/scripts/mutation/spm135.mutants.mjs`):
+- **CK1** approved booking shown confirmed even when its venue is blocked; **CK2** rejected booking shown pending; **CK3** pending booking shown confirmed; **CK4** pending beats unavailable in the combined venue status; **CK5** pending ignored when another request is confirmed; **CK6** equipment Requested shown confirmed; **CK7** unavailable equipment shown pending; **CK8** Released lines counted as outstanding; **CK9** no-equipment section satisfied without confirmation; **CK10** safety check shown while a prerequisite blocks; **CK11** safety request allowed while a prerequisite blocks; **CK12** text "None" treated as a requirement; **CK13** equipment confirmed by statuses alone; **CK14** pending venue does not block the safety check; **CK15** no venue request shown as confirmed.
+- **SF1** pending safety mapped to Approved; **SF2** changes_needed mapped to Approved; **SF3** approved mapped to Awaiting Check; **SF4** pending and changes_needed swapped.
+- **VS1** approved unblocked booking labelled unavailable; **VS2** window block at another venue flags this venue; **VS3** pending labelled unavailable; **VS4** rejected labelled pending; **VS5** blocked status literal changed; **VS6** window start bound inclusive; **VS7** window end bound inclusive; **VS8** names joined with "; "; **VS9** names in reverse start order; **VS10** overlap equality-only; **VS11** overlap containment (block inside booking) only; **VS12** overlap containment (booking inside block) only.
+- **RV1** any venue request removable; **RV2** rejected request not removable; **RV3** window-blocked request not removable; **RV4** unknown request not 404; **RV5** removal allowed outside Planning; **RV6** removal without the assignment check; **RV7** delete not scoped to the event (equivalent).
+- **EQ1** any equipment request removable; **EQ2** unavailable status compared case-sensitively; **EQ3** unknown request not 404; **EQ4** removal allowed outside Planning; **EQ5** removal without the assignment check; **EQ6** Requested line removable; **EQ7** rejected status no longer counted as unavailable (equivalent).
+
+### Current run (this pass): trigger (SQL) runner
+
+Command: `cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test node scripts/mutation/run-triggers.mjs` (exit 0, 57 s). Result: **7 trigger mutants: 6 killed, 1 equivalent, 0 survived, 0 misapplied.** Baseline (clean init; removal, safetyInvalidation) green. `database/postgresql/init untouched: yes`.
+
+| ID | Change | Status | First failing test (killing suite) |
+|---|---|---|---|
+| TG1 | Venue DELETE reset reason text changed | killed | removal: VENUE-REMOVE-01 |
+| TG2 | Equipment DELETE reset reason text changed | killed | removal: EQUIPMENT-REMOVE-01 |
+| TG3 | Venue DELETE path does not invalidate (early return after delete) | killed | removal: VENUE-REMOVE-01 |
+| TG4 | Equipment DELETE path does not invalidate | killed | removal: EQUIPMENT-REMOVE-01 |
+| TG5 | `invalidate_safety_check` does nothing when no safety row | killed | safetyInvalidation: SAFETY-STALE (leftover feedback) |
+| TG6 | `invalidate_safety_check` guard inverted | killed | removal: EQUIPMENT-REMOVE-01 |
+| TG7 | `OLD.event_id IS NOT NULL` guard removed from the venue DELETE branch | equivalent | n/a |
+
+TG7 justification (from `backend/scripts/mutation/spm135.triggers.mutants.mjs`): `DELETE ... WHERE event_id = NULL` matches no row, and `EXISTS (... WHERE event_id = NULL)` is false, so no safety row is touched and no reset row is written. The function does nothing for a NULL event, with or without the guard. The scratch run of TG7 reported no change in any suite result in this pass.
+
+### Current run (this pass): frontend runner
+
+Command: `cd frontend && node scripts/testing/mutation/run.mjs --mutants spm135.mutants.mjs` (exit 0). Result: **37 mutants: 37 killed, 0 equivalent, 0 survived, 0 misapplied, 0 skipped.** Original files untouched: yes. This includes FM1 to FM10 (with FM9b; 11 entries), X1 to X10, PP1 to PP12 and VT1 to VT4.
+
+| ID | Change | Status |
+|---|---|---|
+| PP1 | Remove From List offered on a non-unavailable venue request | killed |
+| PP2 | Remove From List offered on a non-unavailable equipment request | killed |
+| PP3 | Remove From List deletes without the confirmation step | killed |
+| PP4 | Cancel sends the removal | killed |
+| PP5 | Confirm Remove does not send the removal | killed |
+| PP6 | Pending request badge text changed | killed |
+| PP7 | Unavailable request badge text changed | killed |
+| PP8 | Pending request row shows the complete tick | killed |
+| PP9 | Venues ticked when any request is confirmed | killed |
+| PP10 | Equipment tab not red when unavailable | killed |
+| PP11 | Venues tab red instead of yellow when unavailable | killed |
+| PP12 | Equipment ticked when any request is confirmed | killed |
+| VT1 | Card venue fallback blank instead of "Not booked" | killed |
+| VT2 | Detail Venue field fallback blank instead of "Not yet booked" | killed |
+| VT3 | Detail Venue field ignores the server value | killed |
+| VT4 | Edit form Venue field ignores the server value | killed |
+
+The PP and VT entries are applied to `PlanningInformationPage.tsx`, `EventCard.tsx`, `EventDetailPage.tsx` and the edit form. The other 21 entries in the same run (FM1 to FM10 with FM9b, X1 to X10) were all killed.
 
 Lock-wait check (TR-07): the 04-B (B, deterministic) test was run with its lock-wait filter made impossible to match. It then failed with `AssertionError: expected false to be true` (lock wait not observed), and the file was restored. The original filter passes.
 
 Missing-field check (TR-09): the 02-B full-text assertion was run with the join changed from `"; "` to `", "`. It failed on the exact-text comparison, and the file was restored.
+
+## Test ID traceability (test names in the repository, this pass)
+
+IDs below are copied from the `it(...)` / `describe(...)` names in the files. Nothing was invented; unnumbered tests are listed by name.
+
+| ID family | File | Test names (IDs as written) |
+|---|---|---|
+| VENUE-REMOVE-01 to 09 | `backend/test/events-venue-removal.e2e-spec.ts` | 01 (leaves venue not requested), 02 (confirmed cannot be removed), 03 (unknown is 404), 04 (other venue stays confirmed), 05 (pending cannot be removed, 409), 06 (rejected removed, 200), 07 (not assigned, 403), 08 (not in Planning, 422), 09 (no session, 401). Plus unnumbered "VENUE-REMOVE (no safety record)" |
+| EQUIPMENT-REMOVE-01 to 08 | `backend/test/events-equipment-removal.e2e-spec.ts` | 01 (only unavailable line removed), 02 (Reserved cannot be removed, 409), 03 (unknown, 404), 04 (other line stays confirmed), 05 (Requested cannot be removed, 409), 06 (not assigned, 403), 07 (not in Planning, 422), 08 (no session, 401) |
+| VENUE-SUMMARY-01 to 08 | `backend/test/events-venue-summary.e2e-spec.ts` | 01 (plain name), 01 organiser view, 02 ("(pending)"), 03 ("(unavailable)" rejected), 04 (window block "(unavailable)"), 05 (joined ", " in start order), 06 (no venue), 07 (other venue block ignored), 08 (edge-touching blocks ignored). Plus two "VENUE-SUMMARY (partial overlap)" tests |
+| SAFETY-SOURCE-01 to 04 | `backend/test/events-confirm-safety-source.e2e-spec.ts` | 01 (real pending blocks, 422), 02 (changes_needed blocks, 422), 03 (no row blocks, 422), 04 (real approved allows, 200) |
+| SAFETY-STALE-01 to 07 | `backend/test/events-safety-invalidation.e2e-spec.ts` | 01 (equipment change resets), 02 (venue change resets), 03 (event detail change resets), 05 (new venue or pending equipment resets), 06 (planning save records reason), 07 (no-op save keeps approval), 04 (status change alone keeps approval). Plus unnumbered "(never requested)" and "(leftover feedback)" |
+| SAFETY-RESET-UPDATE-01 to 03 | `backend/src/events/planning/event-planning.service.spec.ts` | 01 (reports reset when a check was removed), 02 (no reset when none existed), 03 (no reset when nothing changed) |
+| SAFETY-SOURCE (unit, not numbered) | `backend/src/events/status/safety-check.source.spec.ts` | "maps a pending/changes_needed/approved safety check to ..." (3), "returns undefined when the event has no safety check row", and the `view` tests. These carry no SAFETY-SOURCE ID in their names |
+| Frontend venue text (`PlanningInformationPage.test.tsx`) | `frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx` | "shows a yellow Action needed caution on the Venues tab ..."; "offers Remove From List only on unavailable venue requests"; "cancelling the removal of a venue request sends no DELETE"; "removes an unavailable venue, confirms it, and ticks Venues ..."; "keeps the unavailable venue listed and shows an error when removal fails"; "lists every venue request with its own status ..."; equipment counterparts for Equipment. No IDs in these names |
+| Frontend venue text (`EventDetailPage.test.tsx`) | `frontend/src/features/events/pages/detail/EventDetailPage.test.tsx` | "shows the server venue text, including a pending label, in the Venue field" |
+| Frontend venue text (`EventEditForm.test.tsx`) | `frontend/src/features/events/pages/edit/EventEditForm.test.tsx` | "shows the server venue text in the read-only Venue field"; "shows Not yet booked in the Venue field when the event has no venue" |
+| Frontend venue text (`EventCard.test.tsx`) | `frontend/src/features/events/pages/list/EventCard.test.tsx` | "shows the server venue text, including a pending label, on the card"; "shows Not booked when no venue has been booked yet"; "truncates a long venue name ..." |
+
+Also present: `SAFETY-FEEDBACK-01 to 03` in `backend/test/events-safety-feedback.e2e-spec.ts` (not requested in this pass; the IDs exist in the names).
+
+## Confirm Event traceability
+
+Authoritative IDs: Confluence page **"CONFIRM-EVENT-01"** through **"CONFIRM-EVENT-06"** (space SP, cloud `dd8b6b9d-4837-4ca9-a7d9-4d19ff87f2df`), indexed by **"Confirm an Event (Coordinator) Matrix"** (page 22905205, https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/22905205/Confirm+an+Event+Coordinator+Matrix). The matrix and case pages define 17 IDs: 01-A/B/C, 02-A/B/C/D, 03-A/B/C, 04-A/B, 05-A/B/C, 06-A/B. Test files were tagged or annotated in this pass where a test implements the case. Status key: **tagged** (implements the case as written), **partial** (implements part of the case; reason given), **added** (new test written in this pass).
+
+| Confluence ID | Test file and test name | Status |
+|---|---|---|
+| CONFIRM-EVENT-01-A | `backend/test/events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-01-A: the assigned coordinator confirms a fully arranged Planning event"; `backend/src/events/status/readiness.spec.ts`: "CONFIRM-EVENT-01-A (rule level)"; `frontend/.../planning/ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-01-A (FE)"; `frontend/.../detail/EventDetailPage.confirm.test.tsx`: "CONFIRM-EVENT-01-A (page)" | tagged |
+| CONFIRM-EVENT-01-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-01-B: every one of several Approved bookings and equipment lines is checked"; `readiness.spec.ts`: "CONFIRM-EVENT-01-B (rule level)" | tagged |
+| CONFIRM-EVENT-01-C | `events-confirm.e2e-spec.ts`: describe "CONFIRM-EVENT-01-C: authorisation is assignment" and "CONFIRM-EVENT-01-C (D): no session gets 401"; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-01-C (FE)"; `EventDetailPage.confirm.test.tsx`: two "CONFIRM-EVENT-01-C (page)" tests | tagged |
+| CONFIRM-EVENT-02-A | `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-02-A (FE)" (subtest A, EVT-202 venue Pending, only); `readiness.spec.ts`: "CONFIRM-EVENT-02-A (rule level)" (added, four cases, see below) | partial: the FE test covers subtest A only; subtests B to D (EVT-203, EVT-204, EVT-210) have no UI or e2e test; the readiness test checks only the blocking decision, not the MSG-CF-02 text, status staying Planning, no audit row or no notification |
+| CONFIRM-EVENT-02-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-02-B: a blocked confirm returns CONFIRM_BLOCKED with the three outstanding items ..." | tagged |
+| CONFIRM-EVENT-02-C | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-02-C: one Pending booking blocks confirmation ..."; `readiness.spec.ts`: "CONFIRM-EVENT-02-C (rule level)"; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-02-C (FE)" | tagged |
+| CONFIRM-EVENT-02-D | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-02-D: a venue flagged unavailable after page load blocks ..."; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-02-D (FE)" | tagged |
+| CONFIRM-EVENT-03-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-03-A: arrangements-status lists venue, equipment and safety in order ..."; `readiness.spec.ts`: "CONFIRM-EVENT-03-A (rule level)"; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-03-A (FE)" | tagged |
+| CONFIRM-EVENT-03-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-03-B: only the unsatisfied venue is listed ..."; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-03-B (FE)" | tagged |
+| CONFIRM-EVENT-03-C | `readiness.spec.ts`: "CONFIRM-EVENT-03-C (rule level)"; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-03-C (FE)" | tagged |
+| CONFIRM-EVENT-04-A | `frontend/.../detail/EventDetailPage.confirm.test.tsx`: "CONFIRM-EVENT-04-A (page)" | partial: the status change and the timeline update are checked; the message text MSG-CF-01 and the reload/queue checks in the case are not (the case notes say the remount-after-fetch check is not automated) |
+| CONFIRM-EVENT-04-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-04-B (A)", "(B)", "(B, deterministic)"; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-04-B (C, FE)" | tagged |
+| CONFIRM-EVENT-05-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-A: the submitting organiser sees one unread EventConfirmed notification after confirm" | partial: backend notification only; the bell UI and the 10-second bell count and click-through are not tested (SPM-137, blocked per the Confluence result) |
+| CONFIRM-EVENT-05-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-B: the organiser sees venue, equipment and safety ..."; `frontend/.../planning/ConfirmedArrangementsPanel.test.tsx`: "CONFIRM-EVENT-05-B (FE)"; `EventDetailPage.confirm.test.tsx`: "CONFIRM-EVENT-05-B (page)" (two) | tagged |
+| CONFIRM-EVENT-05-C | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-C: a blocked attempt notifies nobody; the success notifies only the submitting organiser" | tagged |
+| CONFIRM-EVENT-06-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-06-A: a Rejected event is refused with 422 EVENT_NOT_CONFIRMABLE ..." (it.each row); `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-06-A/06-B (FE)" (rejected row) | tagged (the Confluence expected result says MSG-CF-05 and HTTP 422; the e2e asserts 422 and the error code, not the message text. The Confluence "Notes" say HTTP 409, which conflicts with the expected result; see open questions) |
+| CONFIRM-EVENT-06-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-06-B: a Cancelled event is refused with 422 ..."; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-06-A/06-B (FE)" (cancelled row) | tagged (same notes as 06-A) |
+| CONFIRM-EVENT-03-D | `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-03-D (FE)" | not in Confluence. The name is left unchanged; no matching Confluence case exists |
+
+Added in this pass: `backend/src/events/status/readiness.spec.ts`, `it.each` "CONFIRM-EVENT-02-A (rule level): ... blocks readiness" for venue Pending (EVT-202), equipment Requested (EVT-203), safety Awaiting Check (EVT-204), safety Changes Requested (EVT-210). Each asserts not ready and exactly one outstanding item of the expected type.
+
+Cases with no matching test: none beyond the partial items above.
+
+## Static checks and build (this pass)
+
+- `cd backend && npx tsc --noEmit -p tsconfig.json`: exit 1, **31 errors**, unchanged count. 14 are in SPM-135 specs: `events-venue-removal` and `events-equipment-removal` (lines 7 and 73), `events-venue-summary` (lines 7 and 84), `events-confirm-safety-source` (lines 7 and 87), `events-confirm` (lines 7 and 122), `events-safety-feedback` (lines 7 and 73), `events-safety-invalidation` (lines 7 and 75). All are the shared pattern: `supertest/types` import (TS2307) and `.find` on `set-cookie` typed as `string` (TS2339), also used by older specs. The other 17 are in older specs and `vitest.spm37.config.ts`.
+- `cd backend && npx tsc --noEmit -p tsconfig.build.json`: exit 0, 0 errors. The build config excludes test and `*spec.ts` files, so the production build is unaffected.
 
 ## Run commands (Guide 10E, 12)
 

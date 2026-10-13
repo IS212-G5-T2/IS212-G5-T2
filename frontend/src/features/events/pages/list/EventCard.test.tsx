@@ -82,6 +82,18 @@ describe("EventCard", () => {
     expect(venueValue.parentElement?.className).toContain("min-w-0");
   });
 
+  /** The card shows the venue text the server sends, including its "(pending)" label, unchanged. */
+  it("shows the server venue text, including a pending label, on the card", () => {
+    render(
+      <MemoryRouter>
+        <EventCard event={baseEvent({ venueName: "Breakout Room 1 (pending)" })} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Breakout Room 1 (pending)")).toBeTruthy();
+    expect(screen.queryByText("Not booked")).toBeNull();
+  });
+
   it("shows Not booked when no venue has been booked yet", () => {
     render(
       <MemoryRouter>
