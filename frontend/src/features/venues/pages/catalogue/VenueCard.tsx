@@ -6,11 +6,11 @@ import type { Venue } from "@/types";
 export function VenueCard({
   venue,
   highlightSuitable,
-  onBook,
+  onCheckAvailability,
 }: {
   venue: Venue;
   highlightSuitable?: boolean;
-  onBook?: () => void;
+  onCheckAvailability?: () => void;
 }) {
   return (
     <Card className={highlightSuitable ? "border-success-300 dark:border-success-700 ring-1 ring-success-200 dark:ring-success-800" : undefined}>
@@ -52,9 +52,9 @@ export function VenueCard({
           >
             View Details →
           </Link>
-          {onBook && (
-            <Button size="sm" onClick={onBook}>
-              Submit Booking Request
+          {onCheckAvailability && (
+            <Button size="sm" onClick={onCheckAvailability}>
+              Check Availability
             </Button>
           )}
         </div>

@@ -1,18 +1,62 @@
+import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { api, ApiError } from "@/utils/api";
 import { formatDateRange } from "@/utils/format";
+import type { Venue } from "@/types";
 
 export function VenueDetailPage() {
   const { id } = useParams();
-  const venues = useAppStore((s) => s.venues);
   const bookings = useAppStore((s) => s.bookings);
+  const [venue, setVenue] = useState<Venue>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [revision, setRevision] = useState(0);
 
-  const venue = venues.find((v) => v.id === id);
-  if (!venue) return <p className="text-sm text-gray-500 dark:text-gray-400">Venue not found.</p>;
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    if (!id) {
+      setError("Venue not found.");
+      setLoading(false);
+      return () => { active = false; };
+    }
+
+    api<Venue>(`/venues/${encodeURIComponent(id)}`).then(
+      (record) => {
+        if (active) setVenue(record);
+      },
+      (failure: unknown) => {
+        if (active) {
+          setError(
+            failure instanceof ApiError && failure.status === 404
+              ? "Venue not found."
+              : "Unable to load venue details.",
+          );
+        }
+      },
+    ).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => { active = false; };
+  }, [id, revision]);
+
+  if (loading) return <p role="status">Loading venue details…</p>;
+  if (error || !venue) {
+    return (
+      <div role="alert">
+        <p>{error || "Venue not found."}</p>
+        <Button variant="secondary" onClick={() => setRevision((value) => value + 1)}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
 
   const venueBookings = bookings.filter((b) => b.venueId === venue.id);
 
