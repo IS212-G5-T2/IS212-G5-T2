@@ -18,7 +18,7 @@ import { EventPlanningService } from './event-planning.service.js';
  * EventPlanningService. The repository is mocked, so these tests pin the rules
  * (access, lifecycle, field policy, impact, resolution), not SQL; the SQL,
  * row locking and concurrency are proved against PostgreSQL in
- * event-planning.e2e-spec.ts. The mock has no runInTransaction, so transactions
+ * test/event-planning.e2e-spec.ts. The mock has no runInTransaction, so transactions
  * are only exercised where a test adds one ("atomicity" suite).
  * Confluence IDs: EVENT-VIEW-*, EVENT-UPDATE-*, EVENT-FLAG-*.
  */
@@ -1801,5 +1801,135 @@ describe('SPM-49 / SPM-85 impact-based decision: apply what is compatible, flag 
       },
     });
     expect(repo.applyFields).not.toHaveBeenCalled();
+  });
+});
+
+describe('SPM-49 / SPM-85 / SPM-97 defensive paths', () => {
+  /**
+   * EVENT-UPDATE-01-SEC-1: an update or a decision without a signed-in user is
+   * refused as unauthenticated before anything is read or written.
+   */
+  it('EVENT-UPDATE-01-SEC-1 refuses an update and a decision without a signed-in user', async () => {
+    await expect(
+      service.updateEvent(undefined, EVENT_ID, { name: 'Renamed' }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      service.resolveChange(undefined, EVENT_ID, 'chg-1', {
+        decision: 'confirm',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(repo.findEvent).not.toHaveBeenCalled();
+    expect(repo.applyFields).not.toHaveBeenCalled();
+    expect(repo.resolveChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EVENT-UPDATE-01-SEC-1: the owning organiser who also holds the coordinator
+   * role, but is not the coordinator assigned to this event, cannot update it:
+   * the update is refused (404 from the editable-access check) and nothing is
+   * written.
+   */
+  it('EVENT-UPDATE-01-SEC-1 refuses an update from the owner when they are not the assigned coordinator', async () => {
+    const ownerWithCoordinatorRole = organiser({
+      roles: ['ORGANISER', 'COORDINATOR'],
+    });
+    await expect(
+      service.updateEvent(ownerWithCoordinatorRole, EVENT_ID, {
+        name: 'Renamed',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.applyFields).not.toHaveBeenCalled();
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EVENT-VIEW-01-SEC-2: a well-formed event id that does not exist gives the
+   * same "not found" answer to the organiser view and the coordinator update.
+   */
+  it('EVENT-VIEW-01-SEC-2 answers not found for an event id that does not exist', async () => {
+    repo.findEvent.mockResolvedValue(undefined);
+    await expect(
+      service.getPlanningView(organiser(), EVENT_ID),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.listVenueBookings).not.toHaveBeenCalled();
+    expect(repo.applyFields).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EVENT-VIEW-02-E: an approved event that has no coordinator assigned yet
+   * is shown to its organiser with no coordinator, rather than an empty or
+   * null coordinator.
+   */
+  it('EVENT-VIEW-02-E shows an approved, unassigned event with no coordinator', async () => {
+    repo.findEvent.mockResolvedValue(
+      eventRow({
+        status: 'Approved',
+        coordinatorId: null,
+        coordinatorName: null,
+      }),
+    );
+    const view = await service.getPlanningView(organiser(), EVENT_ID);
+    expect(view.event.coordinatorId).toBeUndefined();
+    expect(view.event.coordinatorName).toBeUndefined();
+    expect(view.event).toMatchObject({ id: EVENT_ID, status: 'approved' });
+  });
+
+  /**
+   * EVENT-FLAG-04-SEC-3: a decision request with no body, or a body that is
+   * not an object, is refused as a missing decision and nothing is resolved.
+   */
+  it.each([null, undefined, 'confirm'])(
+    'EVENT-FLAG-04-SEC-3 refuses a decision request whose body is %j',
+    async (body) => {
+      repo.findChange.mockResolvedValue(flaggedChange());
+      await expect(
+        service.resolveChange(coordinator(), EVENT_ID, 'chg-1', body),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(repo.resolveChange).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * EVENT-FLAG-01-F: a flagged change records who proposed it. A coordinator
+   * without a display name is recorded by email, and one with neither name nor
+   * email as "Coordinator".
+   */
+  it.each([
+    [{ name: undefined }, 'coord9@example.test'],
+    [{ name: undefined, email: undefined }, 'Coordinator'],
+  ] as const)(
+    'EVENT-FLAG-01-F records the proposer of a flagged change as %j -> %s',
+    async (overrides, expected) => {
+      repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+      await service.updateEvent(coordinator(overrides), EVENT_ID, {
+        expectedAttendance: 250,
+      });
+      const [, created] = repo.createFlaggedChange.mock.calls[0];
+      expect(created).toMatchObject({ proposedBy: expected });
+    },
+  );
+
+  /**
+   * EVENT-FLAG-05-C: defensive mapping. The schema
+   * (event_flagged_changes_resolution_check) requires a resolver and time on
+   * every resolved change, but if a row ever lacked them the history still
+   * lists it with those details blank instead of failing the whole list.
+   */
+  it('EVENT-FLAG-05-C lists resolved changes that have no resolver or time with blank details', async () => {
+    repo.listHistory.mockResolvedValue([
+      flaggedChange({ id: 'chg-1', status: 'Applied' }),
+      flaggedChange({ id: 'chg-2', status: 'Rejected' }),
+    ]);
+    const history = await service.changeHistory(coordinator(), EVENT_ID);
+    expect(history).toHaveLength(2);
+    for (const entry of history)
+      expect(entry).toMatchObject({ resolvedBy: '', resolvedAt: '' });
+    expect(history.map((h: { id: string }) => h.id).sort()).toEqual([
+      'chg-1',
+      'chg-2',
+    ]);
   });
 });

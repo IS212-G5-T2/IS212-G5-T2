@@ -195,4 +195,25 @@ describe("satisfiesCondition (mirrors the backend compatibility rules)", () => {
       satisfiesCondition({ kind: "remove_only" }, { facilities, currentFacilities: ["Catering", "Projector"] }),
     ).toBe(expected);
   });
+
+  /**
+   * EVENT-UPDATE-05-C: a proposal with no start time (only an end) cannot be
+   * confirmed as inside the booked window, so it is predicted to need review.
+   */
+  it("EVENT-UPDATE-05-C treats a missing start time as needing review", () => {
+    expect(satisfiesCondition(window, { endDateTime: window.end })).toBe(false);
+  });
+
+  /**
+   * EVENT-UPDATE-05-D: with no facility list in the proposal nothing is added,
+   * so it applies immediately; with no current list any facility is an
+   * addition and needs review.
+   */
+  it.each([
+    [{ currentFacilities: ["Catering"] }, true],
+    [{ facilities: ["Catering"] }, false],
+    [{}, true],
+  ])("EVENT-UPDATE-05-D remove_only with %j → %s", (proposal, expected) => {
+    expect(satisfiesCondition({ kind: "remove_only" }, proposal)).toBe(expected);
+  });
 });

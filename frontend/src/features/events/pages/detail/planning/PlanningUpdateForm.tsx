@@ -85,7 +85,7 @@ const FIELD_KEYS: FieldKey[] = [
 ];
 
 // ISO (UTC) → value for <input type="datetime-local"> in the user's time zone.
-function toLocalInput(iso: string): string {
+export function toLocalInput(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");

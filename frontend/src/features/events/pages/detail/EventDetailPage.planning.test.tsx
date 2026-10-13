@@ -457,6 +457,45 @@ describe("EventDetailPage planning information (coordinator)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Planning information could not be read.");
     expect(screen.getByText("Event Details")).toBeInTheDocument();
   });
+
+  /**
+   * EVENT-VIEW-05-D: when loading planning information fails with something
+   * other than an error message, the page shows a general refresh alert
+   * instead of crashing or showing nothing.
+   */
+  it("EVENT-VIEW-05-D shows a general alert when planning information fails without a message", async () => {
+    const baseline = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
+      if (path.endsWith("/planning")) throw "network down";
+      return baseline(path, init);
+    }) as typeof api);
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not refresh planning information\.$/);
+    expect(screen.getByText("Event Details")).toBeInTheDocument();
+  });
+
+  /**
+   * EVENT-VIEW-05-E: refreshed planning information updates this event in the
+   * shared event list and leaves every other event in the list unchanged.
+   */
+  it("EVENT-VIEW-05-E updates only this event in the shared event list", async () => {
+    const other = eventRecord({ id: "00000000-0000-4000-8000-000000000097", name: "Other Event" });
+    useAppStore.setState({ events: [other] });
+    // The event endpoint still says 80; only the planning view carries 120,
+    // so 120 in the store can only come from the planning refresh.
+    currentView = planningView({ event: eventRecord({ expectedAttendance: 120 }) });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.includes("/comments")) return [];
+      return eventRecord({ expectedAttendance: 80 });
+    }) as typeof api);
+    renderPage();
+    await planningRegion();
+    await waitFor(() =>
+      expect(useAppStore.getState().events.find((e) => e.id === EVENT_ID)?.expectedAttendance).toBe(120),
+    );
+    expect(useAppStore.getState().events.find((e) => e.id === other.id)).toBe(other);
+  });
 });
 
 describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {

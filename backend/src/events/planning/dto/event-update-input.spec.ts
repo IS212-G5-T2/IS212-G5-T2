@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import { ACCESSIBILITY, FACILITIES } from '../../dto/event-input.js';
 import {
   FIELD_POLICY,
   classifyUpdate,
@@ -179,6 +180,78 @@ describe('validateEventUpdate', () => {
   it('EVENT-UPDATE-04-SEC-1 rejects an unknown field', () => {
     expect(errorsOf({ name: 'Valid name', colour: 'red' }).colour).toBeTruthy();
   });
+
+  /**
+   * EVENT-UPDATE-04-D: a required text field sent as null is reported as
+   * required, not as invalid text, so the coordinator sees the same message as
+   * for a blank field.
+   */
+  it.each(['name', 'purpose', 'description', 'layout'])(
+    'EVENT-UPDATE-04-D reports a null %s as required',
+    (field) => {
+      expect(errorsOf({ [field]: null })[field]).toBe(
+        'This field is required.',
+      );
+    },
+  );
+
+  /**
+   * EVENT-UPDATE-04-D: a text field sent as a number, list or object is
+   * rejected as invalid text, and an optional field sent as null is also
+   * invalid (only an empty string clears it).
+   */
+  it.each([
+    ['name', 42],
+    ['purpose', ['Welcome']],
+    ['description', { text: 'x' }],
+    ['equipmentNeeds', null],
+    ['equipmentNeeds', 3],
+  ] as const)('EVENT-UPDATE-04-D rejects %s sent as %j', (field, value) => {
+    expect(errorsOf({ [field]: value })[field]).toBe('Enter valid text.');
+  });
+
+  /**
+   * EVENT-UPDATE-04-E: the room layout must be one of the creation
+   * vocabulary's layouts; any other text is refused.
+   */
+  it('EVENT-UPDATE-04-E rejects a room layout outside the allowed list', () => {
+    expect(errorsOf({ layout: 'Circus' }).layout).toBe(
+      'Choose a valid room layout.',
+    );
+  });
+
+  /**
+   * EVENT-UPDATE-04-F: facilities and accessibility needs must be a list of
+   * allowed options. A non-list, an unknown option, a non-text entry or a list
+   * longer than the vocabulary is refused.
+   */
+  it.each([
+    ['facilities', 'AV System'],
+    ['facilities', ['Helipad']],
+    ['facilities', [7]],
+    ['facilities', Array(FACILITIES.length + 1).fill('Stage')],
+    ['accessibility', null],
+    ['accessibility', ['Escalator']],
+    ['accessibility', Array(ACCESSIBILITY.length + 1).fill('Hearing loop')],
+  ] as const)('EVENT-UPDATE-04-F rejects %s %j', (field, value) => {
+    expect(errorsOf({ [field]: value })[field]).toBe('Choose valid options.');
+  });
+
+  /**
+   * EVENT-UPDATE-04-G: a start or end date-time that is not text (a number or
+   * null) is treated as missing and reported as required.
+   */
+  it.each([
+    ['startDateTime', 1767225600000],
+    ['endDateTime', null],
+  ] as const)(
+    'EVENT-UPDATE-04-G reports %s sent as %j as required',
+    (field, value) => {
+      expect(errorsOf({ [field]: value })[field]).toBe(
+        'This field is required.',
+      );
+    },
+  );
 });
 
 describe('classifyUpdate / FIELD_POLICY', () => {
