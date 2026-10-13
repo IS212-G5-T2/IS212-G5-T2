@@ -47,7 +47,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
   const [startDateTime, setStartDateTime] = useState(toDateTimeLocal(event.startDateTime));
   const [endDateTime, setEndDateTime] = useState(toDateTimeLocal(event.endDateTime));
   const [expectedAttendance, setExpectedAttendance] = useState(String(event.expectedAttendance || ""));
-  const [venue, setVenue] = useState(event.venueName || "");
+  const venue = event.venueName || "";
   const [layout, setLayout] = useState(event.venueRequirements?.layout || "");
   const [equipmentNeeds, setEquipmentNeeds] = useState(event.equipmentNeeds || "");
   const [attachments, setAttachments] = useState<EventAttachment[]>(event.attachments || []);
@@ -110,7 +110,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">ℹ️</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Event details
+              Event Details
             </h2>
           </div>
           <TextInput
@@ -133,7 +133,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">✓</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Required facilities
+              Required Facilities
             </h2>
           </div>
           <CheckboxGroup
@@ -149,7 +149,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">♿</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Accessibility requirements
+              Accessibility Requirements
             </h2>
           </div>
           <CheckboxGroup
@@ -165,7 +165,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">📅</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Date & logistics
+              Date & Logistics
             </h2>
           </div>
 
@@ -198,9 +198,8 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
             />
             <TextInput
               label="Venue"
-              value={venue}
-              onChange={(e) => setVenue(e.target.value)}
-              placeholder="Enter venue name"
+              value={venue || "Not yet booked"}
+              readOnly
             />
           </div>
 
@@ -223,7 +222,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">🔧</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Equipment needs
+              Equipment Needs
             </h2>
           </div>
           <TextArea
@@ -239,7 +238,7 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           <div className="mb-6 flex items-center gap-2 border-b border-gray-100 pb-4 dark:border-gray-700">
             <span className="text-lg">📎</span>
             <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">
-              Supporting files
+              Supporting Files
             </h2>
           </div>
           <div className="mb-4">

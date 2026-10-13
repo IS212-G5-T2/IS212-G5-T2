@@ -32,7 +32,7 @@ beforeEach(() => {
 
 describe("SPM-123 AC9: coordinator assignment notifications", () => {
   // The coordinator sees the new request with a link to it and can mark it read.
-  it("LEAD-ASN-09-D shows the coordinator the new assignment with a link and Mark as read", async () => {
+  it("LEAD-ASN-09-D shows the coordinator the new assignment with a link and Mark As Read", async () => {
     // Arrange: the feed returns one unread assignment; marking read succeeds.
     const user = userEvent.setup();
     api.mockImplementation((path: string) =>
@@ -48,10 +48,10 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
 
     // Assert: the message and a link to the request are shown.
     expect(await screen.findByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View request" })).toHaveAttribute("href", "/events/event-1");
+    expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/event-1");
 
     // Act: mark it read.
-    await user.click(screen.getByRole("button", { name: "Mark as read" }));
+    await user.click(screen.getByRole("button", { name: "Mark As Read" }));
 
     // Assert: the read call is sent and the notification leaves the panel.
     expect(api).toHaveBeenCalledWith("/notifications/notif-1/read", { method: "POST" });
@@ -76,7 +76,7 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your new assignments.");
   });
 
-  // A failed "Mark as read" keeps the notification and says so.
+  // A failed "Mark As Read" keeps the notification and says so.
   it("LEAD-ASN-09-G keeps the notification and shows an error when marking it read fails", async () => {
     // Arrange: the feed loads, but marking read fails.
     const user = userEvent.setup();
@@ -90,7 +90,7 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     );
 
     // Act: try to mark it read.
-    await user.click(await screen.findByRole("button", { name: "Mark as read" }));
+    await user.click(await screen.findByRole("button", { name: "Mark As Read" }));
 
     // Assert: the error is shown and the notification is still listed.
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -121,8 +121,8 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     expect(api).toHaveBeenCalledTimes(2);
   });
 
-  // A successful retry of "Mark as read" clears the earlier error.
-  it("LEAD-ASN-09-I clears the error when a later Mark as read succeeds", async () => {
+  // A successful retry of "Mark As Read" clears the earlier error.
+  it("LEAD-ASN-09-I clears the error when a later Mark As Read succeeds", async () => {
     // Arrange: two unread assignments, so the panel stays visible after one is read;
     // the first mark-read fails and the retry succeeds.
     const user = userEvent.setup();
@@ -140,14 +140,14 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
     );
 
     // Act: the first attempt on "Welcome Evening" fails.
-    const [firstButton] = await screen.findAllByRole("button", { name: "Mark as read" });
+    const [firstButton] = await screen.findAllByRole("button", { name: "Mark As Read" });
     await user.click(firstButton);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Could not mark the notification as read. Please try again.",
     );
 
     // Act: the retry succeeds.
-    await user.click(screen.getAllByRole("button", { name: "Mark as read" })[0]);
+    await user.click(screen.getAllByRole("button", { name: "Mark As Read" })[0]);
 
     // Assert: the error is gone, the read one has left and the other is still shown.
     await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
@@ -188,10 +188,10 @@ describe("SPM-123 AC9: coordinator assignment notifications", () => {
       </MemoryRouter>,
     );
 
-    // Assert: the unread one is shown with its single Mark as read; the read one is not.
+    // Assert: the unread one is shown with its single Mark As Read; the read one is not.
     expect(await screen.findByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
     expect(screen.queryByText('New event request "Old Picnic" is awaiting your review.')).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Mark as read" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Mark As Read" })).toHaveLength(1);
   });
 });
 
@@ -214,7 +214,7 @@ describe("SPM-47 AC8: reassignment notifications", () => {
     // Assert: both messages are shown; only the event they now have is linked.
     expect(await screen.findByText('Event "Spring Gala" has been reassigned to you.')).toBeInTheDocument();
     expect(screen.getByText('Event "Old Picnic" has been reassigned to Coordinator 2.')).toBeInTheDocument();
-    const links = screen.getAllByRole("link", { name: "View request" });
+    const links = screen.getAllByRole("link", { name: "View Request" });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAttribute("href", "/events/event-2");
   });
@@ -239,7 +239,7 @@ describe("SPM-46 AC1: the reassignment notice opens the event", () => {
     );
 
     // Act: follow the notice's link.
-    await user.click(await screen.findByRole("link", { name: "View request" }));
+    await user.click(await screen.findByRole("link", { name: "View Request" }));
 
     // Assert: the event's page is open.
     expect(screen.getByText("Event page for event-2")).toBeInTheDocument();

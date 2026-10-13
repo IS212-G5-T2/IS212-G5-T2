@@ -13,6 +13,7 @@ import pg from 'pg';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
+import { VENUE_SUMMARY_SQL } from './venue-summary.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -82,6 +83,7 @@ export class EventsService {
       coordinatorName: row.coordinator_name ?? undefined,
       reassignedFrom: reassignedFrom(row, viewerUid),
       status: row.status.toLowerCase(),
+      venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,
       startDateTime: row.start_date_time.toISOString(),
       endDateTime: row.end_date_time.toISOString(),
@@ -131,7 +133,7 @@ export class EventsService {
     const user = this.requireUser(identity);
     const result = user.roles.includes('ATTENDEE')
       ? await this.database.query(
-          `SELECT events.*, GREATEST(
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, GREATEST(
              0,
              COALESCE(events.registration_limit, events.expected_attendance) - (
                SELECT COUNT(*)::integer FROM event_registrations
@@ -148,12 +150,12 @@ export class EventsService {
         )
       : user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          `SELECT events.*, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
         ? await this.database.query(
-            'SELECT * FROM events WHERE organiser_id = $1 ORDER BY created_at DESC',
+            `SELECT events.*, ${VENUE_SUMMARY_SQL} FROM events WHERE organiser_id = $1 ORDER BY created_at DESC`,
             [user.uid],
           )
         : { rows: [] as pg.QueryResultRow[] };
@@ -190,7 +192,7 @@ export class EventsService {
             WHERE event_id = events.id AND status = 'Registered'
          )
        )::integer AS available_registration_spots,
-       ${LATEST_REASSIGNMENT}
+       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}
          FROM events WHERE id = $1`,
       [id],
     );
@@ -286,7 +288,7 @@ export class EventsService {
                rejection_reason = $2,
                updated_at = now()
          WHERE id = $1
-         RETURNING *`,
+         RETURNING *, ${VENUE_SUMMARY_SQL}`,
         [id, reason],
       );
       await client.query(
@@ -330,7 +332,7 @@ export class EventsService {
            SET status = 'Approved',
                updated_at = now()
          WHERE id = $1
-         RETURNING *`,
+         RETURNING *, ${VENUE_SUMMARY_SQL}`,
         [id],
       );
       await client.query(

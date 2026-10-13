@@ -132,7 +132,7 @@ export function VenueRecordsPage() {
               setRevision((value) => value + 1);
             }}
           >
-            Try again
+            Try Again
           </Button>
         </div>
       )}

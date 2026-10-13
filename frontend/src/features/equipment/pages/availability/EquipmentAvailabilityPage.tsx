@@ -61,7 +61,7 @@ function MarkUnavailableDialog({ record, onConfirm, onCancel }: MarkUnavailableD
       >
         <div className="px-5 py-4">
           <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Mark equipment as unavailable
+            Mark Equipment As Unavailable
           </h2>
           <div className="mt-3 space-y-1 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
             <DetailRow label="Name" value={record.name} />
@@ -95,7 +95,7 @@ function MarkUnavailableDialog({ record, onConfirm, onCancel }: MarkUnavailableD
             Cancel
           </Button>
           <Button variant="danger" onClick={handleConfirm}>
-            Mark unavailable
+            Mark Unavailable
           </Button>
         </div>
       </div>
@@ -124,7 +124,7 @@ function ReactivateDialog({ record, onConfirm, onCancel }: ReactivateDialogProps
       >
         <div className="px-5 py-4">
           <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-            Reactivate equipment
+            Reactivate Equipment
           </h2>
           <div className="mt-3 space-y-1 rounded-lg bg-gray-50 p-3 dark:bg-gray-900/40">
             <DetailRow label="Name" value={record.name} />
@@ -277,7 +277,7 @@ export function EquipmentAvailabilityPage() {
             size="sm"
             onClick={() => setDialog({ mode: "mark", record })}
           >
-            Mark unavailable
+            Mark Unavailable
           </Button>
         ) : (
           <Button

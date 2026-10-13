@@ -9,9 +9,9 @@ import type { ChangeHistoryEntry, FlaggedChange } from "@/types";
  * SPM-85 — Coordinator reviews and resolves flagged changes
  * (FlaggedChangeReview). Contract: props { changes, history,
  * onResolve({ changeId, decision, bookingId? }) }. Each change is an article named
- * after its field with "Current value" / "Proposed value" terms, a "Confirm change"
- * and "Reject change" button, and one role="group" per venue booking (named by venue)
- * with "Confirm for this booking" / "Reject for this booking" buttons when impacted.
+ * after its field with "Current value" / "Proposed value" terms, a "Confirm Change"
+ * and "Reject Change" button, and one role="group" per venue booking (named by venue)
+ * with "Confirm For This Booking" / "Reject For This Booking" buttons when impacted.
  */
 
 const CHANGE: FlaggedChange = {
@@ -176,7 +176,7 @@ describe("FlaggedChangeReview: decisions", () => {
     expect(hallB).toHaveTextContent("Rejected for this booking");
     expect(within(hallB).queryAllByRole("button")).toHaveLength(0);
     // The change itself can still be settled as a whole.
-    expect(within(card).getByRole("button", { name: "Confirm change" })).toBeEnabled();
+    expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
   });
 
   // EVENT-FLAG-04-A: while a decision is being saved the actions are disabled, so it cannot be sent twice.
@@ -186,13 +186,13 @@ describe("FlaggedChangeReview: decisions", () => {
     const onResolve = vi.fn(() => new Promise((resolve) => (finish = resolve)));
     const { card } = renderChange(CHANGE, onResolve);
 
-    await user.click(within(card).getByRole("button", { name: "Confirm change" }));
-    expect(within(card).getByRole("button", { name: "Confirm change" })).toBeDisabled();
-    expect(within(card).getByRole("button", { name: "Reject change" })).toBeDisabled();
+    await user.click(within(card).getByRole("button", { name: "Confirm Change" }));
+    expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeDisabled();
+    expect(within(card).getByRole("button", { name: "Reject Change" })).toBeDisabled();
     for (const button of within(card).getAllByRole("button", { name: /for this booking/i })) expect(button).toBeDisabled();
 
     finish();
-    await waitFor(() => expect(within(card).getByRole("button", { name: "Confirm change" })).toBeEnabled());
+    await waitFor(() => expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled());
     expect(onResolve).toHaveBeenCalledTimes(1);
   });
 
@@ -221,11 +221,11 @@ describe("FlaggedChangeReview: decisions", () => {
     const onResolve = vi.fn().mockRejectedValueOnce(new Error("This change has already been resolved.")).mockResolvedValue(undefined);
     const { card } = renderChange(CHANGE, onResolve);
 
-    await user.click(within(card).getByRole("button", { name: "Confirm change" }));
+    await user.click(within(card).getByRole("button", { name: "Confirm Change" }));
     expect(await within(card).findByRole("alert")).toHaveTextContent("This change has already been resolved.");
-    expect(within(card).getByRole("button", { name: "Confirm change" })).toBeEnabled();
+    expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
 
-    await user.click(within(card).getByRole("button", { name: "Confirm change" }));
+    await user.click(within(card).getByRole("button", { name: "Confirm Change" }));
     await waitFor(() => expect(within(card).queryByRole("alert")).not.toBeInTheDocument());
   });
 
@@ -233,7 +233,7 @@ describe("FlaggedChangeReview: decisions", () => {
   it("EVENT-FLAG-04-A shows a generic message when the failure has no message", async () => {
     const user = userEvent.setup();
     const { card } = renderChange(CHANGE, vi.fn().mockRejectedValue("nope"));
-    await user.click(within(card).getByRole("button", { name: "Reject change" }));
+    await user.click(within(card).getByRole("button", { name: "Reject Change" }));
     expect(await within(card).findByRole("alert")).toHaveTextContent("Could not resolve this change.");
   });
 });

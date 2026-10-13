@@ -40,10 +40,10 @@ export function RegistrationReportPage() {
       />
       <div className="mb-4 flex gap-2">
         <Button variant="secondary" disabled={downloading !== null} onClick={() => void exportAs("csv")}>
-          Export as CSV
+          Export As CSV
         </Button>
         <Button variant="secondary" disabled={downloading !== null} onClick={() => void exportAs("pdf")}>
-          Export as PDF
+          Export As PDF
         </Button>
       </div>
       {exportError && <div role="alert" className="mb-4">{exportError}</div>}

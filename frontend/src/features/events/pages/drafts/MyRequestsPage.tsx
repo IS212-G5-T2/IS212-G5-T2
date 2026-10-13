@@ -38,7 +38,7 @@ export function MyRequestsPage() {
   return (
     <div className="mx-auto max-w-4xl">
       <PageHeader
-        title="My drafts"
+        title="My Drafts"
         description="Continue a saved draft. Submitted requests move to My Events."
       />
       {loading ? (

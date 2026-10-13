@@ -25,6 +25,8 @@ export interface VenueBookingFact {
   /** ISO slot times; carried for the organiser view, not used by the rule. */
   start?: string;
   end?: string;
+  /** ISO time the request was made. */
+  requestedAt?: string;
 }
 
 export interface EquipmentFact {
@@ -32,6 +34,7 @@ export interface EquipmentFact {
   name: string;
   quantity: number;
   status: string;
+  requestedAt?: string;
 }
 
 export interface SafetyFact {
@@ -43,6 +46,11 @@ export interface ReadinessSnapshot {
   venueBookings: VenueBookingFact[];
   equipment: EquipmentFact[];
   safety: SafetyFact | undefined;
+  /**
+   * The coordinator confirmed that no equipment is needed (events.equipment_confirmed_at).
+   * Without active equipment lines this is the only way equipment is satisfied.
+   */
+  equipmentNoneConfirmed?: boolean;
 }
 
 export interface ReadinessResult {
@@ -121,6 +129,11 @@ export function evaluateReadiness(snapshot: ReadinessSnapshot, now: Date): Readi
     const item = equipmentItem(line);
     if (item) outstanding.push(item);
   }
+  // Equipment is satisfied by reserved lines, or by an explicit "none needed" confirmation.
+  // Zero active lines with no confirmation is outstanding, as an unrequested request is (EQUIPMENT-GATE-01).
+  const hasActiveEquipment = snapshot.equipment.some((line) => !INACTIVE_EQUIPMENT.has(line.status));
+  if (!hasActiveEquipment && !snapshot.equipmentNoneConfirmed)
+    outstanding.push({ type: 'equipment', label: EQUIPMENT_LABEL, detail: 'None requested', state: 'Not requested' });
   const safety = safetyItem(snapshot.safety);
   if (safety) outstanding.push(safety);
 

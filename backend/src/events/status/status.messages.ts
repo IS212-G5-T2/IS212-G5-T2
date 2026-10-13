@@ -9,6 +9,15 @@ export const STATUS_CODES = {
   alreadyConfirmed: 'EVENT_ALREADY_CONFIRMED',
   notConfirmable: 'EVENT_NOT_CONFIRMABLE',
   unsupportedTarget: 'UNSUPPORTED_TARGET_STATUS',
+  prerequisitesNotMet: 'SAFETY_PREREQUISITES_NOT_MET',
+  safetyCheckNotRequestable: 'SAFETY_CHECK_NOT_REQUESTABLE',
+  equipmentRequired: 'EQUIPMENT_REQUIRED',
+  feedbackUnresolved: 'SAFETY_FEEDBACK_UNRESOLVED',
+  feedbackNotFound: 'SAFETY_FEEDBACK_NOT_FOUND',
+  venueRequestNotFound: 'VENUE_REQUEST_NOT_FOUND',
+  venueRequestNotRemovable: 'VENUE_REQUEST_NOT_REMOVABLE',
+  equipmentRequestNotFound: 'EQUIPMENT_REQUEST_NOT_FOUND',
+  equipmentRequestNotRemovable: 'EQUIPMENT_REQUEST_NOT_REMOVABLE',
 } as const;
 
 export const STATUS_MESSAGES = {
@@ -26,4 +35,17 @@ export const STATUS_MESSAGES = {
   notPlanning: 'Only events in Planning can be confirmed.',
   unsupportedTarget: 'This status change is not supported.',
   notFound: 'Event not found.',
+  notPlanningForUpdate: 'Only events in Planning can be updated.',
+  /** `{blocking}` is "venue", "equipment" or "venue and equipment". */
+  prerequisitesNotMet: (blocking: string) => `Pending ${blocking} confirmation to proceed.`,
+  safetyCheckPending: 'A safety check is already pending.',
+  safetyCheckApproved: 'This event has already passed its safety check.',
+  equipmentRequired: 'This event needs equipment, so it cannot be marked as having none.',
+  /** `{count}` is the number of feedback items not yet resolved. */
+  feedbackUnresolved: (count: number) => `${count} safety feedback item(s) still need resolving before re-requesting.`,
+  feedbackNotFound: 'This feedback item was not found for the safety check.',
+  venueRequestNotFound: 'This venue request was not found for the event.',
+  venueRequestNotRemovable: 'Only a venue request that is unavailable can be removed.',
+  equipmentRequestNotFound: 'This equipment request was not found for the event.',
+  equipmentRequestNotRemovable: 'Only an equipment request that is unavailable can be removed.',
 } as const;

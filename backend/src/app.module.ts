@@ -34,6 +34,7 @@ import { LeadAssignmentService } from './lead/lead-assignment.service.js';
 import { StatusController } from './events/status/status.controller.js';
 import { StatusService } from './events/status/status.service.js';
 import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
+import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
@@ -62,7 +63,8 @@ import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from 
     EventPlanningRepository,
     ArrangementsReader,
     NoSafetyRecordSource,
-    { provide: SAFETY_OUTCOME_SOURCE, useExisting: NoSafetyRecordSource },
+    EventSafetyCheckSource,
+    { provide: SAFETY_OUTCOME_SOURCE, useExisting: EventSafetyCheckSource },
     StatusService,
     { provide: CLOCK, useValue: systemClock },
   ],

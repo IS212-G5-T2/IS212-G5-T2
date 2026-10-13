@@ -592,7 +592,7 @@ describe("VenueRecordsPage (SPM-124)", () => {
       "Unable to load venue records.",
     );
     expect(screen.queryByText("No venue records yet.")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: "Try Again" }));
 
     // Assert: the retry displays the persisted record.
     expect(

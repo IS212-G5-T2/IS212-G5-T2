@@ -23,7 +23,7 @@ export function VenueDetailPage() {
         description={venue.location}
         actions={
           <Link to="/venues">
-            <Button variant="secondary">Back to Catalogue</Button>
+            <Button variant="secondary">Back To Catalogue</Button>
           </Link>
         }
       />

@@ -66,7 +66,25 @@ function routeApi(event: EventRecord) {
     if (path.endsWith("/status-change")) {
       return Promise.resolve({ eventId: EVENT_ID, status: "Confirmed", message: `${EVENT_NAME} has been confirmed.` });
     }
-    if (path.endsWith("/arrangements-status")) return Promise.resolve({ eventId: EVENT_ID, ready: true, outstanding: [] });
+    if (path.endsWith("/arrangements-status")) {
+      return Promise.resolve({
+        eventId: EVENT_ID,
+        ready: true,
+        outstanding: [],
+        checklist: {
+          venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+          equipment: {
+            required: true,
+            status: "confirmed",
+            items: [{ id: "e1", name: "Projector", quantity: 1, status: "confirmed" }],
+            confirmedByCoordinator: false,
+          },
+          safetyCheck: { status: "approved", approverName: "Safety Officer 1" },
+          canRequestSafetyCheck: true,
+          blocking: [],
+        },
+      });
+    }
     if (path.endsWith("/confirmed-arrangements")) {
       return Promise.resolve({
         eventId: EVENT_ID,
@@ -180,7 +198,7 @@ describe("SPM-135 AC5: the organiser sees confirmed arrangements only once the e
     await screen.findByText("Event Details");
 
     // Assert
-    expect(screen.queryByRole("heading", { name: "Confirmed arrangements" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Confirmed Arrangements" })).not.toBeInTheDocument();
     expect(apiMock.mock.calls.some(([path]) => String(path).endsWith("/confirmed-arrangements"))).toBe(false);
   });
 
@@ -190,7 +208,7 @@ describe("SPM-135 AC5: the organiser sees confirmed arrangements only once the e
     renderAs({ id: "organiser-1", role: "organiser", roles: ["organiser"] }, eventRecord({ status: "confirmed" }));
 
     // Act / Assert
-    expect(await screen.findByRole("heading", { name: "Confirmed arrangements" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Confirmed Arrangements" })).toBeInTheDocument();
     expect(screen.getByText(/Main Hall:/)).toBeInTheDocument();
     expect(screen.getByText(/Projector x1/)).toBeInTheDocument();
   });

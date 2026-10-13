@@ -334,7 +334,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     // Arrange: EVT-201 clone; the page loads with nothing outstanding
     const { eventId, venueId } = await seedReadyEvent();
     const before = await http().get(`/api/events/${eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
-    expect(before.body).toEqual({ eventId, ready: true, outstanding: [] });
+    expect(before.body).toMatchObject({ eventId, ready: true, outstanding: [] });
 
     // Act: Main Hall is flagged venue-unavailable over the event's slot, then Confirm is clicked without a refresh
     await pool.query(
@@ -582,6 +582,41 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
+  // EQUIPMENT-GATE-01 (BE): an event that needs equipment with no equipment request cannot be confirmed,
+  // even when the venue and the safety check are ready. Kills: the zero-equipment-is-satisfied rule (D6, changed).
+  it('EQUIPMENT-GATE-01: equipment needed but never requested blocks confirmation although venue and safety are ready', async () => {
+    // Arrange: venue Approved, safety Approved, equipment needs "Projector x1", no equipment request rows
+    const eventId = await seedEvent({ name: 'Equipment Never Requested', status: 'Planning', coordinatorId: coordinator.uid });
+    await pool.query("UPDATE events SET equipment_needs = 'Projector x1' WHERE id = $1", [eventId]);
+    await seedBooking(eventId, await seedVenue('Seminar Room D'), 'approved');
+
+    // Act
+    const response = await statusChange(coordinator, eventId).expect(422);
+
+    // Assert: CONFIRM_BLOCKED with exactly the equipment item; nothing changed
+    expect(response.body.code).toBe('CONFIRM_BLOCKED');
+    expect(response.body.outstanding).toEqual([
+      { type: 'equipment', label: 'Equipment reservation', detail: 'None requested', state: 'Not requested' },
+    ]);
+    expect(await statusOf(eventId)).toBe('Planning');
+    expect(await historyCount(eventId)).toBe(0);
+  });
+
+  // EQUIPMENT-GATE-02 (BE): with no equipment needed, the coordinator confirms "none", and then confirmation is allowed.
+  it('EQUIPMENT-GATE-02: an event with no equipment needs can be confirmed once the coordinator confirms none', async () => {
+    // Arrange: venue Approved, safety Approved, equipment needs blank, no equipment rows
+    const eventId = await seedEvent({ name: 'No Equipment Needed', status: 'Planning', coordinatorId: coordinator.uid });
+    await seedBooking(eventId, await seedVenue('Seminar Room D'), 'approved');
+    await statusChange(coordinator, eventId).expect(422);
+
+    // Act: the coordinator confirms that no equipment is needed, then confirms the event
+    await http().post(`/api/events/${eventId}/confirm-no-equipment`).set('Cookie', coordinator.cookie).expect(200);
+    await statusChange(coordinator, eventId).expect(200);
+
+    // Assert
+    expect(await statusOf(eventId)).toBe('Confirmed');
+  });
+
   // Unsupported target: Cancelled is SPM-136's and is refused until its handler exists (D3).
   it('an unsupported target status is refused with 400 UNSUPPORTED_TARGET_STATUS and nothing changes', async () => {
     // Arrange
@@ -626,7 +661,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     const response = await http().get(`/api/events/${eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
 
     // Assert: still ready, nothing outstanding
-    expect(response.body).toEqual({ eventId, ready: true, outstanding: [] });
+    expect(response.body).toMatchObject({ eventId, ready: true, outstanding: [] });
   });
 
   // TR-05 (BE): a block that only touches the slot edge (end = slot start, or start = slot end) is not an overlap.
@@ -642,7 +677,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     const response = await http().get(`/api/events/${eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
 
     // Assert
-    expect(response.body).toEqual({ eventId, ready: true, outstanding: [] });
+    expect(response.body).toMatchObject({ eventId, ready: true, outstanding: [] });
   });
 
   // TR-05 (BE): a block that overlaps only part of the slot flags the venue as unavailable.

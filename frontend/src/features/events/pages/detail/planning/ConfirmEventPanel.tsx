@@ -8,12 +8,20 @@ import { useEffect, useState } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ApiError } from "@/utils/api";
+import { PLANNING_REFRESH_MS } from "@/utils/planning";
 import {
   confirmEvent,
   fetchArrangementsStatus,
-  outstandingText,
   type OutstandingArrangement,
+  type OutstandingType,
 } from "@/utils/arrangements";
+
+/** The prerequisite named in a "Pending ..." bullet above a greyed-out Confirm button. */
+const REASON: Record<OutstandingType, string> = {
+  venue: "venue booking",
+  equipment: "equipment request",
+  safety: "safety check",
+};
 
 interface ConfirmEventPanelProps {
   eventId: string;
@@ -21,10 +29,14 @@ interface ConfirmEventPanelProps {
   status: string;
   isAssignedCoordinator: boolean;
   onConfirmed: () => void;
+  /** Changes when the planning state changes (for example a safety check reset); re-reads the list. */
+  refreshKey?: string;
 }
 
-export function ConfirmEventPanel({ eventId, status, isAssignedCoordinator, onConfirmed }: ConfirmEventPanelProps) {
+export function ConfirmEventPanel({ eventId, status, isAssignedCoordinator, onConfirmed, refreshKey }: ConfirmEventPanelProps) {
   const [outstanding, setOutstanding] = useState<OutstandingArrangement[]>([]);
+  // Confirm stays disabled until the readiness answer has loaded and nothing is outstanding.
+  const [loaded, setLoaded] = useState(false);
   const [pending, setPending] = useState(false);
   const [blockedMessage, setBlockedMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -36,22 +48,40 @@ export function ConfirmEventPanel({ eventId, status, isAssignedCoordinator, onCo
   useEffect(() => {
     if (!isAssignedCoordinator || !planning) return;
     let cancelled = false;
-    fetchArrangementsStatus(eventId)
-      .then((view) => {
-        if (!cancelled) setOutstanding(view.outstanding);
-      })
-      .catch(() => undefined);
+    const load = () =>
+      fetchArrangementsStatus(eventId)
+        .then((view) => {
+          if (!cancelled) {
+            setOutstanding(view.outstanding);
+            setLoaded(true);
+          }
+        })
+        .catch(() => undefined);
+    load();
+    const timer = setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") load();
+    }, PLANNING_REFRESH_MS);
     return () => {
       cancelled = true;
+      clearInterval(timer);
     };
-  }, [eventId, isAssignedCoordinator, planning]);
+  }, [eventId, isAssignedCoordinator, planning, refreshKey]);
 
   if (!visible) return null;
+
+  // A safety check cannot be requested until venue and equipment are confirmed, so while either is
+  // pending the safety check counts as pending too. It is also listed when it is the only thing left.
+  const pendingTypes = new Set(outstanding.map((item) => item.type));
+  if (pendingTypes.has("venue") || pendingTypes.has("equipment")) pendingTypes.add("safety");
+  const reasons = (["venue", "equipment", "safety"] as OutstandingType[])
+    .filter((type) => pendingTypes.has(type))
+    .map((type) => REASON[type]);
 
   const refreshOutstanding = async () => {
     try {
       const view = await fetchArrangementsStatus(eventId);
       setOutstanding(view.outstanding);
+      setLoaded(true);
     } catch {
       // The button still reports the server's answer; the list is best effort.
     }
@@ -82,7 +112,7 @@ export function ConfirmEventPanel({ eventId, status, isAssignedCoordinator, onCo
   return (
     <Card className="mb-6">
       <CardHeader>
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Confirm event</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Confirm Event</h2>
       </CardHeader>
       <CardBody className="space-y-4">
         {successMessage ? (
@@ -101,14 +131,14 @@ export function ConfirmEventPanel({ eventId, status, isAssignedCoordinator, onCo
                 {errorMessage}
               </div>
             )}
-            {outstanding.length > 0 && (
-              <ul aria-label="Outstanding arrangements" className="list-disc space-y-1 pl-5 text-sm text-gray-800 dark:text-gray-200">
-                {outstanding.map((item) => (
-                  <li key={`${item.type}-${item.label}-${item.detail}`}>{outstandingText(item)}</li>
+            {reasons.length > 0 && (
+              <ul aria-label="Pending" className="list-disc space-y-1 pl-5 text-sm font-medium text-warning-800 dark:text-warning-300">
+                {reasons.map((reason) => (
+                  <li key={reason}>Pending {reason}</li>
                 ))}
               </ul>
             )}
-            <Button onClick={handleConfirm} disabled={pending} aria-busy={pending}>
+            <Button onClick={handleConfirm} disabled={pending || !loaded || reasons.length > 0} aria-busy={pending}>
               Confirm Event
             </Button>
           </>

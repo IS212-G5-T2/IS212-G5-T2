@@ -53,7 +53,7 @@ export function VenueCard({
             to={`/venues/${venue.id}`}
             className="text-sm font-medium text-primary-700 dark:text-primary-300 hover:underline"
           >
-            View details →
+            View Details →
           </Link>
           {onBook && (
             <Button size="sm" onClick={onBook}>

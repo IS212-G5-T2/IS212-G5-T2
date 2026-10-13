@@ -72,7 +72,7 @@ describe("EquipmentCreatePage", () => {
         maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      message: "Equipment record created.",
+      message: "Equipment Record Created.",
     });
     render(<EquipmentCreatePage />);
 
@@ -124,7 +124,7 @@ describe("EquipmentCreatePage", () => {
     // Arrange: stored locations are available and the API accepts the record.
     const user = userEvent.setup();
     getEquipmentLocations.mockResolvedValue(["Main Hall", "Storage Room A"]);
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
 
     // Act: fill the form and choose an existing location from the dropdown.
@@ -153,7 +153,7 @@ describe("EquipmentCreatePage", () => {
     // Arrange: no stored locations; the user types a brand-new padded value.
     const user = userEvent.setup();
     getEquipmentLocations.mockResolvedValue([]);
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
 
     // Act: fill the form and type a location padded with surrounding spaces.
@@ -183,7 +183,7 @@ describe("EquipmentCreatePage", () => {
   it("EQUIP-CRE-02-A trims leading and trailing whitespace from the equipment name", async () => {
     // Arrange: accept a valid record whose name was typed with accidental surrounding spaces.
     const user = userEvent.setup();
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
 
     // Act: complete and submit the form with a padded name.
@@ -211,7 +211,7 @@ describe("EquipmentCreatePage", () => {
     // Arrange: one stored location exists; the user creates a record with a brand-new location.
     const user = userEvent.setup();
     getEquipmentLocations.mockResolvedValue(["Main Hall"]);
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
 
     // Act: create a record with a new location value.
@@ -453,7 +453,7 @@ describe("EquipmentCreatePage", () => {
   it("EQUIP-CRE-03-BND-1 submits the maximum supported quantity", async () => {
     // Arrange: make the API accept an otherwise valid boundary-value submission.
     const user = userEvent.setup();
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
     await user.type(
       screen.getByLabelText(/equipment name/i),
@@ -480,7 +480,7 @@ describe("EquipmentCreatePage", () => {
   it("EQUIP-CRE-03-A clears field errors after the user corrects and resubmits", async () => {
     // Arrange: first submit an empty form, then make the API accept a corrected form.
     const user = userEvent.setup();
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
     await screen.findByText("Equipment name is required.");
@@ -536,7 +536,7 @@ describe("EquipmentCreatePage", () => {
     // Assert: a second request cannot be started from the UI.
     expect(screen.getByRole("button", { name: "Creating…" })).toBeDisabled();
     expect(createEquipment).toHaveBeenCalledTimes(1);
-    resolveCreate?.({ message: "Equipment record created." });
+    resolveCreate?.({ message: "Equipment Record Created." });
   });
 
   // SPM-111 EQUIP-CRE-03-A: other valid entries remain intact when one field fails.
@@ -569,7 +569,7 @@ describe("EquipmentCreatePage", () => {
   it("EQUIP-CRE-04-A displays confirmation and returns to availability after acknowledgement", async () => {
     // Arrange: submit a valid record and return the server confirmation.
     const user = userEvent.setup();
-    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
     render(<EquipmentCreatePage />);
     await user.type(
       screen.getByLabelText(/equipment name/i),
@@ -593,7 +593,7 @@ describe("EquipmentCreatePage", () => {
     expect(
       await screen.findByRole("dialog", { name: /equipment record created/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Equipment record created.")).toBeInTheDocument();
+    expect(screen.getByText("Equipment Record Created.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
     expect(navigate).toHaveBeenCalledWith("/equipment/availability");
   });
@@ -688,7 +688,7 @@ describe("EquipmentCreatePage", () => {
       await screen.findByText(/unable to create the equipment record/i),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("Equipment record created."),
+      screen.queryByText("Equipment Record Created."),
     ).not.toBeInTheDocument();
   });
 });

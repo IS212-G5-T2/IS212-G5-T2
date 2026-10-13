@@ -231,10 +231,10 @@ describe("SPM-63 AC4: exporting the report", () => {
     });
 
   // VIEW-REG-INFO-04-A
-  // Oracle (SPEC 04-A FE, D15): "Export as CSV" sends exactly one authenticated (credentialed) request for format=csv and
+  // Oracle (SPEC 04-A FE, D15): "Export As CSV" sends exactly one authenticated (credentialed) request for format=csv and
   // saves the file under the server's filename; the object URL is revoked.
   // Kills: a plain link that drops the session; a client-invented filename; a leaked object URL.
-  it("VIEW-REG-INFO-04-A: Export as CSV downloads under the server filename", async () => {
+  it("VIEW-REG-INFO-04-A: Export As CSV downloads under the server filename", async () => {
     // Arrange
     serve({ "EVT-101": ok(buildReport()) });
     const { fetchMock, revokeObjectURL, saved } = stubDownload(() => Promise.resolve(csvResponse()));
@@ -243,7 +243,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     await screen.findByText("3 Attendees Registered (3 / 50)");
 
     // Act
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }));
+    await user.click(screen.getByRole("button", { name: "Export As CSV" }));
 
     // Assert
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -255,9 +255,9 @@ describe("SPM-63 AC4: exporting the report", () => {
   });
 
   // VIEW-REG-INFO-04-B
-  // Oracle (SPEC 04-B FE): "Export as PDF" requests format=pdf.
+  // Oracle (SPEC 04-B FE): "Export As PDF" requests format=pdf.
   // Kills: both buttons asking for the same format.
-  it("VIEW-REG-INFO-04-B: Export as PDF requests the pdf format", async () => {
+  it("VIEW-REG-INFO-04-B: Export As PDF requests the pdf format", async () => {
     // Arrange
     serve({ "EVT-101": ok(buildReport()) });
     const { fetchMock } = stubDownload(() =>
@@ -268,7 +268,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     await screen.findByText("3 Attendees Registered (3 / 50)");
 
     // Act
-    await user.click(screen.getByRole("button", { name: "Export as PDF" }));
+    await user.click(screen.getByRole("button", { name: "Export As PDF" }));
 
     // Assert
     expect((fetchMock.mock.calls[0] as unknown as [string])[0].endsWith("/export?format=pdf")).toBe(true);
@@ -287,17 +287,17 @@ describe("SPM-63 AC4: exporting the report", () => {
     await screen.findByText("3 Attendees Registered (3 / 50)");
 
     // Act
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }));
+    await user.click(screen.getByRole("button", { name: "Export As CSV" }));
 
     // Assert: busy
-    expect(screen.getByRole("button", { name: "Export as CSV" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Export as PDF" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }));
+    expect(screen.getByRole("button", { name: "Export As CSV" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Export As PDF" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Export As CSV" }));
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     // Act / Assert: finished
     await act(async () => { release(csvResponse()); });
-    expect(screen.getByRole("button", { name: "Export as CSV" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Export As CSV" })).toBeEnabled();
   });
 
   // VIEW-REG-INFO-04-A-ERR
@@ -315,7 +315,7 @@ describe("SPM-63 AC4: exporting the report", () => {
     await screen.findByText("3 Attendees Registered (3 / 50)");
 
     // Act
-    await user.click(screen.getByRole("button", { name: "Export as CSV" }));
+    await user.click(screen.getByRole("button", { name: "Export As CSV" }));
 
     // Assert
     expect(await screen.findByRole("alert")).toHaveTextContent(shown);

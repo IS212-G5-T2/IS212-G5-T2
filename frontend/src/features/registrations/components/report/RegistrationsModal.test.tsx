@@ -62,7 +62,7 @@ describe("SPM-63 registrations modal: summary", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("You do not have access to this event's registrations.");
     expect(screen.queryByText(ALICE_TAN.fullName)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Export as CSV" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Export As CSV" })).not.toBeInTheDocument();
   });
 });
 
@@ -195,11 +195,11 @@ describe("SPM-63 registrations modal: export and close", () => {
     downloadMock.mockResolvedValue({ blob, filename: "EVT-101_registrations.csv" });
     renderModal();
 
-    await user.click(await screen.findByRole("button", { name: "Export as CSV" }));
+    await user.click(await screen.findByRole("button", { name: "Export As CSV" }));
     await waitFor(() => expect(saveMock).toHaveBeenCalledWith(blob, "EVT-101_registrations.csv"));
     expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv");
 
-    await user.click(screen.getByRole("button", { name: "Export as PDF" }));
+    await user.click(screen.getByRole("button", { name: "Export As PDF" }));
     await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "pdf"));
   });
 
@@ -209,7 +209,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     downloadMock.mockRejectedValue(new ApiError("The service is temporarily unavailable. Please try again."));
     renderModal();
 
-    await user.click(await screen.findByRole("button", { name: "Export as PDF" }));
+    await user.click(await screen.findByRole("button", { name: "Export As PDF" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("temporarily unavailable");
     expect(screen.getByText(/Alice Tan/)).toBeInTheDocument();

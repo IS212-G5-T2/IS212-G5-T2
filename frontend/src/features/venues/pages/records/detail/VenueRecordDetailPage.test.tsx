@@ -274,7 +274,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     // Assert: the generic failure and retry control replace all venue details.
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load venue details.");
-    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try Again" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Conference Room" })).not.toBeInTheDocument();
   });
 
@@ -303,7 +303,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     await screen.findByRole("heading", { name: "Conference Room" });
 
     // Act: create and confirm one unavailable period through the actual detail page.
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Maintenance");

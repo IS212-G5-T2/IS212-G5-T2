@@ -1,5 +1,5 @@
 /*
- * SPM-63 registrations modal, page level: the People card offers "View registrations" only to the assigned coordinator
+ * SPM-63 registrations modal, page level: the People card offers "View Registrations" only to the assigned coordinator
  * and the owning organiser, and the button opens the modal for this event. The API is mocked at the boundary.
  */
 import { render, screen } from "@testing-library/react";
@@ -74,7 +74,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     renderAs(user);
     await screen.findByRole("heading", { name: "People" });
 
-    const button = screen.queryByRole("button", { name: "View registrations" });
+    const button = screen.queryByRole("button", { name: "View Registrations" });
     if (shouldSee) {
       expect(button).toBeInTheDocument();
     } else {
@@ -112,7 +112,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "People" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "View registrations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "View Registrations" })).not.toBeInTheDocument();
   });
 
   // VIEW-REG-INFO-01-D
@@ -122,7 +122,7 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     const user = userEvent.setup();
     renderAs(COO_01);
 
-    await user.click(await screen.findByRole("button", { name: "View registrations" }));
+    await user.click(await screen.findByRole("button", { name: "View Registrations" }));
 
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();

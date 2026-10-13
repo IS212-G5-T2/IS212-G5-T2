@@ -112,47 +112,41 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
   });
   afterEach(cleanup);
 
-  it("CONFIRM-EVENT-02-A (FE): EVT-202 with the venue Pending shows exactly one outstanding item and the badge does not change", async () => {
-    // Arrange: EVT-202 (venue Pending); the server refuses the confirm
-    route({
-      arrangements: { ready: false, outstanding: [outstandingVenue("Main Hall")] },
-      confirm: () => Promise.reject(new ApiError("This event cannot be confirmed yet. Outstanding: Venue booking approval: Main Hall (Pending)", undefined, "CONFIRM_BLOCKED", 422)),
-    });
+  it("CONFIRM-EVENT-02-A (FE): EVT-202 with the venue Pending shows the pending venue and safety bullets, with Confirm greyed out", async () => {
+    // Arrange: EVT-202 (venue Pending)
+    const calls = route({ arrangements: { ready: false, outstanding: [outstandingVenue("Main Hall")] } });
     const { onConfirmed } = renderPanel();
     const user = userEvent.setup();
 
-    // Act
-    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
+    // Act: a click on the greyed-out button does nothing
+    const button = await screen.findByRole("button", { name: "Confirm Event" });
+    await user.click(button);
 
-    // Assert: MSG-CF-02 and one item; no confirmation text; no status change
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("This event cannot be confirmed yet. Outstanding:");
-    expect(within(screen.getByRole("list", { name: "Outstanding arrangements" })).getAllByRole("listitem")).toHaveLength(1);
+    // Assert: one pending bullet, disabled, no request, no confirmation text, no status change
+    expect(within(screen.getByRole("list", { name: "Pending" })).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "Pending venue booking",
+      "Pending safety check",
+    ]);
+    expect(button).toBeDisabled();
+    expect(calls.some((c) => c.path.endsWith("/status-change"))).toBe(false);
     expect(screen.queryByText(/has been confirmed/)).not.toBeInTheDocument();
     expect(onConfirmed).not.toHaveBeenCalled();
   });
-
-  it("CONFIRM-EVENT-02-C (FE): EVT-206 names Breakout Room 1 and does not name Main Hall", async () => {
-    // Arrange
-    route({
-      arrangements: { ready: false, outstanding: [outstandingVenue("Breakout Room 1")] },
-      confirm: () =>
-        Promise.reject(new ApiError("This event cannot be confirmed yet. Outstanding: Venue booking approval: Breakout Room 1 (Pending)", undefined, "CONFIRM_BLOCKED", 422)),
-    });
-    renderPanel();
-    const user = userEvent.setup();
+  it("CONFIRM-EVENT-02-C (FE): EVT-206 shows only the pending venue bullet; no venue name or other detail is shown", async () => {
+    // Arrange: Breakout Room 1 Pending (Main Hall Approved)
+    route({ arrangements: { ready: false, outstanding: [outstandingVenue("Breakout Room 1")] } });
 
     // Act
-    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
+    renderPanel();
 
     // Assert
-    const list = await screen.findByRole("list", { name: "Outstanding arrangements" });
-    expect(list).toHaveTextContent("Breakout Room 1");
-    expect(screen.getByRole("alert")).not.toHaveTextContent("Main Hall");
+    const list = await screen.findByRole("list", { name: "Pending" });
+    expect(list).toHaveTextContent("Pending venue booking");
+    expect(screen.queryByText(/Breakout Room 1|Main Hall/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
   });
-
-  it("CONFIRM-EVENT-02-D (FE): the page loaded with nothing outstanding; the server then refuses and the list appears without a refresh", async () => {
-    // Arrange: nothing outstanding at page load; Main Hall is flagged unavailable before the click
+  it("CONFIRM-EVENT-02-D (FE): the page loaded with nothing pending; the server then refuses and the pending bullet appears without a refresh", async () => {
+    // Arrange: nothing pending at page load; Main Hall is flagged unavailable before the click
     const calls = route({ arrangements: { ready: true, outstanding: [] } });
     apiMock.mockImplementation((path: string) => {
       calls.push({ path });
@@ -160,7 +154,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
         const refreshed = calls.filter((c) => c.path.endsWith("/arrangements-status")).length > 1;
         return Promise.resolve({
           eventId: EVENT_ID,
-          ready: !refreshed ? true : false,
+          ready: !refreshed,
           outstanding: refreshed ? [{ type: "venue", label: "Venue booking approval", detail: "Main Hall (Venue unavailable)", state: "Venue unavailable" }] : [],
         });
       }
@@ -169,25 +163,15 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     renderPanel();
     const user = userEvent.setup();
     await screen.findByRole("button", { name: "Confirm Event" });
-    expect(screen.queryByRole("list", { name: "Outstanding arrangements" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Pending" })).not.toBeInTheDocument();
 
     // Act
     await user.click(screen.getByRole("button", { name: "Confirm Event" }));
 
-    // Assert: the list now shows the flagged venue
-    expect(await screen.findByRole("list", { name: "Outstanding arrangements" })).toHaveTextContent(
-      "Venue booking approval: Main Hall (Venue unavailable)",
-    );
+    // Assert: the pending venue bullet now shows
+    expect(await screen.findByRole("list", { name: "Pending" })).toHaveTextContent("Pending venue booking");
   });
-});
-
-describe("SPM-135 AC3: the outstanding list matches the server and names each item", () => {
-  beforeEach(() => {
-    apiMock.mockReset();
-  });
-  afterEach(cleanup);
-
-  it("CONFIRM-EVENT-03-A (FE): EVT-205 lists the same three items, in the order the server gives", async () => {
+  it("CONFIRM-EVENT-03-A (FE): EVT-205 shows one pending bullet per category, in venue, equipment, safety order", async () => {
     // Arrange: EVT-205 (venue Pending, equipment Requested, safety Awaiting Check)
     const outstanding = [
       outstandingVenue("Breakout Room 1"),
@@ -200,20 +184,60 @@ describe("SPM-135 AC3: the outstanding list matches the server and names each it
     renderPanel();
 
     // Assert
-    const items = within(await screen.findByRole("list", { name: "Outstanding arrangements" })).getAllByRole("listitem");
+    const items = within(await screen.findByRole("list", { name: "Pending" })).getAllByRole("listitem");
     expect(items.map((item) => item.textContent)).toEqual([
-      "Venue booking approval: Breakout Room 1 (Pending)",
-      "Equipment reservation: Projector x1 (Requested)",
-      "Safety Officer approval: Awaiting check",
+      "Pending venue booking",
+      "Pending equipment request",
+      "Pending safety check",
     ]);
   });
+  it("SAFETY-RESET-CONFIRM (FE): a safety check reset moves the safety check back to pending in the Confirm section", async () => {
+    // Arrange: safety approved, nothing outstanding, Confirm enabled
+    route({ arrangements: { ready: true, outstanding: [] } });
+    const { rerender } = render(
+      <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} refreshKey="approved" />,
+    );
+    expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeEnabled();
 
-  it("CONFIRM-EVENT-03-B (FE): the list shows only the Pending venue; after it is approved the next confirm succeeds", async () => {
-    // Arrange: EVT-202 with the venue Pending; the first list has one item
+    // Act: the safety check is reset (no record) and the page signals the change
+    route({
+      arrangements: {
+        ready: false,
+        outstanding: [{ type: "safety", label: "Safety Officer approval", detail: "Awaiting check", state: "No record" }],
+      },
+    });
+    rerender(
+      <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} refreshKey="not_requested" />,
+    );
+
+    // Assert: the safety check is listed as pending and Confirm is greyed out
+    expect(await screen.findByText("Pending safety check")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
+  });
+
+  it("CONFIRM-EVENT-03-D (FE): equipment pending also lists the safety check, and Confirm is greyed out", async () => {
+    // Arrange: EVT-203 (equipment Requested, venue approved, safety approved but reset by the change)
+    route({
+      arrangements: {
+        ready: false,
+        outstanding: [{ type: "equipment", label: "Equipment reservation", detail: "Projector x1 (Requested)", state: "Requested" }],
+      },
+    });
+
+    // Act
+    renderPanel();
+
+    // Assert
+    const items = within(await screen.findByRole("list", { name: "Pending" })).getAllByRole("listitem");
+    expect(items.map((item) => item.textContent)).toEqual(["Pending equipment request", "Pending safety check"]);
+    expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
+  });
+
+  it("CONFIRM-EVENT-03-B (FE): only the pending venue shows; after it is approved a fresh load enables Confirm and it succeeds", async () => {
+    // Arrange: EVT-202 with the venue Pending; one pending bullet and Confirm greyed out
     let approved = false;
-    const calls = route({ arrangements: { ready: false, outstanding: [outstandingVenue("Main Hall")] } });
-    apiMock.mockImplementation((path: string, init?: RequestInit) => {
-      calls.push({ path, init });
+    route({ arrangements: { ready: false, outstanding: [outstandingVenue("Main Hall")] } });
+    apiMock.mockImplementation((path: string) => {
       if (path.endsWith("/arrangements-status")) {
         return Promise.resolve(
           approved
@@ -221,23 +245,24 @@ describe("SPM-135 AC3: the outstanding list matches the server and names each it
             : { eventId: EVENT_ID, ready: false, outstanding: [outstandingVenue("Main Hall")] },
         );
       }
-      if (approved) return Promise.resolve({ eventId: EVENT_ID, status: "Confirmed", message: "Event has been confirmed." });
-      return Promise.reject(new ApiError("This event cannot be confirmed yet. Outstanding: Venue booking approval: Main Hall (Pending)", undefined, "CONFIRM_BLOCKED", 422));
+      return Promise.resolve({ eventId: EVENT_ID, status: "Confirmed", message: "Event has been confirmed." });
     });
     renderPanel();
+    const list = await screen.findByRole("list", { name: "Pending" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Confirm Event" })).toBeDisabled();
+    cleanup();
     const user = userEvent.setup();
-    const list = await screen.findByRole("list", { name: "Outstanding arrangements" });
-    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
 
-    // Act: approve the venue (SPM-55 fixture), then confirm
+    // Act: the venue is approved (SPM-55 fixture) and the page reloads the readiness answer
     approved = true;
-    await user.click(screen.getByRole("button", { name: "Confirm Event" }));
+    renderPanel();
+    await user.click(await screen.findByRole("button", { name: "Confirm Event" }));
 
     // Assert
     expect(await screen.findByRole("status")).toHaveTextContent("Event has been confirmed.");
   });
-
-  it("CONFIRM-EVENT-03-C (FE): the literal texts for EVT-206 and EVT-210 are shown", async () => {
+  it("CONFIRM-EVENT-03-C (FE): the pending bullets name the category only, for EVT-206 and EVT-210", async () => {
     // Arrange: EVT-206 with the Breakout Room 1 booking Pending
     route({ arrangements: { ready: false, outstanding: [outstandingVenue("Breakout Room 1")] } });
 
@@ -246,10 +271,10 @@ describe("SPM-135 AC3: the outstanding list matches the server and names each it
       <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />,
     );
 
-    // Assert: exact text; "Main Hall" absent
-    const list = await screen.findByRole("list", { name: "Outstanding arrangements" });
-    expect(within(list).getByText("Venue booking approval: Breakout Room 1 (Pending)")).toBeInTheDocument();
-    expect(list).not.toHaveTextContent("Main Hall");
+    // Assert: the venue bullet, and no venue name
+    const list = await screen.findByRole("list", { name: "Pending" });
+    expect(within(list).getByText("Pending venue booking")).toBeInTheDocument();
+    expect(list).not.toHaveTextContent("Breakout Room 1");
     unmount();
 
     // Arrange: EVT-210 with the safety outcome Changes Requested
@@ -265,16 +290,8 @@ describe("SPM-135 AC3: the outstanding list matches the server and names each it
     renderPanel();
 
     // Assert
-    expect(await screen.findByText("Safety Officer approval: Changes requested")).toBeInTheDocument();
+    expect(await screen.findByText("Pending safety check")).toBeInTheDocument();
   });
-});
-
-describe("SPM-135 AC4 and AC5: success is announced once, and a double click is safe", () => {
-  beforeEach(() => {
-    apiMock.mockReset();
-  });
-  afterEach(cleanup);
-
   it("CONFIRM-EVENT-04-B (C, FE): a double click sends one request, disables the button while pending and shows one message", async () => {
     // Arrange: the confirm is in flight until released
     const gate = deferred<unknown>();
@@ -377,7 +394,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
     expect(onConfirmed).not.toHaveBeenCalled();
   });
 
-  it("SPM-135 AC2 (FE, load): a readiness request that fails on load is best effort: the button stays and no list is shown", async () => {
+  it("SPM-135 AC2 (FE, load): a readiness request that fails on load keeps Confirm greyed out and shows no list", async () => {
     // Arrange: the readiness request is refused when the panel loads
     apiMock.mockImplementation((path: string) => {
       if (path.endsWith("/arrangements-status")) return Promise.reject(new ApiError("Service unavailable", undefined, undefined, 503));
@@ -387,14 +404,13 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
     // Act
     renderPanel();
 
-    // Assert
-    expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeEnabled();
+    // Assert: readiness is unknown, so Confirm is not offered; no list and no alert
+    expect(await screen.findByRole("button", { name: "Confirm Event" })).toBeDisabled();
     expect(screen.queryByRole("list", { name: "Outstanding arrangements" })).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
-
   it("SPM-135 AC3 (FE, stale response): a readiness answer for the previous event is ignored once the event changes", async () => {
-    // Arrange: the readiness request for EVT-201 is held open; EVT-202 answers at once with a different item
+    // Arrange: the readiness request for EVT-201 is held open; EVT-202 answers at once with a venue item
     const OTHER_EVENT_ID = "00000000-0000-4000-8000-000000000202";
     const previous = deferred<unknown>();
     apiMock.mockImplementation((path: string) => {
@@ -408,18 +424,21 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
       <ConfirmEventPanel eventId={EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />,
     );
     rerender(<ConfirmEventPanel eventId={OTHER_EVENT_ID} status="planning" isAssignedCoordinator onConfirmed={() => undefined} />);
-    expect(await screen.findByText("Venue booking approval: Breakout Room 1 (Pending)")).toBeInTheDocument();
+    expect(await screen.findByText("Pending venue booking")).toBeInTheDocument();
 
-    // Act: the late answer for EVT-201 arrives
+    // Act: the late answer for EVT-201 (an equipment item) arrives
     await act(async () => {
-      previous.resolve({ eventId: EVENT_ID, ready: false, outstanding: [outstandingVenue("Main Hall")] });
+      previous.resolve({
+        eventId: EVENT_ID,
+        ready: false,
+        outstanding: [{ type: "equipment", label: "Equipment reservation", detail: "Projector x1 (Requested)", state: "Requested" }],
+      });
     });
 
-    // Assert: EVT-202's list stays; EVT-201's item is never shown
-    expect(screen.queryByText("Venue booking approval: Main Hall (Pending)")).not.toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "Outstanding arrangements" })).toHaveTextContent("Breakout Room 1");
+    // Assert: EVT-202's bullets stay; EVT-201's equipment bullet is never shown
+    expect(screen.queryByText("Pending equipment request")).not.toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Pending" })).toHaveTextContent("Pending venue booking");
   });
-
   it("SPM-135 AC3 (FE, unmount): a readiness answer that arrives after unmount is dropped without an error", async () => {
     // Arrange: the readiness request is still open when the panel unmounts
     const late = deferred<unknown>();

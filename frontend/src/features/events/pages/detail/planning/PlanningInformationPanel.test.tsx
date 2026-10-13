@@ -5,7 +5,7 @@ import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import type { EventRecord, FlaggedChange, PlanningView, ReplacementRequired } from "@/types";
 
 /**
- * SPM-97 — the read-only "Planning information" panel. The page tests cover it
+ * SPM-97 — the read-only "Planning Information" panel. The page tests cover it
  * through EventDetailPage; these cover its own rendering rules: what each row
  * shows, where "Change pending" and "Replacement venue required" appear, empty
  * states, the refresh error, and that it never offers a control.

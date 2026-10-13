@@ -27,18 +27,18 @@ const suites = ['spm135'];
 export const MUTANTS = [
   // FM1 (M19): the button is no longer disabled while a confirm is in flight. Killer: ConfirmEventPanel 04-B (C).
   { id: 'FM1', name: 'confirm button not disabled while pending (M19)', file: PANEL, suites,
-    edits: [['disabled={pending} aria-busy={pending}', 'aria-busy={pending}']] },
+    edits: [['disabled={pending || !loaded || reasons.length > 0} aria-busy={pending}', 'aria-busy={pending}']] },
   // FM2: the page shows the panel to any coordinator (COO-02 included). Killer: EventDetailPage.confirm 01-C (COO-02).
   { id: 'FM2', name: 'page shows the confirm panel to every coordinator', file: PAGE, suites,
     edits: [
-      ['{isAssignedCoordinator && (\n        <ConfirmEventPanel', '{currentUser.role === "coordinator" && (\n        <ConfirmEventPanel'],
-      ['isAssignedCoordinator={isAssignedCoordinator}', 'isAssignedCoordinator={currentUser.role === "coordinator"}'],
+      ['(isPlanningOwner || isPlanningCoordinator);', '(isPlanningOwner || isPlanningCoordinator || hasRole(currentUser, "coordinator"));'],
+      ['{planningView && isAssignedCoordinator && (\n        <PlanningInformationPage', '{planningView && currentUser.role === "coordinator" && (\n        <PlanningInformationPage'],
     ] },
   // FM3: the Coordinator Lead is allowed to see the panel. Killer: EventDetailPage.confirm 01-C (Lead).
   { id: 'FM3', name: 'coordinator_lead allowed to see the confirm panel', file: PAGE, suites,
     edits: [
-      ['{isAssignedCoordinator && (\n        <ConfirmEventPanel', '{(isAssignedCoordinator || hasRole(currentUser, "coordinator_lead")) && (\n        <ConfirmEventPanel'],
-      ['isAssignedCoordinator={isAssignedCoordinator}', 'isAssignedCoordinator={isAssignedCoordinator || hasRole(currentUser, "coordinator_lead")}'],
+      ['(isPlanningOwner || isPlanningCoordinator);', '(isPlanningOwner || isPlanningCoordinator || hasRole(currentUser, "coordinator_lead"));'],
+      ['{planningView && isAssignedCoordinator && (\n        <PlanningInformationPage', '{planningView && (isAssignedCoordinator || hasRole(currentUser, "coordinator_lead")) && (\n        <PlanningInformationPage'],
     ] },
   // FM4: the page no longer updates the store after a confirm. Killer: EventDetailPage.confirm 04-A (page).
   { id: 'FM4', name: 'setEventStatus removed from onConfirmed', file: PAGE, suites,
@@ -79,7 +79,7 @@ export const MUTANTS = [
     edits: [['error instanceof Error ? error.message : "Could not confirm the event."', 'error instanceof Error ? error.message : ""']] },
   // X5 (TR-13): a readiness answer for the previous event is applied. Killer: ConfirmEventPanel stale-response test.
   { id: 'X5', name: 'stale readiness answer applied (confirm panel)', file: PANEL, suites,
-    edits: [['if (!cancelled) setOutstanding(view.outstanding);', 'setOutstanding(view.outstanding);']] },
+    edits: [['if (!cancelled) {\n          setOutstanding(view.outstanding);', '{\n          setOutstanding(view.outstanding);']] },
   // X6 (TR-13): a readiness failure is not handled. Killer: ConfirmEventPanel load test (unhandled rejection fails the run).
   { id: 'X6', name: 'readiness failure on load unhandled', file: PANEL, suites,
     edits: [['      .catch(() => undefined);', '      .catch((e) => { throw e; });']] },

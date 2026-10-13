@@ -44,7 +44,7 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
   return (
     <Card className="mb-6">
       <CardHeader>
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Confirmed arrangements</h2>
+        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Confirmed Arrangements</h2>
       </CardHeader>
       <CardBody className="space-y-3 text-sm text-gray-800 dark:text-gray-200">
         <div>

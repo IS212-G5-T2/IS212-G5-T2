@@ -42,16 +42,11 @@ function PendingMarker({ changes }: { changes: FlaggedChange[] }) {
   );
 }
 
-export function PlanningInformationPanel({ view, refreshError }: Props) {
-  const headingId = useId();
+/** The event's own details with any "Change pending" markers; shared by the organiser panel and the coordinator page. */
+export function EventInformationList({ view }: { view: PlanningView }) {
   const { event } = view;
   const fieldChanges = view.pendingChanges.filter(isFieldChange);
-  const replacements = view.pendingChanges.filter(
-    (change): change is ReplacementRequired => change.kind === "replacement_venue_required",
-  );
   const pendingFor = (...fields: string[]) => fieldChanges.filter((change) => fields.includes(change.field));
-  const bookingIds = new Set(view.venueBookings.map((booking) => booking.id));
-  const orphanReplacements = replacements.filter((r) => !bookingIds.has(r.bookingId));
 
   const rows: Array<{ label: string; value: string; fields: string[] }> = [
     {
@@ -79,11 +74,32 @@ export function PlanningInformationPanel({ view, refreshError }: Props) {
   ];
 
   return (
+    <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {rows.map((row) => (
+        <div key={row.label}>
+          <dt className="text-gray-400 dark:text-gray-500">{row.label}</dt>
+          <dd className="font-medium text-gray-800 dark:text-gray-200">{row.value}</dd>
+          <PendingMarker changes={pendingFor(...row.fields)} />
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+export function PlanningInformationPanel({ view, refreshError }: Props) {
+  const headingId = useId();
+  const replacements = view.pendingChanges.filter(
+    (change): change is ReplacementRequired => change.kind === "replacement_venue_required",
+  );
+  const bookingIds = new Set(view.venueBookings.map((booking) => booking.id));
+  const orphanReplacements = replacements.filter((r) => !bookingIds.has(r.bookingId));
+
+  return (
     <section aria-labelledby={headingId} className="mb-6">
       <Card>
         <CardHeader>
           <h2 id={headingId} className="font-semibold text-gray-900 dark:text-gray-100">
-            Planning information
+            Planning Information
           </h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {view.readOnly
@@ -99,16 +115,8 @@ export function PlanningInformationPanel({ view, refreshError }: Props) {
           )}
 
           <div>
-            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Event information</h3>
-            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {rows.map((row) => (
-                <div key={row.label}>
-                  <dt className="text-gray-400 dark:text-gray-500">{row.label}</dt>
-                  <dd className="font-medium text-gray-800 dark:text-gray-200">{row.value}</dd>
-                  <PendingMarker changes={pendingFor(...row.fields)} />
-                </div>
-              ))}
-            </dl>
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Event Information</h3>
+            <EventInformationList view={view} />
           </div>
 
           <div>

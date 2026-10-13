@@ -13,7 +13,7 @@ import type { ChangeHistoryEntry, EventRecord, FlaggedChange, PlanningView } fro
  * SPM-97 (organiser), SPM-49 and SPM-85 (coordinator) on EventDetailPage.
  * Contract: for planning-phase events the page fetches GET /events/:id/planning
  * (organiser, or the assigned coordinator only), renders a region named
- * "Planning information", and re-fetches every PLANNING_REFRESH_MS while the tab
+ * "Planning Information", and re-fetches every PLANNING_REFRESH_MS while the tab
  * is visible. Assigned coordinators also get the update form and the review
  * panel, which call PATCH /events/:id/planning and
  * POST /events/:id/planning/changes/:changeId/resolve.
@@ -308,10 +308,10 @@ describe("EventDetailPage planning information (coordinator)", () => {
 
   // EVENT-FLAG-03-A / 04-A / 07-A: each action posts its decision to the right change, then refreshes.
   it.each([
-    ["Confirm change", "confirm", undefined],
-    ["Reject change", "reject", undefined],
-    ["Confirm for this booking", "confirm", "bk-1"],
-    ["Reject for this booking", "reject", "bk-1"],
+    ["Confirm Change", "confirm", undefined],
+    ["Reject Change", "reject", undefined],
+    ["Confirm For This Booking", "confirm", "bk-1"],
+    ["Reject For This Booking", "reject", "bk-1"],
   ])("EVENT-FLAG-04-A the %s action posts the decision", async (label, decision, bookingId) => {
     asCoordinator();
     const user = userEvent.setup();
@@ -340,10 +340,10 @@ describe("EventDetailPage planning information (coordinator)", () => {
     renderPage();
     const card = await screen.findByRole("article", { name: /expected attendance/i });
 
-    await user.click(within(card).getByRole("button", { name: "Confirm change" }));
+    await user.click(within(card).getByRole("button", { name: "Confirm Change" }));
 
     expect(await within(card).findByRole("alert")).toHaveTextContent("This change has already been resolved.");
-    expect(within(card).getByRole("button", { name: "Confirm change" })).toBeEnabled();
+    expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
   });
 
   // EVENT-UPDATE-01-B: a coordinator who is not assigned to the event never loads planning data.

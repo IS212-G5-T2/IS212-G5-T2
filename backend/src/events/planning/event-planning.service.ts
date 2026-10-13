@@ -185,6 +185,7 @@ export class EventPlanningService {
           event: this.toEventRecord(event),
           applied: [],
           flagged: [],
+          safetyCheckReset: false,
           updatedAt: event.updatedAt,
         };
 
@@ -242,6 +243,8 @@ export class EventPlanningService {
       });
 
       let current = event;
+      // Any applied detail resets the safety check (database trigger); report it so the page can say so.
+      const hadSafetyCheck = immediate.length ? await this.repository.safetyCheckExists(eventId) : false;
       if (immediate.length)
         current = await this.repository.applyFields(
           eventId,
@@ -272,6 +275,7 @@ export class EventPlanningService {
         flagged: flagged.map((change) =>
           this.toPendingChange(change, current, true),
         ),
+        safetyCheckReset: hadSafetyCheck && !(await this.repository.safetyCheckExists(eventId)),
         updatedAt: current.updatedAt,
       };
     });
@@ -495,6 +499,7 @@ export class EventPlanningService {
       organiserName: row.organiserName ?? '',
       coordinatorId: row.coordinatorId ?? undefined,
       coordinatorName: row.coordinatorName ?? undefined,
+      venueName: row.venueName,
       status: row.status.toLowerCase(),
       startDateTime: row.startDateTime,
       endDateTime: row.endDateTime,

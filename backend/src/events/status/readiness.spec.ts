@@ -227,9 +227,25 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     expect(result).toEqual({ ready: true, outstanding: [] });
   });
 
-  it('zero equipment lines is satisfied (ASSUMED, D6)', () => {
+  // EQUIPMENT-GATE-01 (rule level): zero equipment lines is NOT satisfied unless the coordinator confirmed "none".
+  // Kills: the old zero-is-satisfied rule (D6, superseded).
+  it('zero equipment lines without a "none" confirmation is outstanding (EQUIPMENT-GATE-01)', () => {
     // Arrange
     const snapshot = ready({ equipment: [] });
+
+    // Act
+    const result = evaluateReadiness(snapshot, NOW);
+
+    // Assert
+    expect(result.ready).toBe(false);
+    expect(result.outstanding).toEqual([
+      { type: 'equipment', label: 'Equipment reservation', detail: 'None requested', state: 'Not requested' },
+    ]);
+  });
+
+  it('zero equipment lines is satisfied once the coordinator confirmed no equipment is needed (EQUIPMENT-GATE-02)', () => {
+    // Arrange
+    const snapshot = ready({ equipment: [], equipmentNoneConfirmed: true });
 
     // Act
     const result = evaluateReadiness(snapshot, NOW);

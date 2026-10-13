@@ -402,6 +402,8 @@ export interface PlanningUpdateResult {
   event: EventRecord;
   applied: string[];
   flagged: FlaggedChange[];
+  /** True when applying these changes removed an existing safety check (SPM-135). */
+  safetyCheckReset?: boolean;
   updatedAt: string;
 }
 

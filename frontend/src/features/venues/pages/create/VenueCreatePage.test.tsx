@@ -134,7 +134,7 @@ describe("SPM-50 venue creation", () => {
     renderRoutes();
 
     expect(screen.getByRole("heading", { name: "Create Venue" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Venue details" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Venue Details" })).toBeTruthy();
     expect(screen.queryByLabelText(/venue identifier/i)).toBeNull();
     expect(screen.getByText(/generated automatically/i)).toBeTruthy();
     expect(screen.getByLabelText("Operating information", { exact: false })).toBeInstanceOf(
@@ -311,7 +311,7 @@ describe("SPM-50 venue creation", () => {
 
     await user.click(screen.getByRole("button", { name: "Create Venue" }));
 
-    expect(await screen.findByRole("heading", { name: "Venue details" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Venue Details" })).toBeTruthy();
     expect(screen.getByText("End time must be after start time.")).toBeTruthy();
   });
 
@@ -464,10 +464,10 @@ describe("SPM-50 venue creation", () => {
     await user.click(screen.getByRole("button", { name: "Create Venue" }));
 
     expect(await screen.findByText("Location is unavailable.")).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Venue details" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Venue Details" })).toBeTruthy();
   });
 
-  // SPM-50 duplicate prevention: a duplicate natural key displays both backend field errors on Venue details.
+  // SPM-50 duplicate prevention: a duplicate natural key displays both backend field errors on Venue Details.
   it("shows a duplicate venue name and location conflict", async () => {
     const user = userEvent.setup();
     renderRoutes();
@@ -482,7 +482,7 @@ describe("SPM-50 venue creation", () => {
     await user.click(screen.getByRole("button", { name: "Create Venue" }));
 
     expect(await screen.findAllByText("Use a different venue name or location.")).toHaveLength(2);
-    expect(screen.getByRole("heading", { name: "Venue details" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Venue Details" })).toBeTruthy();
   });
 
   // SPM-50 / AC5: a persistence error without a field map stays visible as a form error.

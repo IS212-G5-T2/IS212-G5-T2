@@ -21,7 +21,7 @@ export function EventChangeRequestsPage() {
         description="Feature 15 — Event Change Requests. Approving a change to date/time, venue, or equipment notifies Venue Staff and Technical Support to re-check their bookings."
         actions={
           <Link to={`/events/${event.id}`}>
-            <Button variant="secondary">Back to Event</Button>
+            <Button variant="secondary">Back To Event</Button>
           </Link>
         }
       />

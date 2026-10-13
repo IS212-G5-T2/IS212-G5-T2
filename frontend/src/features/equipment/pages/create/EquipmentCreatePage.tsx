@@ -171,7 +171,7 @@ export function EquipmentCreatePage() {
       <Modal
         open={Boolean(confirmation)}
         onClose={() => setConfirmation("")}
-        title="Equipment record created"
+        title="Equipment Record Created"
         footer={<Button onClick={acknowledgeConfirmation}>OK</Button>}
       >
         <p className="text-sm text-success-800 dark:text-success-300">

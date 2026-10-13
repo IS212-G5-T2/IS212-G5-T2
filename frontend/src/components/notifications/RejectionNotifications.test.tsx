@@ -76,7 +76,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(screen.getByText(/Reason: Venue is not available/)).toBeTruthy();
     expect(apiMock).toHaveBeenCalledWith("/notifications");
     expect(
-      screen.getByRole("link", { name: /View request/i }).getAttribute("href"),
+      screen.getByRole("link", { name: /View Request/i }).getAttribute("href"),
     ).toBe("/events/event-1");
   });
 
@@ -91,7 +91,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     );
 
     await screen.findByText(/Reason: Venue is not available/);
-    fireEvent.click(screen.getByRole("button", { name: /Mark as read/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
 
     await waitFor(() =>
       expect(apiMock).toHaveBeenCalledWith(
@@ -131,7 +131,7 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
         'Your event request "Welcome Evening" was approved and can proceed.',
       ),
     ).toBeTruthy();
-    expect(screen.getByRole("link", { name: /View request/i }).getAttribute("href")).toBe(
+    expect(screen.getByRole("link", { name: /View Request/i }).getAttribute("href")).toBe(
       "/events/event-1",
     );
   });
