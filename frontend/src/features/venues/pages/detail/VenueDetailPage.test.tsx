@@ -95,7 +95,7 @@ describe("VenueDetailPage", () => {
     );
   });
 
-  /** SPM-51 AC2: the detail API schedule supplies confirmed bookings and active holds even when the app store is stale. */
+  /** SPM-51 AC2: the detail API schedule supplies confirmed bookings and active holds even when the app store is stale. Kills: FE-B17. */
   it("renders server-backed confirmed bookings and active holds instead of app-store bookings", async () => {
     apiMock.mockResolvedValue({
       ...venue,
@@ -166,7 +166,7 @@ describe("VenueDetailPage", () => {
     expect(await screen.findByText("No bookings recorded.")).toBeTruthy();
   });
 
-  /** SPM-51 event catalogue context survives the detail page return navigation. */
+  /** SPM-51 event catalogue context survives the detail page return navigation. Kills: FE-B16. */
   it("returns to the event-specific catalogue when eventId is present", async () => {
     const user = userEvent.setup();
     render(
@@ -236,7 +236,7 @@ describe("VenueDetailPage", () => {
     expect(await screen.findByText("Venue not found.")).toBeTruthy();
   });
 
-  /** SPM-51 route changes ignore a stale venue detail response that resolves after the new venue. */
+  /** SPM-51 route changes ignore a stale venue detail response that resolves after the new venue. Kills: FE-B10. */
   it("keeps the route-selected venue when an earlier detail request resolves last", async () => {
     const user = userEvent.setup();
     let resolveFirst!: (value: VenueRecord) => void;
@@ -264,7 +264,7 @@ describe("VenueDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Orchid Hall" })).toBeNull();
   });
 
-  /** SPM-51 route changes ignore a stale failure from the prior venue request. */
+  /** SPM-51 route changes ignore a stale failure from the prior venue request. Kills: FE-B11. */
   it("does not replace the new venue with an earlier request error", async () => {
     const user = userEvent.setup();
     let rejectFirst!: (reason: Error) => void;

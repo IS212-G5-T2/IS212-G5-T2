@@ -4,13 +4,16 @@
 // (the script hashes the mutated files before and after to prove it).
 //
 //   node scripts/testing/mutation/run.mjs                 # every mutant in spm120.mutants.mjs
-//   node scripts/testing/mutation/run.mjs --only M22,M34  # a subset
+//   node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs # SPM-51 frontend mutations
+//   node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs --only FE-B06,FE-B07
 //   node scripts/testing/mutation/run.mjs --suite e2e     # use one suite only (shows what that suite alone catches)
 //   node scripts/testing/mutation/run.mjs --list          # show the mutants and exit
 //
-// Exit code: 0 when every mutant is killed (or listed as equivalent), 1 when a non-equivalent mutant
-// survives or an edit does not apply exactly once, 2 when a baseline suite is not green.
-// This file is kept identical in backend/ and frontend/ because each component owns its own test tooling.
+// Exit code: 0 when every applicable mutant is killed (or listed as equivalent), 1 when a non-equivalent mutant
+// survives or an edit does not apply exactly once, 2 for invalid input/traceability or a non-green baseline,
+// 3 when required suites were skipped, and 4 when a mutation process could not be executed reliably.
+// Backend and frontend each own a runner with the same scratch-copy approach; their
+// traceability and environment requirements may differ by component.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -22,14 +25,67 @@ const here = fileURLToPath(new URL('.', import.meta.url));
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const { SUITES, MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);
+const { SUITES, MUTANTS, EXPECTED_ID_PREFIX: expectedIdPrefix } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);
 const only = flag('--only')?.split(',');
 const suiteOnly = flag('--suite');
 const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
+const killsOf = (m) => (Array.isArray(m.kills) ? m.kills : []);
 const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
+const suiteNames = new Set(Object.keys(SUITES));
+if (suiteOnly && !suiteNames.has(suiteOnly)) {
+  console.error(`Unknown suite "${suiteOnly}". Available suites: ${[...suiteNames].join(', ')}`);
+  process.exit(2);
+}
+if (only?.some((id) => !MUTANTS.some((m) => m.id === id))) {
+  const unknown = only.filter((id) => !MUTANTS.some((m) => m.id === id));
+  console.error(`Unknown mutant ID(s): ${unknown.join(', ')}`);
+  process.exit(2);
+}
+if (!selected.length) {
+  console.error('No mutants selected for the requested suite/filter.');
+  process.exit(2);
+}
+const mutantIds = new Set();
+for (const mutant of selected) {
+  if (mutantIds.has(mutant.id)) {
+    console.error(`Duplicate mutant ID: ${mutant.id}`);
+    process.exit(2);
+  }
+  mutantIds.add(mutant.id);
+  if (expectedIdPrefix && !mutant.id.startsWith(expectedIdPrefix)) {
+    console.error(`${mutant.id} must use the ${expectedIdPrefix} frontend namespace.`);
+    process.exit(2);
+  }
+  if (expectedIdPrefix && (!Array.isArray(mutant.kills) || mutant.kills.length === 0)) {
+    console.error(`${mutant.id} is missing test traceability metadata (kills).`);
+    process.exit(2);
+  }
+  for (const target of killsOf(mutant)) {
+    if (!target?.file || !target?.title) {
+      console.error(`${mutant.id} has an invalid kills target; expected { file, title }.`);
+      process.exit(2);
+    }
+    let testSource;
+    try {
+      testSource = readFileSync(join(root, target.file), 'utf8');
+    } catch {
+      console.error(`${mutant.id} references missing test file ${target.file}.`);
+      process.exit(2);
+    }
+    const escapedTitle = target.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!new RegExp(`\\bit\\s*\\(\\s*([\"'` + '`' + `])${escapedTitle}\\1`).test(testSource)) {
+      console.error(`${mutant.id} references missing test case "${target.title}" in ${target.file}.`);
+      process.exit(2);
+    }
+  }
+}
 
 if (args.includes('--list')) {
-  for (const m of selected) console.log(`${m.id.padEnd(8)} ${m.equivalent ? '[equivalent] ' : ''}${m.name}`);
+  for (const m of selected) {
+    const targets = killsOf(m);
+    const trace = targets.length ? ` | Kills (${targets.length}): ${targets.map((target) => `${target.file} :: "${target.title}"`).join('; ')}` : '';
+    console.log(`${m.id.padEnd(10)} ${m.equivalent ? '[equivalent] ' : ''}${m.name}${trace}`);
+  }
   process.exit(0);
 }
 
@@ -69,7 +125,7 @@ try {
     }
   }
   if (exitCode === 0) {
-    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0 };
+    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, errored: 0 };
     for (const m of selected) {
       const path = join(scratch, m.file);
       const source = readFileSync(path, 'utf8');
@@ -81,6 +137,7 @@ try {
       }
       let status;
       let by = '';
+      let processError = '';
       if (!applied) {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
@@ -88,13 +145,21 @@ try {
         writeFileSync(path, mutated);
         const runnable = suitesOf(m).filter((s) => !skipped(s));
         for (const suite of runnable) {
-          if (run(suite).status !== 0) {
+          const result = run(suite);
+          if (result.error || result.status === null) {
+            processError = result.error?.message ?? `process ended with signal ${result.signal ?? 'unknown'}`;
+            break;
+          }
+          if (result.status !== 0) {
             by = suite;
             break;
           }
         }
         writeFileSync(path, source);
-        if (by) {
+        if (processError) {
+          status = 'ERROR';
+          tally.errored += 1;
+        } else if (by) {
           status = 'killed';
           tally.killed += 1;
         } else if (runnable.length < suitesOf(m).length) {
@@ -108,10 +173,16 @@ try {
           tally.survived += 1;
         }
       }
-      console.log(`${m.id.padEnd(8)} ${status.padEnd(10)} ${by.padEnd(6)} ${m.name}`);
+      const targets = killsOf(m);
+      const mappedKills = targets.length ? ` | Kills (${targets.length}): ${targets.map((target) => `${target.file} :: "${target.title}"`).join('; ')}` : '';
+      console.log(`${m.id.padEnd(10)} ${status.padEnd(10)} ${by.padEnd(10)} ${m.name}${mappedKills}${processError ? ` | Error: ${processError}` : ''}`);
     }
-    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
+    const killTargets = selected.reduce((count, mutant) => count + killsOf(mutant).length, 0);
+    const traceSummary = killTargets ? ` / ${killTargets} mapped test-case links` : '';
+    console.log(`\n${selected.length} mutants${traceSummary}: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped, ${tally.errored} execution errors`);
     if (tally.survived || tally.misapplied) exitCode = 1;
+    else if (tally.errored) exitCode = 4;
+    else if (tally.skipped) exitCode = 3;
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });

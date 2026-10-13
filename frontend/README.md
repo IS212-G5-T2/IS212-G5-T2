@@ -85,6 +85,28 @@ Test files live alongside the code they cover (for example,
 Feature-owned fixtures stay with their feature; `src/test/setup.ts` provides
 global setup.
 
+### SPM-51 venue mutation checks
+
+Frontend mutation IDs use the `FE-Bxx` namespace, separate from backend
+`Bxx` IDs. Each mutant in `scripts/testing/mutation/spm51.mutants.mjs` maps to
+one or more exact frontend test titles in its `kills` metadata; the test
+comments point back to those mutant IDs. The runner verifies those test titles
+exist and prints the mappings with each result.
+
+Run the full frontend SPM-51 mutation set from this directory:
+
+```sh
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs --list
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs --only FE-B06,FE-B07
+```
+
+Record the date, branch and commit, exact command, complete runner summary,
+per-mutant outcomes, and skipped or failed suites in the SPM-51 evidence record.
+Only `killed` is evidence that a mutant was caught. `SURVIVED`, `MISAPPLIED`,
+`SKIPPED`, and `ERROR` are distinct outcomes; skipped suites exit 3 and failed
+mutation processes exit 4, so neither can be reported as a successful run.
+
 ## Source layout
 
 Feature-owned pages, components, tests, API clients, and feature types live in

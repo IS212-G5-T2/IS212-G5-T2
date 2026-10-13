@@ -95,7 +95,7 @@ describe("isVenueOperatingSelection", () => {
     expect(isVenueOperatingSelection(venueWithOffHoursBooking, expandedGridStart, expandedGridEnd)).toBe(false);
   });
 
-  /** Calendar drag selections reject a closed weekday and non-positive ranges. Kills B06 (zero duration) and B07 (closed day in the span). */
+  /** Calendar drag selections reject a closed weekday and non-positive ranges. Kills: FE-B06 (zero duration), FE-B07 (closed day in the span). */
   it("rejects closed weekdays and non-positive ranges", () => {
     const [crossDayStart, crossDayEnd] = range("2030-01-07T17:00", "2030-01-08T10:00");
     const [closedSpanStart, closedSpanEnd] = range("2030-01-07T17:00", "2030-01-09T10:00");
@@ -218,7 +218,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByText("false")).toBeInTheDocument();
   });
 
-  /** SPM-51 allows overnight selection across open days and enforces closed-day and operating-hour boundaries. Kills B07, B08 (start at closing), and B09 (end at next opening). */
+  /** SPM-51 allows overnight selection across open days and enforces closed-day and operating-hour boundaries. Kills: FE-B07 (closed day), FE-B08 (start at closing), FE-B09 (end at next opening). */
   it("passes valid cross-day ranges and rejects closed-day or out-of-hour ranges through selectAllow", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
