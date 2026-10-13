@@ -304,4 +304,26 @@ describe.skipIf(!database)('VENUE-SUMMARY: the venue text on event list and deta
       detail: 'Main Hall (unavailable)',
     });
   });
+
+  /**
+   * The planning view and the planning update response carry the same venue text as the list and detail,
+   * so the page does not blank the venue after the coordinator saves a change.
+   */
+  it('VENUE-SUMMARY (planning): the planning view and the update response show the venue text', async () => {
+    // Arrange: one pending booking on a Planning event
+    const eventId = await seedEvent();
+    await addBooking(eventId, await seedVenue('Main Hall'), 'pending');
+
+    // Act
+    const view = await http().get(`/api/events/${eventId}/planning`).set('Cookie', coordinator.cookie).expect(200);
+    const update = await http()
+      .patch(`/api/events/${eventId}/planning`)
+      .set('Cookie', coordinator.cookie)
+      .send({ name: 'Venue Summary Event Renamed' })
+      .expect(200);
+
+    // Assert
+    expect(view.body.event.venueName).toBe('Main Hall (pending)');
+    expect(update.body.event.venueName).toBe('Main Hall (pending)');
+  });
 });

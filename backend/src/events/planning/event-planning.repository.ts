@@ -328,10 +328,11 @@ export class EventPlanningRepository {
     values.push(now);
     assignments.push(`updated_at = $${values.length}`);
     const result = await this.db().query(
-      `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *, ${VENUE_SUMMARY_SQL}`,
+      `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
       values,
     );
-    return this.eventRow(result.rows[0]);
+    const venue = await this.db().query(`SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`, [eventId]);
+    return this.eventRow({ ...result.rows[0], venue_summary: venue.rows[0]?.venue_summary });
   }
 
   async createFlaggedChange(
