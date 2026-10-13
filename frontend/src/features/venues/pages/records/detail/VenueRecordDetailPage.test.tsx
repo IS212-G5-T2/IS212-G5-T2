@@ -793,6 +793,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
   /** VEN-AVL-05-B: changing venues replaces schedule entries instead of retaining the previous venue's bookings. */
   it("loads only the newly selected venue's schedule", async () => {
+    setCoordinator();
     const user = userEvent.setup();
     const secondId = "00000000-0000-4000-8000-000000000225";
     const secondVenue: VenueRecord = {
