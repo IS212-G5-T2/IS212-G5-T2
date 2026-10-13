@@ -46,7 +46,12 @@ symlinkSync(join(root, 'node_modules'), join(scratch, 'node_modules'));
 const run = (suite) =>
   spawnSync(process.execPath, [join(scratch, 'node_modules/vitest/vitest.mjs'), ...SUITES[suite].args], {
     cwd: scratch,
-    env: { ...process.env, ...SUITES[suite].env, CI: '1' },
+    env: {
+      ...process.env,
+      ...SUITES[suite].env,
+      SPM51_DATABASE_INIT_DIR: join(root, '../database/postgresql/init'),
+      CI: '1',
+    },
     encoding: 'utf8',
     timeout: 180_000,
   });

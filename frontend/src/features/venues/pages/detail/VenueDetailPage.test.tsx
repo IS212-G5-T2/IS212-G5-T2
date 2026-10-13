@@ -1,8 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, beforeEach, vi } from "vitest";
-import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
-import type { Venue } from "@/types";
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import type { VenueRecord } from "@/features/venues/pages/records/venue-records";
 import { useAppStore } from "@/store/useAppStore";
 import { api, ApiError } from "@/utils/api";
 import { VenueDetailPage } from "./VenueDetailPage";
@@ -14,7 +14,7 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
-const venue: Venue = {
+const venue: VenueRecord = {
   id: "venue-1",
   name: "Orchid Hall",
   location: "Test Building, Level 3",
@@ -28,6 +28,9 @@ const venue: Venue = {
   operatingEndTime: "22:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
+  availabilityStatus: "available",
+  unavailablePeriods: [],
+  reservations: [],
 };
 
 function renderDetail(id: string | null = venue.id) {
@@ -44,6 +47,11 @@ function renderDetail(id: string | null = venue.id) {
 function VenueRouteSwitcher() {
   const navigate = useNavigate();
   return <button onClick={() => navigate("/venues/venue-2")}>Open second venue</button>;
+}
+
+function CatalogueDestination() {
+  const location = useLocation();
+  return <p>Catalogue destination: {location.pathname}{location.search}</p>;
 }
 
 describe("VenueDetailPage", () => {
@@ -87,8 +95,30 @@ describe("VenueDetailPage", () => {
     );
   });
 
-  // Bookings linked to this venue must remain visible while unrelated venue bookings stay filtered out.
-  it("renders only bookings associated with the displayed venue", async () => {
+  /** SPM-51 AC2: the detail API schedule supplies confirmed bookings and active holds even when the app store is stale. */
+  it("renders server-backed confirmed bookings and active holds instead of app-store bookings", async () => {
+    apiMock.mockResolvedValue({
+      ...venue,
+      reservations: [
+        {
+          id: "booking-1",
+          eventName: "Planning Workshop",
+          start: "2030-01-10T18:00:00.000Z",
+          end: "2030-01-10T21:00:00.000Z",
+          status: "booked",
+          affectedByUnavailablePeriod: false,
+        },
+        {
+          id: "hold-1",
+          eventName: "Tentative Workshop",
+          start: "2030-01-11T18:00:00.000Z",
+          end: "2030-01-11T21:00:00.000Z",
+          status: "tentative",
+          holdExpiresAt: "2030-01-10T17:00:00.000Z",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    });
     useAppStore.setState({
       bookings: [
         {
@@ -120,8 +150,53 @@ describe("VenueDetailPage", () => {
     renderDetail();
 
     expect(await screen.findByText("Planning Workshop")).toBeTruthy();
+    expect(screen.getByText("Confirmed")).toBeTruthy();
+    expect(screen.getByText("Tentative Workshop")).toBeTruthy();
+    expect(screen.getByText("Tentative hold")).toBeTruthy();
     expect(screen.queryByText("Other Venue Meeting")).toBeNull();
     expect(screen.queryByText("No bookings recorded.")).toBeNull();
+  });
+
+  /** SPM-51 detail display remains usable for a legacy response without a reservation collection. */
+  it("shows the empty booking state when the detail API omits reservations", async () => {
+    apiMock.mockResolvedValue({ ...venue, reservations: undefined } as never);
+    renderDetail();
+
+    expect(await screen.findByText("No bookings recorded.")).toBeTruthy();
+  });
+
+  /** SPM-51 event catalogue context survives the detail page return navigation. */
+  it("returns to the event-specific catalogue when eventId is present", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/venues/venue-1?eventId=event%2F51"]}>
+        <Routes>
+          <Route path="/venues" element={<CatalogueDestination />} />
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Orchid Hall" });
+    await user.click(screen.getByRole("link", { name: "Back to Catalogue" }));
+    expect(await screen.findByText("Catalogue destination: /venues?eventId=event%2F51")).toBeTruthy();
+  });
+
+  /** Catalogue navigation without event context keeps its original route. */
+  it("returns to the plain catalogue when no eventId is present", async () => {
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/venues/venue-1"]}>
+        <Routes>
+          <Route path="/venues" element={<CatalogueDestination />} />
+          <Route path="/venues/:id" element={<VenueDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Orchid Hall" });
+    await user.click(screen.getByRole("link", { name: "Back to Catalogue" }));
+    expect(await screen.findByText("Catalogue destination: /venues")).toBeTruthy();
   });
 
   // Unknown identifiers must keep the existing not-found behavior.
@@ -163,11 +238,11 @@ describe("VenueDetailPage", () => {
   /** SPM-51 route changes ignore a stale venue detail response that resolves after the new venue. */
   it("keeps the route-selected venue when an earlier detail request resolves last", async () => {
     const user = userEvent.setup();
-    let resolveFirst!: (value: Venue) => void;
-    let resolveSecond!: (value: Venue) => void;
-    const firstRequest = new Promise<Venue>((resolve) => { resolveFirst = resolve; });
+    let resolveFirst!: (value: VenueRecord) => void;
+    let resolveSecond!: (value: VenueRecord) => void;
+    const firstRequest = new Promise<VenueRecord>((resolve) => { resolveFirst = resolve; });
     const secondVenue = { ...venue, id: "venue-2", name: "Second Hall" };
-    const secondRequest = new Promise<Venue>((resolve) => { resolveSecond = resolve; });
+    const secondRequest = new Promise<VenueRecord>((resolve) => { resolveSecond = resolve; });
     apiMock.mockImplementation((path) => path === "/venues/venue-1" ? firstRequest : secondRequest);
 
     render(
@@ -192,10 +267,10 @@ describe("VenueDetailPage", () => {
   it("does not replace the new venue with an earlier request error", async () => {
     const user = userEvent.setup();
     let rejectFirst!: (reason: Error) => void;
-    let resolveSecond!: (value: Venue) => void;
-    const firstRequest = new Promise<Venue>((_, reject) => { rejectFirst = reject; });
+    let resolveSecond!: (value: VenueRecord) => void;
+    const firstRequest = new Promise<VenueRecord>((_, reject) => { rejectFirst = reject; });
     const secondVenue = { ...venue, id: "venue-2", name: "Second Hall" };
-    const secondRequest = new Promise<Venue>((resolve) => { resolveSecond = resolve; });
+    const secondRequest = new Promise<VenueRecord>((resolve) => { resolveSecond = resolve; });
     apiMock.mockImplementation((path) => path === "/venues/venue-1" ? firstRequest : secondRequest);
 
     render(
