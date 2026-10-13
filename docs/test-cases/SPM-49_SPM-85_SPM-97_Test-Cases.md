@@ -109,7 +109,7 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-VIEW-02-H | SPM-97 AC2 | No room layout recorded shows a dash | `PlanningInformationPanel.test.tsx` |
 | EVENT-VIEW-05-D | SPM-97 AC5 | Shared page path, run as the assigned coordinator: a planning load that fails without a message shows a general refresh alert | `EventDetailPage.planning.test.tsx` |
 | EVENT-VIEW-05-E | SPM-97 AC5 | Shared page path, run as the assigned coordinator: a refresh updates only this event in the shared event list | `EventDetailPage.planning.test.tsx` |
-| EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input (the browser also clears invalid values, so this documents the outcome rather than proving the guard) | `PlanningUpdateForm.test.tsx` |
+| EVENT-UPDATE-01-E | SPM-49 AC1 | An unreadable stored date opens as an empty date input (the toLocalInput guard is tested directly; the render test checks what the coordinator sees) | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-01-SEC-1 | SPM-49 AC1 (decision part: SPM-85 AC4, AC5) | No session: update and decision refused (401) before any read; an owner who also holds the coordinator role but is not assigned has the update refused (404) and nothing written | `event-planning.service.spec.ts` |
 | EVENT-UPDATE-02-C | SPM-49 AC2 | A field with no edit policy from the server shows no badge | `PlanningUpdateForm.test.tsx` |
 | EVENT-UPDATE-04-D | SPM-49 AC4 | Text fields: null required field is "required"; numbers, lists, objects and a null optional field are "Enter valid text." | `event-update-input.spec.ts` |
@@ -130,7 +130,7 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-FLAG-05-D | SPM-85 AC6 | Flagged-change rows are mapped with and without resolution details; found and not-found lookups | `event-planning.repository.spec.ts` |
 | EVENT-FLAG-07-B | SPM-85 AC8 | A per-booking decision updates that booking's entry only; a decision without a booking closes the change | `event-planning.repository.spec.ts` |
 
-`event-planning.repository.spec.ts` stubs the database, so it proves the TypeScript around the SQL (connection choice, locking, column whitelist, error mapping, row mapping), not the SQL; `test/events-planning.e2e-spec.ts` proves the SQL against PostgreSQL. That suite was moved from `src/events/` to `test/` in SPM-142 because `vitest.config.e2e.ts` only includes `test/**/*.e2e-spec.ts`, so before the move it ran in neither the unit run nor the Backend E2E job.
+`event-planning.repository.spec.ts` stubs the database, so it proves the TypeScript around the SQL (connection choice, locking, column whitelist, error mapping, row mapping), not the SQL; `test/events-planning.e2e-spec.ts` proves the SQL against PostgreSQL.
 
 **Left uncovered in the unit run, with reasons**
 

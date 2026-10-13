@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
+import { PlanningUpdateForm , toLocalInput } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { ApiError } from "@/utils/api";
 import { formatDateTime } from "@/utils/format";
 import type { EventRecord } from "@/types";
@@ -473,6 +473,11 @@ describe("PlanningUpdateForm: unusual inputs and server replies (SPM-49)", () =>
     render(<PlanningUpdateForm event={event} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} onSave={vi.fn()} />);
     expect(screen.getByLabelText(/start date & time/i)).toHaveValue("");
     expect(screen.getByLabelText(/end date & time/i)).not.toHaveValue("");
+  });
+
+  it("EVENT-UPDATE-01-E toLocalInput returns an empty string for an unreadable date", () => {
+    expect(toLocalInput("not-a-date")).toBe("");
+    expect(toLocalInput("")).toBe("");
   });
 
   /**
