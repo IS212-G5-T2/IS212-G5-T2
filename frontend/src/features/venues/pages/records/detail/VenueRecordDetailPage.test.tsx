@@ -301,7 +301,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** SPM-51 AC1: missing detail data has a not-found fallback while real errors keep their message. */
+  /** Missing detail data uses a not-found fallback while real API errors keep their message. */
   it("chooses a detail error for a missing record and preserves an API message", () => {
     expect(getVenueDetailErrorMessage("", undefined)).toBe("Venue not found.");
     expect(getVenueDetailErrorMessage("Service offline", undefined)).toBe(
@@ -310,7 +310,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(getVenueDetailErrorMessage("", venue)).toBe("");
   });
 
-  /** SPM-51 AC1: a route without a venue ID reports not found without requesting an undefined URL. */
+  /** A route without a venue ID reports not found without requesting an undefined URL. */
   it("shows the fallback not-found message when the route has no venue ID", async () => {
     render(
       <MemoryRouter initialEntries={["/venue-records"]}>
@@ -494,7 +494,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getByText(/Reference: VB-00000000/)).toBeInTheDocument();
   });
 
-  /** VEN-AVL-07-SEC-1: submission rejects a conflict created after the availability response. */
+  /**
+   * VEN-AVL-07-SEC-1-UI: a fresh conflict prevents submission after the schedule response.
+   */
   it("SPM-51: shows the fresh server conflict and does not report a submitted request", async () => {
     useAppStore.setState({
       currentUser: {
@@ -568,14 +570,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).toHaveBeenCalledTimes(3);
   });
 
-  /** SPM-51 AC1: API and transport failures while refreshing availability remain actionable. */
+  /** API and transport failures while refreshing availability show an actionable error. */
   it.each([
-    [
-      new ApiError("Schedule service unavailable.", undefined, undefined, 503),
-      "Schedule service unavailable.",
-    ],
-    [new Error("offline"), "Unable to refresh venue availability. Try again."],
-  ])("shows a refresh error for %s", async (failure, message) => {
+    { failure: new ApiError("Schedule service unavailable.", undefined, undefined, 503), message: "Schedule service unavailable.", label: "HTTP 503" },
+    { failure: new Error("offline"), message: "Unable to refresh venue availability. Try again.", label: "network error" },
+  ])("shows the expected refresh message after $label", async ({ failure, message }) => {
     setCoordinator(["event-1"]);
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce(venue).mockRejectedValueOnce(failure);
@@ -595,7 +594,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
 
-  /** SPM-51 AC6/7: transport failure during submission reports no success and keeps the request retryable. */
+  /** A transport failure during submission reports no success and keeps the request retryable. */
   it("shows a generic submission error when the API transport fails", async () => {
     setCoordinator(["event-1"]);
     const user = userEvent.setup();
@@ -632,7 +631,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeEnabled();
   });
 
-  /** SPM-54 AC5 / SPM-51 AC2: a pending request without a Venue Staff hold is absent from the tentative schedule. */
+  /** SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
   it("does not display pending requests without a hold expiry as tentative reservations", async () => {
     setCoordinator();
     const user = userEvent.setup();
@@ -755,7 +754,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       "12 Jan 2030, 17:30 – 12 Jan 2030, 18:00 (SGT)",
     ];
     const calendar = screen.getByRole("region", { name: "Venue schedule" });
-    expect(calendar.querySelector("[role='grid'][aria-colcount='7']")).toBeTruthy();
+    expect(calendar.querySelector("[role='grid'][aria-colcount='7']")).toBeInTheDocument();
     expect(calendar.querySelectorAll("[role='gridcell'][data-date]").length).toBeGreaterThan(1);
     expect(calendar).toHaveTextContent("Setup buffer");
     expect(calendar).toHaveTextContent("Turnaround buffer");
@@ -852,25 +851,25 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     try {
       await screen.findByRole("heading", { name: "Conference Room" });
       const calendar = screen.getByRole("region", { name: "Venue schedule" });
-      expect(calendar.querySelector("[role='grid'][aria-colcount='7']")).toBeTruthy();
+      expect(calendar.querySelector("[role='grid'][aria-colcount='7']")).toBeInTheDocument();
       expect(calendar.querySelectorAll("[role='gridcell'][data-date]")).toHaveLength(7);
-      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-06']")).toBeTruthy();
+      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-06']")).toBeInTheDocument();
       await user.click(within(calendar).getByRole("tab", { name: "Day view" }));
-      expect(calendar.querySelector("[role='grid'][aria-colcount='1']")).toBeTruthy();
+      expect(calendar.querySelector("[role='grid'][aria-colcount='1']")).toBeInTheDocument();
       expect(within(calendar).getByRole("heading")).toHaveTextContent("January 12, 2030");
       await user.click(within(calendar).getByRole("tab", { name: "Week view" }));
 
       await user.click(within(calendar).getByRole("button", { name: "Next Week" }));
       await within(calendar).findByRole("columnheader", { name: "January 13, 2030" });
-      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-13']")).toBeTruthy();
+      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-13']")).toBeInTheDocument();
       expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-14']")).toHaveTextContent("Available");
 
       await user.click(within(calendar).getByRole("button", { name: "Previous Week" }));
       await within(calendar).findByRole("columnheader", { name: "January 6, 2030" });
-      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-06']")).toBeTruthy();
+      expect(calendar.querySelector("[role='gridcell'][data-date='2030-01-06']")).toBeInTheDocument();
 
       await user.click(within(calendar).getByRole("tab", { name: "Day view" }));
-      expect(calendar.querySelector("[role='grid'][aria-colcount='1']")).toBeTruthy();
+      expect(calendar.querySelector("[role='grid'][aria-colcount='1']")).toBeInTheDocument();
       expect(within(calendar).getByRole("heading")).toHaveTextContent("January 6, 2030");
     } finally {
       cleanup();
@@ -879,7 +878,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
-  /** SPM-51 AC1/AC7: changing the selected event to a different period clears the prior availability result. */
+  /** SPM-51 AC1: changing the selected event period clears the prior availability result. */
   it("recomputes availability when the selected event changes the requested dates", async () => {
     setCoordinator(["event-1", "event-2"]);
     useAppStore.setState((state) => ({
@@ -901,7 +900,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getByRole("button", { name: "Continue to booking request" })).toBeInTheDocument();
   });
 
-  /** SPM-51 AC2/AC8: a venue with zero setup and turnaround minutes shows the booking without zero-length buffer rows. */
+  /** SPM-51 AC8: zero setup and turnaround values show the booking without zero-length buffer rows. */
   it("renders a booking without buffer entries when both venue buffers are zero", async () => {
     setCoordinator(["event-1"]);
     apiMock.mockResolvedValue({
@@ -919,7 +918,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(calendar).not.toHaveTextContent("Turnaround buffer");
   });
 
-  /** VEN-AVL-10-A/B/BND-1: the backend-clock-filtered schedule displays and blocks only the active hold. */
+  /** VEN-AVL-10-A/B: the backend-clock-filtered schedule displays and blocks only the active hold. */
   it("renders and blocks the live hold returned by the server at a fixed check time", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
@@ -1206,7 +1205,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
-  /** SPM-51 AC1: a late success from the previous route cannot replace the selected venue. */
+  /** A late success from the previous route cannot replace the currently selected venue. */
   it("ignores a venue response after its detail route has been left", async () => {
     const user = userEvent.setup();
     const secondId = "00000000-0000-4000-8000-000000000125";
@@ -1245,7 +1244,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** SPM-51 AC1: a late failure from the previous route cannot replace selected venue details. */
+  /** A late failure from the previous route cannot replace the currently selected venue details. */
   it("ignores a rejected venue response after its detail route has been left", async () => {
     const user = userEvent.setup();
     const secondId = "00000000-0000-4000-8000-000000000125";
@@ -1321,7 +1320,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** SPM-51 AC1: retrying a failed initial venue read loads the selected record. */
+  /** Retrying a failed initial venue read loads the selected record. */
   it("retries the initial venue read after a temporary transport error", async () => {
     const user = userEvent.setup();
     apiMock
@@ -1340,7 +1339,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
-  /** SPM-51 AC1: legacy venue details retain optional image and empty catalogue values. */
+  /** Legacy venue details retain optional image and empty catalogue values. */
   it("renders an optional venue image and empty facility fields", async () => {
     useAppStore.setState({
       currentUser: {

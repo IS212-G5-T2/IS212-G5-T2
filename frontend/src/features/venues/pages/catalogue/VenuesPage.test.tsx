@@ -94,23 +94,23 @@ describe("VenuesPage catalogue loading", () => {
     renderPage();
 
     expect(screen.getByRole("status").textContent).toContain("Loading venues");
-    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/venues");
   });
 
-  /** SPM-51 event-specific catalogue regression: event query parameters do not divert loading away from the venue API. */
+  /** SPM-51 AC1: event-specific catalogue links preserve event context when opening venue details. Kills B15: dropping eventId from the venue-details link. */
   it("fetches and renders catalogue records when opened for a specific event", async () => {
     apiMock.mockResolvedValue([venue]);
     renderPage("/venues?eventId=event-51");
 
-    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View details →" })).toHaveAttribute(
       "href",
       "/venues/venue-51?eventId=event-51",
     );
     expect(apiMock).toHaveBeenCalledWith("/venues");
-    expect(screen.getByText(/Searching venues suitable for/).textContent).toContain("Planning Workshop");
-    expect(screen.getByText("Suitable")).toBeTruthy();
+    expect(screen.getByText(/Searching venues suitable for/)).toHaveTextContent("Planning Workshop");
+    expect(screen.getByText("Suitable")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to event" })).toHaveAttribute("href", "/events/event-51");
   });
 
@@ -128,7 +128,7 @@ describe("VenuesPage catalogue loading", () => {
     expect(await screen.findByText(/Searching venues suitable for/)).toHaveTextContent("Planning Workshop");
     await user.click(screen.getByRole("button", { name: "Check Availability" }));
 
-    expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeTruthy();
+    expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/events/event-51");
     expect(useAppStore.getState().events).toContainEqual(event);
   });
@@ -151,7 +151,7 @@ describe("VenuesPage catalogue loading", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load the selected event");
     await user.click(screen.getByRole("button", { name: "Retry event" }));
-    expect(await screen.findByRole("button", { name: "Check Availability" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Check Availability" })).toBeInTheDocument();
   });
 
   /** A stale catalogue event response cannot overwrite context after the query string changes. */
@@ -219,22 +219,22 @@ describe("VenuesPage catalogue loading", () => {
     await screen.findByRole("heading", { name: "Orchid Hall" });
 
     await user.type(screen.getByLabelText("Minimum capacity"), "100");
-    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Maple Room" })).toBeNull();
     await user.clear(screen.getByLabelText("Minimum capacity"));
 
     await user.selectOptions(screen.getByLabelText("Facility"), "Projector");
-    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Maple Room" })).toBeNull();
     await user.selectOptions(screen.getByLabelText("Facility"), "");
 
     await user.selectOptions(screen.getByLabelText("Accessibility"), "Wheelchair access");
-    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Maple Room" })).toBeNull();
     await user.selectOptions(screen.getByLabelText("Accessibility"), "");
 
     await user.type(screen.getByLabelText("Location contains"), "north");
-    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Maple Room" })).toBeNull();
   });
 
@@ -245,10 +245,10 @@ describe("VenuesPage catalogue loading", () => {
     renderPage("/venues?eventId=event-51");
 
     await user.click(await screen.findByRole("button", { name: "Check Availability" }));
-    expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeTruthy();
+    expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeInTheDocument();
   });
 
-  /** SPM-51 catalogue availability action is shown only to coordinators, including users with multiple granted roles. */
+  /** SPM-51 catalogue availability action is shown to coordinator roles, including a secondary grant. Kills B12: checking only the primary role. */
   it("shows the availability action to coordinator roles and hides it from other roles", async () => {
     apiMock.mockResolvedValue([venue]);
     useAppStore.setState({ currentUser: { id: "organiser", name: "Organiser", email: "", role: "organiser" } });
@@ -265,7 +265,7 @@ describe("VenuesPage catalogue loading", () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByRole("button", { name: "Check Availability" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Check Availability" })).toBeInTheDocument();
   });
 
   /** Failed catalogue requests show a retry action, and retrying issues a new GET and renders its result. */
@@ -274,10 +274,10 @@ describe("VenuesPage catalogue loading", () => {
     apiMock.mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce([venue]);
     renderPage();
 
-    expect(await screen.findByRole("alert")).toBeTruthy();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load venues from the catalogue.");
     await user.click(screen.getByRole("button", { name: "Try again" }));
 
-    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledTimes(2);
     expect(apiMock).toHaveBeenNthCalledWith(2, "/venues");
   });
@@ -287,7 +287,7 @@ describe("VenuesPage catalogue loading", () => {
     apiMock.mockResolvedValue([]);
     renderPage();
 
-    expect(await screen.findByText("No venues match these filters.")).toBeTruthy();
+    expect(await screen.findByText("No venues match these filters.")).toBeInTheDocument();
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
   });
 
