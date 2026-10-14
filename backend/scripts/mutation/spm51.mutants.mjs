@@ -9,6 +9,7 @@ export const SUITES = {
       'run',
       'src/venues/availability/booking-request.spec.ts',
       'src/venues/availability/dto/booking-request.spec.ts',
+      'src/events/events.service.spec.ts',
     ],
   },
   e2e: {
@@ -35,6 +36,7 @@ const DTO = 'src/venues/availability/dto/booking-request.ts';
 const SERVICE = 'src/venues/venues.service.ts';
 const REPOSITORY = 'src/venues/repository/venues.repository.ts';
 const PLANNING_REPOSITORY = 'src/events/planning/event-planning.repository.ts';
+const EVENTS_SERVICE = 'src/events/events.service.ts';
 
 export const MUTANTS = [
   {
@@ -43,7 +45,7 @@ export const MUTANTS = [
     file: DTO,
     suites: ['unit', 'e2e'],
     kills: [
-      'backend/src/venues/availability/dto/booking-request.spec.ts :: rejects event times with equal start and end',
+      'backend/src/venues/availability/dto/booking-request.spec.ts :: rejects event times with :: equal start and end',
       'backend/test/venues-booking-requests.e2e-spec.ts :: rejects equal start and end without recording a request',
     ],
     edits: [
@@ -99,7 +101,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: filters expired and exact-expiry holds from the API while active holds remain blockers',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: filters expired and exact-expiry holds while active holds remain blockers',
     ],
     edits: [
       [
@@ -144,7 +146,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects setup-only and turnaround-only blockout conflicts without recording either request :: turnaround blockout row',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects setup-only and turnaround-only blockout conflicts without insertion',
     ],
     edits: [
       [
@@ -159,7 +161,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects setup-only and turnaround-only blockout conflicts without recording either request :: setup blockout row',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects setup-only and turnaround-only blockout conflicts without insertion',
     ],
     edits: [
       [
@@ -174,7 +176,7 @@ export const MUTANTS = [
     file: PLANNING_REPOSITORY,
     suites: ['planning'],
     kills: [
-      'backend/test/events-planning.e2e-spec.ts :: maps pending venue rows by explicit hold expiry and preserves approved bookings :: unbounded row',
+      'backend/test/events-planning.e2e-spec.ts :: maps pending venue rows by explicit hold expiry and preserves approved bookings',
     ],
     edits: [
       [
@@ -189,13 +191,52 @@ export const MUTANTS = [
     file: PLANNING_REPOSITORY,
     suites: ['planning'],
     kills: [
-      'backend/test/events-planning.e2e-spec.ts :: maps pending venue rows by explicit hold expiry and preserves approved bookings :: expired row',
+      'backend/test/events-planning.e2e-spec.ts :: maps pending venue rows by explicit hold expiry and preserves approved bookings',
     ],
     edits: [
       [
         'b.hold_expires_at > now()',
         "b.hold_expires_at > now() - interval '2 minutes'",
       ],
+    ],
+  },
+  {
+    id: 'B15',
+    name: 'attendee branch takes precedence over the coordinator assignment list for dual-role accounts',
+    file: EVENTS_SERVICE,
+    suites: ['unit'],
+    kills: [
+      'backend/src/events/events.service.spec.ts :: scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events',
+    ],
+    edits: [
+      [
+        "const result = user.roles.includes('COORDINATOR')\n      ? await this.database.query(",
+        "const result = user.roles.includes('COORDINATOR') && !user.roles.includes('ATTENDEE')\n      ? await this.database.query(",
+      ],
+    ],
+  },
+  {
+    id: 'B16',
+    name: 'coordinator event list omits the current coordinator_id scope filter',
+    file: EVENTS_SERVICE,
+    suites: ['unit'],
+    kills: [
+      'backend/src/events/events.service.spec.ts :: scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events',
+    ],
+    edits: [
+      ['FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC', 'FROM events ORDER BY created_at DESC'],
+    ],
+  },
+  {
+    id: 'B17',
+    name: 'attendee-only event list is routed through coordinator assignments',
+    file: EVENTS_SERVICE,
+    suites: ['unit'],
+    kills: [
+      'backend/src/events/events.service.spec.ts :: lists attendee-viewable events with current registration availability',
+    ],
+    edits: [
+      ["const result = user.roles.includes('COORDINATOR')\n      ? await this.database.query(", "const result = user.roles.includes('ATTENDEE')\n      ? await this.database.query("],
     ],
   },
 ];

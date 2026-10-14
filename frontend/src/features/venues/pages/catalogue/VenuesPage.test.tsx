@@ -22,9 +22,6 @@ const venue: Venue = {
   accessibility: ["Wheelchair access"],
   layouts: ["Classroom"],
   operatingInformation: "Weekdays",
-  operatingDays: ["Monday"],
-  operatingStartTime: "08:00",
-  operatingEndTime: "22:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 15,
 };
@@ -248,8 +245,9 @@ describe("VenuesPage catalogue loading", () => {
     expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeInTheDocument();
   });
 
-  /** SPM-51 catalogue availability action is shown to coordinator roles, including a secondary grant. Kills: FE-B12 (checking only the primary role). */
-  it("shows the availability action to coordinator roles and hides it from other roles", async () => {
+  /** SPM-51 dual-role coordinators retain the selected event scope when opening venue availability. Kills: FE-B12 and FE-B20. */
+  it("preserves event scope for users with a secondary coordinator role", async () => {
+    const user = userEvent.setup();
     apiMock.mockResolvedValue([venue]);
     useAppStore.setState({ currentUser: { id: "organiser", name: "Organiser", email: "", role: "organiser" } });
     const { rerender } = renderPage("/venues?eventId=event-51");
@@ -265,7 +263,8 @@ describe("VenuesPage catalogue loading", () => {
         </Routes>
       </MemoryRouter>,
     );
-    expect(await screen.findByRole("button", { name: "Check Availability" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Check Availability" }));
+    expect(await screen.findByText("Venue availability screen: venue-51; event: event-51")).toBeInTheDocument();
   });
 
   /** Failed catalogue requests show a retry action, and retrying issues a new GET and renders its result. */

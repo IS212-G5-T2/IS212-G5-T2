@@ -12,9 +12,6 @@ const venue = {
   accessibility: [],
   layouts: [],
   operatingInformation: "Monday and Tuesday",
-  operatingDays: ["Monday", "Tuesday"],
-  operatingStartTime: "09:00",
-  operatingEndTime: "18:00",
   setupTimeMinutes: 0,
   turnaroundTimeMinutes: 0,
   availabilityStatus: "available",
@@ -61,8 +58,8 @@ async function dragRange(
   await page.mouse.up();
 }
 
-/** SPM-51 AC1: a real FullCalendar drag updates both event fields across consecutive open days and rejects a drag through a closed day. */
-test("selects a real cross-day time range and rejects closed-day drags", async ({
+/** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
+test("selects a real cross-day time range across any calendar day", async ({
   page,
 }) => {
   await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
@@ -90,6 +87,18 @@ test("selects a real cross-day time range and rejects closed-day drags", async (
   await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
 
+  // Early-morning time is clear because this fixture has no booking or closure at that time.
+  const wednesdayTwo = await pointInSlot(page, "2030-01-09", "02:00");
+  const wednesdayThree = await pointInSlot(page, "2030-01-09", "03:00");
+  await dragRange(page, wednesdayTwo, wednesdayThree);
+
+  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-09T02:00");
+  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T04:00");
+  await expect(page.getByRole("status")).toContainText("available for this venue");
+
+  // Clear the selected range before trying a second, separate interval.
+  await page.locator('[title="Click to clear the selected event time"]').click();
+
   const mondayFive = await pointInSlot(page, "2030-01-07", "17:00");
   const tuesdayTen = await pointInSlot(page, "2030-01-08", "10:00");
   await dragRange(page, mondayFive, tuesdayTen);
@@ -102,5 +111,5 @@ test("selects a real cross-day time range and rejects closed-day drags", async (
   await dragRange(page, mondayFive, wednesdayTen);
 
   await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
-  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-08T11:00");
+  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T11:00");
 });

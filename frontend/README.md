@@ -50,7 +50,8 @@ Coordinators can check an event date and time from the venue detail. Calendar
 view uses a navigable Singapore-time week/day grid with hourly rows, time-sized
 booking, hold, unavailable, free, setup-buffer, and turnaround-buffer entries;
 List view shows the same schedule records as date-grouped cards. Free periods
-follow each venue's operating days and hours as the calendar moves between dates.
+are based on bookings, active holds, unavailable periods, and setup/turnaround
+buffers; no venue operating-hours schedule is used.
 Coordinators can switch between the calendar and list schedule views, review booking/hold/blockout conflicts,
 and submit a booking request only when the requested range is clear. The check
 includes the venue's configured setup and turnaround buffers; active holds show

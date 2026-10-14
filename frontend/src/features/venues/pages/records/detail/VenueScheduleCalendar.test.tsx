@@ -2,7 +2,7 @@ import { createElement, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
-import { getVenueScheduleEntries, isVenueOperatingSelection, VenueScheduleCalendar } from "./VenueScheduleCalendar";
+import { getVenueScheduleEntries, isValidVenueSelection, VenueScheduleCalendar } from "./VenueScheduleCalendar";
 import type { VenueRecord } from "../venue-records";
 
 vi.mock("@fullcalendar/react", () => ({
@@ -10,29 +10,31 @@ vi.mock("@fullcalendar/react", () => ({
     const [allowed, setAllowed] = useState("");
     const start = sgtLocalDateTimeToDate("2030-01-07T10:00");
     const end = sgtLocalDateTimeToDate("2030-01-07T11:00");
-    const closedStart = sgtLocalDateTimeToDate("2030-01-09T10:00");
-    const closedEnd = sgtLocalDateTimeToDate("2030-01-09T11:00");
+    const otherDayStart = sgtLocalDateTimeToDate("2030-01-09T10:00");
+    const otherDayEnd = sgtLocalDateTimeToDate("2030-01-09T11:00");
     const overnightStart = sgtLocalDateTimeToDate("2030-01-07T17:00");
     const overnightEnd = sgtLocalDateTimeToDate("2030-01-08T10:00");
-    const nextOpening = sgtLocalDateTimeToDate("2030-01-08T09:00");
-    const previousClosing = sgtLocalDateTimeToDate("2030-01-07T18:00");
-    const closedSpanEnd = sgtLocalDateTimeToDate("2030-01-09T10:00");
-    const closedInteriorEnd = sgtLocalDateTimeToDate("2030-01-14T10:00");
+    const tuesdayMorning = sgtLocalDateTimeToDate("2030-01-08T09:00");
+    const mondayEvening = sgtLocalDateTimeToDate("2030-01-07T18:00");
+    const laterDayEnd = sgtLocalDateTimeToDate("2030-01-09T10:00");
+    const followingWeekEnd = sgtLocalDateTimeToDate("2030-01-14T10:00");
     const earlyStart = sgtLocalDateTimeToDate("2030-01-07T08:30");
     const lateEnd = sgtLocalDateTimeToDate("2030-01-08T18:30");
     const allow = (start: Date, end: Date) => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start, end })));
     return createElement("div", null,
       createElement("button", { onClick: () => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start, end }))) }, "Select operating time"),
-      createElement("button", { onClick: () => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start: closedStart, end: closedEnd }))) }, "Select closed time"),
+      createElement("button", { onClick: () => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start: otherDayStart, end: otherDayEnd }))) }, "Select another weekday"),
       createElement("button", { onClick: () => allow(overnightStart, overnightEnd) }, "Select valid overnight range"),
-      createElement("button", { onClick: () => allow(overnightStart, nextOpening) }, "Select ending at next opening"),
-      createElement("button", { onClick: () => allow(previousClosing, overnightEnd) }, "Select starting at prior closing"),
-      createElement("button", { onClick: () => allow(overnightStart, closedSpanEnd) }, "Select range touching a closed day"),
-      createElement("button", { onClick: () => allow(overnightStart, closedInteriorEnd) }, "Select range with closed interior days"),
-      createElement("button", { onClick: () => allow(earlyStart, overnightEnd) }, "Select range starting before opening"),
-      createElement("button", { onClick: () => allow(overnightStart, lateEnd) }, "Select range ending after closing"),
+      createElement("button", { onClick: () => allow(overnightStart, tuesdayMorning) }, "Select another multi-day range"),
+      createElement("button", { onClick: () => allow(mondayEvening, overnightEnd) }, "Select evening to next day"),
+      createElement("button", { onClick: () => allow(overnightStart, laterDayEnd) }, "Select range crossing another weekday"),
+      createElement("button", { onClick: () => allow(overnightStart, followingWeekEnd) }, "Select range crossing a week"),
+      createElement("button", { onClick: () => allow(earlyStart, overnightEnd) }, "Select early range"),
+      createElement("button", { onClick: () => allow(overnightStart, lateEnd) }, "Select late range"),
       createElement("output", null, allowed),
       createElement("output", { "aria-label": "Calendar scroll time" }, String(props.scrollTime)),
+      createElement("output", { "aria-label": "Calendar minimum time" }, String(props.slotMinTime)),
+      createElement("output", { "aria-label": "Calendar maximum time" }, String(props.slotMaxTime)),
       createElement("button", { disabled: !props.select, onClick: () => (props.select as (range: { start: Date; end: Date }) => void)?.({ start, end }) }, "Emit selection"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "selected-event-time" } }) }, "Click selected time"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "booking-1" } }) }, "Click booking"),
@@ -49,9 +51,6 @@ const venue: VenueRecord = {
   accessibility: [],
   layouts: [],
   operatingInformation: "Weekdays",
-  operatingDays: ["Monday", "Tuesday"],
-  operatingStartTime: "09:00",
-  operatingEndTime: "18:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 30,
   availabilityStatus: "available",
@@ -63,55 +62,47 @@ function range(start: string, end: string): [Date, Date] {
   return [sgtLocalDateTimeToDate(start), sgtLocalDateTimeToDate(end)];
 }
 
-describe("isVenueOperatingSelection", () => {
-  /** A drag range that starts at opening and ends at closing is allowed on an operating day. */
-  it("allows a same-day selection that exactly spans venue hours", () => {
-    const [start, end] = range("2030-01-07T09:00", "2030-01-07T18:00");
+describe("isValidVenueSelection", () => {
+  /** Positive ranges are valid on any date or time because venues have no operating-hours schedule. */
+  it("allows daytime, weekend, overnight, and after-hours selections", () => {
+    const [dayStart, dayEnd] = range("2030-01-07T09:00", "2030-01-07T18:00");
+    const [weekendStart, weekendEnd] = range("2030-01-12T02:00", "2030-01-12T03:00");
+    const [overnightStart, overnightEnd] = range("2030-01-07T17:00", "2030-01-08T10:00");
+    const [afterHoursStart, afterHoursEnd] = range("2030-01-07T23:30", "2030-01-08T00:30");
 
-    expect(isVenueOperatingSelection(venue, start, end)).toBe(true);
+    expect(isValidVenueSelection(dayStart, dayEnd)).toBe(true);
+    expect(isValidVenueSelection(weekendStart, weekendEnd)).toBe(true);
+    expect(isValidVenueSelection(overnightStart, overnightEnd)).toBe(true);
+    expect(isValidVenueSelection(afterHoursStart, afterHoursEnd)).toBe(true);
   });
 
-  /** Closed weekdays and times outside the configured hours cannot be selected from the calendar. */
-  it("rejects a closed day and selections outside opening or closing time", () => {
-    const [closedStart, closedEnd] = range("2030-01-09T10:00", "2030-01-09T11:00");
-    const [earlyStart, earlyEnd] = range("2030-01-07T08:30", "2030-01-07T10:00");
-    const [lateStart, lateEnd] = range("2030-01-07T17:00", "2030-01-07T18:30");
-    const [expandedGridStart, expandedGridEnd] = range("2030-01-07T07:00", "2030-01-07T08:00");
-    const venueWithOffHoursBooking = {
-      ...venue,
-      reservations: [{
-        id: "early-booking",
-        eventName: "Early setup",
-        start: "2030-01-07T23:00:00.000Z",
-        end: "2030-01-08T00:00:00.000Z",
-        status: "booked" as const,
-        affectedByUnavailablePeriod: false,
-      }],
-    };
-
-    expect(isVenueOperatingSelection(venue, closedStart, closedEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venue, earlyStart, earlyEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venue, lateStart, lateEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venueWithOffHoursBooking, expandedGridStart, expandedGridEnd)).toBe(false);
-  });
-
-  /** Calendar drag selections reject a closed weekday and non-positive ranges. Kills: FE-B06 (zero duration), FE-B07 (closed day in the span). */
-  it("rejects closed weekdays and non-positive ranges", () => {
-    const [crossDayStart, crossDayEnd] = range("2030-01-07T17:00", "2030-01-08T10:00");
-    const [closedSpanStart, closedSpanEnd] = range("2030-01-07T17:00", "2030-01-09T10:00");
-    const [closedInteriorStart, closedInteriorEnd] = range("2030-01-07T17:00", "2030-01-14T10:00");
+  /** Calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
+  it("rejects zero-length, reversed, and invalid ranges", () => {
     const [zeroLengthStart, zeroLengthEnd] = range("2030-01-07T12:00", "2030-01-07T12:00");
     const [laterStart, earlierEnd] = range("2030-01-07T12:00", "2030-01-07T11:00");
 
-    expect(isVenueOperatingSelection(venue, crossDayStart, crossDayEnd)).toBe(true);
-    expect(isVenueOperatingSelection(venue, closedSpanStart, closedSpanEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venue, closedInteriorStart, closedInteriorEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venue, zeroLengthStart, zeroLengthEnd)).toBe(false);
-    expect(isVenueOperatingSelection(venue, laterStart, earlierEnd)).toBe(false);
+    expect(isValidVenueSelection(zeroLengthStart, zeroLengthEnd)).toBe(false);
+    expect(isValidVenueSelection(laterStart, earlierEnd)).toBe(false);
+    expect(isValidVenueSelection(new Date(Number.NaN), earlierEnd)).toBe(false);
   });
 });
 
 describe("venue schedule occupancy", () => {
+  /** VEN-AVL-02-A/B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
+  it("shades clear periods over a full SGT day without an operating-hours label", () => {
+    const entries = getVenueScheduleEntries(
+      venue,
+      sgtLocalDateTimeToDate("2030-01-07T00:00"),
+      sgtLocalDateTimeToDate("2030-01-08T00:00"),
+    );
+    const free = entries.filter((entry) => entry.extendedProps.category === "free");
+
+    expect(free.map(({ start, end }) => [start, end])).toEqual([
+      ["2030-01-06T16:00:00.000Z", "2030-01-07T16:00:00.000Z"],
+    ]);
+    expect(free[0].extendedProps.detail).not.toMatch(/operating hours|24 hours/i);
+  });
+
   /** VEN-AVL-02-A/B and VEN-AVL-05-A: confirmed event occupancy is excluded from available calendar shading. */
   it("does not shade a confirmed booking or its setup and turnaround as free", () => {
     const bookedVenue: VenueRecord = {
@@ -133,8 +124,8 @@ describe("venue schedule occupancy", () => {
     const free = entries.filter((entry) => entry.extendedProps.category === "free");
 
     expect(free.map(({ start, end }) => [start, end])).toEqual([
-      ["2030-01-07T01:00:00.000Z", "2030-01-07T01:30:00.000Z"],
-      ["2030-01-07T03:30:00.000Z", "2030-01-07T10:00:00.000Z"],
+      ["2030-01-06T16:00:00.000Z", "2030-01-07T01:30:00.000Z"],
+      ["2030-01-07T03:30:00.000Z", "2030-01-07T16:00:00.000Z"],
     ]);
     expect(free.some((entry) => Date.parse(entry.start) < Date.parse("2030-01-07T03:30:00.000Z") && Date.parse(entry.end) > Date.parse("2030-01-07T01:30:00.000Z"))).toBe(false);
   });
@@ -167,9 +158,9 @@ describe("venue schedule occupancy", () => {
     const free = entries.filter((entry) => entry.extendedProps.category === "free");
 
     expect(free.map(({ start, end }) => [start, end])).toEqual([
-      ["2030-01-07T01:00:00.000Z", "2030-01-07T03:00:00.000Z"],
+      ["2030-01-06T16:00:00.000Z", "2030-01-07T03:00:00.000Z"],
       ["2030-01-07T04:00:00.000Z", "2030-01-07T04:30:00.000Z"],
-      ["2030-01-07T06:30:00.000Z", "2030-01-07T10:00:00.000Z"],
+      ["2030-01-07T06:30:00.000Z", "2030-01-07T16:00:00.000Z"],
     ]);
   });
 
@@ -208,27 +199,23 @@ describe("venue schedule occupancy", () => {
 });
 
 describe("VenueScheduleCalendar interactions", () => {
-  /** SPM-51 calendar selection accepts an operating slot and rejects a closed day through FullCalendar's selectAllow prop. */
-  it("passes the operating-hours guard to calendar selections", () => {
+  /** SPM-51 calendar selection accepts ranges without applying retired operating-hours rules. */
+  it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Select operating time" }));
     expect(screen.getByText("true")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Select closed time" }));
-    expect(screen.getByText("false")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Select another weekday" }));
+    expect(screen.getByText("true")).toBeInTheDocument();
   });
 
-  /** SPM-51 allows overnight selection across open days and enforces closed-day and operating-hour boundaries. Kills: FE-B07 (closed day), FE-B08 (start at closing), FE-B09 (end at next opening). */
-  it("passes valid cross-day ranges and rejects closed-day or out-of-hour ranges through selectAllow", () => {
+  /** SPM-51 keeps selection independent of days and times previously treated as closed. */
+  it("allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
-    for (const label of ["Select valid overnight range", "Select ending at next opening", "Select starting at prior closing"]) {
+    for (const label of ["Select valid overnight range", "Select another multi-day range", "Select evening to next day", "Select range crossing another weekday", "Select range crossing a week", "Select early range", "Select late range"]) {
       fireEvent.click(screen.getByRole("button", { name: label }));
       expect(screen.getByText("true")).toBeInTheDocument();
-    }
-    for (const label of ["Select range touching a closed day", "Select range with closed interior days", "Select range starting before opening", "Select range ending after closing"]) {
-      fireEvent.click(screen.getByRole("button", { name: label }));
-      expect(screen.getByText("false")).toBeInTheDocument();
     }
   });
 
@@ -262,11 +249,13 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onClearSelection).toHaveBeenCalledOnce();
   });
 
-  /** SPM-51 gives calendars with time-formatted hours an 08:00 fallback scroll position. */
-  it("uses the default scroll position for operating times with seconds", () => {
-    render(<VenueScheduleCalendar venue={{ ...venue, operatingStartTime: "09:00:00" }} initialDate="2030-01-07" />);
+  /** SPM-51 shows the whole day for availability inspection without calling the venue 24-hour. */
+  it("shows a full-day time grid with a neutral default scroll position", () => {
+    render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
     expect(screen.getByLabelText("Calendar scroll time")).toHaveTextContent("08:00:00");
+    expect(screen.getByLabelText("Calendar minimum time")).toHaveTextContent("00:00:00");
+    expect(screen.getByLabelText("Calendar maximum time")).toHaveTextContent("24:00:00");
   });
 
   /** Defensive SGT formatting defaults to midnight when a host formatter omits time parts. */

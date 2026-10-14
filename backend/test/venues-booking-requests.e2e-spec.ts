@@ -33,6 +33,7 @@ describe.skipIf(!databaseUrl)(
         '007_venue_operating_schedule.sql',
         '008_venue_owner_user_id.sql',
         '009_venue_availability.sql',
+        '010_remove_venue_operating_schedule.sql',
       ])
         await pool.query(
           await readFile(
@@ -101,11 +102,9 @@ describe.skipIf(!databaseUrl)(
       await pool.query(
         `INSERT INTO venues
        (id, owner_user_id, name, location, capacity, operating_information,
-        operating_days, operating_start_time, operating_end_time,
         setup_time_minutes, turnaround_time_minutes)
        VALUES ($1, $2, $3, 'SPM-51 Test Location', 100, 'Integration fixture',
-        ARRAY['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
-        '00:00', '23:59', $4, $5)`,
+        $4, $5)`,
         [
           id,
           ownerId,

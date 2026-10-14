@@ -678,7 +678,6 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     const user = userEvent.setup();
     const scheduledVenue: VenueRecord = {
       ...venue,
-      operatingDays: ["Saturday"],
       reservations: [
         {
           id: "confirmed",
@@ -1078,6 +1077,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).toHaveBeenCalledWith(`/venues/${id}`);
     expect(screen.getByText("Wheelchair access")).toBeInTheDocument();
     expect(screen.queryByText(/Operating hours|Hours:/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Open 24 hours$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^24\/7$/i)).not.toBeInTheDocument();
+    expect(screen.getByText('Weekdays only')).toBeInTheDocument();
     expect(screen.getByText("30 minutes before an event")).toBeInTheDocument();
     expect(screen.getByText("45 minutes after an event")).toBeInTheDocument();
     expect(screen.getByText(/Maintenance/)).toBeInTheDocument();
