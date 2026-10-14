@@ -5,6 +5,7 @@ This file defines **shared governance and agent routing**. Load specialized inst
 ## Authority and Routing
 
 - The primary coding-agent session follows [Orchestrator](ai/agents/orchestrator.md): classify the user's request, invoke only relevant agents, and control review transitions. Agents use their own playbooks in `ai/agents/` and the shared [assignment/evidence contract](ai/docs/sub-agents.md). Platform adapters live in `.codex/agents/` and `.claude/agents/`; load available `SKILL.md` workflows only when applicable.
+- Test cycles (the Test Code Review gate, and test authoring under a story that has maintained test cases) follow the gates, records, and metrics in [`ai/docs/test-workflow.md`](ai/docs/test-workflow.md). Tooling is in `ai/scripts/test-workflow/`; durable records are in `docs/test-cases/workflow/`; cycle evidence goes to the ignored `ai/runtime/`.
 - Current user instructions define task scope; applicable Jira issues define story, acceptance criteria, status, priority, and sprint; relevant current Confluence pages define supporting specifications. Existing code is technical evidence, not authority to invent or override business requirements. Report material conflicts and unavailable sources.
 - Read applicable scoped `AGENTS.md` files for every affected component, and relevant `AI_USAGE.md` history before meaningful changes. Scoped instructions define ownership; role playbooks define specialized procedures.
 

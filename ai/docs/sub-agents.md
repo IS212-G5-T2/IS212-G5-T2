@@ -10,6 +10,8 @@ Defines shared assignments, evidence, permissions, review results, and verificat
 - [Requirement Reviewer](../agents/requirement-reviewer.md): Business correctness against authoritative requirements.
 - [Code Quality Reviewer](../agents/code-quality-reviewer.md): Maintainability, engineering quality, and technical risks.
 
+**Test controls:** [Test Workflow](test-workflow.md) defines the gates (G1 to G7), the records, and the metrics report that every test cycle uses. Test Review and test authoring follow it in addition to this contract.
+
 **Configuration:** `AGENTS.md` defines repository rules and routing; `CLAUDE.md` supplies Claude-specific entry instructions. Native sub-agents use `.codex/agents/*.toml` (Codex) or `.claude/agents/*.md` (Claude Code). Codex discovers repository skills directly in `.agents/skills/*/SKILL.md`.
 
 Playbooks do not automatically register native agents. Skills provide reusable procedures, not agent identities or permissions. Use only available, relevant skills.
@@ -44,7 +46,7 @@ Every invocation receives structured named fields (JSON when supported):
 | Context | `requirement_sources`, `requirement_ids`, `scope`, `changed_files` |
 | Snapshot | `target_snapshot` |
 | Governance | `repository_instructions`, `allowed_actions`, `prohibited_actions` |
-| Verification | `expected_checks`, `expected_report` |
+| Verification | `expected_checks`, `expected_report`; for test cycles also `scope_file`, `cycle_folder`, `matrix_ids_file` |
 
 `stage` is `implementation`, `test_review`, `requirement_review`, or `code_quality_review`. Include previous findings, gate decisions, and corrections when relevant. Supply sufficient context without unrelated files or redundant history.
 
@@ -54,7 +56,7 @@ Every invocation receives structured named fields (JSON when supported):
 
 **Implementation reports:** Requirements/assumptions; inspected and modified files; implemented behavior; tests added/updated; exact checks/results; requirement-to-code/test evidence; limitations; unresolved questions; final repository state. Implementation cannot approve its own review gate.
 
-**Reviewer reports:** `reviewer`, `snapshot`, `scope_inspected`, `gate_result`, `findings`, `checks_executed`, `evidence`, `requirements_affected`, `limitations`, `recommended_next_action`.
+**Reviewer reports:** `reviewer`, `snapshot`, `scope_inspected`, `gate_result`, `findings`, `checks_executed`, `evidence`, `requirements_affected`, `limitations`, `recommended_next_action`. A Test Review report also carries the gate table G1 to G7 with the evidence file of each gate and the metrics status and path from [Test Workflow](test-workflow.md); a gate without an evidence file is reported `NOT RUN`.
 
 **Gate results:**
 - `PASS`: All applicable required criteria verified within assigned scope.
@@ -118,6 +120,7 @@ Completion requires:
 4. Required checks passed, or missing verification and limitations are explicitly reported.
 5. No unresolved blocker or known regression is represented as resolved.
 6. All changes comply with authorization boundaries.
+7. For a test cycle, the metrics report was produced from the cycle folder, and no gate or number is reported without its evidence file.
 
 **Final report:** Task, workflow, agents executed, final snapshot, ordered gate results, findings/corrections, checks actually run, requirement results, limitations, changed/staged files, and next action.
 
