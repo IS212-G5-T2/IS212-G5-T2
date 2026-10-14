@@ -93,9 +93,8 @@ describe.skipIf(!database)(
     async function insertVenue(name: string, capacity: number) {
       const result = await db.query<{ id: string }>(
         `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
-           operating_days, operating_start_time, operating_end_time,
            setup_time_minutes, turnaround_time_minutes)
-         VALUES ($1,$2,$3,$4,'Open weekdays',ARRAY['Monday'],'08:00','22:00',0,0)
+         VALUES ($1,$2,$3,$4,'Open weekdays',0,0)
          RETURNING id`,
         [venueOwnerId, name, `E2E ${randomUUID()}`, capacity],
       );

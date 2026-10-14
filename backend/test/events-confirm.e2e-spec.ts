@@ -157,8 +157,8 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     const owner = await createSession('VENUE_STAFF', 'Venue Staff 1');
     const result = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
-         operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1,$2,$3,200,'Open weekdays',ARRAY['Thursday'],'08:00','22:00',0,0) RETURNING id`,
+         setup_time_minutes, turnaround_time_minutes)
+       VALUES ($1,$2,$3,200,'Open weekdays',0,0) RETURNING id`,
       [owner.uid, name, `Level 1 ${randomUUID()}`],
     );
     createdVenueIds.push(result.rows[0].id);

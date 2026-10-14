@@ -26,9 +26,6 @@ const venue: VenueRecord = {
   layouts: ["Boardroom"],
   accessibility: ["Wheelchair access"],
   operatingInformation: "Weekdays only",
-  operatingDays: ["Monday", "Tuesday"],
-  operatingStartTime: "09:00",
-  operatingEndTime: "18:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
   availabilityStatus: "unavailable",
@@ -145,6 +142,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith(`/venues/${id}`);
     expect(screen.getByText("Wheelchair access")).toBeInTheDocument();
+    expect(screen.queryByText(/Operating hours|Hours:/i)).not.toBeInTheDocument();
     expect(screen.getByText("30 minutes before an event")).toBeInTheDocument();
     expect(screen.getByText("45 minutes after an event")).toBeInTheDocument();
     expect(screen.getByText(/Maintenance/)).toBeInTheDocument();

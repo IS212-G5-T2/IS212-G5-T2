@@ -2,6 +2,11 @@
 
 Historical AI-assisted work associated with SPM-50.
 
+## 2026-10-13
+
+- swr - implementation - SPM-50 - Remove operating hours from venue creation: Reopened correction removes operating days and opening times from the form and required API fields; omitted schedules receive a full-week compatibility value for availability consumers. Frontend/backend coverage, lint, and build checks recorded on the fix branch.
+- swr - testing - SPM-50 - Add mutation and PostgreSQL evidence: Add validated exact-title frontend/backend mutation mappings (8 mutants, all killed) and a current-field HTTP/PostgreSQL creation case asserting returned and persisted operating information plus compatibility schedule; E2E passed against disposable local PostgreSQL.
+
 ## 2026-10-05
 
 - swr - implementation - Link SPM-50 venues to their creator: Added `venues.owner_user_id` as a UUID foreign key to the local `users` table.

@@ -13,6 +13,6 @@ Add entries under one date per day, using this format:
 ```
 Where user is the user's github username.
 
-## 2026-10-12
+## 2026-10-13
 
-- swr - implementation - SPM-140 - Fix event planning E2E schema path: Corrected the relative path to the repository PostgreSQL schema initialization file.
+- swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.

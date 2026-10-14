@@ -90,8 +90,8 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     createdEventIds.push(id);
     const venue = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
-         operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes)
-       SELECT id, 'Stale Hall', $1, 200, 'Open weekdays', ARRAY['Thursday'], '08:00', '22:00', 0, 0
+         setup_time_minutes, turnaround_time_minutes)
+       SELECT id, 'Stale Hall', $1, 200, 'Open weekdays', 0, 0
          FROM users WHERE id = $2 RETURNING id`,
       [`Level 9 ${randomUUID()}`, coordinator.uid],
     );

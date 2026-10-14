@@ -109,8 +109,8 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
     const owner = await createSession('VENUE_STAFF', 'Venue Staff 1');
     const venue = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
-         operating_days, operating_start_time, operating_end_time, setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1,'Main Hall',$2,200,'Open weekdays',ARRAY['Thursday'],'08:00','22:00',0,0) RETURNING id`,
+         setup_time_minutes, turnaround_time_minutes)
+       VALUES ($1,'Main Hall',$2,200,'Open weekdays',0,0) RETURNING id`,
       [owner.uid, `Level 1 ${randomUUID()}`],
     );
     createdVenueIds.push(venue.rows[0].id);

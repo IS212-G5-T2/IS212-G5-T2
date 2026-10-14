@@ -48,12 +48,6 @@ export function VenueDetailPage() {
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.capacity}</dd>
               </div>
               <div>
-                <dt className="text-gray-400 dark:text-gray-500">Operating hours</dt>
-                <dd className="font-medium text-gray-800 dark:text-gray-200">
-                  {venue.operatingDays.join(", ")} · {venue.operatingStartTime}–{venue.operatingEndTime}
-                </dd>
-              </div>
-              <div>
                 <dt className="text-gray-400 dark:text-gray-500">Operating information</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{venue.operatingInformation}</dd>
               </div>

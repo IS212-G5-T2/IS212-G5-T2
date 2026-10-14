@@ -28,6 +28,26 @@ const suiteOnly = flag('--suite');
 const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
 const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
 
+const mappingErrors = [];
+for (const mutant of selected) {
+  for (const mapping of mutant.testMappings ?? []) {
+    const args = SUITES[mapping.suite]?.args ?? [];
+    const fileIsInSuite = args.some((arg) =>
+      arg === mapping.file || mapping.file.startsWith(`${arg.replace(/\/$/, '')}/`),
+    );
+    if (!mutant.suites.includes(mapping.suite))
+      mappingErrors.push(`${mutant.id}: mapped suite ${mapping.suite} is not assigned to the mutant`);
+    if (!fileIsInSuite)
+      mappingErrors.push(`${mutant.id}: ${mapping.file} is not included by suite ${mapping.suite}`);
+    if (!readFileSync(join(root, mapping.file), 'utf8').includes(mapping.title))
+      mappingErrors.push(`${mutant.id}: exact test title not found in ${mapping.file}: ${mapping.title}`);
+  }
+}
+if (mappingErrors.length) {
+  console.error(`invalid mutation test mappings:\n${mappingErrors.join('\n')}`);
+  process.exit(1);
+}
+
 if (args.includes('--list')) {
   for (const m of selected) console.log(`${m.id.padEnd(8)} ${m.equivalent ? '[equivalent] ' : ''}${m.name}`);
   process.exit(0);
@@ -43,8 +63,12 @@ cpSync(root, scratch, {
 });
 symlinkSync(join(root, 'node_modules'), join(scratch, 'node_modules'));
 
-const run = (suite) =>
-  spawnSync(process.execPath, [join(scratch, 'node_modules/vitest/vitest.mjs'), ...SUITES[suite].args], {
+const run = (suite, mapping) =>
+  spawnSync(process.execPath, [
+    join(scratch, 'node_modules/vitest/vitest.mjs'),
+    ...SUITES[suite].args,
+    ...(mapping ? ['--testNamePattern', mapping.title] : []),
+  ], {
     cwd: scratch,
     env: { ...process.env, ...SUITES[suite].env, CI: '1' },
     encoding: 'utf8',
@@ -80,24 +104,39 @@ try {
         mutated = mutated.replace(from, () => to);
       }
       let status;
-      let by = '';
+      let by = [];
+      const skippedMappings = [];
       if (!applied) {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
       } else {
         writeFileSync(path, mutated);
-        const runnable = suitesOf(m).filter((s) => !skipped(s));
-        for (const suite of runnable) {
-          if (run(suite).status !== 0) {
-            by = suite;
-            break;
+        const mappings = m.testMappings?.filter((mapping) => suitesOf(m).includes(mapping.suite));
+        if (mappings?.length) {
+          for (const mapping of mappings) {
+            const missing = skipped(mapping.suite);
+            if (missing) {
+              skippedMappings.push(`${mapping.suite} (set ${missing}): ${mapping.title}`);
+              continue;
+            }
+            if (run(mapping.suite, mapping).status !== 0)
+              by.push(`${mapping.suite}: ${mapping.title}`);
           }
+        } else {
+          const runnable = suitesOf(m).filter((s) => !skipped(s));
+          for (const suite of runnable) {
+            if (run(suite).status !== 0) {
+              by.push(suite);
+              break;
+            }
+          }
+          skippedMappings.push(...suitesOf(m).filter((s) => skipped(s)).map((s) => `${s} (set ${skipped(s)})`));
         }
         writeFileSync(path, source);
-        if (by) {
+        if (by.length) {
           status = 'killed';
           tally.killed += 1;
-        } else if (runnable.length < suitesOf(m).length) {
+        } else if (skippedMappings.length) {
           status = 'skipped';
           tally.skipped += 1;
         } else if (m.equivalent) {
@@ -108,7 +147,7 @@ try {
           tally.survived += 1;
         }
       }
-      console.log(`${m.id.padEnd(8)} ${status.padEnd(10)} ${by.padEnd(6)} ${m.name}`);
+      console.log(`${m.id.padEnd(8)} ${status.padEnd(10)} ${by.join(' | ') || skippedMappings.join(' | ')} ${m.name}`);
     }
     console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
     if (tally.survived || tally.misapplied) exitCode = 1;

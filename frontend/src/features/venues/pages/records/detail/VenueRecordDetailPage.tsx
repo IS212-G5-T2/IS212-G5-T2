@@ -121,13 +121,6 @@ export function VenueRecordDetailPage() {
                 <dd>{venue.accessibility.join(", ") || "None"}</dd>
               </div>
               <div>
-                <dt>Operating days and hours</dt>
-                <dd>
-                  {venue.operatingDays.join(", ")} · {venue.operatingStartTime}–
-                  {venue.operatingEndTime}
-                </dd>
-              </div>
-              <div>
                 <dt>Operating information</dt>
                 <dd>{venue.operatingInformation}</dd>
               </div>
