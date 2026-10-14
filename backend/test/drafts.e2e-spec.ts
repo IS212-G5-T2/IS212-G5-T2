@@ -12,6 +12,7 @@ const database = process.env.TEST_DATABASE_URL;
 describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
   let app: INestApplication;
   let db: pg.Pool;
+  let organiser: ReturnType<typeof request.agent>;
   const ids: string[] = [];
   const newId = () => {
     const id = randomUUID();
@@ -24,7 +25,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     version = 0,
     operationId = randomUUID(),
   ) =>
-    request(app.getHttpServer())
+    organiser
       .put(`/api/requests/${id}`)
       .send({ fields, version, operationId });
   beforeAll(async () => {
@@ -48,6 +49,14 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     );
     app = await NestFactory.create(AppModule, { logger: false });
     await app.init();
+    organiser = request.agent(app.getHttpServer());
+    await organiser
+      .post('/api/auth/login')
+      .send({
+        email: 'organiser1@connectsphere.test',
+        password: 'P@55w0rd',
+      })
+      .expect(201);
   });
   afterAll(async () => {
     // Remove only records created by this suite, preserving the shared database.
@@ -60,7 +69,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     }
     await app?.close();
   });
-  // AC1/2: incomplete drafts persist without creating submitted events.
+  /** AC1/2: incomplete drafts persist without creating submitted events. */
   it('saves an incomplete Draft without submitting', async () => {
     const id = newId();
     const response = await save(id, { name: 'Incomplete' }).expect(200);
@@ -69,7 +78,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
-  // AC3/5: fresh API reads retrieve every field from PostgreSQL, including files.
+  /** AC3/5: fresh API reads retrieve every field from PostgreSQL, including files. */
   it('lists and reopens all saved values', async () => {
     const id = newId();
     const fields = {
@@ -99,18 +108,18 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     await save(id, fields).expect(200);
     expect(
       (
-        await request(app.getHttpServer())
+        await organiser
           .get(`/api/requests/${id}`)
           .expect(200)
       ).body.fields,
     ).toEqual(fields);
     expect(
       (
-        await request(app.getHttpServer()).get('/api/requests').expect(200)
+        await organiser.get('/api/requests').expect(200)
       ).body.some((row: { id: string }) => row.id === id),
     ).toBe(true);
   });
-  // AC4/6: an uncertain response can be retried and later saves update the same row.
+  /** AC4/6: retries are idempotent and later saves update the same draft row. */
   it('retries idempotently and rejects stale concurrent updates', async () => {
     const id = newId(),
       operation = randomUUID();
@@ -127,24 +136,24 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(responses.map((r) => r.status).sort()).toEqual([200, 409]);
     const latest = responses.find((r) => r.status === 200)!.body;
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await organiser.get(`/api/requests/${id}`)).body
         .fields,
     ).toEqual(latest.fields);
     expect(
       (await db.query('SELECT * FROM event_drafts WHERE id=$1', [id])).rowCount,
     ).toBe(1);
   });
-  // AC6: rejected input leaves the previous successful draft untouched.
+  /** AC6: rejected input leaves the previous successful draft untouched. */
   it('retains the saved values after validation failure', async () => {
     const id = newId();
     await save(id, { name: 'Safe value' }).expect(200);
     await save(id, { name: 123 }, 1).expect(400);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await organiser.get(`/api/requests/${id}`)).body
         .fields.name,
     ).toBe('Safe value');
   });
-  // AC8: real submission is atomic, idempotent and permanently closes draft editing.
+  /** AC8: submission is idempotent and permanently closes draft editing. */
   it('submits once and blocks later draft saves', async () => {
     const id = newId();
     const startDateTime = new Date(Date.now() + 86400000 * 14).toISOString();
@@ -159,11 +168,11 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       layout: 'Theatre',
     }).expect(200);
     const payload = { version: 1, startDateTime, endDateTime };
-    const first = await request(app.getHttpServer())
+    const first = await organiser
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
-    const retry = await request(app.getHttpServer())
+    const retry = await organiser
       .post(`/api/requests/${id}/submit`)
       .send(payload)
       .expect(201);
@@ -171,18 +180,18 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(retry.body.event.id).toBe(id);
     await save(id, { name: 'Illegal edit' }, 2).expect(409);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body
+      (await organiser.get(`/api/requests/${id}`)).body
         .status,
     ).toBe('Submitted');
     expect(
       (await db.query('SELECT * FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(1);
   });
-  // AC2/8: submission requires complete valid details even though saving does not.
+  /** AC2/8: submission requires complete details even though saving does not. */
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
     await save(id, {}).expect(200);
-    await request(app.getHttpServer())
+    await organiser
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(400);
@@ -191,26 +200,28 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  /** Q1-038: malformed and missing draft IDs return 404 without insertion. */
   it('Q1-038 malformed and missing IDs return 404 without insertion', async () => {
     for (const id of ['bad-id', newId()]) {
-      await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
+      await organiser.get(`/api/requests/${id}`).expect(404);
       await save(id, {}, 1).expect(404);
-      await request(app.getHttpServer())
+      await organiser
         .post(`/api/requests/${id}/submit`)
         .send({ version: 1 })
         .expect(404);
     }
   });
+  /** Q1-039: a stale submit preserves the latest draft and creates no event. */
   it('Q1-039 stale submit preserves latest saved data and creates no event', async () => {
     const id = newId();
     await save(id, { name: 'First' }).expect(200);
     await save(id, { name: 'Latest' }, 1).expect(200);
-    await request(app.getHttpServer())
+    await organiser
       .post(`/api/requests/${id}/submit`)
       .send({ version: 1 })
       .expect(409);
     expect(
-      (await request(app.getHttpServer()).get(`/api/requests/${id}`)).body,
+      (await organiser.get(`/api/requests/${id}`)).body,
     ).toMatchObject({
       status: 'Draft',
       version: 2,
@@ -220,15 +231,24 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  /** Q1-040: saved draft data remains accessible after the app restarts. */
   it('Q1-040 data survives a backend restart and a new database connection', async () => {
     const id = newId();
     await save(id, { name: 'Restart evidence', formStep: 2 }).expect(200);
     await app.close();
     app = await NestFactory.create(AppModule, { logger: false });
     await app.init();
+    organiser = request.agent(app.getHttpServer());
+    await organiser
+      .post('/api/auth/login')
+      .send({
+        email: 'organiser1@connectsphere.test',
+        password: 'P@55w0rd',
+      })
+      .expect(201);
     expect(
       (
-        await request(app.getHttpServer())
+        await organiser
           .get(`/api/requests/${id}`)
           .expect(200)
       ).body,
@@ -238,6 +258,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       fields: { name: 'Restart evidence', formStep: 2 },
     });
   });
+  /** Q1-041: concurrent submissions create one event and close the draft. */
   it('Q1-041 simultaneous submissions create one event and close the draft', async () => {
     const id = newId();
     await save(id, {
@@ -254,7 +275,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     };
     const responses = await Promise.all(
       [1, 2].map(() =>
-        request(app.getHttpServer())
+        organiser
           .post(`/api/requests/${id}/submit`)
           .send(body),
       ),
@@ -270,17 +291,17 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .rows[0].event_name,
     ).toBe('Concurrent submit');
   });
-  // Ownership filtering is retained; original AC7 real organisation authentication is explicitly deferred.
+  /** AC7: an authenticated organiser cannot access another organiser's draft. */
   it('does not expose a row belonging to a different server-side owner', async () => {
     const id = newId();
     await db.query(
       "INSERT INTO event_drafts (id, organiser_id, fields) VALUES ($1,'other-owner','{}')",
       [id],
     );
-    await request(app.getHttpServer()).get(`/api/requests/${id}`).expect(404);
+    await organiser.get(`/api/requests/${id}`).expect(404);
     await save(id, {}).expect(404);
     expect(
-      (await request(app.getHttpServer()).get('/api/requests')).body.some(
+      (await organiser.get('/api/requests')).body.some(
         (row: { id: string }) => row.id === id,
       ),
     ).toBe(false);

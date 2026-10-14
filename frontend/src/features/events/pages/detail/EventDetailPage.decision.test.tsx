@@ -8,7 +8,7 @@ import type { EventRecord, UserRole } from "@/types";
 
 /**
  * Event decision controls: SPM-40 approval (EVENT-APPROVE-01-A-C, 04-C) and
- * SPM-83 rejection (EVENT-REJECT-01-A-H, 04-A). Both actions use the same
+ * SPM-83 rejection (EVENT-REJECT-01-A-I, 04-A). Both actions use the same
  * assigned-coordinator page setup; their distinct requirements remain in the
  * named test groups below.
  */
@@ -269,8 +269,8 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
-  // AC5 visual: a rejected request shows a draft → submitted → rejected timeline,
-  // not the normal approval pipeline.
+  // EVENT-REJECT-01-I — a rejected request shows draft → submitted → rejected,
+  // without approval-pipeline statuses.
   it("shows a draft → submitted → rejected status timeline for a rejected request", async () => {
     setUser("organiser", "organiser-9");
     renderDetail(

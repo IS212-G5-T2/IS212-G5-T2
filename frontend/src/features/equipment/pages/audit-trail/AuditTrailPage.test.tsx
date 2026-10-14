@@ -111,4 +111,18 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Shared projector")).toBeInTheDocument();
   });
+
+  /**
+   * EQUIP-UNAVAIL-05-D: an audit-trail load failure is announced and no table is shown.
+   */
+  it("SPM-119 AC5 displays the audit-trail load error", async () => {
+    getEquipmentAuditTrail.mockRejectedValue(new Error("network unavailable"));
+
+    render(<AuditTrailPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to load the audit trail. Please try again.",
+    );
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
 });

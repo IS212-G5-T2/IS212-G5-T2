@@ -79,8 +79,8 @@ describe("ComboBox", () => {
     expect(onChange).toHaveBeenLastCalledWith("Recording Studio");
   });
 
-  // SPM-111 EQUIP-CRE-02-C: Escape and clicks outside close the suggestion list.
-  it("EQUIP-CRE-02-C closes on Escape and outside click", async () => {
+  // EQUIP-CRE-02-E: Escape and outside clicks close location suggestions without changing the entered value.
+  it("EQUIP-CRE-02-E preserves the typed location when Escape or outside click closes suggestions", async () => {
     // Arrange: render a sibling outside the combobox.
     const user = userEvent.setup();
     function ControlledComboBox() {
@@ -102,14 +102,18 @@ describe("ComboBox", () => {
     );
     const input = screen.getByRole("combobox", { name: /Location/ });
 
-    // Act and assert: Escape closes an open list.
-    await user.click(input);
+    // Act and assert: Escape closes an open list without clearing the typed location.
+    await user.type(input, "Main");
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("Main");
 
-    // Act and assert: a pointer interaction outside also closes it.
-    await user.click(input);
+    // Act and assert: a pointer interaction outside also closes it without clearing the value.
+    await user.click(screen.getByRole("button", { name: "Toggle dropdown" }));
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Outside" }));
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("Main");
   });
 });
