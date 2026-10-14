@@ -17,7 +17,7 @@ export interface VenueReservation {
   affectedByUnavailablePeriod: boolean;
 }
 
-/** Read-only venue catalogue view of the SPM-50 venue record and schedule. */
+/** Read-only venue catalogue view of the SPM-50 venue record and availability data. */
 export interface VenueRecord extends Venue {
   availabilityStatus: "available" | "unavailable";
   unavailablePeriods: VenueUnavailablePeriod[];

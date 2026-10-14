@@ -14,9 +14,6 @@ const venue: Venue = {
   accessibility: ["Wheelchair access"],
   layouts: ["Classroom"],
   operatingInformation: "Closed on public holidays",
-  operatingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-  operatingStartTime: "08:00",
-  operatingEndTime: "22:00",
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
 };
@@ -36,14 +33,12 @@ describe("VenueDetailPage", () => {
     useAppStore.setState({ venues: [venue], bookings: [] });
   });
 
-  // SPM-50 / AC2: saved operating information and schedule must be presented independently.
-  it("renders venue details, operating schedule, and durations when no image is saved", () => {
+  // Operating information remains visible without presenting deprecated hours.
+  it("renders venue details and durations when no image is saved", () => {
     renderDetail();
 
     expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
-    expect(
-      screen.getByText("Monday, Tuesday, Wednesday, Thursday, Friday · 08:00–22:00"),
-    ).toBeTruthy();
+    expect(screen.queryByText(/Operating hours/i)).toBeNull();
     expect(screen.getByText("Closed on public holidays")).toBeTruthy();
     expect(screen.getByText("30 minutes")).toBeTruthy();
     expect(screen.getByText("45 minutes")).toBeTruthy();

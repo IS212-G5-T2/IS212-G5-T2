@@ -23,9 +23,6 @@ const venue = {
   accessibility: ['Wheelchair access'],
   layouts: ['Classroom', 'Theatre'],
   operatingInformation: 'Closed on public holidays',
-  operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-  operatingStartTime: '08:00',
-  operatingEndTime: '22:00',
   setupTimeMinutes: 30,
   turnaroundTimeMinutes: 45,
 };
@@ -37,9 +34,6 @@ const venueInput = {
   accessibility: venue.accessibility,
   layouts: venue.layouts,
   operatingInformation: venue.operatingInformation,
-  operatingDays: venue.operatingDays,
-  operatingStartTime: venue.operatingStartTime,
-  operatingEndTime: venue.operatingEndTime,
   setupTimeMinutes: venue.setupTimeMinutes,
   turnaroundTimeMinutes: venue.turnaroundTimeMinutes,
 };

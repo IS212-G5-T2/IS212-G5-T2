@@ -124,9 +124,6 @@ export interface Venue {
   accessibility: string[];
   layouts: string[];
   operatingInformation: string;
-  operatingDays: string[];
-  operatingStartTime: string;
-  operatingEndTime: string;
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImage;
@@ -140,7 +137,10 @@ export interface VenueImage {
 }
 
 /** Venue details supplied by staff before the backend generates its UUID. */
-export type VenueCreateInput = Omit<Venue, "id">;
+export type VenueCreateInput = Omit<
+  Venue,
+  "id"
+>;
 
 export type BookingStatus = "pending" | "approved" | "rejected";
 

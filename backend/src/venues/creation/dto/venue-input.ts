@@ -4,16 +4,6 @@ import { facilityNames, roomLayoutNames } from '../../helpers/venue-options.js';
 
 const MAX_DURATION_MINUTES = 2_147_483_647;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const operatingDayNames = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-] as const;
-
 export interface VenueImageInput {
   name: string;
   type: string;
@@ -30,9 +20,6 @@ export interface VenueInput {
   accessibility: string[];
   layouts: string[];
   operatingInformation: string;
-  operatingDays: string[];
-  operatingStartTime: string;
-  operatingEndTime: string;
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImageInput;
@@ -46,9 +33,6 @@ export const venueFields = [
   'facilities',
   'layouts',
   'operatingInformation',
-  'operatingDays',
-  'operatingStartTime',
-  'operatingEndTime',
   'setupTimeMinutes',
   'turnaroundTimeMinutes',
 ] as const;
@@ -96,25 +80,6 @@ export function validateVenue(value: unknown): VenueInput {
   const name = text('name', 200);
   const location = text('location', 300);
   const operatingInformation = text('operatingInformation', 200);
-  const operatingDays = array('operatingDays');
-  if (
-    operatingDays.some(
-      (day) => !operatingDayNames.includes(day as (typeof operatingDayNames)[number]),
-    )
-  )
-    errors.operatingDays = 'Choose one or more valid operating days.';
-  if (new Set(operatingDays).size !== operatingDays.length)
-    errors.operatingDays = 'Choose each operating day only once.';
-  const time = (key: 'operatingStartTime' | 'operatingEndTime'): string => {
-    const value = text(key, 5);
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value))
-      errors[key] = 'Enter a valid time.';
-    return value;
-  };
-  const operatingStartTime = time('operatingStartTime');
-  const operatingEndTime = time('operatingEndTime');
-  if (operatingStartTime && operatingEndTime && operatingStartTime >= operatingEndTime)
-    errors.operatingEndTime = 'End time must be after start time.';
   const duration = (key: 'setupTimeMinutes' | 'turnaroundTimeMinutes') => {
     const input = body[key];
     if (
@@ -199,9 +164,6 @@ export function validateVenue(value: unknown): VenueInput {
     accessibility,
     layouts,
     operatingInformation,
-    operatingDays,
-    operatingStartTime,
-    operatingEndTime,
     setupTimeMinutes,
     turnaroundTimeMinutes,
     image,

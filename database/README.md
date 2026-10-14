@@ -47,7 +47,7 @@ a fresh database: `001_schema.sql` creates the complete local schema and
 | `users` | Local account identity, password hash, active state, and display name. |
 | `user_roles` | Local account membership in the seeded RBAC roles. |
 | `auth_sessions` | Hashed, revocable, expiring local browser sessions. |
-| `venues` | Venue Staff-created catalogue details, including one scalar location, operating information, selected operating days with start/end times, and an authenticated `owner_user_id` foreign key to `users`. |
+| `venues` | Venue Staff-created catalogue details, including one scalar location, free-text operating information, and an authenticated `owner_user_id` foreign key to `users`. |
 | `facilities` | Controlled facility names and categories available to venues. |
 | `venue_facilities` | Many-to-many facility selections linked to venues. |
 | `room_layouts` | Controlled supported room-layout names. |
@@ -154,9 +154,10 @@ Fresh PostgreSQL images receive the final event lifecycle directly from `001_sch
 The SPM-50 venue tables, SPM-124 `venue_bookings` table, and their lookup
 records are included in `001_schema.sql` and `002_seed_data.sql`. Fresh
 databases also receive the local sample venues and their blockout booking.
-For an existing volume, apply backend migrations 005–008, then
-`backend/migrations/009_venue_availability.sql`; init scripts do not rerun on
-an existing volume.
+For an existing volume, apply backend migrations 005–009 in order, then
+`backend/migrations/010_remove_venue_operating_schedule.sql`; init scripts do
+not rerun on an existing volume. Migration 010 removes the legacy operating
+days and opening-time columns after the availability migration is installed.
 
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff

@@ -36,9 +36,6 @@ describe.skipIf(!databaseUrl)(
       accessibility: ['Wheelchair access'],
       layouts: ['Classroom', 'Theatre'],
       operatingInformation: 'Closed on public holidays',
-      operatingDays: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
-      operatingStartTime: '08:00',
-      operatingEndTime: '22:00',
       setupTimeMinutes: 30,
       turnaroundTimeMinutes: 45,
       image: {
@@ -122,6 +119,15 @@ describe.skipIf(!databaseUrl)(
         await readFile(
           new URL(
             '../migrations/009_venue_availability.sql',
+            import.meta.url,
+          ),
+          'utf8',
+        ),
+      );
+      await pool.query(
+        await readFile(
+          new URL(
+            '../migrations/010_remove_venue_operating_schedule.sql',
             import.meta.url,
           ),
           'utf8',
@@ -231,6 +237,59 @@ describe.skipIf(!databaseUrl)(
           )
         ).rowCount,
       ).toBe(1);
+    });
+
+    /** SPM-50 correction: legacy schedule fields are absent from schema and every API representation. */
+    it('discards legacy schedule fields and exposes operating information without schedule properties', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({
+          ...venueInput,
+          name: 'SPM-50 No Hours Venue',
+          operatingDays: ['Monday'],
+          operatingStartTime: '09:00',
+          operatingEndTime: '18:00',
+        })
+        .expect(201);
+
+      const venueId = created.body.venue.id as string;
+      venueIds.push(venueId);
+      expect(created.body).toMatchObject({
+        venue: {
+          id: expect.stringMatching(uuidPattern),
+          operatingInformation: venueInput.operatingInformation,
+        },
+        message: 'Venue created successfully.',
+      });
+      for (const key of ['operatingDays', 'operatingStartTime', 'operatingEndTime'])
+        expect(created.body.venue).not.toHaveProperty(key);
+      const persisted = await pool.query(
+        `SELECT operating_information FROM venues WHERE id = $1`,
+        [venueId],
+      );
+      expect(persisted.rows).toEqual([
+        {
+          operating_information: venueInput.operatingInformation,
+        },
+      ]);
+      const columns = await pool.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+         WHERE table_schema = current_schema() AND table_name = 'venues'
+           AND column_name = ANY($1::text[])`,
+        [['operating_days', 'operating_start_time', 'operating_end_time']],
+      );
+      expect(columns.rows).toEqual([]);
+
+      const detail = await staff.get(`/api/venues/${venueId}`).expect(200);
+      for (const key of ['operatingDays', 'operatingStartTime', 'operatingEndTime'])
+        expect(detail.body).not.toHaveProperty(key);
+      const listing = await staff.get('/api/venues').expect(200);
+      const listedVenue = (listing.body as Array<Record<string, unknown>>)
+        .find((item) => item.id === venueId);
+      expect(listedVenue).toBeDefined();
+      for (const key of ['operatingDays', 'operatingStartTime', 'operatingEndTime'])
+        expect(listedVenue).not.toHaveProperty(key);
     });
 
     // SPM-50 owner rule: another staff member owns only the venue created through their own session.
@@ -343,18 +402,14 @@ describe.skipIf(!databaseUrl)(
         const insert = pool.query(
           `INSERT INTO venues
            (owner_user_id, name, location, capacity, operating_information,
-            operating_days, operating_start_time, operating_end_time,
             setup_time_minutes, turnaround_time_minutes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
           [
             ownerUserId,
             `Invalid Owner ${code}`,
             'Test Building Level 3',
             venueInput.capacity,
             venueInput.operatingInformation,
-            venueInput.operatingDays,
-            venueInput.operatingStartTime,
-            venueInput.operatingEndTime,
             venueInput.setupTimeMinutes,
             venueInput.turnaroundTimeMinutes,
           ],
@@ -622,10 +677,8 @@ describe.skipIf(!databaseUrl)(
       for (const row of inserted) {
         await pool.query(
           `INSERT INTO venues (id, owner_user_id, name, location, capacity,
-             operating_information, operating_days, operating_start_time,
-             operating_end_time, setup_time_minutes, turnaround_time_minutes)
-           VALUES ($1, $2, $3, $4, 10, 'Order test', ARRAY['Monday'],
-             '09:00', '18:00', 0, 0)`,
+             operating_information, setup_time_minutes, turnaround_time_minutes)
+           VALUES ($1, $2, $3, $4, 10, 'Order test', 0, 0)`,
           [row.id, owner.rows[0].id, row.name, row.location],
         );
         venueIds.push(row.id);
