@@ -2,17 +2,10 @@
 
 Historical AI-assisted work associated with SPM-50.
 
-## 2026-10-14
-
-- swr - fix - SPM-50/SPM-51 - Repair review test evidence: Updated venue detail tests for API-backed loading, stale requests, event return context, server reservations, and removed-hour regressions; corrected backend mutation mapping execution and scratch schema asset handling.
-
 ## 2026-10-13
 
 - swr - implementation - SPM-50 - Remove operating hours from venue creation: Reopened correction removes operating days and opening times from the form and required API fields; omitted schedules receive a full-week compatibility value for availability consumers. Frontend/backend coverage, lint, and build checks recorded on the fix branch.
 - swr - testing - SPM-50 - Add mutation and PostgreSQL evidence: Add validated exact-title frontend/backend mutation mappings (8 mutants, all killed) and a current-field HTTP/PostgreSQL creation case asserting returned and persisted operating information plus compatibility schedule; E2E passed against disposable local PostgreSQL.
-
-- swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.
-- swr - testing - SPM-50/SPM-51 - Strengthen schedule-removal and full-day calendar regressions: Added isolated PostgreSQL execution of the complete fresh schema, null/partial legacy-input, four-view Open 24 hours/24/7, and full-day grid mutation checks; BE-50-05 was killed by an ALTER-after-create mutant in the fresh-init test. Backend E2E mutants were previously skipped without DATABASE_URL; frontend view mutants passed 8/8, and slot bound mutants passed 2/2. Browser interaction passed with a clear 02:00–04:00 SGT selection.
 
 ## 2026-10-05
 

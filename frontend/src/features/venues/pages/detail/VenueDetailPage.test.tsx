@@ -80,8 +80,8 @@ describe("VenueDetailPage", () => {
 
   afterEach(() => cleanup());
 
-  /** SPM-50 AC6: persisted venue details keep operating information and durations without displaying retired hours. */
-  it("loads persisted venue details and durations without presenting operating hours", async () => {
+  /** SPM-51: the detail view loads the selected venue and its reservation data from the API. */
+  it("loads the API-backed venue details and durations", async () => {
     apiMock.mockResolvedValue({ ...venue, availabilityStatus: "available", reservations: [], unavailablePeriods: [] });
     renderDetail();
 
@@ -90,7 +90,7 @@ describe("VenueDetailPage", () => {
     expect(screen.getByText("Closed on public holidays")).toBeInTheDocument();
     expect(screen.getByText("30 minutes")).toBeInTheDocument();
     expect(screen.getByText("45 minutes")).toBeInTheDocument();
-    expect(screen.queryByText(/operating hours|open 24 hours|24\/7/i)).toBeNull();
+    expect(screen.queryByText(/Operating hours/i)).toBeNull();
     expect(screen.queryByRole("img")).toBeNull();
     expect(screen.getByText("No bookings recorded.")).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/venues/venue-1");

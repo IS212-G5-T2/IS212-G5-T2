@@ -12,3 +12,7 @@ Add entries under one date per day, using this format:
 - <user or general> - <type> - <Jira ticket or branch name> - <title>: <concise result>
 ```
 Where user is the user's github username.
+
+## 2026-10-13
+
+- swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.

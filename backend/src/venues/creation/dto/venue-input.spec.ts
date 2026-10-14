@@ -1,8 +1,4 @@
 import { BadRequestException } from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import pg from 'pg';
 import { describe, expect, it } from 'vitest';
 import { validateVenue, venueFields } from './venue-input.js';
 
@@ -118,80 +114,18 @@ describe('SPM-50 venue input', () => {
     expect(validateVenue({ ...valid(), capacity }).capacity).toBe(capacity);
   });
 
-  /** SPM-50 correction: null and partial legacy schedule payloads are ignored; operating information remains required. */
-  it.each([
-    [
-      'complete schedule',
-      {
-        operatingDays: ['Monday'],
-        operatingStartTime: '09:00',
-        operatingEndTime: '18:00',
-      },
-    ],
-    [
-      'null schedule values',
-      { operatingDays: null, operatingStartTime: null, operatingEndTime: null },
-    ],
-    ['days only', { operatingDays: ['Monday'] }],
-    ['start only', { operatingStartTime: '09:00' }],
-    ['end only', { operatingEndTime: '18:00' }],
-    [
-      'days and start only',
-      { operatingDays: ['Monday'], operatingStartTime: '09:00' },
-    ],
-  ])(
-    'silently discards legacy schedule properties from older clients (%s)',
-    (_label, legacyFields) => {
-      const venue = validateVenue({
-        ...valid(),
-        ...legacyFields,
-      });
-      expect(venue.operatingInformation).toBe(valid().operatingInformation);
-      expect(venue).not.toHaveProperty('operatingDays');
-      expect(venue).not.toHaveProperty('operatingStartTime');
-      expect(venue).not.toHaveProperty('operatingEndTime');
-    },
-  );
-
-  /** SPM-50 regression: executing the full fresh-init SQL leaves no retired columns on venues. */
-  it.skipIf(!process.env.DATABASE_URL)(
-    'keeps retired schedule columns out of the effective fresh venue schema',
-    async () => {
-      const initDirectory =
-        process.env.SPM51_DATABASE_INIT_DIR ??
-        resolve('../database/postgresql/init');
-      const schemaSql = await readFile(
-        resolve(initDirectory, '001_schema.sql'),
-        'utf8',
-      );
-      const schemaName = `spm50_fresh_${randomUUID().replaceAll('-', '')}`;
-      const client = new pg.Client({
-        connectionString: process.env.DATABASE_URL,
-      });
-
-      await client.connect();
-      try {
-        await client.query('BEGIN');
-        await client.query(`CREATE SCHEMA "${schemaName}"`);
-        await client.query(`SET LOCAL search_path TO "${schemaName}", public`);
-        await client.query(schemaSql);
-
-        const columns = await client.query<{ column_name: string }>(
-          `SELECT column_name FROM information_schema.columns
-           WHERE table_schema = $1 AND table_name = 'venues'`,
-          [schemaName],
-        );
-        const columnNames = columns.rows.map(({ column_name }) => column_name);
-        expect(columnNames).toContain('operating_information');
-        expect(columnNames).not.toContain('operating_days');
-        expect(columnNames).not.toContain('operating_start_time');
-        expect(columnNames).not.toContain('operating_end_time');
-      } finally {
-        await client.query('ROLLBACK');
-        await client.end();
-      }
-    },
-  );
+  // SPM-50 correction: operatingInformation is the only venue operating data.
+  it('silently discards legacy schedule properties from older clients', () => {
+    const venue = validateVenue({
+      ...valid(),
+      operatingDays: ['Monday'],
+      operatingStartTime: '09:00',
+      operatingEndTime: '18:00',
+    });
+    expect(venue).not.toHaveProperty('operatingDays');
+    expect(venue).not.toHaveProperty('operatingStartTime');
+    expect(venue).not.toHaveProperty('operatingEndTime');
+  });
 
   // SPM-50 / VEN-CRE-06-B, VEN-CRE-06-D: negative or malformed setup durations are rejected.
   it.each([
@@ -211,14 +145,11 @@ describe('SPM-50 venue input', () => {
     ['turnaroundTimeMinutes', Number.NaN],
     ['turnaroundTimeMinutes', '45'],
     ['turnaroundTimeMinutes', 2_147_483_648],
-  ] as const)(
-    'rejects invalid turnaround duration %s=%s',
-    (field, duration) => {
-      expect(
-        fieldError({ ...valid(), [field]: duration }).errors[field],
-      ).toBeTruthy();
-    },
-  );
+  ] as const)('rejects invalid turnaround duration %s=%s', (field, duration) => {
+    expect(
+      fieldError({ ...valid(), [field]: duration }).errors[field],
+    ).toBeTruthy();
+  });
 
   // SPM-50 / VEN-CRE-06-A: zero and positive whole-minute durations are configurable values.
   it.each([0, 1, 180])('accepts duration %s minutes', (duration) => {

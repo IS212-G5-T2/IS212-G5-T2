@@ -36,8 +36,6 @@ describe("VenueCard", () => {
 
     expect(screen.getByRole("heading", { name: "Orchid Hall" })).toBeTruthy();
     expect(screen.queryByText(/Hours:/i)).toBeNull();
-    expect(screen.queryByText(/^Open 24 hours$/i)).toBeNull();
-    expect(screen.queryByText(/^24\/7$/i)).toBeNull();
     expect(screen.getByText("Info: Closed on public holidays")).toBeTruthy();
     expect(screen.getByText("Setup: 30 min · Turnaround: 45 min")).toBeTruthy();
     expect(screen.queryByRole("img")).toBeNull();

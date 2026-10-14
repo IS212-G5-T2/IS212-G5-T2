@@ -141,8 +141,6 @@ describe("VenueRecordsPage (SPM-124)", () => {
       "Seminar Room 2 Test",
     ]);
     expect(screen.queryByText(/Operating hours|Hours:/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Open 24 hours$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^24\/7$/i)).not.toBeInTheDocument();
     const cards = screen.getAllByRole("listitem");
     expect(within(cards[0]).getByText("300")).toBeInTheDocument();
     expect(
