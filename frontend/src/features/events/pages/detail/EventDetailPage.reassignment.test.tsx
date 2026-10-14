@@ -179,7 +179,7 @@ describe("SPM-46 AC4: after the event moves away", () => {
 
     // Assert: the clear message and a link back; no "Event not found".
     expect(await screen.findByRole("alert")).toHaveTextContent("This event has been reassigned to another Coordinator.");
-    expect(screen.getByRole("link", { name: /Back to/ })).toHaveAttribute("href", "/events");
+    expect(screen.getByRole("link", { name: /Back To/ })).toHaveAttribute("href", "/events");
     expect(screen.queryByText(/Event not found/)).not.toBeInTheDocument();
   });
 });

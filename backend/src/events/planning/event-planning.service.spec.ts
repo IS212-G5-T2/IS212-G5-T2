@@ -118,6 +118,7 @@ function makeRepo() {
     listPendingChanges: vi.fn().mockResolvedValue([]),
     listHistory: vi.fn().mockResolvedValue([]),
     findChange: vi.fn().mockResolvedValue(undefined),
+    safetyCheckExists: vi.fn().mockResolvedValue(false),
     applyFields: vi.fn(
       async (_id: string, patch: Record<string, unknown>, now: Date) => ({
         ...eventRow(),
@@ -330,6 +331,28 @@ describe('SPM-49 coordinator update', () => {
     ['accessibility needs', { accessibility: ['Hearing loop'] }],
     ['equipment requirements', { equipmentNeeds: 'Four microphones' }],
   ];
+
+  // SAFETY-RESET-UPDATE: any applied detail resets an existing safety check; the response says so.
+  it('SAFETY-RESET-UPDATE-01 reports a reset when an applied change removed an existing safety check', async () => {
+    repo.safetyCheckExists.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed Event' });
+    expect(result.applied).toEqual(['name']);
+    expect(result.safetyCheckReset).toBe(true);
+  });
+
+  it('SAFETY-RESET-UPDATE-02 reports no reset when there was no safety check to reset', async () => {
+    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed Event' });
+    expect(result.applied).toEqual(['name']);
+    expect(result.safetyCheckReset).toBe(false);
+  });
+
+  it('SAFETY-RESET-UPDATE-03 reports no reset when nothing changed', async () => {
+    const same = eventRow().name as string;
+    const result = await service.updateEvent(coordinator(), EVENT_ID, { name: same });
+    expect(result.applied).toEqual([]);
+    expect(result.safetyCheckReset).toBe(false);
+    expect(repo.safetyCheckExists).not.toHaveBeenCalled();
+  });
 
   // EVENT-UPDATE-01-A: AC1 — the assigned coordinator sees the current information.
   it('EVENT-UPDATE-01-A lets the assigned coordinator view current event information', async () => {

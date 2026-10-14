@@ -51,7 +51,7 @@ export function RejectionNotifications() {
           </span>
           <div>
             <h2 className="font-semibold text-gray-900 dark:text-gray-100" aria-live="polite">
-              Request decisions
+              Request Decisions
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {unread.length > 0 ? (
@@ -140,7 +140,7 @@ export function RejectionNotifications() {
                     className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
                     to={`/events/${n.relatedEventId}`}
                   >
-                    View request
+                    View Request
                   </Link>
                   {!n.read && (
                     <button
@@ -148,7 +148,7 @@ export function RejectionNotifications() {
                       className="text-gray-500 underline-offset-2 hover:text-gray-700 hover:underline dark:text-gray-400 dark:hover:text-gray-200"
                       onClick={() => void markRead(n.id)}
                     >
-                      Mark as read
+                      Mark As Read
                     </button>
                   )}
                 </div>

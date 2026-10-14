@@ -322,7 +322,7 @@ describe("SPM-37 drafts in the current event form", () => {
     // Save without completing any required fields.
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     expect(
-      await screen.findByRole("dialog", { name: "Draft saved" }),
+      await screen.findByRole("dialog", { name: "Draft Saved" }),
     ).toBeTruthy();
     expect(apiMock.mock.calls[0][1]?.method).toBe("PUT");
     expect(apiMock.mock.calls.some(([path]) => path === "/events")).toBe(false);
@@ -392,7 +392,7 @@ describe("SPM-37 drafts in the current event form", () => {
     await enterBasicInformation(user);
     await enterSchedule(user);
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
-    await screen.findByRole("dialog", { name: "Draft saved" });
+    await screen.findByRole("dialog", { name: "Draft Saved" });
     const [, init] = apiMock.mock.calls.find(
       ([, init]) => init?.method === "PUT",
     )!;

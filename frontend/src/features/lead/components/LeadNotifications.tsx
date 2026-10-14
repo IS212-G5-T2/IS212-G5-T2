@@ -27,7 +27,7 @@ export function LeadNotifications() {
       aria-label="Coordinator availability"
       className="mb-6 rounded-xl border border-warning-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Coordinator availability</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Coordinator Availability</h2>
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-300">
           {error}
@@ -39,10 +39,10 @@ export function LeadNotifications() {
             <span className="text-gray-800 dark:text-gray-200">{notification.message}</span>
             <span className="flex items-center gap-3">
               <Link to="/lead/reassign" className="font-medium text-primary-700 hover:underline">
-                Review assigned events
+                Review Assigned Events
               </Link>
               <Button variant="ghost" size="sm" onClick={() => void markRead(notification.id)}>
-                Mark as read
+                Mark As Read
               </Button>
             </span>
           </li>

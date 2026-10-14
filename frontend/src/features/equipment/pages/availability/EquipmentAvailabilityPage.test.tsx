@@ -492,7 +492,7 @@ function availableRecord(
 
 describe("SPM-119 EquipmentAvailabilityPage", () => {
   // EQUIP-UNAVAIL-01-B: an available row exposes only the unavailable action.
-  it("EQUIP-UNAVAIL-01-B renders Mark unavailable only for an available row", async () => {
+  it("EQUIP-UNAVAIL-01-B renders Mark Unavailable only for an available row", async () => {
     // Arrange: the opt-in availability list contains one row in each state.
     getEquipment.mockResolvedValue([
       availableRecord({ id: "available-light", name: "Light bulbs" }),
@@ -513,7 +513,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     // Assert: the available row has its permitted action and no reactivation action.
     const availableRow = screen.getByText("Light bulbs").closest("tr");
     const unavailableRow = screen.getByText("Broken projector").closest("tr");
-    expect(availableRow).toHaveTextContent("Mark unavailable");
+    expect(availableRow).toHaveTextContent("Mark Unavailable");
     expect(availableRow).not.toHaveTextContent("Reactivate");
     expect(unavailableRow).toBeInTheDocument();
   });
@@ -531,7 +531,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     // Assert: the unavailable row shows only Reactivate.
     const unavailableRow = screen.getByText("Broken projector").closest("tr");
     expect(unavailableRow).toHaveTextContent("Reactivate");
-    expect(unavailableRow).not.toHaveTextContent("Mark unavailable");
+    expect(unavailableRow).not.toHaveTextContent("Mark Unavailable");
   });
 
   // EQUIP-UNAVAIL-01-A: confirmation changes an available row and removes it from the default list.
@@ -737,7 +737,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
   });
 
   // EQUIP-UNAVAIL-06-A: reactivation returns the record to the default list and swaps its action.
-  it("EQUIP-UNAVAIL-06-A reactivates Broken projector and restores Mark unavailable", async () => {
+  it("EQUIP-UNAVAIL-06-A reactivates Broken projector and restores Mark Unavailable", async () => {
     // Arrange: the unavailable record is visible only through the opt-in toggle.
     const user = userEvent.setup();
     getEquipment.mockResolvedValue([
@@ -770,7 +770,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     );
     expect(
       screen.getByText("Broken projector").closest("tr"),
-    ).toHaveTextContent("Mark unavailable");
+    ).toHaveTextContent("Mark Unavailable");
     expect(screen.getByRole("status")).toHaveTextContent(
       "Equipment reactivated.",
     );

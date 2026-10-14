@@ -220,7 +220,7 @@ export function VenueCreatePage() {
             {step === 0 ? (
               <section aria-labelledby="venue-details-heading">
                 <h2 id="venue-details-heading" className="mb-1 text-lg font-semibold text-gray-900 dark:text-gray-100">
-                  Venue details
+                  Venue Details
                 </h2>
                 <p className="mb-5 text-sm text-gray-500 dark:text-gray-400">
                   Each venue has one location. Its identifier is generated automatically when this record is saved.

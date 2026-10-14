@@ -156,7 +156,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
       expect(
         screen
-          .getByRole("link", { name: "Back to My Drafts" })
+          .getByRole("link", { name: "Back To My Drafts" })
           .getAttribute("href"),
       ).toBe("/requests");
     },
@@ -255,7 +255,7 @@ describe("SPM-37 Q2 functional cases", () => {
       .mockResolvedValueOnce({ event });
     open();
     await screen.findByLabelText("Equipment needs");
-    click(/Submit for Review/);
+    click(/Submit For Review/);
     await screen.findByText("Event submitted");
     expect(mocked.mock.calls[1][1]?.method).toBe("PUT");
     expect(mocked.mock.calls[2][0]).toBe(`/requests/${id}/submit`);
@@ -274,7 +274,7 @@ describe("SPM-37 Q2 functional cases", () => {
         .mockRejectedValueOnce(error);
       open();
       await screen.findByLabelText("Equipment needs");
-      click(/Submit for Review/);
+      click(/Submit For Review/);
       expect((await screen.findByRole("alert")).textContent).toBe(
         error instanceof Error
           ? "Rejected"
@@ -282,7 +282,7 @@ describe("SPM-37 Q2 functional cases", () => {
       );
       expect(screen.getByText("Workshop")).toBeTruthy();
       expect(
-        screen.getByRole("button", { name: /Submit for Review/ }),
+        screen.getByRole("button", { name: /Submit For Review/ }),
       ).toHaveProperty("disabled", false);
     },
   );
@@ -319,7 +319,7 @@ describe("SPM-37 Q2 functional cases", () => {
     );
     open();
     await screen.findByLabelText("Equipment needs");
-    click(/Submit for Review/);
+    click(/Submit For Review/);
     expect(screen.getByText("Enter the purpose of your event.")).toBeTruthy();
     expect(mocked).toHaveBeenCalledTimes(1);
   });

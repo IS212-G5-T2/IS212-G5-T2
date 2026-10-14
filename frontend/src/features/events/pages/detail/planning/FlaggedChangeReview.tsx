@@ -59,10 +59,10 @@ function BookingGroup({
       {impact.impacted && !impact.decision && (
         <div className="mt-2 flex flex-wrap gap-2">
           <Button size="sm" variant="secondary" disabled={busy} onClick={() => onDecide("confirm")}>
-            Confirm for this booking
+            Confirm For This Booking
           </Button>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => onDecide("reject")}>
-            Reject for this booking
+            Reject For This Booking
           </Button>
         </div>
       )}
@@ -115,7 +115,7 @@ function ChangeCard({
       </dl>
 
       <div className="space-y-2">
-        <h4 className="font-medium text-gray-800 dark:text-gray-200">Impacted bookings</h4>
+        <h4 className="font-medium text-gray-800 dark:text-gray-200">Impacted Bookings</h4>
         {impacts.length ? (
           impacts.map((impact) => (
             <BookingGroup
@@ -132,7 +132,7 @@ function ChangeCard({
 
       {!!change.equipmentImpacts?.length && (
         <div>
-          <h4 className="font-medium text-gray-800 dark:text-gray-200">Equipment arrangements to re-check</h4>
+          <h4 className="font-medium text-gray-800 dark:text-gray-200">Equipment Arrangements To Re-Check</h4>
           <ul className="mt-1 list-disc space-y-1 pl-5 text-gray-600 dark:text-gray-400">
             {change.equipmentImpacts.map((item) => (
               <li key={item.arrangementId}>
@@ -151,10 +151,10 @@ function ChangeCard({
 
       <div className="flex flex-wrap gap-2">
         <Button disabled={wholeBusy} onClick={() => resolve({ changeId: change.id, decision: "confirm" })}>
-          Confirm change
+          Confirm Change
         </Button>
         <Button variant="secondary" disabled={wholeBusy} onClick={() => resolve({ changeId: change.id, decision: "reject" })}>
-          Reject change
+          Reject Change
         </Button>
       </div>
     </article>
@@ -200,7 +200,7 @@ export function FlaggedChangeReview({ changes, history, onResolve }: Props) {
       </div>
 
       <div>
-        <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Change history</h3>
+        <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Change History</h3>
         {history.length ? (
           <ul aria-label="Change history" className="space-y-2 text-sm">
             {history.map((entry) => (

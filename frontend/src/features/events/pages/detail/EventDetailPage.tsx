@@ -22,6 +22,8 @@ import { formatDateTimeRange, formatDateTime } from "@/utils/format";
 import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
+import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
+import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
 import {
   PLANNING_REFRESH_MS,
   PLANNING_STATUSES,
@@ -100,6 +102,7 @@ export function EventDetailPage() {
   const approveEvent = useAppStore((s) => s.approveEvent);
   const rejectEvent = useAppStore((s) => s.rejectEvent);
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
+  const setEventStatus = useAppStore((s) => s.setEventStatus);
 
   // SPM-61 AC5: the server is the source of truth for "already registered".
   useEffect(() => {
@@ -205,12 +208,12 @@ export function EventDetailPage() {
   }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
 
   if (loading) return <p role="status">Loading event…</p>;
-  if (loadError) return <div role="alert">{loadError} <Link to="/events">Back to My Events</Link></div>;
+  if (loadError) return <div role="alert">{loadError} <Link to="/events">Back To My Events</Link></div>;
 
   if (!event) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-        Event not found. <Link to="/events" className="text-primary-700 dark:text-primary-300 underline">Back to events</Link>
+        Event not found. <Link to="/events" className="text-primary-700 dark:text-primary-300 underline">Back To Events</Link>
       </div>
     );
   }
@@ -225,7 +228,7 @@ export function EventDetailPage() {
       >
         Access restricted: Venue and technical support staff cannot access unapproved submitted requests.{" "}
         <Link to="/events" className="underline">
-          Back to events
+          Back To Events
         </Link>
       </div>
     );
@@ -302,7 +305,7 @@ export function EventDetailPage() {
                 <Link to={`/events/${event.id}/edit`}>
                   <Button variant="secondary">Edit</Button>
                 </Link>
-                <Button onClick={() => submitEvent(event.id)}>Submit for Review</Button>
+                <Button onClick={() => submitEvent(event.id)}>Submit For Review</Button>
               </>
             )}
             {isAssignedCoordinator && event.status === "submitted" && (
@@ -464,7 +467,18 @@ export function EventDetailPage() {
         </div>
       )}
 
-      {planningView && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
+      {planningView && !isAssignedCoordinator && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
+      {planningView && isAssignedCoordinator && (
+        <PlanningInformationPage
+          view={planningView}
+          status={event.status}
+          refreshError={planningError}
+          onConfirmed={() => setEventStatus(event.id, "confirmed")}
+        />
+      )}
+      {isOwner && event.status === "confirmed" && event.organiserId === currentUser.id && (
+        <ConfirmedArrangementsPanel eventId={event.id} />
+      )}
       {!planningView && planningEnabled && planningError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {planningError}
@@ -474,7 +488,7 @@ export function EventDetailPage() {
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Update event information</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Update Event Information</h2>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Compatible changes apply immediately. Changes that affect bookings stay under review until confirmed.
               </p>
@@ -493,7 +507,7 @@ export function EventDetailPage() {
           </Card>
           <Card>
             <CardHeader>
-              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Changes awaiting review</h2>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Changes Awaiting Review</h2>
             </CardHeader>
             <CardBody>
               <FlaggedChangeReview
@@ -612,7 +626,7 @@ export function EventDetailPage() {
             </div>
             {canViewRegistrationReport(currentUser, event) && (
               <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
-                View registrations
+                View Registrations
               </Button>
             )}
           </CardBody>

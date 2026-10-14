@@ -70,7 +70,7 @@ export function VenueRecordDetailPage() {
             setRevision((value) => value + 1);
           }}
         >
-          Try again
+          Try Again
         </Button>
       </div>
     );
@@ -82,7 +82,7 @@ export function VenueRecordDetailPage() {
         description={venue.location}
         actions={
           <Link to="/venue-records">
-            <Button variant="secondary">Back to Venue Records</Button>
+            <Button variant="secondary">Back To Venue Records</Button>
           </Link>
         }
       />
@@ -138,7 +138,7 @@ export function VenueRecordDetailPage() {
         <div className="space-y-4">
           <Card>
             <CardHeader>
-              <h2 className="font-semibold">Unavailable periods</h2>
+              <h2 className="font-semibold">Unavailable Periods</h2>
             </CardHeader>
             <CardBody>
               <VenueUnavailabilityPanel
@@ -152,7 +152,7 @@ export function VenueRecordDetailPage() {
           <Card>
             <CardHeader>
               <h2 className="font-semibold">
-                Upcoming bookings and tentative holds
+                Upcoming Bookings And Tentative Holds
               </h2>
             </CardHeader>
             <CardBody>

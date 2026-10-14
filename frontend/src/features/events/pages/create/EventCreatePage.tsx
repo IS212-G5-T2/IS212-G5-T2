@@ -325,7 +325,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
             "This request has been submitted. Further changes must follow the Event Change Requests workflow."}
         </p>
         <Link className="mt-4 inline-block text-primary-700" to="/requests">
-          Back to My Drafts
+          Back To My Drafts
         </Link>
       </div>
     );
@@ -555,7 +555,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                   />
                   <div className="rounded-lg bg-gray-50 p-4">
                     <h2 className="mb-4 text-sm font-semibold">
-                      Review your request
+                      Review Your Request
                     </h2>
                     <dl className="space-y-3 text-sm">
                       {Object.entries({
@@ -630,7 +630,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     ? "Continue ▸"
                     : "Submitting…"
                   : step === 2
-                    ? "Submit for Review"
+                    ? "Submit For Review"
                     : "Continue ▸"}
               </Button>
             </div>
@@ -649,7 +649,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
             className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl dark:bg-gray-800"
           >
             <h2 id="draft-saved-title" className="text-lg font-semibold">
-              Draft saved
+              Draft Saved
             </h2>
             <p className="my-4 text-sm">
               Your request is saved as Draft and has not been submitted. Reopen

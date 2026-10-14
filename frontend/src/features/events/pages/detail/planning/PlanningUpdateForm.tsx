@@ -293,13 +293,16 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
       const flagged = result?.flagged ?? [];
       const flaggedNames = flagged.map((c) => c.field).filter(Boolean).map(fieldLabel).join(", ");
       const reason = `because they affect existing bookings${flaggedNames ? ` (${flaggedNames})` : ""}`;
+      const base = !flagged.length
+        ? "Changes saved."
+        : applied
+          ? `Saved. ${applied} change(s) applied; ${flagged.length} sent for review ${reason}.`
+          : `${flagged.length} change(s) sent for review ${reason}. The current values stay in place until you confirm.`;
       setNotice({
         tone: "success",
-        text: !flagged.length
-          ? "Changes saved."
-          : applied
-            ? `Saved. ${applied} change(s) applied; ${flagged.length} sent for review ${reason}.`
-            : `${flagged.length} change(s) sent for review ${reason}. The current values stay in place until you confirm.`,
+        text: result?.safetyCheckReset
+          ? `${base} The safety check was reset, so it must be requested again before the event can be confirmed.`
+          : base,
       });
     } catch (error) {
       // Keep everything the coordinator typed; show the server's field errors.
@@ -342,6 +345,9 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
           {notice.text}
         </p>
       )}
+      <p className="mb-3 text-xs text-gray-500 dark:text-gray-400">
+        Saving a change to the event details resets the safety check, so it must be requested again.
+      </p>
       <Button type="submit" disabled={saving}>
         {saving ? "Saving…" : "Save changes"}
       </Button>

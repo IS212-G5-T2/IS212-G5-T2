@@ -27,7 +27,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce({ period: { id: "p1", start: "2030-01-12T04:15:00.000Z", end: "2030-01-12T04:45:00.000Z", reason: "Air-conditioning inspection" }, affectedBookings: [{ id: "b1", eventName: "Welcome Event", start: "2030-01-12T05:00:00.000Z", end: "2030-01-12T06:00:00.000Z" }] });
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Air-conditioning inspection");
@@ -54,7 +54,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T15:00");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T18:00");
     await user.type(screen.getByLabelText(/Reason/), "Maintenance");
@@ -75,7 +75,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange a fully entered period.
     const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Maintenance");
@@ -92,7 +92,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange invalid values.
     const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T14:00");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T13:00");
     await user.type(screen.getByLabelText(/Reason/), "   ");
@@ -109,7 +109,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange the untouched form and attempt to review it.
     const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.click(screen.getByRole("button", { name: "Review unavailability" }));
 
     // Assert all field errors and no persistence request.
@@ -124,7 +124,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange a historical interval with otherwise valid form fields.
     const user = userEvent.setup();
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2020-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2020-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Maintenance");
@@ -148,9 +148,9 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(screen.getByText(/Renovation/)).toBeInTheDocument();
 
     // Act: opening the confirmation alone must not write; then confirm p1.
-    await user.click(screen.getByRole("button", { name: "End early" }));
+    await user.click(screen.getByRole("button", { name: "End Early" }));
     expect(apiMock).not.toHaveBeenCalled();
-    await user.click(screen.getByRole("button", { name: "Confirm early end" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Early End" }));
 
     // Assert only p1 is sent and the server's effective end is visible.
     expect(apiMock).toHaveBeenCalledWith(`/venues/${id}/unavailable-periods/p1/end`, { method: "POST" });
@@ -163,13 +163,13 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange an active period and open its confirmation.
     const user = userEvent.setup();
     renderPanel([{ id: "p1", start: "2030-01-12T11:00:00.000Z", end: "2030-01-12T13:00:00.000Z", reason: "Maintenance", current: true }]);
-    await user.click(screen.getByRole("button", { name: "End early" }));
+    await user.click(screen.getByRole("button", { name: "End Early" }));
 
     // Act and assert that cancellation does not call the API or refresh the venue.
-    await user.click(screen.getByRole("button", { name: "Cancel early end" }));
+    await user.click(screen.getByRole("button", { name: "Cancel Early End" }));
     expect(apiMock).not.toHaveBeenCalled();
     expect(onSaved).not.toHaveBeenCalled();
-    expect(screen.getByRole("button", { name: "End early" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "End Early" })).toBeInTheDocument();
   });
 
   // VEN-UNAVAIL-04-A/07-C: a saved period with no conflicts is reported truthfully.
@@ -178,7 +178,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
@@ -197,7 +197,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     apiMock.mockRejectedValueOnce(new ApiError("Check the unavailable period.", { reason: "A reason is required." }, undefined, 400));
     apiMock.mockResolvedValueOnce({ period: { id: "p1" }, affectedBookings: [] });
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
@@ -228,7 +228,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new ApiError("Check the unavailable period.", { venue: "Venue cannot be updated." }, undefined, 400));
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
@@ -248,7 +248,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new Error("Connection dropped"));
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
@@ -267,7 +267,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new ApiError("Unable to save right now.", undefined, undefined, 503));
     renderPanel();
-    await user.click(screen.getByRole("button", { name: "Mark unavailable" }));
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
     await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
     await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
     await user.type(screen.getByLabelText(/Reason/), "Inspection");
@@ -285,10 +285,10 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new ApiError("Unavailable period not found.", undefined, undefined, 404));
     renderPanel([{ id: "p1", start: "2030-01-12T11:00:00.000Z", end: "2030-01-12T13:00:00.000Z", reason: "Maintenance", current: true }]);
-    await user.click(screen.getByRole("button", { name: "End early" }));
+    await user.click(screen.getByRole("button", { name: "End Early" }));
 
     // Act and assert the original period remains and no successful end is shown.
-    await user.click(screen.getByRole("button", { name: "Confirm early end" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Early End" }));
     expect(await screen.findByText("Unavailable period not found.")).toBeInTheDocument();
     expect(screen.queryByText(/Ended early:/)).not.toBeInTheDocument();
     expect(onSaved).not.toHaveBeenCalled();
@@ -300,10 +300,10 @@ describe("SPM-122 venue unavailable period controls", () => {
     const user = userEvent.setup();
     apiMock.mockRejectedValueOnce(new Error("Connection dropped"));
     renderPanel([{ id: "p1", start: "2030-01-12T11:00:00.000Z", end: "2030-01-12T13:00:00.000Z", reason: "Maintenance", current: true }]);
-    await user.click(screen.getByRole("button", { name: "End early" }));
+    await user.click(screen.getByRole("button", { name: "End Early" }));
 
     // Act and assert that no success is reported.
-    await user.click(screen.getByRole("button", { name: "Confirm early end" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Early End" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to end the unavailable period.");
     expect(onSaved).not.toHaveBeenCalled();
   });
@@ -313,7 +313,7 @@ describe("SPM-122 venue unavailable period controls", () => {
     // Arrange and assert read-only controls.
     renderPanel([{ id: "p1", start: "2030-01-12T11:00:00.000Z", end: "2030-01-12T13:00:00.000Z", reason: "Maintenance" }], false);
     expect(screen.getByText(/Maintenance/)).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Mark unavailable" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "End early" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark Unavailable" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "End Early" })).not.toBeInTheDocument();
   });
 });

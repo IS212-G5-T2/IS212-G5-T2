@@ -104,19 +104,19 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
           <div className="space-y-3 sm:max-w-xs">
             <p className="text-sm font-medium">End this period now?</p>
             <div className="flex flex-wrap gap-2">
-            <Button disabled={busy} onClick={() => endEarly(period.id)}>Confirm early end</Button>
-            <Button variant="secondary" disabled={busy} onClick={() => setEndingPeriodId(undefined)}>Cancel early end</Button>
+            <Button disabled={busy} onClick={() => endEarly(period.id)}>Confirm Early End</Button>
+            <Button variant="secondary" disabled={busy} onClick={() => setEndingPeriodId(undefined)}>Cancel Early End</Button>
             </div>
           </div> :
-          <Button className="shrink-0 self-start" variant="secondary" disabled={busy} onClick={() => setEndingPeriodId(period.id)}>End early</Button>)}
+          <Button className="shrink-0 self-start" variant="secondary" disabled={busy} onClick={() => setEndingPeriodId(period.id)}>End Early</Button>)}
       </li>)}
     </ul>}
     {endedPeriod && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm leading-relaxed text-green-800 dark:border-green-800 dark:bg-green-950 dark:text-green-200">Ended early: {formatDateTimeRange(endedPeriod.start, endedPeriod.end)} — {endedPeriod.reason}</p>}
     {errors.form && <p role="alert" className="rounded-lg bg-red-50 p-4 text-sm text-red-800 dark:bg-red-950 dark:text-red-200">{errors.form}</p>}
-    {canManage && !editing && <Button onClick={() => { setResult(undefined); setEditing(true); }}>Mark unavailable</Button>}
+    {canManage && !editing && <Button onClick={() => { setResult(undefined); setEditing(true); }}>Mark Unavailable</Button>}
     {canManage && editing && <section aria-label="New unavailable period" className="space-y-4 border-t border-gray-200 pt-5 dark:border-gray-700">
       <div>
-        <h3 className="text-sm font-semibold">New unavailable period</h3>
+        <h3 className="text-sm font-semibold">New Unavailable Period</h3>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose the dates and times, then add a reason.</p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -131,7 +131,7 @@ export function VenueUnavailabilityPanel({ venueId, periods, canManage, onSaved 
       </div>
     </section>}
     {result && <section aria-label="Affected bookings" className="space-y-2 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800">
-      <h3 className="font-semibold">Affected bookings</h3>
+      <h3 className="font-semibold">Affected Bookings</h3>
       {result.affectedBookings.length === 0 ? <p>No existing bookings are affected.</p> :
         <ul>{result.affectedBookings.map((booking) => <li key={booking.id}>{booking.eventName} — {formatDateTimeRange(booking.start, booking.end)}</li>)}</ul>}
     </section>}

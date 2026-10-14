@@ -30,7 +30,7 @@ export function AssignmentNotifications() {
       aria-label="Assignment updates"
       className="mb-6 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
-      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Assignment updates</h2>
+      <h2 className="font-semibold text-gray-900 dark:text-gray-100">Assignment Updates</h2>
       {error && (
         <p role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-300">
           {error}
@@ -43,11 +43,11 @@ export function AssignmentNotifications() {
             <span className="flex items-center gap-3">
               {notification.relatedEventId && notification.type !== "coordinator_unassignment" && (
                 <Link to={`/events/${notification.relatedEventId}`} className="font-medium text-primary-700 hover:underline">
-                  View request
+                  View Request
                 </Link>
               )}
               <Button variant="ghost" size="sm" onClick={() => void markRead(notification.id)}>
-                Mark as read
+                Mark As Read
               </Button>
             </span>
           </li>

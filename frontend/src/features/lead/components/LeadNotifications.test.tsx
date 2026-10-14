@@ -49,10 +49,10 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
 
     // Assert: the message and a link to the reassignment page.
     expect(await screen.findByText(notice.message)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Review assigned events" })).toHaveAttribute("href", "/lead/reassign");
+    expect(screen.getByRole("link", { name: "Review Assigned Events" })).toHaveAttribute("href", "/lead/reassign");
 
     // Act: mark it read.
-    await user.click(screen.getByRole("button", { name: "Mark as read" }));
+    await user.click(screen.getByRole("button", { name: "Mark As Read" }));
 
     // Assert: the read call is sent and the notice leaves the panel.
     expect(api).toHaveBeenCalledWith("/notifications/notif-3/read", { method: "POST" });
@@ -75,7 +75,7 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     expect(await screen.findByText(notice.message)).toBeInTheDocument();
     expect(screen.queryByText(/Coordinator 9/)).not.toBeInTheDocument();
     expect(screen.queryByText("Something else.")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Mark as read" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "Mark As Read" })).toHaveLength(1);
   });
 
   // Anyone who isn't the Lead gets no panel and no request.
@@ -102,10 +102,10 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     // Act: render the panel.
     renderPanel();
 
-    // Assert: the error is shown in the panel, and no notice or "Mark as read" button is listed.
+    // Assert: the error is shown in the panel, and no notice or "Mark As Read" button is listed.
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load coordinator availability notices.");
     expect(screen.getByRole("region", { name: "Coordinator availability" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Mark as read" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark As Read" })).not.toBeInTheDocument();
   });
 
   // After a failed load, the error clears and the notice appears once the window regains focus and the reload succeeds.
@@ -123,11 +123,11 @@ describe("SPM-47 AC10: the Lead's coordinator-availability notifications", () =>
     // Act: the window regains focus, which triggers a reload.
     fireEvent.focus(window);
 
-    // Assert: the reload succeeds, the alert disappears, and the notice shows its message, review link and Mark as read button.
+    // Assert: the reload succeeds, the alert disappears, and the notice shows its message, review link and Mark As Read button.
     expect(await screen.findByText(notice.message)).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Review assigned events" })).toHaveAttribute("href", "/lead/reassign");
-    expect(screen.getByRole("button", { name: "Mark as read" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Review Assigned Events" })).toHaveAttribute("href", "/lead/reassign");
+    expect(screen.getByRole("button", { name: "Mark As Read" })).toBeInTheDocument();
     expect(api).toHaveBeenCalledTimes(2);
   });
 });

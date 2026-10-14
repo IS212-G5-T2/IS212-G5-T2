@@ -28,6 +28,7 @@ import {
   type NeighbourBooking,
 } from './helpers/event-impact.js';
 import type { EventFieldKey, EventUpdatePatch } from './dto/event-update-input.js';
+import { VENUE_SUMMARY_SQL } from '../venue-summary.js';
 
 /** Flat, camel-cased event row used by the planning service. */
 export interface PlanningEventRow {
@@ -47,6 +48,7 @@ export interface PlanningEventRow {
   facilities: string[];
   accessibility: string[];
   equipmentNeeds: string;
+  venueName?: string;
   registrationEnabled?: boolean;
   createdAt?: string;
   updatedAt: string;
@@ -182,10 +184,16 @@ export class EventPlanningRepository {
     return this.context.getStore() ?? this.database;
   }
 
+  /** Whether a safety check (any status) exists; applying event details resets it (database trigger). */
+  async safetyCheckExists(eventId: string): Promise<boolean> {
+    const result = await this.db().query('SELECT 1 FROM event_safety_checks WHERE event_id = $1', [eventId]);
+    return result.rows.length > 0;
+  }
+
   async findEvent(eventId: string): Promise<PlanningEventRow | undefined> {
     const lock = this.context.getStore() ? ' FOR UPDATE' : '';
     const result = await this.db().query(
-      `SELECT * FROM events WHERE id = $1${lock}`,
+      `SELECT *, ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1${lock}`,
       [eventId],
     );
     return result.rows[0] ? this.eventRow(result.rows[0]) : undefined;
@@ -323,7 +331,8 @@ export class EventPlanningRepository {
       `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
       values,
     );
-    return this.eventRow(result.rows[0]);
+    const venue = await this.db().query(`SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`, [eventId]);
+    return this.eventRow({ ...result.rows[0], venue_summary: venue.rows[0]?.venue_summary });
   }
 
   async createFlaggedChange(
@@ -430,6 +439,7 @@ export class EventPlanningRepository {
       organiserName: row.organiser_name,
       coordinatorId: row.coordinator_id ?? null,
       coordinatorName: row.coordinator_name ?? null,
+      venueName: row.venue_summary ?? undefined,
       status: row.status,
       name: row.event_name,
       purpose: row.purpose,
