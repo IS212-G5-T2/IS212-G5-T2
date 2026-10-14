@@ -10,6 +10,7 @@ const readerEmail =
 const password = process.env.SPM119_TEST_PASSWORD ?? "P@55w0rd";
 const equipmentName = process.env.SPM119_AUDIT_EQUIPMENT_NAME;
 
+// EQUIP-UNAVAIL-05-A/B/C: shared audit history shows mark and reactivation snapshots to Technical Support.
 test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and reactivated equipment", async ({
   page,
   browser,

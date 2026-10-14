@@ -83,7 +83,11 @@ cpSync(root, scratch, {
   recursive: true,
   filter: (src) => !/(^|[\\/])(node_modules|dist|coverage|test-results)([\\/]|$)/.test(relative(root, src)),
 });
-symlinkSync(join(root, 'node_modules'), join(scratch, 'node_modules'));
+symlinkSync(
+  join(root, 'node_modules'),
+  join(scratch, 'node_modules'),
+  process.platform === 'win32' ? 'junction' : 'dir',
+);
 
 const run = (suite, mapping) =>
   spawnSync(process.execPath, [

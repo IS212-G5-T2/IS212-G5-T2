@@ -35,6 +35,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentAvailabilityPage } from "./EquipmentAvailabilityPage";
 import type { EquipmentRecord } from "@/types";
 
+/**
+ * Coverage note: the two uncovered early-return branches in the private mark/reactivate handlers
+ * guard against a mismatched dialog mode. The rendered modal only wires each handler to its
+ * matching confirmation action, so no user interaction reaches those defensive branches.
+ */
+
 const { getEquipment, updateEquipmentAvailability, navigate } = vi.hoisted(
   () => ({
     getEquipment: vi.fn(),
@@ -95,8 +101,8 @@ describe("EquipmentAvailabilityPage: inherited SPM-111 coverage", () => {
     expect(screen.getByText("Storage Room A")).toBeInTheDocument();
   });
 
-  // SPM-111 EQUIP-CRE-05-A: an empty but successful inventory is distinguishable from a load failure.
-  it("EQUIP-CRE-05-A shows an empty-state message when no equipment exists", async () => {
+  // EQUIP-VIEW-02-B: an empty successful inventory is distinct from a load failure.
+  it("shows an empty-state message when no equipment exists", async () => {
     // Arrange: the API responds successfully with no persisted records.
     getEquipment.mockResolvedValue([]);
 
@@ -640,6 +646,13 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
       // Assert: the defined client-side message appears and persistence is untouched.
       expect(screen.getByText("Enter a reason first")).toBeInTheDocument();
       expect(updateEquipmentAvailability).not.toHaveBeenCalled();
+
+      // Recovery: editing the invalid value clears the validation message.
+      await user.type(
+        screen.getByRole("textbox", { name: /reason/i }),
+        "Repair required now",
+      );
+      expect(screen.queryByText("Enter a reason first")).not.toBeInTheDocument();
     },
   );
 
@@ -746,6 +759,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
         name: "Broken projector",
         isAvailable: false,
       }),
+      availableRecord({ id: "other-record", name: "Other equipment", isAvailable: false }),
     ]);
     updateEquipmentAvailability.mockResolvedValue({
       equipment: availableRecord({
@@ -760,7 +774,9 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     );
 
     // Act: confirm reactivation.
-    await user.click(screen.getByRole("button", { name: /reactivate/i }));
+    await user.click(
+      screen.getByText("Broken projector").closest("tr")!.querySelector("button")!,
+    );
     await user.click(screen.getByRole("button", { name: /^reactivate$/i }));
 
     // Assert: the resulting availability state makes it a normal default-list row again.
@@ -771,8 +787,101 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     expect(
       screen.getByText("Broken projector").closest("tr"),
     ).toHaveTextContent("Mark Unavailable");
+    expect(screen.getByText("Other equipment")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Equipment reactivated.",
     );
+  });
+
+  /**
+   * EQUIP-UNAVAIL-04-D: a failed Show unavailable reload displays an error.
+   */
+  it("SPM-119 AC4 displays an error when Show unavailable reload fails", async () => {
+    const user = userEvent.setup();
+    getEquipment
+      .mockResolvedValueOnce([availableRecord({ id: "light-bulbs", name: "Light bulbs" })])
+      .mockRejectedValueOnce(new Error("network unavailable"));
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Light bulbs")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: /show unavailable/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Unable to load equipment records. Please try again.",
+    );
+    expect(screen.queryByText("Light bulbs")).not.toBeInTheDocument();
+  });
+
+  /**
+   * EQUIP-UNAVAIL-07-C: the success notification can be dismissed without changing inventory.
+   */
+  it("SPM-119 AC1 dismisses the availability success toast", async () => {
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      availableRecord({ id: "light-bulbs", name: "Light bulbs" }),
+      availableRecord({ id: "other-record", name: "Other equipment" }),
+    ]);
+    updateEquipmentAvailability.mockResolvedValue({
+      equipment: availableRecord({ id: "light-bulbs", name: "Light bulbs", isAvailable: false }),
+    });
+    render(<EquipmentAvailabilityPage />);
+    await screen.findByText("Light bulbs");
+    await user.click(
+      screen.getByText("Light bulbs").closest("tr")!.querySelector("button")!,
+    );
+    await user.type(screen.getByRole("textbox", { name: /reason/i }), "Damaged during transport");
+    await user.click(screen.getByRole("button", { name: /^mark unavailable$/i }));
+    expect(screen.getByRole("status")).toHaveTextContent("Equipment marked unavailable.");
+
+    await user.click(screen.getByRole("button", { name: /dismiss/i }));
+
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    expect(screen.getByText("Other equipment")).toBeInTheDocument();
+  });
+
+  /**
+   * EQUIP-UNAVAIL-04-E: clearing Show unavailable reloads the available-only inventory.
+   */
+  it("SPM-119 AC4 reloads available-only equipment when the toggle is cleared", async () => {
+    const user = userEvent.setup();
+    getEquipment
+      .mockResolvedValueOnce([availableRecord({ id: "light-bulbs", name: "Light bulbs" })])
+      .mockResolvedValueOnce([
+        availableRecord({ id: "light-bulbs", name: "Light bulbs" }),
+        availableRecord({ id: "broken-projector", name: "Broken projector", isAvailable: false }),
+      ])
+      .mockResolvedValueOnce([availableRecord({ id: "light-bulbs", name: "Light bulbs" })]);
+    render(<EquipmentAvailabilityPage />);
+    const toggle = await screen.findByRole("checkbox", { name: /show unavailable/i });
+
+    await user.click(toggle);
+    expect(await screen.findByText("Broken projector")).toBeInTheDocument();
+    await user.click(toggle);
+
+    expect(getEquipment).toHaveBeenLastCalledWith(undefined);
+    expect(screen.queryByText("Broken projector")).not.toBeInTheDocument();
+    expect(screen.getByText("Light bulbs")).toBeInTheDocument();
+  });
+
+  /**
+   * EQUIP-UNAVAIL-06-C: cancelling Reactivate closes the dialog without an availability update.
+   */
+  it("SPM-119 AC6 cancels reactivation without updating equipment", async () => {
+    const user = userEvent.setup();
+    getEquipment
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        availableRecord({ id: "broken-projector", name: "Broken projector", isAvailable: false }),
+      ]);
+    render(<EquipmentAvailabilityPage />);
+    await user.click(await screen.findByRole("checkbox", { name: /show unavailable/i }));
+    await user.click(await screen.findByRole("button", { name: /reactivate/i }));
+    expect(screen.getByRole("dialog", { name: /reactivate equipment/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+
+    expect(screen.queryByRole("dialog", { name: /reactivate equipment/i })).not.toBeInTheDocument();
+    expect(updateEquipmentAvailability).not.toHaveBeenCalled();
+    expect(screen.getByText("Broken projector")).toBeInTheDocument();
   });
 });

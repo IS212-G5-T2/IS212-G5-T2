@@ -9,7 +9,7 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EquipmentService } from './equipment.service.js';
 
-const database = { query: vi.fn() };
+const database = { query: vi.fn(), transaction: vi.fn() };
 
 const technicalSupportUser: AuthenticatedUser = {
   uid: 'tech-support-1',
@@ -311,6 +311,72 @@ describe('EquipmentService', () => {
     ]);
   });
 
+  /**
+   * EQUIP-UNAVAIL-04-C: explicit opt-in returns unavailable equipment from the inventory query.
+   * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21528785/EQUIP-UNAVAIL-04#C
+   */
+  it('SPM-119 AC4 lists unavailable equipment after explicit opt-in', async () => {
+    database.query.mockResolvedValue({ rows: [{ ...createdRow, is_available: false }] });
+
+    const inventory = await service.list(technicalSupportUser, { includeUnavailable: true });
+
+    expect(database.query).toHaveBeenCalledWith(
+      expect.not.stringContaining('WHERE is_available = true'),
+    );
+    expect(inventory).toEqual([expect.objectContaining({
+      id: 'equipment-1',
+      isAvailable: false,
+    })]);
+  });
+
+  /**
+   * EQUIP-UNAVAIL-ASSUMP-03: a repeated same-state request is rejected with no audit write.
+   */
+  it('EQUIP-UNAVAIL-ASSUMP-03 rejects an availability update when the record already has that state', async () => {
+    const client = {
+      query: vi.fn().mockResolvedValue({ rows: [{ ...createdRow, is_available: false }] }),
+    };
+    database.transaction.mockImplementation((work) => work(client));
+
+    await expect(
+      service.updateAvailability(
+        technicalSupportUser,
+        '11111111-1111-4111-8111-111111111119',
+        {
+          isAvailable: false,
+          reason: 'Already marked unavailable',
+        },
+      ),
+    ).rejects.toThrow('Equipment is already unavailable.');
+
+    expect(client.query).toHaveBeenCalledTimes(1);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('FOR UPDATE'), [
+      '11111111-1111-4111-8111-111111111119',
+    ]);
+  });
+
+  /**
+   * EQUIP-UNAVAIL-07-SEC-06: an unknown equipment UUID returns not found without writing history.
+   * Covers the missing-row branch before the availability transition is attempted.
+   */
+  it('SPM-119 returns not found when an availability update targets no equipment record', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    await expect(
+      service.updateAvailability(
+        technicalSupportUser,
+        '11111111-1111-4111-8111-111111111119',
+        { isAvailable: false, reason: 'Equipment record no longer exists' },
+      ),
+    ).rejects.toThrow('Equipment record not found.');
+
+    expect(client.query).toHaveBeenCalledTimes(1);
+    expect(client.query).toHaveBeenCalledWith(expect.stringContaining('FOR UPDATE'), [
+      '11111111-1111-4111-8111-111111111119',
+    ]);
+  });
+
   // SPM-111 EQUIP-CRE-02-C: the locations lookup returns distinct stored locations for the dropdown.
   it('EQUIP-CRE-02-C returns distinct stored locations for the dropdown', async () => {
     // Arrange: the database returns distinct location rows.
@@ -347,6 +413,72 @@ describe('EquipmentService', () => {
     await expect(
       service.listLocations(undefined as never),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EQUIP-UNAVAIL-05-E: the audit response maps every stored snapshot field to its API representation.
+   */
+  it('SPM-119 AC5 maps every persisted audit-trail field for Technical Support', async () => {
+    database.query.mockResolvedValue({
+      rows: [{
+        id: 'audit-1',
+        equipment_id: 'equipment-1',
+        equipment_name: 'Conference projector',
+        equipment_type: 'Visual',
+        location: 'Storage Room A',
+        maintenance_status: 'Under Maintenance',
+        quantity: 10,
+        is_available: false,
+        change_type: 'Marked unavailable',
+        reason: 'Lens sent for repair',
+        changed_by: 'support@example.test',
+        changed_at: new Date('2026-10-14T01:02:03.000Z'),
+      }],
+    });
+
+    const result = await service.getAuditTrail(technicalSupportUser);
+
+    expect(database.query).toHaveBeenCalledWith(expect.stringMatching(
+      /FROM equipment_audit_trail ORDER BY changed_at DESC/i,
+    ));
+    expect(result).toEqual([{
+      id: 'audit-1',
+      equipmentId: 'equipment-1',
+      equipmentName: 'Conference projector',
+      equipmentType: 'Visual',
+      location: 'Storage Room A',
+      maintenanceStatus: 'Under Maintenance',
+      quantity: 10,
+      isAvailable: false,
+      changeType: 'Marked unavailable',
+      reason: 'Lens sent for repair',
+      changedBy: 'support@example.test',
+      timestamp: '2026-10-14T01:02:03.000Z',
+    }]);
+  });
+
+  /**
+   * EQUIP-UNAVAIL-07-SEC-03: audit-trail reads reject unauthenticated callers.
+   * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21037609/EQUIP-UNAVAIL-HARDENING#EQUIP-UNAVAIL-07-SEC-03
+   * Kills: removing the authentication guard from getAuditTrail().
+   */
+  it('SPM-119 AC5 rejects unauthenticated audit-trail access', async () => {
+    await expect(service.getAuditTrail(undefined)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  /**
+   * EQUIP-UNAVAIL-07-SEC-03: audit-trail reads reject callers without Technical Support access.
+   * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/21037609/EQUIP-UNAVAIL-HARDENING#EQUIP-UNAVAIL-07-SEC-03
+   * Kills: accepting any authenticated role in getAuditTrail().
+   */
+  it('SPM-119 AC5 rejects non-Technical-Support audit-trail access', async () => {
+    await expect(
+      service.getAuditTrail(userWithRole('ORGANISER')),
+    ).rejects.toBeInstanceOf(ForbiddenException);
     expect(database.query).not.toHaveBeenCalled();
   });
 });
