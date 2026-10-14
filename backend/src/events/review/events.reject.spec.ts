@@ -42,7 +42,8 @@ const database = {
 
 const VALID_REASON = 'Venue unavailable for the requested date.';
 // Notification types a coordinator reads: SPM-123 assignment, SPM-47 reassignment to and away from them.
-const COORDINATOR_NOTIFICATION_TYPES = ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment'];
+// SPM-136 adds EventCancelled for coordinators (assigned coordinator is notified of a cancellation).
+const COORDINATOR_NOTIFICATION_TYPES = ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment', 'EventCancelled'];
 
 // Build a letters-only, >=3-word reason of an exact trimmed length.
 function reasonOfLength(n: number): string {
@@ -304,7 +305,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     });
     expect(result[0].message).toContain(VALID_REASON);
     // The organiser's query asks only for their decision notification types.
-    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed']]);
+    expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled']]);
   });
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
@@ -393,7 +394,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     // Assert: an organiser's query still asks only for their decision types.
     db.query.mockResolvedValueOnce({ rows: [] });
     await service.notifications(organiser());
-    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed']]);
+    expect(db.query.mock.calls[2][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled']]);
   });
 });
 

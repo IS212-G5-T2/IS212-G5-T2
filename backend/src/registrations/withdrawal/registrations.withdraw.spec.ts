@@ -308,3 +308,24 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
  *  REC  a recording client is the only way to observe a write that a rolled-back transaction hides, DERIVED from
  *       DatabaseService.transaction (BEGIN / COMMIT, ROLLBACK on throw) -> every test in this file
  */
+
+describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is refused 409 before anything is written', () => {
+  // Oracle (SPM-136 D11, CANCEL-EVENT-08-B): withdrawing a cancelled registration is 409, not 422, and nothing changes.
+  // Kills: a cancelled registration falling through to the 422 "already withdrawn" branch, or an UPDATE issued first.
+  it('a Cancelled registration -> 409 EVENT_CANCELLED and no UPDATE issued', async () => {
+    // Arrange
+    const { database, statements } = recordingDatabase([found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR))]);
+
+    // Act
+    const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));
+
+    // Assert
+    expect(error.getStatus()).toBe(409);
+    expect(error.getResponse()).toMatchObject({
+      code: 'EVENT_CANCELLED',
+      message: 'This event has been cancelled and its arrangements cannot be changed.',
+    });
+    expect(statements.filter(isUpdate)).toEqual([]);
+  });
+
+});

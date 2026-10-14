@@ -5,6 +5,7 @@
  * events.organiser_id or events.coordinator_id. Legacy demo-owned events
  * require an explicit owner migration before real accounts can access them.
  */
+import { assertEventNotCancelled } from '../events/cancelled-guard.js';
 import {
   BadRequestException,
   ForbiddenException,
@@ -49,6 +50,7 @@ export class ClarificationsService {
       if (!event) throw new NotFoundException('Event not found.');
 
       this.requireAssignedCoordinator(event, user);
+      assertEventNotCancelled(event.status);
 
       if (!CLARIFIABLE_STATUSES.includes(event.status)) {
         throw new BadRequestException(
@@ -95,6 +97,7 @@ export class ClarificationsService {
       if (!event) throw new NotFoundException('Event not found.');
 
       const authorRole = this.requireOrganiserOrAssignedCoordinator(event, user);
+      assertEventNotCancelled(event.status);
 
       const clarification = await this.repository.findClarificationForUpdate(
         client,
@@ -152,6 +155,7 @@ export class ClarificationsService {
       if (!event) throw new NotFoundException('Event not found.');
 
       const resolverRole = this.requireOrganiserOrAssignedCoordinator(event, user);
+      assertEventNotCancelled(event.status);
 
       const clarification = await this.repository.findClarificationForUpdate(
         client,

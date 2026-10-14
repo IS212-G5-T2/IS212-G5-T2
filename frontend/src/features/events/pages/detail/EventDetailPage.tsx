@@ -9,7 +9,7 @@ import type {
   PlanningView,
   ResolveChangeRequest,
 } from "@/types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -33,6 +33,8 @@ import {
   updatePlanning,
 } from "@/utils/planning";
 import { attendeeEventStatus } from "@/features/events/lib/EventView";
+import { canCancelEvent } from "@/features/events/lib/cancellation";
+import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
@@ -120,6 +122,11 @@ export function EventDetailPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionError, setRejectionError] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
+  // SPM-136: the cancel dialog is mounted only while it is open.
+  const [showCancel, setShowCancel] = useState(false);
+  // CQ F2: where focus goes when the dialog closes: the cancelled banner if the event is now cancelled, else the trigger.
+  const cancelTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelledBannerRef = useRef<HTMLParagraphElement>(null);
 
   const event = events.find((e) => e.id === id);
 
@@ -236,6 +243,9 @@ export function EventDetailPage() {
 
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
+  // SPM-136 AC7: a cancelled event shows no change controls; the action is offered only where the server accepts it.
+  const isCancelled = event.status === "cancelled";
+  const canCancel = canCancelEvent({ event, currentUser });
 
   // The latest registration of any status: a withdrawn one still shows its status and time (SPM-120).
   const myRegistration = registrations.find(
@@ -318,9 +328,28 @@ export function EventDetailPage() {
                 <Button variant="secondary">Search Venues</Button>
               </Link>
             )}
+            {canCancel && (
+              <Button ref={cancelTriggerRef} variant="danger" onClick={() => setShowCancel(true)}>
+                Cancel Event
+              </Button>
+            )}
           </>
         }
       />
+      {isCancelled && (
+        <p ref={cancelledBannerRef} tabIndex={-1} role="note" className="mb-6 rounded-lg border border-danger-300 bg-danger-50 p-4 text-sm font-medium text-danger-900 dark:border-danger-700 dark:bg-danger-900/20 dark:text-danger-300">
+          This event has been cancelled.
+        </p>
+      )}
+      {showCancel && (
+        <CancelEventDialog
+          eventId={event.id}
+          eventName={event.name}
+          onClose={() => setShowCancel(false)}
+          returnFocus={() => cancelledBannerRef.current ?? cancelTriggerRef.current}
+          onCancelled={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
 
       {(isOwner || isAssignedCoordinator) && (
         <>
@@ -468,7 +497,7 @@ export function EventDetailPage() {
       )}
 
       {planningView && !isAssignedCoordinator && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
-      {planningView && isAssignedCoordinator && (
+      {planningView && isAssignedCoordinator && !isCancelled && (
         <PlanningInformationPage
           view={planningView}
           status={event.status}
@@ -484,7 +513,7 @@ export function EventDetailPage() {
           {planningError}
         </div>
       )}
-      {planningView && isPlanningCoordinator && !planningView.readOnly && (
+      {planningView && isPlanningCoordinator && !planningView.readOnly && !isCancelled && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -647,9 +676,9 @@ export function EventDetailPage() {
               comments={comments}
               canRequestClarification={canRequestClarification}
               onSubmitClarification={submitClarification}
-              canReply={isOwner || isAssignedCoordinator}
+              canReply={!isCancelled && (isOwner || isAssignedCoordinator)}
               onSubmitReply={submitClarificationReply}
-              canResolve={isOwner || isAssignedCoordinator}
+              canResolve={!isCancelled && (isOwner || isAssignedCoordinator)}
               onResolve={submitClarificationResolve}
             />
           </div>

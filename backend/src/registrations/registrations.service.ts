@@ -23,6 +23,7 @@ import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { hasEventStarted } from './withdrawal/event-start.js';
+import { EVENT_CANCELLED_CODE, EVENT_CANCELLED_MESSAGE } from '../events/cancelled-guard.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './helpers/messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration/registration-window.js';
 import { canViewEventRegistrations } from './report/report-access.js';
@@ -168,6 +169,9 @@ export class RegistrationsService {
       );
       const current = found.rows[0];
       if (!current) throw new NotFoundException(MESSAGES.registrationNotFound);
+      // SPM-136 D11 / 08-B: a cancelled registration cannot be withdrawn: 409, not 422 (A8: the event label never decides).
+      if (current.status === 'Cancelled')
+        throw new ConflictException({ code: EVENT_CANCELLED_CODE, message: EVENT_CANCELLED_MESSAGE });
       if (current.status !== 'Registered') throw this.alreadyWithdrawn();
 
       const now = this.clock.now();

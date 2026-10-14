@@ -43,9 +43,20 @@ function reassignedFrom(row: pg.QueryResultRow, viewerUid?: string) {
 }
 
 // Who a stored notification is for, as the frontend labels it.
-function audienceRoleFor(type: string) {
-  if (type === 'coordinator_unavailable') return 'coordinator_lead';
-  if (type.startsWith('coordinator_')) return 'coordinator';
+interface AudienceRow {
+  type: string;
+  recipient_id: string;
+  /** The joined event's organiser (SPM-136); null when the event row is gone. */
+  event_organiser_id?: string | null;
+}
+
+function audienceRoleFor(row: AudienceRow) {
+  if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
+  if (row.type.startsWith('coordinator_')) return 'coordinator';
+  // SPM-136: an EventCancelled notice is written for the organiser and the assigned coordinator. The reader's
+  // relation to the event decides the copy: the organiser of that event reads the organiser copy, anyone else
+  // (the assigned coordinator) reads the coordinator copy, whatever roles the account holds.
+  if (row.type === 'EventCancelled') return row.event_organiser_id === row.recipient_id ? 'organiser' : 'coordinator';
   return 'organiser';
 }
 
@@ -357,9 +368,9 @@ export class EventsService {
   private notificationTypesFor(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const types = [
-      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval', 'EventConfirmed'] : []),
+      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval', 'EventConfirmed', 'EventCancelled'] : []),
       ...(user.roles.includes('COORDINATOR')
-        ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment']
+        ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment', 'EventCancelled']
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
     ];
@@ -370,12 +381,20 @@ export class EventsService {
   async notifications(identity?: AuthenticatedUser) {
     const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      'SELECT * FROM notifications WHERE recipient_id = $1 AND type = ANY($2) ORDER BY created_at DESC',
+      `SELECT n.*, e.organiser_id AS event_organiser_id
+         FROM notifications n
+         LEFT JOIN events e ON e.id = n.related_event_id
+        WHERE n.recipient_id = $1 AND n.type = ANY($2)
+        ORDER BY n.created_at DESC`,
       [user.uid, types],
     );
     return result.rows.map((row) => ({
       id: row.id,
-      audienceRole: audienceRoleFor(row.type),
+      audienceRole: audienceRoleFor({
+        type: row.type,
+        recipient_id: row.recipient_id,
+        event_organiser_id: row.event_organiser_id,
+      }),
       audienceUserId: row.recipient_id,
       type: row.type,
       message: row.message,

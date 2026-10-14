@@ -85,7 +85,8 @@ function combined(statuses: RequestStatus[]): RequestStatus {
 export function buildChecklist(input: ChecklistInput): PlanningChecklist {
   const { snapshot, equipmentNeeds, equipmentConfirmedAt, safety, now } = input;
 
-  const bookings = snapshot.venueBookings;
+  // Released bookings (SPM-136) hold nothing for the event; they are left out, like released equipment lines.
+  const bookings = snapshot.venueBookings.filter((b) => b.status !== 'released');
   const venueItems: VenueRequestItem[] = bookings.map((b) => ({
     id: b.id,
     venueName: b.venueName,
