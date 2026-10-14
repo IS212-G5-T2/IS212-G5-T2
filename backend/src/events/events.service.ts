@@ -131,7 +131,12 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
-    const result = user.roles.includes('ATTENDEE')
+    const result = user.roles.includes('COORDINATOR')
+      ? await this.database.query(
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
+          [user.uid],
+        )
+      : user.roles.includes('ATTENDEE')
       ? await this.database.query(
           `SELECT events.*, ${VENUE_SUMMARY_SQL}, GREATEST(
              0,
@@ -146,11 +151,6 @@ export class EventsService {
              FROM events
             WHERE status IN (${ATTENDEE_VISIBLE_STATUSES.map((s) => `'${s}'`).join(', ')})
             ORDER BY start_date_time ASC`,
-          [user.uid],
-        )
-      : user.roles.includes('COORDINATOR')
-      ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
