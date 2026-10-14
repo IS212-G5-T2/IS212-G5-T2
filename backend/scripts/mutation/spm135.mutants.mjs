@@ -10,6 +10,8 @@
 // CK* mutate the planning checklist (checklist.ts, unit suite), SF* the stored-status mapping
 // (safety-check.source.ts, safetyUnit and confirmRealSafety), VS* the venue text SQL (venue-summary.ts,
 // venueSummary suite), and RV*/EQ* the venue and equipment removal endpoints (status.service.ts, removal suite).
+// CHA* mutate the confirm-no-equipment and request-safety-check actions and the status-change input guard
+// (status.service.ts, checklistActions suite).
 //
 // M19 (the Confirm button not disabled while pending) is a FRONTEND mutant. It cannot be run from this
 // backend runner because run.mjs copies only the backend tree. It is documented in
@@ -50,6 +52,11 @@ export const SUITES = {
     ],
     needsEnv: ['DATABASE_URL'],
   },
+  // confirm-no-equipment, request-safety-check and the status-change input guard through HTTP.
+  checklistActions: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-checklist-actions.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
   // The venue text SQL (venue-summary.ts) through GET /api/events and GET /api/events/:id.
   venueSummary: {
     args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-venue-summary.e2e-spec.ts'],
@@ -68,6 +75,7 @@ const e2eOnly = ['e2e'];
 const unitOnly = ['unit'];
 const removalOnly = ['removal'];
 const summaryOnly = ['venueSummary'];
+const actionsOnly = ['checklistActions'];
 const safetySource = ['safetyUnit', 'confirmRealSafety'];
 
 const ASSIGNED = "const isAssigned = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;";
@@ -310,4 +318,20 @@ export const MUTANTS = [
     edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", "const unavailable = ['unavailable', 'rejected', 'requested'].includes(reservation.status.toLowerCase());"]], suites: removalOnly },
   { id: 'EQ7', name: 'rejected equipment status no longer counted as unavailable (equivalent: equipment_reservations.status CHECK allows only Requested, Reserved, Unavailable, Cancelled, Released)', file: SERVICE, equivalent: true,
     edits: [["const unavailable = ['unavailable', 'rejected'].includes(reservation.status.toLowerCase());", "const unavailable = ['unavailable'].includes(reservation.status.toLowerCase());"]], suites: removalOnly },
+
+  // ---- status.service.ts: checklist actions and the status-change input guard (CHECKLIST-ACTION-01 to 07) ----
+  { id: 'CHA1', name: 'confirm-no-equipment accepted for an event that lists equipment', file: SERVICE,
+    edits: [["if (checklist.equipment.required || checklist.equipment.status !== 'not_requested')", 'if (false)']], suites: actionsOnly },
+  { id: 'CHA2', name: 'confirm-no-equipment overwrites the stored time on every call', file: SERVICE,
+    edits: [['if (!row.equipment_confirmed_at)', 'if (true)']], suites: actionsOnly },
+  { id: 'CHA3', name: 'safety check requestable before venue and equipment are confirmed', file: SERVICE,
+    edits: [['if (!checklist.canRequestSafetyCheck)', 'if (false)']], suites: actionsOnly },
+  { id: 'CHA4', name: 'a pending safety check can be requested again', file: SERVICE,
+    edits: [["if (current?.status === 'pending')", 'if (false)']], suites: actionsOnly },
+  { id: 'CHA5', name: 'an approved safety check can be requested again', file: SERVICE,
+    edits: [["if (current?.status === 'approved')", 'if (false)']], suites: actionsOnly },
+  { id: 'CHA6', name: 'a malformed event id reaches the database', file: SERVICE,
+    edits: [['if (!UUID_PATTERN.test(eventId)) return undefined;', '']], suites: actionsOnly },
+  { id: 'CHA7', name: 'a non-string targetStatus is treated as Confirmed', file: SERVICE,
+    edits: [["return typeof value === 'string' ? value : '';", "return typeof value === 'string' ? value : 'Confirmed';"]], suites: actionsOnly },
 ];

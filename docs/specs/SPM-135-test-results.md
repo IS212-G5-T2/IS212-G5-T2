@@ -333,6 +333,12 @@ Added subtests (DERIVED, not in the matrix): `readiness.spec.ts` D6 table (11 si
 
 **Assumptions (ASSUMED).** A hold whose expiry equals the check time is expired (D6, no literal; tested in readiness.spec); the equal-id tie-break keeps input order (coverage only); equipment Released/Cancelled ignored; zero equipment satisfied; "No record" state name and "Awaiting check" wording; `{list}` joined with "; "; `EVENT_NOT_CONFIRMABLE` wording for non-Planning sources; the notification text; the organiser's safety state "Not recorded" when no record exists.
 
+**Resolved: HTTP status for Rejected and Cancelled events (CONFIRM-EVENT-06-A/06-B).** Jira AC6 says only that a rejected or cancelled event cannot be confirmed. The Confluence expected result is HTTP 422 with MSG-CF-05, and that is the oracle: the code returns 422 `EVENT_NOT_CONFIRMABLE` with the MSG-CF-05 text, and the backend e2e asserts all three. The execution notes on both Confluence pages say "HTTP 409". That status belongs to the already-Confirmed case (CONFIRM-EVENT-04-B, `EVENT_ALREADY_CONFIRMED`), so the note is a copy slip and not a second requirement. Decision: 422 stands, so no `ASSUMED` tag is needed on the tests. The test carries a comment recording this. Still open: the two "HTTP 409" lines in the Notes of the 06-A and 06-B Confluence pages should be corrected to 422, and a Product Owner confirmation of 422 was not obtained. The Confluence pages have not been edited from this branch.
+
+**Timing-dependent test (kept, bounded).** `CONFIRM-EVENT-04-B (B, deterministic)` in `events-confirm.e2e-spec.ts` polls `pg_stat_activity` for up to 200 x 10 ms. A promise gate or barrier is not possible here: the confirm request runs on the application's own connection and transaction, so the test has no hook to hold it, and the only observable sign that it is blocked behind the competing change is the lock wait PostgreSQL reports. The poll is bounded (2 s), and the test asserts `lockWaitObserved`, so a wait that is never seen fails the test instead of passing silently. The reason is also written beside the loop.
+
+**Not applicable.** Configuration tests (`-CFG-X`): the confirm feature has no configurable parameter (the 15 s refresh `PLANNING_REFRESH_MS` is a constant). The tier suffixes `-BND`, `-INT`, `-STATE` and `-ISO` are not used in test names; the happy, negative, boundary, interaction and state cases exist and are named by the behaviour they check.
+
 **Out of scope.** Cancel (SPM-136), organiser list (SPM-94), email, the bell UI.
 
 **Deviations from the prompt (and why).**
@@ -375,6 +381,8 @@ Runner: `backend/scripts/mutation/spm135.mutants.mjs`, run with `node scripts/mu
 
 The frontend mutant M19 is not in this runner (run.mjs copies the backend tree only). It was run through the frontend fault-injection check and is listed as killed by `ConfirmEventPanel.test.tsx :: CONFIRM-EVENT-04-B (C, FE)`.
 
+**Kills evidence policy.** The mutant files are the record of which wrong implementation each suite catches, by mutant ID: `spm135.mutants.mjs` (backend app code), `spm135.triggers.mutants.mjs` (reset triggers) and the frontend `spm135.mutants.mjs`. That suite-level mapping is the evidence for most tests, so they do not each carry a `Kills:` line. A test carries one where its mutant mapping is missing or the intent is not obvious from its name, for example the `CHECKLIST-ACTION` tests, the `readiness.spec.ts` boundary cases and the race test. Test-level comments say which acceptance criterion a supporting test supports and what it prevents.
+
 | # | Mutation | Result | Killed by |
 |---|---|---|---|
 | M1 | Only the first venue booking checked | KILLED | readiness unit 02-C (rule level, deterministic); not by 01-B |
@@ -396,7 +404,7 @@ The frontend mutant M19 is not in this runner (run.mjs copies the backend tree o
 | M10 | Rejected and Cancelled guard removed | KILLED | e2e 06-A, 06-B |
 | NP1 | Non-Planning source falls through (no refusal) | KILLED | e2e TR-03 |
 | NP2 | Approved accepted as a source | KILLED | e2e TR-03 |
-| M11 | Unconditional UPDATE under the row lock | KILLED in this pass (was listed as EQUIVALENT) | The `spm135.mutants.mjs` entry still carries `equivalent: true`, but the run killed it (e2e failed). The equivalence reason is not supported by the run; see the current-run tables below |
+| M11 | Unconditional UPDATE under the row lock | EQUIVALENT | The status is re-read under `FOR UPDATE`, so the extra `AND status = 'Planning'` in the UPDATE cannot change the outcome through the routes. An earlier pass recorded this as killed. In the Improve Test Case Evaluation Workflow pass it was equivalent in every run (three targeted runs and the full run), the earlier kill could not be reproduced, and the flag in `spm135.mutants.mjs` is correct. |
 | M11c | No row lock and unconditional UPDATE | KILLED | e2e 04-B (B, deterministic) |
 | M12 | Notification written before the guards | KILLED | The partial unique index with `ON CONFLICT ... DO NOTHING` means no duplicate notification is ever written; M12 is caught on success by the 05-A message text ('early' instead of MSG-CF-01), and on the 04-B re-sends by the unique violation returning a 500 instead of 409 |
 | M13 | Notification to the coordinator (wrong recipient) | KILLED | e2e 05-A, 05-C |
@@ -427,9 +435,9 @@ Summary of the iteration-2 table above: 37 backend runner entries; 32 killed; 5 
 
 ### Current run (this pass): backend app-code runner
 
-Command: `cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test node scripts/mutation/run.mjs --mutants spm135.mutants.mjs` (exit 0). Baselines green: unit, e2e, safetyUnit, confirmRealSafety, venueSummary, removal.
+Command: `cd backend && DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test_merge node scripts/mutation/run.mjs --mutants spm135.mutants.mjs` (exit 0). `spm_test_merge` is a database built from the current `database/postgresql/init` files; the older `spm_test` still has the venue operating columns that SPM-50 removed. Baselines green: unit, e2e, safetyUnit, confirmRealSafety, venueSummary, removal, checklistActions. One earlier attempt in this pass stopped at `baseline e2e: NOT GREEN` (three `POST /api/auth/login` calls returned 404 inside the scratch copy); the same suite then passed three times in the repository and the runner passed on the next attempt. The cause was not established, so treat the first attempt as one unexplained transient failure.
 
-Result: **82 mutants: 76 killed, 6 equivalent (R5, M7b, M8b, M9b, RV7, EQ7), 0 survived, 0 misapplied, 0 skipped.** Original files untouched: yes. The runner treats a failing suite as "killed" even for an entry flagged `equivalent`, which is why M11 (flagged equivalent in the file) is reported as killed.
+Result: **89 mutants: 82 killed, 7 equivalent (R5, M7b, M8b, M9b, M11, RV7, EQ7), 0 survived, 0 misapplied, 0 skipped.** Original files untouched: yes. The runner runs entries flagged `equivalent` as well: a flagged entry that fails the suite is reported as killed, and one that survives is reported as equivalent. M11 survived in every run in this pass (three targeted runs and the full run), so its `equivalent: true` flag is correct. An earlier pass recorded it as killed; that could not be reproduced, and the counts above replace the earlier 76 killed and 6 equivalent.
 
 | ID | Change | Status (this run) |
 |---|---|---|
@@ -437,7 +445,7 @@ Result: **82 mutants: 76 killed, 6 equivalent (R5, M7b, M8b, M9b, RV7, EQ7), 0 s
 | M7b | Assignment removed at the locked re-check only | equivalent |
 | M8b | Lead allowed at the locked re-check only | equivalent |
 | M9b | Organiser allowed at the locked re-check only | equivalent |
-| M11 | Unconditional UPDATE under the row lock | killed (file flags it equivalent; the run killed it) |
+| M11 | Unconditional UPDATE under the row lock | equivalent |
 | RV7 | Venue delete not scoped to the event | equivalent |
 | EQ7 | Rejected equipment status no longer counted as unavailable | equivalent |
 | CK1 to CK15 | Checklist mutants (`backend/src/events/status/checklist.ts`) | all 15 killed |
@@ -445,6 +453,7 @@ Result: **82 mutants: 76 killed, 6 equivalent (R5, M7b, M8b, M9b, RV7, EQ7), 0 s
 | VS1 to VS12 | Venue summary (`venue` text, overlap) | all 12 killed |
 | RV1 to RV6 | Venue request removal rules | all 6 killed |
 | EQ1 to EQ6 | Equipment request removal rules | all 6 killed |
+| CHA1 to CHA7 | confirm-no-equipment, request-safety-check and the status-change input guard (`status.service.ts`) | all 7 killed |
 
 Names for the groups above (from `backend/scripts/mutation/spm135.mutants.mjs`):
 - **CK1** approved booking shown confirmed even when its venue is blocked; **CK2** rejected booking shown pending; **CK3** pending booking shown confirmed; **CK4** pending beats unavailable in the combined venue status; **CK5** pending ignored when another request is confirmed; **CK6** equipment Requested shown confirmed; **CK7** unavailable equipment shown pending; **CK8** Released lines counted as outstanding; **CK9** no-equipment section satisfied without confirmation; **CK10** safety check shown while a prerequisite blocks; **CK11** safety request allowed while a prerequisite blocks; **CK12** text "None" treated as a requirement; **CK13** equipment confirmed by statuses alone; **CK14** pending venue does not block the safety check; **CK15** no venue request shown as confirmed.
@@ -452,6 +461,7 @@ Names for the groups above (from `backend/scripts/mutation/spm135.mutants.mjs`):
 - **VS1** approved unblocked booking labelled unavailable; **VS2** window block at another venue flags this venue; **VS3** pending labelled unavailable; **VS4** rejected labelled pending; **VS5** blocked status literal changed; **VS6** window start bound inclusive; **VS7** window end bound inclusive; **VS8** names joined with "; "; **VS9** names in reverse start order; **VS10** overlap equality-only; **VS11** overlap containment (block inside booking) only; **VS12** overlap containment (booking inside block) only.
 - **RV1** any venue request removable; **RV2** rejected request not removable; **RV3** window-blocked request not removable; **RV4** unknown request not 404; **RV5** removal allowed outside Planning; **RV6** removal without the assignment check; **RV7** delete not scoped to the event (equivalent).
 - **EQ1** any equipment request removable; **EQ2** unavailable status compared case-sensitively; **EQ3** unknown request not 404; **EQ4** removal allowed outside Planning; **EQ5** removal without the assignment check; **EQ6** Requested line removable; **EQ7** rejected status no longer counted as unavailable (equivalent).
+- **CHA1** confirm-no-equipment accepted for an event that lists equipment; **CHA2** the stored confirmation time overwritten on every call; **CHA3** safety check requestable before venue and equipment are confirmed; **CHA4** a pending safety check requested again; **CHA5** an approved safety check requested again; **CHA6** a malformed event id reaching the database; **CHA7** a non-string targetStatus treated as Confirmed.
 
 ### Current run (this pass): trigger (SQL) runner
 
@@ -516,7 +526,24 @@ IDs below are copied from the `it(...)` / `describe(...)` names in the files. No
 | Frontend venue text (`EventEditForm.test.tsx`) | `frontend/src/features/events/pages/edit/EventEditForm.test.tsx` | "shows the server venue text in the read-only Venue field"; "shows Not yet booked in the Venue field when the event has no venue" |
 | Frontend venue text (`EventCard.test.tsx`) | `frontend/src/features/events/pages/list/EventCard.test.tsx` | "shows the server venue text, including a pending label, on the card"; "shows Not booked when no venue has been booked yet"; "truncates a long venue name ..." |
 
-Also present: `SAFETY-FEEDBACK-01 to 03` in `backend/test/events-safety-feedback.e2e-spec.ts` (not requested in this pass; the IDs exist in the names).
+Also present: `SAFETY-FEEDBACK-01 to 03` in `backend/test/events-safety-feedback.e2e-spec.ts` (the IDs exist in the names) and `CHECKLIST-ACTION-01 to 07` in `backend/test/events-checklist-actions.e2e-spec.ts` (01 stores the confirm-no-equipment time once, 02 refuses it when equipment is listed, 03 refuses a safety request before venue and equipment are confirmed, 04 and 05 refuse it while pending or approved, 06 gives 404 for an unknown or malformed event id, 07 gives 400 for a status change without a usable target).
+
+### Supporting tests (internal IDs) and the AC they support
+
+The `CONFIRM-EVENT-01` to `06` cases in Confluence are the specified test cases for SPM-135. The families below are **supporting tests**: they extend a specified case with a rule it depends on and are not given Confluence rows (the matrix stays minimal). Each is mapped to the SPM-135 acceptance criterion it supports. `TR-nn` in test names are Test Code Review finding labels, not test case IDs.
+
+| Family | Supports | Related Confluence case | Why it exists |
+|---|---|---|---|
+| `VENUE-REMOVE-01` to `09` and "(no safety record)" | AC1, AC2 | 02-C, 02-D | A rejected or blocked venue request must be clearable so the coordinator can request another, only that kind of request may be removed, and removal resets a stale safety approval |
+| `EQUIPMENT-REMOVE-01` to `08` | AC1, AC2 | 02-A | The same rules for equipment lines |
+| `EQUIPMENT-GATE-01` to `02` (in `events-confirm.e2e-spec.ts`) | AC1, AC2 | 02-A | Needed equipment that was never requested blocks confirmation; "none" confirmed by the coordinator allows it |
+| `SAFETY-SOURCE-01` to `04` and `safety-check.source.spec.ts` | AC1, AC2 | 02-A, 02-B | The confirm gate reads the real stored safety check, so a pending, changes-needed or missing check blocks and only an approved one allows |
+| `SAFETY-STALE-01` to `07`, `SAFETY-RESET-UPDATE-01` to `03` | AC1, AC2 | 02-A | A safety approval counts only while the venue, equipment and event details it approved are unchanged |
+| `SAFETY-FEEDBACK-01` to `03` | AC1, AC2 | 02-A | Changes the Safety Officer asked for must be resolved before the safety check is requested again |
+| `CHECKLIST-ACTION-01` to `07` | AC1, AC2 | 02-A, 02-B | The actions that lead to Confirm (confirm no equipment, request the safety check) refuse what they must, and the status-change input guard rejects a missing target |
+| `VENUE-SUMMARY-01` to `08`, "(partial overlap)", "(planning)" and the frontend venue text tests | AC3 | 02-D, 03-C | The venue the coordinator reads (list, details, edit form, planning) shows pending and unavailable the same way as the readiness list |
+| `PlanningInformationPage`, `ConfirmEventPanel` supporting frontend tests (SAFETY-RESET-CONFIRM, 03-D, TR-13 branches) | AC2, AC3 | 02-A, 03-A | The page and the panel show what is outstanding from the server's answer, including after a reset, a slow answer or a failed read |
+
 
 ## Confirm Event traceability
 
@@ -539,7 +566,7 @@ Authoritative IDs: Confluence page **"CONFIRM-EVENT-01"** through **"CONFIRM-EVE
 | CONFIRM-EVENT-05-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-A: the submitting organiser sees one unread EventConfirmed notification after confirm" | partial: backend notification only; the bell UI and the 10-second bell count and click-through are not tested (SPM-137, blocked per the Confluence result) |
 | CONFIRM-EVENT-05-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-B: the organiser sees venue, equipment and safety ..."; `frontend/.../planning/ConfirmedArrangementsPanel.test.tsx`: "CONFIRM-EVENT-05-B (FE)"; `EventDetailPage.confirm.test.tsx`: "CONFIRM-EVENT-05-B (page)" (two) | tagged |
 | CONFIRM-EVENT-05-C | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-05-C: a blocked attempt notifies nobody; the success notifies only the submitting organiser" | tagged |
-| CONFIRM-EVENT-06-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-06-A: a Rejected event is refused with 422 EVENT_NOT_CONFIRMABLE ..." (it.each row); `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-06-A/06-B (FE)" (rejected row) | tagged (the Confluence expected result says MSG-CF-05 and HTTP 422; the e2e asserts 422 and the error code, not the message text. The Confluence "Notes" say HTTP 409, which conflicts with the expected result; see open questions) |
+| CONFIRM-EVENT-06-A | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-06-A: a Rejected event is refused with 422 EVENT_NOT_CONFIRMABLE ..." (it.each row); `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-06-A/06-B (FE)" (rejected row) | tagged. The Confluence expected result (HTTP 422 MSG-CF-05) is the oracle and the e2e asserts the status, the code `EVENT_NOT_CONFIRMABLE` and the message text. The "HTTP 409" in the Confluence execution notes is a different case (already Confirmed, 04-B); see Assumptions (ASSUMED) |
 | CONFIRM-EVENT-06-B | `events-confirm.e2e-spec.ts`: "CONFIRM-EVENT-06-B: a Cancelled event is refused with 422 ..."; `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-06-A/06-B (FE)" (cancelled row) | tagged (same notes as 06-A) |
 | CONFIRM-EVENT-03-D | `ConfirmEventPanel.test.tsx`: "CONFIRM-EVENT-03-D (FE)" | not in Confluence. The name is left unchanged; no matching Confluence case exists |
 
@@ -549,7 +576,7 @@ Cases with no matching test: none beyond the partial items above.
 
 ## Static checks and build (this pass)
 
-- `cd backend && npx tsc --noEmit -p tsconfig.json`: exit 1, **31 errors**, unchanged count. 14 are in SPM-135 specs: `events-venue-removal` and `events-equipment-removal` (lines 7 and 73), `events-venue-summary` (lines 7 and 84), `events-confirm-safety-source` (lines 7 and 87), `events-confirm` (lines 7 and 122), `events-safety-feedback` (lines 7 and 73), `events-safety-invalidation` (lines 7 and 75). All are the shared pattern: `supertest/types` import (TS2307) and `.find` on `set-cookie` typed as `string` (TS2339), also used by older specs. The other 17 are in older specs and `vitest.spm37.config.ts`.
+- `cd backend && npx tsc --noEmit -p tsconfig.json`: exit 1, **32 errors** (31 before the merge with dev; the extra one is in a dev-owned spec). 14 are in SPM-135 specs: `events-venue-removal` and `events-equipment-removal` (lines 7 and 73), `events-venue-summary` (lines 7 and 84), `events-confirm-safety-source` (lines 7 and 87), `events-confirm` (lines 7 and 122), `events-safety-feedback` (lines 7 and 73), `events-safety-invalidation` (lines 7 and 75). All are the shared pattern: `supertest/types` import (TS2307) and `.find` on `set-cookie` typed as `string` (TS2339), also used by older specs. The other 18 are in older or dev-owned specs and `vitest.spm37.config.ts`. The new `events-checklist-actions.e2e-spec.ts` (this pass) adds none: it avoids the `supertest/types` import and types the cookie header.
 - `cd backend && npx tsc --noEmit -p tsconfig.build.json`: exit 0, 0 errors. The build config excludes test and `*spec.ts` files, so the production build is unaffected.
 
 ## Run commands (Guide 10E, 12)
@@ -558,9 +585,13 @@ Cases with no matching test: none beyond the partial items above.
 # Backend unit
 cd backend && npx vitest run
 
-# Backend real-DB suite (requires docker Postgres with spm_test, init 001 to 012 applied)
+# Backend real-DB suite (requires docker Postgres with a database built from database/postgresql/init, all files)
 export DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test TEST_DATABASE_URL=$DATABASE_URL
-npx vitest run --config ./vitest.config.e2e.ts test/events-confirm.e2e-spec.ts
+npx vitest run --config ./vitest.config.e2e.ts test/events
+
+# Backend coverage of the real-DB suites. status.service.ts is only exercised here, so `npm run test:cov` does not measure it.
+npx vitest run --config ./vitest.config.e2e.ts --coverage --coverage.include='src/events/status/**' test/events
+# or: npm run test:cov:e2e   (writes backend/coverage/e2e, which is git-ignored)
 
 # Frontend
 cd frontend && npx vitest run src/features/events/pages/detail/planning
@@ -573,9 +604,14 @@ node scripts/mutation/run.mjs --mutants spm135.mutants.mjs
 npx vitest run --coverage
 ```
 
-Coverage (`npm run test:cov`, diagnostic only; iteration 2):
-- Backend unit: 46 files, 1167 passed. `src/events/status/readiness.ts`: 100% statements, branches, functions, lines. `status.service.ts` and `arrangements.reader.ts` are exercised by the e2e suite only, which `test:cov` does not measure, so they are not in this figure.
-- Frontend: 69 files, 952 passed, 1 todo. `src/utils/arrangements.ts` 100%. `ConfirmEventPanel.tsx` branches 81.48%, `ConfirmedArrangementsPanel.tsx` branches 70%, `EventDetailPage.tsx` branches 91.7% (the whole page). These are below the 100% changed-code rule of the implementation playbook; the uncovered branches are error and refresh paths that the findings did not ask for. Reported as a limitation.
+Coverage (diagnostic only; Improve Test Case Evaluation Workflow pass). Coverage measures what the tests execute, not how well they check it; the mutation results above are the measure of test strength.
+
+*Measurement scope.* `npm run test:cov` in `backend` loads only the files the unit tests import, so `status.service.ts`, which only the real-database suites exercise, was never in the figure. The gap was the scope, not the number. `backend/vitest.config.e2e.ts` now has a coverage block and `backend/package.json` has `npm run test:cov:e2e` (output `backend/coverage/e2e`, git-ignored). It needs a database built from `database/postgresql/init`.
+
+- Backend unit: 49 files, 1231 passed (`npx vitest run`). Per-file unit figures were not re-measured in this pass.
+- Backend real-database suites (`test/events`, 13 files, 129 passed), SPM-135 status files: `status.service.ts` 95.83% statements, 90.32% branches, 96.87% functions, 97.43% lines; `checklist.ts` 97.72 / 92.85 / 100 / 100; `safety-check.source.ts` 100 / 92.85 / 100 / 100. Uncovered lines in `status.service.ts`: 121, 161 and 383 are the assigned-coordinator re-checks after the row lock (the pre-check refuses first, so they can only fire in a reassignment race; mutants M7b to M9b record this), and 450 is the already-confirmed fallback for a concurrent confirm whose UPDATE finds no row to change (reachable only in a race). These are defensive and are left uncovered on purpose.
+- Frontend: 71 files, 1017 passed, 1 todo (`npm run test:cov`). SPM-135 files: `ConfirmEventPanel.tsx`, `ConfirmedArrangementsPanel.tsx`, `SafetyCheckChangesNeeded.tsx` and `utils/arrangements.ts` are 100% on statements, branches, functions and lines. `PlanningInformationPage.tsx` is 97.22% statements, 90.08% branches, 100% functions and 100% lines. The 12 uncovered branch arms (of 121) are defensive or cosmetic: the "page was left while loading" guards in the load, the double-click guard in the action wrapper, the "Removing..." text arm, a fallback-message arm and a few text arms. The two lines this document previously reported as uncovered (the 15-second refresh and the Re-Request button when no feedback is listed) now have tests, and so do the failed-load, confirm-callback, unticking, and failed-tick and failed-re-request paths.
+- Not chased: 100% branch coverage of the defensive arms above. They add tests that check nothing a user can see.
 
 ## Regression result for finished stories
 

@@ -440,6 +440,10 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       // Act: the request starts while the competing change is open; wait until it is blocked on a lock
       // supertest sends on .then(); start it now so it can reach the lock
       const pending = statusChange(coordinator, eventId).then((response) => response);
+      // Why this polls: the confirm request runs on the application's own connection, so the test cannot hold it
+      // with a promise gate or barrier. The only observable sign that it is blocked behind the competing change is
+      // the lock wait PostgreSQL reports in pg_stat_activity. The poll is bounded (200 x 10 ms = 2 s), and the
+      // lockWaitObserved assertion below fails the test when the wait is never seen, so a missed wait cannot pass.
       // Only the confirm's own statements count as the waiting request (not other suites' sessions).
       let lockWaitObserved = false;
       for (let attempt = 0; attempt < 200 && !lockWaitObserved; attempt += 1) {
@@ -532,6 +536,9 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   });
 
   // CONFIRM-EVENT-06-A (Rejected) / 06-B (Cancelled) (BE): these events cannot be confirmed.
+  // Status code: the Confluence expected result is HTTP 422 MSG-CF-05, and that is the oracle here. The execution
+  // notes on the same pages say "HTTP 409", which is the already-Confirmed case (CONFIRM-EVENT-04-B,
+  // EVENT_ALREADY_CONFIRMED) and not this one. See docs/specs/SPM-135-test-results.md, Assumptions (ASSUMED).
   it.each([
     ['CONFIRM-EVENT-06-A', 'Rejected', 'EVT-207'],
     ['CONFIRM-EVENT-06-B', 'Cancelled', 'EVT-208'],
