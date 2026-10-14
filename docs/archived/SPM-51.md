@@ -31,5 +31,11 @@
 
 ## 2026-10-14
 
+- general - implementation - SPM-51 - backend mutation baseline validation: Require Vitest summary evidence of executed tests before reporting a baseline green; verified SPM-50 and SPM-51 mapped mutation suites.
+
+- swr - test review correction - SPM-51 - Enforce named frontend mutation kills: Validate FE-B06–B20 kill labels against exact mapped tests, reject zero-test selections, and pass the full SPM-51 mutation run (13/13 killed).
+
+- swr - fix - SPM-50/SPM-51 - Repair review test evidence: Updated venue detail tests for API-backed loading, stale requests, event return context, server reservations, and removed-hour regressions; corrected backend mutation mapping execution and scratch schema asset handling.
+
 - swr - testing - SPM-51 - Mutate dual-role event list scope: Added mapped precedence, coordinator-scope, and attendee-only feed mutants; all three killed by the mapped EventsService tests.
 - swr - testing - SPM-51 - Reject empty mapped mutation selections: Map B13/B14 to the real planning test and fail both mutation runners when a mapped selection executes zero tests.

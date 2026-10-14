@@ -8,14 +8,18 @@ export interface VenueUnavailablePeriod {
   current?: boolean;
 }
 
-export interface VenueReservation {
+interface VenueReservationBase {
   id: string;
   eventName: string;
   start: string;
   end: string;
-  status: "booked" | "tentative";
   affectedByUnavailablePeriod: boolean;
 }
+
+/** Mirrors the API: tentative reservations are active holds and include their expiry instant. */
+export type VenueReservation =
+  | (VenueReservationBase & { status: "booked"; holdExpiresAt?: never })
+  | (VenueReservationBase & { status: "tentative"; holdExpiresAt: string });
 
 /** Read-only venue catalogue view of the SPM-50 venue record and availability data. */
 export interface VenueRecord extends Venue {

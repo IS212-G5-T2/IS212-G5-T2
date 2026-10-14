@@ -2,6 +2,10 @@
 
 Historical AI-assisted work associated with SPM-50.
 
+## 2026-10-14
+
+- swr - fix - SPM-50/SPM-51 - Repair review test evidence: Updated venue detail tests for API-backed loading, stale requests, event return context, server reservations, and removed-hour regressions; corrected backend mutation mapping execution and scratch schema asset handling.
+
 ## 2026-10-13
 
 - swr - implementation - SPM-50 - Remove operating hours from venue creation: Reopened correction removes operating days and opening times from the form and required API fields; omitted schedules receive a full-week compatibility value for availability consumers. Frontend/backend coverage, lint, and build checks recorded on the fix branch.
