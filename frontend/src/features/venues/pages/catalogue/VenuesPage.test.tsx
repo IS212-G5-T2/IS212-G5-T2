@@ -101,7 +101,7 @@ describe("VenuesPage catalogue loading", () => {
     renderPage("/venues?eventId=event-51");
 
     expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View details →" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /View details →/i })).toHaveAttribute(
       "href",
       "/venues/venue-51?eventId=event-51",
     );
@@ -191,7 +191,7 @@ describe("VenuesPage catalogue loading", () => {
 
     await screen.findByRole("heading", { name: "Orchid Hall" });
     expect(screen.queryByRole("link", { name: "Back to event" })).toBeNull();
-    expect(screen.getByRole("link", { name: "View details →" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /View details →/i })).toHaveAttribute(
       "href",
       "/venues/venue-51",
     );
