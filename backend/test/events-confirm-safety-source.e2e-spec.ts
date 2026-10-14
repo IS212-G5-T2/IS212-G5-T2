@@ -135,7 +135,7 @@ describe.skipIf(!database)('SPM-135 Confirm gate against the real safety source 
         status,
         coordinator.uid,
         status === 'approved' ? 'Safety Officer 1' : null,
-        status === 'approved' ? new Date() : null,
+        status === 'approved' ? '2026-10-13T09:00:00.000Z' : null,
       ],
     );
   }

@@ -13,10 +13,12 @@ function sourceReturning(rows: Array<Record<string, unknown>>) {
   return { source: new EventSafetyCheckSource(database), query };
 }
 
+const REQUESTED_AT = new Date('2026-10-13T09:00:00.000Z');
+
 describe('EventSafetyCheckSource.read (FACT_STATE mapping)', () => {
   /** A pending request maps to the readiness state "Awaiting Check", which keeps Confirm blocked. */
   it('maps a pending safety check to Awaiting Check', async () => {
-    const { source, query } = sourceReturning([{ status: 'pending', requested_at: new Date(), approver_name: null }]);
+    const { source, query } = sourceReturning([{ status: 'pending', requested_at: REQUESTED_AT, approver_name: null }]);
 
     await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Awaiting Check' });
     expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM event_safety_checks'), [EVENT_ID]);
@@ -24,14 +26,14 @@ describe('EventSafetyCheckSource.read (FACT_STATE mapping)', () => {
 
   /** A check sent back for changes maps to "Changes Requested", which keeps Confirm blocked. */
   it('maps a changes_needed safety check to Changes Requested', async () => {
-    const { source } = sourceReturning([{ status: 'changes_needed', requested_at: new Date(), approver_name: null }]);
+    const { source } = sourceReturning([{ status: 'changes_needed', requested_at: REQUESTED_AT, approver_name: null }]);
 
     await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Changes Requested' });
   });
 
   /** Only an approved safety check maps to "Approved", the one state that clears the Confirm gate. */
   it('maps an approved safety check to Approved', async () => {
-    const { source } = sourceReturning([{ status: 'approved', requested_at: new Date(), approver_name: 'Safety Officer 1' }]);
+    const { source } = sourceReturning([{ status: 'approved', requested_at: REQUESTED_AT, approver_name: 'Safety Officer 1' }]);
 
     await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Approved' });
   });

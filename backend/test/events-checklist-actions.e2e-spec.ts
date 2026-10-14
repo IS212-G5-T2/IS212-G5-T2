@@ -112,7 +112,7 @@ describe.skipIf(!database)('CHECKLIST-ACTION: confirm-no-equipment, safety-check
     await pool.query(
       `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, decided_at)
        VALUES ($1, $2, now(), $3, $4, $5)`,
-      [eventId, status, coordinator.uid, status === 'approved' ? 'Safety Officer 1' : null, status === 'approved' ? new Date() : null],
+      [eventId, status, coordinator.uid, status === 'approved' ? 'Safety Officer 1' : null, status === 'approved' ? '2026-10-13T09:00:00.000Z' : null],
     );
   }
 
