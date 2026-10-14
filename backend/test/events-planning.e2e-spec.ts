@@ -7,6 +7,7 @@ import {
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import pg from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
@@ -42,6 +43,7 @@ describe.skipIf(!database)(
   () => {
     let db: pg.Pool;
     let service: EventPlanningService;
+    let repository: EventPlanningRepository;
     let databaseService: DatabaseService;
     const eventIds: string[] = [];
     let eventId: string;
@@ -107,11 +109,13 @@ describe.skipIf(!database)(
       venueId: string,
       start: string,
       end: string,
+      status: 'pending' | 'approved' = 'approved',
+      holdExpiresAt: string | null = null,
     ) {
       const result = await db.query<{ id: string }>(
-        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status)
-       VALUES ($1,$2,$3,$4,'approved') RETURNING id`,
-        [event, venueId, start, end],
+        `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, hold_expires_at)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
+        [event, venueId, start, end, status, holdExpiresAt],
       );
       return result.rows[0].id;
     }
@@ -120,16 +124,12 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
-      for (const file of ['001_schema.sql'])
-        await db.query(
-          await readFile(
-            new URL(
-              `../../database/postgresql/init/${file}`,
-              import.meta.url,
-            ),
-            'utf8',
-          ),
-        );
+      for (const file of ['001_schema.sql']) {
+        const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
+          ? join(process.env.SPM51_DATABASE_INIT_DIR, file)
+          : new URL(`../../database/postgresql/init/${file}`, import.meta.url);
+        await db.query(await readFile(schemaPath, 'utf8'));
+      }
       const module = await Test.createTestingModule({
         providers: [
           DatabaseService,
@@ -138,6 +138,7 @@ describe.skipIf(!database)(
         ],
       }).compile();
       service = module.get(EventPlanningService);
+      repository = module.get(EventPlanningRepository);
       const owner = await db.query<{ id: string }>(
         `INSERT INTO users (email, display_name, password_hash)
          VALUES ($1,'E2E Venue Staff','not-a-real-hash') RETURNING id`,
@@ -202,6 +203,74 @@ describe.skipIf(!database)(
           status: 'Reserved',
         }),
       ]);
+    });
+
+    /** SPM-51 AC10: only pending rows with a future hold expiry are Booked; expired and unbounded requests are Cancelled. Kills: B13, B14. */
+    it('maps pending venue rows by explicit hold expiry and preserves approved bookings', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      const unboundedRequest = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 360),
+        at(END, 360),
+        'pending',
+      );
+      const expiredHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 720),
+        at(END, 720),
+        'pending',
+        null,
+      );
+      await db.query(
+        "UPDATE venue_bookings SET hold_expires_at = now() - interval '1 minute' WHERE id = $1",
+        [expiredHold],
+      );
+      const activeHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 1080),
+        at(END, 1080),
+        'pending',
+        null,
+      );
+      await db.query(
+        "UPDATE venue_bookings SET hold_expires_at = now() + interval '60 minutes' WHERE id = $1",
+        [activeHold],
+      );
+      const exactExpiryHold = await insertBooking(
+        eventId,
+        venueId,
+        at(START, 1440),
+        at(END, 1440),
+        'pending',
+        null,
+      );
+      // PostgreSQL now() is deliberately used here: the repository under test
+      // compares expiry with PostgreSQL's now() in the same statement. Setting
+      // both through one DB clock proves the exact-expiry boundary without a
+      // wall-clock race between JavaScript and PostgreSQL.
+      await db.query(
+        'UPDATE venue_bookings SET hold_expires_at = now() WHERE id = $1',
+        [exactExpiryHold],
+      );
+
+      const bookings = await repository.listVenueBookings(eventId);
+      const byId = new Map(
+        bookings.map((booking) => [booking.id, booking.status]),
+      );
+
+      expect(byId.get(unboundedRequest)).toBe('Cancelled');
+      expect(byId.get(expiredHold)).toBe('Cancelled');
+      expect(byId.get(exactExpiryHold)).toBe('Cancelled');
+      expect(byId.get(activeHold)).toBe('Booked');
+      expect(byId.get(hallA)).toBe('Booked');
     });
 
     // SPM-49 AC3 + SPM-85 AC1/AC2/AC6: direct field applies, booking field is flagged per venue.

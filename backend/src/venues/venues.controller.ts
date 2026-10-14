@@ -20,6 +20,19 @@ export class VenuesController {
     return this.venues.get(request[CURRENT_USER_REQUEST_KEY], id);
   }
 
+  @Post(':id/booking-requests')
+  submitBookingRequest(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.venues.submitBookingRequest(
+      request[CURRENT_USER_REQUEST_KEY],
+      id,
+      body,
+    );
+  }
+
   /**
    * Delegates a venue creation request with the server-verified identity.
    *

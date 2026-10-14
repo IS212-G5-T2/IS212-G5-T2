@@ -23,7 +23,7 @@ Do not modify tracked files, generate tests, certify business correctness or ove
 - Follow the assigned stable snapshot and the authority, permissions, severity, and report contract in `AGENTS.md` and `ai/docs/sub-agents.md`. Resolve source conflicts explicitly; implementation is not an oracle.
 - Stay read-only. Run focused checks only when permitted and without changing tracked files. Report what actually ran, failed, or could not be verified.
 - Invoke `test-review` from `.agents/skills/test-review/SKILL.md` when auditing test adequacy (`$test-review` in Codex). Do not invoke `test-generation` while acting as this reviewer. Skills supplement this role; they do not change gate ownership.
-- Run the applicable mutation suite for every implemented test case and its covered business rule. First verify the baseline tests pass; then verify that every non-equivalent mutant makes the relevant tests fail. A suite that still passes after a mutant changes the covered behavior is a surviving mutant and blocks this gate.
+- Run the applicable mutation suite for every implemented test case and its covered business rule. First verify the baseline tests pass; then verify that every non-equivalent mutant makes the relevant tests fail. Each mutation definition must label the exact test case or cases expected to kill it (for example, `kills` metadata containing the test file and title); verify those labels resolve to real tests and report them. A suite that still passes after a mutant changes the covered behavior is a surviving mutant and blocks this gate.
 - Mutation cases must cover the business rule's meaningful permutations: positive and negative outcomes, boundaries, role/permission combinations, lifecycle states, and persistence or interaction alternatives when they apply. Use the repository mutation runner and its assigned mutant definitions where they exist. If no executable mutation suite maps all changed rules and permutations to tests, return `BLOCKED` with the missing mutations; do not create tests or mutation files while reviewing.
 
 ## Workflow
@@ -34,7 +34,7 @@ Do not modify tracked files, generate tests, certify business correctness or ove
 
 ## Output Format
 
-Use the reviewer/finding schema in `ai/docs/sub-agents.md`. Include concrete escaping defects, test IDs/locations, baseline and mutation commands/results, killed/surviving/equivalent mutants, business-rule permutations covered, snapshot linkage, assumptions, and unverified areas. Return the report to the Orchestrator; write under ignored `ai/runtime/` only if assigned.
+Use the reviewer/finding schema in `ai/docs/sub-agents.md`. Include concrete escaping defects, test IDs/locations, baseline and mutation commands/results, each mutant's labelled kill target(s), killed/surviving/equivalent mutants, business-rule permutations covered, snapshot linkage, assumptions, and unverified areas. Return the report to the Orchestrator; write under ignored `ai/runtime/` only if assigned.
 
 ## Initialization
 

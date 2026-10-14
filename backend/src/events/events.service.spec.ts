@@ -439,6 +439,24 @@ describe('EventsService', () => {
     );
   });
 
+  // SPM-51 booking requests must use coordinator assignments for dual-role accounts, while attendee-only accounts retain the public feed.
+  it('scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events', async () => {
+    const row = savedEventRow();
+    db.query.mockResolvedValue({ rows: [row] });
+    const dualRoleUser = coordinatorUser({ roles: ['COORDINATOR', 'ATTENDEE'] });
+
+    const events = await service.list(dualRoleUser);
+
+    expect(events[0]).toMatchObject({ id: row.id, coordinatorId: dualRoleUser.uid });
+    expect(db.query).toHaveBeenCalledTimes(1);
+    expect(db.query).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE coordinator_id = $1'),
+      [dualRoleUser.uid],
+    );
+    expect(db.query.mock.calls[0][0]).not.toContain('available_registration_spots');
+    expect(db.query.mock.calls[0][0]).not.toContain('status IN');
+  });
+
   // The list view must not ship the base64 file contents (they balloon the
   // response); metadata is retained so the UI can still show name/size/type.
   it('omits attachment dataUrl from the list while keeping metadata', async () => {
