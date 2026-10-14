@@ -1328,7 +1328,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       "Unable to load venue details.",
     );
 
-    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await user.click(screen.getByRole("button", { name: "Try Again" }));
 
     expect(
       await screen.findByRole("heading", { name: "Conference Room" }),
