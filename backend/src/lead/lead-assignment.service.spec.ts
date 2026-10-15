@@ -145,7 +145,7 @@ describe('AC3 and AC4: coordinators with availability and workload', () => {
     expect(coordinators).toContainEqual({ id: 'c1', name: 'Coordinator 1', available: true, activeAssignments: 2 });
     expect(coordinators).toContainEqual({ id: 'c2', name: 'Coordinator 2', available: false, activeAssignments: 0 });
     const sql = String(database.query.mock.calls[0][0]).replace(/\s+/g, ' ');
-    expect(sql).toMatch(/'Submitted', 'Approved', 'Confirmed'/);
+    expect(sql).toMatch(/'Submitted', 'Approved', 'Planning', 'Confirmed'/);
     expect(sql).not.toMatch(/'Rejected'|'Completed'|'Cancelled'/);
   });
 
@@ -415,7 +415,7 @@ function writes() {
 
 describe('SPM-47 AC1 and AC11: the reassignment list', () => {
   // Only events that already have a coordinator and are still active, soonest first.
-  it('LEAD-REASN-01-A returns assigned Submitted, Approved and Confirmed events, soonest first', async () => {
+  it('LEAD-REASN-01-A returns assigned Submitted, Approved, Planning and Confirmed events, soonest first', async () => {
     // Arrange: two assigned events as the database returns them.
     database.query.mockResolvedValue({
       rows: [
@@ -464,7 +464,7 @@ describe('SPM-47 AC1 and AC11: the reassignment list', () => {
     const text = String(sql).replace(/\s+/g, ' ');
     expect(text).toMatch(/coordinator_id IS NOT NULL/);
     expect(text).toMatch(/status = ANY\(\$1\)/);
-    expect(params).toEqual([['Submitted', 'Approved', 'Confirmed']]);
+    expect(params).toEqual([['Submitted', 'Approved', 'Planning', 'Confirmed']]);
     expect(text).toMatch(/ORDER BY (events\.)?start_date_time ASC/);
   });
 

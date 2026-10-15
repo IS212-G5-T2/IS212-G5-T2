@@ -23,6 +23,7 @@ import { PlanningInformationPanel } from "@/features/events/pages/detail/plannin
 import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
+import { StatusHistory } from "@/features/events/pages/detail/planning/StatusHistory";
 import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
 import {
   PLANNING_REFRESH_MS,
@@ -479,6 +480,7 @@ export function EventDetailPage() {
       {isOwner && event.status === "confirmed" && event.organiserId === currentUser.id && (
         <ConfirmedArrangementsPanel eventId={event.id} />
       )}
+      {planningEnabled && <StatusHistory eventId={event.id} />}
       {!planningView && planningEnabled && planningError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {planningError}

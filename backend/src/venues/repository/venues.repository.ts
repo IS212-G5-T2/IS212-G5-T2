@@ -1,5 +1,10 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
+import {
+  BOOKING_OPEN_STATUSES,
+  shouldTransitionToPlanning,
+} from '../../events/types/event-status.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { accessibilityOptions } from '../helpers/accessibility-options.js';
@@ -170,8 +175,16 @@ export class VenuesRepository {
   ): Promise<
     | { kind: 'venue-not-found' }
     | { kind: 'event-not-assigned' }
+    | { kind: 'event-not-open'; status: string }
     | { kind: 'conflict'; reason: string }
-    | { kind: 'created'; id: string; start: string; end: string }
+    | {
+        kind: 'created';
+        id: string;
+        start: string;
+        end: string;
+        eventStatus: string;
+        statusChanged: boolean;
+      }
   > {
     return this.database.transaction(async (client) => {
       const venue = await client.query<{
@@ -185,11 +198,16 @@ export class VenuesRepository {
       const venueRow = venue.rows[0];
       if (!venueRow) return { kind: 'venue-not-found' };
 
-      const event = await client.query(
-        'SELECT id FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR SHARE',
+      // The event row lock serialises first requests: the status check, the
+      // booking, the compare-and-set and the history row commit as one unit.
+      const event = await client.query<{ id: string; status: string }>(
+        'SELECT id, status FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
         [input.eventId, coordinatorId],
       );
-      if (!event.rows[0]) return { kind: 'event-not-assigned' };
+      const eventRow = event.rows[0];
+      if (!eventRow) return { kind: 'event-not-assigned' };
+      if (!(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status))
+        return { kind: 'event-not-open', status: eventRow.status };
 
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
@@ -233,13 +251,47 @@ export class VenuesRepository {
         [venueId, input.eventId, input.start, input.end],
       );
       const row = saved.rows[0];
+      const statusChanged = await this.moveToPlanning(
+        client,
+        input.eventId,
+        coordinatorId,
+        eventRow.status,
+      );
       return {
         kind: 'created',
         id: row.id,
         start: row.start_at.toISOString(),
         end: row.end_at.toISOString(),
+        eventStatus: statusChanged ? 'Planning' : eventRow.status,
+        statusChanged,
       };
     });
+  }
+
+  /**
+   * SPM-148 R1/R4: compare-and-set Approved -> Planning inside the booking
+   * transaction. Only the request whose UPDATE touches a row writes history.
+   */
+  private async moveToPlanning(
+    client: pg.PoolClient,
+    eventId: string,
+    actorId: string,
+    status: string,
+  ): Promise<boolean> {
+    if (!shouldTransitionToPlanning(status)) return false;
+    const now = this.clock.now();
+    const moved = await client.query(
+      `UPDATE events SET status = 'Planning', updated_at = $2::timestamptz
+        WHERE id = $1::uuid AND status = 'Approved'`,
+      [eventId, now],
+    );
+    if (moved.rowCount !== 1) return false;
+    await client.query(
+      `INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
+       VALUES ($1::uuid, $2::uuid, 'Approved', 'Planning', $3::text, $4::timestamptz)`,
+      [randomUUID(), eventId, actorId, now],
+    );
+    return true;
   }
 
   /** Block a venue without altering existing event bookings or holds. */

@@ -1,11 +1,17 @@
 import { BadRequestException } from '@nestjs/common';
 import { UUID_PATTERN } from '../../../common/uuid.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../../../events/status/planning.messages.js';
 
 export interface BookingRequestInput {
   eventId: string;
   start: string;
   end: string;
 }
+
+const BOOKING_FIELDS = ['eventId', 'start', 'end'];
 
 const ISO_INSTANT =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/i;
@@ -15,6 +21,12 @@ export function validateBookingRequest(value: unknown): BookingRequestInput {
   if (!value || typeof value !== 'object' || Array.isArray(value))
     throw new BadRequestException('A booking request is required.');
   const input = value as Record<string, unknown>;
+  // SPM-148 R7: status and history fields are server-authored; reject, never ignore.
+  if (Object.keys(input).some((key) => !BOOKING_FIELDS.includes(key)))
+    throw new BadRequestException({
+      code: PLANNING_CODES.unsupportedFields,
+      message: PLANNING_MESSAGES.unsupportedFields,
+    });
   if (typeof input.eventId !== 'string' || !UUID_PATTERN.test(input.eventId))
     throw new BadRequestException('Choose a valid event.');
   if (

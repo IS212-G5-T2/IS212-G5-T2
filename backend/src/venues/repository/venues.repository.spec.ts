@@ -95,7 +95,7 @@ describe('VenuesRepository', () => {
             ],
           };
         if (sql.includes('FROM events WHERE id'))
-          return { rows: [{ id: 'event-1' }] };
+          return { rows: [{ id: 'event-1', status: 'Submitted' }] };
         if (sql.includes('SELECT reason FROM'))
           return { rows: [{ reason: 'Workshop' }] };
         return { rows: [] };
@@ -144,7 +144,7 @@ describe('VenuesRepository', () => {
             },
           ],
         })
-        .mockResolvedValueOnce({ rows: [{ id: 'event-1' }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Submitted' }] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({
           rows: [

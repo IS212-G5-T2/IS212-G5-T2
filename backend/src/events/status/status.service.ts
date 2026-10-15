@@ -82,6 +82,40 @@ export class StatusService {
     );
   }
 
+  /**
+   * SPM-148 D7: the event's status history, oldest first. Readable by the
+   * assigned Coordinator and the owning Organiser; everyone else gets 403.
+   */
+  async statusHistory(identity: AuthenticatedUser | undefined, eventId: string) {
+    const user = this.requireUser(identity);
+    const event = await this.findEvent(eventId);
+    if (!event) throw new NotFoundException(STATUS_MESSAGES.notFound);
+    const isCoordinator = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
+    if (!isCoordinator && !isOrganiser)
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: STATUS_MESSAGES.notAssigned });
+    const rows = await this.database.query<{
+      from_status: string;
+      to_status: string;
+      created_at: Date;
+      actor_id: string;
+      actor_name: string | null;
+    }>(
+      `SELECT h.from_status, h.to_status, h.created_at, h.actor_id, u.display_name AS actor_name
+         FROM event_status_history h
+         LEFT JOIN users u ON u.id::text = h.actor_id
+        WHERE h.event_id = $1
+        ORDER BY h.created_at, h.id`,
+      [eventId],
+    );
+    return rows.rows.map((row) => ({
+      fromStatus: row.from_status,
+      toStatus: row.to_status,
+      changedAt: row.created_at.toISOString(),
+      changedBy: { id: row.actor_id, name: row.actor_name ?? row.actor_id },
+    }));
+  }
+
   /** The assigned coordinator's readiness view (R5, D3). Read-only. */
   async arrangementsStatus(identity: AuthenticatedUser | undefined, eventId: string) {
     const user = this.requireUser(identity);

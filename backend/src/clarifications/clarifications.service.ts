@@ -7,6 +7,7 @@
  */
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -15,6 +16,11 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { UUID_PATTERN } from '../common/uuid.js';
 import type { CommentDto } from './dto/comment.dto.js';
+import { CLARIFICATION_OPEN_STATUSES } from '../events/types/event-status.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../events/status/planning.messages.js';
 import { validateMessage } from './dto/clarification-input.js';
 import {
   ClarificationsRepository,
@@ -22,11 +28,11 @@ import {
   type EventForReview,
 } from './repository/clarifications.repository.js';
 
-// Statuses a clarification request may be opened from. Submitting one no
+// Statuses a clarification request may be opened from are
+// CLARIFICATION_OPEN_STATUSES (SPM-148 adds Planning). Submitting one no
 // longer changes the event's status — "Under Review" was retired as a
 // distinct stage since coordinator assignment (its only other trigger) is
 // now automatic and never a meaningful "review started" signal.
-const CLARIFIABLE_STATUSES = ['Submitted', 'Approved'];
 
 @Injectable()
 export class ClarificationsService {
@@ -50,7 +56,8 @@ export class ClarificationsService {
 
       this.requireAssignedCoordinator(event, user);
 
-      if (!CLARIFIABLE_STATUSES.includes(event.status)) {
+      this.requireNotConfirmed(event);
+      if (!(CLARIFICATION_OPEN_STATUSES as readonly string[]).includes(event.status)) {
         throw new BadRequestException(
           "Clarification requests aren't allowed while the event is in its current status.",
         );
@@ -95,6 +102,7 @@ export class ClarificationsService {
       if (!event) throw new NotFoundException('Event not found.');
 
       const authorRole = this.requireOrganiserOrAssignedCoordinator(event, user);
+      this.requireNotConfirmed(event);
 
       const clarification = await this.repository.findClarificationForUpdate(
         client,
@@ -257,6 +265,15 @@ export class ClarificationsService {
     throw new ForbiddenException(
       "Only this event's organiser or assigned coordinator can do this.",
     );
+  }
+
+  // SPM-148 AC7: Confirmed closes posting and replying; threads stay readable.
+  private requireNotConfirmed(event: EventForReview): void {
+    if (event.status === 'Confirmed')
+      throw new ConflictException({
+        code: PLANNING_CODES.clarificationsClosed,
+        message: PLANNING_MESSAGES.clarificationsClosed,
+      });
   }
 
   private displayName(user: AuthenticatedUser): string {

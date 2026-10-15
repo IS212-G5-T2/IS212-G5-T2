@@ -55,4 +55,22 @@ describe('validateBookingRequest', () => {
   it('returns a valid booking request unchanged', () => {
     expect(validateBookingRequest(valid)).toEqual(valid);
   });
+
+  // SPM-148 R7 (PLAN-STATUS-04-C, 08-A). Kills: M9/M20 body fields silently accepted.
+  it.each([
+    { label: 'status', extra: { status: 'Confirmed' } },
+    { label: 'eventStatus', extra: { eventStatus: 'Cancelled' } },
+    { label: 'changedBy', extra: { changedBy: 'COO-02' } },
+    { label: 'changedAt', extra: { changedAt: '2020-01-01T00:00:00Z' } },
+  ])('PLAN-STATUS-04-C: rejects a request carrying $label', ({ extra }) => {
+    expect(() => validateBookingRequest({ ...valid, ...extra })).toThrow(BadRequestException);
+    try {
+      validateBookingRequest({ ...valid, ...extra });
+    } catch (error) {
+      expect((error as BadRequestException).getResponse()).toEqual({
+        code: 'UNSUPPORTED_BOOKING_FIELDS',
+        message: 'The booking request contains unsupported fields.',
+      });
+    }
+  });
 });

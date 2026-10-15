@@ -14,6 +14,10 @@ import type {
 import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../events/status/planning.messages.js';
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
 import { validateBookingRequest } from './availability/dto/booking-request.js';
@@ -134,6 +138,11 @@ export class VenuesService {
       throw new NotFoundException('Venue not found.');
     if (result.kind === 'event-not-assigned')
       throw new NotFoundException('Assigned event not found.');
+    if (result.kind === 'event-not-open')
+      throw new ConflictException({
+        code: PLANNING_CODES.eventNotOpenForBooking,
+        message: PLANNING_MESSAGES.eventNotOpenForBooking,
+      });
     if (result.kind === 'conflict')
       throw new ConflictException(
         `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
@@ -145,6 +154,8 @@ export class VenuesService {
       start: result.start,
       end: result.end,
       status: 'pending' as const,
+      eventStatus: result.eventStatus,
+      statusChanged: result.statusChanged,
       bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
     };
   }
