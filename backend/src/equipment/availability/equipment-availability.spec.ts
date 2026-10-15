@@ -331,7 +331,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
-  // EQUIP-UNAVAIL-ASSUMP-03: a repeated same-state request is rejected without a second audit event.
+  // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it.each([
     [false, 'Equipment is already unavailable.'],
     [true, 'Equipment is already available.'],

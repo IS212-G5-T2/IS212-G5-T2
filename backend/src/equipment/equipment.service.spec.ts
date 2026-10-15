@@ -332,7 +332,7 @@ describe('EquipmentService', () => {
   });
 
   /**
-   * EQUIP-UNAVAIL-ASSUMP-03: existing behavior rejects a repeated same-state request with no audit write, pending a product rule.
+   * EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
    */
   it('EQUIP-UNAVAIL-ASSUMP-03 rejects an availability update when the record already has that state', async () => {
     const client = {

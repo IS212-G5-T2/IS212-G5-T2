@@ -270,7 +270,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
-  // EQUIP-UNAVAIL-ASSUMP-03: existing behavior rejects repeated same-state requests without duplicate audit rows, pending a product rule.
+  // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it('EQUIP-UNAVAIL-ASSUMP-03 returns 409 for repeated availability states without duplicate audit rows', async () => {
     // Arrange: one record starts available and another starts unavailable.
     const actor = await createUser('TECH_SUPPORT', 'same-state');
