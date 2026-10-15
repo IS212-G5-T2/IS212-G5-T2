@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
 import { ApiError, api } from "@/utils/api";
+import { PLANNING_REFRESH_MS } from "@/utils/planning";
 import type { PlanningChecklist } from "@/utils/arrangements";
 import type { EventRecord, PlanningView } from "@/types";
 
@@ -519,5 +520,219 @@ describe("PlanningInformationPage", () => {
     await waitFor(() => expect(button).toBeEnabled());
     await user.click(button);
     expect(await screen.findByRole("alert")).toHaveTextContent("Pending venue confirmation to proceed.");
+  });
+
+  /**
+   * The page re-reads the checklist every PLANNING_REFRESH_MS while the tab is visible, so a change made elsewhere
+   * shows without a reload, and it skips the read while the tab is hidden.
+   */
+  it("re-reads the checklist every 15 seconds while the page is visible and not while it is hidden", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const visibility = Object.getOwnPropertyDescriptor(Document.prototype, "visibilityState");
+    const setVisibility = (value: DocumentVisibilityState) =>
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => value });
+    try {
+      renderPage();
+      await screen.findByRole("tab", { name: /Venues/ });
+      const reads = () => apiMock.mock.calls.filter(([path]) => String(path).endsWith("/arrangements-status")).length;
+      const initial = reads();
+
+      // The page and its confirm panel both poll, so assert the direction of change rather than an exact count.
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+      const afterVisibleTick = reads();
+      expect(afterVisibleTick).toBeGreaterThan(initial);
+
+      setVisibility("hidden");
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+      expect(reads()).toBe(afterVisibleTick);
+
+      setVisibility("visible");
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+      expect(reads()).toBeGreaterThan(afterVisibleTick);
+    } finally {
+      if (visibility) Object.defineProperty(document, "visibilityState", visibility);
+      else delete (document as { visibilityState?: unknown }).visibilityState;
+      vi.useRealTimers();
+    }
+  });
+
+  /** When changes are needed and the server lists no feedback items, the coordinator can still re-request once venue and equipment are confirmed. */
+  it("re-requests the safety check when changes are needed and no feedback items are listed", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "changes_needed" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+
+    await user.click(await screen.findByRole("button", { name: "Re-Request Safety Check" }));
+
+    await waitFor(() => expect(postCalls()).toHaveLength(1));
+    expect(postCalls()[0][0]).toBe(`/events/${EVENT_ID}/safety-check/request`);
+  });
+
+  /** When the checklist cannot be read, the page shows the failure reason, or a generic message when the failure carries none. */
+  it.each([
+    ["an Error", new Error("Network down"), "Network down"],
+    ["a non-Error rejection", "boom", "Could not load the planning checklist."],
+  ])("shows a load failure from %s and no checklist", async (_label, failure, expected) => {
+    apiMock.mockImplementation(((path: string) =>
+      path.endsWith("/arrangements-status") ? Promise.reject(failure) : Promise.resolve({})) as typeof api);
+    renderPage();
+
+    const alerts = await screen.findAllByRole("alert");
+    expect(alerts.map((alert) => alert.textContent)).toContain(expected);
+    expect(screen.queryByRole("button", { name: "Request For Safety Check" })).not.toBeInTheDocument();
+  });
+
+  /** A successful Confirm Event shows the server's confirmation message and tells the parent page the event is confirmed. */
+  it("tells the parent when Confirm Event succeeds", async () => {
+    const user = userEvent.setup();
+    const onConfirmed = vi.fn();
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "approved", approverName: "Safety Officer 1" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path === `/events/${EVENT_ID}/status-change`)
+        return Promise.resolve({ eventId: EVENT_ID, status: "Confirmed", message: "Event confirmed." });
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: true, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    render(
+      <MemoryRouter>
+        <PlanningInformationPage view={view} status="planning" onConfirmed={onConfirmed} />
+      </MemoryRouter>,
+    );
+
+    const confirm = await screen.findByRole("button", { name: "Confirm Event" });
+    await waitFor(() => expect(confirm).toBeEnabled());
+    await user.click(confirm);
+
+    await waitFor(() => expect(onConfirmed).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText("Event confirmed.")).toBeInTheDocument();
+  });
+
+  /** Unticking a resolved feedback item clears its resolution on the server and the progress count drops back. */
+  it("clears a feedback item's resolution when its checkbox is unticked", async () => {
+    const user = userEvent.setup();
+    const items = [
+      { id: "f1", text: "Add a second fire exit.", requestedAt: "2026-10-11T07:00:00.000Z", resolvedByCoordinatorAt: "2026-10-13T10:00:00.000Z" },
+      { id: "f2", text: "Confirm occupancy.", requestedAt: "2026-10-11T07:00:00.000Z" },
+    ];
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "changes_needed", feedback: items },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "DELETE" && path === `/events/${EVENT_ID}/safety-check/feedback/f1/resolve`) {
+        current = { ...current, safetyCheck: { ...current.safetyCheck, feedback: items.map(({ resolvedByCoordinatorAt: _cleared, ...item }) => item) } };
+        return Promise.resolve({});
+      }
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: false, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    expect(await screen.findByText("1 of 2 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
+
+    await user.click((await screen.findAllByRole("checkbox"))[0]);
+
+    expect(await screen.findByText("0 of 2 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
+    const deletes = apiMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === "DELETE");
+    expect(deletes.map(([path]) => path)).toEqual([`/events/${EVENT_ID}/safety-check/feedback/f1/resolve`]);
+  });
+
+  /** A failed tick shows the server's message for a known error, or a fallback for any other failure, and the item stays unresolved. */
+  it.each([
+    ["a server error", new ApiError("This feedback item was not found for the safety check.", undefined, undefined, 404), "This feedback item was not found for the safety check."],
+    ["an unexpected failure", "boom", "Could not update feedback resolution."],
+  ])("shows %s when ticking a feedback item fails", async (_label, failure, expected) => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "changes_needed", feedback: [{ id: "f1", text: "Add a second fire exit.", requestedAt: "2026-10-11T07:00:00.000Z" }] },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/resolve")) return Promise.reject(failure);
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: false, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+
+    await user.click(await screen.findByRole("checkbox"));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(expected);
+    expect(screen.getByText("0 of 1 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
+  });
+
+  /** Once every feedback item is resolved, Re-Request sends the request and the page reads the checklist again. */
+  it("re-requests the safety check once every feedback item is resolved and refreshes the checklist", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: {
+        status: "changes_needed",
+        feedback: [{ id: "f1", text: "Add a second fire exit.", requestedAt: "2026-10-11T07:00:00.000Z", resolvedByCoordinatorAt: "2026-10-13T10:00:00.000Z" }],
+      },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+    const reads = () => apiMock.mock.calls.filter(([path]) => String(path).endsWith("/arrangements-status")).length;
+    const button = await screen.findByRole("button", { name: "Re-Request Safety Check" });
+    await waitFor(() => expect(button).toBeEnabled());
+    const readsBefore = reads();
+
+    await user.click(button);
+
+    await waitFor(() => expect(postCalls().map(([path]) => path)).toEqual([`/events/${EVENT_ID}/safety-check/request`]));
+    await waitFor(() => expect(reads()).toBeGreaterThan(readsBefore));
+  });
+
+  /** A failed re-request shows the server's message for a known error, or a fallback otherwise. */
+  it.each([
+    ["a server error", new ApiError("The safety check is already pending.", undefined, undefined, 409), "The safety check is already pending."],
+    ["an unexpected failure", "boom", "Could not request the safety check."],
+  ])("shows %s when re-requesting the safety check fails", async (_label, failure, expected) => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: {
+        status: "changes_needed",
+        feedback: [{ id: "f1", text: "Add a second fire exit.", requestedAt: "2026-10-11T07:00:00.000Z", resolvedByCoordinatorAt: "2026-10-13T10:00:00.000Z" }],
+      },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/safety-check/request")) return Promise.reject(failure);
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: false, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    const button = await screen.findByRole("button", { name: "Re-Request Safety Check" });
+    await waitFor(() => expect(button).toBeEnabled());
+
+    await user.click(button);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(expected);
   });
 });

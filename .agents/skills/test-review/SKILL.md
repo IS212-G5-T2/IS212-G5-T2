@@ -11,4 +11,6 @@ Build a compact requirement/test ID → assertion → execution-evidence map. Fo
 
 Confirm the test level and actual runner: frontend Vitest/jsdom (`.test.tsx`), Playwright (`.playwright.spec.ts`), backend Vitest unit (`.spec.ts`), or dedicated Vitest/PostgreSQL E2E (`.e2e-spec.ts`). Read current component configs and CI before citing commands or coverage. Match results or CI checks to the assigned snapshot; distinguish configured, executed, skipped, and unavailable checks. Coverage is diagnostic, and repo-specific mutation scripts are evidence only if actually run.
 
+For a story with a scope file, run the test cycle in `ai/docs/test-workflow.md` (`node ai/scripts/test-workflow/run-cycle.mjs`) and verify the judgement fields of its test records (tier, oracle class, explained) against the code; the scripts check structure and arithmetic, not whether an assertion is vacuous. Report only numbers that are in the cycle folder.
+
 Return the existing `PASS`, `BLOCKED`, or `UNABLE_TO_VERIFY` gate and finding schema from `ai/docs/sub-agents.md`. Each material gap needs a test location/ID, observed evidence, a concrete escaping defect, affected behaviour, and a useful correction. Remain read-only: do not create or fix tests, change tracked files, or decide Orchestrator transitions.
