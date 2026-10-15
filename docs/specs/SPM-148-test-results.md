@@ -199,6 +199,430 @@ Test-count changes from this round: backend e2e 407 to 410; frontend 1106 to 111
 
 Note on repeated runs: the lead assignment e2e suite (`test/lead-assignment.e2e-spec.ts`) fails on a second run against a database that the earlier run already changed (its events are no longer in the queue; the assign call returns 404). This predates this PR. The full suite passes on a fresh database, which is how CI runs it.
 
+## Test case results (per test case)
+
+Result table per test case. Runs on 15 Oct 2026, branch working tree: backend unit 1297 pass (after the merge), backend e2e 410 pass on a fresh database, frontend 1128 pass (after the merge). Status values: Pass, Partial (some parts of the case are not automatable), Not Automated.
+
+### PLAN-STATUS-01-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 3 |
+| Pass/Fail | 3 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit, Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M3. |
+
+### PLAN-STATUS-01-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 5 |
+| Pass/Fail | 5 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit |
+| Notes | Mutants killed: M1, M2. |
+
+### PLAN-STATUS-01-BND
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M3. |
+
+### PLAN-STATUS-01-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Partial |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M3. Partial: conflict and time checks automated; capacity and suitability are not in the product (SPM-23 not built). |
+
+### PLAN-STATUS-01-D
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M22. |
+
+### PLAN-STATUS-01-D-401
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M22. |
+
+### PLAN-STATUS-01-E
+
+| Item | Result |
+|---|---|
+| Overall Status | Not Automated |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 0 |
+| Pass/Fail | 0 passed, 0 failed (no test body) |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Automated |
+| Notes | Not Automated: the booking endpoint takes one venue per request; no multi-venue path exists in the product. |
+
+### PLAN-STATUS-02-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | None |
+
+### PLAN-STATUS-02-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 (it.each, 3 rows) |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | None (not automated) |
+| Notes | Mutants killed: M4, M5. Fault raised by a database trigger after the named write; see the test name. |
+
+### PLAN-STATUS-02-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 (it.each, 3 rows) |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | None (not automated) |
+| Notes | Passes under the separate-transaction mutant (M4): its fault rolls back the booking first, so 02-B and 02-D carry that kill. Fault raised by a database trigger after the named write; see the test name. |
+
+### PLAN-STATUS-02-D
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 (it.each, 3 rows) |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | None (not automated) |
+| Notes | Mutants killed: M4, M5. Fault raised by a database trigger after the named write; see the test name. |
+
+### PLAN-STATUS-02-E
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit |
+| Notes | Mutants killed: M1, M6. Race forced by a row-lock barrier (blocked sessions), not by sleeping. |
+
+### PLAN-STATUS-03-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M1, M7. |
+
+### PLAN-STATUS-03-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M7. |
+
+### PLAN-STATUS-03-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass with open issue (suspected flake) |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M8. Unexplained: one full run on the merged branch failed here with a 404 on the second booking request. The test passed alone and in three later full runs. Not resolved; treat as a suspected flake. |
+
+### PLAN-STATUS-03-D
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M6. |
+
+### PLAN-STATUS-04-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 5 |
+| Pass/Fail | 5 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M5, M10. Also run under TZ=UTC, Asia/Singapore and America/Los_Angeles for the e2e file (36 of 36 each, before the final edits). |
+
+### PLAN-STATUS-04-A-SEC
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | None |
+
+### PLAN-STATUS-04-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M11. |
+
+### PLAN-STATUS-04-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit |
+| Notes | Mutants killed: M9. |
+
+### PLAN-STATUS-04-D
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M10. Also run under TZ=UTC, Asia/Singapore and America/Los_Angeles for the e2e file (36 of 36 each, before the final edits). |
+
+### PLAN-STATUS-05-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M12 (frontend), M13. |
+
+### PLAN-STATUS-05-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Frontend (Vitest, jsdom) |
+| Notes | Frontend test: the fake server answers with its current list, so a remount is a reload. |
+
+### PLAN-STATUS-05-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | None |
+
+### PLAN-STATUS-06-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit |
+| Notes | Mutants killed: M14, M15, M16. |
+
+### PLAN-STATUS-06-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M16. |
+
+### PLAN-STATUS-06-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Partial |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M14, M15, M16. Partial: notice and active count automated; the limit-5 availability function is not in the product. |
+
+### PLAN-STATUS-07-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Partial |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 3 |
+| Pass/Fail | 3 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Backend unit, Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M17. Partial: Coordinator post and Organiser reply automated; Organiser post is refused by SPM-39 and needs a PO decision. |
+
+### PLAN-STATUS-07-C
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | None |
+
+### PLAN-STATUS-07-D
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | Mutants killed: M18. |
+
+### PLAN-STATUS-07-E
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M19. |
+
+### PLAN-STATUS-08-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M9, M20, M21. |
+
+### PLAN-STATUS-09-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 2 |
+| Pass/Fail | 2 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL), Frontend (Vitest, jsdom) |
+| Notes | None |
+
+### PLAN-STATUS-10-A
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M24. |
+
+### PLAN-STATUS-10-A-OK
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | Mutants killed: M24. |
+
 ## Traceability index (Cmd+F the ID)
 
 Each test case ID appears in the title of its test (file:line below) and, where production code implements it, in a `// SPM-148 PLAN-STATUS-...` comment directly above that code (file:line below). Search the ID with Cmd+F to find either.

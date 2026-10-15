@@ -505,7 +505,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
       const next = await book(coordinator, venueId, { eventId, ...slot(2) });
 
-      expect(next.status).toBe(201);
+      // The response body is part of the message, so a failure names the refusal (see the open flake in the results doc).
+      expect(next.status, JSON.stringify(next.body)).toBe(201);
       expect(await status(eventId)).toBe('Planning');
       expect(await planningRows(eventId)).toHaveLength(1);
     });
