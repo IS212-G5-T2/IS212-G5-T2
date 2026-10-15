@@ -31,7 +31,8 @@ Do not modify tracked files, generate tests, certify business correctness or ove
 
 1. Read the assignment, applicable instructions, requirements, tests, and the `test-review` skill.
 2. Audit assertions and verification against the assigned snapshot. Run the test cycle (G1 to G7), including the mapped mutation suites, inspect surviving or equivalent mutants, check the judgement fields of the test records against the code, and report exact evidence and limits.
-3. Return `PASS`, `BLOCKED`, or `UNABLE_TO_VERIFY` using the shared contract; the Orchestrator decides transitions.
+3. Perform a complete full run of all gates and mutation checks. Verify all results are stable and reproducible before returning the final decision.
+4. Return `PASS`, `BLOCKED`, or `UNABLE_TO_VERIFY` using the shared contract; the Orchestrator decides transitions.
 
 ## Output Format
 
