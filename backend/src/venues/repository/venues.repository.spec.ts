@@ -798,4 +798,89 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[0][1]).toEqual([venue.id, row.id, now]);
     expect(query.mock.calls[1][1]).toEqual([venue.id, 'missing', now]);
   });
+
+  // SPM-148 R1/R4 (PLAN-STATUS-01-A/B, 02-A). Unit-level evidence for the transition: the
+  // status UPDATE and the history row are written only for an Approved event whose
+  // compare-and-set moves a row. Routed by SQL text, like the tests above.
+  describe('SPM-148 booking transition', () => {
+    const eventId = '00000000-0000-4000-8000-000000000148';
+    const now = new Date('2026-10-15T04:00:00.000Z');
+    const input = {
+      eventId,
+      start: '2026-11-04T10:00:00.000Z',
+      end: '2026-11-04T11:00:00.000Z',
+    };
+
+    /** A client whose event row has `eventStatus`; the compare-and-set UPDATE moves `casRows` rows. */
+    function clientFor(eventStatus: string, casRows: number) {
+      const queries: string[] = [];
+      const parameters: unknown[][] = [];
+      const query = vi.fn(async (sql: string, values: unknown[] = []) => {
+        queries.push(sql);
+        parameters.push(values);
+        if (sql.includes('FROM venues WHERE id'))
+          return { rows: [{ id: venue.id, setup_time_minutes: 0, turnaround_time_minutes: 0 }] };
+        if (sql.includes('FROM events WHERE id'))
+          return { rows: [{ id: eventId, status: eventStatus }] };
+        if (sql.includes('SELECT reason FROM')) return { rows: [] };
+        if (sql.includes('INSERT INTO venue_bookings'))
+          return {
+            rows: [{ id: '00000000-0000-4000-8000-000000000999', start_at: new Date(input.start), end_at: new Date(input.end) }],
+          };
+        if (sql.includes('UPDATE events SET status')) return { rows: [], rowCount: casRows };
+        return { rows: [], rowCount: 0 };
+      });
+      const repository = new VenuesRepository(
+        { transaction: (work: (c: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+        { now: () => now },
+      );
+      const find = (fragment: string) => queries.findIndex((sql) => sql.includes(fragment));
+      return { repository, parameters, queries, find };
+    }
+
+    // Kills: M1 (no status guard), M7 (history written on every request), M10 (DB clock instead of injected clock).
+    it('PLAN-STATUS-01-A: an Approved event moves to Planning and gets one history row stamped with the injected clock', async () => {
+      const { repository, parameters, find } = clientFor('Approved', 1);
+
+      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
+
+      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Planning', statusChanged: true });
+      expect(find('UPDATE events SET status')).toBeGreaterThan(-1);
+      const history = parameters[find('INSERT INTO event_status_history')];
+      expect(history).toEqual([expect.any(String), eventId, ownerUserId, now]);
+    });
+
+    // Kills: M2 (transition also fires from Confirmed).
+    it('PLAN-STATUS-01-B: a Confirmed event keeps its status, with no UPDATE and no history row', async () => {
+      const { repository, find } = clientFor('Confirmed', 0);
+
+      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
+
+      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Confirmed', statusChanged: false });
+      expect(find('UPDATE events SET status')).toBe(-1);
+      expect(find('INSERT INTO event_status_history')).toBe(-1);
+    });
+
+    // Kills: M6 (no compare-and-set: a lost race still writes history).
+    it('PLAN-STATUS-02-E: a lost compare-and-set reports no transition and writes no history row', async () => {
+      const { repository, find } = clientFor('Approved', 0);
+
+      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
+
+      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Approved', statusChanged: false });
+      expect(find('INSERT INTO event_status_history')).toBe(-1);
+    });
+
+    // Kills: M22/M1 variants that let a Submitted event book or transition.
+    it('PLAN-STATUS-01-B: a Submitted event is refused with no booking, UPDATE or history row', async () => {
+      const { repository, find } = clientFor('Submitted', 0);
+
+      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
+
+      expect(result).toEqual({ kind: 'event-not-open', status: 'Submitted' });
+      expect(find('INSERT INTO venue_bookings')).toBe(-1);
+      expect(find('UPDATE events SET status')).toBe(-1);
+      expect(find('INSERT INTO event_status_history')).toBe(-1);
+    });
+  });
 });

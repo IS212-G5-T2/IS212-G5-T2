@@ -38,7 +38,8 @@ import { RegistrationSection } from "@/features/events/pages/detail/registration
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
 
-const CLARIFIABLE_STATUSES = ["submitted", "approved"];
+// Mirrors the backend CLARIFICATION_OPEN_STATUSES (SPM-148 AC7): Planning stays open.
+const CLARIFIABLE_STATUSES = ["submitted", "approved", "planning"];
 
 // Venue and technical support staff only get involved once a request is
 // approved; anything earlier in the workflow is off-limits to them.
@@ -649,7 +650,7 @@ export function EventDetailPage() {
               comments={comments}
               canRequestClarification={canRequestClarification}
               onSubmitClarification={submitClarification}
-              canReply={isOwner || isAssignedCoordinator}
+              canReply={(isOwner || isAssignedCoordinator) && event.status !== "confirmed"}
               onSubmitReply={submitClarificationReply}
               canResolve={isOwner || isAssignedCoordinator}
               onResolve={submitClarificationResolve}

@@ -145,3 +145,10 @@ Harness: a copy of `backend/` and `frontend/` in the session scratch directory, 
 - M23 (multi-venue request creates partial bookings or two transitions): the booking endpoint takes one venue per request, so no multi-venue path exists to mutate.
 
 **Result.** 23 mutants run and killed; M23 not applicable. Real code, unmodified: backend unit 1278 pass, backend e2e 397 pass and 11 skipped, frontend 1091 pass.
+
+## Review follow-up (test review findings F2 and F4)
+
+- **F2 fixed:** `venues.repository.spec.ts` gains a `SPM-148 booking transition` block: Approved transitions with one history row stamped with the injected clock; Confirmed does not transition; a lost compare-and-set writes no history; Submitted is refused. Two of these fail under mutants M1 (no status guard) and M5 (no history row), verified on a scratch copy.
+- **F4 fixed, and a defect found:** `EventDetailPage.tsx` listed only `submitted` and `approved` as clarifiable, so a Coordinator could not open a clarification in Planning, contrary to AC7. Planning is now included. Replies are hidden once Confirmed; the thread stays visible. Two tests added to `EventDetailPage.clarifications.test.tsx`; the Planning test fails without the fix.
+- **Not changed:** F1 (test-case document absent) needs a decision; F3 (mutants not in the repo) and F5 to F8 are open.
+- Checks after this change: backend unit 1282 pass; frontend 1093 pass (1 todo). The backend e2e suite was not re-run after this change; the backend source is unchanged, only a unit spec was added.
