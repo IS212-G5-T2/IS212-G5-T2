@@ -9,7 +9,9 @@
  * only from the injected CLOCK, which each test sets. Every test builds its own event fixtures and attendees (clones).
  * The shared seed (002_seed_data.sql) is never edited. Oracles are literals from the spec and the AC text.
  *
- * Fixture labels (EVT-70x, ATT-0x, COO-01, ORG-01) are used in comments only; rows use UUIDs. Suite clock:
+ * Fixture labels (EVT-70x, ATT-0x, COO-01, ORG-01) are used in comments only. Users have fixed ids and emails per label
+ * (fixtureId, namespace 1 for attendees by label, so ATT-04 sorts before ATT-05), so every run builds the same users.
+ * Event ids and submission keys are random: no oracle depends on them. Suite clock:
  * T0 = 2026-10-14T12:00:00+08:00 (= 2026-10-14T04:00:00Z). The EVT-701 family opens at T0 - 1 day, closes at
  * T0 + 5 days 23:59 SGT and starts at T0 + 10 days 18:00 SGT, unless a case says otherwise.
  *
@@ -112,13 +114,15 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds.splice(0)]);
   });
 
-  /** Creates a user with the given roles and logs in; returns the id, email and session cookie. */
-  async function createUser(roles: string[], name: string): Promise<Who> {
-    const email = `spm138-${randomUUID()}@example.com`;
+  /**
+   * Creates a user with the given roles and logs in; returns the id, email and session cookie. The id and email are
+   * fixed per fixture label (see fixtureId), so every run builds the same users, and the ids sort by label.
+   */
+  async function createUser(roles: string[], name: string, id: string, email: string): Promise<Who> {
     const created = await pool.query<{ id: string }>(
-      `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`,
-      [email, name, PASSWORD],
+      `INSERT INTO users (id, email, display_name, password_hash)
+       VALUES ($1, $2, $3, crypt($4, gen_salt('bf', 4))) RETURNING id`,
+      [id, email, name, PASSWORD],
     );
     const uid = created.rows[0].id;
     userIds.push(uid);
@@ -132,8 +136,19 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     return cookie.split(';', 1)[0];
   }
 
-  /** An attendee with the display name "Attendee NN" (the label NN follows the spec's ATT-NN). */
-  const attendee = (label: string) => createUser(['ATTENDEE'], `Attendee ${label}`);
+  /**
+   * Fixed UUID for a fixture: namespace 1 are attendees (label NN is the spec's ATT-NN), 2 the other named users,
+   * 3 the bulk attendees of 13-A. The same fixture always gets the same id, so no run depends on random ids.
+   */
+  const fixtureId = (namespace: 1 | 2 | 3, n: number) => `${namespace}0000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+  /** An attendee with the display name "Attendee NN" and a fixed id and email (ATT-NN). */
+  const attendee = (label: string) =>
+    createUser(['ATTENDEE'], `Attendee ${label}`, fixtureId(1, Number(label)), `spm138-att-${label}@example.com`);
+
+  /** A named non-attendee user with a fixed id and email; n is its slot in namespace 2. */
+  const namedUser = (roles: string[], name: string, n: number) =>
+    createUser(roles, name, fixtureId(2, n), `spm138-user-${n}@example.com`);
 
   /** Seeds an event. Defaults are the EVT-701 window: capacity 3, open at T0 - 1 day, closes T0 + 5 days 23:59. */
   async function seedEvent(options: {
@@ -260,7 +275,11 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
 
   /**
    * Polls pg_stat_activity until `count` requests are blocked on a lock taken by a FOR UPDATE statement on the
-   * events row. Polling is bounded (200 attempts, 50 ms apart); a missing waiter fails the test rather than racing it.
+   * events row.
+   *
+   * DOCUMENTED BOUNDED EXCEPTION to the no-sleep rule: this poll is the only timed wait in this file. It makes at most
+   * 200 attempts, 50 ms apart (about 10 s), and throws if the waiter never appears, so it fails loudly instead of racing.
+   * Nothing else in the file waits on time; the lock is released only after the waiter is observed.
    */
   async function waitForLockWaiters(count: number) {
     for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -355,7 +374,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (01-B): 422 registration_full; no row; Confirmed 3; no implicit waitlist entry.
      * Kills M3: the capacity check is removed from direct registration, so the attendee is confirmed past capacity.
      */
-    it('JOIN-WAITLIST-01-B: a direct registration on a full event is refused and creates no waitlist entry', async () => {
+    it('JOIN-WAITLIST-01-B-ERR: a direct registration on a full event is refused and creates no waitlist entry', async () => {
       const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(confirmed);
       const att04 = await attendee('04');
@@ -374,7 +393,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (01-C B): after ATT-05 registers the event is 10 of 10; ATT-04 may join and gets 201.
      * Kills M1: the join ignores fullness and is allowed while spots remain.
      */
-    it('JOIN-WAITLIST-01-C: a join is refused while spots remain, and allowed once the event is full', async () => {
+    it('JOIN-WAITLIST-01-C-BND: a join is refused while spots remain, and allowed once the event is full', async () => {
       // Arrange A: EVT-702, capacity 10, nine Confirmed.
       const eventId = await seedEvent({ limit: 10 });
       for (const label of ['01', '02', '03', '06', '07', '08', '09', '10', '11']) await seedRegistered(eventId, (await attendee(label)).uid);
@@ -425,7 +444,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (01-E C): five parallel joins by ATT-05 give exactly one 201 (position 2) and four 409 MSG-WL-04; one row.
      * Kills M7: a duplicate join is accepted and creates a second entry.
      */
-    it('JOIN-WAITLIST-01-E: duplicate joins are refused for a confirmed attendee, a waitlisted attendee, and in parallel', async () => {
+    it('JOIN-WAITLIST-01-E-ERR: duplicate joins are refused for a confirmed attendee, a waitlisted attendee, and in parallel', async () => {
       // Arrange: EVT-706 full; ATT-04 waitlisted at position 1.
       const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(confirmed);
@@ -486,7 +505,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
       ['ORG-01 an organiser', ['ORGANISER']],
     ])('JOIN-WAITLIST-01-F: a user without the Attendee role is refused with 403 (%s)', async (_label, roles) => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
-      const staff = await createUser(roles, 'Staff Member');
+      const staff = await namedUser(roles, 'Staff Member', 1);
 
       const res = await join(eventId, staff, {});
 
@@ -500,7 +519,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      */
     it('JOIN-WAITLIST-01-F: a user who holds both the Attendee and another role may join', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
-      const dual = await createUser(['ATTENDEE', 'ORGANISER'], 'Dual Role');
+      const dual = await namedUser(['ATTENDEE', 'ORGANISER'], 'Dual Role', 2);
 
       const res = await join(eventId, dual, {});
 
@@ -528,7 +547,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (02-B): EVT-702 (9 of 10) is not full; EVT-704 is full but closed; EVT-705 is full but not yet open.
      * Each has waitlistAvailable false.
      */
-    it('JOIN-WAITLIST-02-B: waitlistAvailable is false when the event has a free place, is closed, or is not yet open', async () => {
+    it('JOIN-WAITLIST-02-B-INT: waitlistAvailable is false when the event has a free place, is closed, or is not yet open', async () => {
       const notFull = await seedEvent({ limit: 10 });
       for (const label of ['01', '02', '03', '06', '07', '08', '09', '10', '11']) await seedRegistered(notFull, (await attendee(label)).uid);
       const closed = await seedFullGala([await attendee('12'), await attendee('13'), await attendee('14')], { closes: '2026-10-13T23:59:00+08:00' });
@@ -551,7 +570,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (03-A): the attendee's own read answers status 'waitlisted' (A-ST) with position 1.
      * Kills a missing status (the waitlisted row is not reported).
      */
-    it('JOIN-WAITLIST-03-A: the attendee read reports status waitlisted after joining', async () => {
+    it('JOIN-WAITLIST-03-A-STATE: the attendee read reports status waitlisted after joining', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const att04 = await attendee('04');
       await joinAs(eventId, att04);
@@ -565,7 +584,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (03-B): Confirmed count 3, availableSpots 0; ATT-04 is still waitlisted after logging in again; ATT-05 still sees full.
      * Kills M2: a waitlisted row is reported as registered (Confirmed).
      */
-    it('JOIN-WAITLIST-03-B: the waitlisted status is unchanged after logging in again, and the event stays full', async () => {
+    it('JOIN-WAITLIST-03-B-STATE: the waitlisted status is unchanged after logging in again, and the event stays full', async () => {
       const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(confirmed);
       const att04 = await attendee('04');
@@ -608,7 +627,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * message matches its own response; database order by (joined_at, waitlist_seq) agrees with the positions.
      * Kills M13: the position is counted outside the event lock, so parallel joins read the same count.
      */
-    it('JOIN-WAITLIST-04-C: five parallel joins get positions 1 to 5, each once, in database order', async () => {
+    it('JOIN-WAITLIST-04-C-INT: five parallel joins get positions 1 to 5, each once, in database order', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const joiners = [await attendee('04'), await attendee('05'), await attendee('06'), await attendee('07'), await attendee('08')];
 
@@ -650,7 +669,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * ATT-04 is waitlisted and shows position 1.
      * Kills M31: a position is returned for an entry that is not Waitlisted.
      */
-    it('JOIN-WAITLIST-05-B: waitlistPosition is null unless the entry is waitlisted, and the key is always present', async () => {
+    it('JOIN-WAITLIST-05-B-STATE: waitlistPosition is null unless the entry is waitlisted, and the key is always present', async () => {
       const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(confirmed);
       const att07 = await attendee('07');
@@ -708,7 +727,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (06-A): ATT-04 (1) withdraws from the waiting list; ATT-05 is now 1 and ATT-06 is 2; ATT-04 is withdrawn.
      * Kills M12: withdrawn entries still count ahead of the others.
      */
-    it('JOIN-WAITLIST-06-A: an attendee who withdraws from the list moves everyone behind them forward', async () => {
+    it('JOIN-WAITLIST-06-A-STATE: an attendee who withdraws from the list moves everyone behind them forward', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of [a4, a5, a6]) await joinAs(eventId, who);
@@ -724,7 +743,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     /**
      * Oracle (06-B): ATT-01 (Confirmed) withdraws; ATT-04 is promoted; ATT-05 is 1 and ATT-06 is 2.
      */
-    it('JOIN-WAITLIST-06-B: a confirmed attendee withdrawing promotes the first entry and moves the rest forward', async () => {
+    it('JOIN-WAITLIST-06-B-STATE: a confirmed attendee withdrawing promotes the first entry and moves the rest forward', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -740,7 +759,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     /**
      * Oracle (06-C): ATT-05 (middle) withdraws; ATT-04 stays 1; ATT-06 becomes 2; ATT-05 is withdrawn.
      */
-    it('JOIN-WAITLIST-06-C: the middle entry withdrawing leaves the first place unchanged', async () => {
+    it('JOIN-WAITLIST-06-C-STATE: the middle entry withdrawing leaves the first place unchanged', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of [a4, a5, a6]) await joinAs(eventId, who);
@@ -756,7 +775,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (06-D): ATT-05 withdraws, ATT-07 joins, ATT-04 withdraws. ATT-06 is 1 and ATT-07 is 2; no gaps or duplicates;
      * the API ranking agrees with the database ranking.
      */
-    it('JOIN-WAITLIST-06-D: withdrawals and a new join leave positions gap-free, with no duplicates', async () => {
+    it('JOIN-WAITLIST-06-D-INT: withdrawals and a new join leave positions gap-free, with no duplicates', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6, a7] = [await attendee('04'), await attendee('05'), await attendee('06'), await attendee('07')];
       for (const who of [a4, a5, a6]) await joinAs(eventId, who);
@@ -811,7 +830,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * over repeated reads. ATT-01 withdraws: ATT-04 is promoted. The row ids are chosen so that id order is the opposite.
      * Kills M10: the tie-break uses the row id instead of waitlist_seq.
      */
-    it('JOIN-WAITLIST-07-B: equal join times break the tie by waitlist_seq, stably', async () => {
+    it('JOIN-WAITLIST-07-B-INT: equal join times break the tie by waitlist_seq, stably', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5] = [await attendee('04'), await attendee('05')];
@@ -840,7 +859,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * ATT-06 is 2 and ATT-04 is 3. ATT-01 withdraws: ATT-05 is promoted.
      * Kills M11: a rejoin keeps the old place.
      */
-    it('JOIN-WAITLIST-07-C: a rejoin goes to the back of the list with a new join time and sequence', async () => {
+    it('JOIN-WAITLIST-07-C-STATE: a rejoin goes to the back of the list with a new join time and sequence', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -866,7 +885,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * the event is 3 of 3; ATT-07 (no entry) still sees full with waitlistAvailable.
      * Kills M15: the promotion step never runs. Kills M17: every entry is promoted, ignoring capacity.
      */
-    it('JOIN-WAITLIST-08-A: the first entry is promoted in the same transaction, with no accept step', async () => {
+    it('JOIN-WAITLIST-08-A-STATE: the first entry is promoted in the same transaction, with no accept step', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5, a6, a7] = [await attendee('04'), await attendee('05'), await attendee('06'), await attendee('07')];
@@ -891,7 +910,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Confirmed rows; no entry promoted twice.
      * Kills M16: the latest entry is promoted first. Kills M17: capacity is ignored and too many are promoted.
      */
-    it('JOIN-WAITLIST-08-B: sequential and parallel withdrawals promote in join order, never above capacity', async () => {
+    it('JOIN-WAITLIST-08-B-INT: sequential and parallel withdrawals promote in join order, never above capacity', async () => {
       const first = [await attendee('01'), await attendee('02'), await attendee('03')];
       const seqEvent = await seedFullGala(first);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -923,7 +942,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * lock held so they overlap. Exactly one answers 200; the others answer 422 MSG-12; ATT-04 is promoted once and ATT-05
      * stays waiting. Kills P-R: a Registered withdrawal that trusts its read and drops the compare-and-set guard.
      */
-    it('JOIN-WAITLIST-08-B-REPEAT: parallel repeats of one confirmed withdrawal release one place and promote once', async () => {
+    it('JOIN-WAITLIST-08-B-INT-REPEAT: parallel repeats of one confirmed withdrawal release one place and promote once', async () => {
       const att = [await attendee('21'), await attendee('22'), await attendee('23')];
       const eventId = await seedFullGala(att);
       const [a4, a5] = [await attendee('24'), await attendee('25')];
@@ -946,7 +965,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * sees Register rather than Join; no promotion and no notification.
      * Kills M18: a notification is written even when no entry is promoted.
      */
-    it('JOIN-WAITLIST-08-C: with an empty list a withdrawal frees a place and promotes and notifies nobody', async () => {
+    it('JOIN-WAITLIST-08-C-BND: with an empty list a withdrawal frees a place and promotes and notifies nobody', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const att07 = await attendee('07');
@@ -965,7 +984,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Confirmed never goes above 3.
      * Kills M3 (no capacity check on direct registration) and M15 (no promotion).
      */
-    it('JOIN-WAITLIST-08-D: a direct registration racing a withdrawal cannot take the promoted place', async () => {
+    it('JOIN-WAITLIST-08-D-INT: a direct registration racing a withdrawal cannot take the promoted place', async () => {
       // Run 1: parallel.
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
@@ -1003,7 +1022,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * no notification. The fault is removed; the retry answers 200 and ATT-04 is promoted.
      * Kills M15 (the promotion step is missing: the retry does not promote ATT-04).
      */
-    it('JOIN-WAITLIST-08-E: a failure during promotion rolls back the withdrawal, and a retry completes it', async () => {
+    it('JOIN-WAITLIST-08-E-ERR: a failure during promotion rolls back the withdrawal, and a retry completes it', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const att04 = await attendee('04');
@@ -1042,7 +1061,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * text, linked to the event and to ATT-04, and present when the 200 returns.
      * Kills M21: the notification text or links are wrong.
      */
-    it('JOIN-WAITLIST-09-A: the promotion writes one unread WaitlistPromoted notification before the response returns', async () => {
+    it('JOIN-WAITLIST-09-A-STATE: the promotion writes one unread WaitlistPromoted notification before the response returns', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const att04 = await attendee('04');
@@ -1060,7 +1079,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     /**
      * Oracle (09-A, added): promote, withdraw, rejoin, promote again gives two notifications, one per promotion.
      */
-    it('JOIN-WAITLIST-09-A: a second promotion after a rejoin writes a second notification', async () => {
+    it('JOIN-WAITLIST-09-A-INT: a second promotion after a rejoin writes a second notification', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const att04 = await attendee('04');
@@ -1102,7 +1121,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * ATT-06 becomes 2 (ATT-04 stays 1). The FE prompt copy is asserted in WithdrawalConfirmation.test.tsx.
      * Kills a refusal of waitlisted entries (the withdrawal of a waitlisted row is refused).
      */
-    it('JOIN-WAITLIST-10-A: a waitlisted attendee withdraws with 200, loses the place, and the others move forward', async () => {
+    it('JOIN-WAITLIST-10-A-STATE: a waitlisted attendee withdraws with 200, loses the place, and the others move forward', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of [a4, a5, a6]) await joinAs(eventId, who);
@@ -1123,7 +1142,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * The registration window closes at 23:59 so the window itself does not remove the entry before the start.
      * Oracle (10-C C): at 18:30 the read still shows Waitlisted (the FE hides the Withdraw control).
      */
-    it('JOIN-WAITLIST-10-C: withdrawal from the list stops at the event start, which is exclusive', async () => {
+    it('JOIN-WAITLIST-10-C-BND: withdrawal from the list stops at the event start, which is exclusive', async () => {
       const startDay = '2026-11-10T18:00:00+08:00';
       const closes = '2026-11-10T23:59:00+08:00';
       const early = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')], { start: startDay, closes });
@@ -1175,7 +1194,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Oracle (10-E D): five parallel withdrawals of one entry give exactly one 200 and four 422 MSG-12.
      * Kills an ownership gap (a non-owner can withdraw) and a compare-and-set gap (two withdrawals both succeed).
      */
-    it('JOIN-WAITLIST-10-E: ownership is enforced, and a repeated or parallel withdrawal succeeds once', async () => {
+    it('JOIN-WAITLIST-10-E-ERR: ownership is enforced, and a repeated or parallel withdrawal succeeds once', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -1215,7 +1234,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * no position. A join is refused with MSG-01. The event reads closed. No promotion; Confirmed stays 2; no notification.
      * Kills M23: the close job does not remove the entries.
      */
-    it('JOIN-WAITLIST-11-A: the close job removes every waiting list entry and nothing is promoted', async () => {
+    it('JOIN-WAITLIST-11-A-STATE: the close job removes every waiting list entry and nothing is promoted', async () => {
       const att = [await attendee('01'), await attendee('02')];
       const eventId = await seedFullGala(att, { limit: 2, closes: new Date(T0.getTime() + 30 * MINUTE).toISOString() });
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -1248,7 +1267,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * (no job run). B: at 23:59:00 the read shows removed (settled on read, the closing instant is exclusive).
      * Kills M24: the closing comparison is inclusive of the instant (it removes one second late). Kills M23 (no settle on read).
      */
-    it('JOIN-WAITLIST-11-B: the closing instant is exclusive, and a read settles the entries at that instant', async () => {
+    it('JOIN-WAITLIST-11-B-BND: the closing instant is exclusive, and a read settles the entries at that instant', async () => {
       const closes = '2026-11-10T23:59:00+08:00';
       const att = [await attendee('01'), await attendee('02')];
       const eventId = await seedFullGala(att, { limit: 2, closes, start: '2026-11-12T18:00:00+08:00' });
@@ -1267,7 +1286,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * with MSG-01; the event reads closed.
      * Kills M25: the manual close is ignored when settling entries.
      */
-    it('JOIN-WAITLIST-11-C: a manual close removes the entries on the next read and refuses new joins', async () => {
+    it('JOIN-WAITLIST-11-C-STATE: a manual close removes the entries on the next read and refuses new joins', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -1361,14 +1380,15 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * message "... Your position is 501.". ATT-01 withdraws: ATT-100 is promoted; ATT-04 is 500; ATT-101 is 1. No timing assertion.
      * Kills M28: the position is capped or computed from a short window.
      */
-    it('JOIN-WAITLIST-13-A: a join behind 500 entries is numbered 501, and promotion takes the first of them', async () => {
+    it('JOIN-WAITLIST-13-A-BND: a join behind 500 entries is numbered 501, and promotion takes the first of them', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
       const bulkUsers = await pool.query<{ id: string; display_name: string }>(
-        `INSERT INTO users (email, display_name, password_hash)
-         SELECT 'bulk-' || g || '-' || $1 || '@example.com', 'Bulk ' || g, crypt($2, gen_salt('bf', 4))
+        `INSERT INTO users (id, email, display_name, password_hash)
+         SELECT ('30000000-0000-4000-8000-' || lpad(g::text, 12, '0'))::uuid, 'bulk-' || g || '@example.com', 'Bulk ' || g,
+                crypt($1, gen_salt('bf', 4))
            FROM generate_series(100, 599) AS g RETURNING id, display_name`,
-        [randomUUID(), PASSWORD],
+        [PASSWORD],
       );
       userIds.push(...bulkUsers.rows.map((r) => r.id));
       await pool.query(
@@ -1410,8 +1430,8 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * Kills M27: the report counts or lists waitlisted entries.
      */
     it('JOIN-WAITLIST-14-A: the report, CSV and PDF list only confirmed attendees', async () => {
-      const coordinator = await createUser(['COORDINATOR'], 'Coordinator COO');
-      const organiser = await createUser(['ORGANISER'], 'Organiser ORG');
+      const coordinator = await namedUser(['COORDINATOR'], 'Coordinator COO', 3);
+      const organiser = await namedUser(['ORGANISER'], 'Organiser ORG', 4);
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedEvent({ coordinatorId: coordinator.uid, organiserId: organiser.uid });
       for (const [index, who] of att.entries()) await seedRegistered(eventId, who.uid, `0${index + 1}`);
@@ -1446,8 +1466,8 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-11-H-ORG: an organiser's read of a closed event does not settle its waiting list. The row
      * stays Waitlisted until an attendee reads or a job runs. Kills B1-ORG: the settle runs for every caller.
      */
-    it('JOIN-WAITLIST-11-H-ORG: an organiser GET on a closed event leaves a waiting row unchanged', async () => {
-      const organiser = await createUser(['ORGANISER'], 'Owner Organiser');
+    it('JOIN-WAITLIST-11-H-ERR-ORG: an organiser GET on a closed event leaves a waiting row unchanged', async () => {
+      const organiser = await namedUser(['ORGANISER'], 'Owner Organiser', 5);
       const eventId = await seedFullGala([await attendee('111'), await attendee('112'), await attendee('113')], {
         organiserId: organiser.uid,
       });
@@ -1465,12 +1485,12 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * event being locked and without a write, even when the list is due. The lock is held by the test; a read that tried to
      * take it would wait and never answer. Kills B1-UNAUTH: the settle runs before the visibility check.
      */
-    it('JOIN-WAITLIST-11-H-LOCK: an unauthorised GET on a due list takes no lock and writes nothing', async () => {
+    it('JOIN-WAITLIST-11-H-ERR-LOCK: an unauthorised GET on a due list takes no lock and writes nothing', async () => {
       const eventId = await seedFullGala([await attendee('115'), await attendee('116'), await attendee('117')]);
       const waiting = await attendee('118');
       await joinAs(eventId, waiting);
       await pool.query('UPDATE events SET registration_enabled = false WHERE id = $1', [eventId]);
-      const stranger = await createUser(['COORDINATOR'], 'Unassigned Coordinator');
+      const stranger = await namedUser(['COORDINATOR'], 'Unassigned Coordinator', 6);
 
       const holder = await holdEventLock(eventId);
       lockHolders.push(holder);
@@ -1485,7 +1505,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-11-H-NONE (TCR9-1): a viewable attendee's read of a due list settles it: 200, and the row ends Removed.
      * Kills B1-NONE: the event read no longer settles for an attendee.
      */
-    it('JOIN-WAITLIST-11-H-NONE: a viewable attendee GET of a due list is 200 and the waiting row ends Removed', async () => {
+    it('JOIN-WAITLIST-11-H-STATE-NONE: a viewable attendee GET of a due list is 200 and the waiting row ends Removed', async () => {
       const eventId = await seedFullGala([await attendee('119'), await attendee('120'), await attendee('121')]);
       const waiting = await attendee('122');
       await joinAs(eventId, waiting);
@@ -1500,8 +1520,8 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-11-H-COORD (TCR9-1): the assigned coordinator's read of a closed list is 200 and writes nothing: the row
      * stays Waitlisted. Kills B1-COORD: the settle also runs for the assigned coordinator.
      */
-    it('JOIN-WAITLIST-11-H-COORD: an assigned coordinator GET of a closed list leaves the waiting row unchanged', async () => {
-      const coordinator = await createUser(['COORDINATOR'], 'Assigned Coordinator');
+    it('JOIN-WAITLIST-11-H-STATE-COORD: an assigned coordinator GET of a closed list leaves the waiting row unchanged', async () => {
+      const coordinator = await namedUser(['COORDINATOR'], 'Assigned Coordinator', 7);
       const eventId = await seedFullGala([await attendee('123'), await attendee('124'), await attendee('125')], {
         coordinatorId: coordinator.uid,
       });
@@ -1519,7 +1539,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * list (a waiting row that is not due) both return without waiting, and the row stays Waitlisted. Kills PRECHECK: the
      * early return in settleIfDue is removed, so a read takes the lock for a list that is not due.
      */
-    it('JOIN-WAITLIST-11-H-NODUE: reads of an open list take no lock while another holds it, and write nothing', async () => {
+    it('JOIN-WAITLIST-11-H-INT-NODUE: reads of an open list take no lock while another holds it, and write nothing', async () => {
       const eventId = await seedFullGala([await attendee('127'), await attendee('128'), await attendee('129')]);
       const waiting = await attendee('130');
       await joinAs(eventId, waiting);
@@ -1542,7 +1562,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-12-C-CLOSED: an entry on a list the close has already shut is removed, not cancelled, and
      * the releaser writes no cancellation notice for it. Kills X4: the releaser no longer settles before it cancels.
      */
-    it('JOIN-WAITLIST-12-C-CLOSED: a closed list releases its entries as removed, with no cancellation notice', async () => {
+    it('JOIN-WAITLIST-12-C-STATE-CLOSED: a closed list releases its entries as removed, with no cancellation notice', async () => {
       const eventId = await seedFullGala([await attendee('100'), await attendee('101'), await attendee('102')]);
       const waiting = await attendee('103');
       await joinAs(eventId, waiting);
@@ -1589,7 +1609,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * row into a waiting one). The locked re-read sees Waitlisted, settles the closed list, and re-reads Removed: the
      * withdrawal answers 409 and the row is Removed. Kills F6-SKIP: the settle after the locked re-read is skipped.
      */
-    it('JOIN-WAITLIST-10-H: a waiting entry that the close removes before the lock is refused with 409 and ends Removed', async () => {
+    it('JOIN-WAITLIST-10-H-ERR: a waiting entry that the close removes before the lock is refused with 409 and ends Removed', async () => {
       const att = [await attendee('108'), await attendee('109'), await attendee('110')];
       const eventId = await seedFullGala(att);
       const rowId = (await rowOf(eventId, att[0].uid)).id;
@@ -1645,7 +1665,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
       const waiting = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', a5.cookie).expect(200);
       expect(waiting.body).toEqual([]);
 
-      const organiser = await createUser(['ORGANISER'], 'Organiser Viewer');
+      const organiser = await namedUser(['ORGANISER'], 'Organiser Viewer', 8);
       const organiserView = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', organiser.cookie).expect(200);
       expect(organiserView.body.some((n: { type: string }) => n.type === 'WaitlistPromoted')).toBe(false);
     });
@@ -1657,7 +1677,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * withdrawal reads Waitlisted (before the promotion commits) and queues second. Kills A1-REAL: the branch uses the
      * pre-lock read.
      */
-    it('JOIN-WAITLIST-10-G: a waiting entry promoted by a concurrent withdrawal takes the Registered path, not already-withdrawn', async () => {
+    it('JOIN-WAITLIST-10-G-INT: a waiting entry promoted by a concurrent withdrawal takes the Registered path, not already-withdrawn', async () => {
       const att = [await attendee('95'), await attendee('96'), await attendee('97')];
       const eventId = await seedFullGala(att);
       const [a4, a5] = [await attendee('98'), await attendee('99')];
@@ -1693,7 +1713,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-11-A-LIST: after the close instant, with no detail read first, the attendee event list
      * reports the waiting entry as removed, and the row is Removed. Kills L-1: the list read no longer settles.
      */
-    it('JOIN-WAITLIST-11-A-LIST: the attendee list shows a closed waiting entry as removed, with no prior detail read', async () => {
+    it('JOIN-WAITLIST-11-A-STATE-LIST: the attendee list shows a closed waiting entry as removed, with no prior detail read', async () => {
       const att = [await attendee('71'), await attendee('72')];
       const eventId = await seedFullGala(att, { limit: 2, closes: new Date(T0.getTime() + 30 * MINUTE).toISOString() });
       const [a4, a5] = [await attendee('73'), await attendee('74')];
@@ -1714,7 +1734,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * has settled it, settles first and is refused: 409 registration_not_withdrawable, and the row is Removed.
      * Kills W-1: the withdrawal of a waiting entry no longer settles the list first.
      */
-    it('JOIN-WAITLIST-11-D-WAIT: a waiting entry withdrawn after close, with nothing settled yet, is removed and refused with 409', async () => {
+    it('JOIN-WAITLIST-11-D-ERR-WAIT: a waiting entry withdrawn after close, with nothing settled yet, is removed and refused with 409', async () => {
       const att = [await attendee('75'), await attendee('76')];
       const eventId = await seedFullGala(att, { limit: 2, closes: new Date(T0.getTime() + 30 * MINUTE).toISOString() });
       const waiting = await attendee('77');
@@ -1734,7 +1754,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * the job removes nothing; at the instant it removes both entries. Kills P-B: the job's due test is strict (<) and
      * misses the instant.
      */
-    it('JOIN-WAITLIST-11-G: the close job removes entries at the exact closing instant and not one millisecond earlier', async () => {
+    it('JOIN-WAITLIST-11-G-BND: the close job removes entries at the exact closing instant and not one millisecond earlier', async () => {
       const closes = new Date('2026-10-19T23:59:00+08:00');
       const eventId = await seedFullGala([await attendee('78'), await attendee('79'), await attendee('80')], { closes: closes.toISOString() });
       const [a4, a5] = [await attendee('81'), await attendee('82')];
@@ -1755,7 +1775,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * entry as removed and the row is Removed. Kills X-JOB-MANUAL: the close job no longer treats a disabled registration
      * as due, so the list would not settle.
      */
-    it('JOIN-WAITLIST-11-C-LIST: a manual close shows a waiting entry as removed on the first attendee list read', async () => {
+    it('JOIN-WAITLIST-11-C-STATE-LIST: a manual close shows a waiting entry as removed on the first attendee list read', async () => {
       const att = [await attendee('83'), await attendee('84'), await attendee('85')];
       const eventId = await seedFullGala(att);
       const [a4, a5] = [await attendee('86'), await attendee('87')];
@@ -1779,7 +1799,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * join time and sequence, so it goes behind the entry that was already waiting. Kills P-K: the join no longer
      * reuses a Removed row (the rejoin is refused).
      */
-    it('JOIN-WAITLIST-07-D: a removed entry that joins again goes to the back of the list', async () => {
+    it('JOIN-WAITLIST-07-D-STATE: a removed entry that joins again goes to the back of the list', async () => {
       const eventId = await seedFullGala([await attendee('61'), await attendee('62'), await attendee('63')]);
       const [a4, a5] = [await attendee('64'), await attendee('65')];
       await seedRow(eventId, a4.uid, 'Removed', '64');
@@ -1813,7 +1833,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-01-D-FREE: a closed or not-yet-open event with a free place refuses the join with the window
      * sentence (MSG-01 or MSG-02), never MSG-WL-03. Kills P-D: the fullness check is made before the window check.
      */
-    it('JOIN-WAITLIST-01-D-FREE: a free place does not turn a closed or not-yet-open refusal into MSG-WL-03', async () => {
+    it('JOIN-WAITLIST-01-D-INT-FREE: a free place does not turn a closed or not-yet-open refusal into MSG-WL-03', async () => {
       const closedEvent = await seedEvent({ limit: 3, closes: '2026-10-13T23:59:00+08:00' });
       await seedRegistered(closedEvent, (await attendee('31')).uid);
       const att04 = await attendee('32');
@@ -1835,7 +1855,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * the close a join on a full event is accepted; at the close instant it is refused with MSG-01. Kills P-E: the closing
      * comparison in the window rule is made inclusive of the wrong instant.
      */
-    it('JOIN-WAITLIST-01-D-BOUNDARY: a join one millisecond before the close is accepted and one at the close is refused', async () => {
+    it('JOIN-WAITLIST-01-D-BND-BOUNDARY: a join one millisecond before the close is accepted and one at the close is refused', async () => {
       const closes = new Date('2026-10-19T23:59:00+08:00');
       const eventId = await seedFullGala([await attendee('34'), await attendee('35'), await attendee('36')], { closes: closes.toISOString() });
       const before = await attendee('37');
@@ -1854,7 +1874,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * JOIN-WAITLIST-10-F: a Cancelled row answers 409 registration_not_withdrawable with its
      * copy, and stays Cancelled. Kills P-I: Cancelled is dropped from the refusal that answers 409.
      */
-    it('JOIN-WAITLIST-10-F: a Cancelled entry answers 409 registration_not_withdrawable and keeps its status', async () => {
+    it('JOIN-WAITLIST-10-F-ERR: a Cancelled entry answers 409 registration_not_withdrawable and keeps its status', async () => {
       const eventId = await seedFullGala([await attendee('39'), await attendee('40'), await attendee('41')]);
       const cancelled = await attendee('42');
       const rowId = await seedRow(eventId, cancelled.uid, 'Cancelled', '42');
@@ -1871,7 +1891,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * the fixture (the registration-setup story is Blocked); the row keeps its id and is Registered with the removal
      * cleared. Kills P-J: the direct registration no longer reactivates a Removed row.
      */
-    it('JOIN-WAITLIST-11-F: a removed entry registers directly on an open event and its removal is cleared', async () => {
+    it('JOIN-WAITLIST-11-F-STATE: a removed entry registers directly on an open event and its removal is cleared', async () => {
       const att = [await attendee('43'), await attendee('44')];
       const eventId = await seedFullGala(att, { limit: 3 });
       const removedAttendee = await attendee('45');
@@ -1954,10 +1974,11 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
      * nothing for ATT-01 on EVT-702. An empty object and no body each answer 201 on the full EVT-701.
      * Kills M29: unknown keys are accepted and their values reach the row.
      */
-    it('JOIN-WAITLIST-15-A: unknown keys are refused with 400, and an empty or absent body is accepted', async () => {
-      const eventId701 = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
+    it('JOIN-WAITLIST-15-A-ERR: unknown keys are refused with 400, and an empty or absent body is accepted', async () => {
+      const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
+      const eventId701 = await seedFullGala(confirmed);
       const eventId702 = await seedEvent({ limit: 10 });
-      const att01 = await attendee('01');
+      const att01 = confirmed[0];
       const att04 = await attendee('04');
       const att05 = await attendee('05');
 

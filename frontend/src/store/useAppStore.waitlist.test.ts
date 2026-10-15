@@ -32,6 +32,7 @@ beforeEach(() => {
 describe("SPM-138 joinWaitlist (store)", () => {
   // Oracle (01-A STORE): the join is a POST with an empty JSON body; the attendee's own entry is read back and kept in the
   // store, and the server's answer is returned to the caller.
+  // Kills: F10 (no JSON body), F11 (own entry not refreshed)
   it("JOIN-WAITLIST-01-A-STORE: posts the join, refreshes the attendee's own entry, and returns the answer", async () => {
     const answer = { registrationId: "REG-ATT-04", status: "waitlisted", position: 1, message: "server text" };
     apiMock.mockImplementation(async (path: string, init?: RequestInit) => {
@@ -48,7 +49,8 @@ describe("SPM-138 joinWaitlist (store)", () => {
   });
 
   // Oracle (01-C STORE): a refusal is raised to the caller as the server's error, and the store keeps its registrations.
-  it("JOIN-WAITLIST-01-C-STORE: a refused join raises the server error and changes nothing", async () => {
+  // Kills: F35 (refusal swallowed)
+  it("JOIN-WAITLIST-01-C-STORE-ERR: a refused join raises the server error and changes nothing", async () => {
     apiMock.mockRejectedValueOnce(
       new ApiError("This event still has available spots. Please register directly.", undefined, "WAITLIST_NOT_AVAILABLE", 422),
     );
@@ -61,7 +63,8 @@ describe("SPM-138 joinWaitlist (store)", () => {
   });
 
   // Oracle (01-F STORE): a signed-out or non-attendee session sends no request at all.
-  it("JOIN-WAITLIST-01-F-STORE: a non-attendee is refused before any request is sent", async () => {
+  // Kills: F9 (role guard removed)
+  it("JOIN-WAITLIST-01-F-STORE-ERR: a non-attendee is refused before any request is sent", async () => {
     useAppStore.setState({ currentUser: { ...attendee, role: "organiser" as never } });
 
     await expect(useAppStore.getState().joinWaitlist("EVT-701")).rejects.toThrow("Only signed-in attendees can join the waiting list.");

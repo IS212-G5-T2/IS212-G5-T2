@@ -56,6 +56,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("JOIN-WAITLIST-09-C-FE (mounted): the attendee's promotion notice inside the app shell (AC9)", () => {
+  // Kills: F18 (feed disabled), Y4 (notice removed from the shell)
   it("JOIN-WAITLIST-09-C-FE-MOUNT: an attendee sees the promotion notice in AppShell", async () => {
     apiMock.mockImplementation(async (path: string) => (path === "/notifications" ? [promoted()] : {}));
 
@@ -65,7 +66,8 @@ describe("JOIN-WAITLIST-09-C-FE (mounted): the attendee's promotion notice insid
     expect(screen.getByRole("link", { name: "View Event" })).toHaveAttribute("href", "/events/EVT-701");
   });
 
-  it("JOIN-WAITLIST-09-C-FE-READ: a notice already read is not shown", async () => {
+  // Kills: F18, Y4, Y1 (read notices shown)
+  it("JOIN-WAITLIST-09-C-FE-STATE-READ: a notice already read is not shown", async () => {
     apiMock.mockImplementation(async (path: string) => (path === "/notifications" ? [promoted({ read: true })] : {}));
 
     renderShell();
@@ -74,7 +76,8 @@ describe("JOIN-WAITLIST-09-C-FE (mounted): the attendee's promotion notice insid
     expect(screen.queryByText(MSG_WL_05)).not.toBeInTheDocument();
   });
 
-  it("JOIN-WAITLIST-09-C-FE-MARK: Mark As Read posts to the server and hides the notice", async () => {
+  // Kills: F18, Y4, Y1, Y2 (Mark As Read does nothing)
+  it("JOIN-WAITLIST-09-C-FE-STATE-MARK: Mark As Read posts to the server and hides the notice", async () => {
     apiMock.mockImplementation(async (path: string) => {
       if (path === "/notifications") return [promoted()];
       if (path === "/notifications/n-1/read") return { success: true };
@@ -88,7 +91,8 @@ describe("JOIN-WAITLIST-09-C-FE (mounted): the attendee's promotion notice insid
     expect(apiMock).toHaveBeenCalledWith("/notifications/n-1/read", { method: "POST" });
   });
 
-  it("JOIN-WAITLIST-09-C-FE-LOAD: a failed load shows the alert", async () => {
+  // Kills: F18, Y4, Y5 (failed load not announced)
+  it("JOIN-WAITLIST-09-C-FE-ERR-LOAD: a failed load shows the alert", async () => {
     apiMock.mockImplementation(async (path: string) => {
       if (path === "/notifications") throw new Error("down");
       return {};

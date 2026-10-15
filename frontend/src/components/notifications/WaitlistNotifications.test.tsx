@@ -47,6 +47,7 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("JOIN-WAITLIST-09-C-FE: the attendee's waiting list notice (AC9, AC12)", () => {
+  // Kills: F18 (feed disabled)
   it("JOIN-WAITLIST-09-C-FE: the promotion text shows with a link to the event, and other types are not shown", async () => {
     apiMock.mockResolvedValue([
       notice({}),
@@ -60,6 +61,7 @@ describe("JOIN-WAITLIST-09-C-FE: the attendee's waiting list notice (AC9, AC12)"
     expect(screen.queryByText("Your request was approved.")).not.toBeInTheDocument();
   });
 
+  // Kills: F18, F37 (cancelled notices dropped)
   it("JOIN-WAITLIST-09-C-FE-CANCEL: a cancelled waiting entry's notice is shown as well", async () => {
     apiMock.mockResolvedValue([
       notice({ id: "n-3", type: "EventCancelled", message: "Gala Waitlist Night has been cancelled. Your waiting list place is cancelled." }),
@@ -70,7 +72,8 @@ describe("JOIN-WAITLIST-09-C-FE: the attendee's waiting list notice (AC9, AC12)"
     expect(await screen.findByText("Gala Waitlist Night has been cancelled. Your waiting list place is cancelled.")).toBeInTheDocument();
   });
 
-  it("JOIN-WAITLIST-09-C-FE-ROLE: a non-attendee sends no request and sees no notice", async () => {
+  // Kills: F36 (notice enabled for every role)
+  it("JOIN-WAITLIST-09-C-FE-ERR-ROLE: a non-attendee sends no request and sees no notice", async () => {
     useAppStore.setState({ currentUser: { id: "org-1", name: "Org", email: "org@example.com", role: "organiser" } });
 
     const { container } = renderNotices();

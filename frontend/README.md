@@ -79,7 +79,13 @@ GitHub Actions is configured to run the suite with coverage through
 npm test              # run the suite once
 npm run test:watch    # re-run on file changes while developing
 npm run test:cov      # run once with a coverage report
+npm run test:tz       # run the date-sensitive tests under TZ=UTC, Asia/Singapore and America/Los_Angeles
 ```
+
+`npm run test:tz` (`scripts/testing/tz-matrix.mjs`) runs the tests that assert SGT or calendar-date text in each of
+three host time zones and exits non-zero if any zone fails. The SGT formatter pins `Asia/Singapore`, so the output
+must not depend on the host zone. Run it after changing a date helper or a date assertion. To run one zone by hand,
+set the variable yourself, for example `TZ=America/Los_Angeles npx vitest run src/features/events/lib/registration.test.ts`.
 
 Test files live alongside the code they cover (for example,
 `src/features/account/pages/login/LoginPage.test.tsx` next to its page).

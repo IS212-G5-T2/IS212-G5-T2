@@ -32,7 +32,9 @@ Short definitions of the SPM-138 decision labels used in code and test comments.
 
 ## Fixtures
 
-Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by label in comments; ids are UUIDs.
+Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by label in comments. Users have fixed ids and emails per label (attendee `ATT-NN` is `10000000-0000-4000-8000-<NNNNNNNNNNNN>`, so a lower label sorts first), so every run builds the same users. Event ids and submission keys are random; no oracle depends on them.
+
+**Documented bounded exception (lock-waiter poll).** The backend e2e file has one timed wait: `waitForLockWaiters` polls `pg_stat_activity` for requests blocked on the event row lock, at most 200 attempts 50 ms apart (about 10 s). It throws if the waiter never appears, so it fails loudly rather than racing. Nothing else in the file waits on time. The frontend tests use a deferred promise that the test resolves; they use no timer.
 
 | Label | Fixture |
 |---|---|
@@ -185,10 +187,10 @@ These are not renumbered spec cases. They are added e2e cases in `backend/test/r
 
 | Mutant | Runner meaning | Killed by | Spec relation |
 |---|---|---|---|
-| L-1 | The attendee event list no longer settles closed waiting lists before it reads statuses | JOIN-WAITLIST-11-A-LIST | Supports 11-A and the 11-C "next read removes" rule |
-| W-1 | A waiting withdrawal after close does not settle the list first | JOIN-WAITLIST-11-D-WAIT | Supports 11-D (waiting entry withdrawn after close, nothing settled yet) |
-| P-B | The close job's due test is strict (<) and misses the closing instant | JOIN-WAITLIST-11-G | Supports 11-B and the exclusive closing rule |
-| X-JOB-MANUAL | The close job's due test ignores a manual close (registration_enabled false) | JOIN-WAITLIST-11-C-LIST | Supports 11-C (manual close) for the attendee list |
+| L-1 | The attendee event list no longer settles closed waiting lists before it reads statuses | JOIN-WAITLIST-11-A-STATE-LIST | Supports 11-A and the 11-C "next read removes" rule |
+| W-1 | A waiting withdrawal after close does not settle the list first | JOIN-WAITLIST-11-D-ERR-WAIT | Supports 11-D (waiting entry withdrawn after close, nothing settled yet) |
+| P-B | The close job's due test is strict (<) and misses the closing instant | JOIN-WAITLIST-11-G-BND | Supports 11-B and the exclusive closing rule |
+| X-JOB-MANUAL | The close job's due test ignores a manual close (registration_enabled false) | JOIN-WAITLIST-11-C-STATE-LIST | Supports 11-C (manual close) for the attendee list |
 
 Oracle source for the added cases: the spec's 11-A, 11-B, 11-C and 11-D rules (AC11), with the list read included as an attendee view of the same state.
 
@@ -198,7 +200,7 @@ Oracle source for the added cases: the spec's 11-A, 11-B, 11-C and 11-D rules (A
 |---|---|---|---|
 | N-1 | The attendee audience for WaitlistPromoted and EventCancelled is removed (an attendee reads no notices) | JOIN-WAITLIST-09-C | AC9: the promotion notice reaches the attendee; organiser access unchanged |
 | R-N | The cancel releaser writes no EventCancelled notice | JOIN-WAITLIST-12-C-REL | AC12: one notice per cancelled entry; 12-A to 12-C stay Blocked (SPM-136) |
-| A1-REAL | The lookup reads the status before the lock and the branch uses that pre-lock value (a stale read) | KILLED by JOIN-WAITLIST-10-H. JOIN-WAITLIST-10-G does not kill it: the re-read after the settle keeps that result correct | A1: a waiting entry promoted by a concurrent withdrawal gets the Registered-path result |
+| A1-REAL | The lookup reads the status before the lock and the branch uses that pre-lock value (a stale read) | KILLED by JOIN-WAITLIST-10-H-ERR. JOIN-WAITLIST-10-G-INT does not kill it: the re-read after the settle keeps that result correct | A1: a waiting entry promoted by a concurrent withdrawal gets the Registered-path result |
 | F18 (frontend) | The attendee notice feed is disabled, so no promotion notice loads | JOIN-WAITLIST-09-C-FE | AC9 frontend notice |
 
 ### Round-7 review: equivalent mutants, notice visibility, locked-read settle, and mount
@@ -210,23 +212,23 @@ Oracle source for the added cases: the spec's 11-A, 11-B, 11-C and 11-D rules (A
 | X1 | EventCancelled removed from the attendee audience | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X2 | EventCancelled no longer maps to the attendee audience role | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X3 | The releaser's dedupe on Waitlisted is dropped (a second release notices again) | KILLED by JOIN-WAITLIST-12-C-REL | One notice per entry |
-| X4 | The releaser cancels a closed list instead of removing it | KILLED by JOIN-WAITLIST-12-C-CLOSED | A closed list removes entries without a notice |
-| F6-SKIP | The withdrawal skips the settle after the locked re-read says Waitlisted | KILLED by JOIN-WAITLIST-10-H | Race: entry becomes Waitlisted and the list closes before the lock |
+| X4 | The releaser cancels a closed list instead of removing it | KILLED by JOIN-WAITLIST-12-C-STATE-CLOSED | A closed list removes entries without a notice |
+| F6-SKIP | The withdrawal skips the settle after the locked re-read says Waitlisted | KILLED by JOIN-WAITLIST-10-H-ERR | Race: entry becomes Waitlisted and the list closes before the lock |
 
-| W-1 | Same edit as F6-SKIP (kept for the appendix trail) | KILLED by JOIN-WAITLIST-11-D-WAIT | AC11 after close |
+| W-1 | Same edit as F6-SKIP (kept for the appendix trail) | KILLED by JOIN-WAITLIST-11-D-ERR-WAIT | AC11 after close |
 | N-1 | The attendee audience for the waiting list notices is removed | KILLED by JOIN-WAITLIST-09-C | AC9 |
 | R-N | The releaser writes no EventCancelled notice | KILLED by JOIN-WAITLIST-12-C-REL | AC12 |
-| Y1 (frontend) | Read notices are still shown | KILLED by JOIN-WAITLIST-09-C-FE-READ | AC9 |
-| Y2 (frontend) | Mark As Read does nothing | KILLED by JOIN-WAITLIST-09-C-FE-MARK | AC9 |
+| Y1 (frontend) | Read notices are still shown | KILLED by JOIN-WAITLIST-09-C-FE-STATE-READ | AC9 |
+| Y2 (frontend) | Mark As Read does nothing | KILLED by JOIN-WAITLIST-09-C-FE-STATE-MARK | AC9 |
 | Y4 (frontend) | The attendee notice is removed from AppShell | KILLED by JOIN-WAITLIST-09-C-FE-MOUNT | AC9 |
-| Y5 (frontend, advisory) | A failed load is not announced | KILLED by JOIN-WAITLIST-09-C-FE-LOAD | Visibility of errors |
+| Y5 (frontend, advisory) | A failed load is not announced | KILLED by JOIN-WAITLIST-09-C-FE-ERR-LOAD | Visibility of errors |
 
 ### Reads that write (B1)
 
 | Mutant | Runner meaning | Killed by |
 |---|---|---|
-| B1-ORG | The event read settles for every caller, not only an attendee who may see the event | JOIN-WAITLIST-11-H-ORG |
-| B1-UNAUTH | The event read settles before the visibility check (an unauthorised read locks and writes) | JOIN-WAITLIST-11-H-LOCK |
+| B1-ORG | The event read settles for every caller, not only an attendee who may see the event | JOIN-WAITLIST-11-H-ERR-ORG |
+| B1-UNAUTH | The event read settles before the visibility check (an unauthorised read locks and writes) | JOIN-WAITLIST-11-H-ERR-LOCK |
 
 The lock-free check `settleIfDue` takes the event lock only for a list that is due. The close job's candidate scan uses the same predicate, so a list that is not due takes no lock.
 
@@ -234,6 +236,116 @@ The lock-free check `settleIfDue` takes the event lock only for a list that is d
 
 | Mutant | Runner meaning | Killed by |
 |---|---|---|
-| B1-NONE | The event read never settles (an attendee's read of a due list leaves it Waitlisted) | JOIN-WAITLIST-11-H-NONE |
-| B1-COORD | The event read also settles for the assigned coordinator | JOIN-WAITLIST-11-H-COORD |
-| PRECHECK | settleIfDue takes the event lock when no entry is due (the early return is removed) | JOIN-WAITLIST-11-H-NODUE |
+| B1-NONE | The event read never settles (an attendee's read of a due list leaves it Waitlisted) | JOIN-WAITLIST-11-H-STATE-NONE |
+| B1-COORD | The event read also settles for the assigned coordinator | JOIN-WAITLIST-11-H-STATE-COORD |
+| PRECHECK | settleIfDue takes the event lock when no entry is due (the early return is removed) | JOIN-WAITLIST-11-H-INT-NODUE |
+
+## Tier map (test-name suffixes)
+
+Boundary, interaction, state and sad-path tests carry a tier suffix in their names, following the guide's suffix set
+(`-BND`, `-INT`, `-STATE`, `-ERR`). The case ID is kept as the prefix of the new name, so a search on the old ID still finds
+the test. Happy-path, copy, ownership and isolation tests are not tagged. A test named in the mutant mappings and in the
+appendix above uses its new name.
+
+| Old name | New name | Tier | What the test covers |
+|---|---|---|---|
+| `JOIN-WAITLIST-01-B` | `JOIN-WAITLIST-01-B-ERR` | ERR | direct registration on a full event is refused |
+| `JOIN-WAITLIST-01-C` | `JOIN-WAITLIST-01-C-BND` | BND | the join is refused while a spot remains and allowed once full |
+| `JOIN-WAITLIST-01-E` | `JOIN-WAITLIST-01-E-ERR` | ERR | duplicate joins are refused |
+| `JOIN-WAITLIST-01-D-FREE` | `JOIN-WAITLIST-01-D-INT-FREE` | INT | a free place does not turn a closed refusal into MSG-WL-03 |
+| `JOIN-WAITLIST-01-D-BOUNDARY` | `JOIN-WAITLIST-01-D-BND-BOUNDARY` | BND | one millisecond before and at the close |
+| `JOIN-WAITLIST-02-B` | `JOIN-WAITLIST-02-B-INT` | INT | waitlistAvailable across window and fullness |
+| `JOIN-WAITLIST-03-A` | `JOIN-WAITLIST-03-A-STATE` | STATE | status reads waitlisted after joining |
+| `JOIN-WAITLIST-03-B` | `JOIN-WAITLIST-03-B-STATE` | STATE | status unchanged after a fresh login |
+| `JOIN-WAITLIST-04-C` | `JOIN-WAITLIST-04-C-INT` | INT | five parallel joins |
+| `JOIN-WAITLIST-05-B` | `JOIN-WAITLIST-05-B-STATE` | STATE | position is null unless waitlisted |
+| `JOIN-WAITLIST-06-A` | `JOIN-WAITLIST-06-A-STATE` | STATE | withdrawal moves those behind forward |
+| `JOIN-WAITLIST-06-B` | `JOIN-WAITLIST-06-B-STATE` | STATE | confirmed withdrawal promotes and moves forward |
+| `JOIN-WAITLIST-06-C` | `JOIN-WAITLIST-06-C-STATE` | STATE | middle entry withdrawing |
+| `JOIN-WAITLIST-06-D` | `JOIN-WAITLIST-06-D-INT` | INT | withdrawals and a join leave positions gap-free |
+| `JOIN-WAITLIST-07-B` | `JOIN-WAITLIST-07-B-INT` | INT | equal join times tie-break by waitlist_seq |
+| `JOIN-WAITLIST-07-C` | `JOIN-WAITLIST-07-C-STATE` | STATE | rejoin goes to the back |
+| `JOIN-WAITLIST-07-D` | `JOIN-WAITLIST-07-D-STATE` | STATE | removed entry joins again |
+| `JOIN-WAITLIST-08-A` | `JOIN-WAITLIST-08-A-STATE` | STATE | first entry promoted in the same transaction |
+| `JOIN-WAITLIST-08-B` | `JOIN-WAITLIST-08-B-INT` | INT | sequential and parallel withdrawals |
+| `JOIN-WAITLIST-08-B-REPEAT` | `JOIN-WAITLIST-08-B-INT-REPEAT` | INT | parallel repeats of one withdrawal |
+| `JOIN-WAITLIST-08-C` | `JOIN-WAITLIST-08-C-BND` | BND | a withdrawal with an empty list frees a place |
+| `JOIN-WAITLIST-08-D` | `JOIN-WAITLIST-08-D-INT` | INT | direct registration racing a withdrawal |
+| `JOIN-WAITLIST-08-E` | `JOIN-WAITLIST-08-E-ERR` | ERR | failure during promotion rolls back |
+| `JOIN-WAITLIST-09-A` | `JOIN-WAITLIST-09-A-STATE` | STATE | one unread notification per promotion (promotion) |
+| `JOIN-WAITLIST-09-A` | `JOIN-WAITLIST-09-A-INT` | INT | a second promotion after a rejoin (second promotion) |
+| `JOIN-WAITLIST-10-A` | `JOIN-WAITLIST-10-A-STATE` | STATE | waitlisted attendee withdraws |
+| `JOIN-WAITLIST-10-C` | `JOIN-WAITLIST-10-C-BND` | BND | withdrawal stops at the exclusive start |
+| `JOIN-WAITLIST-10-E` | `JOIN-WAITLIST-10-E-ERR` | ERR | ownership and repeated or parallel withdrawal |
+| `JOIN-WAITLIST-10-F` | `JOIN-WAITLIST-10-F-ERR` | ERR | cancelled entry answers 409 |
+| `JOIN-WAITLIST-10-G` | `JOIN-WAITLIST-10-G-INT` | INT | promotion by a concurrent withdrawal |
+| `JOIN-WAITLIST-10-H` | `JOIN-WAITLIST-10-H-ERR` | ERR | entry removed before the lock is refused 409 |
+| `JOIN-WAITLIST-11-A` | `JOIN-WAITLIST-11-A-STATE` | STATE | close job removes every entry |
+| `JOIN-WAITLIST-11-A-LIST` | `JOIN-WAITLIST-11-A-STATE-LIST` | STATE | attendee list shows a closed entry as removed |
+| `JOIN-WAITLIST-11-B` | `JOIN-WAITLIST-11-B-BND` | BND | closing instant is exclusive |
+| `JOIN-WAITLIST-11-C` | `JOIN-WAITLIST-11-C-STATE` | STATE | manual close removes entries and refuses joins |
+| `JOIN-WAITLIST-11-C-LIST` | `JOIN-WAITLIST-11-C-STATE-LIST` | STATE | manual close shows removed on the first list read |
+| `JOIN-WAITLIST-11-D-WAIT` | `JOIN-WAITLIST-11-D-ERR-WAIT` | ERR | waiting entry withdrawn after close |
+| `JOIN-WAITLIST-11-F` | `JOIN-WAITLIST-11-F-STATE` | STATE | removed entry registers directly |
+| `JOIN-WAITLIST-11-G` | `JOIN-WAITLIST-11-G-BND` | BND | close job at the exact closing instant |
+| `JOIN-WAITLIST-11-H-ORG` | `JOIN-WAITLIST-11-H-ERR-ORG` | ERR | organiser GET leaves a waiting row unchanged |
+| `JOIN-WAITLIST-11-H-LOCK` | `JOIN-WAITLIST-11-H-ERR-LOCK` | ERR | unauthorised GET takes no lock and writes nothing |
+| `JOIN-WAITLIST-11-H-NONE` | `JOIN-WAITLIST-11-H-STATE-NONE` | STATE | viewable attendee GET settles a due list |
+| `JOIN-WAITLIST-11-H-COORD` | `JOIN-WAITLIST-11-H-STATE-COORD` | STATE | assigned coordinator GET of a closed list |
+| `JOIN-WAITLIST-11-H-NODUE` | `JOIN-WAITLIST-11-H-INT-NODUE` | INT | open-list reads take no lock while held |
+| `JOIN-WAITLIST-12-C-CLOSED` | `JOIN-WAITLIST-12-C-STATE-CLOSED` | STATE | closed list releases entries as removed |
+| `JOIN-WAITLIST-13-A` | `JOIN-WAITLIST-13-A-BND` | BND | join behind 500 entries is numbered 501 |
+| `JOIN-WAITLIST-15-A` | `JOIN-WAITLIST-15-A-ERR` | ERR | unknown keys are refused with 400 |
+| `JOIN-WAITLIST-08-C-GUARD` | `JOIN-WAITLIST-08-C-ERR-GUARD` | ERR | missing event promotes nobody (unit) |
+| `JOIN-WAITLIST-01-C-UNIT` | `JOIN-WAITLIST-01-C-ERR-UNIT` | ERR | refused with 422 while a place is free (unit) |
+| `JOIN-WAITLIST-01-D-UNIT` | `JOIN-WAITLIST-01-D-ERR-UNIT` | ERR | closed event refused (unit) |
+| `JOIN-WAITLIST-01-D-UNIT-OPEN` | `JOIN-WAITLIST-01-D-ERR-UNIT-OPEN` | ERR | not-yet-open event refused (unit) |
+| `JOIN-WAITLIST-01-E-UNIT` | `JOIN-WAITLIST-01-E-ERR-UNIT` | ERR | waiting attendee gets 409 (unit) |
+| `JOIN-WAITLIST-01-E-UNIT-REG` | `JOIN-WAITLIST-01-E-ERR-UNIT-REG` | ERR | confirmed attendee gets 409 (unit) |
+| `JOIN-WAITLIST-01-E-UNIT-REGISTER` | `JOIN-WAITLIST-01-E-ERR-UNIT-REGISTER` | ERR | waiting attendee cannot register directly (unit) |
+| `JOIN-WAITLIST-01-F-UNIT` | `JOIN-WAITLIST-01-F-ERR-UNIT` | ERR | user without the Attendee role gets 403 (unit) |
+| `JOIN-WAITLIST-01-F-UNIT-404` | `JOIN-WAITLIST-01-F-ERR-UNIT-404` | ERR | unknown event gets 404 (unit) |
+| `JOIN-WAITLIST-01-A-UNIT-OPEN-ENDED` | `JOIN-WAITLIST-01-A-BND-UNIT-OPEN-ENDED` | BND | open-ended window bounds (unit) |
+| `JOIN-WAITLIST-04-C-GUARD` | `JOIN-WAITLIST-04-C-ERR-GUARD` | ERR | lost race on the insert answers 409 (unit) |
+| `JOIN-WAITLIST-04-C-LOCK` | `JOIN-WAITLIST-04-C-INT-LOCK` | INT | join takes the event lock first (unit) |
+| `JOIN-WAITLIST-04-C-TX` | `JOIN-WAITLIST-04-C-INT-TX` | INT | join runs as one transaction (unit) |
+| `JOIN-WAITLIST-10-E-CAS` | `JOIN-WAITLIST-10-E-ERR-CAS` | ERR | waiting withdrawal losing the compare-and-set (unit) |
+| `JOIN-WAITLIST-15-A-UNIT` | `JOIN-WAITLIST-15-A-ERR-UNIT` | ERR | body with unknown keys refused (unit) |
+| `JOIN-WAITLIST-01-C-STORE` | `JOIN-WAITLIST-01-C-STORE-ERR` | ERR | refused store join raises the server error |
+| `JOIN-WAITLIST-01-F-STORE` | `JOIN-WAITLIST-01-F-STORE-ERR` | ERR | non-attendee refused before any request |
+| `JOIN-WAITLIST-09-C-FE-READ` | `JOIN-WAITLIST-09-C-FE-STATE-READ` | STATE | read notice not shown |
+| `JOIN-WAITLIST-09-C-FE-MARK` | `JOIN-WAITLIST-09-C-FE-STATE-MARK` | STATE | Mark As Read hides the notice |
+| `JOIN-WAITLIST-09-C-FE-LOAD` | `JOIN-WAITLIST-09-C-FE-ERR-LOAD` | ERR | failed load shows the alert |
+| `JOIN-WAITLIST-09-C-FE-ROLE` | `JOIN-WAITLIST-09-C-FE-ERR-ROLE` | ERR | non-attendee sends no request |
+| `JOIN-WAITLIST-01-E-FE-PENDING` | `JOIN-WAITLIST-01-E-FE-STATE-PENDING` | STATE | Join disabled while pending |
+| `JOIN-WAITLIST-01-C-FE-ALERT` | `JOIN-WAITLIST-01-C-FE-ERR-ALERT` | ERR | refused join announced in an alert |
+| `JOIN-WAITLIST-01-C-FE-REFUSED` | `JOIN-WAITLIST-01-C-FE-ERR-REFUSED` | ERR | refused join shows the server sentence |
+| `JOIN-WAITLIST-01-C-FE-GENERIC` | `JOIN-WAITLIST-01-C-FE-ERR-GENERIC` | ERR | failed join with no message |
+| `JOIN-WAITLIST-01-E-FE-REFRESH` | `JOIN-WAITLIST-01-E-FE-ERR-REFRESH` | ERR | duplicate join refreshes the entry |
+| `JOIN-WAITLIST-01-E-FE-SAMETICK` | `JOIN-WAITLIST-01-E-FE-INT-SAMETICK` | INT | same-batch double click |
+| `JOIN-WAITLIST-01-E-FE-DOUBLE` | `JOIN-WAITLIST-01-E-FE-INT-DOUBLE` | INT | double click sends one request |
+| `JOIN-WAITLIST-01-C-FE-A` | `JOIN-WAITLIST-01-C-FE-BND-A` | BND | 9 of 10: Register, no Join |
+| `JOIN-WAITLIST-01-C-FE-B` | `JOIN-WAITLIST-01-C-FE-BND-B` | BND | 10 of 10: Join, no Register |
+| `JOIN-WAITLIST-01-D-FE-A` | `JOIN-WAITLIST-01-D-FE-INT-A` | INT | closed full event |
+| `JOIN-WAITLIST-01-D-FE-B` | `JOIN-WAITLIST-01-D-FE-INT-B` | INT | not-yet-open full event |
+| `JOIN-WAITLIST-02-B-FE` | `JOIN-WAITLIST-02-B-FE-INT` | INT | free, closed and not-yet-open states (three tests) |
+| `JOIN-WAITLIST-03-A-FE` | `JOIN-WAITLIST-03-A-FE-STATE` | STATE | details show the Waitlisted badge |
+| `JOIN-WAITLIST-03-A-FE-DASH` | `JOIN-WAITLIST-03-A-FE-STATE-DASH` | STATE | dashboard card shows Waitlisted |
+| `JOIN-WAITLIST-04-A-FE` | `JOIN-WAITLIST-04-A-FE-STATE` | STATE | banner shows the position and can be dismissed (panel) |
+| `JOIN-WAITLIST-04-A-FE-JOIN` | `JOIN-WAITLIST-04-A-FE-STATE-JOIN` | STATE | successful join shows MSG-WL-01 |
+| `JOIN-WAITLIST-04-A-FE-DISMISS` | `JOIN-WAITLIST-04-A-FE-STATE-DISMISS` | STATE | Dismiss removes the banner |
+| `JOIN-WAITLIST-05-A-FE` | `JOIN-WAITLIST-05-A-FE-STATE` | STATE | owner sees position 2 |
+| `JOIN-WAITLIST-05-B-FE` | `JOIN-WAITLIST-05-B-FE-STATE` | STATE | registered or withdrawn shows no position |
+| `JOIN-WAITLIST-06-D-FE` | `JOIN-WAITLIST-06-D-FE-STATE` | STATE | positions read on reload |
+| `JOIN-WAITLIST-07-E-FE` | `JOIN-WAITLIST-07-E-FE-STATE` | STATE | withdrawn attendee rejoins |
+| `JOIN-WAITLIST-08-C-FE` | `JOIN-WAITLIST-08-C-FE-BND` | BND | freed place with no list |
+| `JOIN-WAITLIST-10-B-FE` | `JOIN-WAITLIST-10-B-FE-STATE` | STATE | Cancel keeps the place |
+| `JOIN-WAITLIST-10-C-FE-C` | `JOIN-WAITLIST-10-C-FE-BND-C` | BND | no Withdraw control at 18:30 |
+| `JOIN-WAITLIST-11-A-FE` | `JOIN-WAITLIST-11-A-FE-STATE` | STATE | removed entry shows Removed |
+| `JOIN-WAITLIST-11-A-FE-CLOSEDON` | `JOIN-WAITLIST-11-A-FE-STATE-CLOSEDON` | STATE | Closed on row shows SGT |
+| `JOIN-WAITLIST-11-C-FE-FULL` | `JOIN-WAITLIST-11-C-FE-INT-FULL` | INT | registration disabled, full |
+| `JOIN-WAITLIST-11-C-FE-NOTFULL` | `JOIN-WAITLIST-11-C-FE-INT-NOTFULL` | INT | registration disabled, not full |
+| `JOIN-WAITLIST-11-D-FE` | `JOIN-WAITLIST-11-D-FE-INT` | INT | closed window beats a free place |
+| `JOIN-WAITLIST-02-B-UNIT` | `JOIN-WAITLIST-02-B-INT-UNIT` | INT | window and status precedence table |
+| `JOIN-WAITLIST-01-E-FE` | `JOIN-WAITLIST-01-E-FE-STATE` | STATE | waiting indicator (section and panel) |
+| `JOIN-WAITLIST-03-A-FE-DASH` | `JOIN-WAITLIST-03-A-FE-STATE-DASH` | STATE | dashboard card |

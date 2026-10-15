@@ -10,9 +10,10 @@ import { EventCard } from "@/features/events/pages/list/EventCard";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { buildGala } from "@/features/events/pages/detail/registration/waitlist.fixtures";
 
-describe("JOIN-WAITLIST-03-A-FE-DASH: the dashboard card reads Waitlisted (AC3)", () => {
+describe("JOIN-WAITLIST-03-A-FE-STATE-DASH: the dashboard card reads Waitlisted (AC3)", () => {
   // Oracle: a waiting entry shows the Waitlisted badge.
-  it("JOIN-WAITLIST-03-A-FE-DASH: a card for a waiting entry shows the Waitlisted badge", () => {
+  // Kills: F12 (Waitlisted badge reads Confirmed)
+  it("JOIN-WAITLIST-03-A-FE-STATE-DASH: a card for a waiting entry shows the Waitlisted badge", () => {
     render(
       <MemoryRouter>
         <EventCard event={buildGala()} registrationStatus="waitlisted" />
@@ -24,6 +25,7 @@ describe("JOIN-WAITLIST-03-A-FE-DASH: the dashboard card reads Waitlisted (AC3)"
 
   // Oracle: the Waitlisted variant is a different visual variant from Confirmed and Withdrawn, so a learner or
   // attendee can tell the three apart. The badge classes are compared, not the labels alone.
+  // Kills: F12, F13 (registered badge relabel reverted)
   it("JOIN-WAITLIST-03-A-FE-VARIANT: the Waitlisted badge styling differs from Confirmed and Withdrawn", () => {
     const { unmount } = render(<StatusBadge status="waitlisted" />);
     const waitlisted = screen.getByText("Waitlisted").className;

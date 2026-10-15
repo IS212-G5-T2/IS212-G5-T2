@@ -92,6 +92,23 @@ describe("EVENT-REG-03-BND-1: shared limits", () => {
   });
 });
 
+// SPM-138 time zones: 15:59Z and 16:01Z are on the same UTC day but on different Singapore days (SGT midnight is 16:00Z).
+// The assertions are literal SGT text, so they hold under TZ=UTC, TZ=Asia/Singapore and TZ=America/Los_Angeles alike.
+describe("SGT-MIDNIGHT-BND-1: the Singapore day changes at 00:00 SGT, not at 00:00 UTC", () => {
+  // Kills F38: the SGT formatter reads UTC instead of Asia/Singapore.
+  it("SGT-MIDNIGHT-BND-1: a close at 23:59 SGT reads as that day, and 00:01 SGT as the next day", () => {
+    expect(formatSgtDateTime("2026-10-19T15:59:00Z")).toBe("19 Oct 2026, 23:59");
+    expect(formatSgt("2026-10-19T15:59:00Z")).toBe("19 Oct 2026, 23:59 SGT");
+    expect(formatSgtDateTime("2026-10-19T16:01:00Z")).toBe("20 Oct 2026, 00:01");
+    expect(formatSgt("2026-10-19T16:01:00Z")).toBe("20 Oct 2026, 00:01 SGT");
+  });
+
+  // Kills F39: the calendar-day count is taken in UTC, so the SGT midnight crossing is missed.
+  it("SGT-MIDNIGHT-BND-1: 23:59 to 00:01 SGT is one calendar day, though both instants fall on one UTC day", () => {
+    expect(sgtCalendarDayDiff(new Date("2026-10-19T15:59:00Z"), new Date("2026-10-19T16:01:00Z"))).toBe(1);
+  });
+});
+
 describe("D20: Singapore time display", () => {
   // Instants are shown in Asia/Singapore regardless of the runner's timezone.
   it("formats a UTC instant as SGT", () => {

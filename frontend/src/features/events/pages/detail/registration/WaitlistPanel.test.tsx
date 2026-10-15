@@ -24,6 +24,7 @@ describe("JOIN-WAITLIST-01-A/E/C and 04-A: the waiting list panel (AC1, AC3, AC4
   /**
    * Oracle (01-A FE): an empty list with the window open offers "Join Waiting List" enabled; there is no Register here.
    */
+  // Kills: F23 (Join control always disabled)
   it("JOIN-WAITLIST-01-A-FE: a full event offers an enabled Join Waiting List control and no Register control", () => {
     render(<WaitlistPanel {...baseProps} onJoin={() => undefined} />);
 
@@ -34,7 +35,8 @@ describe("JOIN-WAITLIST-01-A/E/C and 04-A: the waiting list panel (AC1, AC3, AC4
   /**
    * Oracle (01-E FE, pending): while the join request is in flight the control is disabled, so a second click cannot send a request.
    */
-  it("JOIN-WAITLIST-01-E-FE-PENDING: the Join control is disabled while the request is pending", () => {
+  // Kills: F3 (Join not disabled while pending)
+  it("JOIN-WAITLIST-01-E-FE-STATE-PENDING: the Join control is disabled while the request is pending", () => {
     render(<WaitlistPanel {...baseProps} pending onJoin={() => undefined} />);
 
     expect(screen.getByRole("button", { name: "Join Waiting List" })).toBeDisabled();
@@ -43,7 +45,8 @@ describe("JOIN-WAITLIST-01-A/E/C and 04-A: the waiting list panel (AC1, AC3, AC4
   /**
    * Oracle (01-E FE): an attendee already on the list sees the waiting indicator, never the Join control.
    */
-  it("JOIN-WAITLIST-01-E-FE: a waiting attendee sees the indicator and no Join control", () => {
+  // Kills: F21 (indicator copy), F25 (indicator never shown)
+  it("JOIN-WAITLIST-01-E-FE-STATE: a waiting attendee sees the indicator and no Join control", () => {
     render(<WaitlistPanel {...baseProps} indicator />);
 
     expect(screen.getByText("You are on the waiting list")).toBeInTheDocument();
@@ -53,7 +56,8 @@ describe("JOIN-WAITLIST-01-A/E/C and 04-A: the waiting list panel (AC1, AC3, AC4
   /**
    * Oracle (01-C A FE): a refused join shows the server's refusal in an alert (MSG-WL-03 is the example).
    */
-  it("JOIN-WAITLIST-01-C-FE-ALERT: a refused join is announced in an alert", () => {
+  // Kills: F24 (refusal not in an alert)
+  it("JOIN-WAITLIST-01-C-FE-ERR-ALERT: a refused join is announced in an alert", () => {
     render(<WaitlistPanel {...baseProps} onJoin={() => undefined} error="This event still has available spots. Please register directly." />);
 
     expect(screen.getByRole("alert")).toHaveTextContent("This event still has available spots. Please register directly.");
@@ -63,7 +67,8 @@ describe("JOIN-WAITLIST-01-A/E/C and 04-A: the waiting list panel (AC1, AC3, AC4
    * Oracle (04-A FE): the banner reads exactly MSG-WL-01 with the event name and the response position; it is dismissible;
    * after a reload (the panel is mounted again without a joined position) it is gone.
    */
-  it("JOIN-WAITLIST-04-A-FE: the confirmation banner shows the position and can be dismissed", () => {
+  // Kills: F4 (banner without position), F5 (Dismiss does nothing), F19 (MSG-WL-01 copy)
+  it("JOIN-WAITLIST-04-A-FE-STATE: the confirmation banner shows the position and can be dismissed", () => {
     const onDismiss = vi.fn();
     const { rerender } = render(<WaitlistPanel {...baseProps} indicator joinedPosition={1} onDismissBanner={onDismiss} />);
 

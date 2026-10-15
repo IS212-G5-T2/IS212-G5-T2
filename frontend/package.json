@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:cov:spm37": "vitest run --config vitest.spm37.config.ts"
+    "test:cov:spm37": "vitest run --config vitest.spm37.config.ts",
+    "test:tz": "node scripts/testing/tz-matrix.mjs"
   },
   "dependencies": {
     "@fullcalendar/react": "^7.1.1",
