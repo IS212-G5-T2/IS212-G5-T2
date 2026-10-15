@@ -28,8 +28,10 @@ describe.skipIf(!databaseUrl)(
     let ownerMigration: string;
     const venueIds: string[] = [];
     const eventIds: string[] = [];
+    const fixtureRunId = randomUUID();
+    const uniqueVenueName = (name: string) => `${name} ${fixtureRunId}`;
     const venueInput = {
-      name: 'Orchid Hall Test',
+      name: uniqueVenueName('Orchid Hall Test'),
       location: 'Test Building Level 3',
       capacity: 120,
       facilities: ['AV System', 'Wi-Fi'],
@@ -158,7 +160,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
-    // SPM-50 / TEST-5: the production HTTP stack requires a real persisted session and Venue:create permission.
+    /** SPM-50 / TEST-5: real sessions enforce Venue:create permission. */
     it('authenticates the seeded Coordinator and Venue Staff account with both roles', async () => {
       // Arrange and act: authenticate the fixture that exercises multi-role routing and read access.
       const dualRole = await authenticate(coordinatorVenueStaffEmail);
@@ -171,7 +173,7 @@ describe.skipIf(!databaseUrl)(
       await dualRole.get('/api/venues').expect(200);
     });
 
-    // SPM-50 / TEST-5: the production HTTP stack requires a real persisted session and Venue:create permission.
+    /** SPM-50 / TEST-5: real sessions enforce Venue:create permission. */
     it('allows seeded Venue Staff to create once and denies anonymous or unauthorized writes', async () => {
       // Arrange one anonymous caller, one seeded coordinator, and one seeded Venue Staff session.
       const anonymous = request(app.getHttpServer());
@@ -246,7 +248,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'SPM-50 No Hours Venue',
+          name: uniqueVenueName('SPM-50 No Hours Venue'),
           operatingDays: ['Monday'],
           operatingStartTime: '09:00',
           operatingEndTime: '18:00',
@@ -292,7 +294,7 @@ describe.skipIf(!databaseUrl)(
         expect(listedVenue).not.toHaveProperty(key);
     });
 
-    // SPM-50 owner rule: another staff member owns only the venue created through their own session.
+    /** SPM-50: a venue owner comes from the verified staff session. */
     it('uses the verified second staff identity despite spoofed owner fields', async () => {
       // Arrange a second seeded Venue Staff account and client-controlled owner values.
       const staff = await authenticate(secondStaffEmail);
@@ -300,7 +302,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'Orchid Hall Second Staff',
+          name: uniqueVenueName('Orchid Hall Second Staff'),
           owner_user_id: '00000000-0000-4000-8000-000000000001',
           ownerUserId: '00000000-0000-4000-8000-000000000001',
         })
@@ -322,7 +324,7 @@ describe.skipIf(!databaseUrl)(
       ).toEqual([{ email: secondStaffEmail }]);
     });
 
-    // SPM-50 schema rule: the owner column is a UUID foreign key, not free-form client data.
+    /** SPM-50: the owner column is a UUID foreign key with an index. */
     it('has one owner foreign key and an index after repeatable migration', async () => {
       // Read the initialized and migrated schema directly.
       const column = await pool.query(
@@ -358,7 +360,7 @@ describe.skipIf(!databaseUrl)(
       expect(index.rows).toEqual([{ indexname: 'venues_owner_user_id_idx' }]);
     });
 
-    // SPM-50 upgrade rule: legacy records keep unknown ownership, while the migration protects future rows.
+    /** SPM-50: legacy ownership remains unknown and future rows require an owner. */
     it('upgrades a legacy venue without assigning it to an arbitrary user', async () => {
       // Isolate a pre-owner venue table in a rollback-only session.
       const client = await pool.connect();
@@ -391,7 +393,7 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
-    // SPM-50 schema rule: neither an absent nor a nonexistent user may own a new venue.
+    /** SPM-50: an absent or nonexistent user cannot own a new venue. */
     it.each([
       [null, '23502'],
       ['00000000-0000-4000-8000-000000000001', '23503'],
@@ -420,14 +422,14 @@ describe.skipIf(!databaseUrl)(
       },
     );
 
-    // SPM-50 business rule: accessibility is optional, so a valid venue can persist with no accessibility links.
+    /** SPM-50: a valid venue can persist without accessibility selections. */
     it('creates a venue with no accessibility selection', async () => {
       const staff = await authenticate(staffEmail);
       const created = await staff
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'Orchid Hall Without Accessibility',
+          name: uniqueVenueName('Orchid Hall Without Accessibility'),
           accessibility: [],
         })
         .expect(201);
@@ -445,16 +447,25 @@ describe.skipIf(!databaseUrl)(
       ).toBe(0);
     });
 
-    // SPM-50 duplicate prevention: case and surrounding whitespace cannot create the same named venue twice.
+    /** SPM-50: normalized case and whitespace cannot create a duplicate venue. */
     it('rejects a normalized duplicate name and location', async () => {
       const staff = await authenticate(staffEmail);
+      const baseline = await staff
+        .post('/api/venues')
+        .send({
+          ...venueInput,
+          name: uniqueVenueName('Duplicate Prevention Venue'),
+          location: uniqueVenueName('Duplicate Prevention Location'),
+        })
+        .expect(201);
+      venueIds.push(baseline.body.venue.id as string);
 
       const response = await staff
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: `  ${venueInput.name.toUpperCase()}  `,
-          location: `  ${venueInput.location.toUpperCase()}  `,
+          name: `  ${uniqueVenueName('Duplicate Prevention Venue').toUpperCase()}  `,
+          location: `  ${uniqueVenueName('Duplicate Prevention Location').toUpperCase()}  `,
         })
         .expect(409);
 
@@ -467,7 +478,7 @@ describe.skipIf(!databaseUrl)(
       });
     });
 
-    // SPM-124 read contract: real SQL supplies the shared catalogue, with an explicit session-derived My venues filter.
+    /** SPM-124: reads expose the shared catalogue and session-scoped My venues. */
     it('reads shared venue schedules and supports My venues with active, expired and buffer-only records', async () => {
       // Arrange: create two owners' venues and all schedule variants around the injected clock.
       const staff = await authenticate(staffEmail);
@@ -478,7 +489,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'SPM-124 Schedule Owner Venue',
+          name: uniqueVenueName('SPM-124 Schedule Owner Venue'),
           image: undefined,
         })
         .expect(201);
@@ -486,7 +497,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'SPM-124 Schedule Other Venue',
+          name: uniqueVenueName('SPM-124 Schedule Other Venue'),
           image: undefined,
         })
         .expect(201);
@@ -494,7 +505,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'SPM-124 Setup Current Venue',
+          name: uniqueVenueName('SPM-124 Setup Current Venue'),
           image: undefined,
         })
         .expect(201);
@@ -656,7 +667,7 @@ describe.skipIf(!databaseUrl)(
       ).not.toContain(at(16).toISOString());
     });
 
-    // SPM-124 AC5: API ordering uses venue name, then ID for identical names.
+    /** SPM-124 AC5: venue reads sort by name, then ID for matching names. */
     it('orders venue reads by name and ID despite opposite insertion order', async () => {
       // Arrange: IDs and insertion order deliberately disagree with the required order.
       const ids = [randomUUID(), randomUUID(), randomUUID()].sort();
@@ -665,14 +676,26 @@ describe.skipIf(!databaseUrl)(
         [staffEmail],
       );
       const names = [
-        'SPM-124 Order Zulu',
-        'SPM-124 Order Alpha',
-        'SPM-124 Order Alpha',
+        uniqueVenueName('SPM-124 Order Zulu'),
+        uniqueVenueName('SPM-124 Order Alpha'),
+        uniqueVenueName('SPM-124 Order Alpha'),
       ];
       const inserted = [
-        { id: ids[0], name: names[0], location: 'Order Location 1' },
-        { id: ids[2], name: names[1], location: 'Order Location 2' },
-        { id: ids[1], name: names[2], location: 'Order Location 3' },
+        {
+          id: ids[0],
+          name: names[0],
+          location: uniqueVenueName('Order Location 1'),
+        },
+        {
+          id: ids[2],
+          name: names[1],
+          location: uniqueVenueName('Order Location 2'),
+        },
+        {
+          id: ids[1],
+          name: names[2],
+          location: uniqueVenueName('Order Location 3'),
+        },
       ];
       for (const row of inserted) {
         await pool.query(
@@ -695,14 +718,14 @@ describe.skipIf(!databaseUrl)(
       expect(orderedIds).toEqual([ids[1], ids[2], ids[0]]);
     });
 
-    // SPM-122 / VEN-UNAVAIL-04/06/07/08: blockouts persist without changing booked events.
+    /** SPM-122 / VEN-UNAVAIL-04/06/07/08: blockouts preserve booked events. */
     it('saves staff unavailability and lists setup and turnaround conflicts without mutating bookings', async () => {
       // Arrange one venue with three distinct existing event bookings.
       const staff = await authenticate(staffEmail);
       const coordinator = await authenticate(coordinatorEmail);
       const created = await staff
         .post('/api/venues')
-        .send({ ...venueInput, name: 'SPM-122 Conflict Venue' })
+        .send({ ...venueInput, name: uniqueVenueName('SPM-122 Conflict Venue') })
         .expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
@@ -801,11 +824,11 @@ describe.skipIf(!databaseUrl)(
       ).toEqual(originalEvents.rows);
     });
 
-    // SPM-122 / VEN-UNAVAIL-07-C: touching effective boundaries are not conflicts.
+    /** SPM-122 / VEN-UNAVAIL-07-C: exact boundary touches are not conflicts. */
     it('lists one-minute setup and turnaround overlaps but excludes exact boundary touches', async () => {
       // Arrange four bookings around both ends of the proposed unavailable period.
       const staff = await authenticate(staffEmail);
-      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Boundary Venue' }).expect(201);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-122 Boundary Venue') }).expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
       const events = await Promise.all([
@@ -831,11 +854,11 @@ describe.skipIf(!databaseUrl)(
       expect(saved.body.affectedBookings.map((booking: { eventId: string }) => booking.eventId)).toEqual([events[1], events[3]]);
     });
 
-    // SPM-122 / VEN-UNAVAIL-04-A/07-C: only live bookings on an existing venue are affected.
+    /** SPM-122 / VEN-UNAVAIL-04-A/07-C: only live bookings on an existing venue are affected. */
     it('rejects a missing venue and excludes expired tentative holds from the affected list', async () => {
       // Arrange an active hold and an expired hold with the same effective overlap.
       const staff = await authenticate(staffEmail);
-      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Hold Venue' }).expect(201);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-122 Hold Venue') }).expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
       const activeEvent = await createScheduleEvent('Active hold event');
@@ -858,11 +881,11 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
-    // SPM-122 AC1/04/07: an elapsed period cannot be saved and historical bookings are not actionable conflicts.
+    /** SPM-122 AC1/04/07: elapsed periods fail and past bookings are not conflicts. */
     it('rejects elapsed periods and lists only live bookings for an active period', async () => {
       // Arrange two approved bookings, with only one still occupying the venue at the fixed clock.
       const staff = await authenticate(staffEmail);
-      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Current Booking Venue' }).expect(201);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-122 Current Booking Venue') }).expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
       const historicalEvent = await createScheduleEvent('Past affected event');
@@ -889,7 +912,7 @@ describe.skipIf(!databaseUrl)(
       expect(blockouts.rows).toHaveLength(1);
     });
 
-    // SPM-122 / VEN-UNAVAIL-05-A/B: one active period ends early without changing another.
+    /** SPM-122 / VEN-UNAVAIL-05-A/B: ending one period preserves another. */
     it('restores one active period early while leaving a second period intact', async () => {
       // Arrange a venue with two blockouts.
       const staff = await authenticate(staffEmail);
@@ -898,7 +921,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/venues')
         .send({
           ...venueInput,
-          name: 'SPM-122 Early End Venue',
+          name: uniqueVenueName('SPM-122 Early End Venue'),
         })
         .expect(201);
       const id = created.body.venue.id as string;
@@ -913,7 +936,7 @@ describe.skipIf(!databaseUrl)(
         .post(`/api/venues/${id}/unavailable-periods`)
         .send({ start: at(12, 11), end: at(12, 13), reason: 'Renovation' })
         .expect(201);
-      const otherVenue = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Other Venue' }).expect(201);
+      const otherVenue = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-122 Other Venue') }).expect(201);
       venueIds.push(otherVenue.body.venue.id as string);
       const beforeDetail = await staff.get(`/api/venues/${id}`).expect(200);
       expect(beforeDetail.body.availabilityStatus).toBe('unavailable');
@@ -952,11 +975,11 @@ describe.skipIf(!databaseUrl)(
       ).toMatchObject({ end_at: new Date(at(12, 13)), reason: 'Renovation' });
     });
 
-    // SPM-122 / VEN-UNAVAIL-05-A/B: ending one of two active periods must not restore availability.
+    /** SPM-122 / VEN-UNAVAIL-05-A/B: another active period keeps the venue unavailable. */
     it('keeps the venue unavailable while a second overlapping period remains active', async () => {
       // Arrange two independently persisted blockouts that both contain the fixed clock.
       const staff = await authenticate(staffEmail);
-      const created = await staff.post('/api/venues').send({ ...venueInput, name: 'SPM-122 Overlapping Early End Venue' }).expect(201);
+      const created = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-122 Overlapping Early End Venue') }).expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
       const at = (hour: number) => new Date(Date.UTC(2030, 0, 10, hour)).toISOString();

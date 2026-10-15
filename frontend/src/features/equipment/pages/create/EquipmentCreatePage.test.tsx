@@ -4,6 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentCreatePage } from "./EquipmentCreatePage";
 import { ApiError } from "@/utils/api";
 
+/**
+ * Coverage note: the uncovered false arm of the locations effect's `active` guard occurs only
+ * when its pending lookup resolves after unmount. The state update is unobservable after unmount,
+ * so this defensive lifecycle branch has no meaningful UI assertion or matching story case.
+ */
+
 const { createEquipment, getEquipmentLocations, navigate } = vi.hoisted(() => ({
   createEquipment: vi.fn(),
   getEquipmentLocations: vi.fn(),
@@ -422,8 +428,8 @@ describe("EquipmentCreatePage", () => {
     expect(createEquipment).not.toHaveBeenCalled();
   });
 
-  // SPM-111 EQUIP-CRE-03-BND-2: the UI prevents quantities that PostgreSQL cannot store.
-  it("EQUIP-CRE-03-BND-2 blocks a quantity above the PostgreSQL integer maximum", async () => {
+  // EQUIP-CRE-03-BND-2: the UI prevents quantities that PostgreSQL cannot store.
+  it("blocks a quantity above the PostgreSQL integer maximum", async () => {
     // Arrange: complete every non-quantity input with valid values.
     const user = userEvent.setup();
     render(<EquipmentCreatePage />);
@@ -596,6 +602,41 @@ describe("EquipmentCreatePage", () => {
     expect(screen.getByText("Equipment Record Created.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
     expect(navigate).toHaveBeenCalledWith("/equipment/availability");
+  });
+
+  /**
+   * EQUIP-CRE-02-D: a failed stored-location lookup still permits a new free-text location.
+   */
+  it("SPM-111 keeps free-text location usable when stored locations fail to load", async () => {
+    getEquipmentLocations.mockRejectedValue(new Error("network unavailable"));
+    const user = userEvent.setup();
+
+    render(<EquipmentCreatePage />);
+    const location = screen.getByLabelText(/location/i);
+    await user.type(location, "Temporary Store");
+
+    expect(location).toHaveValue("Temporary Store");
+  });
+
+  /**
+   * EQUIP-CRE-04-B: closing the success dialog does not acknowledge it or navigate away.
+   */
+  it("SPM-111 dismisses creation confirmation without acknowledging it", async () => {
+    const user = userEvent.setup();
+    createEquipment.mockResolvedValue({ message: "Equipment record created." });
+    render(<EquipmentCreatePage />);
+    await user.type(screen.getByLabelText(/equipment name/i), "Conference projector");
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), "Visual");
+    await user.type(screen.getByLabelText(/quantity/i), "10");
+    await user.selectOptions(screen.getByLabelText(/maintenance status/i), "Active");
+    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+    expect(await screen.findByRole("dialog", { name: /equipment record created/i })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /close dialog/i }));
+
+    expect(screen.queryByRole("dialog", { name: /equipment record created/i })).not.toBeInTheDocument();
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   // SPM-111 EQUIP-CRE-03-C: API validation errors are shown beside the relevant field.
