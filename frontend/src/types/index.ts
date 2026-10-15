@@ -85,6 +85,14 @@ export interface EventRecord {
   myRegistrationStatus?: RegistrationStatus;
   /** Registration capacity remaining; separate from venue capacity. */
   availableRegistrationSpots?: number;
+  /** SPM-138: the registration limit (the capacity counted against Confirmed attendees). */
+  registrationLimit?: number;
+  /** SPM-138: Confirmed attendees have reached the limit. */
+  isFull?: boolean;
+  /** SPM-138: the waiting list can be joined now (full and open for registration). */
+  waitlistAvailable?: boolean;
+  /** SPM-138: places left (limit minus Confirmed, never below zero). */
+  availableSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
   /** SPM-46: who the current coordinator received the event from, and when. */
@@ -220,7 +228,16 @@ export interface EquipmentRequest {
   createdAt: string;
 }
 
-export type RegistrationStatus = "registered" | "withdrawn" | "cancelled";
+/** SPM-138: the answer to POST /events/:id/waitlist (201). The position is read back from the server. */
+export interface WaitlistJoinResult {
+  registrationId: string;
+  status: "waitlisted";
+  position: number;
+  message: string;
+}
+
+/** Lower-case API values (D3). "waitlisted" and "removed" are SPM-138 waiting list states. */
+export type RegistrationStatus = "registered" | "withdrawn" | "cancelled" | "waitlisted" | "removed";
 
 export interface Registration {
   id: string;
@@ -231,6 +248,8 @@ export interface Registration {
   registeredAt: string;
   /** Instant of the withdrawal (SPM-120); set once by the server, absent while registered. */
   withdrawnAt?: string;
+  /** SPM-138: the owner's own waiting position; null for every other entry (the key is always present). */
+  waitlistPosition?: number | null;
   /** Details captured at registration (SPM-61); absent on older records. */
   fullName?: string;
   email?: string;
@@ -251,7 +270,11 @@ export type NotificationType =
   | "event_change"
   | "registration"
   | "confirmation"
-  | "cancellation";
+  | "cancellation"
+  /** SPM-138 AC9: an attendee was promoted from the waiting list to a place (MSG-WL-05). */
+  | "WaitlistPromoted"
+  /** SPM-138 AC12: a waiting entry was cancelled with its event (MSG-WL-06). */
+  | "EventCancelled";
 
 export interface Notification {
   id: string;

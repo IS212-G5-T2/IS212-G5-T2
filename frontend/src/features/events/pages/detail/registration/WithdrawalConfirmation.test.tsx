@@ -147,7 +147,7 @@ describe("SPM-120 AC3: confirming withdraws, cancelling changes nothing", () => 
     // Assert
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(apiMock).not.toHaveBeenCalled();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
     expect(screen.queryByText("Withdrawn")).not.toBeInTheDocument();
     expect(banner()).not.toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -244,7 +244,7 @@ describe("SPM-120 AC6: an on-screen message confirms the withdrawal", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent(expectedText);
     expect(confirmButton()).toBeEnabled();
     expect(screen.queryByText(/has been processed/)).not.toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
   });
 
   // WITHDRAW-EVENT-REG-06-B

@@ -128,6 +128,7 @@ export function EventListPage() {
               // "Approved" and "Confirmed" are the same published state for attendees.
               event={isAttendee && e.status === "approved" ? { ...e, status: "confirmed" } : e}
               registered={isAttendee && e.myRegistrationStatus === "registered"}
+              registrationStatus={isAttendee && e.myRegistrationStatus === "waitlisted" ? "waitlisted" : undefined}
             />
           ))}
         </div>

@@ -14,6 +14,7 @@ import type {
   User,
   Venue,
   VenueCreateInput,
+  WaitlistJoinResult,
 } from "@/types";
 
 let idCounter = 1000;
@@ -86,6 +87,8 @@ interface AppState {
    * guards send the user to /login.
    */
   submitWithdrawal: (registrationId: string) => Promise<Registration>;
+  /** SPM-138: joins the waiting list of a full event; refreshes the attendee's own entry and returns the server's answer. */
+  joinWaitlist: (eventId: string) => Promise<WaitlistJoinResult>;
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -480,6 +483,20 @@ export const useAppStore = create<AppState>((set, get) => ({
           : r
       ),
     }));
+  },
+
+  joinWaitlist: async (eventId) => {
+    const user = get().currentUser;
+    // The server enforces role, window, duplicates and fullness; this guard only avoids a pointless request.
+    if (!get().isAuthenticated || user.role !== "attendee") {
+      throw new Error("Only signed-in attendees can join the waiting list.");
+    }
+    const result = await api<WaitlistJoinResult>(`/events/${eventId}/waitlist`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    await get().loadMyRegistration(eventId);
+    return result;
   },
 
   submitWithdrawal: async (registrationId) => {

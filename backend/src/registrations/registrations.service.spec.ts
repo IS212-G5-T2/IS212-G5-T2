@@ -91,6 +91,10 @@ interface Script {
   found?: Row[];
   /** Rows for the withdrawal's guarded UPDATE ... RETURNING. */
   updated?: Row[];
+  /** SPM-138: the event's capacity read by fillFreeSpots (default 3). */
+  capacity?: number;
+  /** SPM-138: the event name read by fillFreeSpots (default "Tech Talk: Cloud 101"). */
+  eventName?: string;
 }
 
 /**
@@ -102,13 +106,22 @@ function scripted(script: Script) {
   let transactions = 0;
   const answer = (sql: string, params: unknown[]) => {
     statements.push({ sql, params });
-    if (/SELECT r\.id, r\.status, e\.event_name/.test(sql)) return { rows: script.found ?? [] };
+    if (/SELECT r\.id, e\.event_name/.test(sql)) return { rows: script.found ?? [] };
+    // SPM-138: the attendee read carries a waiting position subquery, which also contains COUNT(*); route it first.
+    if (/SELECT r\.\*, e\.event_name/.test(sql)) return { rows: script.mine ?? [] };
+    // SPM-138 fillFreeSpots: the event's capacity and name, read after a withdrawal.
+    if (/registration_limit AS capacity/.test(sql))
+      return { rows: [{ capacity: script.capacity ?? 3, name: script.eventName ?? 'Tech Talk: Cloud 101' }] };
+    // SPM-138 fillFreeSpots: the waiting list is empty unless a case scripts it.
+    if (/status = 'Waitlisted'\s+ORDER BY joined_at/.test(sql)) return { rows: [] };
     if (/^\s*UPDATE event_registrations/.test(sql)) return { rows: script.updated ?? [] };
     if (/FROM events WHERE id = \$1 FOR UPDATE/.test(sql)) return { rows: script.event ?? [] };
     if (/FROM events WHERE id = \$1$/m.test(sql.trim())) return { rows: script.event ?? [] };
     if (/SELECT status FROM event_registrations/.test(sql)) return { rows: script.existing ?? [] };
     if (/COUNT\(\*\)/.test(sql)) return { rows: [{ count: script.taken ?? 0 }] };
     if (/^\s*INSERT INTO event_registrations/.test(sql)) return { rows: script.inserted ?? [] };
+    // SPM-138 settleIfDue: the lock-free due check on the attendee read (nothing is due unless a case scripts it).
+    if (/SELECT 1 FROM event_registrations r JOIN events e/.test(sql)) return { rows: [] };
     if (/FROM event_registrations r/.test(sql)) return { rows: script.mine ?? [] };
     if (/event_registrations\s+WHERE event_id = \$1 AND status = 'Registered'/.test(sql))
       return { rows: script.registered ?? [] };
@@ -395,12 +408,17 @@ describe('WITHDRAW-EVENT-REG-03-A (AC3, AC5): an empty JSON object body is accep
     const withdrawn: Row = { ...insertedRow(), status: 'Withdrawn', withdrawn_at: T0, event_name: EVENT_NAME };
     const fake = scripted({
       found: [{ id: REG_ID, status: 'Registered', event_name: EVENT_NAME, start_date_time: new Date('2026-10-12T02:00:00Z') }],
+      // The status is re-read under the lock; the fake answers that read with the still-Registered row.
+      existing: [{ status: 'Registered' }],
       updated: [withdrawn],
     });
     const result = (await serviceFor(fake.database).withdraw(ATTENDEE, REG_ID, {})) as Record<string, unknown>;
     expect(result).toMatchObject({ id: REG_ID, status: 'withdrawn', withdrawnAt: '2026-10-04T04:00:00.000Z' });
     expect(result.message).toBe('Your withdrawal from Tech Talk: Cloud 101 has been processed.');
-    expect(fake.statements.filter((s) => /^\s*UPDATE/.test(s.sql))).toHaveLength(1);
+    // Exactly two writes, in order: the guarded withdrawal, then the SPM-138 settle that fillFreeSpots always runs.
+    const writes = fake.statements.filter((s) => /^\s*UPDATE/.test(s.sql));
+    expect(writes.map((w) => w.sql.match(/SET\s+status = '(\w+)'/)?.[1])).toEqual(['Withdrawn', 'Removed']);
+    expect(writes[0].params).toEqual([REG_ID, ATTENDEE.uid, T0]);
   });
 });
 
@@ -441,7 +459,7 @@ describe('VIEW-REG-DET-02-A (AC2): the attendee sees their own registration stat
   it('VIEW-REG-DET-01-A: the lookup is scoped to this event and this caller (own registration only)', async () => {
     const fake = scripted({ mine: [] });
     await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
-    const lookup = fake.statements.find((s) => /FROM event_registrations r/.test(s.sql));
+    const lookup = fake.statements.find((s) => /SELECT r\.\*/.test(s.sql));
     // Kills: the attendee id taken from anywhere but the session (another attendee's registration could be read)
     expect(lookup?.params?.[0]).toBe(EVENT_ID);
     expect(lookup?.params?.[1]).toBe(ATTENDEE.uid);
@@ -505,7 +523,7 @@ describe('VIEW-REG-DET-04-A (AC4): the attendee can view the registration before
   it('VIEW-REG-DET-04-A: the lookup keeps Completed and Cancelled events visible', async () => {
     const fake = scripted({ mine: [mineRow('Registered')] });
     const result = await serviceFor(fake.database).findMine(ATTENDEE, EVENT_ID);
-    const lookup = fake.statements.find((s) => /FROM event_registrations r/.test(s.sql));
+    const lookup = fake.statements.find((s) => /SELECT r\.\*/.test(s.sql));
     expect(lookup?.params?.[2]).toEqual(['Confirmed', 'Completed', 'Cancelled']);
     expect(result.registration).toMatchObject({ status: 'registered' });
   });

@@ -93,7 +93,8 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
   it("full event: no button", () => {
     renderSection({ ...baseEvent, availableRegistrationSpots: 0 });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "This event is fully booked." })).toBeInTheDocument();
+    // SPM-138 AC2: a full, open event reads "Event full" and offers the waiting list.
+    expect(screen.getByRole("heading", { name: "Event full" })).toBeInTheDocument();
   });
 });
 
@@ -506,7 +507,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     expect(await within(section()).findByText("Event has already occurred")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(withdraw()).not.toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
   });
 
   // WITHDRAW-EVENT-REG-05-D
@@ -542,7 +543,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     renderOwned(buildEvent());
 
     expect(screen.getByText("You're registered")).toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
     expect(withdraw()).toBeEnabled();
     expect(screen.queryByText("Registration withdrawn")).not.toBeInTheDocument();
     expect(screen.queryByText("View previous registration details")).not.toBeInTheDocument();
@@ -803,7 +804,7 @@ describe("SPM-61 registration details: remaining form and availability branches 
   // Kills: a "Closes" row shown for a full event that has no closing time.
   it("omits the Closes row for a full event with no closing time", () => {
     renderSection({ ...baseEvent, registrationClosesAt: undefined, availableRegistrationSpots: 0 });
-    expect(screen.getByText("This event is fully booked.")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Event full" })).toBeInTheDocument();
     expect(screen.queryByText("Closes")).not.toBeInTheDocument();
   });
 

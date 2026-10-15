@@ -19,6 +19,9 @@ const styles: Record<AnyStatus, string> = {
   unavailable: "bg-danger-100 dark:bg-danger-900/30 text-danger-800 dark:text-danger-300",
   registered: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
   withdrawn: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+  // SPM-138: a waiting entry is a distinct variant (not confirmed, not withdrawn); removed is a closed-list outcome.
+  waitlisted: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",
+  removed: "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
 };
 
 const labels: Record<AnyStatus, string> = {
@@ -35,8 +38,11 @@ const labels: Record<AnyStatus, string> = {
   checking: "Checking",
   reserved: "Reserved",
   unavailable: "Unavailable",
-  registered: "Registered",
+  // SPM-138 D3: a registration that holds a place is labelled "Confirmed" in the UI.
+  registered: "Confirmed",
   withdrawn: "Withdrawn",
+  waitlisted: "Waitlisted",
+  removed: "Removed",
 };
 
 export function StatusBadge({ status }: { status: AnyStatus }) {

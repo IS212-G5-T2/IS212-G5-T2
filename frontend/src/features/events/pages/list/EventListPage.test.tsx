@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -225,21 +225,21 @@ describe("EventListPage", () => {
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("My Past Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Approved")).not.toBeInTheDocument();
-    expect(screen.getAllByText("Registered")).toHaveLength(1);
+    // SPM-138 D3: the card holds the event status badge and the registration badge, both "Confirmed" for this event.
+    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(2);
     expect(screen.queryByLabelText("Filter by status")).not.toBeInTheDocument();
 
     // Registered Events: only my future registration, with both badges.
     await user.selectOptions(screen.getByLabelText("Show"), "registered");
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("Open Approved Event")).not.toBeInTheDocument();
-    expect(screen.getByText("Confirmed")).toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(2);
 
-    // Past Events keeps the Completed tag and adds Registered.
+    // Past Events keeps the Completed tag and adds Confirmed (the SPM-138 D3 label for a registration that holds a place).
     await user.selectOptions(screen.getByLabelText("Show"), "past");
     expect(screen.getByText("My Past Event")).toBeInTheDocument();
     expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(within(screen.getByText("My Past Event").closest("a")!).getByText("Confirmed")).toBeInTheDocument();
 
     // Cancelled: only the cancelled event I registered for.
     await user.selectOptions(screen.getByLabelText("Show"), "cancelled");
@@ -359,5 +359,36 @@ describe("EventListPage", () => {
     // Assert: the list is shown and the stale failure never surfaces as an alert.
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+/**
+ * JOIN-WAITLIST-03-A-FE-LIST: an attendee's waiting entry on the Upcoming dashboard shows the Waitlisted badge
+ * inside that event's card. Kills F15 (the dashboard stops passing the waiting status to the card).
+ */
+describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry reads Waitlisted (AC3)", () => {
+  it("JOIN-WAITLIST-03-A-FE-LIST: the Waitlisted badge appears in the waiting event's card and not in the others", async () => {
+    const future = new Date(Date.now() + 7 * 86_400_000);
+    const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
+    const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: futureEnd.toISOString() };
+    const events: EventRecord[] = [
+      { ...base, id: "e-wait", name: "My Waitlisted Event", status: "confirmed", myRegistrationStatus: "waitlisted" },
+      { ...base, id: "e-other", name: "Other Open Event", status: "approved" },
+    ];
+    apiMock.mockResolvedValue(events);
+    useAppStore.setState({
+      currentUser: { id: "attendee-1", name: "Alice", email: "alice@example.com", role: "attendee" },
+    });
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const card = (await screen.findByText("My Waitlisted Event")).closest("a")!;
+    expect(within(card).getByText("Waitlisted")).toBeInTheDocument();
+    expect(within(screen.getByText("Other Open Event").closest("a")!).queryByText("Waitlisted")).not.toBeInTheDocument();
   });
 });

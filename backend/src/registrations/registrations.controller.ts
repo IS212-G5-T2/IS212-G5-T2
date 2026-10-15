@@ -47,7 +47,18 @@ export class RegistrationsController {
     return this.registrations.withdraw(request[CURRENT_USER_REQUEST_KEY], registrationId, body);
   }
 
+  /** SPM-138 AC1: the attendee joins the waiting list of a full event. Accepts no body or {}; the attendee is the token's. */
+  @Post('events/:eventId/waitlist')
+  joinWaitlist(
+    @Param('eventId') eventId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.registrations.joinWaitlist(request[CURRENT_USER_REQUEST_KEY], eventId, body);
+  }
+
   @Get('events/:eventId/registrations/me')
+  @Header('Cache-Control', 'no-store')
   mine(@Param('eventId') eventId: string, @Req() request: AuthenticatedRequest) {
     return this.registrations.findMine(request[CURRENT_USER_REQUEST_KEY], eventId);
   }

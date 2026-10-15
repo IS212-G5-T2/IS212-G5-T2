@@ -1,9 +1,12 @@
 import { useEffect, useId, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
+import { WAITLIST_MESSAGES } from "@/features/events/lib/registration";
 
 interface ConfirmationProps {
   eventName: string;
+  /** SPM-138: the entry is a place on the waiting list, so the prompt gives the waiting list consequences (D16). */
+  waitlisted?: boolean;
   /** True while the withdrawal request is in flight. */
   pending: boolean;
   /** A failure to show inside the dialog (announced as an alert); empty when none. */
@@ -23,7 +26,7 @@ const FOCUSABLE = "button:not([disabled])";
  * ignored (assumption F12). While the request is pending both buttons are disabled
  * and Escape does nothing. Focus returns to whatever opened it when it closes.
  */
-export function WithdrawalConfirmation({ eventName, pending, error, onConfirm, onCancel }: ConfirmationProps) {
+export function WithdrawalConfirmation({ eventName, waitlisted = false, pending, error, onConfirm, onCancel }: ConfirmationProps) {
   const titleId = useId();
   const bodyId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -91,8 +94,14 @@ export function WithdrawalConfirmation({ eventName, pending, error, onConfirm, o
             Withdraw from {eventName}?
           </h2>
           <div id={bodyId} className="mt-3 space-y-2 text-sm text-gray-700 dark:text-gray-300">
-            <p>This will free up a spot for other attendees.</p>
-            <p>You can re-register if the registration period is open.</p>
+            {waitlisted ? (
+              <p>{WAITLIST_MESSAGES.withdrawPrompt(eventName)}</p>
+            ) : (
+              <>
+                <p>This will free up a spot for other attendees.</p>
+                <p>You can re-register if the registration period is open.</p>
+              </>
+            )}
           </div>
           {error && (
             <p role="alert" className="mt-3 text-sm text-danger-700 dark:text-danger-300">

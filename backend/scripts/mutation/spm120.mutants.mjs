@@ -21,7 +21,8 @@ const EVENT_BLOCK = `      if (hasEventStarted({ startDateTime: current.start_da
         });
 
 `;
-const STATE_CHECK = "      if (current.status !== 'Registered') throw this.alreadyWithdrawn();\n";
+// SPM-138 A1: the state check runs on the status re-read under the event lock, and admits a Waitlisted entry.
+const STATE_CHECK = "      if (status !== 'Registered' && status !== 'Waitlisted') return { refused: this.alreadyWithdrawn() };\n";
 const NOT_FOUND = '      if (!current) throw new NotFoundException(MESSAGES.registrationNotFound);\n';
 const GUARD = '      if (!updated.rows[0]) throw this.alreadyWithdrawn();\n';
 const UPDATE_SQL = `        \`UPDATE event_registrations
@@ -43,7 +44,7 @@ export const MUTANTS = [
   { id: 'M6', name: '403 instead of 404 for a non-owner', file: SERVICE,
     edits: [[NOT_FOUND, '      if (!current) throw new ForbiddenException(MESSAGES.registrationNotFound);\n']], suites: ['unit', 'e2e'] },
   { id: 'M10', name: 'withdrawn_at taken from SQL now() instead of the injected clock', file: SERVICE,
-    edits: [["SET status = 'Withdrawn', withdrawn_at = $3, updated_at = $3", "SET status = 'Withdrawn', withdrawn_at = now(), updated_at = $3"]], suites: ['unit', 'e2e'] },
+    edits: [["SET status = 'Withdrawn', withdrawn_at = $3, updated_at = $3\n          WHERE id = $1 AND attendee_id = $2 AND status = 'Registered'", "SET status = 'Withdrawn', withdrawn_at = now(), updated_at = $3\n          WHERE id = $1 AND attendee_id = $2 AND status = 'Registered'"]], suites: ['unit', 'e2e'] },
   { id: 'M22', name: 'event-start check runs before the already-withdrawn check', file: SERVICE,
     edits: [[STATE_CHECK, ''], ['      // Compare-and-set: only the request that still sees', `${STATE_CHECK}\n      // Compare-and-set: only the request that still sees`]], suites: ['e2e'] },
   { id: 'M23', name: 'body validated after the ownership lookup', file: SERVICE,
@@ -61,5 +62,5 @@ export const MUTANTS = [
   { id: 'M43', name: 'null name, email and contact not coerced (a legacy registration answers null)', file: SERVICE,
     edits: [["attendeeName: row.full_name ?? '',", 'attendeeName: row.full_name,'], ["fullName: row.full_name ?? '',", 'fullName: row.full_name,'], ["email: row.email ?? '',", 'email: row.email,']], suites: ['e2e'] },
   { id: 'M44', name: 'the lookup reads the event END column as its start (only a real database can see the wrong column)', file: SERVICE,
-    edits: [['SELECT r.id, r.status, e.event_name, e.start_date_time', 'SELECT r.id, r.status, e.event_name, e.end_date_time AS start_date_time']], suites: ['unit', 'e2e'] },
+    edits: [['SELECT r.id, e.event_name, e.start_date_time', 'SELECT r.id, e.event_name, e.end_date_time AS start_date_time']], suites: ['unit', 'e2e'] },
 ];

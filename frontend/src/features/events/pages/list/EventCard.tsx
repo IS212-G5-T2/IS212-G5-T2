@@ -8,9 +8,11 @@ interface EventCardProps {
   event: EventRecord;
   /** Adds a "Registered" badge beside the status badge (SPM-61 attendee view). */
   registered?: boolean;
+  /** SPM-138: the attendee's own waiting entry shows a Waitlisted badge beside the status badge. */
+  registrationStatus?: "waitlisted";
 }
 
-export function EventCard({ event, registered = false }: EventCardProps) {
+export function EventCard({ event, registered = false, registrationStatus }: EventCardProps) {
   return (
     <Link to={`/events/${event.id}`} className="block">
       <Card className="transition-shadow hover:shadow-md">
@@ -26,6 +28,7 @@ export function EventCard({ event, registered = false }: EventCardProps) {
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               <StatusBadge status={event.status} />
               {registered && <StatusBadge status="registered" />}
+              {registrationStatus === "waitlisted" && <StatusBadge status="waitlisted" />}
               {event.reassignedFrom && (
                 <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                   Reassigned
