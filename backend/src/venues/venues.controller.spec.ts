@@ -12,7 +12,14 @@ describe('SPM-50 venue route wiring', () => {
     roles: ['VENUE_STAFF'],
   };
   const request = { [CURRENT_USER_REQUEST_KEY]: identity } as Request;
-  const service = { create: vi.fn(), list: vi.fn(), get: vi.fn() };
+  const service = {
+    create: vi.fn(),
+    list: vi.fn(),
+    get: vi.fn(),
+    submitBookingRequest: vi.fn(),
+    markUnavailable: vi.fn(),
+    endUnavailable: vi.fn(),
+  };
   const controller = new VenuesController(service as unknown as VenuesService);
 
   // SPM-50 / VEN-CRE-04-A: creation forwards the body and verified caller.
@@ -40,5 +47,55 @@ describe('SPM-50 venue route wiring', () => {
     // Assert: no caller-controlled identity is substituted.
     expect(service.list).toHaveBeenCalledWith(identity, true);
     expect(service.get).toHaveBeenCalledWith(identity, id);
+  });
+
+  /** VEN-AVL-06-A: the authenticated booking API forwards the venue, body and verified identity. */
+  it('forwards a venue booking request with the session identity', () => {
+    const venueId = '00000000-0000-4000-8000-000000000124';
+    const body = {
+      eventId: '00000000-0000-4000-8000-000000000125',
+      start: '2030-01-12T04:00:00.000Z',
+      end: '2030-01-12T05:00:00.000Z',
+    };
+    service.submitBookingRequest.mockReturnValue({ status: 'pending' });
+
+    expect(controller.submitBookingRequest(request, venueId, body)).toEqual({
+      status: 'pending',
+    });
+    expect(service.submitBookingRequest).toHaveBeenCalledWith(
+      identity,
+      venueId,
+      body,
+    );
+  });
+
+  /** SPM-122: venue staff unavailability actions forward the verified identity and route IDs. */
+  it('forwards a blockout request and blockout end action', () => {
+    const venueId = '00000000-0000-4000-8000-000000000124';
+    const periodId = '00000000-0000-4000-8000-000000000126';
+    const body = {
+      start: '2030-01-12T04:00:00.000Z',
+      end: '2030-01-12T05:00:00.000Z',
+      reason: 'Maintenance',
+    };
+    service.markUnavailable.mockReturnValue({ period: 'saved' });
+    service.endUnavailable.mockReturnValue({ period: 'ended' });
+
+    expect(controller.markUnavailable(request, venueId, body)).toEqual({
+      period: 'saved',
+    });
+    expect(controller.endUnavailable(request, venueId, periodId)).toEqual({
+      period: 'ended',
+    });
+    expect(service.markUnavailable).toHaveBeenCalledWith(
+      identity,
+      venueId,
+      body,
+    );
+    expect(service.endUnavailable).toHaveBeenCalledWith(
+      identity,
+      venueId,
+      periodId,
+    );
   });
 });

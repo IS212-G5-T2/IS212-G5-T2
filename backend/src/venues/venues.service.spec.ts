@@ -184,7 +184,10 @@ describe('SPM-50 venue service', () => {
   // SPM-124: a second role must never reduce a Coordinator's read access.
   it('keeps the shared catalogue for Coordinators and dual-role accounts', async () => {
     await service.list(coordinator);
-    await service.list({ uid: 'dual-role', roles: ['COORDINATOR', 'VENUE_STAFF'] });
+    await service.list({
+      uid: 'dual-role',
+      roles: ['COORDINATOR', 'VENUE_STAFF'],
+    });
 
     expect(list).toHaveBeenNthCalledWith(1, undefined);
     expect(list).toHaveBeenNthCalledWith(2, undefined);
@@ -194,11 +197,23 @@ describe('SPM-50 venue service', () => {
   it('returns not found for malformed or absent venue IDs', async () => {
     get.mockResolvedValue(undefined);
 
-    await expect(service.get(staff, 'invalid')).rejects.toMatchObject({ status: 404 });
+    await expect(service.get(staff, 'invalid')).rejects.toMatchObject({
+      status: 404,
+    });
     expect(get).not.toHaveBeenCalled();
     await expect(
       service.get(staff, '00000000-0000-4000-8000-000000000124'),
     ).rejects.toMatchObject({ status: 404 });
     expect(get).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000124');
+  });
+
+  /** SPM-51 AC1: an authorized coordinator can read a venue before checking its schedule. */
+  it('returns a readable venue record for a well-formed identifier', async () => {
+    get.mockResolvedValue(venue);
+
+    await expect(
+      service.get(coordinator, 'b9c6f700-85b1-4a79-96d8-5f5c3fd616fb'),
+    ).resolves.toBe(venue);
+    expect(get).toHaveBeenCalledWith(venue.id);
   });
 });

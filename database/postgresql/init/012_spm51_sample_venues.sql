@@ -1,0 +1,143 @@
+-- Additional SPM-51 local venues for catalogue and availability demos.
+-- Safe to rerun: fixed UUIDs and ON CONFLICT preserve existing edits.
+BEGIN;
+
+CREATE TEMP TABLE spm51_seed_venues (
+    id uuid PRIMARY KEY,
+    owner_email text NOT NULL,
+    name varchar(200) NOT NULL,
+    location varchar(300) NOT NULL,
+    capacity integer NOT NULL,
+    operating_information varchar(200) NOT NULL,
+    setup_time_minutes integer NOT NULL,
+    turnaround_time_minutes integer NOT NULL,
+    facilities text[] NOT NULL,
+    layouts text[] NOT NULL,
+    accessibility text[] NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO spm51_seed_venues VALUES
+('00000000-0000-4000-8000-000000000301', 'venue_staff1@connectsphere.test', 'Sample Birch Lecture Hall', 'North Campus, Block A', 180, 'Lecture hall with tiered seating.',30,45, ARRAY['AV System','Projector','Wi-Fi'], ARRAY['Theatre','Seminar Room'], ARRAY['wheelchair-access','accessible-restrooms']),
+('00000000-0000-4000-8000-000000000302', 'venue_staff2@connectsphere.test', 'Sample Maple Meeting Studio', 'North Campus, Block B', 16, 'Compact room for small-group meetings.',0,15, ARRAY['Whiteboard','Wired network'], ARRAY['Boardroom','Hollow square'], ARRAY['elevator-access']),
+('00000000-0000-4000-8000-000000000303', 'venue_staff3@connectsphere.test', 'Sample Harbor Ballroom', 'Riverside Centre, Level 3', 450, 'Flexible ballroom for receptions and banquets.',60,60, ARRAY['Catering','Stage','AV System'], ARRAY['Banquet','Cabaret','Standing'], ARRAY['wheelchair-access','accessible-restrooms','hearing-loop']),
+('00000000-0000-4000-8000-000000000304', 'venue_staff1@connectsphere.test', 'Sample Skybridge Auditorium', 'Innovation Tower, Level 1', 900, 'Large auditorium with stage and control booth.',90,60, ARRAY['Stage','AV System','Lectern','Video conferencing'], ARRAY['Theatre'], ARRAY['wheelchair-access','accessible-restrooms','hearing-loop','elevator-access']),
+('00000000-0000-4000-8000-000000000305', 'venue_staff2@connectsphere.test', 'Sample Fern Training Room', 'West Wing, Level 2', 36, 'Training room with movable tables.',20,20, ARRAY['Projector','Whiteboard','Wi-Fi'], ARRAY['Classroom','U-shape'], ARRAY['wheelchair-access']),
+('00000000-0000-4000-8000-000000000306', 'venue_staff3@connectsphere.test', 'Sample Orchard Gallery', 'Arts Quarter, Ground Floor', 110, 'Bright gallery for showcases and exhibitions.',45,30, ARRAY['Power outlets','Wi-Fi','AV System'], ARRAY['Standing','Theatre'], ARRAY['wheelchair-access','accessible-restrooms']),
+('00000000-0000-4000-8000-000000000307', 'venue_staff1@connectsphere.test', 'Sample Cedar Boardroom', 'Central Campus, Block C', 12, 'Executive boardroom with video meeting support.',10,15, ARRAY['Video conferencing','Wired network','Whiteboard'], ARRAY['Boardroom'], ARRAY['elevator-access','hearing-loop']),
+('00000000-0000-4000-8000-000000000308', 'venue_staff2@connectsphere.test', 'Sample Lagoon Event Lawn', 'Lakeside Campus, Outdoor', 1200, 'Open-air lawn for large community gatherings.',120,90, ARRAY['Power outlets','Stage','Parking'], ARRAY['Standing'], ARRAY['wheelchair-access']),
+('00000000-0000-4000-8000-000000000309', 'venue_staff3@connectsphere.test', 'Sample Juniper Seminar Room', 'South Campus, Block D', 48, 'Seminar space with presentation facilities.',15,15, ARRAY['Projector','Wi-Fi','Lectern'], ARRAY['Seminar Room','Classroom'], ARRAY['accessible-restrooms','elevator-access']),
+('00000000-0000-4000-8000-000000000310', 'venue_staff1@connectsphere.test', 'Sample Palm Dining Hall', 'Residence Commons, Level 1', 260, 'Dining hall suitable for catered events.',45,75, ARRAY['Catering','Power outlets'], ARRAY['Banquet','Cabaret'], ARRAY['wheelchair-access','accessible-restrooms']),
+('00000000-0000-4000-8000-000000000311', 'venue_staff2@connectsphere.test', 'Sample Summit Collaboration Hub', 'Technology Park, Level 5', 72, 'Collaborative space with hybrid meeting equipment.',20,30, ARRAY['Video conferencing','Wi-Fi','AV System'], ARRAY['U-shape','Hollow square','Boardroom'], ARRAY['wheelchair-access','hearing-loop']),
+('00000000-0000-4000-8000-000000000312', 'venue_staff3@connectsphere.test', 'Sample Coral Workshop Lab', 'Engineering Block, Level 2', 28, 'Workshop room for practical team activities.',30,30, ARRAY['Power outlets','Whiteboard'], ARRAY['Classroom','U-shape'], ARRAY['accessible-restrooms']),
+('00000000-0000-4000-8000-000000000313', 'venue_staff1@connectsphere.test', 'Sample Meadow Conference Centre', 'Garden District, Building 4', 320, 'Conference venue with adjacent breakout rooms.',60,60, ARRAY['Catering','AV System','Wi-Fi','Parking'], ARRAY['Theatre','Classroom','Banquet'], ARRAY['wheelchair-access','accessible-restrooms','elevator-access']),
+('00000000-0000-4000-8000-000000000314', 'venue_staff2@connectsphere.test', 'Sample Lantern Black Box', 'Performing Arts Centre, Studio 2', 95, 'Adaptable performance and rehearsal space.',75,45, ARRAY['Stage','AV System','Power outlets'], ARRAY['Theatre','Standing'], ARRAY['wheelchair-access','hearing-loop']),
+('00000000-0000-4000-8000-000000000315', 'venue_staff3@connectsphere.test', 'Sample Pebble Interview Suite', 'Central Campus, Block E', 8, 'Quiet suite for interviews and private discussions.',5,10, ARRAY['Wired network','Video conferencing'], ARRAY['Boardroom'], ARRAY['elevator-access']),
+('00000000-0000-4000-8000-000000000316', 'venue_staff1@connectsphere.test', 'Sample Rainforest Atrium', 'Library Building, Ground Floor', 500, 'Indoor atrium for fairs and public programmes.',60,45, ARRAY['Power outlets','Wi-Fi','Catering'], ARRAY['Standing','Cabaret'], ARRAY['wheelchair-access','accessible-restrooms']),
+('00000000-0000-4000-8000-000000000317', 'venue_staff2@connectsphere.test', 'Sample Crescent Lecture Theatre', 'East Campus, Block F', 140, 'Lecture theatre with hearing assistance.',30,30, ARRAY['AV System','Lectern','Wired network'], ARRAY['Theatre'], ARRAY['hearing-loop','elevator-access']),
+('00000000-0000-4000-8000-000000000318', 'venue_staff3@connectsphere.test', 'Sample Driftwood Beach Pavilion', 'Coastal Campus, Pavilion 1', 210, 'Covered pavilion for daytime and evening events.',45,45, ARRAY['Catering','Parking','Power outlets'], ARRAY['Banquet','Standing'], ARRAY['wheelchair-access']),
+('00000000-0000-4000-8000-000000000319', 'venue_staff1@connectsphere.test', 'Sample Skyline Rooftop Terrace', 'Innovation Tower, Rooftop', 130, 'Outdoor terrace for receptions and networking.',45,60, ARRAY['Catering','AV System'], ARRAY['Cocktail','Standing'], ARRAY['elevator-access']),
+('00000000-0000-4000-8000-000000000320', 'venue_staff2@connectsphere.test', 'Sample Willow Quiet Room', 'Wellbeing Centre, Level 1', 20, 'Low-stimulation room for small inclusive sessions.',10,20, ARRAY['Wi-Fi','Whiteboard'], ARRAY['Seminar Room','Boardroom'], ARRAY['wheelchair-access','accessible-restrooms']),
+('00000000-0000-4000-8000-000000000321', 'venue_staff3@connectsphere.test', 'Sample Granite Expo Hall', 'Trade Centre, Hall 2', 1600, 'High-capacity hall for expos and conventions.',120,120, ARRAY['Stage','AV System','Power outlets','Parking'], ARRAY['Exhibition','Standing'], ARRAY['wheelchair-access','accessible-restrooms','elevator-access']),
+('00000000-0000-4000-8000-000000000322', 'venue_staff1@connectsphere.test', 'Sample Poppy Music Room', 'Arts Quarter, Basement 1', 75, 'Rehearsal room with sound and lighting controls.',30,60, ARRAY['AV System','Power outlets'], ARRAY['Standing','Theatre'], ARRAY['wheelchair-access']),
+('00000000-0000-4000-8000-000000000323', 'venue_staff2@connectsphere.test', 'Sample Cypress Training Suite', 'West Wing, Level 4', 64, 'Divisible suite for parallel training sessions.',30,30, ARRAY['Projector','Wi-Fi','Whiteboard'], ARRAY['Classroom','Cabaret','U-shape'], ARRAY['wheelchair-access','accessible-restrooms','hearing-loop']),
+('00000000-0000-4000-8000-000000000324', 'venue_staff3@connectsphere.test', 'Sample Tidal Waterfront Room', 'Harbour Centre, Level 2', 105, 'Waterfront event room with flexible seating.',20,40, ARRAY['Catering','Video conferencing','Wi-Fi'], ARRAY['Banquet','Boardroom','Cabaret'], ARRAY['wheelchair-access','elevator-access']);
+
+INSERT INTO venues (
+    id, owner_user_id, name, location, capacity, operating_information,
+    setup_time_minutes, turnaround_time_minutes
+)
+SELECT seed.id, owner.id, seed.name, seed.location, seed.capacity,
+    seed.operating_information, seed.setup_time_minutes, seed.turnaround_time_minutes
+FROM spm51_seed_venues seed
+JOIN users owner ON owner.email = seed.owner_email
+ON CONFLICT DO NOTHING;
+
+-- Each sample venue gets its own small, labelled illustration. The artwork is
+-- generated as SVG so it remains crisp in catalogue and detail views without
+-- adding external image dependencies.
+WITH image_styles (venue_id, accent, sky) AS (
+    VALUES
+    ('00000000-0000-4000-8000-000000000301'::uuid, '#4F83CC', '#DCEEFF'),
+    ('00000000-0000-4000-8000-000000000302'::uuid, '#A36E4D', '#F6E9D9'),
+    ('00000000-0000-4000-8000-000000000303'::uuid, '#B94F6A', '#F9E1E5'),
+    ('00000000-0000-4000-8000-000000000304'::uuid, '#6552A3', '#E9E3FA'),
+    ('00000000-0000-4000-8000-000000000305'::uuid, '#3F947C', '#DDF3EA'),
+    ('00000000-0000-4000-8000-000000000306'::uuid, '#C27A3A', '#FBEBD8'),
+    ('00000000-0000-4000-8000-000000000307'::uuid, '#557E65', '#E0F0E4'),
+    ('00000000-0000-4000-8000-000000000308'::uuid, '#268A9A', '#D9F1F5'),
+    ('00000000-0000-4000-8000-000000000309'::uuid, '#7B68A6', '#EEE8F8'),
+    ('00000000-0000-4000-8000-000000000310'::uuid, '#BD6C47', '#F9E5D9'),
+    ('00000000-0000-4000-8000-000000000311'::uuid, '#3F78A8', '#DFECF8'),
+    ('00000000-0000-4000-8000-000000000312'::uuid, '#8A9B42', '#EEF2D8'),
+    ('00000000-0000-4000-8000-000000000313'::uuid, '#4F927D', '#DDF1E8'),
+    ('00000000-0000-4000-8000-000000000314'::uuid, '#B06F9D', '#F5E4F0'),
+    ('00000000-0000-4000-8000-000000000315'::uuid, '#D0784D', '#FBE7DA'),
+    ('00000000-0000-4000-8000-000000000316'::uuid, '#547E9A', '#E0EEF4'),
+    ('00000000-0000-4000-8000-000000000317'::uuid, '#9A784A', '#F3EBD9'),
+    ('00000000-0000-4000-8000-000000000318'::uuid, '#548C70', '#E1F0E4'),
+    ('00000000-0000-4000-8000-000000000319'::uuid, '#8F638B', '#F1E5F0'),
+    ('00000000-0000-4000-8000-000000000320'::uuid, '#B65D5D', '#F7E2DE'),
+    ('00000000-0000-4000-8000-000000000321'::uuid, '#6D748B', '#E7EAF2'),
+    ('00000000-0000-4000-8000-000000000322'::uuid, '#9C5D76', '#F4E3EB'),
+    ('00000000-0000-4000-8000-000000000323'::uuid, '#4F8D91', '#DDF0F0'),
+    ('00000000-0000-4000-8000-000000000324'::uuid, '#3D87A1', '#DCEFF5')
+), image_art AS (
+    SELECT seed.id AS venue_id,
+        'sample-venue-' || right(seed.id::text, 3) || '.svg' AS file_name,
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 400">' ||
+        '<rect width="640" height="400" fill="' || style.sky || '"/>' ||
+        '<circle cx="525" cy="70" r="34" fill="#FFFFFF" opacity="0.72"/>' ||
+        '<path d="M0 274 Q130 235 255 276 T510 267 T640 270 V400 H0Z" fill="#B9D7C4"/>' ||
+        '<path d="M92 164 320 73l228 91H92Z" fill="' || style.accent || '"/>' ||
+        '<rect x="112" y="158" width="416" height="184" rx="8" fill="#FFFDF8" stroke="#34495E" stroke-width="5"/>' ||
+        '<path d="M102 162h436" stroke="#34495E" stroke-width="8" stroke-linecap="round"/>' ||
+        '<rect x="145" y="190" width="82" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M186 190v67M145 224h82" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<rect x="267" y="190" width="106" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M320 190v67M267 224h106" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<rect x="413" y="190" width="82" height="67" rx="6" fill="' || style.sky || '" stroke="' || style.accent || '" stroke-width="7"/>' ||
+        '<path d="M454 190v67M413 224h82" stroke="#FFFFFF" stroke-width="5"/>' ||
+        '<path d="M280 342v-61a40 40 0 0 1 80 0v61Z" fill="' || style.accent || '"/>' ||
+        '<circle cx="347" cy="310" r="4" fill="#FFFDF8"/>' ||
+        '<path d="M75 342h490" stroke="#728C70" stroke-width="9" stroke-linecap="round"/>' ||
+        '<text x="320" y="378" text-anchor="middle" font-family="Arial,sans-serif" font-size="19" font-weight="700" fill="#263746">' || seed.name || '</text>' ||
+        '<text x="320" y="143" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="700" fill="#FFFFFF">CAPACITY ' || seed.capacity::text || '</text>' ||
+        '</svg>' AS svg_markup
+    FROM spm51_seed_venues seed
+    JOIN image_styles style ON style.venue_id = seed.id
+    JOIN venues venue ON venue.id = seed.id
+)
+INSERT INTO venue_images (venue_id, file_name, mime_type, byte_size, data_url)
+SELECT venue_id, file_name, 'image/svg+xml',
+    octet_length(convert_to(svg_markup, 'UTF8')),
+    'data:image/svg+xml;base64,' || translate(
+        encode(convert_to(svg_markup, 'UTF8'), 'base64'), E'\n\r', ''
+    )
+FROM image_art
+ON CONFLICT (venue_id) DO NOTHING;
+
+INSERT INTO venue_facilities (venue_id, facility_id)
+SELECT seed.id, facility.id
+FROM spm51_seed_venues seed
+JOIN venues venue ON venue.id = seed.id
+CROSS JOIN LATERAL unnest(seed.facilities) AS requested(name)
+JOIN facilities facility ON facility.name = requested.name
+ON CONFLICT DO NOTHING;
+
+INSERT INTO venue_layouts (venue_id, layout_id)
+SELECT seed.id, layout.id
+FROM spm51_seed_venues seed
+JOIN venues venue ON venue.id = seed.id
+CROSS JOIN LATERAL unnest(seed.layouts) AS requested(name)
+JOIN room_layouts layout ON layout.name = requested.name
+ON CONFLICT DO NOTHING;
+
+INSERT INTO venue_accessibility (venue_id, accessibility_id)
+SELECT seed.id, feature.id
+FROM spm51_seed_venues seed
+JOIN venues venue ON venue.id = seed.id
+CROSS JOIN LATERAL unnest(seed.accessibility) AS requested(id)
+JOIN accessibility_features feature ON feature.id = requested.id
+ON CONFLICT DO NOTHING;
+
+COMMIT;

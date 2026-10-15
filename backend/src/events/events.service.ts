@@ -161,8 +161,15 @@ export class EventsService {
     const user = this.requireUser(identity);
     // The attendee list settles the waiting lists that are due before it reads statuses. The job scans only due lists,
     // so an event that is not due takes no lock and is not written.
-    if (user.roles.includes('ATTENDEE')) await runRegistrationCloseJob(this.database, this.clock.now());
-    const result = user.roles.includes('ATTENDEE')
+    if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))
+      await runRegistrationCloseJob(this.database, this.clock.now());
+    // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
+    const result = user.roles.includes('COORDINATOR')
+      ? await this.database.query(
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
+          [user.uid],
+        )
+      : user.roles.includes('ATTENDEE')
       ? await this.database.query(
           `SELECT events.*, ${VENUE_SUMMARY_SQL},
            (SELECT r.status FROM event_registrations r
@@ -174,11 +181,6 @@ export class EventsService {
              FROM events
             WHERE status IN (${ATTENDEE_VISIBLE_STATUSES.map((s) => `'${s}'`).join(', ')})
             ORDER BY start_date_time ASC`,
-          [user.uid],
-        )
-      : user.roles.includes('COORDINATOR')
-      ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')

@@ -14,10 +14,12 @@
     "test:cov:spm37": "vitest run --config vitest.spm37.config.ts"
   },
   "dependencies": {
+    "@fullcalendar/react": "^7.1.1",
     "clsx": "^2.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.3",
+    "temporal-polyfill": "^1.0.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

@@ -96,24 +96,24 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     expect(ours[0]).toMatchObject({ name: 'Older request', purpose: 'Lead assignment test', expectedAttendance: 40 });
   });
 
-  // AC3: only Submitted, Approved and Confirmed events count towards workload.
-  it('LEAD-ASN-03-B counts only Submitted, Approved and Confirmed events as active', async () => {
+  // AC3: only Submitted, Approved, Planning and Confirmed events count towards workload.
+  it('LEAD-ASN-03-B counts only Submitted, Approved, Planning and Confirmed events as active', async () => {
     // Arrange: one coordinator with one event in each status.
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
     const coordinator = await createDatabaseUser('COORDINATOR', 'Lead E2E Busy Coordinator');
-    for (const status of ['Submitted', 'Approved', 'Confirmed', 'Rejected', 'Completed', 'Cancelled']) {
+    for (const status of ['Submitted', 'Approved', 'Planning', 'Confirmed', 'Rejected', 'Completed', 'Cancelled']) {
       await seedEvent({ name: `${status} event`, status, coordinator });
     }
 
     // Act: read the coordinators.
     const list = await request(app.getHttpServer()).get('/api/lead/coordinators').set('Cookie', lead.cookie).expect(200);
 
-    // Assert: 3 active, and available by default.
+    // Assert: 4 active, and available by default.
     expect(list.body.find((c: { id: string }) => c.id === coordinator.id)).toEqual({
       id: coordinator.id,
       name: 'Lead E2E Busy Coordinator',
       available: true,
-      activeAssignments: 3,
+      activeAssignments: 4,
     });
   });
 

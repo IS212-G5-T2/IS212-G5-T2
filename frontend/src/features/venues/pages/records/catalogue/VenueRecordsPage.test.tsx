@@ -69,6 +69,7 @@ const second: VenueRecord = {
       start: "2026-10-08T12:00:00Z",
       end: "2026-10-08T14:00:00Z",
       status: "tentative",
+      holdExpiresAt: "2026-10-08T11:30:00Z",
       affectedByUnavailablePeriod: false,
     },
   ],

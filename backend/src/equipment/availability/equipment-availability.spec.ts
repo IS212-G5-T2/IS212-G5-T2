@@ -123,8 +123,8 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
-  // EQUIP-UNAVAIL-02-VAL-06: surrounding whitespace is validation noise, not audit data.
-  it('EQUIP-UNAVAIL-02-VAL-06 trims the reason before storing it', async () => {
+  // EQUIP-UNAVAIL-02-A: a valid reason is stored in normalized form in the audit trail.
+  it('EQUIP-UNAVAIL-02-A trims the reason before storing it', async () => {
     // Arrange: an available record can be changed successfully.
     client.query
       .mockResolvedValueOnce({ rows: [activeEquipment] })
@@ -331,7 +331,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
     );
   });
 
-  // EQUIP-UNAVAIL-ASSUMP-03. Assumption A2: only real state transitions are audited.
+  // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it.each([
     [false, 'Equipment is already unavailable.'],
     [true, 'Equipment is already available.'],
@@ -429,7 +429,7 @@ describe('SPM-119 EquipmentService availability changes', () => {
   });
 
   // EQUIP-UNAVAIL-02-VAL-05: reactivation ignores a reason because the action needs no explanation.
-  it('EQUIP-UNAVAIL-02-VAL accepts a reason with reactivation without storing it', async () => {
+  it('EQUIP-UNAVAIL-02-VAL-05 accepts a reason with reactivation without storing it', async () => {
     // Arrange: the selected equipment is currently unavailable.
     client.query
       .mockResolvedValueOnce({
