@@ -27,7 +27,7 @@ export const MUTANTS = [
     id: 'FE-119-04', name: 'failed unavailable reload retains a success state',
     file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.tsx', suites: ['availability'],
     testMappings: [{ suite: 'availability', file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.test.tsx', title: 'SPM-119 AC4 displays an error when Show unavailable reload fails' }],
-    edits: [['    } catch {\r\n      setRecords([]);\r\n      setLoadError(true);', '    } catch {\r\n      setRecords([]);\r\n      setLoadError(false);']],
+    edits: [['    } catch {\n      setRecords([]);\n      setLoadError(true);', '    } catch {\n      setRecords([]);\n      setLoadError(false);']],
   },
   {
     id: 'FE-119-05', name: 'toast dismiss button preserves the success message',
@@ -39,6 +39,6 @@ export const MUTANTS = [
     id: 'FE-119-06', name: 'reactivation cancel confirms the update',
     file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.tsx', suites: ['availability'],
     testMappings: [{ suite: 'availability', file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.test.tsx', title: 'SPM-119 AC6 cancels reactivation without updating equipment' }],
-    edits: [['          onConfirm={() => void handleReactivate()}\r\n          onCancel={() => setDialog(null)}', '          onConfirm={() => void handleReactivate()}\r\n          onCancel={() => void handleReactivate()}']],
+    edits: [['          onConfirm={() => void handleReactivate()}\n          onCancel={() => setDialog(null)}', '          onConfirm={() => void handleReactivate()}\n          onCancel={() => void handleReactivate()}']],
   },
 ];

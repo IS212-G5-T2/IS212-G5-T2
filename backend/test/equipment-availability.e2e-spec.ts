@@ -270,8 +270,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
-  // SPM-119 same-state expectation conflicts with the Confluence case, so this test has no valid ID mapping.
-  it('returns 409 for repeated availability states without duplicate audit rows', async () => {
+  // EQUIP-UNAVAIL-ASSUMP-03: existing behavior rejects repeated same-state requests without duplicate audit rows, pending a product rule.
+  it('EQUIP-UNAVAIL-ASSUMP-03 returns 409 for repeated availability states without duplicate audit rows', async () => {
     // Arrange: one record starts available and another starts unavailable.
     const actor = await createUser('TECH_SUPPORT', 'same-state');
     const availableId = await createEquipment(

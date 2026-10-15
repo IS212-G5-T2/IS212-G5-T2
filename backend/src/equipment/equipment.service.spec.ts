@@ -320,9 +320,11 @@ describe('EquipmentService', () => {
 
     const inventory = await service.list(technicalSupportUser, { includeUnavailable: true });
 
-    expect(database.query).toHaveBeenCalledWith(
-      expect.not.stringContaining('WHERE is_available = true'),
-    );
+    const [sql] = database.query.mock.calls.at(-1) ?? [];
+    // Opt-in must remove the predicate entirely; an alternative predicate such
+    // as `is_available IS TRUE` would still incorrectly hide unavailable rows.
+    expect(sql).toMatch(/FROM equipment\s+ORDER BY created_at DESC/i);
+    expect(sql).not.toMatch(/\bWHERE\b/i);
     expect(inventory).toEqual([expect.objectContaining({
       id: 'equipment-1',
       isAvailable: false,
@@ -330,7 +332,7 @@ describe('EquipmentService', () => {
   });
 
   /**
-   * EQUIP-UNAVAIL-ASSUMP-03: a repeated same-state request is rejected with no audit write.
+   * EQUIP-UNAVAIL-ASSUMP-03: existing behavior rejects a repeated same-state request with no audit write, pending a product rule.
    */
   it('EQUIP-UNAVAIL-ASSUMP-03 rejects an availability update when the record already has that state', async () => {
     const client = {
