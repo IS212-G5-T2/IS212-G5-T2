@@ -155,8 +155,12 @@ try {
       let mutated = source;
       let applied = true;
       for (const [from, to] of m.edits) {
-        if (mutated.split(from).length !== 2) applied = false;
-        mutated = mutated.replace(from, () => to);
+        // Mutant definitions use repository LF newlines, while a Windows
+        // checkout can materialise the same source with CRLF newlines.
+        const match = mutated.includes(from) ? from : from.replace(/\n/g, '\r\n');
+        const replacement = match === from ? to : to.replace(/\n/g, '\r\n');
+        if (mutated.split(match).length !== 2) applied = false;
+        mutated = mutated.replace(match, () => replacement);
       }
       let status;
       let by = [];
