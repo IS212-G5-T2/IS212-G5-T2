@@ -87,7 +87,7 @@ interface AppState {
    * guards send the user to /login.
    */
   submitWithdrawal: (registrationId: string) => Promise<Registration>;
-  /** SPM-138: joins the waiting list of a full event; refreshes the attendee's own entry and returns the server's answer. */
+  /** SPM-138: joins the waitlist of a full event; refreshes the attendee's own entry and returns the server's answer. */
   joinWaitlist: (eventId: string) => Promise<WaitlistJoinResult>;
 
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
@@ -489,7 +489,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const user = get().currentUser;
     // The server enforces role, window, duplicates and fullness; this guard only avoids a pointless request.
     if (!get().isAuthenticated || user.role !== "attendee") {
-      throw new Error("Only signed-in attendees can join the waiting list.");
+      throw new Error("Only signed-in attendees can join the waitlist.");
     }
     const result = await api<WaitlistJoinResult>(`/events/${eventId}/waitlist`, {
       method: "POST",

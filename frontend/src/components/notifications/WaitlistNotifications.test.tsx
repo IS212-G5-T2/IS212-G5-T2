@@ -1,5 +1,5 @@
 /*
- * Story: SPM-138 Join Waiting List (attendee notices).
+ * Story: SPM-138 Join Waitlist (attendee notices).
  * ACs: AC9 (the attendee is notified of a promotion, in the app) and AC12 (a cancelled waiting entry is notified).
  * Test cases: JOIN-WAITLIST-09-C-FE (the notice renders with MSG-WL-05, a link to the event, and no other types),
  * JOIN-WAITLIST-09-C-FE-ROLE (no request and no notice for a non-attendee).
@@ -46,8 +46,8 @@ beforeEach(() => {
 });
 afterEach(() => cleanup());
 
-describe("JOIN-WAITLIST-09-C-FE: the attendee's waiting list notice (AC9, AC12)", () => {
-  // Kills: F18 (feed disabled)
+describe("JOIN-WAITLIST-09-C-FE: the attendee's waitlist notice (AC9, AC12)", () => {
+  // Kills: F18
   it("JOIN-WAITLIST-09-C-FE: the promotion text shows with a link to the event, and other types are not shown", async () => {
     apiMock.mockResolvedValue([
       notice({}),
@@ -61,18 +61,18 @@ describe("JOIN-WAITLIST-09-C-FE: the attendee's waiting list notice (AC9, AC12)"
     expect(screen.queryByText("Your request was approved.")).not.toBeInTheDocument();
   });
 
-  // Kills: F18, F37 (cancelled notices dropped)
+  // Kills: F18, F37
   it("JOIN-WAITLIST-09-C-FE-CANCEL: a cancelled waiting entry's notice is shown as well", async () => {
     apiMock.mockResolvedValue([
-      notice({ id: "n-3", type: "EventCancelled", message: "Gala Waitlist Night has been cancelled. Your waiting list place is cancelled." }),
+      notice({ id: "n-3", type: "EventCancelled", message: "Gala Waitlist Night has been cancelled. Your waitlist place is cancelled." }),
     ]);
 
     renderNotices();
 
-    expect(await screen.findByText("Gala Waitlist Night has been cancelled. Your waiting list place is cancelled.")).toBeInTheDocument();
+    expect(await screen.findByText("Gala Waitlist Night has been cancelled. Your waitlist place is cancelled.")).toBeInTheDocument();
   });
 
-  // Kills: F36 (notice enabled for every role)
+  // Kills: F36
   it("JOIN-WAITLIST-09-C-FE-ERR-ROLE: a non-attendee sends no request and sees no notice", async () => {
     useAppStore.setState({ currentUser: { id: "org-1", name: "Org", email: "org@example.com", role: "organiser" } });
 

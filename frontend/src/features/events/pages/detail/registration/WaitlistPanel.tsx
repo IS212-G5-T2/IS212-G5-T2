@@ -11,17 +11,15 @@ interface Props {
   joinedPosition: number | null;
   /** Shows the Join control and the MSG-WL-02 sentence. Omitted once the attendee is waiting or may not join. */
   onJoin?: () => void;
-  /** Shows the waiting indicator for an attendee who is already on the list. */
-  indicator?: boolean;
   onDismissBanner: () => void;
 }
 
 /**
- * SPM-138 waiting list controls for the event page: the Join Waiting List control while the event is full, the waiting
+ * SPM-138 waitlist controls for the event page: the Join Waitlist control while the event is full, the waiting
  * indicator once the attendee is on the list, and the confirmation banner (MSG-WL-01, built from the event name and the
  * response position). The server decides every outcome; this only shows it.
  */
-export function WaitlistPanel({ eventName, pending, error, joinedPosition, onJoin, indicator = false, onDismissBanner }: Props) {
+export function WaitlistPanel({ eventName, pending, error, joinedPosition, onJoin, onDismissBanner }: Props) {
   return (
     <div className="space-y-2">
       {onJoin && (
@@ -32,7 +30,6 @@ export function WaitlistPanel({ eventName, pending, error, joinedPosition, onJoi
           </Button>
         </>
       )}
-      {indicator && <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{WAITLIST_MESSAGES.onList}</p>}
       {error && (
         <p role="alert" className="text-sm text-danger-700 dark:text-danger-300">
           <span aria-hidden="true">⚠ </span>

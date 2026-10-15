@@ -29,7 +29,7 @@ export const ATT_05 = attendee("ATT-05", "Attendee Five");
 export const ATT_06 = attendee("ATT-06", "Attendee Six");
 export const ATT_07 = attendee("ATT-07", "Attendee Seven");
 
-/** EVT-701 "Gala Waitlist Night": capacity 3, full (isFull), open, waiting list available. Override fields per case. */
+/** EVT-701 "Gala Waitlist Night": capacity 3, full (isFull), open, waitlist available. Override fields per case. */
 export function buildGala(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
     id: "EVT-701",
@@ -60,7 +60,7 @@ export function buildGala(overrides: Partial<EventRecord> = {}): EventRecord {
   };
 }
 
-/** The same event with a free place: 9 of 10 style counts, no waiting list. */
+/** The same event with a free place: 9 of 10 style counts, no waitlist. */
 export const notFull = (overrides: Partial<EventRecord> = {}) =>
   buildGala({ registrationLimit: 10, availableRegistrationSpots: 1, availableSpots: 1, isFull: false, waitlistAvailable: false, ...overrides });
 

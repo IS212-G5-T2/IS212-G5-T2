@@ -238,9 +238,9 @@ Coordinators open an assigned Submitted request, choose **Review Event**, select
 
 Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.
 
-## Waiting list (SPM-138)
+## Waitlist (SPM-138)
 
-When an event is full and open for registration, the attendee's event page offers Join Waiting List (`POST /api/events/:id/waitlist`) instead of Register. The page states the full event, the availability and the closing date, and shows the waiting indicator and the owner's own position once on the list. The confirmation banner is built from the event name and the response position. The waiting-list rules and copy live in `src/features/events/lib/registration.ts` (`registrationUiState`, `WAITLIST_MESSAGES`) and the controls in `src/features/events/pages/detail/registration/WaitlistPanel.tsx`. Tests: `npm test` (the `*.waitlist.test.tsx` and `waitlist.test.ts` files). The in-app promotion bell and the cancel flow are not built yet (SPM-136 and the bell story).
+When an event is full and open for registration, the attendee's event page offers Join Waitlist (`POST /api/events/:id/waitlist`) instead of Register. The page states the full event, the availability and the closing date, and shows the waiting indicator and the owner's own position once on the list. The confirmation banner is built from the event name and the response position. The waitlist rules and copy live in `src/features/events/lib/registration.ts` (`registrationUiState`, `WAITLIST_MESSAGES`) and the controls in `src/features/events/pages/detail/registration/WaitlistPanel.tsx`. Tests: `npm test` (the `*.waitlist.test.tsx` and `waitlist.test.ts` files). The in-app promotion bell and the cancel flow are not built yet (SPM-136 and the bell story).
 
 ## Registration report
 

@@ -4,12 +4,12 @@ import { useAppStore } from "@/store/useAppStore";
 import type { Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
 
-/** SPM-138 AC9/AC12: the attendee's own waiting list notices. Other notification types are not shown here. */
+/** SPM-138 AC9/AC12: the attendee's own waitlist notices. Other notification types are not shown here. */
 const WAITING_LIST_TYPES: Notification["type"][] = ["WaitlistPromoted", "EventCancelled"];
 const isWaitingListNotice = (notification: Notification) => WAITING_LIST_TYPES.includes(notification.type);
 
 /**
- * Shows an attendee's unread waiting list notices (a promotion to a place, or a cancellation) with a link to the event.
+ * Shows an attendee's unread waitlist notices (a promotion to a place, or a cancellation) with a link to the event.
  * It uses the shared feed, so it refreshes on sign-in, focus and periodically like the organiser's panel. The server
  * filters by recipient and type; this only renders what it returns.
  */
@@ -18,7 +18,7 @@ export function WaitlistNotifications() {
   const { notifications, error, markRead, retry } = useNotificationFeed({
     enabled: user.role === "attendee",
     userId: user.id,
-    loadError: "Could not load waiting list notices.",
+    loadError: "Could not load waitlist notices.",
     filter: isWaitingListNotice,
   });
 
@@ -28,7 +28,7 @@ export function WaitlistNotifications() {
 
   return (
     <section
-      aria-label="Waiting list notifications"
+      aria-label="Waitlist notifications"
       className="mb-6 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
       {error && (

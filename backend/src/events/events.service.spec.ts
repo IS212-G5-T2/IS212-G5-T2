@@ -755,7 +755,7 @@ describe('SPM-138 capacity fields on the event read (AC2)', () => {
     ...overrides,
   });
 
-  // Oracle (02-A UNIT): 3 Confirmed of a limit of 3, open: full, waiting list available, no spots, the limit is reported.
+  // Oracle (02-A UNIT): 3 Confirmed of a limit of 3, open: full, waitlist available, no spots, the limit is reported.
   it('JOIN-WAITLIST-02-A-UNIT: a full, open event reports isFull, waitlistAvailable, zero spots and its limit', async () => {
     db.query.mockResolvedValue({ rows: [confirmedRow()] });
 
@@ -764,8 +764,8 @@ describe('SPM-138 capacity fields on the event read (AC2)', () => {
     expect(event).toMatchObject({ isFull: true, waitlistAvailable: true, registrationOpen: true, availableSpots: 0, registrationLimit: 3 });
   });
 
-  // Oracle (02-B UNIT): a closed event is full but offers no waiting list.
-  it('JOIN-WAITLIST-02-B-UNIT: a full but closed event does not offer the waiting list', async () => {
+  // Oracle (02-B UNIT): a closed event is full but offers no waitlist.
+  it('JOIN-WAITLIST-02-B-UNIT: a full but closed event does not offer the waitlist', async () => {
     db.query.mockResolvedValue({ rows: [confirmedRow({ registration_closes_at: new Date('2026-10-13T23:59:00Z') })] });
 
     const event = await fixedService().get(attendeeUser(), savedEventRow().id);

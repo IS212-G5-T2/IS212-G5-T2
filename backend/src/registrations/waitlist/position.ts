@@ -1,5 +1,5 @@
 /*
- * SPM-138 D6: a waiting list position is derived on read, never stored. It is 1 plus the number of Waitlisted entries of
+ * SPM-138 D6: a waitlist position is derived on read, never stored. It is 1 plus the number of Waitlisted entries of
  * the same event that sort before this one by (joined_at, waitlist_seq). Only a Waitlisted row has a position.
  */
 

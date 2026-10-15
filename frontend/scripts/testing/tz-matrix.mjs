@@ -19,6 +19,7 @@ const FILES = [
   'src/features/events/pages/detail/planning/StatusHistory.test.tsx',
   'src/features/events/pages/detail/registration/RegistrationSection.test.tsx',
   'src/features/events/pages/detail/registration/RegistrationSection.waitlist.test.tsx',
+  'src/features/events/pages/detail/registration/RegistrationStatusCard.test.tsx',
   'src/features/events/pages/detail/registration/WithdrawalConfirmation.test.tsx',
   'src/features/events/pages/detail/registration/WithdrawnRegistrationStatus.test.tsx',
   'src/features/registrations/components/report/RegistrationsModal.test.tsx',

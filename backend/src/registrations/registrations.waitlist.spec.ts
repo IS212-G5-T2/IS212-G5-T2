@@ -1,5 +1,5 @@
 /*
- * Story: SPM-138 Join Waiting List When Event Is at Capacity, unit level for the join rules.
+ * Story: SPM-138 Join Waitlist When Event Is at Capacity, unit level for the join rules.
  * ACs: AC1 (join when full), AC4 (confirmation with position), AC7 (order by join time, from the clock).
  * Test cases (unit): JOIN-WAITLIST-01-B-UNIT, 01-C-UNIT, 01-D-UNIT, 01-E-UNIT, 01-F-UNIT, 04-C-LOCK, 15-A-UNIT.
  *
@@ -127,7 +127,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
     expect((error as ConflictException).getResponse()).toMatchObject({
       statusCode: 409,
       code: 'already_on_waitlist',
-      message: 'You are already on the waiting list for this event.',
+      message: 'You are already on the waitlist for this event.',
     });
     expect(fake.writes()).toEqual([]);
   });
@@ -219,7 +219,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
       registrationId: REG_ID,
       status: 'waitlisted',
       position: 1,
-      message: 'You have joined the waiting list for Gala Waitlist Night. Your position is 1.',
+      message: 'You have joined the waitlist for Gala Waitlist Night. Your position is 1.',
     });
     const insert = fake.writes().find((s) => /^\s*INSERT INTO event_registrations/.test(s.sql));
     expect(insert?.sql).toMatch(/'Waitlisted'/);
@@ -268,13 +268,13 @@ describe('SPM-138 join and withdrawal edge rules (unit)', () => {
     expect((error as ConflictException).getResponse()).toMatchObject({
       statusCode: 409,
       code: 'already_on_waitlist',
-      message: 'You are already on the waiting list for this event.',
+      message: 'You are already on the waitlist for this event.',
     });
     expect(fake.writes()).toEqual([]);
   });
 
   /**
-   * JOIN-WAITLIST-01-A-UNIT-OPEN-ENDED: an event with no opening or closing instant is open for the waiting list
+   * JOIN-WAITLIST-01-A-UNIT-OPEN-ENDED: an event with no opening or closing instant is open for the waitlist
    * (an unbounded window, D5); the join is accepted at the first place of the list.
    */
   it('JOIN-WAITLIST-01-A-BND-UNIT-OPEN-ENDED: an event with no window bounds accepts a join', async () => {

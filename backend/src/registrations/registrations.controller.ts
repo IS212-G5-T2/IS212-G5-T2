@@ -47,7 +47,7 @@ export class RegistrationsController {
     return this.registrations.withdraw(request[CURRENT_USER_REQUEST_KEY], registrationId, body);
   }
 
-  /** SPM-138 AC1: the attendee joins the waiting list of a full event. Accepts no body or {}; the attendee is the token's. */
+  /** SPM-138 AC1: the attendee joins the waitlist of a full event. Accepts no body or {}; the attendee is the token's. */
   @Post('events/:eventId/waitlist')
   joinWaitlist(
     @Param('eventId') eventId: string,

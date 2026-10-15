@@ -3,9 +3,9 @@
 // The spec's "Kills M#" lines name the mutants but do not define them, so the definitions below were reconstructed from
 // those lines (see the SPM-138 results report). Each mutant names the test that must go red.
 export const SUITES = {
-  // Unit specs for the registrations module, including the waiting list rules and the join rules.
+  // Unit specs for the registrations module, including the waitlist rules and the join rules.
   unit: { args: ['run', 'src/registrations'] },
-  // PostgreSQL integration suite for the waiting list; needs DATABASE_URL with database/postgresql/init 001 to 016 and backend/migrations/011 applied.
+  // PostgreSQL integration suite for the waitlist; needs DATABASE_URL with database/postgresql/init 001 to 016 and backend/migrations/011 applied.
   e2e: {
     args: ['run', '--config', './vitest.config.e2e.ts', 'test/registrations.waitlist.e2e-spec.ts'],
     needsEnv: ['DATABASE_URL'],
@@ -193,9 +193,12 @@ export const MUTANTS = [
     edits: [['const confirmed = Number(row.confirmed_registrations ?? 0);', 'const confirmed = 0;']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-02-A-LIST')] },
   // ---- TR5 additions. L-1: the attendee list read settles closed lists. W-1: a waiting withdrawal settles first. P-B: the job's due test.
-  { id: 'L-1', name: 'the attendee event list does not settle closed waiting lists before it reads statuses', file: EVENTS,
+  { id: 'L-1', name: 'the attendee event list does not settle closed waitlists before it reads statuses', file: EVENTS,
     edits: [["    if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))\n      await runRegistrationCloseJob(this.database, this.clock.now());\n", '']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-11-A-STATE-LIST')] },
+  { id: 'W-JOIN', name: 'the attendee read stops sending the join time of a waitlisted entry (the card shows not provided)', file: SERVICE,
+    edits: [["      joinedAt: String(row.status) === 'Waitlisted' && row.joined_at ? row.joined_at.toISOString() : undefined,\n", '']],
+    suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-03-C-STATE')] },
   { id: 'W-1', name: 'a waiting withdrawal after close does not settle the list first', file: SERVICE,
     edits: [['        await settleLocked(client, current.event_id, now);\n        status = await readStatus();', '        status = await readStatus();']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-11-D-ERR-WAIT')] },
@@ -207,7 +210,7 @@ export const MUTANTS = [
     edits: [["r.status = 'Waitlisted'\n  AND (NOT e.registration_enabled", "r.status = 'Waitlisted'\n  AND (false"]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-11-C-STATE-LIST')] },
   // Requirement Review additions: the attendee audience (N-1), the releaser notices (R-N), the post-lock re-read (A1-STALE).
-  { id: 'N-1', name: 'the attendee audience for waiting list notices is removed (an attendee reads nothing)', file: EVENTS,
+  { id: 'N-1', name: 'the attendee audience for waitlist notices is removed (an attendee reads nothing)', file: EVENTS,
     edits: [["      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),\n", '']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-09-C')] },
   { id: 'R-N', name: 'the cancel releaser writes no EventCancelled notice', file: 'src/registrations/waitlist/cancel-releaser.ts',

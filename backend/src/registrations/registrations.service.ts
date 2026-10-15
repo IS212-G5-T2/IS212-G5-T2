@@ -1,8 +1,8 @@
 /*
- * SPM-61 attendee registration, SPM-120 withdrawal and SPM-138 waiting list. Every rule (role, window, duplicate,
- * capacity, validation, ownership, event start, waiting list order) is enforced here; the UI only mirrors them.
+ * SPM-61 attendee registration, SPM-120 withdrawal and SPM-138 waitlist. Every rule (role, window, duplicate,
+ * capacity, validation, ownership, event start, waitlist order) is enforced here; the UI only mirrors them.
  * Concurrency safety comes from locking the event row (D7) plus the UNIQUE (event_id, attendee_id) constraint on
- * event_registrations; withdrawal and waiting list changes use compare-and-set UPDATEs.
+ * event_registrations; withdrawal and waitlist changes use compare-and-set UPDATEs.
  */
 import {
   BadRequestException,
@@ -117,7 +117,7 @@ export class RegistrationsService {
   }
 
   /**
-   * SPM-138 AC1: the signed-in attendee joins the waiting list of a full, open event. Order of checks (D15): authentication
+   * SPM-138 AC1: the signed-in attendee joins the waitlist of a full, open event. Order of checks (D15): authentication
    * (401) -> role (403) -> strict body (400) -> event (404) -> window (422, MSG-02 or MSG-01) -> duplicates (409 MSG-05 when
    * Confirmed, MSG-WL-04 when waiting) -> fullness (422 WAITLIST_NOT_AVAILABLE unless full) -> insert or rejoin.
    * The event row lock (D7) serialises joins and withdrawals, so the position is read against a settled, current list.
@@ -221,7 +221,7 @@ export class RegistrationsService {
   }
 
   /**
-   * SPM-120 and SPM-138: the signed-in attendee withdraws their own registration or leaves the waiting list. Order of
+   * SPM-120 and SPM-138: the signed-in attendee withdraws their own registration or leaves the waitlist. Order of
    * checks: authentication (middleware, 401) -> body -> ownership (404) -> event row lock (D7) -> state (422, or 409 for a
    * Removed or Cancelled entry) -> event start (422) -> mutate. A Registered withdrawal releases its place and promotes the
    * first waiting entry in the same transaction (D8). A waiting entry withdrawal changes no capacity and promotes nobody.
@@ -235,7 +235,7 @@ export class RegistrationsService {
     if (!UUID.test(registrationId)) throw new NotFoundException(MESSAGES.registrationNotFound);
 
     // The transaction returns either its result or the refusal. A refusal is thrown after the commit, so the
-    // settle that precedes it (a closed waiting list) is kept; a thrown refusal would roll that settle back.
+    // settle that precedes it (a closed waitlist) is kept; a thrown refusal would roll that settle back.
     const outcome = await this.database.transaction(async (client) => {
       // Ownership-scoped lookup: another user's registration looks like a missing one.
       const found = await client.query(
@@ -473,6 +473,8 @@ export class RegistrationsService {
       withdrawnAt: row.withdrawn_at ? row.withdrawn_at.toISOString() : undefined,
       // SPM-138 D6: the owner's own waiting position. Null for every other entry; the key is always present.
       waitlistPosition: waitlistPosition == null ? null : Number(waitlistPosition),
+      // SPM-138 UI: when the attendee joined the waitlist, for a waitlisted entry only (the card's "Joined waitlist on").
+      joinedAt: String(row.status) === 'Waitlisted' && row.joined_at ? row.joined_at.toISOString() : undefined,
     };
   }
 }

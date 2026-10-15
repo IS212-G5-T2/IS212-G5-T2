@@ -19,8 +19,9 @@ const styles: Record<AnyStatus, string> = {
   unavailable: "bg-danger-100 dark:bg-danger-900/30 text-danger-800 dark:text-danger-300",
   registered: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
   withdrawn: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
-  // SPM-138: a waiting entry is a distinct variant (not confirmed, not withdrawn); removed is a closed-list outcome.
-  waitlisted: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",
+  // SPM-138: a waitlist entry is an accent (primary) variant, not confirmed and not withdrawn. Amber stays reserved for
+  // pending requests; withdrawn is the existing gray. Removed is a closed-list outcome.
+  waitlisted: "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300",
   removed: "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
 };
 

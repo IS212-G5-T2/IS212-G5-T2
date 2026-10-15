@@ -157,24 +157,19 @@ export const REREGISTER_FOOTER = {
 } as const;
 
 /*
- * SPM-138 waiting list. The server is the authority (it re-checks the window, fullness, duplicates and the position);
+ * SPM-138 waitlist. The server is the authority (it re-checks the window, fullness, duplicates and the position);
  * these only drive what the page offers. Copy mirrors backend/src/registrations/helpers/messages.ts (D14, wording locked).
  */
 export const WAITLIST_MESSAGES = {
   /** MSG-WL-01: built here from the event name and the response position, never from the server's text (D14). */
   joined: (eventName: string, position: number) =>
-    `You have joined the waiting list for ${eventName}. Your position is ${position}.`,
+    `You have joined the waitlist for ${eventName}. Your position is ${position}.`,
   /** MSG-WL-02: the full-event sentence shown with the Join control. */
-  full: "This event is full. Join the waiting list to be notified if a spot opens.",
-  /** The waiting indicator (A-TXT). */
-  onList: "You are on the waiting list",
-  /** The details line for the owner's own waiting entry (A-TXT). */
-  position: (position: number) => `Waiting list position: ${position}`,
+  full: "This event is full. Join the waitlist to be notified if a spot opens.",
   /** The join control. */
-  join: "Join Waiting List",
-  /** The withdrawal prompt copy for a waiting entry (D16). */
-  withdrawPrompt: (eventName: string) =>
-    `You will lose your place on the waiting list for ${eventName}. You can join again while registration is open.`,
+  join: "Join Waitlist",
+  /** The card's position notice (SPM-138 UI): the place in line for a waitlisted attendee. */
+  inLine: (position: number) => `You're #${position} in line`,
 } as const;
 
 /** The page state an attendee is shown (D16). */

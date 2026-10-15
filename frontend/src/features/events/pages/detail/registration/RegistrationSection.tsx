@@ -8,7 +8,6 @@ import { registrationState } from "@/features/events/lib/EventView";
 import { ApiError } from "@/utils/api";
 import {
   REGISTRATION_MESSAGES,
-  WAITLIST_MESSAGES,
   WITHDRAWAL_MESSAGES,
   formatSgt,
   formatSgtDateTime,
@@ -16,10 +15,12 @@ import {
   registrationClosingHeading,
   registrationUiState,
 } from "@/features/events/lib/registration";
+import { Toast } from "@/components/ui/Toast";
 import { RegistrationConfirmation } from "./RegistrationConfirmation";
 import { RegistrationForm } from "./RegistrationForm";
+import { ConfirmDialog, type ConfirmVariant } from "./ConfirmDialog";
+import { RegistrationStatusCard } from "./RegistrationStatusCard";
 import { WaitlistPanel } from "./WaitlistPanel";
-import { WithdrawalConfirmation, WithdrawalSuccessBanner } from "./WithdrawalConfirmation";
 import { WithdrawnRegistrationStatus } from "./WithdrawnRegistrationStatus";
 import { NOT_PROVIDED } from "@/utils/format";
 
@@ -34,6 +35,8 @@ interface Props {
 
 // How often the open/closed state is re-checked while the page stays open.
 const RECHECK_MS = 5_000;
+// The inline error inside the confirmation dialog when a withdrawal or a leave fails for any reason the page does not handle.
+const WITHDRAW_FAILED = "Couldn't withdraw your registration. Try again.";
 
 /** A labelled value under the heading, such as "Closes / 12 Mar 2027, 23:59". */
 function Meta({ label, value }: { label: string; value: string }) {
@@ -46,8 +49,8 @@ function Meta({ label, value }: { label: string; value: string }) {
 }
 
 /**
- * SPM-61 AC1 to AC5 for the attendee, extended by SPM-120 (withdrawal) and SPM-138 (waiting list). The heading follows the
- * registration state. Register is offered only while a place is free and registration is open; Join Waiting List is offered
+ * SPM-61 AC1 to AC5 for the attendee, extended by SPM-120 (withdrawal) and SPM-138 (waitlist). The heading follows the
+ * registration state. Register is offered only while a place is free and registration is open; Join Waitlist is offered
  * while the event is full and open. Every other state is text only. The server still enforces every rule.
  */
 export function RegistrationSection({ event, currentUser, registration, onWithdrawn }: Props) {
@@ -65,14 +68,15 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const [confirmation, setConfirmation] = useState<Registration | null>(null);
   const [reregistering, setReregistering] = useState(false);
   const [duplicateNotice, setDuplicateNotice] = useState("");
-  // SPM-120 withdrawal state.
-  const [dialogOpen, setDialogOpen] = useState(false);
+  // SPM-120 / SPM-138 withdrawal state. The dialog variant is set by the card's action: Withdraw or Leave waitlist.
+  const [dialogVariant, setDialogVariant] = useState<ConfirmVariant | null>(null);
   const [withdrawPending, setWithdrawPending] = useState(false);
   const [withdrawError, setWithdrawError] = useState("");
-  const [withdrawalMessage, setWithdrawalMessage] = useState("");
+  const [toast, setToast] = useState("");
   const [serverSaysOccurred, setServerSaysOccurred] = useState(false);
   const withdrawInFlight = useRef(false);
-  const closeDialog = useCallback(() => setDialogOpen(false), []);
+  const closeDialog = useCallback(() => setDialogVariant(null), []);
+  const dismissToast = useCallback(() => setToast(""), []);
   // SPM-138 join state. The ref blocks a second request before the pending state has rendered (01-E double click).
   const [joinPending, setJoinPending] = useState(false);
   const [joinError, setJoinError] = useState("");
@@ -114,6 +118,8 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const uiState = registrationUiState(windowState, full, current?.status);
   const limit = event.registrationLimit ?? event.expectedAttendance;
 
+  // A registered or waitlisted attendee sees RegistrationStatusCard (the card carries its own details and action). A
+  // cancelled registration keeps the header below, with its details.
   // SPM-62 AC3: the registration details; kept after a withdrawal too (SPM-120 07-A "details still shown").
   const detailRows: { label: string; value: string }[] = current
     ? [
@@ -130,18 +136,8 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
 
   let heading: string;
   let meta: { label: string; value: string }[] = [];
-  if (registered) {
-    // SPM-62 AC3: full registration details, not just the ID. AC4: this
-    // branch is checked before any event-timing state, so it stays visible
-    // for a Completed or Cancelled event too.
-    heading = "You're registered";
-    meta = detailRows;
-  } else if (cancelled) {
+  if (cancelled) {
     heading = "Registration cancelled";
-    meta = detailRows;
-  } else if (waitlisted) {
-    // SPM-138 AC3/AC5: the owner's own waiting entry, with the position in the details (never another attendee's).
-    heading = "Waiting list";
     meta = detailRows;
   } else if (current?.status === "removed") {
     // SPM-138 AC11: a waiting entry removed when registration closed. No position, no controls.
@@ -159,7 +155,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     if (event.registrationOpensAt) meta.push({ label: "Opens", value: formatSgtDateTime(event.registrationOpensAt) });
     meta.push({ label: "Closes", value: formatSgtDateTime(closesAt) });
   } else if (uiState === "full-join") {
-    // SPM-138 AC2: the full event says so, shows the availability and the closing date, and offers the waiting list.
+    // SPM-138 AC2: the full event says so, shows the availability and the closing date, and offers the waitlist.
     heading = "Event full";
     meta = [{ label: "Available", value: `${Math.max(spots, 0)} of ${limit} available` }];
     if (closesAt) meta.push({ label: "Closes", value: formatSgtDateTime(closesAt) });
@@ -171,31 +167,33 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   // The withdrawn card has its own "Register again" action in its footer (SPM-120 redesign).
   const showRegister = uiState === "register" && !withdrawn && !formOpen;
 
-  /** SPM-120 AC3: sends the withdrawal; the server decides, the UI mirrors the outcome. */
+  /**
+   * SPM-120 / SPM-138: sends the withdrawal (Withdraw, or Leave waitlist, which also withdraws the registration). The server
+   * decides; the UI mirrors the outcome. On failure the dialog stays open with the inline error.
+   */
   const confirmWithdrawal = async () => {
-    if (!current || withdrawInFlight.current) return;
+    if (!current || !dialogVariant || withdrawInFlight.current) return;
+    const variant = dialogVariant;
     withdrawInFlight.current = true;
     setWithdrawPending(true);
     setWithdrawError("");
     try {
       await submitWithdrawal(current.id);
-      setDialogOpen(false);
-      // D9: the banner is built here from the event name, never echoed from the response.
-      setWithdrawalMessage(WITHDRAWAL_MESSAGES.success(event.name));
+      setDialogVariant(null);
+      // D9: the toast is built here, never echoed from the response.
+      setToast(variant === "leave-waitlist" ? "Left the waitlist" : "Registration withdrawn");
       onWithdrawn?.();
     } catch (error) {
       const code = error instanceof ApiError ? error.code : undefined;
       if (code === "event_already_occurred") {
-        setDialogOpen(false);
+        setDialogVariant(null);
         setServerSaysOccurred(true);
       } else if (code === "registration_already_withdrawn") {
         // Withdrawn elsewhere (another tab): show the server's truth, not a stale "Registered".
-        setDialogOpen(false);
+        setDialogVariant(null);
         void loadMyRegistration(event.id).catch(() => undefined);
       } else {
-        setWithdrawError(
-          error instanceof Error ? error.message : "We couldn't process your withdrawal. Please try again.",
-        );
+        setWithdrawError(WITHDRAW_FAILED);
       }
     } finally {
       withdrawInFlight.current = false;
@@ -204,7 +202,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   };
 
   /**
-   * SPM-138 AC1/AC4: joins the waiting list. The server decides; a refusal shows the server's sentence. A duplicate, a
+   * SPM-138 AC1/AC4: joins the waitlist. The server decides; a refusal shows the server's sentence. A duplicate, a
    * registration or a close means the page's view is stale, so the attendee's own entry is read again.
    */
   const joinNow = async () => {
@@ -221,7 +219,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
       if (code === "already_on_waitlist" || code === "already_registered" || code === "registration_closed" || code === "registration_not_open") {
         void loadMyRegistration(event.id).catch(() => undefined);
       }
-      setJoinError(error instanceof Error ? error.message : "We couldn't join the waiting list. Please try again.");
+      setJoinError(error instanceof Error ? error.message : "We couldn't join the waitlist. Please try again.");
     } finally {
       joinInFlight.current = false;
       setJoinPending(false);
@@ -244,14 +242,23 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
                 setFormOpen(true);
               }}
             />
+          ) : (registered || waitlisted) && current ? (
+            <RegistrationStatusCard
+              variant={waitlisted ? "waitlisted" : "confirmed"}
+              registration={current}
+              onAction={() => {
+                setWithdrawError("");
+                setDialogVariant(waitlisted ? "leave-waitlist" : "withdraw");
+              }}
+              actionHidden={eventOccurred}
+              actionHiddenText={WITHDRAWAL_MESSAGES.eventAlreadyOccurred}
+            />
           ) : (
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div role="status" className="space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{heading}</h3>
-                  {registered && <StatusBadge status="registered" />}
                   {cancelled && <StatusBadge status="cancelled" />}
-                  {waitlisted && <StatusBadge status="waitlisted" />}
                   {current?.status === "removed" && <StatusBadge status="removed" />}
                 </div>
                 {meta.length > 0 && (
@@ -273,55 +280,30 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
                   Register
                 </Button>
               )}
-              {(registered || waitlisted) && (
-                <section aria-label="Withdrawal" className="space-y-1">
-                  {eventOccurred ? (
-                    <p className="text-sm text-gray-600 dark:text-gray-400">{WITHDRAWAL_MESSAGES.eventAlreadyOccurred}</p>
-                  ) : (
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        setWithdrawError("");
-                        setDialogOpen(true);
-                      }}
-                    >
-                      Withdraw
-                    </Button>
-                  )}
-                </section>
-              )}
             </div>
           )}
-          {waitlisted && current?.waitlistPosition != null && (
-            <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
-              {WAITLIST_MESSAGES.position(current.waitlistPosition)}
-            </p>
-          )}
           {/* SPM-138 rejoin: a withdrawn attendee on a full, open event may join the list again at the back (D2). */}
-          {(uiState === "full-join" || uiState === "waitlisted" || joinedPosition !== null || joinError) && (
+          {(uiState === "full-join" || joinedPosition !== null || joinError) && (
             <WaitlistPanel
               eventName={event.name}
               pending={joinPending}
               error={joinError}
               joinedPosition={joinedPosition}
               onJoin={uiState === "full-join" && !formOpen ? joinNow : undefined}
-              indicator={uiState === "waitlisted"}
               onDismissBanner={() => setJoinedPosition(null)}
             />
           )}
-          {withdrawalMessage && (
-            <WithdrawalSuccessBanner message={withdrawalMessage} onDismiss={() => setWithdrawalMessage("")} />
-          )}
-          {dialogOpen && (registered || waitlisted) && (
-            <WithdrawalConfirmation
-              eventName={event.name}
-              waitlisted={waitlisted}
+          {dialogVariant && (registered || waitlisted) && (
+            <ConfirmDialog
+              variant={dialogVariant}
+              position={current?.waitlistPosition}
               pending={withdrawPending}
               error={withdrawError}
               onConfirm={confirmWithdrawal}
               onCancel={closeDialog}
             />
           )}
+          {toast && <Toast message={toast} onDismiss={dismissToast} />}
           {confirmation && (
             <RegistrationConfirmation
               registration={confirmation}

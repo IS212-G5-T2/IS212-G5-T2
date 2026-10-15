@@ -4,15 +4,23 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { EventRecord } from "@/types";
 import { formatDateRange } from "@/utils/format";
 
+/** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
+export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
+
 interface EventCardProps {
   event: EventRecord;
-  /** Adds a "Registered" badge beside the status badge (SPM-61 attendee view). */
-  registered?: boolean;
-  /** SPM-138: the attendee's own waiting entry shows a Waitlisted badge beside the status badge. */
-  registrationStatus?: "waitlisted";
+  /**
+   * Attendee browse view. The event-status "Confirmed" badge is hidden here: "Confirmed" means the attendee has registered,
+   * so it is shown only through the registration badge. Other event statuses (Completed, Cancelled) are unchanged.
+   */
+  attendeeView?: boolean;
+  /** The attendee's own registration for this event, shown as its badge beside the event status. */
+  registrationStatus?: CardRegistrationStatus;
 }
 
-export function EventCard({ event, registered = false, registrationStatus }: EventCardProps) {
+export function EventCard({ event, attendeeView = false, registrationStatus }: EventCardProps) {
+  // For an attendee, an approved or confirmed event is only "published": that is not a registration, so it carries no badge.
+  const showEventBadge = !(attendeeView && (event.status === "approved" || event.status === "confirmed"));
   return (
     <Link to={`/events/${event.id}`} className="block">
       <Card className="transition-shadow hover:shadow-md">
@@ -26,9 +34,8 @@ export function EventCard({ event, registered = false, registrationStatus }: Eve
               )}
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-              <StatusBadge status={event.status} />
-              {registered && <StatusBadge status="registered" />}
-              {registrationStatus === "waitlisted" && <StatusBadge status="waitlisted" />}
+              {showEventBadge && <StatusBadge status={event.status} />}
+              {registrationStatus && <StatusBadge status={registrationStatus} />}
               {event.reassignedFrom && (
                 <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                   Reassigned

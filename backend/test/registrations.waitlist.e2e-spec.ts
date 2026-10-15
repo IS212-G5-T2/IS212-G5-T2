@@ -1,5 +1,5 @@
 /*
- * Story: SPM-138 Join Waiting List When Event Is at Capacity (backend half).
+ * Story: SPM-138 Join Waitlist When Event Is at Capacity (backend half).
  * ACs (Jira): AC1 to AC12. Supporting cases: 13 (bulk ordering), 14 (SPM-63 report rule unchanged), 15 (strict body).
  * Test cases implemented here: JOIN-WAITLIST-01-A to 15-A from docs/specs/SPM-138-test-cases.md. Cases that need the
  * frontend are asserted in the colocated .test.tsx files. 09-A's frontend part, 11-E, 12-A, 12-B and 12-C are Blocked:
@@ -53,9 +53,9 @@ const CLOSES_T0_PLUS_5D = '2026-10-19T23:59:00+08:00';
 const START_T0_PLUS_10D = '2026-10-24T18:00:00+08:00';
 
 // Messages copied from the SPM-138 message table (D14) and the SPM-61/120 messages.
-const MSG_WL_01 = (position: number) => `You have joined the waiting list for ${NAME}. Your position is ${position}.`;
+const MSG_WL_01 = (position: number) => `You have joined the waitlist for ${NAME}. Your position is ${position}.`;
 const MSG_WL_03 = 'This event still has available spots. Please register directly.';
-const MSG_WL_04 = 'You are already on the waiting list for this event.';
+const MSG_WL_04 = 'You are already on the waitlist for this event.';
 const MSG_WL_05 = `A spot opened up. You are now registered for ${NAME}.`;
 const MSG_01 = 'Registration has closed for this event.';
 const MSG_02_OPENS_17_OCT = 'Registration for this event opens on 17 Oct 2026, 09:00 SGT.';
@@ -80,7 +80,7 @@ const details = (label: string) => ({
   contactNumber: '91234567',
 });
 
-describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => {
+describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
   let app: INestApplication;
   let pool: pg.Pool;
   let now = T0;
@@ -345,7 +345,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   const positionOf = async (eventId: string, who: Who) => (await mine(eventId, who).expect(200)).body.registration.waitlistPosition;
 
   // JOIN-WAITLIST-01: AC1 (join when the event is full)
-  describe('AC1: an attendee can join the waiting list when the event is full (JOIN-WAITLIST-01)', () => {
+  describe('AC1: an attendee can join the waitlist when the event is full (JOIN-WAITLIST-01)', () => {
     /**
      * Oracle (01-A): 201, status waitlisted, position 1; one row with joined_at = T0; Confirmed count stays 3.
      * Kills M4: the join stores the wrong status (for example Registered).
@@ -528,8 +528,8 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     });
   });
 
-  // JOIN-WAITLIST-02: AC2 (the event page shows full and the waiting list)
-  describe('AC2: the event shows that it is full and that the waiting list is open (JOIN-WAITLIST-02)', () => {
+  // JOIN-WAITLIST-02: AC2 (the event page shows full and the waitlist)
+  describe('AC2: the event shows that it is full and that the waitlist is open (JOIN-WAITLIST-02)', () => {
     /**
      * Oracle (02-A): EVT-701 full and open. isFull, waitlistAvailable and registrationOpen are true; no spots left.
      * Kills a waitlistAvailable that ignores the window or fullness.
@@ -578,6 +578,22 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
       const res = await mine(eventId, att04).expect(200);
 
       expect(res.body.registration).toMatchObject({ status: 'waitlisted', waitlistPosition: 1 });
+    });
+
+    /**
+     * Oracle (03-C, UI): a waitlisted entry's read carries the join time (the card's "Joined waitlist on"), set by the injected
+     * clock at the join. A registered row carries no join time. Kills W-JOIN (the read stops sending joinedAt).
+     */
+    it('JOIN-WAITLIST-03-C-STATE: the attendee read carries the join time for a waitlisted entry and none for a registered one', async () => {
+      const confirmed = [await attendee('01'), await attendee('02'), await attendee('03')];
+      const eventId = await seedFullGala(confirmed);
+      const att04 = await attendee('04');
+      await joinAs(eventId, att04);
+
+      const waiting = await mine(eventId, att04).expect(200);
+      expect(waiting.body.registration.joinedAt).toBe(T0.toISOString());
+      const registered = await mine(eventId, confirmed[0]).expect(200);
+      expect(registered.body.registration.joinedAt).toBeUndefined();
     });
 
     /**
@@ -650,7 +666,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   });
 
   // JOIN-WAITLIST-05: AC5 (the position in the registration details)
-  describe('AC5: the registration details show the waiting list position (JOIN-WAITLIST-05)', () => {
+  describe('AC5: the registration details show the waitlist position (JOIN-WAITLIST-05)', () => {
     /**
      * Oracle (05-A): ATT-04 (1), ATT-05 (2), ATT-06 (3) read their own position; the API value matches.
      */
@@ -724,7 +740,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   // JOIN-WAITLIST-06: AC6 (positions update when others withdraw)
   describe('AC6: positions update when entries or confirmed attendees withdraw (JOIN-WAITLIST-06)', () => {
     /**
-     * Oracle (06-A): ATT-04 (1) withdraws from the waiting list; ATT-05 is now 1 and ATT-06 is 2; ATT-04 is withdrawn.
+     * Oracle (06-A): ATT-04 (1) withdraws from the waitlist; ATT-05 is now 1 and ATT-06 is 2; ATT-04 is withdrawn.
      * Kills M12: withdrawn entries still count ahead of the others.
      */
     it('JOIN-WAITLIST-06-A-STATE: an attendee who withdraws from the list moves everyone behind them forward', async () => {
@@ -794,7 +810,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   });
 
   // JOIN-WAITLIST-07: AC7 (order by join time)
-  describe('AC7: the waiting list is ordered by join time (JOIN-WAITLIST-07)', () => {
+  describe('AC7: the waitlist is ordered by join time (JOIN-WAITLIST-07)', () => {
     /**
      * Oracle (07-A): joins stated at 10:00:00 (ATT-06), 10:00:05 (ATT-04), 10:00:10 (ATT-05) on the injected clock (A-07A-CALLS).
      * Positions: ATT-06 1, ATT-04 2, ATT-05 3. ATT-01 withdraws: ATT-06 is promoted; ATT-04 is 1 and ATT-05 is 2.
@@ -1114,8 +1130,8 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     });
   });
 
-  // JOIN-WAITLIST-10: AC10 (withdraw from the waiting list)
-  describe('AC10: an attendee can withdraw from the waiting list before the event starts (JOIN-WAITLIST-10)', () => {
+  // JOIN-WAITLIST-10: AC10 (withdraw from the waitlist)
+  describe('AC10: an attendee can withdraw from the waitlist before the event starts (JOIN-WAITLIST-10)', () => {
     /**
      * Oracle (10-A): ATT-05 (position 2) withdraws: 200, status withdrawn, the MSG-11 text, no position, withdrawn_at T0;
      * ATT-06 becomes 2 (ATT-04 stays 1). The FE prompt copy is asserted in WithdrawalConfirmation.test.tsx.
@@ -1228,13 +1244,13 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   });
 
   // JOIN-WAITLIST-11: AC11 (entries are removed when registration closes)
-  describe('AC11: waiting list entries are removed when registration closes (JOIN-WAITLIST-11)', () => {
+  describe('AC11: waitlist entries are removed when registration closes (JOIN-WAITLIST-11)', () => {
     /**
      * Oracle (11-A): EVT-703 (capacity 2, full, closes 12:30). At 12:31 the close job removes both entries: status removed and
      * no position. A join is refused with MSG-01. The event reads closed. No promotion; Confirmed stays 2; no notification.
      * Kills M23: the close job does not remove the entries.
      */
-    it('JOIN-WAITLIST-11-A-STATE: the close job removes every waiting list entry and nothing is promoted', async () => {
+    it('JOIN-WAITLIST-11-A-STATE: the close job removes every waitlist entry and nothing is promoted', async () => {
       const att = [await attendee('01'), await attendee('02')];
       const eventId = await seedFullGala(att, { limit: 2, closes: new Date(T0.getTime() + 30 * MINUTE).toISOString() });
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -1344,9 +1360,9 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   });
 
   // JOIN-WAITLIST-12: AC12 (event cancelled). Blocked: the cancel flow (SPM-136) is not in HEAD.
-  describe('AC12: an event cancellation releases the waiting list (JOIN-WAITLIST-12, Blocked)', () => {
+  describe('AC12: an event cancellation releases the waitlist (JOIN-WAITLIST-12, Blocked)', () => {
     /**
-     * Blocked (SPM-136): the cancel flow is not in HEAD. The waiting-list releaser (settle, then Waitlisted -> Cancelled) is
+     * Blocked (SPM-136): the cancel flow is not in HEAD. The waitlist releaser (settle, then Waitlisted -> Cancelled) is
      * tested in this file as JOIN-WAITLIST-12-C-REL (against rows); its wiring is SPM-136's.
      * Oracle (12-A, when unblocked): each of ATT-04, ATT-05, ATT-06 has one EventCancelled notification with the MSG-WL-06 text
      * and the three entries are cancelled. Kills M25 (an extra notification per cancelled entry is missing).
@@ -1463,7 +1479,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   // Reads write only for a caller who may see the event, and an unauthorised read takes no lock.
   describe('A read writes only for an attendee who may see the event (11-H-ORG, 11-H-LOCK)', () => {
     /**
-     * JOIN-WAITLIST-11-H-ORG: an organiser's read of a closed event does not settle its waiting list. The row
+     * JOIN-WAITLIST-11-H-ORG: an organiser's read of a closed event does not settle its waitlist. The row
      * stays Waitlisted until an attendee reads or a job runs. Kills B1-ORG: the settle runs for every caller.
      */
     it('JOIN-WAITLIST-11-H-ERR-ORG: an organiser GET on a closed event leaves a waiting row unchanged', async () => {
@@ -1592,7 +1608,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
       expect(res.body[0]).toMatchObject({
         audienceRole: 'attendee',
         type: 'EventCancelled',
-        message: `${NAME} has been cancelled. Your waiting list place is cancelled.`,
+        message: `${NAME} has been cancelled. Your waitlist place is cancelled.`,
         relatedEventId: eventId,
         read: false,
       });
@@ -1640,11 +1656,11 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
   // Attendee notices and the status re-read under the lock.
   describe('Attendee notices and the status re-read under the lock (09-C, 10-G)', () => {
     /**
-     * JOIN-WAITLIST-09-C: an attendee reads only their own waiting list notices. The promoted attendee sees the
+     * JOIN-WAITLIST-09-C: an attendee reads only their own waitlist notices. The promoted attendee sees the
      * WaitlistPromoted notice (MSG-WL-05, linked to the event, as an attendee audience). A waiting attendee sees none. An
      * organiser's access is unchanged and does not see the attendee's notice. Kills N-1: the attendee audience is removed.
      */
-    it('JOIN-WAITLIST-09-C: an attendee reads only their own waiting list notices; organiser access is unchanged', async () => {
+    it('JOIN-WAITLIST-09-C: an attendee reads only their own waitlist notices; organiser access is unchanged', async () => {
       const att = [await attendee('90'), await attendee('91'), await attendee('92')];
       const eventId = await seedFullGala(att);
       const [a4, a5] = [await attendee('93'), await attendee('94')];
@@ -1851,7 +1867,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
     });
 
     /**
-     * JOIN-WAITLIST-01-D-BOUNDARY: the closing instant is exclusive for the waiting list too. One millisecond before
+     * JOIN-WAITLIST-01-D-BOUNDARY: the closing instant is exclusive for the waitlist too. One millisecond before
      * the close a join on a full event is accepted; at the close instant it is refused with MSG-01. Kills P-E: the closing
      * comparison in the window rule is made inclusive of the wrong instant.
      */
@@ -1933,7 +1949,7 @@ describe.skipIf(!database)('SPM-138 join waiting list (e2e, PostgreSQL)', () => 
       expect(notices).toEqual([
         {
           type: 'EventCancelled',
-          message: `${NAME} has been cancelled. Your waiting list place is cancelled.`,
+          message: `${NAME} has been cancelled. Your waitlist place is cancelled.`,
           related_event_id: eventId,
           related_user_id: waiting.uid,
           read: false,

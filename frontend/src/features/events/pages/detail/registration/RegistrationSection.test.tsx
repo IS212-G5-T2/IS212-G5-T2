@@ -93,7 +93,7 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
   it("full event: no button", () => {
     renderSection({ ...baseEvent, availableRegistrationSpots: 0 });
     expect(registerButton()).not.toBeInTheDocument();
-    // SPM-138 AC2: a full, open event reads "Event full" and offers the waiting list.
+    // SPM-138 AC2: a full, open event reads "Event full" and offers the waitlist.
     expect(screen.getByRole("heading", { name: "Event full" })).toBeInTheDocument();
   });
 });
@@ -407,7 +407,8 @@ describe("D14: failed POST is not retried automatically", () => {
  * The Withdraw control is not rendered for a past event (D11); there is no availability flag.
  */
 describe("SPM-120 registration details: the withdraw option and the event-started rule", () => {
-  const section = () => screen.getByRole("region", { name: "Withdrawal" });
+  // The withdraw action lives in the registration status card (SPM-120 / SPM-138 redesign).
+  const section = () => screen.getByRole("region", { name: "Registration details" });
   const withdraw = () => screen.queryByRole("button", { name: "Withdraw" });
 
   /** Renders an owned, registered registration with the store holding the same record. */
@@ -501,13 +502,13 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     await u.click(withdraw()!);
 
     // Act
-    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+    await u.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
 
     // Assert
     expect(await within(section()).findByText("Event has already occurred")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(withdraw()).not.toBeInTheDocument();
-    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
+    expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
   });
 
   // WITHDRAW-EVENT-REG-05-D
@@ -527,7 +528,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     await u.click(withdraw()!);
 
     // Act
-    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+    await u.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
 
     // Assert: the section follows the reloaded store record
     expect(await screen.findByText("Withdrawn")).toBeInTheDocument();
@@ -543,7 +544,7 @@ describe("SPM-120 registration details: the withdraw option and the event-starte
     renderOwned(buildEvent());
 
     expect(screen.getByText("You're registered")).toBeInTheDocument();
-    expect(screen.getByText("Confirmed")).toBeInTheDocument(); // SPM-138 D3 label
+    expect(screen.getByRole("heading", { name: "You're registered" })).toBeInTheDocument();
     expect(withdraw()).toBeEnabled();
     expect(screen.queryByText("Registration withdrawn")).not.toBeInTheDocument();
     expect(screen.queryByText("View previous registration details")).not.toBeInTheDocument();
@@ -757,10 +758,10 @@ describe("SPM-120 redesign: re-registering from the withdrawn card", () => {
 
     // Act: withdraw through the dialog
     await u.click(screen.getByRole("button", { name: "Withdraw" }));
-    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+    await u.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
 
     // Assert
-    expect(await screen.findByText("Registration withdrawn")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent("Registration withdrawn");
     expect(screen.queryByRole("form", { name: "Event registration" })).not.toBeInTheDocument();
     expect(registerAgain()).toBeEnabled();
   });
@@ -868,8 +869,8 @@ describe("SPM-120: a failed reload after a conflict does not leave the dialog op
     useAppStore.setState({ isAuthenticated: true, currentUser: ATT_01, registrations: [buildRegistration({ eventId: buildEvent().id })] });
     render(<RegistrationSection event={buildEvent()} currentUser={ATT_01} registration={buildRegistration({ eventId: buildEvent().id })} />);
     await u.click(screen.getByRole("button", { name: "Withdraw" }));
-    await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
-    await waitFor(() => expect(screen.queryByRole("button", { name: "Confirm Withdrawal" })).not.toBeInTheDocument());
+    await u.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });
 

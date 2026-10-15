@@ -1,5 +1,5 @@
 /*
- * Story: SPM-138 Join Waiting List, unit level for the one promotion guard that no database fixture can reach.
+ * Story: SPM-138 Join Waitlist, unit level for the one promotion guard that no database fixture can reach.
  * The close, boundary, reopen, releaser and list rules are asserted against rows in
  * test/registrations.waitlist.e2e-spec.ts (11-A, 11-A-LIST, 11-B, 11-D, 11-G, 11-E-HOOK, 12-C-REL).
  * Test cases: JOIN-WAITLIST-08-C-GUARD.

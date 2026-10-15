@@ -12,7 +12,7 @@
  * so a held or repeated Enter from the Withdraw button cannot confirm at once.
  * Only Date is faked; timers stay real because axe uses them.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
@@ -27,9 +27,12 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 }));
 const apiMock = vi.mocked(api);
 
-const withdrawButton = () => screen.getByRole("button", { name: "Withdraw" });
-const cancelButton = () => screen.getByRole("button", { name: "Cancel" });
-const confirmButton = () => screen.getByRole("button", { name: "Confirm Withdrawal" });
+// The card's Withdraw button and the dialog's Withdraw button share a name, so each query is scoped to its own region.
+const cardRegion = () => screen.getByRole("region", { name: "Registration details" });
+const withdrawButton = () => within(cardRegion()).getByRole("button", { name: "Withdraw" });
+const dialogOf = () => screen.getByRole("dialog");
+const cancelButton = () => within(dialogOf()).getByRole("button", { name: "Keep registration" });
+const confirmButton = () => within(dialogOf()).getByRole("button", { name: "Withdraw" });
 
 /** Renders REG-9001 on EVT-101 and opens the confirmation dialog. */
 async function openDialog() {
@@ -54,14 +57,15 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
   it("WITHDRAW-EVENT-REG-02-B: dialog semantics and button names", async () => {
     await openDialog();
 
-    const dialog = screen.getByRole("dialog", { name: "Withdraw from Tech Talk: Cloud 101?" });
+    const dialog = screen.getByRole("dialog", { name: "Withdraw your registration?" });
     expect(dialog).toHaveAttribute("aria-modal", "true");
     expect(confirmButton().tagName).toBe("BUTTON");
     expect(cancelButton().tagName).toBe("BUTTON");
+    expect(confirmButton().tagName).toBe("BUTTON");
   });
 
   // WITHDRAW-EVENT-REG-02-B
-  // Oracle (D10 B, amends 02-B C): on open, focus is on Cancel.
+  // Oracle (D10 B, amends 02-B C): on open, focus is on the safe option, "Keep registration".
   // Kills: focus not moved into the dialog (stays on the Withdraw button).
   it("WITHDRAW-EVENT-REG-02-B: initial focus is on Cancel", async () => {
     await openDialog();
@@ -70,7 +74,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
   });
 
   // WITHDRAW-EVENT-REG-02-B
-  // Oracle (D10 B): Tab cycles Cancel -> Confirm -> Cancel; Shift+Tab reverses; focus never leaves the dialog.
+  // Oracle (D10 B): Tab cycles Keep registration -> Withdraw -> Keep registration; Shift+Tab reverses; focus never leaves the dialog.
   // Kills: M12 focus trap removed (focus escapes to the page behind).
   it("WITHDRAW-EVENT-REG-02-B: Tab and Shift+Tab are trapped inside the dialog", async () => {
     // Arrange
@@ -92,7 +96,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
 
   // WITHDRAW-EVENT-REG-02-B
   // Oracle (D10 B + the trap's own rule, "pull focus back in if it ever left the dialog"): with focus on the page
-  // behind, Tab lands on the first dialog button (Cancel) and Shift+Tab on the last (Confirm).
+  // behind, Tab lands on the first dialog button (Keep registration) and Shift+Tab on the last (Withdraw).
   // Starting points are chosen so the browser's own tab order would give a different answer: from <body> Tab would
   // reach the Withdraw button, and from Withdraw Shift+Tab would wrap to the extra button after the dialog.
   // Kills: the "focus left the dialog" branch removed (focus stays on the page behind the modal).
@@ -158,7 +162,7 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
   });
 
   // WITHDRAW-EVENT-REG-02-B
-  // Oracle (SPEC 02-B C, Escape = Cancel): closes with zero requests and focus returns to "Withdraw".
+  // Oracle (SPEC 02-B C, Escape = Keep registration): closes with zero requests and focus returns to the card's Withdraw.
   // Kills: Escape ignored; Escape confirms; focus lost after close.
   it("WITHDRAW-EVENT-REG-02-B: Escape closes the dialog, sends nothing and restores focus", async () => {
     const { u } = await openDialog();
@@ -186,6 +190,6 @@ describe("SPM-120 AC2: the confirmation dialog is accessible (jsdom subset of 02
 /*
  * SPM-120 assumption index. Decision IDs (A*, D*, F*) are defined in docs/specs/SPM-120-test-results.md,
  * "Decision and assumption IDs". assumption -> tests that rely on it:
- *  D10  initial focus is on Cancel (amends the Confluence case) -> initial focus, Tab cycle
+ *  D10  initial focus is on the safe option, "Keep registration" (amends the Confluence case) -> initial focus, Tab cycle
  *  TRAP the dialog's documented focus rule (pull focus back in; keep it on the dialog while both buttons are disabled), DERIVED from the component's contract -> outside-focus and pending-focus tests
  */

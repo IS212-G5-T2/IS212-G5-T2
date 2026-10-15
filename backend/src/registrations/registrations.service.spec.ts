@@ -112,7 +112,7 @@ function scripted(script: Script) {
     // SPM-138 fillFreeSpots: the event's capacity and name, read after a withdrawal.
     if (/registration_limit AS capacity/.test(sql))
       return { rows: [{ capacity: script.capacity ?? 3, name: script.eventName ?? 'Tech Talk: Cloud 101' }] };
-    // SPM-138 fillFreeSpots: the waiting list is empty unless a case scripts it.
+    // SPM-138 fillFreeSpots: the waitlist is empty unless a case scripts it.
     if (/status = 'Waitlisted'\s+ORDER BY joined_at/.test(sql)) return { rows: [] };
     if (/^\s*UPDATE event_registrations/.test(sql)) return { rows: script.updated ?? [] };
     if (/FROM events WHERE id = \$1 FOR UPDATE/.test(sql)) return { rows: script.event ?? [] };

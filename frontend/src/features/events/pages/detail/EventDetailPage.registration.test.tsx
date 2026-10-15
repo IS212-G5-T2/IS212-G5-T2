@@ -428,7 +428,7 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     await screen.findByRole("heading", { name: fullEvent.name });
-    // SPM-138 AC2: a full, open event reads "Event full" and offers the waiting list.
+    // SPM-138 AC2: a full, open event reads "Event full" and offers the waitlist.
     expect(screen.getByRole("heading", { name: "Event full" })).toBeInTheDocument();
     // SPM-61 D7: a full event renders no Register button.
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();

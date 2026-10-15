@@ -76,7 +76,7 @@ export class EventsService {
 
   /**
    * SPM-138 AC2 capacity fields. Confirmed is the Registered count; a place is free while it is below the limit. The
-   * waiting list is offered only for a full event that is open for registration.
+   * waitlist is offered only for a full event that is open for registration.
    */
   private capacityFields(row: pg.QueryResultRow) {
     const limit = Number(row.registration_limit);
@@ -159,7 +159,7 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
-    // The attendee list settles the waiting lists that are due before it reads statuses. The job scans only due lists,
+    // The attendee list settles the waitlists that are due before it reads statuses. The job scans only due lists,
     // so an event that is not due takes no lock and is not written.
     if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))
       await runRegistrationCloseJob(this.database, this.clock.now());
@@ -245,7 +245,7 @@ export class EventsService {
       }
       throw new NotFoundException('Event not found.');
     }
-    // A closed waiting list is settled on read for an attendee who may see the event, so the response never shows a stale
+    // A closed waitlist is settled on read for an attendee who may see the event, so the response never shows a stale
     // waiting entry. Organisers, coordinators and anyone not allowed to view the event take no lock and write nothing.
     if (user.roles.includes('ATTENDEE') && isAttendeeViewable) await settleIfDue(this.database, id, this.clock.now());
     return this.record(row, user.uid);
@@ -392,7 +392,7 @@ export class EventsService {
         ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment']
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
-      // SPM-138 AC9/AC12: an attendee reads only their own waiting list notices (the query also filters by recipient).
+      // SPM-138 AC9/AC12: an attendee reads only their own waitlist notices (the query also filters by recipient).
       ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),
     ];
     if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');

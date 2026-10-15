@@ -1,5 +1,5 @@
 /*
- * SPM-138 D9: a waiting list is settled once its registration has closed. Waitlisted entries become Removed (no notice),
+ * SPM-138 D9: a waitlist is settled once its registration has closed. Waitlisted entries become Removed (no notice),
  * with removed_at set to the injected clock. Closing is exclusive at the closing instant, the same rule as the window
  * (registration-window.ts). A manual close is registration_enabled = false.
  *

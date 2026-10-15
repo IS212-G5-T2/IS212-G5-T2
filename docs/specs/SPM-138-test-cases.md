@@ -26,7 +26,7 @@ Short definitions of the SPM-138 decision labels used in code and test comments.
 - D8: promotion moves the earliest waiting entries into free places, inside the withdrawal transaction, under the event lock.
 - D9: a waiting list is removed once its registration has closed (or registration is disabled). It is settled on read for an attendee who may see the event, on join and withdrawal under the lock, and by the close job.
 - D13: an attendee's promotion and cancellation notices are rows in `notifications` (WaitlistPromoted, EventCancelled), readable by that attendee only.
-- D14: the locked wording of the waiting list messages MSG-WL-01 to MSG-WL-06.
+- D14: the locked wording of the waitlist messages MSG-WL-01 to MSG-WL-06.
 - D15: join and the attendee's own reads need the attendee role; the by-id reads are owner-scoped.
 - D16: the registration page state (closed, not-yet-open, register, full-join, registered, waitlisted, cancelled) is derived from the window, fullness and the attendee's own status.
 
@@ -54,28 +54,28 @@ Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by 
 - **01-B** (BE). ATT-04 `POST /api/events/EVT-701/registrations` returns 422 `registration_full`; no row; Confirmed 3; no implicit waitlist entry. *Kills M3.*
 - **01-C** (BE + FE). A: EVT-702 at 9 of 10 shows "Register", no "Join Waiting List"; join returns 422 "This event still has available spots. Please register directly." (MSG-WL-03); no row. B: after ATT-05 registers (10 of 10), ATT-04 sees "Join Waiting List" and no "Register"; join returns 201. *Kills M1, M4.*
 - **01-D** (BE + FE). `it.each`: A EVT-704 (full, closed) shows "Registration closed", no controls, join returns 422 MSG-01. B EVT-705 (full, opens T0+3d 09:00) shows "Registration opens on ..." in SPM-61 format, join returns 422 MSG-02. No rows. Window is checked before fullness. *Kills M5, M6.*
-- **01-E** (BE + FE). EVT-706 with ATT-04 waitlisted at 1. A: ATT-01 (Confirmed) joins, 409 "You are already registered for this event." (MSG-05). B: ATT-04 joins, 409 "You are already on the waiting list for this event." (MSG-WL-04); page shows the waitlisted indicator, not Join; position still 1. C: ATT-05 sends 5 parallel joins; exactly one 201 (position 2) and four 409 MSG-WL-04; one row. FE double-click sends one request and disables Join after the first click. *Kills M7.*
+- **01-E** (BE + FE). EVT-706 with ATT-04 waitlisted at 1. A: ATT-01 (Confirmed) joins, 409 "You are already registered for this event." (MSG-05). B: ATT-04 joins, 409 "You are already on the waitlist for this event." (MSG-WL-04); page shows the waitlisted indicator, not Join; position still 1. C: ATT-05 sends 5 parallel joins; exactly one 201 (position 2) and four 409 MSG-WL-04; one row. FE double-click sends one request and disables Join after the first click. *Kills M7.*
 - **01-F** (BE + FE). `it.each`: no token and expired token return 401; COO-01 and ORG-01 (no Attendee role) return 403 with the existing generic permission message (F12); no row. FE: logged-out click on Join goes to login, then back to `/events/EVT-701` with Join available. A user holding both Attendee and another role is allowed. *Kills M8.*
 
 ### AC2: Event page shows full and waitlist (JOIN-WAITLIST-02)
 
-- **02-A** (BE + FE, unit). EVT-701 full and open: UI shows "Event full", "0 of 3 available" in SPM-61's format, "This event is full. Join the waiting list to be notified if a spot opens." (MSG-WL-02), "Join Waiting List", no "Register", the closing date. `GET /api/events/EVT-701` returns `isFull: true`, `waitlistAvailable: true`, `registrationOpen: true`. *Kills waitlistAvailable ignoring window or fullness.*
+- **02-A** (BE + FE, unit). EVT-701 full and open: UI shows "Event full", "0 of 3 available" in SPM-61's format, "This event is full. Join the waitlist to be notified if a spot opens." (MSG-WL-02), "Join Waiting List", no "Register", the closing date. `GET /api/events/EVT-701` returns `isFull: true`, `waitlistAvailable: true`, `registrationOpen: true`. *Kills waitlistAvailable ignoring window or fullness.*
 - **02-B** (BE + FE, unit). EVT-702: no "full" text, Register shown, `isFull` false, `waitlistAvailable` false. EVT-704: "Registration closed", no waitlist text, `isFull` true, `waitlistAvailable` false. EVT-705: "Registration opens on ...", `isFull` true, `waitlistAvailable` false. Unit: `registrationUiState(open, full, myStatus)` table over all combinations (added).
 
 ### AC3: Status shows Waitlisted (JOIN-WAITLIST-03)
 
-- **03-A** (BE + FE). After joining, dashboard and details show "Waitlisted" (variant distinct from Confirmed and Withdrawn). `GET /api/events/EVT-701/registrations/me` returns status `waitlisted`. Event page shows "You are on the waiting list" with no Register or Join. *Kills missing label; Join still offered.*
+- **03-A** (BE + FE). After joining, the dashboard shows "Waitlisted" (variant distinct from Confirmed and Withdrawn) and the details card shows the headline "You're on the waitlist" with the notice "You're #n in line" and "We'll notify you if a spot opens up.". `GET /api/events/EVT-701/registrations/me` returns status `waitlisted`. Event page shows "You are on the waiting list" with no Register or Join. *Kills missing label; Join still offered.*
 - **03-B** (BE + FE). EVT-701 with ATT-04 waitlisted: Confirmed count 3, `availableSpots` 0; ATT-04 still Waitlisted after logout and login; ATT-05 still sees full and Join. *Kills M2.*
 
 ### AC4: Confirmation with position (JOIN-WAITLIST-04)
 
-- **04-A** (FE + BE). ATT-04 joins EVT-701 (empty list). Banner reads exactly "You have joined the waiting list for Gala Waitlist Night. Your position is 1." (MSG-WL-01), built by the frontend from the event name and response `position`. Dismissible; gone after reload.
+- **04-A** (FE + BE). ATT-04 joins EVT-701 (empty list). Banner reads exactly "You have joined the waitlist for Gala Waitlist Night. Your position is 1." (MSG-WL-01), built by the frontend from the event name and response `position`. Dismissible; gone after reload.
 - **04-B** (BE + FE). EVT-706 clone, empty list: ATT-04, ATT-05, ATT-06 join in order; messages say 1, 2, 3; each equals its POST response and later details GET. *Kills non-increasing positions.*
 - **04-C** (BE, real DB). Five parallel joins by ATT-04 to ATT-08: five 201; positions exactly 1 to 5, each once; each message equals its own response; DB order by `(joined_at, waitlist_seq)` agrees. *Kills M13.*
 
 ### AC5: Position in registration details (JOIN-WAITLIST-05)
 
-- **05-A** (BE + FE). EVT-706 with ATT-04 (1), ATT-05 (2), ATT-06 (3): details show "Waiting list position: n" and status Waitlisted; API `waitlistPosition` equals it.
+- **05-A** (BE + FE). EVT-706 with ATT-04 (1), ATT-05 (2), ATT-06 (3): the details card shows "You're #n in line" and the headline "You're on the waitlist"; API `waitlistPosition` equals it.
 - **05-B** (BE + FE). ATT-01 Confirmed: `waitlistPosition: null` (key present), no position row. ATT-07 Withdrawn: null, no row. ATT-04 Waitlisted: position shown. *Kills M31.*
 - **05-C** (BE). ATT-04 requests ATT-05's registration by id: 404 "Registration not found." (MSG-07), no name or position. Router inventory shows no attendee route listing other attendees' entries. No token: 401. *Kills M30.*
 
@@ -123,7 +123,7 @@ Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by 
 
 ### AC12: Event cancelled (JOIN-WAITLIST-12)
 
-- **12-A** (BE). EVT-706 clone (ATT-04, 05, 06 waiting): COO-01 cancels via the SPM-136 flow. Each has exactly one notification, type `EventCancelled`, text "Gala Waitlist Night has been cancelled. Your waiting list place is cancelled." (MSG-WL-06). The three entries are `cancelled`. **Blocked (SPM-136)** if absent. *Kills M25.*
+- **12-A** (BE). EVT-706 clone (ATT-04, 05, 06 waiting): COO-01 cancels via the SPM-136 flow. Each has exactly one notification, type `EventCancelled`, text "Gala Waitlist Night has been cancelled. Your waitlist place is cancelled." (MSG-WL-06). The three entries are `cancelled`. **Blocked (SPM-136)** if absent. *Kills M25.*
 - **12-B** (BE + FE). After the cancel: ATT-05's details show "Cancelled", no position, no Withdraw, Join or Register. Withdraw returns 409; join returns 422 MSG-01. Status stays. *Kills controls offered and status overwritten.*
 - **12-C** (BE). ATT-04 waitlisted; ATT-07 withdrawn from the list (clone). EVT-701: ATT-08 waitlisted. Cancel EVT-706: ATT-07 stays Withdrawn with no notification; ATT-08 unchanged, nothing. *Kills M26.*
 
@@ -140,7 +140,7 @@ W1 to W12 are cited in the case rows above. Their full text was not available.
 ## ASSUMPTION index
 
 - A-ST: API and DB status values are the repo's lowercase/Title-case values (D3).
-- A-TXT: "You are on the waiting list" and "Waiting list position: n" are assumed copy (F20).
+- A-TXT: the waitlisted card's headline "You're on the waitlist" and notice "You're #n in line" are copy from the registration status cards spec.
 - A-TIME: Promotion time is `registered_at` (F23, not asserted).
 
 ## Appendix: mutant ID mapping (reconstruction, not renumbered)

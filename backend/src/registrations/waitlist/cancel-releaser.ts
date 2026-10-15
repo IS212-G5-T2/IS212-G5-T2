@@ -1,6 +1,6 @@
 /*
- * SPM-138 AC12 (waiting-list side). When an event is cancelled, its waiting entries become Cancelled and each attendee
- * gets one EventCancelled notice ("Your waiting list place is cancelled", MSG-WL-06), in the same transaction. Registered,
+ * SPM-138 AC12 (waitlist side). When an event is cancelled, its waiting entries become Cancelled and each attendee
+ * gets one EventCancelled notice ("Your waitlist place is cancelled", MSG-WL-06), in the same transaction. Registered,
  * Withdrawn and Removed rows are never touched. Dedupe per registration: the UPDATE moves only Waitlisted rows, so an
  * entry can be cancelled, and therefore noticed, once.
  *

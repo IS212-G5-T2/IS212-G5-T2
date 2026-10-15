@@ -1,6 +1,6 @@
 /*
- * Story: SPM-138 Join Waiting List When Event Is at Capacity (frontend rules).
- * ACs: AC1 (join when full), AC2 (the page shows full and the waiting list), AC3 (Waitlisted status), AC4 (confirmation).
+ * Story: SPM-138 Join Waitlist When Event Is at Capacity (frontend rules).
+ * ACs: AC1 (join when full), AC2 (the page shows full and the waitlist), AC3 (Waitlisted status), AC4 (confirmation).
  * Test cases: JOIN-WAITLIST-02-B-UNIT (the registrationUiState table), 04-A-TEXT (the MSG-WL-01 text), and the locked copy
  * for MSG-WL-02 to MSG-WL-06 (D14). Copy is asserted literally; nothing here is computed from the code under test.
  */
@@ -9,9 +9,9 @@ import { WAITLIST_MESSAGES, registrationUiState } from "./registration";
 
 // JOIN-WAITLIST-02-B-UNIT: the page state for every combination of window, fullness and the attendee's own status.
 // Oracle (D16): a waiting or confirmed status wins over the window; a closed window beats not-yet-open, which beats
-// the full/open split (full -> join the waiting list, otherwise register). Cancelled wins like a status.
+// the full/open split (full -> join the waitlist, otherwise register). Cancelled wins like a status.
 describe("JOIN-WAITLIST-02-B-INT-UNIT: registrationUiState table (D16)", () => {
-  // Kills: F1, F2, F33, F34 (window and status precedence rows)
+  // Kills: F1, F2, F33, F34
   it.each([
     // window,        full,  own status,   expected
     ["open", false, undefined, "register"],
@@ -44,31 +44,25 @@ describe("JOIN-WAITLIST-02-B-INT-UNIT: registrationUiState table (D16)", () => {
 
 // JOIN-WAITLIST-04-A-TEXT: the locked copy. Each literal is copied from the SPM-138 message table (D14).
 describe("SPM-138 locked copy (D14)", () => {
-  // Kills: F19 (MSG-WL-01 copy)
+  // Kills: F19
   it("JOIN-WAITLIST-04-A-TEXT: MSG-WL-01 is built from the event name and the response position", () => {
     expect(WAITLIST_MESSAGES.joined("Gala Waitlist Night", 1)).toBe(
-      "You have joined the waiting list for Gala Waitlist Night. Your position is 1.",
+      "You have joined the waitlist for Gala Waitlist Night. Your position is 1.",
     );
   });
 
-  // Kills: F20 (MSG-WL-02 copy)
+  // Kills: F20
   it("JOIN-WAITLIST-02-A-TEXT: MSG-WL-02 is the full-event sentence", () => {
-    expect(WAITLIST_MESSAGES.full).toBe("This event is full. Join the waiting list to be notified if a spot opens.");
+    expect(WAITLIST_MESSAGES.full).toBe("This event is full. Join the waitlist to be notified if a spot opens.");
   });
 
-  // Kills: F21 (waiting indicator copy)
-  it("JOIN-WAITLIST-03-A-TEXT: the attendee's waiting indicator and the position line (A-TXT)", () => {
-    expect(WAITLIST_MESSAGES.onList).toBe("You are on the waiting list");
-    expect(WAITLIST_MESSAGES.position(2)).toBe("Waiting list position: 2");
-    expect(WAITLIST_MESSAGES.join).toBe("Join Waiting List");
+  // Kills: CARD-COPY
+  it("JOIN-WAITLIST-03-A-TEXT: the position notice in the card and the join control copy", () => {
+    expect(WAITLIST_MESSAGES.inLine(2)).toBe("You're #2 in line");
+    expect(WAITLIST_MESSAGES.join).toBe("Join Waitlist");
   });
 
-  // Kills: F22 (withdrawal prompt copy)
-  it("JOIN-WAITLIST-10-A-TEXT: the withdrawal prompt copy for a waiting entry names the event", () => {
-    expect(WAITLIST_MESSAGES.withdrawPrompt("Gala Waitlist Night")).toBe(
-      "You will lose your place on the waiting list for Gala Waitlist Night. You can join again while registration is open.",
-    );
-  });
+  // The leave-waitlist and withdraw copy (the dialog that replaces the old withdraw prompt) is asserted in ConfirmDialog.test.tsx.
 
 
 });

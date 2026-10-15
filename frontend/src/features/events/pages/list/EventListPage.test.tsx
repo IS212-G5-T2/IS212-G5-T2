@@ -196,6 +196,7 @@ describe("EventListPage", () => {
   // VIEW-REG-DET-02-A (status badge beside the event status)
   // SPM-61: attendees get Upcoming/Registered/Past/Cancelled filters, see
   // "Confirmed" for Approved events, and a Registered badge beside the status.
+  // Kills: BADGE-M1, BADGE-M2, BADGE-M4, F13
   it("gives attendees personal filters and a Registered badge", async () => {
     const user = userEvent.setup();
     const future = new Date(Date.now() + 7 * 86_400_000);
@@ -220,22 +221,23 @@ describe("EventListPage", () => {
       </MemoryRouter>,
     );
 
-    // Default Upcoming view: both published future events, Approved shown as Confirmed.
+    // Default Upcoming view: both published future events. An unregistered attendee sees no badge on an Approved event.
     expect(await screen.findByText("Open Approved Event")).toBeInTheDocument();
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("My Past Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Approved")).not.toBeInTheDocument();
-    // SPM-138 D3: the card holds the event status badge and the registration badge, both "Confirmed" for this event.
-    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(2);
+    expect(within(screen.getByText("Open Approved Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
+    // Attendee rule: "Confirmed" means a registration, so a registered event shows exactly one Confirmed badge.
+    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
     expect(screen.queryByLabelText("Filter by status")).not.toBeInTheDocument();
 
-    // Registered Events: only my future registration, with both badges.
+    // Registered Events: only my future registration, with its one Confirmed badge.
     await user.selectOptions(screen.getByLabelText("Show"), "registered");
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("Open Approved Event")).not.toBeInTheDocument();
-    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(2);
+    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
 
-    // Past Events keeps the Completed tag and adds Confirmed (the SPM-138 D3 label for a registration that holds a place).
+    // Past Events keeps the Completed tag and adds Confirmed (the registration badge; the event status Confirmed is hidden).
     await user.selectOptions(screen.getByLabelText("Show"), "past");
     expect(screen.getByText("My Past Event")).toBeInTheDocument();
     expect(screen.getByText("Completed")).toBeInTheDocument();
@@ -367,6 +369,7 @@ describe("EventListPage", () => {
  * inside that event's card. Kills F15 (the dashboard stops passing the waiting status to the card).
  */
 describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry reads Waitlisted (AC3)", () => {
+  // Kills: BADGE-M1, BADGE-M4, F12, F15
   it("JOIN-WAITLIST-03-A-FE-LIST: the Waitlisted badge appears in the waiting event's card and not in the others", async () => {
     const future = new Date(Date.now() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
@@ -389,6 +392,36 @@ describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry rea
 
     const card = (await screen.findByText("My Waitlisted Event")).closest("a")!;
     expect(within(card).getByText("Waitlisted")).toBeInTheDocument();
+    // The event's own status is Confirmed, but an attendee's card never shows that: only the registration badge counts.
+    expect(within(card).queryByText("Confirmed")).not.toBeInTheDocument();
     expect(within(screen.getByText("Other Open Event").closest("a")!).queryByText("Waitlisted")).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * CARD-BADGE-05-A-STATE: an attendee's withdrawn registration on the list reads Withdrawn beside the event, with no
+ * Confirmed badge. Kills CARD-M5 (the list stops passing the withdrawn status to the card).
+ */
+describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as Withdrawn", () => {
+  // Kills: BADGE-M1, BADGE-M4, LIST-M5
+  it("CARD-BADGE-05-A-STATE: a withdrawn event card reads Withdrawn and no Confirmed", async () => {
+    const future = new Date(Date.now() + 7 * 86_400_000);
+    const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
+    const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: futureEnd.toISOString() };
+    apiMock.mockResolvedValue([{ ...base, id: "e-gone", name: "My Withdrawn Event", status: "confirmed", myRegistrationStatus: "withdrawn" }]);
+    useAppStore.setState({
+      currentUser: { id: "attendee-1", name: "Alice", email: "alice@example.com", role: "attendee" },
+    });
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const card = (await screen.findByText("My Withdrawn Event")).closest("a")!;
+    expect(within(card).getByText("Withdrawn")).toBeInTheDocument();
+    expect(within(card).queryByText("Confirmed")).not.toBeInTheDocument();
   });
 });
