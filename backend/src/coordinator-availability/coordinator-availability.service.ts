@@ -8,7 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { ACTIVE_COORDINATOR_EVENT_STATUSES } from '../events/types/event-status.js';
+import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
 
 type AvailabilityRow = { is_available: boolean };
 type UpdatedAvailabilityRow = AvailabilityRow & { display_name?: string; was_available?: boolean };
@@ -80,9 +80,10 @@ export class CoordinatorAvailabilityService {
 
   // AC10: one notice per Lead, naming the coordinator and their active events.
   private async tellLead(coordinatorId: string, name: string) {
+    // SPM-148 PLAN-STATUS-06-C: the unavailability notice counts Planning events (shared list).
     const counted = await this.database.query<{ count: string }>(
       'SELECT COUNT(*) AS count FROM events WHERE coordinator_id = $1 AND status = ANY($2)',
-      [coordinatorId, ACTIVE_COORDINATOR_EVENT_STATUSES],
+      [coordinatorId, ACTIVE_WORKLOAD_STATUSES],
     );
     const active = Number(counted.rows[0]?.count ?? 0);
     if (active === 0) return;

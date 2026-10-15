@@ -70,6 +70,7 @@ export function VenueRecordDetailPage() {
   const [requestError, setRequestError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
+  const [movedToPlanning, setMovedToPlanning] = useState("");
   const [checking, setChecking] = useState(false);
   const validRange =
     Number.isFinite(parseRequestTime(start)) &&
@@ -218,6 +219,7 @@ export function VenueRecordDetailPage() {
     }
   }
 
+  // SPM-148 PLAN-STATUS-01-A, 03-D: one request per submit; Submit is disabled while the request is in flight.
   async function submitRequest() {
     // The submit action exists only for a valid, conflict-free, event-selected range.
     const selectedVenue = venue!;
@@ -225,7 +227,11 @@ export function VenueRecordDetailPage() {
     setSubmitting(true);
     setRequestError("");
     try {
-      const result = await api<{ bookingReference: string }>(
+      const result = await api<{
+        bookingReference: string;
+        eventStatus?: string;
+        statusChanged?: boolean;
+      }>(
         `/venues/${encodeURIComponent(selectedVenue.id)}/booking-requests`,
         {
           method: "POST",
@@ -237,6 +243,18 @@ export function VenueRecordDetailPage() {
         },
       );
       setBookingReference(result.bookingReference);
+      // SPM-148 AC1: the first request moved the event to Planning; reflect it without a reload.
+      // SPM-148 PLAN-STATUS-01-A, 03-A: MSG-PL-01 and the store update only when the server reports the transition.
+      if (result.statusChanged) {
+        useAppStore.setState((state) => ({
+          events: state.events.map((item) =>
+            item.id === eventId ? { ...item, status: "planning" } : item,
+          ),
+        }));
+        setMovedToPlanning(selectedRequestEvent!.name);
+      } else {
+        setMovedToPlanning("");
+      }
       setSubmitted(true);
     } catch (failure) {
       setSubmitted(false);
@@ -598,6 +616,11 @@ export function VenueRecordDetailPage() {
                   {submitted && (
                     <p role="status">
                       Booking request submitted. Reference: {bookingReference}.
+                    </p>
+                  )}
+                  {submitted && movedToPlanning && (
+                    <p role="status">
+                      Venue booking request submitted. {movedToPlanning} is now in Planning.
                     </p>
                   )}
                 </div>

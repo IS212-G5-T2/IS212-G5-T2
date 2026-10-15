@@ -23,6 +23,7 @@ import { PlanningInformationPanel } from "@/features/events/pages/detail/plannin
 import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/PlanningUpdateForm";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
+import { StatusHistory } from "@/features/events/pages/detail/planning/StatusHistory";
 import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
 import {
   PLANNING_REFRESH_MS,
@@ -37,7 +38,9 @@ import { RegistrationSection } from "@/features/events/pages/detail/registration
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
 
-const CLARIFIABLE_STATUSES = ["submitted", "approved"];
+// SPM-148 PLAN-STATUS-07-A: a Coordinator may open a clarification in Planning (was hidden; AC7).
+// Mirrors the backend CLARIFICATION_OPEN_STATUSES (SPM-148 AC7): Planning stays open.
+const CLARIFIABLE_STATUSES = ["submitted", "approved", "planning"];
 
 // Venue and technical support staff only get involved once a request is
 // approved; anything earlier in the workflow is off-limits to them.
@@ -479,6 +482,8 @@ export function EventDetailPage() {
       {isOwner && event.status === "confirmed" && event.organiserId === currentUser.id && (
         <ConfirmedArrangementsPanel eventId={event.id} />
       )}
+            {/* SPM-148 PLAN-STATUS-04-A: Status History for the owner or assigned Coordinator (Approved, Planning, Confirmed). */}
+      {planningEnabled && <StatusHistory eventId={event.id} />}
       {!planningView && planningEnabled && planningError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {planningError}
@@ -647,7 +652,8 @@ export function EventDetailPage() {
               comments={comments}
               canRequestClarification={canRequestClarification}
               onSubmitClarification={submitClarification}
-              canReply={isOwner || isAssignedCoordinator}
+                            // SPM-148 PLAN-STATUS-07-D: replies are hidden once Confirmed; the thread stays visible.
+              canReply={(isOwner || isAssignedCoordinator) && event.status !== "confirmed"}
               onSubmitReply={submitClarificationReply}
               canResolve={isOwner || isAssignedCoordinator}
               onResolve={submitClarificationResolve}

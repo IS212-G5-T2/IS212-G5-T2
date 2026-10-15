@@ -66,6 +66,7 @@ export function EventListPage() {
   const filtered = isAttendee
     ? scoped.filter((e) => matchesAttendeeFilter(e, attendeeFilter, new Date()))
     : statusFilter
+            // SPM-148 PLAN-STATUS-05-A, 05-C: the Planning filter; with no match the list shows 'No events match this filter.'
       ? scoped.filter((e) => e.status === (statusFilter as EventStatus))
       : scoped;
 

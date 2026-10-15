@@ -71,6 +71,7 @@ export class StatusService {
     const targetStatus = this.targetStatusOf(body);
     const event = await this.assignedEventOrThrow(user, eventId);
     // SPM-136 adds `Cancelled` here.
+    // SPM-148 PLAN-STATUS-08-A: the public status-change endpoint refuses Planning (400 UNSUPPORTED_TARGET_STATUS).
     if (targetStatus !== 'Confirmed')
       throw new BadRequestException({
         code: STATUS_CODES.unsupportedTarget,
@@ -80,6 +81,41 @@ export class StatusService {
     return this.database.transaction((client) =>
       this.confirm(client, { identity: user, event, now: this.clock.now() }),
     );
+  }
+
+  // SPM-148 PLAN-STATUS-04-A, 04-A-SEC: status history for the assigned Coordinator and owning Organiser only (others 403).
+  /**
+   * SPM-148 D7: the event's status history, oldest first. Readable by the
+   * assigned Coordinator and the owning Organiser; everyone else gets 403.
+   */
+  async statusHistory(identity: AuthenticatedUser | undefined, eventId: string) {
+    const user = this.requireUser(identity);
+    const event = await this.findEvent(eventId);
+    if (!event) throw new NotFoundException(STATUS_MESSAGES.notFound);
+    const isCoordinator = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
+    if (!isCoordinator && !isOrganiser)
+      throw new ForbiddenException({ code: 'FORBIDDEN', message: STATUS_MESSAGES.notAssigned });
+    const rows = await this.database.query<{
+      from_status: string;
+      to_status: string;
+      created_at: Date;
+      actor_id: string;
+      actor_name: string | null;
+    }>(
+      `SELECT h.from_status, h.to_status, h.created_at, h.actor_id, u.display_name AS actor_name
+         FROM event_status_history h
+         LEFT JOIN users u ON u.id::text = h.actor_id
+        WHERE h.event_id = $1
+        ORDER BY h.created_at, h.id`,
+      [eventId],
+    );
+    return rows.rows.map((row) => ({
+      fromStatus: row.from_status,
+      toStatus: row.to_status,
+      changedAt: row.created_at.toISOString(),
+      changedBy: { id: row.actor_id, name: row.actor_name ?? row.actor_id },
+    }));
   }
 
   /** The assigned coordinator's readiness view (R5, D3). Read-only. */
@@ -423,6 +459,7 @@ export class StatusService {
   }
 
   private assertSourceStatus(status: string) {
+    // SPM-148 PLAN-STATUS-10-A: only Planning may be confirmed; Approved falls through to 422 EVENT_NOT_CONFIRMABLE.
     if (status === 'Planning') return;
     if (status === 'Confirmed')
       throw new ConflictException({ code: STATUS_CODES.alreadyConfirmed, message: STATUS_MESSAGES.alreadyConfirmed });

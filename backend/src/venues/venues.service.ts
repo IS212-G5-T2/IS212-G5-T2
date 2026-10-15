@@ -14,6 +14,10 @@ import type {
 import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../events/status/planning.messages.js';
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
 import { validateBookingRequest } from './availability/dto/booking-request.js';
@@ -120,6 +124,7 @@ export class VenuesService {
   ) {
     if (!identity?.uid)
       throw new UnauthorizedException('Authentication required.');
+    // SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.
     if (!identity.roles.includes('COORDINATOR'))
       throw new ForbiddenException('Coordinator access required.');
     if (!UUID.test(venueId)) throw new NotFoundException('Venue not found.');
@@ -132,8 +137,15 @@ export class VenuesService {
     );
     if (result.kind === 'venue-not-found')
       throw new NotFoundException('Venue not found.');
+    // SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.
     if (result.kind === 'event-not-assigned')
       throw new NotFoundException('Assigned event not found.');
+    // SPM-148 PLAN-STATUS-01-B: 409 EVENT_NOT_OPEN_FOR_BOOKING (MSG-PL-02) for closed statuses.
+    if (result.kind === 'event-not-open')
+      throw new ConflictException({
+        code: PLANNING_CODES.eventNotOpenForBooking,
+        message: PLANNING_MESSAGES.eventNotOpenForBooking,
+      });
     if (result.kind === 'conflict')
       throw new ConflictException(
         `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
@@ -145,6 +157,8 @@ export class VenuesService {
       start: result.start,
       end: result.end,
       status: 'pending' as const,
+      eventStatus: result.eventStatus,
+      statusChanged: result.statusChanged,
       bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
     };
   }
