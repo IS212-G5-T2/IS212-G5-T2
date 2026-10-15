@@ -59,6 +59,9 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
+    // Leftovers from an aborted run would collide on the fixed ids (fixedId below), so clear this suite's prefix first.
+    await pool.query("DELETE FROM venues WHERE id::text LIKE '00000148-%'");
+    await pool.query("DELETE FROM events WHERE id::text LIKE '00000148-%'");
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
@@ -414,23 +417,35 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       const [venueA, venueB] = [await venue(), await venue()];
       const eventId = await event('Approved', coordinator);
 
-      // Widen the race deterministically: each UPDATE of this event sleeps 300 ms
-      // after the status read of the other request, so both requests read Approved
-      // before either writes. Without the row lock or compare-and-set both transition.
-      await pool.query(`
-        CREATE OR REPLACE FUNCTION spm148_slow() RETURNS trigger AS $$
-        BEGIN PERFORM pg_sleep(0.3); RETURN NEW; END; $$ LANGUAGE plpgsql`);
-      await pool.query(
-        `CREATE TRIGGER spm148_slow_events BEFORE UPDATE ON events FOR EACH ROW
-         WHEN (NEW.id = '${eventId}'::uuid) EXECUTE FUNCTION spm148_slow()`,
-      );
-      triggers.push({ table: 'events', name: 'spm148_slow_events' });
+      // Deterministic barrier (no sleeps in the test): this session holds the event row lock, so both
+      // requests block. Without the lock or the compare-and-set, each request blocks on its own UPDATE
+      // after reading Approved, and both transition once the lock is released. The test waits on
+      // observable lock state (blocked sessions), not on time.
+      const holder = await pool.connect();
+      let results: { status: number; body: { statusChanged?: boolean } }[] = [];
+      try {
+        await holder.query('BEGIN');
+        await holder.query('SELECT id FROM events WHERE id = $1::uuid FOR UPDATE', [eventId]);
+        const pending = Promise.all([
+          book(coordinator, venueA, { eventId, ...slot(0) }),
+          book(coordinator, venueB, { eventId, ...slot(0) }),
+        ]);
+        for (let attempt = 0; ; attempt += 1) {
+          const blocked = await pool.query<{ n: number }>(
+            `SELECT count(*)::int AS n FROM pg_stat_activity
+              WHERE wait_event_type = 'Lock' AND datname = current_database()`,
+          );
+          if (blocked.rows[0].n >= 2) break;
+          if (attempt >= 500) throw new Error('Both requests should be blocked on the event lock');
+          await pool.query('SELECT pg_sleep(0.01)');
+        }
+        await holder.query('COMMIT');
+        results = await pending;
+      } finally {
+        holder.release();
+      }
 
-      const [a, b] = await Promise.all([
-        book(coordinator, venueA, { eventId, ...slot(0) }),
-        book(coordinator, venueB, { eventId, ...slot(0) }),
-      ]);
-
+      const [a, b] = results;
       expect([a.status, b.status]).toEqual([201, 201]);
       expect([a.body.statusChanged, b.body.statusChanged].sort()).toEqual([false, true]);
       expect(await bookingCount(eventId)).toBe(2);

@@ -152,3 +152,13 @@ Harness: a copy of `backend/` and `frontend/` in the session scratch directory, 
 - **F4 fixed, and a defect found:** `EventDetailPage.tsx` listed only `submitted` and `approved` as clarifiable, so a Coordinator could not open a clarification in Planning, contrary to AC7. Planning is now included. Replies are hidden once Confirmed; the thread stays visible. Two tests added to `EventDetailPage.clarifications.test.tsx`; the Planning test fails without the fix.
 - **Not changed:** F1 (test-case document absent) needs a decision; F3 (mutants not in the repo) and F5 to F8 are open.
 - Checks after this change: backend unit 1282 pass; frontend 1093 pass (1 todo). The backend e2e suite was not re-run after this change; the backend source is unchanged, only a unit spec was added.
+
+## Review follow-up, round 2 (F1, F3, F5 to F8)
+
+- **F1, authority recorded:** the 32-case document is still absent. `docs/specs/SPM-148-test-authority.md` records the written authority (the prompt, the user's decisions) and the rule for re-checking when the document is committed.
+- **F3, mutants in the repo:** `backend/scripts/mutation/spm148.mutants.mjs` follows the repo's runner format (`node scripts/mutation/run.mjs --mutants spm148.mutants.mjs`). It covers the backend mutants; M12 is frontend and not in the runner.
+- **F5, race barrier:** test 02-E no longer uses a sleep trigger. The test holds the event row lock, waits until both requests are blocked (observable lock state), then releases it. The race is forced by lock state, not by time.
+- **F6, fixed-id leftovers:** the suite deletes rows with the fixed `00000148-` prefix before it runs, so an aborted run cannot cause primary-key collisions.
+- **F7, history gate:** `EventDetailPage.statusHistory.test.tsx` checks that the panel shows to the owning organiser of a Planning event and not for a Submitted event.
+- **F8, closed without change:** the venue booking page does not render the event status, so there is no badge there to assert. The Planning badge is asserted on the events list in `EventListPage.planning.test.tsx`.
+- **Repo mutation runner (F3):** `node scripts/mutation/run.mjs --mutants spm148.mutants.mjs` against a PostgreSQL database with the init scripts: 22 mutants, 22 killed, 0 survived, 0 equivalent. M20 was first misapplied (wrong file) and then fixed and re-run. Original files untouched. M12 (frontend) is not in the runner.
