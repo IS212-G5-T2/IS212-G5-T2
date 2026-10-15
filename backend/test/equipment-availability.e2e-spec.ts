@@ -270,7 +270,7 @@ describe('SPM-119 equipment availability (e2e)', () => {
     );
   });
 
-  // EQUIP-UNAVAIL-ASSUMP-03: same-state requests are conflicts and are not audit events.
+  // EQUIP-UNAVAIL-ASSUMP-03: repeated same-state requests are rejected with 409 and create no audit entry (PO-confirmed rule).
   it('EQUIP-UNAVAIL-ASSUMP-03 returns 409 for repeated availability states without duplicate audit rows', async () => {
     // Arrange: one record starts available and another starts unavailable.
     const actor = await createUser('TECH_SUPPORT', 'same-state');
@@ -437,7 +437,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
   );
 
   // M1: Reactivation always writes false -> Stored availability after reactivating
-  it('EQUIP-UNAVAIL-01-C stores true when reactivating', async () => {
+  // EQUIP-UNAVAIL-06-A: a reactivated record is persisted as available.
+  it('EQUIP-UNAVAIL-06-A stores true when reactivating', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm1-test');
     const equipmentId = await createEquipment(false, 'M1 Test');
     await request(app.getHttpServer())
@@ -453,7 +454,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
   });
 
   // M2: Audit is_available column always true -> The API doesn't expose the column, and nothing queries it
-  it('EQUIP-UNAVAIL-01-D stores false in the audit trail when marking unavailable', async () => {
+  // EQUIP-UNAVAIL-05-A: the audit trail stores the before/after availability state.
+  it('EQUIP-UNAVAIL-05-A stores the unavailable state in the audit trail', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm2-test');
     const equipmentId = await createEquipment(true, 'M2 Test');
     await request(app.getHttpServer())
@@ -468,8 +470,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
     expect(audit.rows[0].is_available).toBe(false);
   });
 
-  // M6: Reason saved untrimmed -> A padded reason such as "  Under repair  "
-  it('EQUIP-UNAVAIL-02-B trims a padded reason before saving', async () => {
+  // EQUIP-UNAVAIL-02-A: a valid reason is stored in normalized form in the audit trail.
+  it('EQUIP-UNAVAIL-02-A trims a padded reason before saving', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm6-test');
     const equipmentId = await createEquipment(true, 'M6 Test');
     await request(app.getHttpServer())
@@ -485,7 +487,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
   });
 
   // M9: Reactivation stores a submitted reason -> Reactivation audit has a null reason
-  it('EQUIP-UNAVAIL-02-C stores a null reason when reactivating even if one was submitted', async () => {
+  // EQUIP-UNAVAIL-02-VAL-05: reactivation ignores an irrelevant reason.
+  it('EQUIP-UNAVAIL-02-VAL-05 stores a null reason when reactivating even if one was submitted', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm9-test');
     const equipmentId = await createEquipment(false, 'M9 Test');
     await request(app.getHttpServer())
@@ -501,7 +504,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
   });
 
   // M11: Missing reason field accepted -> Missing or non-string reason
-  it('EQUIP-UNAVAIL-02-D rejects a missing or non-string reason when marking unavailable', async () => {
+  // EQUIP-UNAVAIL-02-VAL-01 / EQUIP-UNAVAIL-02-VAL-02: missing and non-string reasons are rejected.
+  it('EQUIP-UNAVAIL-02-VAL-01/02 rejects missing or non-string reasons when marking unavailable', async () => {
     const actor = await createUser('TECH_SUPPORT', 'm11-test');
     const equipmentId = await createEquipment(true, 'M11 Test');
     await request(app.getHttpServer())
@@ -517,7 +521,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
   });
 
   // Retired records can be marked unavailable -> no test pins it
-  it('EQUIP-UNAVAIL-03-A allows marking a Retired record as unavailable', async () => {
+  // EQUIP-UNAVAIL-ASSUMP-01: availability changes are allowed for Retired equipment.
+  it('EQUIP-UNAVAIL-ASSUMP-01 allows marking a Retired record as unavailable', async () => {
     const actor = await createUser('TECH_SUPPORT', 'retired-test');
     const equipmentId = await createEquipment(true, 'Retired Test', {
       maintenanceStatus: 'Retired',
@@ -531,7 +536,8 @@ describe('SPM-119 equipment availability (e2e)', () => {
 
   // M5: Validate before authorise -> Forbidden user sending an invalid body gets 403, not 400
   // M7: Unknown-ID check removed -> 404 for an unknown ID
-  it('EQUIP-UNAVAIL-07-SEC-07 returns 403 for a forbidden user sending a malformed ID', async () => {
+  // EQUIP-UNAVAIL-07-SEC-04: authorization is checked before identifier validation.
+  it('EQUIP-UNAVAIL-07-SEC-04 returns 403 before validating a malformed ID for a forbidden user', async () => {
     const forbidden = await createUser('COORDINATOR', 'm5-id-test');
     await request(app.getHttpServer())
       .patch(`/api/equipment/not-a-uuid/availability`)

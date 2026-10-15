@@ -27,6 +27,16 @@ const REASON_REQUIREMENTS_MESSAGE =
   'Please provide a reason that: is between 10 and 500 characters; ' +
   'contains at least 3 words; and includes real words, not just numbers or symbols.';
 
+/** EVENT-REJECT-03-J: non-string reason values fail server validation before database access. */
+it.each([null, 123])(
+  'SPM-83 rejects non-string rejection reason %j',
+  (reason) => {
+    expect(() =>
+      EventsService.validateRejectionReason(reason as unknown as string),
+    ).toThrowError(REASON_REQUIREMENTS_MESSAGE);
+  },
+);
+
 const db = {
   query: vi.fn(),
   connect: vi.fn(),
@@ -240,6 +250,7 @@ describe('EventsService.reject (SPM-83)', () => {
 });
 
 describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
+  /** EVENT-REJECT-04-B: only a coordinator may reject, before opening a transaction. */
   it('refuses a caller who is not a coordinator, before opening a transaction', async () => {
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, organiser()),
@@ -250,6 +261,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
 
+  /** EVENT-REJECT-04-B: only the coordinator assigned to the request may reject it. */
   it('refuses a coordinator who is not the one assigned to the request', async () => {
     wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
 
@@ -264,6 +276,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
 });
 
 describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
+  /** EVENT-REJECT-04-C: requests outside the reviewable state are refused without an update. */
   it.each(['Approved', 'Rejected', 'Cancelled', 'Completed'])(
     'cannot reject a %s request (Conflict, no update)',
     async (status) => {
@@ -291,6 +304,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     created_at: new Date('2026-09-14T00:00:00.000Z'),
   };
 
+  /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification and reason. */
   it("returns the organiser's rejection notifications including the reason", async () => {
     db.query.mockResolvedValue({ rows: [notificationRow] });
 
@@ -309,6 +323,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
   // the non-organiser here is a venue staff account, who has no notifications.
+  /** EVENT-REJECT-03-I step 4: another user cannot retrieve the organiser's notification. */
   it('refuses a non-organiser caller and does not query', async () => {
     await expect(
       service.notifications({ uid: 'venue-1', roles: ['VENUE_STAFF'] }),
@@ -316,6 +331,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  /** EVENT-REJECT-03-I step 3: the organiser can mark their rejection notification as read. */
   it('marks a rejection notification as read', async () => {
     db.query.mockResolvedValue({ rows: [{ id: 'notif-1' }] });
     await expect(service.readNotification(VALID_UUID, organiser())).resolves.toEqual({
@@ -323,6 +339,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     });
   });
 
+  /** EVENT-REJECT-03-I step 4: an unknown notification returns NotFound. */
   it('returns not found when marking an unknown notification', async () => {
     db.query.mockResolvedValue({ rows: [] });
     await expect(service.readNotification(VALID_UUID, organiser())).rejects.toBeInstanceOf(
