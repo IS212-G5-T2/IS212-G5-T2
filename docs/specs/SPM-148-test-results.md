@@ -308,7 +308,7 @@ Result table per test case. Runs on 15 Oct 2026, branch working tree: backend un
 | Total Test Bodies | 1 (it.each, 3 rows) |
 | Pass/Fail | 1 passed, 0 failed |
 | Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
-| Layers Tested | None (not automated) |
+| Layers Tested | Backend e2e (PostgreSQL) |
 | Notes | Mutants killed: M4, M5. Fault raised by a database trigger after the named write; see the test name. |
 
 ### PLAN-STATUS-02-C
@@ -320,7 +320,7 @@ Result table per test case. Runs on 15 Oct 2026, branch working tree: backend un
 | Total Test Bodies | 1 (it.each, 3 rows) |
 | Pass/Fail | 1 passed, 0 failed |
 | Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
-| Layers Tested | None (not automated) |
+| Layers Tested | Backend e2e (PostgreSQL) |
 | Notes | Passes under the separate-transaction mutant (M4): its fault rolls back the booking first, so 02-B and 02-D carry that kill. Fault raised by a database trigger after the named write; see the test name. |
 
 ### PLAN-STATUS-02-D
@@ -332,7 +332,7 @@ Result table per test case. Runs on 15 Oct 2026, branch working tree: backend un
 | Total Test Bodies | 1 (it.each, 3 rows) |
 | Pass/Fail | 1 passed, 0 failed |
 | Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
-| Layers Tested | None (not automated) |
+| Layers Tested | Backend e2e (PostgreSQL) |
 | Notes | Mutants killed: M4, M5. Fault raised by a database trigger after the named write; see the test name. |
 
 ### PLAN-STATUS-02-E
@@ -538,6 +538,18 @@ Result table per test case. Runs on 15 Oct 2026, branch working tree: backend un
 | Executed By | Automated (Vitest; PostgreSQL for backend e2e); mutation runner for kills |
 | Layers Tested | Backend e2e (PostgreSQL), Backend unit, Frontend (Vitest, jsdom) |
 | Notes | Mutants killed: M17. Partial: Coordinator post and Organiser reply automated; Organiser post is refused by SPM-39 and needs a PO decision. |
+
+### PLAN-STATUS-07-B
+
+| Item | Result |
+|---|---|
+| Overall Status | Pass |
+| Execution Date | 15 Oct 2026 |
+| Total Test Bodies | 1 (shared with 07-A) |
+| Pass/Fail | 1 passed, 0 failed |
+| Executed By | Automated (Vitest; PostgreSQL for backend e2e) |
+| Layers Tested | Backend e2e (PostgreSQL) |
+| Notes | The e2e test titled 07-A runs the Coordinator's post, the Organiser's reply and the Coordinator's second reply in Planning. The reverse case in 07-B (Coordinator posts, Organiser replies) is that same body; Organiser posting is not built (see 07-A). |
 
 ### PLAN-STATUS-07-C
 
