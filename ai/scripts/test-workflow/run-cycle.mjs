@@ -9,12 +9,13 @@
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   BLOCKED, PASS, REPO_ROOT, UNABLE, WORKFLOW_DIR, abs, asList, fileExists, loadScope, parseArgs, parseCsv, readJson, readText, scopeTests,
   writeGate, writeText,
 } from './lib.mjs';
 
-const HERE = new URL('.', import.meta.url).pathname;
+const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ALL_STEPS = ['ids', 'spec', 'determinism', 'run', 'coverage', 'mutation', 'records', 'report'];
 
 const { flags } = parseArgs(process.argv.slice(2));
@@ -43,8 +44,17 @@ log(`cycle folder: ${cycle}  (cycle ${cycleNumber}; steps: ${steps.join(', ')}; 
 function run(command, args, options = {}) {
   log(`$ ${options.cwd ? `(cd ${options.cwd}) ` : ''}${[command, ...args].join(' ')}`);
   if (dryRun) return { status: 0, stdout: '', stderr: '' };
-  return spawnSync(command, args, { cwd: abs(options.cwd ?? '.'), env: { ...process.env, ...(options.env ?? {}) }, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  return spawnSync(command, args, {
+    cwd: abs(options.cwd ?? '.'), env: { ...process.env, ...(options.env ?? {}) }, encoding: 'utf8',
+    maxBuffer: 256 * 1024 * 1024,
+  });
 }
+
+const runVitest = (suite, args, options = {}) => run(
+  process.execPath,
+  [abs(join(suite.cwd, 'node_modules', 'vitest', 'vitest.mjs')), ...args],
+  { cwd: suite.cwd, ...options },
+);
 
 const script = (name, extra = []) => {
   const args = [join(HERE, name), '--scope', flags.scope, '--cycle', cycle, ...extra];
@@ -69,7 +79,10 @@ function runSuites() {
       for (const zone of zones) zoneTotals[zone].notRun += 1;
       continue;
     }
-    if (!runner && !dryRun) runner = `vitest ${run('npx', ['vitest', '--version'], { cwd: suite.cwd }).stdout.trim().replace(/^vitest\//, '')}`;
+    if (!runner && !dryRun) {
+      const version = runVitest(suite, ['--version']);
+      runner = version.status === 0 ? `vitest ${(version.stdout ?? '').trim().replace(/^vitest\//, '')}` : 'vitest (version unavailable)';
+    }
     zones.forEach((zone, index) => {
       const jsonPath = join(cycle, index === 0 ? 'test-run' : join('tz-runs', zone.replace(/\//g, '_')), `${suite.id}.json`);
       const args = ['vitest', 'run', ...(suite.config ? ['--config', suite.config] : []), ...files, '--reporter=json', `--outputFile=${abs(jsonPath)}`];
@@ -77,9 +90,9 @@ function runSuites() {
         args.push('--coverage.enabled', '--coverage.provider=v8', '--coverage.reporter=json', '--coverage.reporter=json-summary', `--coverage.reportsDirectory=${abs(join(cycle, 'coverage', suite.id))}`);
         for (const glob of scope.sources?.[suite.coverage] ?? []) args.push(`--coverage.include=${toCwd(glob, suite.cwd)}`);
       }
-      const outcome = run('npx', args, { cwd: suite.cwd, env: { TZ: zone } });
+      const outcome = runVitest(suite, args.slice(1), { env: { TZ: zone } });
       if (!dryRun) {
-        appendFileSync(abs(join(cycle, 'test-run.log')), `\n## ${suite.id} TZ=${zone}\n${outcome.stdout}\n${outcome.stderr}\n`, { flag: 'a' });
+        appendFileSync(abs(join(cycle, 'test-run.log')), `\n## ${suite.id} TZ=${zone}\n${outcome.stdout ?? ''}\n${outcome.stderr ?? outcome.error?.message ?? ''}\n`, { flag: 'a' });
         const data = existsSync(abs(jsonPath)) ? JSON.parse(readFileSync(abs(jsonPath), 'utf8')) : undefined;
         if (!data) {
           zoneTotals[zone].notRun += 1;

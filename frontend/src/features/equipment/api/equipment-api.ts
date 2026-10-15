@@ -25,6 +25,14 @@ export function createEquipment(input: EquipmentInput) {
   });
 }
 
+/** SPM-118 AC2/AC5/AC6: save the editable inventory fields for one equipment record. */
+export function updateEquipment(id: string, input: EquipmentInput) {
+  return api<{ equipment: EquipmentRecord; message: string }>(`/equipment/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+}
+
 export function getEquipment(options?: EquipmentListOptions) {
   const query = options?.includeUnavailable ? '?includeUnavailable=true' : '';
   return api<EquipmentRecord[]>(`/equipment${query}`);

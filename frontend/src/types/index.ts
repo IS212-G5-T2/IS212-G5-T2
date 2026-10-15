@@ -195,7 +195,7 @@ export interface EquipmentRecord {
   updatedAt: string;
 }
 
-/** SPM-119 AC5/AC7: one row of the shared equipment availability audit trail. */
+/** SPM-118/119: one row of the shared equipment change audit trail. */
 export interface EquipmentAuditEntry {
   id: string;
   equipmentId: string;
@@ -205,7 +205,7 @@ export interface EquipmentAuditEntry {
   maintenanceStatus: EquipmentRecord["maintenanceStatus"];
   quantity: number;
   isAvailable: boolean;
-  changeType: "Marked unavailable" | "Reactivated";
+  changeType: "Marked unavailable" | "Reactivated" | "Equipment record updated";
   reason: string | null;
   changedBy: string;
   timestamp: string;

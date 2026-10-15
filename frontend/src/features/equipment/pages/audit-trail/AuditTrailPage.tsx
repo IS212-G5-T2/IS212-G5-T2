@@ -14,13 +14,16 @@ function ChangeTypeBadge({
   changeType: EquipmentAuditEntry["changeType"];
 }) {
   const isReactivated = changeType === "Reactivated";
+  const isRecordUpdate = changeType === "Equipment record updated";
   return (
     <span
       className={
         "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium " +
         (isReactivated
           ? "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300"
-          : "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300")
+          : isRecordUpdate
+            ? "bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300"
+            : "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300")
       }
     >
       {changeType}
@@ -28,7 +31,7 @@ function ChangeTypeBadge({
   );
 }
 
-/** SPM-119 AC5/AC7: the shared, read-only history of every equipment availability change. */
+/** SPM-118 AC6 / SPM-119 AC5/AC7: the shared, read-only equipment change history. */
 export function AuditTrailPage() {
   const [entries, setEntries] = useState<EquipmentAuditEntry[]>([]);
   const [loadError, setLoadError] = useState(false);
@@ -102,7 +105,7 @@ export function AuditTrailPage() {
     <div>
       <PageHeader
         title="Audit Trail"
-        description="History of all equipment availability changes."
+        description="History of all equipment changes."
       />
       {loadError ? (
         <p
@@ -116,7 +119,7 @@ export function AuditTrailPage() {
           columns={columns}
           rows={entries}
           rowKey={(entry) => entry.id}
-          emptyMessage="No entries yet. Mark equipment as unavailable or reactivate equipment to see entries here."
+          emptyMessage="No entries yet. Update equipment details, mark equipment unavailable, or reactivate equipment to see entries here."
         />
       )}
     </div>

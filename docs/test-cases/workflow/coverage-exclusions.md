@@ -9,3 +9,5 @@ See `ai/docs/test-workflow.md` section 7 (G5).
 
 | File | Kind | Reason |
 |---|---|---|
+| backend/src/equipment/equipment.controller.ts | ignore-comment | Nest decorator metadata is generated framework metadata, not executable controller behavior; the ignore boundaries are scoped to metadata only and controller behavior is exercised through unit tests and the dedicated HTTP suite. |
+| backend/src/equipment/equipment.service.ts | ignore-comment | Nest injectable decorator metadata is generated framework metadata, not executable service behavior; service behavior remains measured and tested. |

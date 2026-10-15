@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -482,5 +483,176 @@ describe('EquipmentService', () => {
       service.getAuditTrail(userWithRole('ORGANISER')),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(database.query).not.toHaveBeenCalled();
+  });
+
+  /** SPM-118 AC2/AC5/AC6: changed editable fields update inventory and write the new state to audit. */
+  it('EQUIP-UPDATE-02-A updates all allowed values and writes an audit snapshot atomically', async () => {
+    const before = {
+      ...createdRow,
+      is_available: true,
+    };
+    const after = {
+      ...createdRow,
+      equipment_name: 'Updated projector',
+      equipment_type: 'Audio',
+      quantity: 7,
+      maintenance_status: 'Under Maintenance',
+      location: 'Main Hall',
+      is_available: true,
+      updated_at: new Date('2026-10-15T00:00:00.000Z'),
+    };
+    const client = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [before] })
+        .mockResolvedValueOnce({ rows: [after] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118',
+      {
+        name: 'Updated projector',
+        type: 'Audio',
+        location: 'Main Hall',
+        quantity: 7,
+        maintenanceStatus: 'Under Maintenance',
+      },
+    );
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/FROM equipment WHERE id = \$1 FOR UPDATE/i),
+      ['11111111-1111-4111-8111-111111111118'],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/UPDATE equipment[\s\S]*maintenance_status = \$5, quantity = \$6[\s\S]*RETURNING/i),
+      ['11111111-1111-4111-8111-111111111118', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/INSERT INTO equipment_audit_trail[\s\S]*'Equipment record updated'/i),
+      ['equipment-1', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7, true, 'support@example.test'],
+    );
+    expect(result).toMatchObject({
+      equipment: {
+        id: 'equipment-1',
+        name: 'Updated projector',
+        type: 'Audio',
+        location: 'Main Hall',
+        maintenanceStatus: 'Under Maintenance',
+        quantity: 7,
+      },
+      message: 'Equipment record updated.',
+    });
+  });
+
+  /** SPM-118 AC2: properties outside the five creation fields cannot alter the persisted record. */
+  it('EQUIP-UPDATE-02-B ignores retired Description and Specifications properties', async () => {
+    const before = { ...createdRow, is_available: true };
+    const after = { ...before, equipment_name: 'Updated projector', updated_at: new Date('2026-10-15T00:00:00.000Z') };
+    const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({ rows: [] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+      name: 'Updated projector', type: 'Visual', location: 'Storage Room A', quantity: 5, maintenanceStatus: 'Active',
+      description: 'must not persist', specifications: 'must not persist',
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringMatching(/UPDATE equipment[\s\S]*RETURNING/i), [
+      '11111111-1111-4111-8111-111111111118', 'Updated projector', 'Visual', 'Storage Room A', 'Active', 5,
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/must not persist/);
+  });
+
+  /** SPM-118 AC3: the API rejects an empty required field before opening a persistence transaction. */
+  it('EQUIP-UPDATE-03-B rejects a blank equipment name without touching the database', async () => {
+    await expect(
+      service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+        name: '   ',
+        type: 'Visual',
+        location: 'Main Hall',
+        quantity: 1,
+        maintenanceStatus: 'Active',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  const rejectsAnEmptyField = async (field: string, message: string, override: Record<string, unknown>) => {
+    const error = await service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+      name: 'Projector', type: 'Visual', location: 'Main Hall', quantity: 1, maintenanceStatus: 'Active', ...override,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toMatchObject({ errors: { [field]: message } });
+    expect(database.transaction).not.toHaveBeenCalled();
+  };
+
+  /** SPM-118 AC3: equipment type is required at the update service boundary. */
+  it('EQUIP-UPDATE-03-B rejects an empty type without opening a transaction', async () => rejectsAnEmptyField('type', 'Equipment type is required.', { type: '' }));
+  /** SPM-118 AC3: equipment location is required at the update service boundary. */
+  it('EQUIP-UPDATE-03-B rejects an empty location without opening a transaction', async () => rejectsAnEmptyField('location', 'Location is required.', { location: '   ' }));
+  /** SPM-118 AC3: maintenance status is required at the update service boundary. */
+  it('EQUIP-UPDATE-03-B rejects an empty maintenance status without opening a transaction', async () => rejectsAnEmptyField('maintenanceStatus', 'Maintenance status is required.', { maintenanceStatus: '' }));
+  /** SPM-118 AC3: quantity is required at the update service boundary. */
+  it('EQUIP-UPDATE-03-B rejects an empty quantity without opening a transaction', async () => rejectsAnEmptyField('quantity', 'Quantity is required.', { quantity: '' }));
+  /** SPM-118 AC3: equipment name is required at the update service boundary. */
+  it('EQUIP-UPDATE-03-B rejects an empty name without opening a transaction', async () => rejectsAnEmptyField('name', 'Equipment name is required.', { name: '   ' }));
+
+  /** SPM-118 AC1: a selected equipment id that is absent from inventory returns not found before writes. */
+  it('EQUIP-UPDATE-01-A reports a missing equipment record without writing', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    await expect(
+      service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+        name: 'Projector',
+        type: 'Visual',
+        location: 'Main Hall',
+        quantity: 1,
+        maintenanceStatus: 'Active',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
+  /** SPM-118 AC6: submitting unchanged values leaves equipment and audit history untouched. */
+  it('EQUIP-UPDATE-06-C returns the current record without adding an audit entry', async () => {
+    const before = { ...createdRow, is_available: true };
+    const client = { query: vi.fn().mockResolvedValue({ rows: [before] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118',
+      {
+        name: before.equipment_name,
+        type: before.equipment_type,
+        location: before.location,
+        quantity: before.quantity,
+        maintenanceStatus: before.maintenance_status,
+      },
+    );
+
+    expect(result.message).toBe('No changes were made.');
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
+  /** SPM-118 AC1/AC2 security: only Technical Support may update equipment inventory. */
+  it('EQUIP-UPDATE-01-C refuses non-Technical-Support roles before opening a persistence transaction', async () => {
+    for (const role of ['ORGANISER', 'COORDINATOR', 'VENUE_STAFF', 'ATTENDEE'] as const) {
+      await expect(
+        service.update(userWithRole(role), '11111111-1111-4111-8111-111111111118', {
+          name: 'Projector',
+          type: 'Visual',
+          location: 'Main Hall',
+          quantity: 1,
+          maintenanceStatus: 'Active',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(database.transaction).not.toHaveBeenCalled();
+    }
   });
 });

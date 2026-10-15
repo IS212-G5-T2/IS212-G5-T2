@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const WORKFLOW_DIR = 'docs/test-cases/workflow';
 
+/** Robust ESM entry-point detection on Windows (drive paths/file URLs) and POSIX. */
+export function isMain(metaUrl, argvPath = process.argv[1]) {
+  return Boolean(argvPath && resolve(fileURLToPath(metaUrl)) === resolve(argvPath));
+}
+
 export const PASS = 'PASS';
 export const BLOCKED = 'BLOCKED';
 export const UNABLE = 'UNABLE_TO_VERIFY';
@@ -135,7 +140,7 @@ export const stripTicks = (value) => value.replace(/`/g, '').trim();
 
 /** Every pipe table in a markdown document with the nearest preceding heading. */
 export function parseTables(markdown) {
-  const lines = markdown.split('\n');
+  const lines = markdown.replace(/\r\n?/g, '\n').split('\n');
   const tables = [];
   let heading = '';
   for (let i = 0; i < lines.length; i += 1) {

@@ -4,6 +4,7 @@ import {
   createEquipment,
   getEquipment,
   getEquipmentLocations,
+  updateEquipment,
   updateEquipmentAvailability,
   getEquipmentAuditTrail,
 } from "./equipment-api";
@@ -14,6 +15,24 @@ const apiMock = vi.mocked(api);
 beforeEach(() => apiMock.mockReset());
 
 describe("equipment API contracts", () => {
+  /** SPM-118 AC2/AC5: update requests use the selected record id and create-field payload. */
+  it("EQUIP-UPDATE-02-A submits equipment edits using PUT", () => {
+    const input = {
+      name: "Updated projector",
+      type: "Visual" as const,
+      location: "Main Hall",
+      quantity: 4,
+      maintenanceStatus: "Under Maintenance" as const,
+    };
+
+    updateEquipment("equipment-118", input);
+
+    expect(apiMock).toHaveBeenCalledWith("/equipment/equipment-118", {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+  });
+
   /**
    * EQUIP-CRE-02-A / EQUIP-CRE-02-B: create submits type, quantity, status, and location unchanged.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/19922946/EQUIP-CRE-02
