@@ -25,8 +25,8 @@ describe('SPM-148 AC6/AC7: one constant per list of statuses', () => {
   });
 
   // Kills: closed statuses accepting bookings.
-  it('PLAN-STATUS-01-B: booking requests are open for Submitted, Approved, Planning and Confirmed only', () => {
-    expect([...BOOKING_OPEN_STATUSES]).toEqual(['Submitted', 'Approved', 'Planning', 'Confirmed']);
+  it('PLAN-STATUS-01-B: booking requests are open for Approved, Planning and Confirmed only', () => {
+    expect([...BOOKING_OPEN_STATUSES]).toEqual(['Approved', 'Planning', 'Confirmed']);
   });
 
   // Kills: M17 Planning missing, M18 Confirmed still open.

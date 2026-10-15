@@ -73,6 +73,8 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
 
     // Assert
     expect(await screen.findByText("Alumni Night")).toBeInTheDocument();
+    // The badge reads "Planning" (StatusBadge), not just the filter option.
+    expect(screen.getByText("Planning", { selector: "span" })).toBeInTheDocument();
     expect(screen.queryByText("Innovation Showcase")).not.toBeInTheDocument();
     expect(screen.queryByText("Careers Fair")).not.toBeInTheDocument();
   });

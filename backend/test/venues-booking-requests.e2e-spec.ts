@@ -123,9 +123,9 @@ describe.skipIf(!databaseUrl)(
         `INSERT INTO events
        (id, organiser_id, organiser_name, organiser_email, event_name, purpose,
         start_date_time, end_date_time, expected_attendance, coordinator_id,
-        coordinator_name, submission_key)
+        coordinator_name, submission_key, status)
        VALUES ($1, 'spm51-test', 'SPM-51 Organiser', 'spm51@example.test', $2,
-        'Venue availability integration', $3, $4, 10, $5, 'SPM-51 Coordinator', $1)`,
+        'Venue availability integration', $3, $4, 10, $5, 'SPM-51 Coordinator', $1, 'Planning')`,
         [
           id,
           name,

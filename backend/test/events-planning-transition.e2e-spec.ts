@@ -1,4 +1,8 @@
 /*
+ * Story: SPM-148 Event Status Changes from Approved to Planning
+ * ACs: AC1 to AC7, cross-cutting 08-A, 09-A, 10-A
+ * Test cases: PLAN-STATUS-01-A to 01-E, 02-A to 02-E, 03-A to 03-D, 04-A to 04-D,
+ *             05-A, 06-A, 07-A to 07-E, 08-A, 09-A, 10-A (see results doc for adaptations)
  * SPM-148 Event Status Changes from Approved to Planning.
  * Real HTTP, real PostgreSQL, injected clock. Faults are injected with
  * temporary database triggers that raise right after a named write, so the
@@ -49,6 +53,9 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
   const venueIds: string[] = [];
   const eventIds: string[] = [];
   const triggers: { table: string; name: string }[] = [];
+  let fixedSeq = 0;
+  /** Fixed, readable UUIDs (Guide 3E repeatable): 00000148-0000-4000-8000-0000000000NN. */
+  const fixedId = () => `00000148-0000-4000-8000-${String((fixedSeq += 1)).padStart(12, '0')}`;
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
@@ -107,7 +114,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   async function venue(): Promise<string> {
     const owner = await account('COORDINATOR', 'SPM-148 venue owner');
-    const id = randomUUID();
+    const id = fixedId();
     await pool.query(
       `INSERT INTO venues (id, owner_user_id, name, location, capacity, operating_information,
                            setup_time_minutes, turnaround_time_minutes)
@@ -124,7 +131,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     organiser?: Account,
     name = 'Innovation Showcase',
   ): Promise<string> {
-    const id = randomUUID();
+    const id = fixedId();
     await pool.query(
       `INSERT INTO events
          (id, organiser_id, organiser_name, organiser_email, event_name, purpose, start_date_time,
@@ -147,7 +154,9 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     return id;
   }
 
-  /** Slot n on EVENT_DAY: one hour starting at 08:00Z + n hours (SGT 16:00 + n). */
+  // Time literals: T0 = 2026-10-15T12:00 SGT = 04:00Z. EVENT_DAY 2026-11-04.
+  // Slot n is 08:00Z + n h (16:00 SGT + n h), one hour long.
+  /** Slot n on EVENT_DAY. */
   function slot(n: number) {
     const hour = String(8 + n).padStart(2, '0');
     const end = String(9 + n).padStart(2, '0');
@@ -191,6 +200,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 AC1: the first venue booking request moves an Approved event to Planning', () => {
     // Kills: booking saved without the transition (M1-style omission), transition not reflected in the response/GET.
+    // Oracle: SPEC (prompt 2.6 01-A); MSG-PL-01 wording ASSUMED in FE
     it('PLAN-STATUS-01-A: an assigned Coordinator books an Approved event and it becomes Planning', async () => {
       // Arrange: Approved event, no bookings.
       const coordinator = await account('COORDINATOR', 'Daniel Koh');
@@ -202,7 +212,17 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
       // Assert: 201 with the new fields, one booking row, status Planning, via the API read too.
       expect(response.status).toBe(201);
-      expect(response.body).toMatchObject({ eventId, venueId, status: 'pending', eventStatus: 'Planning', statusChanged: true });
+      expect(response.body).toEqual({
+        id: expect.any(String),
+        eventId,
+        venueId,
+        start: slot(0).start,
+        end: slot(0).end,
+        status: 'pending',
+        eventStatus: 'Planning',
+        statusChanged: true,
+        bookingReference: expect.stringMatching(/^VB-[0-9A-F]{8}$/),
+      });
       expect(await bookingCount(eventId)).toBe(1);
       expect(await status(eventId)).toBe('Planning');
       const read = await request(app.getHttpServer()).get(`/api/events/${eventId}`).set('Cookie', coordinator.cookie);
@@ -211,7 +231,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
     // Kills: M1 unconditional transition, M2 transition from other statuses, closed statuses accepting bookings.
     it.each([
-      ['Submitted', 201, false, 'Submitted'],
+      ['Submitted', 409, false, 'Submitted'],
       ['Confirmed', 201, false, 'Confirmed'],
       ['Rejected', 409, false, 'Rejected'],
       ['Completed', 409, false, 'Completed'],
@@ -237,7 +257,29 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       },
     );
 
+    // Boundary (-BND): a request starting exactly when the existing booking ends does not conflict.
+    // Kills: `<` vs `<=` in the overlap check; a transition that fires on a rejected request.
+    // Oracle: DERIVED (adjacent slot, buffer 0; overlap rule VERIFIED in repository)
+    it('PLAN-STATUS-01-BND: a request starting exactly when the existing booking ends is accepted and transitions', async () => {
+      const coordinator = await account('COORDINATOR');
+      const venueId = await venue();
+      const other = await event('Approved', await account('COORDINATOR'), undefined, 'Earlier Booking');
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'approved')`,
+        [venueId, other, slot(0).start, slot(0).end],
+      );
+      const eventId = await event('Approved', coordinator);
+
+      const adjacent = await book(coordinator, venueId, { eventId, start: slot(0).end, end: slot(1).end });
+
+      expect(adjacent.status).toBe(201);
+      expect(adjacent.body.statusChanged).toBe(true);
+      expect(await status(eventId)).toBe('Planning');
+    });
+
     // Kills: M3 status changed before the request is validated.
+    // Oracle: SPEC for transition; conflict text VERIFIED (existing repo response)
     it('PLAN-STATUS-01-C: a request that conflicts changes nothing, and a valid request afterwards transitions', async () => {
       // Arrange: another event already holds the slot.
       const coordinator = await account('COORDINATOR');
@@ -294,7 +336,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M22 (no session accepted).
-    it('PLAN-STATUS-01-D: no session gets 401 and nothing changes', async () => {
+    // Oracle: SPEC (prompt 2.6 01-D)
+    it('PLAN-STATUS-01-D-401: no session gets 401 and nothing changes', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
       const eventId = await event('Approved', coordinator);
@@ -311,6 +354,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 AC2: booking, status change and history commit together', () => {
     // Kills: M4 not one transaction, M5 history missing.
+    // Oracle: SPEC (prompt 2.6 02-A, injected clock)
     it('PLAN-STATUS-02-A: after the first request the booking, the status and the history row are all present, with the injected time', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -364,10 +408,23 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     );
 
     // Kills: M6 no compare-and-set (two transitions / two history rows under parallel requests).
+    // Oracle: SPEC (prompt 2.6 02-B/C/D; fault placement DERIVED, Guide 5G)
     it('PLAN-STATUS-02-E: two parallel first requests for different venues give two bookings and one transition', async () => {
       const coordinator = await account('COORDINATOR');
       const [venueA, venueB] = [await venue(), await venue()];
       const eventId = await event('Approved', coordinator);
+
+      // Widen the race deterministically: each UPDATE of this event sleeps 300 ms
+      // after the status read of the other request, so both requests read Approved
+      // before either writes. Without the row lock or compare-and-set both transition.
+      await pool.query(`
+        CREATE OR REPLACE FUNCTION spm148_slow() RETURNS trigger AS $$
+        BEGIN PERFORM pg_sleep(0.3); RETURN NEW; END; $$ LANGUAGE plpgsql`);
+      await pool.query(
+        `CREATE TRIGGER spm148_slow_events BEFORE UPDATE ON events FOR EACH ROW
+         WHEN (NEW.id = '${eventId}'::uuid) EXECUTE FUNCTION spm148_slow()`,
+      );
+      triggers.push({ table: 'events', name: 'spm148_slow_events' });
 
       const [a, b] = await Promise.all([
         book(coordinator, venueA, { eventId, ...slot(0) }),
@@ -386,6 +443,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 AC3: later booking requests leave a Planning event unchanged', () => {
     // Kills: M7 later request adds history.
+    // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-A: a second request on a Planning event is saved without a status change or history row', async () => {
       const coordinator = await account('COORDINATOR');
       const [venueA, venueB] = [await venue(), await venue()];
@@ -402,23 +460,27 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M7.
+    // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-B: five sequential requests give five bookings and exactly one Approved to Planning row', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
       const eventId = await event('Approved', coordinator);
 
+      // Literal oracle: only the first request changes the status.
+      const statusChanged: boolean[] = [];
       for (let n = 0; n < 5; n += 1) {
         const response = await book(coordinator, venueId, { eventId, ...slot(n) });
         expect(response.status).toBe(201);
-        expect(response.body.statusChanged).toBe(n === 0);
-        expect(await status(eventId)).toBe('Planning');
+        statusChanged.push(response.body.statusChanged);
       }
-
+      expect(statusChanged).toEqual([true, false, false, false, false]);
+      expect(await status(eventId)).toBe('Planning');
       expect(await bookingCount(eventId)).toBe(5);
       expect(await planningRows(eventId)).toHaveLength(1);
     });
 
     // Kills: M8 automatic revert when the first booking is rejected.
+    // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-C: rejecting the first booking does not revert Planning, and a new request is saved', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -436,6 +498,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     // Kills: M6 no compare-and-set.
     // Repo adaptation: pending requests without a hold do not block each other, so
     // identical parallel requests are all saved; the transition still happens once.
+    // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-D: five parallel identical requests give five bookings and exactly one transition', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -465,6 +528,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     }
 
     // Kills: M5 row missing, M10 time from SQL NOW().
+    // Oracle: SPEC (prompt 2.6 04-A; name from user fixture, DERIVED)
     it('PLAN-STATUS-04-A: the history read shows the Approved to Planning entry with the actor and the injected time', async () => {
       const coordinator = await account('COORDINATOR', 'Daniel Koh');
       const venueId = await venue();
@@ -487,6 +551,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M11 editable history.
+    // Oracle: SPEC (prompt 2.6 04-B, 405 per D7)
     it('PLAN-STATUS-04-B: earlier rows are unchanged and PUT and DELETE on the history answer 405', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
@@ -515,6 +580,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M9 actor or time taken from the body.
+    // Oracle: SPEC for rejection; error code ASSUMED (D5)
     it('PLAN-STATUS-04-C: a body carrying changedBy and changedAt is rejected, and a clean request records the session user and clock', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -540,6 +606,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M10 UTC date or local-time storage; instant stored as UTC.
+    // Oracle: SPEC (prompt 2.6 04-D; time literal arithmetic: 00:30 SGT = 16:30Z previous day)
     it('PLAN-STATUS-04-D: a request just after SGT midnight is stored and returned as the UTC instant of the previous day', async () => {
       now = new Date('2026-11-11T00:30:00+08:00');
       const coordinator = await account('COORDINATOR');
@@ -555,7 +622,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: history readable by anyone.
-    it('PLAN-STATUS-04-A: only the assigned Coordinator and the owning Organiser may read the history', async () => {
+    // Oracle: ASSUMED (prompt F24: history readable by Coordinator and Organiser only)
+    it('PLAN-STATUS-04-A-SEC: only the assigned Coordinator and the owning Organiser may read the history', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
       const eventId = await event('Planning', coordinator, organiser);
@@ -576,7 +644,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 AC5: Planning events appear in the Coordinator events list', () => {
     // Kills: M13 other Coordinators' events leak; Planning missing from the list.
-    it('PLAN-STATUS-05-A/B: the events list shows the event as Planning after the first request, only for its Coordinator', async () => {
+    // Oracle: SPEC (prompt 2.6 05-A); events list used, no queue endpoint exists
+    it('PLAN-STATUS-05-A: the events list shows the event as Planning after the first request, only for its Coordinator', async () => {
       const coordinator = await account('COORDINATOR');
       const outsider = await account('COORDINATOR');
       const venueId = await venue();
@@ -596,7 +665,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 AC6: Planning counts toward the active workload and availability notice', () => {
     // Kills: M14 Planning excluded, M15 double count / stale after the move.
-    it('PLAN-STATUS-06-A/B: the Lead list counts Planning, and the move from Approved keeps the active count', async () => {
+    // Oracle: SPEC (prompt 2.6 06-A); Lead list is the only count exposed
+    it('PLAN-STATUS-06-A: the Lead list counts Planning, and the move from Approved keeps the active count', async () => {
       const lead = await account('COORDINATOR_LEAD');
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -618,6 +688,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M16 availability notice uses its own status list.
+    // Oracle: SPEC (prompt 2.6 06-C) for notice; limit-5 function not present
     it('PLAN-STATUS-06-C: a Coordinator whose only event is in Planning leaves the Lead a notice naming 1 active event', async () => {
       const lead = await account('COORDINATOR_LEAD');
       const coordinator = await account('COORDINATOR', 'Planner Pat');
@@ -652,7 +723,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     };
 
     // Kills: M17 clarifications blocked while Planning.
-    it('PLAN-STATUS-07-A/B: in Planning the Coordinator posts, the Organiser replies and the Coordinator replies again', async () => {
+    // Oracle: SPEC (prompt 2.6 07-A/B); roles from SPM-39 VERIFIED
+    it('PLAN-STATUS-07-A: in Planning the Coordinator posts, the Organiser replies and the Coordinator replies again', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
       const eventId = await event('Planning', coordinator, organiser);
@@ -671,6 +743,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: the transition disturbing an existing thread.
+    // Oracle: SPEC (prompt 2.6 07-C)
     it('PLAN-STATUS-07-C: a thread opened while Approved survives the transition intact and accepts a new reply', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
@@ -687,6 +760,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M18 clarifications allowed after Confirmed.
+    // Oracle: SPEC (prompt 2.6 07-D); message MSG-PL-03 ASSUMED wording from catalogue
     it('PLAN-STATUS-07-D: once Confirmed, posting and replying answer 409 and the thread stays readable', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
@@ -708,6 +782,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M19 role check removed.
+    // Oracle: SPEC (prompt 2.6 07-E); 403 text VERIFIED
     it('PLAN-STATUS-07-E: other Organisers, Coordinators and Attendees get 403 and no token gets 401', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
@@ -715,8 +790,12 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       const posted = await post(coordinator, eventId);
 
       for (const outsider of [await account('ORGANISER'), await account('COORDINATOR'), await account('ATTENDEE')]) {
-        expect((await post(outsider, eventId)).status).toBe(403);
-        expect((await reply(outsider, eventId, posted.body.id)).status).toBe(403);
+        const asPost = await post(outsider, eventId);
+        expect(asPost.status).toBe(403);
+        expect(asPost.body.message).toBe('Only the coordinator assigned to this event can request clarification.');
+        const asReply = await reply(outsider, eventId, posted.body.id);
+        expect(asReply.status).toBe(403);
+        expect(asReply.body.message).toBe("Only this event's organiser or assigned coordinator can do this.");
       }
       expect((await post(null, eventId)).status).toBe(401);
       expect((await reply(null, eventId, posted.body.id)).status).toBe(401);
@@ -729,6 +808,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
   describe('SPM-148 cross-cutting rules', () => {
     // Kills: M20 status forced from the body, M21 public endpoint accepts Planning.
+    // Oracle: SPEC (prompt 2.6 08-A); code UNSUPPORTED_TARGET_STATUS VERIFIED
     it('PLAN-STATUS-08-A: status fields in the body are rejected, and the public status-change endpoint refuses Planning', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -758,6 +838,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: Organiser view stale or history hidden.
+    // Oracle: SPEC (prompt 2.6 09-A)
     it('PLAN-STATUS-09-A: the owning Organiser sees Planning in their list and the history entry', async () => {
       const coordinator = await account('COORDINATOR');
       const organiser = await account('ORGANISER');
@@ -773,6 +854,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M24 Confirm accepts Approved.
+    // Oracle: SPEC (prompt 2.6 10-A); refusal text VERIFIED; readiness-blocked, not a full confirm
     it('PLAN-STATUS-10-A: Confirm is refused from Approved, and after the first request it is judged on readiness instead', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
@@ -787,8 +869,10 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
       await book(coordinator, venueId, { eventId, ...slot(0) }).expect(201);
       const blocked = await confirm();
+      // Planning passes the status guard; the refusal is readiness (CONFIRM_BLOCKED), not EVENT_NOT_CONFIRMABLE.
       expect(blocked.status).toBe(422);
       expect(blocked.body.code).toBe('CONFIRM_BLOCKED');
+      expect(blocked.body.message.startsWith('This event cannot be confirmed yet. Outstanding:')).toBe(true);
       expect(await status(eventId)).toBe('Planning');
     });
   });
@@ -799,7 +883,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 // A2: unassigned Coordinator answers the repo's 404, non-Coordinators its 403 -> 01-D
 // A3: 400 code UNSUPPORTED_BOOKING_FIELDS for unknown body fields -> 04-C, 08-A
 // A4: status-history entry shape { fromStatus, toStatus, changedAt, changedBy{id,name} } (prompt D7) -> 04-A..D
-// A5: Submitted stays bookable with no transition (repo behaviour kept; prompt D3 recommended 409) -> 01-B
+// A5: Submitted events answer 409 like other closed statuses (user decision on D3) -> 01-B
 // A7: the events API lowercases statuses ('planning'), history keeps the stored casing -> 01-A, 05, 09-A
 // A8: identical parallel requests are all saved (pending requests without a hold do not block) -> 03-D
 // A6: fault injection by database trigger after the named write -> 02-B, 02-C, 02-D

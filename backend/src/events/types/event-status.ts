@@ -10,10 +10,9 @@ export const ACTIVE_WORKLOAD_STATUSES = [
   'Confirmed',
 ] as const;
 
-// Statuses that accept a venue booking request. Submitted stays open because
-// the repo already accepted bookings for it (SPM-51); closed statuses answer 409.
+// Statuses that accept a venue booking request. Submitted events are not yet
+// in the planning phase, so they answer 409 like every other closed status.
 export const BOOKING_OPEN_STATUSES = [
-  'Submitted',
   'Approved',
   'Planning',
   'Confirmed',
