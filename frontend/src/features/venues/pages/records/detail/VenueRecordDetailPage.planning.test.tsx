@@ -94,6 +94,9 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     // Arrange: Approved event, server reports the transition.
     seedEvent("approved");
     apiMock.mockResolvedValueOnce({ bookingReference: "VB-00000148", eventStatus: "Planning", statusChanged: true });
+    useAppStore.setState((state) => ({
+      events: [...state.events, { ...state.events[0], id: "event-900", name: "Other event", status: "approved" }],
+    }));
     const { user, review } = await openReview();
 
     // Act
@@ -101,7 +104,9 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
 
     // Assert: MSG-PL-01 text, and the store (the badge source) says planning.
     expect(await screen.findByText("Venue booking request submitted. Innovation Showcase is now in Planning.")).toBeInTheDocument();
-    expect(useAppStore.getState().events[0].status).toBe("planning");
+    expect(useAppStore.getState().events.find((e) => e.id === "event-801")?.status).toBe("planning");
+    // Other events in the store are left alone (Kills: the status update touching every event).
+    expect(useAppStore.getState().events.find((e) => e.id === "event-900")?.status).toBe("approved");
   });
 
   // Kills: "now in Planning" shown for a later request, status overwritten.

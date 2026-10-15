@@ -56,6 +56,7 @@ export class ClarificationsService {
 
       this.requireAssignedCoordinator(event, user);
 
+      // SPM-148 PLAN-STATUS-07-A, 07-D: a clarification may be opened in Planning; Confirmed closes it (409 CLARIFICATIONS_CLOSED).
       this.requireNotConfirmed(event);
       if (!(CLARIFICATION_OPEN_STATUSES as readonly string[]).includes(event.status)) {
         throw new BadRequestException(
@@ -101,6 +102,7 @@ export class ClarificationsService {
       const event = await this.repository.findEventForUpdate(client, eventId);
       if (!event) throw new NotFoundException('Event not found.');
 
+      // SPM-148 PLAN-STATUS-07-D: replies are closed once Confirmed; the thread stays readable (listComments is unchanged).
       const authorRole = this.requireOrganiserOrAssignedCoordinator(event, user);
       this.requireNotConfirmed(event);
 
@@ -246,6 +248,7 @@ export class ClarificationsService {
   // directly against events.organiser_id/coordinator_id instead of going
   // through RbacRepository's predicate, per the fallback documented in
   // RbacRepository's usage notes.
+  // SPM-148 PLAN-STATUS-07-E: only the event's Organiser or assigned Coordinator may reply or resolve; others get 403.
   private requireOrganiserOrAssignedCoordinator(
     event: EventForReview,
     user: AuthenticatedUser,

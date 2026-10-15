@@ -162,3 +162,77 @@ Harness: a copy of `backend/` and `frontend/` in the session scratch directory, 
 - **F7, history gate:** `EventDetailPage.statusHistory.test.tsx` checks that the panel shows to the owning organiser of a Planning event and not for a Submitted event.
 - **F8, closed without change:** the venue booking page does not render the event status, so there is no badge there to assert. The Planning badge is asserted on the events list in `EventListPage.planning.test.tsx`.
 - **Repo mutation runner (F3):** `node scripts/mutation/run.mjs --mutants spm148.mutants.mjs` against a PostgreSQL database with the init scripts: 22 mutants, 22 killed, 0 survived, 0 equivalent. M20 was first misapplied (wrong file) and then fixed and re-run. Original files untouched. M12 (frontend) is not in the runner.
+
+## Coverage (measured on the branch working tree, fresh database)
+
+Commands:
+- Backend unit: `cd backend && npx vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=./coverage/unit`
+- Backend e2e (PostgreSQL, fresh database built from `database/postgresql`): `DATABASE_URL=... npx vitest run --config ./vitest.config.e2e.ts --coverage --coverage.reporter=json --coverage.reportsDirectory=./coverage/e2e`
+- Frontend: `cd frontend && npx vitest run --coverage --coverage.reporter=json --coverage.reportsDirectory=./coverage`
+- Per-file merge (unit and e2e per backend file, frontend per file): the repo's `ai/scripts/test-workflow/coverage-scope.mjs` functions `mergeEntry` and `summarise`. A statement counts as covered if any run executed it.
+
+Changed files only (the 14 source files this PR changes against `origin/dev`):
+
+| File | Statements | Branches | Functions | Uncovered lines (not from this PR unless noted) |
+|---|---|---|---|---|
+| backend/src/clarifications/clarifications.service.ts | 90/90 100.00% | 65/66 98.48% | 16/16 100.00% | branch in existing code |
+| backend/src/coordinator-availability/coordinator-availability.service.ts | 36/36 100.00% | 29/29 100.00% | 8/8 100.00% | none |
+| backend/src/events/events.service.ts | 115/115 100.00% | 108/109 99.08% | 25/25 100.00% | branch in existing code |
+| backend/src/events/status/planning.messages.ts | 2/2 100.00% | n/a | n/a | none |
+| backend/src/events/status/status.controller.ts | 17/17 100.00% | n/a | 16/16 100.00% | none |
+| backend/src/events/status/status.service.ts | 172/179 96.09% | 96/105 91.43% | 33/34 97.06% | 157, 197, 419 (SPM-135 assignment checks), 487 (SPM-135 already-confirmed body). None are SPM-148 lines |
+| backend/src/events/types/event-status.ts | 4/4 100.00% | n/a | 1/1 100.00% | none |
+| backend/src/lead/lead-assignment.service.ts | 77/77 100.00% | 36/36 100.00% | 16/16 100.00% | none |
+| backend/src/venues/availability/dto/booking-request.ts | 13/13 100.00% | 20/20 100.00% | 2/2 100.00% | none |
+| backend/src/venues/repository/venues.repository.ts | 99/99 100.00% | 58/58 100.00% | 26/26 100.00% | none |
+| backend/src/venues/venues.service.ts | 62/62 100.00% | 50/50 100.00% | 11/11 100.00% | none |
+| frontend/src/features/events/pages/detail/EventDetailPage.tsx | 195/204 95.59% | 184/198 92.93% | 56/58 96.55% | 99, 198, 217, 311, 412, 442 (existing page code; this PR's lines are covered) |
+| frontend/src/features/events/pages/detail/planning/StatusHistory.tsx | 14/14 100.00% | 6/6 100.00% | 7/7 100.00% | none |
+| frontend/src/features/events/pages/list/EventListPage.tsx | 41/41 100.00% | 42/42 100.00% | 18/18 100.00% | none |
+| frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx | 225/225 100.00% | 167/167 100.00% | 67/67 100.00% | none |
+
+Totals across the 14 files: statements 1162/1178 (98.64%), branches 861/886 (97.18%), functions 302/305 (99.02%).
+
+Changed lines only (the repo's floor is 100% of changed testable code): 64 of 64 executable lines added or changed by this PR are covered, and no changed line has an uncovered branch in the final run. Two branches were uncovered earlier, `status.service.ts:94` (unknown event in the history read, now tested with a 404) and `VenueRecordDetailPage.tsx:251` (other events in the store left unchanged, now tested). Re-run the measurement after any further change.
+
+Test-count changes from this round: backend e2e 407 to 410; frontend 1106 to 1110; backend unit unchanged at 1282.
+
+Note on repeated runs: the lead assignment e2e suite (`test/lead-assignment.e2e-spec.ts`) fails on a second run against a database that the earlier run already changed (its events are no longer in the queue; the assign call returns 404). This predates this PR. The full suite passes on a fresh database, which is how CI runs it.
+
+## Traceability index (Cmd+F the ID)
+
+Each test case ID appears in the title of its test (file:line below) and, where production code implements it, in a `// SPM-148 PLAN-STATUS-...` comment directly above that code (file:line below). Search the ID with Cmd+F to find either.
+
+| Test case ID | Test title (file:line) | Implementation comment (file:line) |
+|---|---|---|
+| PLAN-STATUS-01-A | events-planning-transition.e2e-spec.ts:207<br>venues/repository/venues.repository.spec.ts:842<br>features/venues/pages/records/detail/VenueRecordDetailPage.planning.test.tsx:93 | venues/repository/venues.repository.ts:258<br>features/venues/pages/records/detail/VenueRecordDetailPage.tsx:222<br>features/venues/pages/records/detail/VenueRecordDetailPage.tsx:247 |
+| PLAN-STATUS-01-B | events-planning-transition.e2e-spec.ts:243<br>venues/repository/venues.repository.spec.ts:854<br>venues/repository/venues.repository.spec.ts:875<br>events/types/event-status.spec.ts:16<br>events/types/event-status.spec.ts:28 | venues/repository/venues.repository.ts:210<br>venues/repository/venues.repository.ts:286<br>venues/venues.service.ts:143<br>events/types/event-status.ts:16<br>events/types/event-status.ts:33 |
+| PLAN-STATUS-01-BND | events-planning-transition.e2e-spec.ts:266 | test only |
+| PLAN-STATUS-01-C | events-planning-transition.e2e-spec.ts:286 | venues/repository/venues.repository.ts:214 |
+| PLAN-STATUS-01-D | events-planning-transition.e2e-spec.ts:323 | venues/venues.service.ts:127<br>venues/venues.service.ts:140 |
+| PLAN-STATUS-01-D-401 | events-planning-transition.e2e-spec.ts:343 | test only |
+| PLAN-STATUS-02-A | events-planning-transition.e2e-spec.ts:361 | venues/repository/venues.repository.ts:246 |
+| PLAN-STATUS-02-E | events-planning-transition.e2e-spec.ts:415<br>venues/repository/venues.repository.spec.ts:865 | venues/repository/venues.repository.ts:201<br>venues/repository/venues.repository.ts:294 |
+| PLAN-STATUS-03-A | events-planning-transition.e2e-spec.ts:462<br>features/venues/pages/records/detail/VenueRecordDetailPage.planning.test.tsx:113 | test only |
+| PLAN-STATUS-03-B | events-planning-transition.e2e-spec.ts:479 | test only |
+| PLAN-STATUS-03-C | events-planning-transition.e2e-spec.ts:499 | test only |
+| PLAN-STATUS-03-D | events-planning-transition.e2e-spec.ts:517<br>features/venues/pages/records/detail/VenueRecordDetailPage.planning.test.tsx:129 | test only |
+| PLAN-STATUS-04-A | events-planning-transition.e2e-spec.ts:547<br>features/events/pages/detail/planning/StatusHistory.test.tsx:23<br>features/events/pages/detail/planning/StatusHistory.test.tsx:49<br>features/events/pages/detail/EventDetailPage.statusHistory.test.tsx:75<br>features/events/pages/detail/EventDetailPage.statusHistory.test.tsx:84 | events/status/status.service.ts:86<br>events/status/status.controller.ts:84<br>features/events/pages/detail/EventDetailPage.tsx:485<br>features/events/pages/detail/planning/StatusHistory.tsx:24 |
+| PLAN-STATUS-04-A-SEC | events-planning-transition.e2e-spec.ts:668 | test only |
+| PLAN-STATUS-04-B | events-planning-transition.e2e-spec.ts:570<br>events-planning-transition.e2e-spec.ts:599 | events/status/status.controller.ts:90 |
+| PLAN-STATUS-04-C | events-planning-transition.e2e-spec.ts:626<br>venues/availability/dto/booking-request.spec.ts:65 | venues/availability/dto/booking-request.ts:25 |
+| PLAN-STATUS-04-D | events-planning-transition.e2e-spec.ts:652<br>features/events/pages/detail/planning/StatusHistory.test.tsx:38 | test only |
+| PLAN-STATUS-05-A | events-planning-transition.e2e-spec.ts:695<br>features/events/pages/list/EventListPage.planning.test.tsx:60 | events/events.service.ts:134<br>features/events/pages/list/EventListPage.tsx:69 |
+| PLAN-STATUS-05-B | features/events/pages/list/EventListPage.planning.test.tsx:108 | test only |
+| PLAN-STATUS-05-C | events-planning-transition.e2e-spec.ts:716<br>features/events/pages/list/EventListPage.planning.test.tsx:84 | test only |
+| PLAN-STATUS-06-A | events-planning-transition.e2e-spec.ts:730<br>events/types/event-status.spec.ts:23 | lead/lead-assignment.service.ts:18<br>events/types/event-status.ts:6 |
+| PLAN-STATUS-06-B | features/lead/pages/assignment-queue/AssignmentQueuePage.planning.test.tsx:37 | test only |
+| PLAN-STATUS-06-C | events-planning-transition.e2e-spec.ts:753 | coordinator-availability/coordinator-availability.service.ts:83 |
+| PLAN-STATUS-07-A | events-planning-transition.e2e-spec.ts:788<br>events/types/event-status.spec.ts:33<br>features/events/pages/detail/EventDetailPage.clarifications.test.tsx:389 | events/types/event-status.ts:25<br>clarifications/clarifications.service.ts:59<br>features/events/pages/detail/EventDetailPage.tsx:41 |
+| PLAN-STATUS-07-C | events-planning-transition.e2e-spec.ts:808 | test only |
+| PLAN-STATUS-07-D | events-planning-transition.e2e-spec.ts:825<br>features/events/pages/detail/EventDetailPage.clarifications.test.tsx:417 | clarifications/clarifications.service.ts:105<br>features/events/pages/detail/EventDetailPage.tsx:655 |
+| PLAN-STATUS-07-E | events-planning-transition.e2e-spec.ts:847 | clarifications/clarifications.service.ts:251 |
+| PLAN-STATUS-08-A | events-planning-transition.e2e-spec.ts:873 | events/status/status.service.ts:74 |
+| PLAN-STATUS-09-A | events-planning-transition.e2e-spec.ts:903<br>features/events/pages/list/EventListPage.planning.test.tsx:147 | test only |
+| PLAN-STATUS-10-A | events-planning-transition.e2e-spec.ts:954 | events/status/status.service.ts:462 |
+| PLAN-STATUS-10-A-OK | events-planning-transition.e2e-spec.ts:921 | test only |

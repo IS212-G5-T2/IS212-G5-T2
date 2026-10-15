@@ -451,7 +451,7 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await bookingCount(eventId)).toBe(2);
       expect(await status(eventId)).toBe('Planning');
       expect(await planningRows(eventId)).toHaveLength(1);
-    });
+    }, 20_000); // the barrier waits on lock state; allow for coverage-instrumented runs
   });
 
   // ---- AC3: later requests -----------------------------------------------
@@ -594,6 +594,33 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(after.rows[1].to_status).toBe('Planning');
     });
 
+    // Oracle: SPEC (prompt 2.6 04-B, 405 per D7), on the history collection itself (no entry id).
+    // Kills: the collection-level PUT or DELETE accepted (history rewritten or emptied).
+    it('PLAN-STATUS-04-B: PUT and DELETE on the history collection answer 405 for the Coordinator and the Organiser', async () => {
+      const coordinator = await account('COORDINATOR');
+      const organiser = await account('ORGANISER');
+      const eventId = await event('Planning', coordinator, organiser);
+      await pool.query(
+        `INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
+         VALUES ($1, $2, 'Approved', 'Planning', 'spm148-setup', '2026-10-14T02:00:00.000Z')`,
+        [randomUUID(), eventId],
+      );
+
+      for (const who of [coordinator, organiser]) {
+        const put = await request(app.getHttpServer())
+          .put(`/api/events/${eventId}/status-history`)
+          .set('Cookie', who.cookie)
+          .send([]);
+        const del = await request(app.getHttpServer())
+          .delete(`/api/events/${eventId}/status-history`)
+          .set('Cookie', who.cookie);
+        expect([put.status, del.status]).toEqual([405, 405]);
+        expect(put.headers.allow).toBe('GET');
+      }
+      const rows = await pool.query('SELECT COUNT(*) FROM event_status_history WHERE event_id = $1', [eventId]);
+      expect(Number(rows.rows[0].count)).toBe(1);
+    });
+
     // Kills: M9 actor or time taken from the body.
     // Oracle: SPEC for rejection; error code ASSUMED (D5)
     it('PLAN-STATUS-04-C: a body carrying changedBy and changedAt is rejected, and a clean request records the session user and clock', async () => {
@@ -652,6 +679,11 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect((await get(await account('COORDINATOR'))).status).toBe(403);
       expect((await get(await account('ORGANISER'))).status).toBe(403);
       expect((await get(null)).status).toBe(401);
+      // An unknown event (and a malformed id) is 404, not an empty history.
+      const unknown = await request(app.getHttpServer())
+        .get('/api/events/00000148-0000-4000-8000-ffffffffffff/status-history')
+        .set('Cookie', coordinator.cookie);
+      expect(unknown.status).toBe(404);
     });
   });
 
@@ -675,6 +707,20 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       const planning = (await list(coordinator)).filter((e) => e.status === 'planning');
       expect(planning.map((e) => e.id)).toEqual([eventId]);
       expect((await list(coordinator)).some((e) => e.id === foreign)).toBe(false);
+    });
+  });
+
+  describe('SPM-148 AC5 (empty queue): a Coordinator with no events sees an empty list', () => {
+    // Oracle: SPEC (prompt 2.6 05-C, COO-03 with no events -> 200 []).
+    // Kills: a list that returns every event (or an error) for a Coordinator who owns nothing.
+    it('PLAN-STATUS-05-C: a Coordinator with no assigned events gets 200 and an empty array, not other Coordinators events', async () => {
+      const empty = await account('COORDINATOR', 'SPM-148 no events');
+      await event('Planning', await account('COORDINATOR', 'SPM-148 someone else'));
+
+      const response = await request(app.getHttpServer()).get('/api/events').set('Cookie', empty.cookie);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual([]);
     });
   });
 
@@ -866,6 +912,41 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(list.body.find((e: { id: string }) => e.id === eventId).status).toBe('planning');
       const history = await request(app.getHttpServer()).get(`/api/events/${eventId}/status-history`).set('Cookie', organiser.cookie);
       expect(history.body.map((h: { toStatus: string }) => h.toStatus)).toEqual(['Planning']);
+    });
+
+    // Oracle: SPEC (prompt 2.6 10-A, second half: after the first request and complete arrangements,
+    // Confirm returns 200 and the event is Confirmed). Arrangements are the venue booking approved,
+    // no equipment, and an approved safety check (the SPM-135 readiness rules).
+    // Kills: a Confirm that ignores Planning, or one that confirms without the Planning event's history row.
+    it('PLAN-STATUS-10-A-OK: after the first request and the arrangements, Confirm succeeds and records Planning to Confirmed', async () => {
+      const coordinator = await account('COORDINATOR');
+      const venueId = await venue();
+      const eventId = await event('Approved', coordinator);
+      await book(coordinator, venueId, { eventId, ...slot(0) }).expect(201);
+      await pool.query("UPDATE venue_bookings SET status = 'approved' WHERE event_id = $1", [eventId]);
+      await request(app.getHttpServer()).post(`/api/events/${eventId}/confirm-no-equipment`).set('Cookie', coordinator.cookie).expect(200);
+      await pool.query(
+        `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, decided_at)
+         VALUES ($1, 'approved', now(), 'SPM-148 test', 'Safety Officer', now())`,
+        [eventId],
+      );
+
+      const confirmed = await request(app.getHttpServer())
+        .post(`/api/events/${eventId}/status-change`)
+        .set('Cookie', coordinator.cookie)
+        .send({ targetStatus: 'Confirmed' });
+
+      expect(confirmed.status).toBe(200);
+      expect(confirmed.body.status).toBe('Confirmed');
+      expect(await status(eventId)).toBe('Confirmed');
+      const transitions = await pool.query(
+        'SELECT from_status, to_status FROM event_status_history WHERE event_id = $1 ORDER BY created_at',
+        [eventId],
+      );
+      expect(transitions.rows).toEqual([
+        { from_status: 'Approved', to_status: 'Planning' },
+        { from_status: 'Planning', to_status: 'Confirmed' },
+      ]);
     });
 
     // Kills: M24 Confirm accepts Approved.

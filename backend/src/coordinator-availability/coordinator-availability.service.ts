@@ -80,6 +80,7 @@ export class CoordinatorAvailabilityService {
 
   // AC10: one notice per Lead, naming the coordinator and their active events.
   private async tellLead(coordinatorId: string, name: string) {
+    // SPM-148 PLAN-STATUS-06-C: the unavailability notice counts Planning events (shared list).
     const counted = await this.database.query<{ count: string }>(
       'SELECT COUNT(*) AS count FROM events WHERE coordinator_id = $1 AND status = ANY($2)',
       [coordinatorId, ACTIVE_WORKLOAD_STATUSES],

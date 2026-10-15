@@ -21,6 +21,7 @@ function formatSgt(value: string): string {
 }
 
 export function StatusHistory({ eventId }: { eventId: string }) {
+  // SPM-148 PLAN-STATUS-04-A, 04-D: history rows as returned by GET /events/:id/status-history; times are shown in SGT by formatSgt.
   const [entries, setEntries] = useState<StatusHistoryEntry[]>([]);
 
   useEffect(() => {

@@ -22,6 +22,7 @@ export function validateBookingRequest(value: unknown): BookingRequestInput {
     throw new BadRequestException('A booking request is required.');
   const input = value as Record<string, unknown>;
   // SPM-148 R7: status and history fields are server-authored; reject, never ignore.
+  // SPM-148 PLAN-STATUS-04-C, 08-A: strict schema; the client cannot send status, history or actor fields (400).
   if (Object.keys(input).some((key) => !BOOKING_FIELDS.includes(key)))
     throw new BadRequestException({
       code: PLANNING_CODES.unsupportedFields,

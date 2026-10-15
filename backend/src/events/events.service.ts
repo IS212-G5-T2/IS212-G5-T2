@@ -131,6 +131,7 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
+    // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
     const result = user.roles.includes('COORDINATOR')
       ? await this.database.query(
           `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,

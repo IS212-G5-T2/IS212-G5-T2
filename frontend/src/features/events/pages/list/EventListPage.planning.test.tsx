@@ -78,4 +78,89 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
     expect(screen.queryByText("Innovation Showcase")).not.toBeInTheDocument();
     expect(screen.queryByText("Careers Fair")).not.toBeInTheDocument();
   });
+
+  // Oracle: SPEC (prompt 2.6 05-C); the empty-filter text is ASSUMED wording, from the SPM-48 prompt.
+  // Kills: the Planning filter showing another status's events, or an empty filter result with no message.
+  it("PLAN-STATUS-05-C: choosing Planning when no event is in Planning shows 'No events match this filter.'", async () => {
+    apiMock.mockResolvedValue([eventIn("approved", "e-801", "Innovation Showcase")]);
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "coo-1", name: "Daniel Koh", email: "coo@example.test", role: "coordinator" },
+      events: [],
+    });
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/planning"]}>
+        <EventListPage />
+      </MemoryRouter>,
+    );
+
+    await user.selectOptions(await screen.findByLabelText("Filter by status"), "planning");
+
+    expect(await screen.findByText("No events match this filter.")).toBeInTheDocument();
+    expect(screen.queryByText("Innovation Showcase")).not.toBeInTheDocument();
+  });
+
+  // Oracle: SPEC (prompt 2.6 05-B). The reload is a fresh mount that receives the server's
+  // post-request list. Kills: a stale list (the Approved filter still shows the event) and a
+  // Planning filter that lists the event twice.
+  it("PLAN-STATUS-05-B: after the first request and a reload, the Approved filter drops the event and the Planning filter lists it once", async () => {
+    const setUser = () =>
+      useAppStore.setState({
+        authLoading: false,
+        isAuthenticated: true,
+        currentUser: { id: "coo-1", name: "Daniel Koh", email: "coo@example.test", role: "coordinator" },
+        events: [],
+      });
+    setUser();
+    // The fake server answers each request with its current list, so a remount is a real reload.
+    let serverEvents = [eventIn("approved", "e-801", "Innovation Showcase")];
+    apiMock.mockReset();
+    apiMock.mockImplementation(() => Promise.resolve(serverEvents));
+    const first = render(
+      <MemoryRouter initialEntries={["/planning"]}>
+        <EventListPage />
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+    await user.selectOptions(await screen.findByLabelText("Filter by status"), "approved");
+    expect(await screen.findByText("Innovation Showcase")).toBeInTheDocument();
+    first.unmount();
+
+    // Reload: the server now reports the event as Planning.
+    serverEvents = [eventIn("planning", "e-801", "Innovation Showcase")];
+    render(
+      <MemoryRouter initialEntries={["/planning"]}>
+        <EventListPage />
+      </MemoryRouter>,
+    );
+    await user.selectOptions(await screen.findByLabelText("Filter by status"), "approved");
+    expect(await screen.findByText("No events match this filter.")).toBeInTheDocument();
+    expect(screen.queryByText("Innovation Showcase")).not.toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "planning");
+    expect(await screen.findAllByText("Innovation Showcase")).toHaveLength(1);
+  });
+
+  // Oracle: SPEC (prompt 2.6 09-A, the list part). The Organiser sees the Planning status on their event.
+  // Kills: the Organiser's list showing the stale Approved badge.
+  it("PLAN-STATUS-09-A: the Organiser's event list shows the Planning badge for the event", async () => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "org-1", name: "Priya Nair", email: "priya@example.test", role: "organiser" },
+      events: [],
+    });
+    apiMock.mockReset();
+    apiMock.mockResolvedValue([eventIn("planning", "e-801", "Innovation Showcase")]);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <EventListPage />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Innovation Showcase")).toBeInTheDocument();
+    expect(screen.getByText("Planning", { selector: "span" })).toBeInTheDocument();
+  });
 });

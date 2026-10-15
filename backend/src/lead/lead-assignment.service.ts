@@ -15,6 +15,7 @@ import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
+// SPM-148 PLAN-STATUS-06-A, 06-B: the Lead's coordinator list counts Planning through the shared list.
 const ACTIVE_STATUSES = ACTIVE_WORKLOAD_STATUSES;
 
 type QueueRow = {

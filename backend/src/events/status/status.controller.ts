@@ -81,11 +81,13 @@ export class StatusController {
     return this.status.confirmedArrangements(request[CURRENT_USER_REQUEST_KEY], eventId);
   }
 
+  // SPM-148 PLAN-STATUS-04-A, 04-A-SEC: the status history read (see StatusService.statusHistory).
   @Get('status-history')
   statusHistory(@Param('eventId') eventId: string, @Req() request: AuthenticatedRequest) {
     return this.status.statusHistory(request[CURRENT_USER_REQUEST_KEY], eventId);
   }
 
+  // SPM-148 PLAN-STATUS-04-B: the history is append-only; PUT and DELETE answer 405 with Allow: GET.
   @Put('status-history')
   rejectHistoryPut(@Res() response: Response) {
     return this.historyReadOnly(response);

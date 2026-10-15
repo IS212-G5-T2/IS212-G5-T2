@@ -198,6 +198,7 @@ export class VenuesRepository {
       const venueRow = venue.rows[0];
       if (!venueRow) return { kind: 'venue-not-found' };
 
+      // SPM-148 PLAN-STATUS-02-E, 03-D: the event row lock (FOR UPDATE) serialises parallel first requests.
       // The event row lock serialises first requests: the status check, the
       // booking, the compare-and-set and the history row commit as one unit.
       const event = await client.query<{ id: string; status: string }>(
@@ -206,9 +207,11 @@ export class VenuesRepository {
       );
       const eventRow = event.rows[0];
       if (!eventRow) return { kind: 'event-not-assigned' };
+      // SPM-148 PLAN-STATUS-01-B: Submitted, Rejected, Completed and Cancelled answer 409 (event-not-open).
       if (!(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status))
         return { kind: 'event-not-open', status: eventRow.status };
 
+      // SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
            SELECT COALESCE(reason, 'Venue unavailable') AS reason
@@ -240,6 +243,7 @@ export class VenuesRepository {
       if (conflict.rows[0])
         return { kind: 'conflict', reason: conflict.rows[0].reason };
 
+      // SPM-148 PLAN-STATUS-02-A, 02-C: the booking row, written in the same transaction as the status change and history row.
       const saved = await client.query<{
         id: string;
         start_at: Date;
@@ -251,6 +255,7 @@ export class VenuesRepository {
         [venueId, input.eventId, input.start, input.end],
       );
       const row = saved.rows[0];
+      // SPM-148 PLAN-STATUS-01-A, 01-B, 03-A, 03-B: transition in the same transaction as the booking; only a request for an Approved event moves it.
       const statusChanged = await this.moveToPlanning(
         client,
         input.eventId,
@@ -278,6 +283,7 @@ export class VenuesRepository {
     actorId: string,
     status: string,
   ): Promise<boolean> {
+    // SPM-148 PLAN-STATUS-01-B, 03-A: only Approved moves to Planning; later requests leave the status alone.
     if (!shouldTransitionToPlanning(status)) return false;
     const now = this.clock.now();
     const moved = await client.query(
@@ -285,7 +291,9 @@ export class VenuesRepository {
         WHERE id = $1::uuid AND status = 'Approved'`,
       [eventId, now],
     );
+    // SPM-148 PLAN-STATUS-02-E, 03-D: a lost compare-and-set writes no history row.
     if (moved.rowCount !== 1) return false;
+    // SPM-148 PLAN-STATUS-02-D, 04-A, 04-C, 04-D: history row; actor is the session user and the time the injected clock (not SQL now()); append-only.
     await client.query(
       `INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
        VALUES ($1::uuid, $2::uuid, 'Approved', 'Planning', $3::text, $4::timestamptz)`,

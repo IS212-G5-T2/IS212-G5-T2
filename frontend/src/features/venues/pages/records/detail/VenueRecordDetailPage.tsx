@@ -219,6 +219,7 @@ export function VenueRecordDetailPage() {
     }
   }
 
+  // SPM-148 PLAN-STATUS-01-A, 03-D: one request per submit; Submit is disabled while the request is in flight.
   async function submitRequest() {
     // The submit action exists only for a valid, conflict-free, event-selected range.
     const selectedVenue = venue!;
@@ -243,6 +244,7 @@ export function VenueRecordDetailPage() {
       );
       setBookingReference(result.bookingReference);
       // SPM-148 AC1: the first request moved the event to Planning; reflect it without a reload.
+      // SPM-148 PLAN-STATUS-01-A, 03-A: MSG-PL-01 and the store update only when the server reports the transition.
       if (result.statusChanged) {
         useAppStore.setState((state) => ({
           events: state.events.map((item) =>
