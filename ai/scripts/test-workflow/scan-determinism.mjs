@@ -7,7 +7,7 @@
 // (The timezone runs of G4 are executed by run-cycle.mjs; this script only scans.)
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, WORKFLOW_DIR, exitCodeFor, globToRegExp, loadScope, parseArgs, parseTables, printGate, readText,
+  BLOCKED, PASS, WORKFLOW_DIR, exitCodeFor, globToRegExp, isMain, loadScope, parseArgs, parseTables, printGate, readText,
   scopeTests, stripTicks, writeGate, writeText,
 } from './lib.mjs';
 
@@ -132,4 +132,4 @@ function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) main();

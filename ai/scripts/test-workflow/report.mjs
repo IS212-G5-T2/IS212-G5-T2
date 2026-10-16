@@ -7,7 +7,7 @@
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, fileExists, loadScope, parseArgs, parseCsv, parseTables, readJson, readText, toCsv, worst, writeText,
+  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, fileExists, isMain, loadScope, parseArgs, parseCsv, parseTables, readJson, readText, toCsv, worst, writeText,
 } from './lib.mjs';
 
 export const HISTORY_HEADER = [
@@ -247,4 +247,4 @@ function main() {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) main();

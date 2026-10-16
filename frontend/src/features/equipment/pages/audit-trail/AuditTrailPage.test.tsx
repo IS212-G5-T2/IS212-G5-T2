@@ -38,6 +38,39 @@ beforeEach(() => {
 });
 
 describe("AuditTrailPage: SPM-119 availability history", () => {
+  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC6: equipment detail edits appear in the same audit history with every persisted field and technician recorded. Kills: FE-118-05 (relabels an update as a reactivation). */
+  it("EQUIP-UPDATE-06-A displays equipment detail updates in the shared history", async () => {
+    getEquipmentAuditTrail.mockResolvedValue([
+      makeEntry({
+        id: "audit-spm118",
+        equipmentName: "Updated projector",
+        equipmentType: "Visual",
+        location: "Main Hall",
+        maintenanceStatus: "Under Maintenance",
+        quantity: 7,
+        isAvailable: true,
+        changeType: "Equipment record updated",
+        changedBy: "support@example.test",
+        reason: 'Updated fields: Equipment name, Quantity available.',
+      }),
+    ]);
+
+    render(<AuditTrailPage />);
+
+    expect(await screen.findByText("Updated projector")).toBeInTheDocument();
+    expect(screen.getByText("Visual")).toBeInTheDocument();
+    expect(screen.getByText("Main Hall")).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("Available")).toBeInTheDocument();
+    expect(screen.getByText("Equipment record updated")).toBeInTheDocument();
+    expect(
+      screen.getByText("Updated fields: Equipment name, Quantity available."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("support@example.test")).toBeInTheDocument();
+    expect(screen.getByText("History of all equipment changes.")).toBeInTheDocument();
+  });
+
   // EQUIP-UNAVAIL-05-A: the page renders every persisted mark-unavailable snapshot field.
   it("EQUIP-UNAVAIL-05-A displays the full Marked unavailable audit snapshot", async () => {
     // Arrange: the shared audit API returns the exact case entry.

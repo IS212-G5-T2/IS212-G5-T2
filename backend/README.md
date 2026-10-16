@@ -170,6 +170,16 @@ locations for the create form. Equipment requests require a non-blank name and
 location, predefined type and maintenance status, and a whole-number quantity
 from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
 
+Technical Support can update the same fields through `PUT /api/equipment/:id`.
+The update and its audit snapshot commit in one transaction; unchanged
+submissions return `No changes were made.` and do not add an audit entry.
+Existing databases must apply `migrations/011_equipment_record_updates.sql`;
+fresh local databases include the final audit constraint and Equipment update
+permission in the initializer.
+
+Run the SPM-118 equipment update fault-injection checks from this directory
+with `node scripts/mutation/run.mjs --mutants spm118.mutants.mjs`.
+
 Availability is separate from maintenance status. Marking equipment
 unavailable and writing its audit entry happen in one transaction; a failed
 audit insert rolls the availability change back. `GET /api/equipment` excludes

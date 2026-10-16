@@ -130,6 +130,12 @@ If a disposable local volume is missing a schema feature without a matching
 backend migration, recreate that local volume rather than applying part of the
 fresh initializer to a shared or long-lived database.
 
+For SPM-118 on an existing volume, apply
+`backend/migrations/011_equipment_record_updates.sql` with
+`psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. This adds
+the equipment-update audit change type and enables the Technical Support
+Equipment update permission; no database reset is needed.
+
 SPM-50 venue creation uses `venues`, controlled accessibility/facility/layout
 lookups and junctions, plus optional `venue_images` on fresh databases.
 Existing databases must apply the

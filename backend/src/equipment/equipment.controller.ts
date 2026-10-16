@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Put,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { EquipmentService } from './equipment.service.js';
@@ -12,6 +23,15 @@ export class EquipmentController {
   @Post()
   create(@Body() body: unknown, @Req() request: AuthenticatedRequest) {
     return this.equipment.create(request[CURRENT_USER_REQUEST_KEY], body);
+  }
+
+  @Put(':id')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.equipment.update(request[CURRENT_USER_REQUEST_KEY], id, body);
   }
 
   @Get('locations')

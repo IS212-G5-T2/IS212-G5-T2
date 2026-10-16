@@ -278,8 +278,8 @@ describe('Equipment records (SPM-111 e2e)', () => {
     await expect(insertDirectly({ quantity: 0 })).rejects.toThrow();
   });
 
-  // SPM-111 RBAC seed-only check: runtime authorization remains hardcoded.
-  it('has the Equipment resource and Technical Support permissions seeded', async () => {
+  // SPM-118 extends the Equipment resource's Technical Support permission to updates.
+  it('has the Equipment resource and Technical Support update permission seeded', async () => {
     // Act: inspect the live RBAC seed rows created by the local database initialisers.
     const permission = await pool.query<{
       create: boolean;
@@ -296,7 +296,7 @@ describe('Equipment records (SPM-111 e2e)', () => {
 
     // Assert: the migration grants the create/read operations that equipment currently exposes.
     expect(permission.rows).toEqual([
-      { create: true, read: true, update: false, delete: false },
+      { create: true, read: true, update: true, delete: false },
     ]);
   });
 

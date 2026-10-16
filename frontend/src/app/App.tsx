@@ -25,6 +25,7 @@ import { EquipmentRequestsPage } from "@/features/equipment/pages/requests/Equip
 import { EquipmentAvailabilityPage } from "@/features/equipment/pages/availability/EquipmentAvailabilityPage";
 import { AuditTrailPage } from "@/features/equipment/pages/audit-trail/AuditTrailPage";
 import { EquipmentCreatePage } from "@/features/equipment/pages/create/EquipmentCreatePage";
+import { EquipmentEditPage } from "@/features/equipment/pages/edit/EquipmentEditPage";
 import { SettingsPage } from "@/features/account/pages/settings/SettingsPage";
 import { VenueCreatePage } from "@/features/venues/pages/create/VenueCreatePage";
 import { AssignmentQueuePage } from "@/features/lead/pages/assignment-queue/AssignmentQueuePage";
@@ -94,6 +95,7 @@ export default function App() {
           <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
           <Route path="/equipment/audit-trail" element={<AuditTrailPage />} />
           <Route path="/equipment/create" element={<EquipmentCreatePage />} />
+          <Route path="/equipment/:id/edit" element={<EquipmentEditPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
           <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />

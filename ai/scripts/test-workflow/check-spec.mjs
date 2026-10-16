@@ -6,7 +6,7 @@
 //   - every tier cell of every AC is PRESENT (existing registry ids), N/A (reason) or MISSING (reason)
 //   - MISSING cells become gap-list items; a blank cell, or N/A / MISSING without a reason, blocks the gate
 import {
-  BLOCKED, PASS, WORKFLOW_DIR, exitCodeFor, loadScope, parseArgs, parseTables, printGate, readText, stripTicks, writeGate,
+  BLOCKED, PASS, WORKFLOW_DIR, exitCodeFor, isMain, loadScope, parseArgs, parseTables, printGate, readText, stripTicks, writeGate,
 } from './lib.mjs';
 import { readRegistry } from './check-ids.mjs';
 
@@ -119,4 +119,4 @@ function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) main();

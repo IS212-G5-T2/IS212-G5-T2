@@ -29,7 +29,7 @@
 //       EQUIP-VIEW-04-A.
 //   A6 (each box matches only its own field: type box never reads name or
 //       location, location box never reads name or type): EQUIP-VIEW-03-G, 03-H.
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EquipmentAvailabilityPage } from "./EquipmentAvailabilityPage";
@@ -81,6 +81,17 @@ beforeEach(() => {
 });
 
 describe("EquipmentAvailabilityPage: inherited SPM-111 coverage", () => {
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: each inventory record offers an Edit action for selecting that record. Kills: FE-118-02 (navigates to the wrong record). */
+  it("EQUIP-UPDATE-01-A navigates to the selected equipment record editor", async () => {
+    getEquipment.mockResolvedValue([makeRecord({ id: "equipment-118" })]);
+    render(<EquipmentAvailabilityPage />);
+
+    await screen.findByText("Conference projector");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Edit" }));
+
+    expect(navigate).toHaveBeenCalledWith("/equipment/equipment-118/edit");
+  });
+
   // SPM-111 EQUIP-CRE-05-A: inventory displays all persisted details, including location.
   it("EQUIP-CRE-05-A displays the equipment location in the inventory", async () => {
     // Arrange: the Technical Support inventory API returns a named equipment record.
@@ -775,7 +786,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
 
     // Act: confirm reactivation.
     await user.click(
-      screen.getByText("Broken projector").closest("tr")!.querySelector("button")!,
+      within(screen.getByText("Broken projector").closest("tr")!).getByRole("button", { name: /^reactivate$/i }),
     );
     await user.click(screen.getByRole("button", { name: /^reactivate$/i }));
 
@@ -827,7 +838,7 @@ describe("SPM-119 EquipmentAvailabilityPage", () => {
     render(<EquipmentAvailabilityPage />);
     await screen.findByText("Light bulbs");
     await user.click(
-      screen.getByText("Light bulbs").closest("tr")!.querySelector("button")!,
+      within(screen.getByText("Light bulbs").closest("tr")!).getByRole("button", { name: /^mark unavailable$/i }),
     );
     await user.type(screen.getByRole("textbox", { name: /reason/i }), "Damaged during transport");
     await user.click(screen.getByRole("button", { name: /^mark unavailable$/i }));

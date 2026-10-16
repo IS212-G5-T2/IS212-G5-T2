@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS equipment_audit_trail (
     maintenance_status text NOT NULL,
     quantity integer NOT NULL,
     is_available boolean NOT NULL,
-    change_type text NOT NULL CHECK (change_type IN ('Marked unavailable', 'Reactivated')),
+    change_type text NOT NULL CHECK (change_type IN ('Marked unavailable', 'Reactivated', 'Equipment record updated')),
     reason text,
     changed_by text NOT NULL,
     changed_at timestamptz NOT NULL DEFAULT now()

@@ -11,7 +11,7 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, abs, exitCodeFor, expandGlobs, globToRegExp, isTestFile, loadScope, parseArgs, parseTables,
+  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, abs, exitCodeFor, expandGlobs, globToRegExp, isMain, isTestFile, loadScope, parseArgs, parseTables,
   printGate, readJson, readText, rel, stripTicks, writeGate, writeText,
 } from './lib.mjs';
 
@@ -219,4 +219,4 @@ function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) main();

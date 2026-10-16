@@ -203,9 +203,8 @@ export function EquipmentAvailabilityPage() {
     }
   }
 
-  async function handleMarkUnavailable(reason: string) {
-    if (dialog?.mode !== "mark") return;
-    const { equipment } = await updateEquipmentAvailability(dialog.record.id, {
+  async function handleMarkUnavailable(record: EquipmentRecord, reason: string) {
+    const { equipment } = await updateEquipmentAvailability(record.id, {
       isAvailable: false,
       reason,
     });
@@ -214,9 +213,8 @@ export function EquipmentAvailabilityPage() {
     setToast("Equipment marked unavailable.");
   }
 
-  async function handleReactivate() {
-    if (dialog?.mode !== "reactivate") return;
-    const { equipment } = await updateEquipmentAvailability(dialog.record.id, {
+  async function handleReactivate(record: EquipmentRecord) {
+    const { equipment } = await updateEquipmentAvailability(record.id, {
       isAvailable: true,
     });
     setRecords((previous) => previous.map((record) => (record.id === equipment.id ? equipment : record)));
@@ -270,24 +268,34 @@ export function EquipmentAvailabilityPage() {
     },
     {
       header: "Actions",
-      render: (record) =>
-        isRecordAvailable(record) ? (
+      render: (record) => (
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
             size="sm"
-            onClick={() => setDialog({ mode: "mark", record })}
+            onClick={() => navigate(`/equipment/${record.id}/edit`)}
           >
-            Mark Unavailable
+            Edit
           </Button>
-        ) : (
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setDialog({ mode: "reactivate", record })}
-          >
-            Reactivate
-          </Button>
-        ),
+          {isRecordAvailable(record) ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialog({ mode: "mark", record })}
+            >
+              Mark Unavailable
+            </Button>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setDialog({ mode: "reactivate", record })}
+            >
+              Reactivate
+            </Button>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -367,14 +375,14 @@ export function EquipmentAvailabilityPage() {
       {dialog?.mode === "mark" && (
         <MarkUnavailableDialog
           record={dialog.record}
-          onConfirm={(reason) => void handleMarkUnavailable(reason)}
+          onConfirm={(reason) => void handleMarkUnavailable(dialog.record, reason)}
           onCancel={() => setDialog(null)}
         />
       )}
       {dialog?.mode === "reactivate" && (
         <ReactivateDialog
           record={dialog.record}
-          onConfirm={() => void handleReactivate()}
+          onConfirm={() => void handleReactivate(dialog.record)}
           onCancel={() => setDialog(null)}
         />
       )}

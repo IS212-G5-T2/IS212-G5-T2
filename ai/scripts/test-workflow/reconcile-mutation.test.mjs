@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseLog, reconcile, suiteLinks } from './reconcile-mutation.mjs';
 
-const SUITES = new Set(['unit', 'e2e', 'removal']);
+const SUITES = new Set(['unit', 'e2e', 'removal', 'service']);
 const defs = [
   { id: 'A1', name: 'a real mutant', file: 'x.ts' },
   { id: 'E1', name: 'unreachable (equivalent: the database CHECK allows only these values)', file: 'x.ts', equivalent: true },
@@ -14,6 +14,11 @@ test('parseLog reads results, killing suites and baselines', () => {
   assert.deepEqual(parsed.baselines, [{ suite: 'unit', state: 'green' }]);
   assert.deepEqual(parsed.results.get('A1'), { status: 'killed', killers: ['e2e', 'unit'] });
   assert.deepEqual(parsed.results.get('E1'), { status: 'equivalent', killers: [] });
+});
+
+test('parseLog reads the mutation runner killed by syntax with CRLF output', () => {
+  const parsed = parseLog('baseline service: green\r\nA1 killed           killed by: service: SPM118-AC2-04-UNIT proves it works mutation title\r\n', SUITES);
+  assert.deepEqual(parsed.results.get('A1'), { status: 'killed', killers: ['service'] });
 });
 
 test('a clean run reconciles with a score and no findings', () => {
