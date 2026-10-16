@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe("AuditTrailPage: SPM-119 availability history", () => {
-  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC6: equipment detail edits appear in the same audit history with every persisted field and technician recorded. Kills: FE-118-05. */
+  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC6: equipment detail edits appear in the same audit history with every persisted field and technician recorded. Kills: FE-118-05 (relabels an update as a reactivation). */
   it("EQUIP-UPDATE-06-A displays equipment detail updates in the shared history", async () => {
     getEquipmentAuditTrail.mockResolvedValue([
       makeEntry({

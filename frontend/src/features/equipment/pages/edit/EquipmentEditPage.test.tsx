@@ -47,7 +47,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     navigate.mockReset();
   });
 
-  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: selecting Edit loads all and only the fields present at equipment creation. Kills: FE-118-06. */
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: selecting Edit loads all and only the fields present at equipment creation. Kills: FE-118-06 (exposes retired Description). */
   it('EQUIP-UPDATE-02-A loads the selected record and exposes its five editable fields', async () => {
     renderEditPage();
 
@@ -64,7 +64,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(screen.queryByRole('textbox', { name: /description|specifications/i })).not.toBeInTheDocument();
   });
 
-  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: required fields block saving and show field-level validation errors. Kills: FE-118-04. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: required fields block saving and show field-level validation errors. Kills: FE-118-04 (omits required-name validation). */
   it('EQUIP-UPDATE-03-A blocks empty required values before calling the update API', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -85,7 +85,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities must be positive whole numbers within the database integer range. Kills: FE-118-07. */
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities must be positive whole numbers within the database integer range. Kills: FE-118-07 (accepts zero). */
   it('EQUIP-UPDATE-03-C rejects a quantity below the allowed minimum', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -99,7 +99,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: fractional quantities are invalid. Kills: FE-118-09. */
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: fractional quantities are invalid. Kills: FE-118-09 (accepts fractional quantity). */
   it('EQUIP-UPDATE-03-C rejects a fractional quantity', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -113,7 +113,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities above PostgreSQL integer maximum are invalid. Kills: FE-118-08. */
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities above PostgreSQL integer maximum are invalid. Kills: FE-118-08 (accepts above maximum). */
   it('EQUIP-UPDATE-03-C rejects a quantity above the allowed maximum', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -127,7 +127,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: both inclusive quantity boundaries are valid update values. Kills: FE-118-17, FE-118-18. */
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: both inclusive quantity boundaries are valid update values. Kills: FE-118-17 (rejects minimum), FE-118-18 (rejects maximum). */
   it('EQUIP-UPDATE-03-C accepts the inclusive minimum and maximum quantities', async () => {
     const user = userEvent.setup();
     updateEquipment.mockResolvedValue({ equipment: record, message: 'Equipment record updated.' });
@@ -143,7 +143,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     }
   });
 
-  /** Confluence EQUIP-UPDATE-04-A; SPM-118 AC4: a valid save submits the selected record and confirms success. Kills: FE-118-03. */
+  /** Confluence EQUIP-UPDATE-04-A; SPM-118 AC4: a valid save submits the selected record and confirms success. Kills: FE-118-03 (suppresses confirmation). */
   it('EQUIP-UPDATE-04-A saves the edited record and shows the confirmation', async () => {
     const user = userEvent.setup();
     const updated = { ...record, name: 'Updated projector', location: 'Main Hall', quantity: 7 };
@@ -171,7 +171,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).toHaveBeenCalledWith('/equipment/availability');
   });
 
-  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: both page navigation controls return to the equipment inventory. Kills: FE-118-14. */
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: both page navigation controls return to the equipment inventory. Kills: FE-118-14 (Cancel does not navigate). */
   it('EQUIP-UPDATE-01-A navigates back or cancels to the inventory', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -184,7 +184,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).toHaveBeenNthCalledWith(2, '/equipment/availability');
   });
 
-  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: a selected id missing from the inventory is presented as an actionable load failure. Kills: FE-118-12. */
+  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: a selected id missing from the inventory is presented as an actionable load failure. Kills: FE-118-12 (hides selected-record load error). */
   it('EQUIP-UPDATE-01-B reports when the selected record is absent', async () => {
     getEquipment.mockResolvedValue([]);
     renderEditPage();
@@ -192,7 +192,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to load this equipment record/i);
   });
 
-  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: an inventory request failure is shown as a load error. Kills: FE-118-13. */
+  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: an inventory request failure is shown as a load error. Kills: FE-118-13 (silently ignores request failure). */
   it('EQUIP-UPDATE-01-B reports when inventory cannot be loaded', async () => {
     getEquipment.mockRejectedValue(new Error('offline'));
     renderEditPage();
@@ -200,7 +200,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to load this equipment record/i);
   });
 
-  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: server validation errors are shown beside their corresponding fields. Kills: FE-118-10. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: server validation errors are shown beside their corresponding fields. Kills: FE-118-10 (hides field error). */
   it('EQUIP-UPDATE-03-A shows field errors returned by the update API', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new ApiError('Invalid equipment record.', { name: 'Equipment name is required.' }));
@@ -214,7 +214,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(screen.getByLabelText(/equipment name/i)).toHaveAttribute('aria-invalid', 'true');
   });
 
-  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: body-level API validation errors are shown in the form. Kills: FE-118-11. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: body-level API validation errors are shown in the form. Kills: FE-118-11 (hides form error). */
   it('EQUIP-UPDATE-03-A shows general API validation errors', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new ApiError('Invalid equipment record.', { body: 'Equipment record could not be validated.' }));
@@ -225,7 +225,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Equipment record could not be validated.');
   });
 
-  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: users can dismiss the successful-save confirmation without navigation. Kills: FE-118-16. */
+  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: users can dismiss the successful-save confirmation without navigation. Kills: FE-118-16 (confirmation cannot close). */
   it('EQUIP-UPDATE-04-B closes the update confirmation', async () => {
     const user = userEvent.setup();
     updateEquipment.mockResolvedValue({ equipment: record, message: 'Equipment record updated.' });
@@ -240,7 +240,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: an unexpected save failure is visible and does not claim success. Kills: FE-118-15. */
+  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: an unexpected save failure is visible and does not claim success. Kills: FE-118-15 (swallows save failure). */
   it('EQUIP-UPDATE-04-B reports an unexpected update failure', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new Error('offline'));
