@@ -22,8 +22,24 @@ export const MUTANTS = [
     testMappings: [
       { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title },
       { suite: 'e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-UPDATE-03-B rejects every empty required field without changing inventory or audit history' },
-      ...(id === 'BE-118-13' ? [{ suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-UPDATE-03-B rejects a blank equipment name without touching the database' }] : []),
     ],
+    edits: [[before, after]],
+  })),
+  ...[
+    ['BE-118-23', 'quantity validation accepts zero below the minimum', 'value.quantity < 1', 'value.quantity < 0', 'service', 'EQUIP-UPDATE-03-C rejects quantities outside the inclusive integer range before opening a transaction'],
+    ['BE-118-24', 'quantity validation accepts a value above the maximum', 'value.quantity > MAX_EQUIPMENT_QUANTITY', 'value.quantity > MAX_EQUIPMENT_QUANTITY + 1', 'service', 'EQUIP-UPDATE-03-C rejects quantities outside the inclusive integer range before opening a transaction'],
+    ['BE-118-25', 'quantity validation rejects the inclusive minimum', 'value.quantity < 1', 'value.quantity < 2', 'e2e', 'EQUIP-UPDATE-03-C accepts the inclusive minimum and maximum quantities'],
+    ['BE-118-26', 'quantity validation rejects the inclusive maximum', 'value.quantity > MAX_EQUIPMENT_QUANTITY', 'value.quantity >= MAX_EQUIPMENT_QUANTITY', 'e2e', 'EQUIP-UPDATE-03-C accepts the inclusive minimum and maximum quantities'],
+  ].map(([id, name, before, after, suite, title]) => ({
+    id,
+    name,
+    file: 'src/equipment/creation/dto/equipment-input.ts',
+    suites: [suite],
+    testMappings: [{
+      suite,
+      file: suite === 'service' ? 'src/equipment/equipment.service.spec.ts' : 'test/equipment-update.e2e-spec.ts',
+      title,
+    }],
     edits: [[before, after]],
   })),
   ...[
@@ -94,7 +110,7 @@ export const MUTANTS = [
     file: 'src/equipment/equipment.service.ts',
     suites: ['service', 'e2e'],
     testMappings: [
-      { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-UPDATE-06-C returns the current record without adding an audit entry' },
+      { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-UPDATE-06-C returns the unchanged record without adding an audit entry' },
       { suite: 'e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-UPDATE-06-C does not write an audit row for unchanged values' },
     ],
     edits: [['if (changedFields.length === 0) {', 'if (false) {']],

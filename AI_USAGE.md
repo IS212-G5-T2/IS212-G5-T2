@@ -35,3 +35,5 @@ Where user is the user's github username.
 ## 2026-10-16
 
 - kishorek888 - implementation - SPM-118 - Audit update remarks: Record the precise editable field names changed by an equipment update in the audit trail Reason column; availability-change reasons remain unchanged.
+
+- kishorek888 - implementation - SPM-118 - Correct test-quality and traceability findings: Removed two vacuous unmount tests and their non-observable guard, added accessible field-error associations and exact validation assertions, covered inclusive quantity boundaries at frontend, service, and HTTP levels, asserted all audit-history fields, and aligned comments, mutation mappings, and records. Cycle 20: G1–G7 PASS; 147/147 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement/branch/function/line coverage; 44/44 mutants killed. Local frontend lint passed with four pre-existing warnings; backend direct oxlint passed with three pre-existing warnings; frontend and backend builds passed. No commit, push, PR, Jira, or Confluence update.

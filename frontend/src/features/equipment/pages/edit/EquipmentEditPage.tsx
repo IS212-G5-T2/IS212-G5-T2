@@ -34,10 +34,8 @@ export function EquipmentEditPage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    let active = true;
     getEquipment({ includeUnavailable: true })
       .then((records) => {
-        if (!active) return;
         const selected = records.find((item) => item.id === id);
         if (!selected) {
           setLoadError(true);
@@ -52,11 +50,8 @@ export function EquipmentEditPage() {
         setLocations([...new Set([...records.map((item) => item.location), selected.location])]);
       })
       .catch(() => {
-        if (active) setLoadError(true);
+        setLoadError(true);
       });
-    return () => {
-      active = false;
-    };
   }, [id]);
 
   async function submit(event: React.FormEvent) {

@@ -100,6 +100,22 @@ export const MUTANTS = [
     edits: [["!/^\\d+$/.test(quantity)", "!/\\d+(?:\\.\\d+)?$/.test(quantity)"]],
   },
   {
+    id: 'FE-118-17',
+    name: 'quantity validation rejects the inclusive minimum',
+    file: 'src/features/equipment/pages/edit/EquipmentEditPage.tsx',
+    suites: ['editor'],
+    testMappings: [{ suite: 'editor', file: 'src/features/equipment/pages/edit/EquipmentEditPage.test.tsx', title: 'EQUIP-UPDATE-03-C accepts the inclusive minimum and maximum quantities' }],
+    edits: [['Number(quantity) < 1', 'Number(quantity) < 2']],
+  },
+  {
+    id: 'FE-118-18',
+    name: 'quantity validation rejects the inclusive maximum',
+    file: 'src/features/equipment/pages/edit/EquipmentEditPage.tsx',
+    suites: ['editor'],
+    testMappings: [{ suite: 'editor', file: 'src/features/equipment/pages/edit/EquipmentEditPage.test.tsx', title: 'EQUIP-UPDATE-03-C accepts the inclusive minimum and maximum quantities' }],
+    edits: [['Number(quantity) > MAX_EQUIPMENT_QUANTITY', 'Number(quantity) >= MAX_EQUIPMENT_QUANTITY']],
+  },
+  {
     id: 'FE-118-10',
     name: 'field-specific server validation errors are not shown on the field',
     file: 'src/features/equipment/pages/edit/EquipmentEditPage.tsx',
@@ -129,7 +145,7 @@ export const MUTANTS = [
     file: 'src/features/equipment/pages/edit/EquipmentEditPage.tsx',
     suites: ['editor'],
     testMappings: [{ suite: 'editor', file: 'src/features/equipment/pages/edit/EquipmentEditPage.test.tsx', title: 'EQUIP-UPDATE-01-B reports when inventory cannot be loaded' }],
-    edits: [['.catch(() => {\n        if (active) setLoadError(true);\n      });', '.catch(() => {\n        if (active) setLoadError(false);\n      });']],
+    edits: [['.catch(() => {\n        setLoadError(true);\n      });', '.catch(() => {\n        setLoadError(false);\n      });']],
   },
   {
     id: 'FE-118-14',

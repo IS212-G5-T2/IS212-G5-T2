@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe("EquipmentAvailabilityPage: inherited SPM-111 coverage", () => {
-  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: each inventory record offers an Edit action for selecting that record. */
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: each inventory record offers an Edit action for selecting that record. Kills: FE-118-02. */
   it("EQUIP-UPDATE-01-A navigates to the selected equipment record editor", async () => {
     getEquipment.mockResolvedValue([makeRecord({ id: "equipment-118" })]);
     render(<EquipmentAvailabilityPage />);
