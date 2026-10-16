@@ -167,6 +167,7 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
       { label: 'clarification resolve', actor: () => organiser, method: 'post', path: (id) => `/api/events/${id}/clarifications/${unknownId}/resolve` },
     ];
 
+  // Kills: S6, S23 (planning PATCH, flagged change); S1, S23 (confirm no equipment); S2, S23 (safety check request); S5, S23 (safety feedback resolve and unresolve); S3, S23 (equipment request removal); S4, S23 (venue request removal); S7, S23 (clarification create); M20, S23 (clarification reply); S8, S23 (clarification resolve)
     it.each(cases)('$label answers 409 EVENT_CANCELLED and leaves every table unchanged', async ({ actor, method, path, body }) => {
       // Arrange: EVT-301 Cancelled with a released booking and a released Projector line
       const { eventId } = await seedCancelledEvent();
@@ -187,7 +188,8 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
    * and the Organiser's planning PATCH is refused as a non-coordinator (existing rule, see results).
    */
   describe('CANCEL-EVENT-07-B: other roles and status reversals cannot alter a cancelled event', () => {
-    it('CANCEL-EVENT-07-B (D): COO-01 Confirmed is refused with 422 MSG-CF-05 and the status stays Cancelled', async () => {
+  // Kills: none identified
+    it('CANCEL-EVENT-07-B-D: COO-01 Confirmed is refused with 422 MSG-CF-05 and the status stays Cancelled', async () => {
       // Arrange
       const { eventId } = await seedCancelledEvent();
 
@@ -203,7 +205,8 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
       expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe('Cancelled');
     });
 
-    it('CANCEL-EVENT-07-B (D): COO-01 Planning is refused with 422 INVALID_STATUS_TRANSITION and the status stays Cancelled', async () => {
+  // Kills: S10
+    it('CANCEL-EVENT-07-B-D: COO-01 Planning is refused with 422 INVALID_STATUS_TRANSITION and the status stays Cancelled', async () => {
       // Arrange
       const { eventId } = await seedCancelledEvent();
 
@@ -214,12 +217,14 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
         .send({ targetStatus: 'Planning' })
         .expect(422);
 
-      // Assert: ASSUMED code and text (Unknown in the Confluence pages)
+      // Assert
+      // ASSUMPTION A2: the INVALID_STATUS_TRANSITION code and its text are ASSUMED (the Confluence pages give neither)
       expect(response.body.code).toBe('INVALID_STATUS_TRANSITION');
       expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe('Cancelled');
     });
 
-    it('CANCEL-EVENT-07-B (C): ORG-01 cannot edit the event details of a cancelled event (refused, unchanged)', async () => {
+  // Kills: none identified
+    it('CANCEL-EVENT-07-B-C: ORG-01 cannot edit the event details of a cancelled event (refused, unchanged)', async () => {
       // Arrange
       const { eventId } = await seedCancelledEvent();
       const before = await snapshot(eventId);
@@ -232,8 +237,15 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
         .expect(403);
 
       // Assert: DEVIATION from the expected 409 MSG-CN-04 (recorded in the results document); nothing changed
+      // ASSUMPTION A7: 403 is the working expectation (the existing coordinator-only rule runs first; SC-002, accepted)
       expect(response.body.message).toBe('Only the assigned coordinator can change event information.');
       expect(await snapshot(eventId)).toEqual(before);
     });
   });
 });
+
+/*
+ * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
+ *   A2 INVALID_STATUS_TRANSITION (422) and its text for a Planning target on a cancelled event -> CANCEL-EVENT-07-B-D (Planning)
+ *   A7 403 for the organiser's planning PATCH (not the Confluence 409 MSG-CN-04; SC-002) -> CANCEL-EVENT-07-B-C
+ */

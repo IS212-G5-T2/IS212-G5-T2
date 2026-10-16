@@ -19,7 +19,8 @@ const released = (over: Partial<VenueBookingFact> = {}) =>
   }) as unknown as VenueBookingFact;
 
 describe('SPM-136 RR-136-02: released venue bookings are inactive', () => {
-  it('RR-136-02: a released approved booking and a released live hold are not outstanding venue items', () => {
+  // Kills: M23
+  it('CANCEL-EVENT-04-A-ARR: RR-136-02: a released approved booking and a released live hold are not outstanding venue items', () => {
     // Arrange: VB-301a (released approved) and VB-301b (released hold with a live expiry)
     const snapshot = {
       venueBookings: [
@@ -37,7 +38,8 @@ describe('SPM-136 RR-136-02: released venue bookings are inactive', () => {
     expect(result.outstanding.filter((item) => item.type === 'venue')).toEqual([]);
   });
 
-  it('RR-136-02: the checklist reports a released venue as not requested, with no venue items', () => {
+  // Kills: M24
+  it('CANCEL-EVENT-04-A-ARR: RR-136-02: the checklist reports a released venue as not requested, with no venue items', () => {
     // Arrange
     const checklist = buildChecklist({
       snapshot: { venueBookings: [released()], equipment: [] },
@@ -48,6 +50,12 @@ describe('SPM-136 RR-136-02: released venue bookings are inactive', () => {
     });
 
     // Act and assert
+    // ASSUMPTION A5: a released venue is labelled "not_requested" with no items (the label is ASSUMED; no spec gives it)
     expect(checklist.venue).toMatchObject({ status: 'not_requested', items: [] });
   });
 });
+
+/*
+ * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
+ *   A5 a released venue is labelled "not_requested" and gives no venue item (ASSUMED label) -> CANCEL-EVENT-04-A-ARR (both tests)
+ */

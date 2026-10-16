@@ -297,6 +297,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC1: who can cancel ----------
 
   /** CANCEL-EVENT-01-A: the assigned Coordinator cancels a Confirmed event. */
+  // Kills: M4
   it('CANCEL-EVENT-01-A: the assigned coordinator cancels EVT-301 and the audit row names COO-01', async () => {
     // Arrange: EVT-301 Confirmed, assigned to COO-01, submitted by ORG-01
     const { eventId } = await seedGalaEvent();
@@ -315,6 +316,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /** CANCEL-EVENT-01-B: the submitting Organiser cancels; the Coordinator is notified too (PO decision). */
+  // Kills: M4, M17, S19, S24
   it('CANCEL-EVENT-01-B: the submitting organiser cancels EVT-301 and the audit row names ORG-01', async () => {
     // Arrange: EVT-301 Confirmed, submitted by ORG-01 and assigned to COO-01
     const { eventId } = await seedGalaEvent();
@@ -334,6 +336,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * an anonymous caller nor the Coordinator Lead can cancel. Each refusal changes nothing.
    */
   describe('CANCEL-EVENT-01-C: only the assigned coordinator or the submitting organiser can cancel', () => {
+    // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, S19 (ATT-01 row); M1, M7, S19 (LEAD-01 row); none identified (no-token row)
     it.each([
       ['COO-02, not assigned', () => coordinator2, 403, MSG_FORBIDDEN],
       ['ORG-02, a different organiser', () => organiser2, 403, MSG_FORBIDDEN],
@@ -359,6 +362,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   /** CANCEL-EVENT-02-C: a body that does not carry boolean true confirmation is refused with MSG-CN-03. */
   describe('CANCEL-EVENT-02-C: the server refuses a cancel request without strict confirmation', () => {
+    // Kills: M3 (every row); M10 (the string "true" row and the number 1 row)
     it.each([
       ['confirmed omitted', { targetStatus: 'Cancelled' }],
       ['confirmed false', { targetStatus: 'Cancelled', confirmed: false }],
@@ -382,6 +386,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC3: status becomes Cancelled, and only from cancellable statuses ----------
 
   /** CANCEL-EVENT-03-A: the stored row records who cancelled and when, from the injected clock. */
+  // Kills: M4, M11
   it('CANCEL-EVENT-03-A: stores cancelled_by COO-01 and cancelled_at equal to the injected clock instant', async () => {
     // Arrange
     const { eventId } = await seedGalaEvent();
@@ -401,6 +406,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   /** CANCEL-EVENT-03-B: every status that is cancellable becomes Cancelled; every other status refuses. */
   describe('CANCEL-EVENT-03-B: cancellable statuses are Submitted, Approved, Planning and Confirmed', () => {
+    // Kills: M4 (every row); S18 (Planning, Submitted and Approved rows); S19 and S22 (Submitted row); M12 and S19 (Approved row)
     it.each([
       ['Planning (EVT-302)', 'Planning', 'coordinator', 200],
       ['Confirmed (EVT-301)', 'Confirmed', 'coordinator', 200],
@@ -419,6 +425,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
       expect(history.rows).toEqual([{ from_status: status }]);
     });
 
+    // Kills: M2 and M4 (Completed row); M4 and S21 (Rejected row); M4 (Cancelled row)
     it.each([
       ['Completed (EVT-303)', 'Completed'],
       ['Rejected (EVT-304)', 'Rejected'],
@@ -445,6 +452,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-03-C: five simultaneous confirmed requests from both authorised users cancel once.
    * The Projector stock is 5; EVT-301 holds 2 and EVT-308 holds 1, so 2 are free before and 4 after.
    */
+  // Kills: M4, S17, S19, S20, S24
   it('CANCEL-EVENT-03-C: five parallel cancels produce one success, one history row, one notice per recipient and one release', async () => {
     // Arrange: inventory Projector 5, EVT-301 with Projector x2 (Reserved); EVT-308 with Projector x1 (Reserved)
     await seedInventory('Projector', 'Visual', 5);
@@ -490,6 +498,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC4: venue bookings and holds are released ----------
 
   /** CANCEL-EVENT-04-A: the approved booking and the live hold are released and the venue frees the slot. */
+  // Kills: M4, M5, S11
   it('CANCEL-EVENT-04-A: VB-301a and VB-301b are released with released_at T0 and the slot is free for others', async () => {
     // Arrange: VB-301a Main Hall Approved; VB-301b Breakout Room 1 live hold
     const { eventId, mainHall, breakout, approvedId, holdId } = await seedGalaEvent();
@@ -518,6 +527,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-04-B: another event's booking at Main Hall (a different slot) is untouched, and the
    * cancelled event's old slot no longer conflicts.
    */
+  // Kills: M4, M14
   it('CANCEL-EVENT-04-B: VB-308 stays Approved at Main Hall and the released slot is not in conflict', async () => {
     // Arrange: EVT-301 at Main Hall 2026-11-05 10:00-12:00 SGT; EVT-308 Approved at Main Hall on 2026-11-06
     const { eventId, mainHall } = await seedGalaEvent();
@@ -541,6 +551,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-04-C: a fault while releasing equipment, after the status, venue and registration writes,
    * leaves the whole cancellation unapplied. A retry without the fault releases everything.
    */
+  // Kills: M4, M5, M6, M15, S11
   it('CANCEL-EVENT-04-C: a release fault rolls back the whole cancellation and a retry completes it', async () => {
     // Arrange: EVT-301 Confirmed; the equipment releaser is replaced by one that throws
     const { eventId } = await seedGalaEvent();
@@ -572,13 +583,14 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /**
-   * CANCEL-EVENT-04-A (safety rows, TR-136-01): an approved safety check and its feedback items are left as they are when
+   * CANCEL-EVENT-04-A-SAFETY (TR-136-01): an approved safety check and its feedback items are left as they are when
    * the venue bookings and equipment are released, and no safety reset is recorded. The release-skip branches of the
    * venue and equipment triggers (migration 017) are what keeps these rows; a removed branch would delete them.
    * Oracle: Gate-1 decision D2 (safety-check rows are left untouched; every safety action is guarded). DERIVED from D2 by
    * the implementation team; the Confluence 04-A page does not state the safety-row outcome (TR-136-11).
    */
-  it('CANCEL-EVENT-04-A (safety): an approved safety check with feedback survives the release and no reset row is written', async () => {
+  // Kills: M4, M5, S11
+  it('CANCEL-EVENT-04-A-SAFETY: an approved safety check with feedback survives the release and no reset row is written', async () => {
     // Arrange: EVT-301 with an approved safety check and two feedback items (one resolved, one not)
     const { eventId } = await seedGalaEvent();
     await pool.query(
@@ -599,6 +611,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
     // Assert: the safety row and both feedback items are identical; no reset row exists for the event
     const safetyAfter = await pool.query('SELECT * FROM event_safety_checks WHERE event_id = $1', [eventId]);
+    // ASSUMPTION A6: the safety rows are untouched because of decision D2 (DERIVED, not stated in Confluence 04-A; TR-136-11)
     expect(safetyAfter.rows).toEqual(safetyBefore.rows);
     expect(safetyAfter.rows[0].status).toBe('approved');
     const feedbackAfter = await pool.query('SELECT id, feedback_text, resolved_by_coordinator_at FROM safety_check_feedback_items WHERE event_id = $1 ORDER BY id', [eventId]);
@@ -612,11 +625,12 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /**
-   * CANCEL-EVENT-04-A (read views, RR-136-01): after the cancel, the venue a released booking held is not shown
+   * CANCEL-EVENT-04-A-VIEW (RR-136-01): after the cancel, the venue a released booking held is not shown
    * on the event list, the event detail or the planning read. Decision (ASSUMED, documented): released bookings are
    * left out of the venue summary, because a cancelled event holds no venue.
    */
-  it('CANCEL-EVENT-04-A (read views): a released booking is not shown as a venue on the list or the detail after cancel', async () => {
+  // Kills: M4, M5, M22, S11
+  it('CANCEL-EVENT-04-A-VIEW: a released booking is not shown as a venue on the list or the detail after cancel', async () => {
     // Arrange: EVT-301 with VB-301a Main Hall (approved) and VB-301b Breakout Room 1 (live hold)
     const { eventId } = await seedGalaEvent();
     const before = await http().get(`/api/events/${eventId}`).set('Cookie', organiser.cookie).expect(200);
@@ -627,6 +641,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
     // Assert: the detail and the organiser list carry no venue text for the released bookings
     const detail = await http().get(`/api/events/${eventId}`).set('Cookie', organiser.cookie).expect(200);
+    // ASSUMPTION A5: a released venue is left out of the detail and the list (ASSUMED label; RR-136-01)
     expect(detail.body.venueName).toBeUndefined();
     const list = await http().get('/api/events').set('Cookie', organiser.cookie).expect(200);
     const row = list.body.find((event: { id: string }) => event.id === eventId);
@@ -636,10 +651,11 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /**
-   * CANCEL-EVENT-04-A (arrangements, RR-136-02): the coordinator's readiness view of a cancelled event does not list
+   * CANCEL-EVENT-04-A-ARR (RR-136-02): the coordinator's readiness view of a cancelled event does not list
    * the released venue bookings as outstanding or pending.
    */
-  it('CANCEL-EVENT-04-A (arrangements): the readiness view of a cancelled event lists no outstanding venue and no pending venue request', async () => {
+  // Kills: M4, M5, M23, M24, S11
+  it('CANCEL-EVENT-04-A-ARR: the readiness view of a cancelled event lists no outstanding venue and no pending venue request', async () => {
     // Arrange: EVT-301 with an approved booking and a live hold, both released by the cancel
     const { eventId } = await seedGalaEvent();
     await cancel(coordinator, eventId).expect(200);
@@ -649,12 +665,14 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
     // Assert
     expect(view.body.outstanding.filter((item: { type: string }) => item.type === 'venue')).toEqual([]);
+    // ASSUMPTION A5: a released venue reads "not_requested" with no items (ASSUMED label; RR-136-02)
     expect(view.body.checklist.venue).toMatchObject({ status: 'not_requested', items: [] });
   });
 
   // ---------- AC5: equipment reservations are released ----------
 
   /** CANCEL-EVENT-05-A: both equipment lines are Released and the stock they held becomes available. */
+  // Kills: M4, M6, S12, S13
   it('CANCEL-EVENT-05-A: Projector shows 4 of 5 and Microphone 10 of 10 after the cancellation', async () => {
     // Arrange: inventory Projector 5 and Microphone 10; EVT-301 holds Projector x2 and Microphone x4; EVT-308 holds Projector x1
     await seedInventory('Projector', 'Visual', 5);
@@ -692,6 +710,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   }
 
   /** CANCEL-EVENT-05-B (part): another event's Projector reservation is untouched by the cancellation. */
+  // Kills: none identified
   it('CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled', async () => {
     // Arrange: EVT-301 holds Projector x2; EVT-308 holds Projector x1 Reserved
     const { eventId } = await seedGalaEvent();
@@ -712,6 +731,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-06-A: the organiser, the assigned coordinator and every Registered attendee get exactly one
    * unread notice, whoever cancels. Two clones of EVT-301 cover both cancelling users.
    */
+  // Kills: M4, M17, S17, S19, S24
   it('CANCEL-EVENT-06-A: ORG-01, COO-01, ATT-01..03 each get one unread notice whoever cancels', async () => {
     // Arrange: two EVT-301 clones, each with the same three Registered attendees
     const clone = await seedGalaEvent();
@@ -725,16 +745,18 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     for (const eventId of [clone.eventId, second.eventId]) {
       for (const recipient of [organiser.uid, coordinator.uid, attendee1.uid, attendee2.uid, attendee3.uid]) {
         const rows = await cancelledNotifications(eventId, recipient);
-        expect(rows.rows).toEqual([{ message: CANCELLED_NOTICE, read: false }]);
+        // ASSUMPTION A1: the attendee copies read the same notice text as the organiser and coordinator copies (ASSUMED)
+    expect(rows.rows).toEqual([{ message: CANCELLED_NOTICE, read: false }]);
       }
     }
   });
 
   /**
-   * CANCEL-EVENT-06-A (API, TR-136-05): the organiser and the coordinator read the notice through GET /api/notifications.
+   * CANCEL-EVENT-06-A-API (TR-136-05): the organiser and the coordinator read the notice through GET /api/notifications.
    * The coordinator's copy is labelled with the coordinator audience, not the organiser one.
    */
-  it('CANCEL-EVENT-06-A (API): ORG-01 and COO-01 see one unread EventCancelled notice each on GET /api/notifications', async () => {
+  // Kills: M4, M17, M25, S15, S16, S17, S19, S24
+  it('CANCEL-EVENT-06-A-API: ORG-01 and COO-01 see one unread EventCancelled notice each on GET /api/notifications', async () => {
     // Arrange
     const { eventId } = await seedGalaEvent();
     await cancel(organiser, eventId).expect(200);
@@ -755,6 +777,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /** CANCEL-EVENT-06-C: non-recipients get nothing and recipients get one notice each. */
+  // Kills: M4, M18, S17, S20, S24
   it('CANCEL-EVENT-06-C: the withdrawn attendee, an unrelated attendee, another organiser and another coordinator get nothing', async () => {
     // Arrange: EVT-301 with ATT-06 Withdrawn; ATT-07 unregistered; ORG-02 and COO-02 not linked to EVT-301
     const { eventId } = await seedGalaEvent();
@@ -773,6 +796,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   // ---------- AC8: registrations ----------
 
   /** CANCEL-EVENT-08-A (registrations): Registered rows become Cancelled with a reason; nothing is promoted. */
+  // Kills: M4, M19, S14
   it('CANCEL-EVENT-08-A: three Registered rows become Cancelled with reason "Event cancelled" and nothing is promoted', async () => {
     // Arrange: EVT-301 with ATT-01..03 Registered (the waiting-list half is the combined case below)
     const { eventId, registrations, withdrawnId } = await seedGalaEvent();
@@ -795,12 +819,13 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   });
 
   /**
-   * CANCEL-EVENT-08-A (waiting list, combined): one event with three Confirmed registrations and two Waitlisted entries.
+   * CANCEL-EVENT-08-A-COMBINED (waiting list): one event with three Confirmed registrations and two Waitlisted entries.
    * One cancel: the three registrations are Cancelled with the reason, the two waiting entries are Cancelled (their notices
    * are JOIN-WAITLIST-12-A), nothing is promoted (no Registered row is created), and each attendee's registration view
-   * shows cancelled. Kills W1 and W2 (the waiting releaser is not registered or does nothing).
+   * shows cancelled. Kills: W1, W2 (the waiting releaser is not registered or does nothing).
    */
-  it('CANCEL-EVENT-08-A (waiting list): three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted', async () => {
+  // Kills: M4, S14, W1, W2
+  it('CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted', async () => {
     // Arrange: ATT-01..03 Registered; ATT-04 and ATT-05 Waitlisted (joined before the cancel instant T0)
     const attendee4 = await createSession('ATTENDEE', 'Attendee 4');
     const attendee5 = await createSession('ATTENDEE', 'Attendee 5');
@@ -851,6 +876,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * CANCEL-EVENT-08-B: the Withdrawn row is untouched, withdrawing a cancelled registration is refused,
    * the report shows zero, and a new registration is refused as closed.
    */
+  // Kills: M4, M19, S9
   it('CANCEL-EVENT-08-B: withdrawn rows stay identical, cancelled registrations cannot be withdrawn or re-registered', async () => {
     // Arrange: EVT-301 cancelled; ATT-06 Withdrawn (withdrawn_at 2026-10-10T04:00Z)
     const { eventId, registrations, withdrawnId } = await seedGalaEvent();
@@ -868,6 +894,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
       .set('Cookie', attendee1.cookie)
       .send({})
       .expect(409);
+    // ASSUMPTION A3: the EVENT_CANCELLED code on a withdrawal of a cancelled registration is ASSUMED (the case asks for 409 only)
     expect(withdraw.body.code).toBe('EVENT_CANCELLED');
     const row = await pool.query('SELECT status FROM event_registrations WHERE id = $1', [registrations[0]]);
     expect(row.rows[0].status).toBe('Cancelled');
@@ -885,3 +912,11 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     expect(register.body).toMatchObject({ code: 'registration_closed', message: 'Registration has closed for this event.' });
   });
 });
+
+/*
+ * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
+ *   A1 attendee copies of the EventCancelled notice use the organiser text -> CANCEL-EVENT-06-A
+ *   A3 EVENT_CANCELLED code and MSG-CN-04 wording on a withdrawal of a cancelled registration -> CANCEL-EVENT-08-B
+ *   A5 released venue label "not_requested" and no venue item -> CANCEL-EVENT-04-A-VIEW, CANCEL-EVENT-04-A-ARR
+ *   A6 safety rows untouched, DERIVED from D2 -> CANCEL-EVENT-04-A-SAFETY
+ */

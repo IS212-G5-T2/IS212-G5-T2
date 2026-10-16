@@ -102,38 +102,75 @@ afterEach(() => {
 });
 
 describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator and the submitting organiser only", () => {
+  // Kills: none identified
   it("CANCEL-EVENT-01-A (page): the assigned coordinator sees Cancel Event on a Planning event", async () => {
+    // Arrange
     renderAs(COORDINATOR, eventRecord());
+
+    // Act and assert: the action is visible to the assigned coordinator
     expect(await screen.findByRole("button", { name: "Cancel Event" })).toBeInTheDocument();
   });
 
+  // Kills: none identified
   it("CANCEL-EVENT-01-B (page): the submitting organiser sees Cancel Event on a Confirmed event", async () => {
+    // Arrange
     renderAs(ORGANISER, eventRecord({ status: "confirmed" }));
+
+    // Act and assert: the action is visible to the submitting organiser
     expect(await screen.findByRole("button", { name: "Cancel Event" })).toBeInTheDocument();
   });
 
+  // Kills: F1 (LEAD-01 row); F2 (ORG-02 row); none identified for the COO-02 row
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator", roles: ["coordinator"] }],
     ["ORG-02, another organiser", { id: "org-02", role: "organiser", roles: ["organiser"] }],
     ["LEAD-01, Coordinator Lead", { id: "lead-01", role: "coordinator_lead", roles: ["coordinator_lead"] }],
-  ])("CANCEL-EVENT-01-C (F): %s does not see Cancel Event", async (_label, user) => {
+  ])("CANCEL-EVENT-01-C-F: %s does not see Cancel Event", async (_label, user) => {
+    // Arrange
     renderAs(user, eventRecord());
+
+    // Act: the page has rendered once the event heading is shown
     await screen.findByRole("heading", { name: EVENT_NAME });
+
+    // Assert: no Cancel Event action for this user
     expect(screen.queryByRole("button", { name: "Cancel Event" })).not.toBeInTheDocument();
   });
 
+  // Kills: none identified
   it.each([
     ["completed", "completed"],
     ["rejected", "rejected"],
     ["cancelled", "cancelled"],
   ])("CANCEL-EVENT-03-B (page): a %s event offers no Cancel Event action", async (_label, status) => {
+    // Arrange
     renderAs(COORDINATOR, eventRecord({ status: status as EventRecord["status"] }));
+
+    // Act: the page has rendered once the event heading is shown
     await screen.findByRole("heading", { name: EVENT_NAME });
+
+    // Assert: no Cancel Event action on a non-cancellable event
     expect(screen.queryByRole("button", { name: "Cancel Event" })).not.toBeInTheDocument();
   });
 });
 
+describe("SPM-136 status timeline: a cancelled event ends at Cancelled", () => {
+  // Kills: the timeline ending at completed instead of cancelled (status flow step removed or renamed)
+  it("CANCEL-EVENT-03-C (timeline): the coordinator sees Confirmed then Cancelled, with Cancelled as the current step", async () => {
+    // Arrange
+    renderAs(COORDINATOR, eventRecord({ status: "cancelled" }));
+
+    // Act: the timeline is shown for the assigned coordinator
+    const timeline = await screen.findByRole("list", { name: "Event status timeline" });
+
+    // Assert: Cancelled is the last step and is highlighted; Completed is no longer a step
+    expect(within(timeline).getByText("cancelled")).toHaveClass("text-primary-800");
+    expect(within(timeline).getByText("confirmed")).toHaveClass("text-primary-800");
+    expect(within(timeline).queryByText("completed")).not.toBeInTheDocument();
+  });
+});
+
 describe("SPM-136 AC2 and AC3: cancelling from the page", () => {
+  // Kills: F6, F7, F15
   it("CANCEL-EVENT-03-A (page): after confirming, the page shows Cancelled and the banner without a reload", async () => {
     // Arrange
     const user = userEvent.setup();
@@ -153,6 +190,7 @@ describe("SPM-136 AC2 and AC3: cancelling from the page", () => {
 });
 
 describe("SPM-136 AC2: dismissing the dialog from the page (CANCEL-EVENT-02-B)", () => {
+  // Kills: F8
   it("CANCEL-EVENT-02-B (page): Keep event closes the dialog, the event stays Planning and no cancel request is sent", async () => {
     // Arrange
     const user = userEvent.setup();
@@ -171,8 +209,10 @@ describe("SPM-136 AC2: dismissing the dialog from the page (CANCEL-EVENT-02-B)",
 });
 
 describe("SPM-136 AC7: a cancelled event shows no change controls (07-A UI)", () => {
+  // Kills: F6
   it("CANCEL-EVENT-07-A (page): the cancelled event shows the banner and hides the planning update form and confirm controls", async () => {
-    // Arrange and Act: the coordinator opens a cancelled event
+    // Arrange
+    // Act: the coordinator opens a cancelled event
     renderAs(COORDINATOR, eventRecord({ status: "cancelled" }));
 
     // Assert
@@ -201,8 +241,10 @@ function openClarification(): EventComment {
 }
 
 describe("SPM-136 AC7 (RR-136-03): a cancelled event offers no clarification reply or resolve", () => {
-  it("CANCEL-EVENT-07-A (clarifications): the cancelled event shows the open clarification without Reply or Resolve", async () => {
-    // Arrange and Act: the assigned coordinator opens a cancelled event that still has an unanswered clarification
+  // Kills: F16, F17
+  it("CANCEL-EVENT-07-A-CLAR: the cancelled event shows the open clarification without Reply or Resolve", async () => {
+    // Arrange: the assigned coordinator opens a cancelled event that still has an unanswered clarification
+    // Act
     renderAs(COORDINATOR, eventRecord({ status: "cancelled" }), [openClarification()]);
 
     // Assert: the clarification is visible, but neither answer nor resolve controls are offered
@@ -211,8 +253,10 @@ describe("SPM-136 AC7 (RR-136-03): a cancelled event offers no clarification rep
     expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
   });
 
-  it("CANCEL-EVENT-07-A (clarifications, control): a live event with the same open clarification offers Reply and Resolve", async () => {
-    // Arrange and Act: the same clarification on a Planning event, so the hidden controls are caused by the cancelled status
+  // Kills: none identified
+  it("CANCEL-EVENT-07-A-CLAR (control): a live event with the same open clarification offers Reply and Resolve", async () => {
+    // Arrange: the same clarification on a Planning event, so the hidden controls are caused by the cancelled status
+    // Act
     renderAs(COORDINATOR, eventRecord({ status: "planning" }), [openClarification()]);
 
     // Assert
@@ -224,7 +268,8 @@ describe("SPM-136 AC7 (RR-136-03): a cancelled event offers no clarification rep
 
 // CQ F2: focus never falls back to the document body when the cancel dialog closes.
 describe("SPM-136 CQ F2 (page): focus after the cancel dialog closes", () => {
-  it("CQ F2 (page): Keep event returns focus to the Cancel Event button", async () => {
+  // Kills: F8, F21, F22
+  it("CANCEL-EVENT-02-D9: CQ F2 (page): Keep event returns focus to the Cancel Event button", async () => {
     // Arrange
     const user = userEvent.setup();
     renderAs(COORDINATOR, eventRecord());
@@ -239,7 +284,8 @@ describe("SPM-136 CQ F2 (page): focus after the cancel dialog closes", () => {
     expect(trigger).toHaveFocus();
   });
 
-  it("CQ F2 (page): after a successful cancel and Close, focus rests on the cancelled banner", async () => {
+  // Kills: F6, F7, F15, F21, F22, F23
+  it("CANCEL-EVENT-02-D10: CQ F2 (page): after a successful cancel and Close, focus rests on the cancelled banner", async () => {
     // Arrange
     const user = userEvent.setup();
     renderAs(COORDINATOR, eventRecord());

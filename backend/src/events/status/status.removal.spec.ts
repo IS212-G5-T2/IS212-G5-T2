@@ -76,7 +76,8 @@ function serviceWith(lockedStatus: string | undefined) {
 const writesOf = (statements: Array<{ sql: string }>) => statements.filter((s) => /^\s*(UPDATE|INSERT|DELETE)\b/i.test(s.sql));
 
 describe('SPM-136 RR-136-07: the locked event row is re-checked before a removal', () => {
-  it('RR-136-07: an equipment removal that finds the event Cancelled under the lock is refused 409 EVENT_CANCELLED, with no DELETE', async () => {
+  // Kills: M26, S23
+  it('CANCEL-EVENT-07-A-LOCK: RR-136-07: an equipment removal that finds the event Cancelled under the lock is refused 409 EVENT_CANCELLED, with no DELETE', async () => {
     // Arrange: the event was Planning when the request started and is Cancelled when the lock is taken
     const { service, statements } = serviceWith('Cancelled');
 
@@ -89,11 +90,15 @@ describe('SPM-136 RR-136-07: the locked event row is re-checked before a removal
     expect(statements.some((s) => /DELETE FROM equipment_reservations/.test(s.sql))).toBe(false);
   });
 
-  it('RR-136-07: a venue removal that finds the event Cancelled under the lock is refused 409 EVENT_CANCELLED, with no DELETE', async () => {
+  // Kills: M27, S23
+  it('CANCEL-EVENT-07-A-LOCK: RR-136-07: a venue removal that finds the event Cancelled under the lock is refused 409 EVENT_CANCELLED, with no DELETE', async () => {
+    // Arrange: Planning at the pre-check, Cancelled on the locked row
     const { service, statements } = serviceWith('Cancelled');
 
+    // Act
     const error = await service.removeVenueRequest(coordinator, EVENT, 'vb-1').catch((e: unknown) => e);
 
+    // Assert: 409 EVENT_CANCELLED, and no DELETE
     expect(error).toBeInstanceOf(ConflictException);
     expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EVENT_CANCELLED' });
     expect(statements.some((s) => /DELETE FROM venue_bookings/.test(s.sql))).toBe(false);
@@ -102,7 +107,8 @@ describe('SPM-136 RR-136-07: the locked event row is re-checked before a removal
 
 describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request re-check the locked row', () => {
   /** TR-136-12 (a): a cancellation that lands before the lock makes confirm-no-equipment refuse 409 EVENT_CANCELLED with no write. */
-  it('TR-136-12: confirm-no-equipment on a row that is Cancelled under the lock is refused 409 EVENT_CANCELLED with MSG-CN-04, and writes nothing', async () => {
+  // Kills: B1, S23
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: confirm-no-equipment on a row that is Cancelled under the lock is refused 409 EVENT_CANCELLED with MSG-CN-04, and writes nothing', async () => {
     // Arrange: Planning at the pre-check, Cancelled on the locked row
     const { service, statements } = serviceWith('Cancelled');
 
@@ -116,7 +122,8 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   });
 
   /** TR-136-12 (a): the same locked-row refusal for the safety-check request, before the checklist is read or any row is written. */
-  it('TR-136-12: a safety-check request on a row that is Cancelled under the lock is refused 409 EVENT_CANCELLED with MSG-CN-04, and writes nothing', async () => {
+  // Kills: B2, S23
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: a safety-check request on a row that is Cancelled under the lock is refused 409 EVENT_CANCELLED with MSG-CN-04, and writes nothing', async () => {
     // Arrange
     const { service, statements } = serviceWith('Cancelled');
 
@@ -130,7 +137,8 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   });
 
   /** TR-136-12 (b): the row is Confirmed under the lock (pre-check passed Planning): the Planning-only refusal applies, no write. */
-  it('TR-136-12: confirm-no-equipment on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
+  // Kills: none identified
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: confirm-no-equipment on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
     // Arrange: Planning at the pre-check, Confirmed on the locked row
     const { service, statements } = serviceWith('Confirmed');
 
@@ -147,7 +155,8 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   });
 
   /** TR-136-12 (b): the same Planning-only refusal for the safety-check request when the status moved to Confirmed before the lock. */
-  it('TR-136-12: a safety-check request on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
+  // Kills: none identified
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: a safety-check request on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
     // Arrange
     const { service, statements } = serviceWith('Confirmed');
 
@@ -166,7 +175,8 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
 
 describe('SPM-136 TR-136-12: the equipment and venue request removals re-check Planning on the locked row', () => {
   /** TR-136-12 (b): an equipment removal whose row is Confirmed under the lock is refused 422 and deletes nothing. */
-  it('TR-136-12: an equipment removal on a row that is Confirmed under the lock is refused 422 with the Planning-only message, with no DELETE', async () => {
+  // Kills: B3
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: an equipment removal on a row that is Confirmed under the lock is refused 422 with the Planning-only message, with no DELETE', async () => {
     // Arrange
     const { service, statements } = serviceWith('Confirmed');
 
@@ -183,7 +193,8 @@ describe('SPM-136 TR-136-12: the equipment and venue request removals re-check P
   });
 
   /** TR-136-12 (b): the venue removal twin: a Confirmed locked row refuses the removal 422 and deletes nothing. */
-  it('TR-136-12: a venue removal on a row that is Confirmed under the lock is refused 422 with the Planning-only message, with no DELETE', async () => {
+  // Kills: B4
+  it('CANCEL-EVENT-07-A-LOCK: TR-136-12: a venue removal on a row that is Confirmed under the lock is refused 422 with the Planning-only message, with no DELETE', async () => {
     // Arrange
     const { service, statements } = serviceWith('Confirmed');
 

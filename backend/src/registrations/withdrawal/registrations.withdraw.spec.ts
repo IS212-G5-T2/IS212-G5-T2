@@ -309,13 +309,15 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
  *  D14  one compare-and-set UPDATE decides concurrent withdrawals -> 05-STATE-1 (lost race), 03-STATE-1
  *  D15  the route accepts no body or {}; any other body is a 400 -> 05-STATE-2
  *  D16  another attendee's, unknown and malformed ids all get the same 404, never 403 -> 07-STATE-1, 07-STATE-2
+ *  SPM-136 A3  EVENT_CANCELLED code and MSG-CN-04 wording on a withdrawal of a cancelled registration, ASSUMED (SC-004)
+ *       -> 08-B (a Cancelled registration on a Cancelled event)
  *  REC  a recording client is the only way to observe a write that a rolled-back transaction hides, DERIVED from
  *       DatabaseService.transaction (BEGIN / COMMIT, ROLLBACK on throw) -> every test in this file
  */
 
 describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is refused 409 before anything is written', () => {
   // Oracle (SPM-136 D11, CANCEL-EVENT-08-B): withdrawing a cancelled registration is 409, not 422, and nothing changes.
-  // Kills: a cancelled registration falling through to the 422 "already withdrawn" branch, or an UPDATE issued first.
+  // Kills: S9 (a cancelled registration falls through to a non-EVENT_CANCELLED refusal)
   it('a Cancelled registration -> 409 EVENT_CANCELLED and no UPDATE issued', async () => {
     // Arrange
     const { database, statements } = recordingDatabase([
@@ -326,6 +328,7 @@ describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is ref
     const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));
 
     // Assert
+    // ASSUMPTION A3: the EVENT_CANCELLED code and the MSG-CN-04 wording on a withdrawal are ASSUMED (the case asks for 409 only)
     expect(error.getStatus()).toBe(409);
     expect(error.getResponse()).toMatchObject({
       code: 'EVENT_CANCELLED',

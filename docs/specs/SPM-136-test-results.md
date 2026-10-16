@@ -441,3 +441,46 @@ Not run in cycle 4: `npm run test:cov` (both components), the two builds, and th
 **Not run in cycle 5:** `npm run test:cov` (coverage was not re-measured for this cycle), the Playwright browser tests, and the workflow gates G5 to G7 through `run-cycle` (see the note in the workflow records).
 
 **Open decisions for the Product Owner.** The waiting-list refusal message for the organiser and coordinator (ASSUMED wording). The rule itself was stated by the user. Direct registration by the organiser or coordinator (SPM-61) is unchanged; the rule was only stated for the waiting list.
+
+## Assumptions (SPM-136): master list
+
+Each assumption is tagged in the test code as `// ASSUMPTION An:` and listed once in the ASSUMPTION INDEX at the end of each test file. Tests that rely on an assumption carry its ID in the index.
+
+| ID | Assumption | Status | Basis | Tests that rely on it |
+|---|---|---|---|---|
+| A1 | The attendee copy of the EventCancelled notice uses the same text as the organiser and coordinator copies: "{eventName} has been cancelled." | ASSUMED | Deviations above (attendee notification text) | CANCEL-EVENT-03-A (unit, cancel-event.service.spec.ts); CANCEL-EVENT-06-A (e2e, events-cancel) |
+| A2 | INVALID_STATUS_TRANSITION (422) and "This status change is not allowed for this event." for a Planning target on a cancelled event | ASSUMED (SC-003, pending Product Owner) | docs/test-cases/workflow/spec-conflicts.md SC-003 | CANCEL-EVENT-07-B-D, Planning row (events-cancelled-guard e2e) |
+| A3 | Withdrawal of a cancelled registration gives 409 EVENT_CANCELLED with the MSG-CN-04 text | ASSUMED wording (SC-004, pending Product Owner) | SC-004 | CANCEL-EVENT-08-B (unit, registrations.withdraw.spec.ts; e2e, events-cancel) |
+| A4 | A person who is the event's organiser or assigned coordinator is refused the waiting list with 403 WAITLIST_NOT_PERMITTED and its message | ASSUMED wording (open Product Owner decision) | Correction cycle 5 (TR-136-18) | JOIN-WAITLIST-12-D-COO-REFUSED and JOIN-WAITLIST-12-D-ORG-REFUSED (backend/test/registrations.waitlist.e2e-spec.ts). That file is outside this change's file list; it carries the older text "ASSUMED wording" without the ID, a follow-up for its owner |
+| A5 | A released venue booking shows no venue item, its venue status reads "not_requested", and released bookings are left out of the venue summary and read views | ASSUMED label (RR-136-01, RR-136-02) | Correction cycle 3 | CANCEL-EVENT-04-A-VIEW, CANCEL-EVENT-04-A-ARR (e2e); released-venue.spec.ts (CANCEL-EVENT-04-A-ARR) |
+| A6 | The safety-check rows and their feedback items are left unchanged by a cancellation | DERIVED from decision D2; not stated in Confluence 04-A (TR-136-11) | Decision D2 | CANCEL-EVENT-04-A-SAFETY (e2e) |
+| A7 | The organiser's planning PATCH on a cancelled event is refused 403 (the existing coordinator-only rule runs first), not 409 MSG-CN-04 | DECIDED (SC-002, accepted at Gate 1), tagged ASSUMED | SC-002 | CANCEL-EVENT-07-B-C (e2e) |
+
+## Evaluation fixes (items 1 to 4, 9)
+
+Scope: test code, comments, test-ID registry and this document. No production code, migration, mutant file or behaviour change. Nothing was committed, staged, pushed or changed in Jira. Test counts are unchanged except as recorded below.
+
+**Status: partial.** Items 1, 2, 3, 4 and 9 are applied to the test files and registry. Verification is incomplete, as recorded below.
+
+| Item | Result |
+|---|---|
+| 1 Kills | `Kills:` lines on the in-scope tests, from per-test mutant runs (scratch copies, repository untouched). Of 112 test declarations in the scope files, 110 have a `Kills:` line: 86 name at least one mutant and 24 read `Kills: none identified` (or name only none for their rows). The remaining 2 gaps found by the final scan were fixed. The e2e kill results used the database and were checked for lock-timeout noise: M16 failures on unrelated tests were reproduced on an idle database and treated as noise, so M16 is named only in unit tests. |
+| 2 Assumptions | Tags `// ASSUMPTION An:` and one index per test file, using the master list above. |
+| 3 AAA | Arrange / Act / Assert comments added to the tests that had no `// Act` comment. The scan found about 45 such tests, not about 16 as the brief estimated. Assertions are unchanged. |
+| 4 IDs | Tests without a case ID now carry one: CQ F2 dialog and page tests (CANCEL-EVENT-02-D1 to D10), the releaser order pin (CANCEL-EVENT-04-C-REG) and the other unlabelled tests (variants 01-C-F, 02-B-A/B/C, 04-A-ARR/SAFETY/VIEW, 06-A-API/ATT/DUAL, 07-A-CLAR/LOCK, 07-B-C/D, 08-A-COMBINED). Test titles keep their wording apart from the new ID prefix. |
+| 9 Registry | `docs/test-cases/workflow/test-id-registry.md`: the two DUAL rows were replaced by the JOIN-WAITLIST-12-D-COO-REFUSED and -ORG-REFUSED rows that the code uses; 26 SUPPORTING rows added for the variants above (owning file and AC from the scaffold); a note on the variant convention. |
+
+**ID check** (`node ai/scripts/test-workflow/check-ids.mjs --scope docs/test-cases/workflow/scopes/SPM-136.json --cycle <cycle folder>`), last run before the final test edits: `G1 Traceability and IDs: UNABLE_TO_VERIFY`; registry 65, primary 21, supporting 44; invented 0; orphans 0; "PRIMARY ids could not be checked against the Confluence matrix (no --matrix file supplied)". The matrix check remains open: the Confluence read was denied by the permission classifier, so no matrix file exists. Before the edits the check was BLOCKED (2 invented, 2 orphans).
+
+**Verification results**
+
+| Check | Result |
+|---|---|
+| Backend e2e full (`DATABASE_URL=TEST_DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test npx vitest run --config ./vitest.config.e2e.ts`) | 31 files: 30 passed, 1 failed; 572 passed, 2 failed, 1 skipped (JOIN-WAITLIST-11-E), 1 todo. Expected 574 passed, with 0 failed. The two failures are CANCEL-EVENT-03-C (expected 4 projectors available, got 2) and CANCEL-EVENT-05-A (expected 2 before the cancel, got 0). Cause: a leftover fixture event `9a15dea8-1dd0-4a62-ba15-99d5601d1089` from an interrupted run (created 13:21 UTC on 16 Oct) still holds a Projector x2 and Microphone x4 Reserved line. The projector queries sum all reservations, so the leftover changes both counts. Not fixed: the cleanup of that row was refused by the permission classifier. The fix is to delete that event (and its reservations) from spm_test, then re-run |
+| Backend unit (`npx vitest run`) | Earlier run after the unit edits: 63 files, 1402 tests passed (unchanged). Not re-run after the final e2e-comment edits; those edits do not touch unit files |
+| Frontend unit (`npx vitest run`) | Earlier run: 98 files, 1337 passed, 1 skipped, 1 todo (unchanged). Not re-run after the final dialog and page edits; the three edited frontend files passed separately (51 tests) |
+| Backend lint | Earlier run: exit 0, 0 errors, 3 pre-existing warnings |
+| Frontend lint | Earlier run: exit 0, 0 errors, 4 warnings, none in SPM-136 files |
+| Kill maps | scratchpad (not committed): kill-backend-unit.json, kill-frontend.json, kill-backend-e2e.json |
+
+**Not completed in this run:** the final ID check, the final unit, frontend and lint runs, and the e2e cleanup described above. These were blocked by the permission classifier on a shared-resource action (the e2e cleanup) and on a batched check command. The Orchestrator should re-run them after the cleanup is approved.

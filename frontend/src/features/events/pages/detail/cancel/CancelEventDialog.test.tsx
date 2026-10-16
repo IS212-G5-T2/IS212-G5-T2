@@ -62,8 +62,10 @@ afterEach(() => {
 });
 
 describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before anything takes effect", () => {
+  // Kills: F13
   it("CANCEL-EVENT-02-A: opens a modal with the MSG-CN-01 text, the two buttons and Keep event focused, and sends nothing", () => {
-    // Arrange and Act
+    // Arrange
+    // Act: render the dialog with its default props
     renderDialog();
 
     // Assert: modal dialog, exact consequence text, initial focus on the safe choice, zero requests
@@ -75,6 +77,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Kills: F10, F14
   it("CANCEL-EVENT-02-A: confirm sends one cancel request with confirmed true and announces MSG-CN-02", async () => {
     // Arrange
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Cancelled", message: "Annual Gala Dinner has been cancelled." } as never);
@@ -94,6 +97,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(screen.getByRole("status")).toHaveTextContent("Annual Gala Dinner has been cancelled.");
   });
 
+  // Kills: F14
   it("CANCEL-EVENT-02-A: after success the dialog stays open showing MSG-CN-02 with only a Close button, which sends nothing", async () => {
     // Arrange
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Cancelled", message: "Annual Gala Dinner has been cancelled." } as never);
@@ -112,6 +116,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     expect(apiMock).toHaveBeenCalledTimes(1);
   });
 
+  // Kills: F9, F14
   it("CANCEL-EVENT-02-A: while the request is pending the confirm button is disabled and busy, and a second click sends nothing", async () => {
     // Arrange: the server answer is held until the test releases it
     const answer = deferred<unknown>();
@@ -132,6 +137,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
   });
 
+  // Kills: none identified
   it("CANCEL-EVENT-02-A: a refused cancel (409) is shown as an alert and the dialog stays open", async () => {
     // Arrange: the event is no longer cancellable on the server
     apiMock.mockRejectedValue(new ApiError("This event can no longer be cancelled.", undefined, "EVENT_NOT_CANCELLABLE", 409));
@@ -150,6 +156,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
 
 describe("CANCEL-EVENT-02-A (TR-136-09): a failed cancel can be retried from the same dialog", () => {
   // Regression guard: the retry path already clears the alert; this pins it so a later change cannot leave the error stuck.
+  // Kills: F14
   it("TR-136-09: a rejected request shows the alert, the retry succeeds, the alert clears and MSG-CN-02 is shown", async () => {
     // Arrange: the first request fails on the network, the second is accepted
     apiMock
@@ -180,30 +187,49 @@ describe("CANCEL-EVENT-02-A (TR-136-09): a failed cancel can be retried from the
 });
 
 describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", () => {
-  it("CANCEL-EVENT-02-B (A): Keep event closes the dialog with no cancel request", async () => {
+  // Kills: F8
+  it("CANCEL-EVENT-02-B-A: Keep event closes the dialog with no cancel request", async () => {
+    // Arrange
     const user = userEvent.setup();
     const props = renderDialog();
+
+    // Act
     await user.click(screen.getByRole("button", { name: "Keep event" }));
+
+    // Assert: closed once, no request
     expect(props.onClose).toHaveBeenCalledTimes(1);
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("CANCEL-EVENT-02-B (B): Escape closes the dialog with no cancel request", async () => {
+  // Kills: F11, F13
+  it("CANCEL-EVENT-02-B-B: Escape closes the dialog with no cancel request", async () => {
+    // Arrange
     const user = userEvent.setup();
     const props = renderDialog();
+
+    // Act
     await user.keyboard("{Escape}");
+
+    // Assert: closed once, no request
     expect(props.onClose).toHaveBeenCalledTimes(1);
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("CANCEL-EVENT-02-B (C): a click outside the dialog closes it with no cancel request", async () => {
+  // Kills: F12
+  it("CANCEL-EVENT-02-B-C: a click outside the dialog closes it with no cancel request", async () => {
+    // Arrange
     const user = userEvent.setup();
     const props = renderDialog();
+
+    // Act
     await user.click(screen.getByTestId("cancel-event-backdrop"));
+
+    // Assert: closed once, no request
     expect(props.onClose).toHaveBeenCalledTimes(1);
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Kills: P2
   it("CANCEL-EVENT-02-B: Tab from the last button returns to Keep event, and Shift+Tab from Keep event goes to the confirm button", async () => {
     // Arrange: focus starts on Keep event
     const user = userEvent.setup();
@@ -220,16 +246,24 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  // Kills: none identified
   it("CANCEL-EVENT-02-B: a letter key does nothing: no close, no request", async () => {
     // Enter would activate the focused Keep event button (a real click), so a plain letter is the probe.
+    // Arrange
     const user = userEvent.setup();
     const props = renderDialog();
+
+    // Act
     await user.keyboard("a");
+
+    // Assert: nothing closes and nothing is sent
+
     expect(props.onClose).not.toHaveBeenCalled();
     expect(apiMock).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
+  // Kills: none identified
   it("CANCEL-EVENT-02-A: a failure that is not an Error is shown with the fallback text and the dialog stays open", async () => {
     // Arrange: the transport rejects with a bare value
     apiMock.mockRejectedValue("network down");
@@ -271,7 +305,8 @@ function SuccessfulHarness({ onOpenChange }: { onOpenChange: (open: boolean) => 
 }
 
 describe("CQ F2 edge cases: the trap and the return focus with no enabled control or no stable element", () => {
-  it("CQ F2: Tab while the request is pending does nothing and sends no second request", async () => {
+  // Kills: F14
+  it("CANCEL-EVENT-02-D1: CQ F2: Tab while the request is pending does nothing and sends no second request", async () => {
     // Arrange: the request is held, so both buttons are disabled
     const answer = deferred<unknown>();
     apiMock.mockReturnValue(answer.promise as never);
@@ -290,7 +325,8 @@ describe("CQ F2 edge cases: the trap and the return focus with no enabled contro
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
   });
 
-  it("CQ F2: Tab from Keep event moves forward to the confirm button without leaving the dialog", async () => {
+  // Kills: F13
+  it("CANCEL-EVENT-02-D2: CQ F2: Tab from Keep event moves forward to the confirm button without leaving the dialog", async () => {
     // Arrange: focus starts on Keep event
     const user = userEvent.setup();
     renderDialog();
@@ -303,7 +339,8 @@ describe("CQ F2 edge cases: the trap and the return focus with no enabled contro
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  it("CQ F2: a click outside the dialog while the request is pending does not close it", async () => {
+  // Kills: F14
+  it("CANCEL-EVENT-02-D3: CQ F2: a click outside the dialog while the request is pending does not close it", async () => {
     // Arrange: the request is held; the confirm button is disabled, so focus has left the dialog
     const answer = deferred<unknown>();
     apiMock.mockReturnValue(answer.promise as never);
@@ -322,7 +359,8 @@ describe("CQ F2 edge cases: the trap and the return focus with no enabled contro
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
   });
 
-  it("CQ F2: closing when no stable element is available still closes the dialog", async () => {
+  // Kills: F8
+  it("CANCEL-EVENT-02-D4: CQ F2: closing when no stable element is available still closes the dialog", async () => {
     // Arrange: returnFocus finds nothing to focus
     const user = userEvent.setup();
     const onClose = vi.fn();
@@ -341,7 +379,8 @@ describe("CQ F2 edge cases: the trap and the return focus with no enabled contro
 });
 
 describe("CQ F2: keyboard focus stays inside the modal and returns to a stable element", () => {
-  it("CQ F2: after success, Tab from the only remaining button stays inside the dialog", async () => {
+  // Kills: F18, F20
+  it("CANCEL-EVENT-02-D5: CQ F2: after success, Tab from the only remaining button stays inside the dialog", async () => {
     // Arrange: cancel succeeds, leaving Close as the only focusable control
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Cancelled", message: "Annual Gala Dinner has been cancelled." } as never);
     const user = userEvent.setup();
@@ -360,7 +399,8 @@ describe("CQ F2: keyboard focus stays inside the modal and returns to a stable e
     expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
   });
 
-  it("CQ F2: after success, Shift+Tab from the only remaining button stays inside the dialog", async () => {
+  // Kills: F19, F20, P2
+  it("CANCEL-EVENT-02-D6: CQ F2: after success, Shift+Tab from the only remaining button stays inside the dialog", async () => {
     // Arrange
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Cancelled", message: "Annual Gala Dinner has been cancelled." } as never);
     const user = userEvent.setup();
@@ -378,7 +418,8 @@ describe("CQ F2: keyboard focus stays inside the modal and returns to a stable e
     expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
   });
 
-  it("CQ F2: Keep event returns focus to the stable element that was focused before the dialog closed", async () => {
+  // Kills: F8, F21
+  it("CANCEL-EVENT-02-D7: CQ F2: Keep event returns focus to the stable element that was focused before the dialog closed", async () => {
     // Arrange: the page passes a stable element to return focus to
     const user = userEvent.setup();
     render(<SuccessfulHarness onOpenChange={vi.fn()} />);
@@ -393,7 +434,8 @@ describe("CQ F2: keyboard focus stays inside the modal and returns to a stable e
     expect(stable).toHaveFocus();
   });
 
-  it("CQ F2: Close after success returns focus to the stable element", async () => {
+  // Kills: F14, F21
+  it("CANCEL-EVENT-02-D8: CQ F2: Close after success returns focus to the stable element", async () => {
     // Arrange
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Cancelled", message: "Annual Gala Dinner has been cancelled." } as never);
     const user = userEvent.setup();
@@ -419,6 +461,7 @@ describe("CANCEL-EVENT-02-B (TR-136-13): the Shift+Tab trap keeps focus inside t
    * TR-136-13: focus starts on Keep event, the first control. Shift+Tab wraps backwards to Confirm cancellation (the last
    * control) and never reaches the page control before the dialog. Page controls surround the dialog so an escape is visible.
    */
+  // Kills: F13, P2
   it("TR-136-13: Shift Tab from Keep event, the first control, wraps to Confirm cancellation and does not leave the dialog", async () => {
     // Arrange: focus starts on Keep event (initial focus), with a page control on each side of the dialog
     const user = userEvent.setup();
@@ -441,6 +484,7 @@ describe("CANCEL-EVENT-02-B (TR-136-13): the Shift+Tab trap keeps focus inside t
    * TR-136-13: from Confirm cancellation, Shift+Tab moves back to Keep event inside the dialog, and a further Tab
    * returns to Confirm cancellation. Nothing is sent to the server by moving focus.
    */
+  // Kills: F13
   it("TR-136-13: Tab to Confirm cancellation then Shift Tab returns to Keep event, all inside the dialog, with no request", async () => {
     // Arrange
     const user = userEvent.setup();

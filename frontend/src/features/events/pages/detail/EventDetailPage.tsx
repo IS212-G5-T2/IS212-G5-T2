@@ -55,7 +55,7 @@ const STATUS_FLOW = [
   "approved",
   "planning",
   "confirmed",
-  "completed",
+  "cancelled",
 ] as const;
 
 // A rejection is terminal for this request, so it leaves the normal approval

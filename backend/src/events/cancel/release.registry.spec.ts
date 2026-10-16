@@ -25,8 +25,12 @@ function recordingClient(rows: unknown[][] = []) {
 }
 
 describe('SPM-136 release registry', () => {
-  it('registers the venue, registration, waiting list and equipment releasers in that order (equipment last, for 04-C)', () => {
+  // Kills: W1 (the waiting releaser not registered)
+  it('CANCEL-EVENT-04-C-REG: registers the venue, registration, waiting list and equipment releasers in that order (equipment last, for 04-C)', () => {
+    // Arrange: the registry is a module constant, so its order is read directly
     // SPM-138 AC12: the waiting list is released with the registrations (JOIN-WAITLIST-12-A to 12-C).
+
+    // Act and assert: the releaser names, in order
     expect(DEFAULT_RELEASERS.map((releaser) => releaser.name)).toEqual([
       'venue_bookings',
       'event_registrations',
@@ -37,6 +41,7 @@ describe('SPM-136 release registry', () => {
 });
 
 describe('CANCEL-EVENT-04-A: venue bookings and holds', () => {
+  // Kills: M14, S11
   it('CANCEL-EVENT-04-A: releases approved bookings and pending holds of this event only, stamped with the instant', async () => {
     // Arrange
     const { client, queries } = recordingClient();
@@ -55,11 +60,15 @@ describe('CANCEL-EVENT-04-A: venue bookings and holds', () => {
 });
 
 describe('CANCEL-EVENT-05-A: equipment reservations', () => {
+  // Kills: S12 (only Reserved lines released), S13 (Requested lines not released)
   it('CANCEL-EVENT-05-A: releases Requested, Reserved and Unavailable lines of this event, stamped with the instant', async () => {
+    // Arrange
     const { client, queries } = recordingClient();
 
+    // Act
     await equipmentReservationReleaser.release(EVENT, client as never, NOW);
 
+    // Assert: one statement, scoped to the event, with the three live statuses
     expect(queries).toHaveLength(1);
     expect(queries[0].sql).toMatch(/UPDATE equipment_reservations/);
     expect(queries[0].sql).toMatch(/status = 'Released'/);
@@ -70,10 +79,13 @@ describe('CANCEL-EVENT-05-A: equipment reservations', () => {
 });
 
 describe('CANCEL-EVENT-08-A: registrations', () => {
+  // Kills: M18, S20
   it('CANCEL-EVENT-08-A: collects the Registered attendees as recipients before any row changes', async () => {
+    // Arrange: two Registered attendees
     const attendees = ['22222222-2222-4222-8222-222222222201', '22222222-2222-4222-8222-222222222202'];
     const { client, queries } = recordingClient([attendees.map((attendee_id) => ({ attendee_id }))]);
 
+    // Act
     const recipients = await registrationReleaser.collectRecipients?.(EVENT, client as never);
 
     expect(recipients).toEqual(attendees);
@@ -81,11 +93,15 @@ describe('CANCEL-EVENT-08-A: registrations', () => {
     expect(queries[0].params).toEqual([EVENT]);
   });
 
+  // Kills: M19, S14
   it('CANCEL-EVENT-08-A: sets Registered rows to Cancelled with the reason and leaves Withdrawn rows alone', async () => {
+    // Arrange
     const { client, queries } = recordingClient();
 
+    // Act
     await registrationReleaser.release(EVENT, client as never, NOW);
 
+    // Assert: one UPDATE, Registered rows only, with the reason and the injected instant
     expect(queries).toHaveLength(1);
     expect(queries[0].sql).toMatch(/UPDATE event_registrations/);
     expect(queries[0].sql).toMatch(/status = 'Cancelled'/);

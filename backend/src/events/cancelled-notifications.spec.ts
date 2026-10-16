@@ -35,21 +35,34 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     service = module.get(EventsService);
   });
 
+  // Kills: none identified
   it('CANCEL-EVENT-06-A: the organiser who submitted the event reads the organiser copy', async () => {
+    // Arrange
     db.query.mockResolvedValue({ rows: [notice('org-01', 'org-01')] });
     const organiser: AuthenticatedUser = { uid: 'org-01', roles: ['ORGANISER'], email: 'o@example.test', name: 'Organiser 1' };
+
+    // Act
     const [item] = await service.notifications(organiser);
+
+    // Assert
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'organiser', read: false });
   });
 
+  // Kills: none identified
   it('CANCEL-EVENT-06-A: the assigned coordinator reads the coordinator copy', async () => {
+    // Arrange
     db.query.mockResolvedValue({ rows: [notice('coo-01', 'org-01')] });
     const coordinator: AuthenticatedUser = { uid: 'coo-01', roles: ['COORDINATOR'], email: 'c@example.test', name: 'Coordinator 1' };
+
+    // Act
     const [item] = await service.notifications(coordinator);
+
+    // Assert
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'coordinator', read: false });
   });
 
-  it('TR-136-21(a): a Waitlisted attendee who is neither organiser nor coordinator reads the attendee copy', async () => {
+  // Kills: none identified
+  it('CANCEL-EVENT-06-A-ATT: TR-136-21(a): a Waitlisted attendee who is neither organiser nor coordinator reads the attendee copy', async () => {
     // Arrange: att-04 holds only the ATTENDEE role and is neither the organiser (org-01) nor the coordinator (coo-01)
     db.query.mockResolvedValue({ rows: [notice('att-04', 'org-01')] });
     const attendee: AuthenticatedUser = { uid: 'att-04', roles: ['ATTENDEE'], email: 'a4@example.test', name: 'Attendee 4' };
@@ -61,7 +74,8 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'attendee', read: false });
   });
 
-  it('RR-136-05: a user holding BOTH roles who is only the assigned coordinator of the event reads the coordinator copy', async () => {
+  // Kills: none identified
+  it('CANCEL-EVENT-06-A-DUAL: RR-136-05: a user holding BOTH roles who is only the assigned coordinator of the event reads the coordinator copy', async () => {
     // Arrange: coo-01 has the ORGANISER and COORDINATOR roles, but org-01 organised this event
     db.query.mockResolvedValue({ rows: [notice('coo-01', 'org-01')] });
     const dualRole: AuthenticatedUser = {
