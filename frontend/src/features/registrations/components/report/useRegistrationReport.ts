@@ -5,6 +5,7 @@ import {
   REPORT_POLL_INTERVAL_MS,
   fetchRegistrationReport,
   type RegistrationReport,
+  type ReportStatusFilter,
 } from "@/features/registrations/lib/registrationReport";
 
 export type ReportState =
@@ -20,7 +21,7 @@ export type ReportState =
  * failure after the first load keeps the rows on screen and polling continues. A response for an event that is no
  * longer displayed is ignored, and a new request is not started while one is outstanding.
  */
-export function useRegistrationReport(eventId: string) {
+export function useRegistrationReport(eventId: string, filter: ReportStatusFilter = "all") {
   const [state, setState] = useState<ReportState>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
 
@@ -37,7 +38,7 @@ export function useRegistrationReport(eventId: string) {
       if (inFlight) return;
       inFlight = true;
       try {
-        const report = await fetchRegistrationReport(eventId);
+        const report = await fetchRegistrationReport(eventId, filter);
         if (active) setState({ status: "ready", report });
       } catch (error) {
         if (!active) return;
@@ -62,7 +63,7 @@ export function useRegistrationReport(eventId: string) {
     const timer = setInterval(() => void load(false), REPORT_POLL_INTERVAL_MS);
     void load(true);
     return stop;
-  }, [eventId, attempt]);
+  }, [eventId, filter, attempt]);
 
   return { state, retry: () => setAttempt((n) => n + 1) };
 }

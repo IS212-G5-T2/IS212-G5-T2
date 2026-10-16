@@ -17,6 +17,8 @@ const iconByType: Record<Notification["type"], string> = {
   registration: "🎟️",
   confirmation: "🎉",
   cancellation: "🚫",
+  WaitlistPromoted: "🎟️",
+  EventCancelled: "🚫",
 };
 
 export function NotificationItem({

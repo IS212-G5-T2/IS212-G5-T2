@@ -33,7 +33,8 @@ import {
   resolvePlanningChange,
   updatePlanning,
 } from "@/utils/planning";
-import { attendeeEventStatus } from "@/features/events/lib/EventView";
+import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
+import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
@@ -115,6 +116,9 @@ export function EventDetailPage() {
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
+  // The attendee footer's requests, forwarded to RegistrationSection (a counter per request).
+  const [registerSignal, setRegisterSignal] = useState(0);
+  const [joinSignal, setJoinSignal] = useState(0);
 
   const [registrationsOpen, setRegistrationsOpen] = useState(false);
   const [reviewNotice, setReviewNotice] = useState("");
@@ -470,12 +474,33 @@ export function EventDetailPage() {
         </div>
       )}
 
-      {planningView && !isAssignedCoordinator && <PlanningInformationPanel view={planningView} refreshError={planningError} />}
+      {planningView && !isAssignedCoordinator && (
+        <PlanningInformationPanel
+          view={planningView}
+          refreshError={planningError}
+          people={
+            <EventPeople
+              event={event}
+              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              onViewRegistrations={() => setRegistrationsOpen(true)}
+              showLastUpdated={false}
+            />
+          }
+        />
+      )}
       {planningView && isAssignedCoordinator && (
         <PlanningInformationPage
           view={planningView}
           status={event.status}
           refreshError={planningError}
+          people={
+            <EventPeople
+              event={event}
+              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              onViewRegistrations={() => setRegistrationsOpen(true)}
+              showLastUpdated={false}
+            />
+          }
           onConfirmed={() => setEventStatus(event.id, "confirmed")}
         />
       )}
@@ -528,6 +553,18 @@ export function EventDetailPage() {
       )}
 
       <div className="grid gap-4 lg:grid-cols-3">
+        {/* Whenever the planning Information section is shown (approved, planning, confirmed), it carries the event details and People. */}
+        {!planningView && currentUser.role === "attendee" && (
+          <AttendeeEventView
+            event={event}
+            registration={myRegistration}
+            onRegister={() => setRegisterSignal((count) => count + 1)}
+            onJoinWaitlist={() => setJoinSignal((count) => count + 1)}
+            onViewAttachment={(attachment) => openAttachmentPreview(attachment.dataUrl, attachment.type)}
+          />
+        )}
+        {!planningView && currentUser.role !== "attendee" && (
+          <>
         <Card className="lg:col-span-2">
           <CardHeader>
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">Event Details</h2>
@@ -545,12 +582,6 @@ export function EventDetailPage() {
                 <dt className="text-gray-400 dark:text-gray-500">Expected attendance</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.expectedAttendance}</dd>
               </div>
-              {currentUser.role === "attendee" && (
-                <div>
-                  <dt className="text-gray-400 dark:text-gray-500">Event status</dt>
-                  <dd className="font-medium text-gray-800 dark:text-gray-200">{attendeeEventStatus(event, new Date())}</dd>
-                </div>
-              )}
               <div>
                 <dt className="text-gray-400 dark:text-gray-500">Venue</dt>
                 <dd className="font-medium text-gray-800 dark:text-gray-200">{event.venueName ?? "Not yet booked"}</dd>
@@ -616,26 +647,16 @@ export function EventDetailPage() {
           <CardHeader>
             <h2 className="font-semibold text-gray-900 dark:text-gray-100">People</h2>
           </CardHeader>
-          <CardBody className="space-y-3 text-sm">
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Organiser</dt>
-              <dd className="break-words font-medium text-gray-800 dark:text-gray-200">{event.organiserName}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
-              <dd className="break-words font-medium text-gray-800 dark:text-gray-200">{event.coordinatorName ?? "Unassigned"}</dd>
-            </div>
-            <div>
-              <dt className="text-gray-400 dark:text-gray-500">Last updated</dt>
-              <dd className="font-medium text-gray-800 dark:text-gray-200">{formatDateTime(event.updatedAt)}</dd>
-            </div>
-            {canViewRegistrationReport(currentUser, event) && (
-              <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
-                View Registrations
-              </Button>
-            )}
+          <CardBody className="text-sm">
+            <EventPeople
+              event={event}
+              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              onViewRegistrations={() => setRegistrationsOpen(true)}
+            />
           </CardBody>
         </Card>
+          </>
+        )}
 
         {currentUser.role === "attendee" && (!event.registrationEnabled || hasRegistrationPeriod) && (
           <RegistrationSection
@@ -643,6 +664,8 @@ export function EventDetailPage() {
             currentUser={currentUser}
             registration={myRegistration}
             onWithdrawn={refreshEvent}
+            registerSignal={registerSignal}
+            joinSignal={joinSignal}
           />
         )}
 

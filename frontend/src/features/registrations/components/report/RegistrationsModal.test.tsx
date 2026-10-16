@@ -2,7 +2,9 @@
  * SPM-63 registrations modal (opened from the People card on the event detail page): summary, search and filter,
  * expandable cards, empty states, exports and closing. The API and the download helpers are mocked at the boundary;
  * only Date is faked (the suite clock T0 from report.fixtures) so "Registered today" never depends on the wall clock.
- * Not covered by the backend report contract: special requirements and a waitlist, so the modal does not show them.
+ * The modal lists every registration status (SPM-138 owner decision): Confirmed, Waitlisted, Withdrawn, Removed and Cancelled.
+ * Its status select narrows the request and the export; the totals in the summary are the event's own (Confirmed-only, plus
+ * the waitlist count), so they do not change with the filter.
  */
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -43,19 +45,23 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("SPM-63 registrations modal: summary", () => {
-  // The title carries the count and the summary shows capacity, the registration period and the no-waitlist note.
+  // The title carries the Confirmed count; the summary shows capacity, the registration period and the waitlist count.
+  // Kills: M-MODAL-SUMMARY-WL
   it("shows the count in the title and the capacity, period and waitlist summary", async () => {
+    const report = buildReport({ waitlistCount: 2 });
+    apiMock.mockResolvedValue(report);
     renderModal();
 
     expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
     expect(screen.getByText("3 of 50 spots registered · 47 available")).toBeInTheDocument();
     expect(screen.getByText(/Opens: 20 Sep 2026 08:00 SGT · Closes: 8 Oct 2026 23:59 SGT/)).toBeInTheDocument();
-    expect(screen.getByText("No waitlist")).toBeInTheDocument();
+    expect(screen.getByText(`${report.waitlistCount} on the waitlist`)).toBeInTheDocument();
     expect(screen.getByText(/Event: 9 Oct 2026 18:00 SGT – 9 Oct 2026 21:00 SGT/)).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/events/EVT-101/registrations/report");
   });
 
   // A refusal from the server shows MSG-08 and no attendee data.
+  // Kills: M-MODAL-403
   it("shows the access-refused message and no registrations on a 403", async () => {
     apiMock.mockRejectedValue(new ApiError("nope", undefined, undefined, 403));
     renderModal();
@@ -68,6 +74,7 @@ describe("SPM-63 registrations modal: summary", () => {
 
 describe("SPM-63 registrations modal: expandable cards", () => {
   // Collapsed cards show name, email and date; clicking one reveals every detail and clicking again hides them.
+  // Kills: M-MODAL-EXPAND
   it("expands a card to show details and collapses it again", async () => {
     const user = userEvent.setup();
     renderModal();
@@ -91,6 +98,7 @@ describe("SPM-63 registrations modal: expandable cards", () => {
   });
 
   // Only one card is open at a time, so opening a second collapses the first.
+  // Kills: M-MODAL-SINGLE
   it("keeps a single card expanded at a time", async () => {
     const user = userEvent.setup();
     renderModal();
@@ -178,6 +186,7 @@ describe("SPM-63 registrations modal: search and filter", () => {
 
 describe("SPM-63 registrations modal: empty states", () => {
   // With no registrations at all the modal says so, instead of showing an empty list.
+  // Kills: M-MODAL-EMPTY
   it("shows 'No registrations yet' when there are none", async () => {
     apiMock.mockResolvedValue(buildReport({ registrations: [] }));
     renderModal();
@@ -189,6 +198,7 @@ describe("SPM-63 registrations modal: empty states", () => {
 
 describe("SPM-63 registrations modal: export and close", () => {
   // Each export button asks the server for that format and saves the file under the server's filename.
+  // Kills: M-MODAL-EXPORT-PDF
   it("downloads the CSV and the PDF through the server export", async () => {
     const user = userEvent.setup();
     const blob = new Blob(["x"]);
@@ -197,13 +207,14 @@ describe("SPM-63 registrations modal: export and close", () => {
 
     await user.click(await screen.findByRole("button", { name: "Export As CSV" }));
     await waitFor(() => expect(saveMock).toHaveBeenCalledWith(blob, "EVT-101_registrations.csv"));
-    expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv");
+    expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv", "all");
 
     await user.click(screen.getByRole("button", { name: "Export As PDF" }));
-    await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "pdf"));
+    await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "pdf", "all"));
   });
 
   // A failed export is announced inside the modal and the list stays visible.
+  // Kills: M-MODAL-EXPORT-ERR
   it("shows an export failure without closing the modal", async () => {
     const user = userEvent.setup();
     downloadMock.mockRejectedValue(new ApiError("The service is temporarily unavailable. Please try again."));
@@ -223,7 +234,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
 
-    await user.click(screen.getByText("No waitlist"));
+    await user.click(screen.getByText("0 on the waitlist"));
     expect(onClose).not.toHaveBeenCalled();
   });
 
@@ -308,3 +319,60 @@ describe("SPM-63 registrations modal: a failed load", () => {
     expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
   });
 });
+
+/** A waitlisted entry at position 1 (the fixture's waitlist count is derived from the rows). */
+const WAITLISTED = {
+  ...ALICE_TAN,
+  registrationId: "REG-W1",
+  fullName: "Wei Ling",
+  email: "wei.ling@example.com",
+  status: "waitlisted" as const,
+  waitlistPosition: 1,
+  joinedAt: "2026-09-29T02:00:00.000Z",
+};
+
+describe("SPM-138 owner decision: the modal filters by status", () => {
+  // Kills: PF-MODAL-REQ (the modal request ignores the chosen status)
+  it("REP-MOD-01-A: choosing Waitlisted asks for ?status=waitlisted and shows the waitlisted entry", async () => {
+    const report = buildReport({ registrations: [DEV_PATEL, WAITLISTED], totalConfirmed: 1, waitlistCount: 1, availableSpots: 49 });
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("?status=waitlisted") ? buildReport({ registrations: [WAITLISTED], totalConfirmed: 1, waitlistCount: 1, availableSpots: 49 }) : report),
+    );
+    const user = userEvent.setup();
+    renderModal();
+    await screen.findByRole("heading", { name: "Registrations (1)" });
+
+    await user.selectOptions(screen.getByLabelText("Status:"), "waitlisted");
+
+    await waitFor(() => expect(apiMock).toHaveBeenLastCalledWith("/events/EVT-101/registrations/report?status=waitlisted"));
+    expect(await screen.findByText("Wei Ling")).toBeInTheDocument();
+    expect(screen.queryByText("Dev Patel")).not.toBeInTheDocument();
+  });
+
+  // Kills: PF-MODAL-EXPORT (the modal export drops the chosen status)
+  it("REP-MOD-02-A: the CSV export is requested with the status on screen", async () => {
+    downloadMock.mockResolvedValue({ blob: new Blob(["x"]), filename: "EVT-101_registrations.csv" });
+    apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, WAITLISTED], totalConfirmed: 1, waitlistCount: 1, availableSpots: 49 }));
+    const user = userEvent.setup();
+    renderModal();
+    await screen.findByRole("heading", { name: "Registrations (1)" });
+
+    await user.selectOptions(screen.getByLabelText("Status:"), "waitlisted");
+    await user.click(await screen.findByRole("button", { name: "Export As CSV" }));
+
+    await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv", "waitlisted"));
+  });
+
+  // Kills: PF-MODAL-POS (an expanded waitlisted card does not show its position)
+  it("REP-MOD-03-A: an expanded waitlisted card reads Waitlisted (position 1)", async () => {
+    apiMock.mockResolvedValue(buildReport({ registrations: [DEV_PATEL, WAITLISTED], totalConfirmed: 1, waitlistCount: 1, availableSpots: 49 }));
+    const user = userEvent.setup();
+    renderModal();
+    await screen.findByRole("heading", { name: "Registrations (1)" });
+
+    await user.click(screen.getByRole("button", { name: /Wei Ling/ }));
+
+    expect(screen.getByText("Waitlisted (position 1)")).toBeInTheDocument();
+  });
+});
+

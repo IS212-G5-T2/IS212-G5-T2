@@ -1,3 +1,4 @@
+import type { RegistrationStatus } from "@/types";
 import { sgtDateTimeParts, sgtDayKey } from "@/utils/sgtDate";
 
 /*
@@ -154,3 +155,51 @@ export const REREGISTER_FOOTER = {
   closed: "Registration is closed.",
   eventStarted: "Event has already started.",
 } as const;
+
+/*
+ * SPM-138 waitlist. The server is the authority (it re-checks the window, fullness, duplicates and the position);
+ * these only drive what the page offers. Copy mirrors backend/src/registrations/helpers/messages.ts (D14, wording locked).
+ */
+export const WAITLIST_MESSAGES = {
+  /** MSG-WL-01: built here from the event name and the response position, never from the server's text (D14). */
+  joined: (eventName: string, position: number) =>
+    `You have joined the waitlist for ${eventName}. Your position is ${position}.`,
+  /** MSG-WL-02: the full-event sentence shown with the Join control. */
+  full: "This event is full. Join the waitlist to be notified if a spot opens.",
+  /** The join control. */
+  join: "Join Waitlist",
+  /** The card's position notice (SPM-138 UI): the place in line for a waitlisted attendee. */
+  inLine: (position: number) => `You're #${position} in line`,
+} as const;
+
+/** The page state an attendee is shown (D16). */
+export type RegistrationUiState =
+  | "closed"
+  | "not-yet-open"
+  | "register"
+  | "full-join"
+  | "registered"
+  | "waitlisted"
+  | "cancelled";
+
+/**
+ * Chooses the registration state for an attendee. The attendee's own confirmed, waiting or cancelled status wins over the
+ * window. Otherwise the window decides: closed beats not-yet-open, and an open window offers Join when the event is full
+ * and Register when a place is free. A removed or withdrawn entry falls through to the window, as a new attempt would.
+ *
+ * @param window The registration window at the current instant.
+ * @param full Whether the Confirmed count has reached the limit.
+ * @param myStatus The attendee's own registration status, if any.
+ */
+export function registrationUiState(
+  window: "open" | "closed" | "not-yet-open",
+  full: boolean,
+  myStatus: RegistrationStatus | undefined,
+): RegistrationUiState {
+  if (myStatus === "registered") return "registered";
+  if (myStatus === "waitlisted") return "waitlisted";
+  if (myStatus === "cancelled") return "cancelled";
+  if (window === "closed") return "closed";
+  if (window === "not-yet-open") return "not-yet-open";
+  return full ? "full-join" : "register";
+}

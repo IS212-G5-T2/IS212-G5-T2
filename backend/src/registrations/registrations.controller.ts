@@ -47,7 +47,18 @@ export class RegistrationsController {
     return this.registrations.withdraw(request[CURRENT_USER_REQUEST_KEY], registrationId, body);
   }
 
+  /** SPM-138 AC1: the attendee joins the waitlist of a full event. Accepts no body or {}; the attendee is the token's. */
+  @Post('events/:eventId/waitlist')
+  joinWaitlist(
+    @Param('eventId') eventId: string,
+    @Body() body: unknown,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.registrations.joinWaitlist(request[CURRENT_USER_REQUEST_KEY], eventId, body);
+  }
+
   @Get('events/:eventId/registrations/me')
+  @Header('Cache-Control', 'no-store')
   mine(@Param('eventId') eventId: string, @Req() request: AuthenticatedRequest) {
     return this.registrations.findMine(request[CURRENT_USER_REQUEST_KEY], eventId);
   }
@@ -55,8 +66,8 @@ export class RegistrationsController {
   /** SPM-63: the registration report for an event the caller manages (assigned coordinator or owning organiser). */
   @Get('events/:eventId/registrations/report')
   @Header('Cache-Control', 'no-store')
-  report(@Param('eventId') eventId: string, @Req() request: AuthenticatedRequest) {
-    return this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);
+  report(@Param('eventId') eventId: string, @Query('status') status: unknown, @Req() request: AuthenticatedRequest) {
+    return this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);
   }
 
   /**
@@ -68,10 +79,11 @@ export class RegistrationsController {
   async export(
     @Param('eventId') eventId: string,
     @Query('format') format: unknown,
+    @Query('status') status: unknown,
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);
+    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);
     if (format !== 'csv' && format !== 'pdf') throw new BadRequestException(MESSAGES.exportFormatInvalid);
 
     const body = format === 'csv' ? this.exports.csv(report) : await this.exports.pdf(report);

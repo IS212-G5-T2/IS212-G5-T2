@@ -12,6 +12,10 @@ export const REGISTRATION_ERROR_CODES = {
   // SPM-120 withdrawal. Code names are assumed (not fixed by the AC text).
   eventAlreadyOccurred: 'event_already_occurred',
   alreadyWithdrawn: 'registration_already_withdrawn',
+  // SPM-138 waitlist. The 422 code is fixed by D14; the other two codes are ASSUMPTIONS (A-CODE-DUP, A-NOT-WITHDRAWABLE).
+  waitlistNotAvailable: 'WAITLIST_NOT_AVAILABLE',
+  alreadyOnWaitlist: 'already_on_waitlist',
+  notWithdrawable: 'registration_not_withdrawable',
 } as const;
 
 // Same format as the frontend: 12 Mar 2027, 23:59 (24-hour, SGT).
@@ -57,4 +61,14 @@ export const MESSAGES = {
   // SPM-61 A-NULL: a legacy registration without a name, email or contact number (CSV keeps the cell empty).
   reportNotProvided: 'Not provided',
   exportFormatInvalid: 'Export format must be csv or pdf.',
+  // SPM-138 waitlist (D14, wording locked). MSG-WL-02 is shown by the frontend only.
+  waitlistJoined: (eventName: string, position: number) =>
+    `You have joined the waitlist for ${eventName}. Your position is ${position}.`,
+  waitlistNotAvailable: 'This event still has available spots. Please register directly.',
+  waitlistDuplicate: 'You are already on the waitlist for this event.',
+  waitlistPromoted: (eventName: string) => `A spot opened up. You are now registered for ${eventName}.`,
+  waitlistCancelled: (eventName: string) =>
+    `${eventName} has been cancelled. Your waitlist place is cancelled.`,
+  // A-NOT-WITHDRAWABLE: a Removed or Cancelled entry cannot be withdrawn. The copy is ours (the spec gives the 409 only).
+  notWithdrawable: 'This registration can no longer be withdrawn.',
 } as const;

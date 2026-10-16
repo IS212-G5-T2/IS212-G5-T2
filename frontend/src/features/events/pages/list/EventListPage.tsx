@@ -6,14 +6,19 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
-import { EventCard } from "@/features/events/pages/list/EventCard";
+import { EventCard, type CardRegistrationStatus } from "@/features/events/pages/list/EventCard";
 import { AssignmentNotifications } from "@/features/events/pages/list/AssignmentNotifications";
-import type { EventStatus } from "@/types";
+import type { EventStatus, RegistrationStatus } from "@/types";
 import {
   ATTENDEE_BROWSE_FILTERS,
   matchesAttendeeFilter,
   type AttendeeBrowseFilter,
 } from "@/features/events/lib/EventView";
+
+/** The card's registration badge: only the three states an attendee can hold on a listed event. */
+function cardRegistrationStatus(status: RegistrationStatus | undefined): CardRegistrationStatus | undefined {
+  return status === "registered" || status === "waitlisted" || status === "withdrawn" ? status : undefined;
+}
 
 const statusOptions: { value: string; label: string }[] = [
   { value: "", label: "All statuses" },
@@ -126,9 +131,9 @@ export function EventListPage() {
           {filtered.map((e) => (
             <EventCard
               key={e.id}
-              // "Approved" and "Confirmed" are the same published state for attendees.
-              event={isAttendee && e.status === "approved" ? { ...e, status: "confirmed" } : e}
-              registered={isAttendee && e.myRegistrationStatus === "registered"}
+              event={e}
+              attendeeView={isAttendee}
+              registrationStatus={isAttendee ? cardRegistrationStatus(e.myRegistrationStatus) : undefined}
             />
           ))}
         </div>

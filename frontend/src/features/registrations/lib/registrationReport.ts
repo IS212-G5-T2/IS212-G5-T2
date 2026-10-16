@@ -8,25 +8,58 @@ import type { User } from "@/types";
 import { ApiError, api, apiBaseUrl } from "@/utils/api";
 import { sgtDateTimeParts, sgtDayKey } from "@/utils/sgtDate";
 
+/** The report's status values (the API vocabulary). "registered" is labelled Confirmed (SPM-138 D3). */
+export const REPORT_STATUS_VALUES = ["registered", "waitlisted", "withdrawn", "removed", "cancelled"] as const;
+export type ReportStatus = (typeof REPORT_STATUS_VALUES)[number];
+
+/** The on-screen label for each status; the same wording the exports use. */
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  registered: "Confirmed",
+  waitlisted: "Waitlisted",
+  withdrawn: "Withdrawn",
+  removed: "Removed",
+  cancelled: "Cancelled",
+};
+
+/** The status filter: every status, or one of them. */
+export type ReportStatusFilter = "all" | ReportStatus;
+
+export const REPORT_STATUS_FILTERS: { value: ReportStatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  ...REPORT_STATUS_VALUES.map((value) => ({ value, label: REPORT_STATUS_LABELS[value] })),
+];
+
 export interface ReportRow {
   registrationId: string;
   fullName: string;
   email: string;
   contactNumber: string;
   registeredAt: string;
-  status: "Confirmed";
+  status: ReportStatus;
   specialRequirements?: string;
+  /** Waitlisted rows only: the derived position. */
+  waitlistPosition?: number;
+  /** Waitlisted rows only: when the attendee joined the waitlist (ISO-8601 UTC). */
+  joinedAt?: string;
 }
 
 export interface RegistrationReport {
   event: { id: string; name: string; startDateTime: string; endDateTime: string; capacity: number };
+  /** Confirmed count, unfiltered: capacity is Confirmed-only. */
   totalConfirmed: number;
+  /** Waitlisted count, unfiltered. */
+  waitlistCount: number;
   availableSpots: number;
   generatedAt: string;
   registrations: ReportRow[];
 }
 
 export type ExportFormat = "csv" | "pdf";
+
+/** The `?status=` query for a filter; empty when every status is wanted. */
+export function reportStatusQuery(filter: ReportStatusFilter): string {
+  return filter === "all" ? "" : `status=${encodeURIComponent(filter)}`;
+}
 
 /** The report is refreshed this often; the story's limit is 10 s ([A9]), so one missed poll still fits. */
 export const REPORT_POLL_INTERVAL_MS = 5_000;
@@ -35,6 +68,7 @@ export const REPORT_MESSAGES = {
   // MSG-08, fixed by the test cases and mirrored from backend/src/registrations/helpers/messages.ts.
   forbidden: "You do not have access to this event's registrations.",
   empty: "No registrations yet",
+  emptyForStatus: "No registrations with this status",
 } as const;
 
 /** "28 Sep 2026 10:30 SGT" (D8). */
@@ -77,6 +111,11 @@ export function attendeeCountLine(count: number, capacity: number): string {
   return `${count} ${count === 1 ? "Attendee" : "Attendees"} Registered (${count} / ${capacity})`;
 }
 
+/** "2 on the waitlist"; singular "1 on the waitlist". Waitlisted entries never take capacity. */
+export function waitlistCountLine(count: number): string {
+  return `${count} on the waitlist`;
+}
+
 /** "47 spots available"; singular "1 spot available". */
 export function spotsLine(spots: number): string {
   return `${spots} ${spots === 1 ? "spot" : "spots"} available`;
@@ -94,8 +133,9 @@ export function canViewRegistrationReport(
   );
 }
 
-export function fetchRegistrationReport(eventId: string): Promise<RegistrationReport> {
-  return api<RegistrationReport>(`/events/${eventId}/registrations/report`);
+export function fetchRegistrationReport(eventId: string, filter: ReportStatusFilter = "all"): Promise<RegistrationReport> {
+  const query = reportStatusQuery(filter);
+  return api<RegistrationReport>(`/events/${eventId}/registrations/report${query ? `?${query}` : ""}`);
 }
 
 /** Reads the filename from a Content-Disposition value: `filename*=UTF-8''...` first, then `filename="..."`. */
@@ -118,10 +158,12 @@ export function filenameFromDisposition(header: string | null): string | undefin
 export async function downloadReportExport(
   eventId: string,
   format: ExportFormat,
+  filter: ReportStatusFilter = "all",
 ): Promise<{ blob: Blob; filename: string }> {
+  const status = reportStatusQuery(filter);
   let response: Response;
   try {
-    response = await fetch(`${apiBaseUrl()}/api/events/${eventId}/registrations/report/export?format=${format}`, {
+    response = await fetch(`${apiBaseUrl()}/api/events/${eventId}/registrations/report/export?format=${format}${status ? `&${status}` : ""}`, {
       credentials: "include",
       signal: AbortSignal.timeout(30_000),
     });

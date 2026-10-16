@@ -36,6 +36,8 @@ interface Props {
   onConfirmed: () => void;
   /** Set when the latest automatic refresh failed; the last data stays visible. */
   refreshError?: string;
+  /** People for the event (organiser, coordinator), shown as a sub-section of Event Information. */
+  people?: ReactNode;
 }
 
 const ALERT =
@@ -335,7 +337,7 @@ function Prerequisite({ label, done }: { label: string; done: boolean }) {
   );
 }
 
-export function PlanningInformationPage({ view, status, onConfirmed, refreshError }: Props) {
+export function PlanningInformationPage({ view, status, onConfirmed, refreshError, people }: Props) {
   const tabsId = useId();
   const [tab, setTab] = useState<TabKey>("event");
   const [checklist, setChecklist] = useState<PlanningChecklist | null>(null);
@@ -467,6 +469,12 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
               {item.key === "event" && (
                 <div className="space-y-3">
                   <EventInformationList view={view} />
+                  {people && (
+                    <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
+                      <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">People</h4>
+                      {people}
+                    </div>
+                  )}
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Last updated <time dateTime={view.lastUpdatedAt}>{formatDateTime(view.lastUpdatedAt)}</time>
                   </p>

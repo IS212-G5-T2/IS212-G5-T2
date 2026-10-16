@@ -297,6 +297,12 @@ Notifications are persistent in-app messages, not email. The frontend checks
 for them on sign-in, focus, and every 30 seconds. Identity and recipient
 scoping come from the local session.
 
+## Waitlist (SPM-138)
+
+`POST /api/events/:eventId/waitlist` (body `{}` or none; any key is a 400) joins the waitlist of a full, open event as the signed-in attendee. Waiting entries are rows in `event_registrations` with status `Waitlisted`; a removed entry is `Removed`. Position is derived on read from `(joined_at, waitlist_seq)` and is returned only in the owner's own entry (`waitlistPosition`). A confirmed withdrawal promotes the first entry in the same transaction and writes one `WaitlistPromoted` notification. Registration closing (or a manual close) removes the waiting entries on the next read, on a join or withdrawal, or through `runRegistrationCloseJob`. The cancel releaser `releaseWaitlistForCancelledEvent` is not yet wired (SPM-136).
+
+Existing databases apply `backend/migrations/011_spm138_waitlist.sql` once; fresh volumes get the same change from `database/postgresql/init/017_spm138_waitlist.sql`. The e2e suite is `test/registrations.waitlist.e2e-spec.ts` (needs `DATABASE_URL` with both applied). The fault-injection check is `node scripts/mutation/run.mjs --mutants spm138.mutants.mjs`.
+
 ## Registration report and exports
 
 The report and CSV/PDF exports all use `RegistrationsService.getReport`, so

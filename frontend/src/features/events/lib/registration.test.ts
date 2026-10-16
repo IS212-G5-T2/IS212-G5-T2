@@ -26,14 +26,17 @@ const valid = { fullName: "Alice Tan", email: "alice@example.com", contactNumber
 // EVENT-REG-01-BND-1: the opening boundary
 describe("EVENT-REG-01-BND-1: the opening boundary (period util)", () => {
   // [A] one second before opening, registration is not open.
+  // Kills: K-PERIOD-A (an opening that is not enforced)
   it("[A] one second before the opening instant, registration is not open", () => {
     expect(isRegistrationOpen(period, at(opensAt, -1000))).toBe(false);
   });
   // [B] the opening instant is open (inclusive).
+  // Kills: K-PERIOD-B (the opening instant is exclusive)
   it("[B] exactly at the opening instant, registration is open", () => {
     expect(isRegistrationOpen(period, new Date(opensAt))).toBe(true);
   });
   // A missing bound is unbounded on that side.
+  // Kills: K-PERIOD-BND (a missing opening bound is treated as closed)
   it("treats a missing bound as unbounded", () => {
     expect(isRegistrationOpen({ closesAt }, new Date("2000-01-01"))).toBe(true);
     expect(isRegistrationOpen({ opensAt }, new Date("2999-01-01"))).toBe(true);
@@ -43,10 +46,12 @@ describe("EVENT-REG-01-BND-1: the opening boundary (period util)", () => {
 // EVENT-REG-02-BND-1: the closing boundary (period util)
 describe("EVENT-REG-02-BND-1: the closing boundary (period util)", () => {
   // [C] one minute before the closing instant, registration is still accepted.
+  // Kills: K-PERIOD-C (the close is one minute early)
   it("[C] one minute before the closing instant, registration is still accepted", () => {
     expect(isRegistrationOpen(period, at(closesAt, -60_000))).toBe(true);
   });
   // [D] the closing instant is closed (exclusive).
+  // Kills: K-PERIOD-D (the closing instant is inclusive-open)
   it("[D] exactly at the closing instant, registration is closed", () => {
     expect(isRegistrationOpen(period, new Date(closesAt))).toBe(false);
   });
@@ -89,6 +94,23 @@ describe("EVENT-REG-03-BND-1: shared limits", () => {
     expect(validateRegistrationDetails({ ...valid, fullName: "A".repeat(101) })).toHaveProperty("fullName");
     expect(validateRegistrationDetails({ ...valid, specialRequirements: "x".repeat(500) })).toEqual({});
     expect(validateRegistrationDetails({ ...valid, specialRequirements: "x".repeat(501) })).toHaveProperty("specialRequirements");
+  });
+});
+
+// SPM-138 time zones: 15:59Z and 16:01Z are on the same UTC day but on different Singapore days (SGT midnight is 16:00Z).
+// The assertions are literal SGT text, so they hold under TZ=UTC, TZ=Asia/Singapore and TZ=America/Los_Angeles alike.
+describe("SGT-MIDNIGHT-BND-1: the Singapore day changes at 00:00 SGT, not at 00:00 UTC", () => {
+  // Kills F38: the SGT formatter reads UTC instead of Asia/Singapore.
+  it("SGT-MIDNIGHT-BND-1: a close at 23:59 SGT reads as that day, and 00:01 SGT as the next day", () => {
+    expect(formatSgtDateTime("2026-10-19T15:59:00Z")).toBe("19 Oct 2026, 23:59");
+    expect(formatSgt("2026-10-19T15:59:00Z")).toBe("19 Oct 2026, 23:59 SGT");
+    expect(formatSgtDateTime("2026-10-19T16:01:00Z")).toBe("20 Oct 2026, 00:01");
+    expect(formatSgt("2026-10-19T16:01:00Z")).toBe("20 Oct 2026, 00:01 SGT");
+  });
+
+  // Kills F39: the calendar-day count is taken in UTC, so the SGT midnight crossing is missed.
+  it("SGT-MIDNIGHT-BND-1: 23:59 to 00:01 SGT is one calendar day, though both instants fall on one UTC day", () => {
+    expect(sgtCalendarDayDiff(new Date("2026-10-19T15:59:00Z"), new Date("2026-10-19T16:01:00Z"))).toBe(1);
   });
 });
 

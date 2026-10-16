@@ -406,7 +406,8 @@ describe('EventsService', () => {
   // SPM-61: Approved counts as published, and each row carries the caller's
   // own registration status.
   it('lists attendee-viewable events with current registration availability', async () => {
-    const row = { ...savedEventRow(), status: 'Confirmed', my_registration_status: 'Registered' };
+    // 63 confirmed of a limit of 80 leaves 17 places.
+    const row = { ...savedEventRow(), status: 'Confirmed', my_registration_status: 'Registered', confirmed_registrations: 63 };
     db.query.mockResolvedValue({ rows: [row] });
 
     const events = await service.list(attendeeUser());
@@ -415,7 +416,7 @@ describe('EventsService', () => {
       { id: row.id, status: 'confirmed', availableRegistrationSpots: 17, myRegistrationStatus: 'registered' },
     ]);
     expect(db.query).toHaveBeenCalledWith(
-      expect.stringContaining('AS available_registration_spots'),
+      expect.stringContaining('AS confirmed_registrations'),
       [attendeeUser().uid],
     );
     expect(db.query).toHaveBeenCalledWith(
@@ -536,8 +537,8 @@ describe('EventsService', () => {
     // SPM-99 EVENT-VIEW-01-A and supplementary security coverage: attendees can read a
     // confirmed event, but submitted planning data remains unavailable.
     it('lets attendees view only attendee-facing lifecycle states', async () => {
-      const attendeeVisible = { ...savedEventRow(), status: 'Confirmed' };
-      db.query.mockResolvedValueOnce({ rows: [attendeeVisible] });
+      const attendeeVisible = { ...savedEventRow(), status: 'Confirmed', confirmed_registrations: 63 };
+      db.query.mockResolvedValueOnce({ rows: [attendeeVisible] }).mockResolvedValueOnce({ rows: [] });
       await expect(service.get(attendeeUser(), attendeeVisible.id)).resolves.toMatchObject({
         registrationEnabled: true,
         registrationOpensAt: '2026-10-01T09:00:00.000Z',
@@ -681,6 +682,7 @@ describe('SPM-46: reassignment context on events', () => {
     db.query
       .mockResolvedValueOnce({ rows: [row] })
       .mockResolvedValueOnce({ rows: [row] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [row] });
 
     // Act: the organiser and an attendee open it; the organiser loads their list.
@@ -732,4 +734,43 @@ describe('SPM-46: reassignment context on events', () => {
     expect(event.reassignedFrom?.coordinatorName).toBe('Coordinator 2');
     expect(db.query).toHaveBeenCalledTimes(1);
   });
+});
+
+/**
+ * SPM-138 AC2 capacity fields on the event read. A fixed clock (T0 inside the window) keeps the open and closed states
+ * deterministic; the service is built here so the suite-wide service keeps its own clock.
+ */
+describe('SPM-138 capacity fields on the event read (AC2)', () => {
+  const T0 = new Date('2026-10-14T04:00:00Z'); // 12:00 SGT
+  const fixedService = () => new EventsService(database as unknown as DatabaseService, { now: () => T0 });
+  const confirmedRow = (overrides: Record<string, unknown> = {}) => ({
+    ...savedEventRow(),
+    status: 'Confirmed',
+    registration_enabled: true,
+    registration_opens_at: new Date('2026-10-13T04:00:00Z'),
+    registration_closes_at: new Date('2026-10-19T15:59:00Z'),
+    registration_limit: 3,
+    expected_attendance: 50,
+    confirmed_registrations: 3,
+    ...overrides,
+  });
+
+  // Oracle (02-A UNIT): 3 Confirmed of a limit of 3, open: full, waitlist available, no spots, the limit is reported.
+  it('JOIN-WAITLIST-02-A-UNIT: a full, open event reports isFull, waitlistAvailable, zero spots and its limit', async () => {
+    db.query.mockResolvedValue({ rows: [confirmedRow()] });
+
+    const event = await fixedService().get(attendeeUser(), savedEventRow().id);
+
+    expect(event).toMatchObject({ isFull: true, waitlistAvailable: true, registrationOpen: true, availableSpots: 0, registrationLimit: 3 });
+  });
+
+  // Oracle (02-B UNIT): a closed event is full but offers no waitlist.
+  it('JOIN-WAITLIST-02-B-UNIT: a full but closed event does not offer the waitlist', async () => {
+    db.query.mockResolvedValue({ rows: [confirmedRow({ registration_closes_at: new Date('2026-10-13T23:59:00Z') })] });
+
+    const event = await fixedService().get(attendeeUser(), savedEventRow().id);
+
+    expect(event).toMatchObject({ isFull: true, waitlistAvailable: false, registrationOpen: false });
+  });
+
 });

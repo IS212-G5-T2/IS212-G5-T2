@@ -79,7 +79,13 @@ GitHub Actions is configured to run the suite with coverage through
 npm test              # run the suite once
 npm run test:watch    # re-run on file changes while developing
 npm run test:cov      # run once with a coverage report
+npm run test:tz       # run the date-sensitive tests under TZ=UTC, Asia/Singapore and America/Los_Angeles
 ```
+
+`npm run test:tz` (`scripts/testing/tz-matrix.mjs`) runs the tests that assert SGT or calendar-date text in each of
+three host time zones and exits non-zero if any zone fails. The SGT formatter pins `Asia/Singapore`, so the output
+must not depend on the host zone. Run it after changing a date helper or a date assertion. To run one zone by hand,
+set the variable yourself, for example `TZ=America/Los_Angeles npx vitest run src/features/events/lib/registration.test.ts`.
 
 Test files live alongside the code they cover (for example,
 `src/features/account/pages/login/LoginPage.test.tsx` next to its page).
@@ -231,6 +237,10 @@ Organisers receive persistent rejection notifications above their main content, 
 Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
 
 Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.
+
+## Waitlist (SPM-138)
+
+When an event is full and open for registration, the attendee's event page offers Join Waitlist (`POST /api/events/:id/waitlist`) instead of Register. The page states the full event, the availability and the closing date, and shows the waiting indicator and the owner's own position once on the list. The confirmation banner is built from the event name and the response position. The waitlist rules and copy live in `src/features/events/lib/registration.ts` (`registrationUiState`, `WAITLIST_MESSAGES`) and the controls in `src/features/events/pages/detail/registration/WaitlistPanel.tsx`. Tests: `npm test` (the `*.waitlist.test.tsx` and `waitlist.test.ts` files). The in-app promotion bell and the cancel flow are not built yet (SPM-136 and the bell story).
 
 ## Registration report
 
