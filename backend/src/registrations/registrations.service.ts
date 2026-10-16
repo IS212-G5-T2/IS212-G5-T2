@@ -25,7 +25,13 @@ import { hasEventStarted } from './withdrawal/event-start.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './helpers/messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration/registration-window.js';
 import { canViewEventRegistrations } from './report/report-access.js';
-import type { RegistrationReport } from './report/report-types.js';
+import type { RegistrationReport, ReportRow } from './report/report-types.js';
+import {
+  ALL_REPORT_DB_STATUSES,
+  DB_TO_REPORT_STATUS,
+  REPORT_DB_STATUS,
+  parseReportStatusFilter,
+} from './report/report-status.js';
 import { validateRegistration } from './registration/dto/validation.js';
 import { settleIfDue, settleLocked } from './waitlist/settle.js';
 import { fillFreeSpots } from './waitlist/promotion.js';
@@ -317,7 +323,7 @@ export class RegistrationsService {
    * ordered by registration date then id; nothing is cached, so a registration or withdrawal shows on the next call.
    * SPM-138 leaves this unchanged: waiting entries are Waitlisted rows and never appear here.
    */
-  async getReport(identity: AuthenticatedUser | undefined, eventId: string): Promise<RegistrationReport> {
+  async getReport(identity: AuthenticatedUser | undefined, eventId: string, status?: unknown): Promise<RegistrationReport> {
     if (!identity?.uid) throw new UnauthorizedException('Authentication required.');
     this.requireEventId(eventId);
 
@@ -340,21 +346,49 @@ export class RegistrationsService {
       throw new ForbiddenException(MESSAGES.reportForbidden);
     }
 
-    const registered = await this.database.query(
-      `SELECT id, full_name, email, contact_number, created_at, special_requirements FROM event_registrations
-        WHERE event_id = $1 AND status = 'Registered'
-        ORDER BY created_at ASC, id ASC`,
+    // SPM-138 owner decision: every status is listed; the optional filter narrows the rows. Parsed after access (403 first).
+    const filter = parseReportStatusFilter(status);
+    const dbStatuses = filter ? filter.map((value) => REPORT_DB_STATUS[value]) : [...ALL_REPORT_DB_STATUSES];
+    const counts = await this.database.query<{ confirmed: number; waitlisted: number }>(
+      `SELECT COUNT(*) FILTER (WHERE status = 'Registered')::integer AS confirmed,
+              COUNT(*) FILTER (WHERE status = 'Waitlisted')::integer AS waitlisted
+         FROM event_registrations WHERE event_id = $1`,
       [eventId],
     );
-    const registrations = registered.rows.map((row) => ({
-      registrationId: row.id as string,
-      fullName: (row.full_name ?? '') as string,
-      email: (row.email ?? '') as string,
-      contactNumber: (row.contact_number ?? '') as string,
-      registeredAt: (row.created_at as Date).toISOString(),
-      status: 'Confirmed' as const,
-      ...(row.special_requirements && { specialRequirements: row.special_requirements as string }),
-    }));
+    // Order: Confirmed by registration time; Waitlisted by position (joined_at, waitlist_seq); the rest by the instant their
+    // status last changed (withdrawn, removed or cancelled), then the registration instant and id.
+    const listed = await this.database.query(
+      `SELECT r.id, r.full_name, r.email, r.contact_number, r.created_at, r.special_requirements, r.status,
+              r.joined_at, r.waitlist_seq, r.withdrawn_at, r.removed_at, r.updated_at,
+              ${WAITLIST_POSITION_SQL} AS waitlist_position
+         FROM event_registrations r
+        WHERE r.event_id = $1 AND r.status = ANY($2::text[])
+        ORDER BY CASE r.status WHEN 'Registered' THEN 0 WHEN 'Waitlisted' THEN 1 ELSE 2 END,
+                 CASE WHEN r.status = 'Registered' THEN r.created_at END ASC,
+                 CASE WHEN r.status = 'Waitlisted' THEN r.joined_at END ASC,
+                 CASE WHEN r.status = 'Waitlisted' THEN r.waitlist_seq END ASC,
+                 CASE WHEN r.status NOT IN ('Registered', 'Waitlisted')
+                      THEN COALESCE(r.withdrawn_at, r.removed_at, r.updated_at) END ASC,
+                 r.created_at ASC, r.id ASC`,
+      [eventId, dbStatuses],
+    );
+    const registrations: ReportRow[] = listed.rows.map((row) => {
+      const reportStatus = DB_TO_REPORT_STATUS[row.status as string];
+      return {
+        registrationId: row.id as string,
+        fullName: (row.full_name ?? '') as string,
+        email: (row.email ?? '') as string,
+        contactNumber: (row.contact_number ?? '') as string,
+        registeredAt: (row.created_at as Date).toISOString(),
+        status: reportStatus,
+        ...(row.special_requirements && { specialRequirements: row.special_requirements as string }),
+        ...(reportStatus === 'waitlisted' && {
+          waitlistPosition: Number(row.waitlist_position),
+          joinedAt: (row.joined_at as Date).toISOString(),
+        }),
+      };
+    });
+    const confirmed = counts.rows[0].confirmed;
     return {
       event: {
         id: event.id,
@@ -363,8 +397,9 @@ export class RegistrationsService {
         endDateTime: event.end_date_time.toISOString(),
         capacity: event.registration_limit,
       },
-      totalConfirmed: registrations.length,
-      availableSpots: Math.max(event.registration_limit - registrations.length, 0),
+      totalConfirmed: confirmed,
+      waitlistCount: counts.rows[0].waitlisted,
+      availableSpots: Math.max(event.registration_limit - confirmed, 0),
       generatedAt: this.clock.now().toISOString(),
       registrations,
     };

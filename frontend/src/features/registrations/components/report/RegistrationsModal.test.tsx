@@ -50,7 +50,7 @@ describe("SPM-63 registrations modal: summary", () => {
     expect(await screen.findByRole("heading", { name: "Registrations (3)" })).toBeInTheDocument();
     expect(screen.getByText("3 of 50 spots registered · 47 available")).toBeInTheDocument();
     expect(screen.getByText(/Opens: 20 Sep 2026 08:00 SGT · Closes: 8 Oct 2026 23:59 SGT/)).toBeInTheDocument();
-    expect(screen.getByText("No waitlist")).toBeInTheDocument();
+    expect(screen.getByText("0 on the waitlist")).toBeInTheDocument();
     expect(screen.getByText(/Event: 9 Oct 2026 18:00 SGT – 9 Oct 2026 21:00 SGT/)).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/events/EVT-101/registrations/report");
   });
@@ -197,10 +197,10 @@ describe("SPM-63 registrations modal: export and close", () => {
 
     await user.click(await screen.findByRole("button", { name: "Export As CSV" }));
     await waitFor(() => expect(saveMock).toHaveBeenCalledWith(blob, "EVT-101_registrations.csv"));
-    expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv");
+    expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "csv", "all");
 
     await user.click(screen.getByRole("button", { name: "Export As PDF" }));
-    await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "pdf"));
+    await waitFor(() => expect(downloadMock).toHaveBeenLastCalledWith("EVT-101", "pdf", "all"));
   });
 
   // A failed export is announced inside the modal and the list stays visible.
@@ -223,7 +223,7 @@ describe("SPM-63 registrations modal: export and close", () => {
     const onClose = renderModal();
     await screen.findByText(/Alice Tan/);
 
-    await user.click(screen.getByText("No waitlist"));
+    await user.click(screen.getByText("0 on the waitlist"));
     expect(onClose).not.toHaveBeenCalled();
   });
 

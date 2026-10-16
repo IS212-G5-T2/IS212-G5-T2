@@ -66,8 +66,8 @@ export class RegistrationsController {
   /** SPM-63: the registration report for an event the caller manages (assigned coordinator or owning organiser). */
   @Get('events/:eventId/registrations/report')
   @Header('Cache-Control', 'no-store')
-  report(@Param('eventId') eventId: string, @Req() request: AuthenticatedRequest) {
-    return this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);
+  report(@Param('eventId') eventId: string, @Query('status') status: unknown, @Req() request: AuthenticatedRequest) {
+    return this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);
   }
 
   /**
@@ -79,10 +79,11 @@ export class RegistrationsController {
   async export(
     @Param('eventId') eventId: string,
     @Query('format') format: unknown,
+    @Query('status') status: unknown,
     @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
-    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);
+    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);
     if (format !== 'csv' && format !== 'pdf') throw new BadRequestException(MESSAGES.exportFormatInvalid);
 
     const body = format === 'csv' ? this.exports.csv(report) : await this.exports.pdf(report);

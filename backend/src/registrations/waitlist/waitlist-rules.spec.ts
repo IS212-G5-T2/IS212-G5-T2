@@ -22,6 +22,7 @@ describe('SPM-138 promotion guard (D8)', () => {
    * fixture can reach this state (the entries reference the event), so it is asserted against a recording client.
    * ASSUMPTION A-GUARD: the fake's answer for a missing event row is the one the real query gives.
    */
+  // Kills: K-08CGUARD (a missing event promotes with no guard)
   it('JOIN-WAITLIST-08-C-ERR-GUARD: a missing event promotes nobody and issues exactly the settle write and the event read', async () => {
     const statements: string[] = [];
     const client = {

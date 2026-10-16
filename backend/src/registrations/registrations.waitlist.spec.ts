@@ -135,6 +135,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
   /**
    * Oracle (01-E, A, unit): a Confirmed attendee gets 409 MSG-05; no entry is written.
    */
+  // Kills: K-01EREG (a confirmed attendee gets the waitlist duplicate instead of the registration duplicate)
   it('JOIN-WAITLIST-01-E-ERR-UNIT-REG: a confirmed attendee gets 409 MSG-05 and no entry is written', async () => {
     const fake = joinDatabase({ event: [openEvent()], existing: [{ status: 'Registered' }], taken: 3 });
 
@@ -178,6 +179,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
   /**
    * Oracle (01-D B, unit): an event that opens later refuses the join with MSG-02 and the opening instant.
    */
+  // Kills: K-01DOPEN (the join skips the not-yet-open check)
   it('JOIN-WAITLIST-01-D-ERR-UNIT-OPEN: an event not yet open refuses the join with 422 registration_not_open (A-CODE-REG)', async () => {
     const fake = joinDatabase({ event: [openEvent({ registration_opens_at: new Date('2026-10-17T01:00:00Z') })], existing: [], taken: 3 });
 
@@ -230,6 +232,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
   /**
    * Oracle: an unknown event id (or a non-published one) is a 404 before any window rule or write.
    */
+  // Kills: K-01FNF (a join on an unknown event is not refused as not found)
   it('JOIN-WAITLIST-01-F-ERR-UNIT-404: a join on an unknown event is a 404 and writes nothing', async () => {
     const fake = joinDatabase({ event: [] });
 
@@ -243,6 +246,7 @@ describe('SPM-138 join (unit): refusals happen before anything is written', () =
   /**
    * Oracle: the transaction is opened once for a join (the lock, the checks and the insert share it).
    */
+  // Kills: K-04CTX (the join runs outside a transaction)
   it('JOIN-WAITLIST-04-C-INT-TX: the join runs as one transaction', async () => {
     const fake = joinDatabase({ event: [openEvent()], existing: [], taken: 3 });
 
@@ -257,6 +261,7 @@ describe('SPM-138 join and withdrawal edge rules (unit)', () => {
    * JOIN-WAITLIST-01-E-UNIT-REGISTER: a waiting attendee who asks for a direct registration is refused with the same
    * duplicate sentence (409 MSG-WL-04); nothing is inserted, so the waiting entry is not turned into a registration.
    */
+  // Kills: K-01EREGI (a waiting attendee is not refused a direct registration)
   it('JOIN-WAITLIST-01-E-ERR-UNIT-REGISTER: a waiting attendee cannot register directly and no row is written', async () => {
     const fake = joinDatabase({ event: [openEvent()], existing: [{ status: 'Waitlisted' }], taken: 2 });
 
@@ -277,6 +282,7 @@ describe('SPM-138 join and withdrawal edge rules (unit)', () => {
    * JOIN-WAITLIST-01-A-UNIT-OPEN-ENDED: an event with no opening or closing instant is open for the waitlist
    * (an unbounded window, D5); the join is accepted at the first place of the list.
    */
+  // Kills: K-01AOPEN (an event with no opening bound is treated as not yet open)
   it('JOIN-WAITLIST-01-A-BND-UNIT-OPEN-ENDED: an event with no window bounds accepts a join', async () => {
     const fake = joinDatabase({
       event: [openEvent({ registration_opens_at: null, registration_closes_at: null })],
@@ -294,6 +300,7 @@ describe('SPM-138 join and withdrawal edge rules (unit)', () => {
    * JOIN-WAITLIST-04-C-GUARD: under the lock a duplicate cannot reach the insert, but if the insert ever matches no row,
    * the join answers the duplicate sentence (409), never a success with no entry behind it.
    */
+  // Kills: K-04CRACE (a lost race on the insert is not refused)
   it('JOIN-WAITLIST-04-C-ERR-GUARD: a lost race on the insert answers 409 and never reports a success', async () => {
     const fake = joinDatabase({ event: [openEvent()], existing: [], taken: 3, inserted: [] });
 
@@ -307,6 +314,7 @@ describe('SPM-138 join and withdrawal edge rules (unit)', () => {
    * JOIN-WAITLIST-10-E-CAS: a waiting withdrawal whose compare-and-set matches no row (another request won) answers 422
    * MSG-12 and writes no notice, no place and no second change.
    */
+  // Kills: K-10ECAS (a waiting withdrawal that loses the compare-and-set does not answer 422)
   it('JOIN-WAITLIST-10-E-ERR-CAS: a waiting withdrawal that loses the compare-and-set answers 422 and writes nothing else', async () => {
     const statements: Statement[] = [];
     const answer = (sql: string, params: unknown[]) => {

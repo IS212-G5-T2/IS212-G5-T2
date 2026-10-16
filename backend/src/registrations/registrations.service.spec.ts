@@ -85,8 +85,10 @@ interface Script {
   inserted?: Row[];
   /** Rows for the attendee's own registration lookup (findMine). */
   mine?: Row[];
-  /** Rows for the report's Registered-row query. */
+  /** Rows for the report's Registered rows (Confirmed). The report lists every status (SPM-138 owner decision). */
   registered?: Row[];
+  /** Rows for the report's Waitlisted rows. */
+  waitlisted?: Row[];
   /** Rows for the withdrawal lookup (owned registration joined to its event). */
   found?: Row[];
   /** Rows for the withdrawal's guarded UPDATE ... RETURNING. */
@@ -109,6 +111,12 @@ function scripted(script: Script) {
     if (/SELECT r\.id, e\.event_name/.test(sql)) return { rows: script.found ?? [] };
     // SPM-138: the attendee read carries a waiting position subquery, which also contains COUNT(*); route it first.
     if (/SELECT r\.\*, e\.event_name/.test(sql)) return { rows: script.mine ?? [] };
+    // The report rows also contain COUNT(*) (the waitlist position), so they are routed before the count route.
+    // SPM-138 report rows: every status, filtered by the status list (the fake returns the scripted rows as they are).
+    if (/FROM event_registrations r\s+WHERE r\.event_id = \$1 AND r\.status = ANY/.test(sql))
+      return {
+        rows: [...(script.registered ?? []), ...(script.waitlisted ?? [])].map((row) => ({ status: 'Registered', ...row })),
+      };
     // SPM-138 fillFreeSpots: the event's capacity and name, read after a withdrawal.
     if (/registration_limit AS capacity/.test(sql))
       return { rows: [{ capacity: script.capacity ?? 3, name: script.eventName ?? 'Tech Talk: Cloud 101' }] };
@@ -118,13 +126,14 @@ function scripted(script: Script) {
     if (/FROM events WHERE id = \$1 FOR UPDATE/.test(sql)) return { rows: script.event ?? [] };
     if (/FROM events WHERE id = \$1$/m.test(sql.trim())) return { rows: script.event ?? [] };
     if (/SELECT status FROM event_registrations/.test(sql)) return { rows: script.existing ?? [] };
+    // SPM-138 report totals: Confirmed and Waitlisted counts, unfiltered.
+    if (/COUNT\(\*\) FILTER/.test(sql))
+      return { rows: [{ confirmed: script.registered?.length ?? 0, waitlisted: script.waitlisted?.length ?? 0 }] };
     if (/COUNT\(\*\)/.test(sql)) return { rows: [{ count: script.taken ?? 0 }] };
     if (/^\s*INSERT INTO event_registrations/.test(sql)) return { rows: script.inserted ?? [] };
     // SPM-138 settleIfDue: the lock-free due check on the attendee read (nothing is due unless a case scripts it).
     if (/SELECT 1 FROM event_registrations r JOIN events e/.test(sql)) return { rows: [] };
     if (/FROM event_registrations r/.test(sql)) return { rows: script.mine ?? [] };
-    if (/event_registrations\s+WHERE event_id = \$1 AND status = 'Registered'/.test(sql))
-      return { rows: script.registered ?? [] };
     throw new Error(`unexpected statement: ${sql}`);
   };
   const client = { query: async (sql: string, params: unknown[] = []) => answer(sql, params) };
@@ -557,7 +566,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
       error: 'Forbidden',
     });
     // Kills: the access check moved after the attendee query (names and emails read for a refused caller)
-    expect(fake.statements.some((s) => /event_registrations\s+WHERE event_id = \$1 AND status = 'Registered'/.test(s.sql))).toBe(false);
+    expect(fake.statements.some((s) => /FROM event_registrations r\s+WHERE r\.event_id = \$1 AND r\.status = ANY/.test(s.sql))).toBe(false);
   });
 
   it('an organiser who does not own the event -> 403', async () => {
@@ -577,7 +586,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
     const fake = scripted({ event: [], registered: [registeredRow('r1', 'Bob', T0)] });
     const error = await refusal(serviceFor(fake.database).getReport(coordinator, EVENT_ID));
     expect((error as NotFoundException).getResponse()).toEqual({ statusCode: 404, message: 'Event not found.', error: 'Not Found' });
-    expect(fake.statements.some((s) => /status = 'Registered'/.test(s.sql))).toBe(false);
+    expect(fake.statements.some((s) => /r\.status = ANY/.test(s.sql))).toBe(false);
   });
 
   it('VIEW-REG-INFO-03-A: a row with special requirements carries them into the report', async () => {
@@ -597,7 +606,7 @@ describe('VIEW-REG-INFO-05-A (AC5): only the assigned coordinator or the owning 
     const fake = scripted({ event: [reportEvent()], registered: [legacy] });
     const report = await serviceFor(fake.database).getReport(coordinator, EVENT_ID);
     expect(report.registrations).toEqual([
-      { registrationId: 'r9', fullName: '', email: '', contactNumber: '', registeredAt: '2026-10-04T04:00:00.000Z', status: 'Confirmed' },
+      { registrationId: 'r9', fullName: '', email: '', contactNumber: '', registeredAt: '2026-10-04T04:00:00.000Z', status: 'registered' },
     ]);
     expect(report.totalConfirmed).toBe(1);
   });
@@ -623,7 +632,7 @@ describe('VIEW-REG-INFO-02-A (AC2): the report counts only Registered attendees'
     expect(report.availableSpots).toBe(1);
     expect(report.event).toMatchObject({ capacity: 3, name: EVENT_NAME });
     expect(report.registrations.map((r) => r.registrationId)).toEqual(['r1', 'r2']);
-    expect(report.registrations[0]).toMatchObject({ fullName: 'Bob', email: 'bob@example.com', status: 'Confirmed', registeredAt: '2026-10-04T04:00:00.000Z' });
+    expect(report.registrations[0]).toMatchObject({ fullName: 'Bob', email: 'bob@example.com', status: 'registered', registeredAt: '2026-10-04T04:00:00.000Z' });
   });
 
   it('a full event -> availableSpots 0, and never negative when rows exceed the limit', async () => {

@@ -5,13 +5,17 @@
  * frontend are asserted in the colocated .test.tsx files. 09-A's frontend part, 11-E, 12-A, 12-B and 12-C are Blocked:
  * they appear as it.skip and name the blocker.
  *
+ * Sleep policy: the only sleep in the backend waitlist suite is the bounded lock-waiter poll in waitForLockWaiters
+ * (200 attempts, 50 ms apart, throws on timeout; see the comment there and docs/specs/SPM-138-test-cases.md).
+ *
  * Real Nest pipeline and real PostgreSQL (database/postgresql/init 001 to 016 plus backend/migrations/011). Time comes
  * only from the injected CLOCK, which each test sets. Every test builds its own event fixtures and attendees (clones).
  * The shared seed (002_seed_data.sql) is never edited. Oracles are literals from the spec and the AC text.
  *
  * Fixture labels (EVT-70x, ATT-0x, COO-01, ORG-01) are used in comments only. Users have fixed ids and emails per label
  * (fixtureId, namespace 1 for attendees by label, so ATT-04 sorts before ATT-05), so every run builds the same users.
- * Event ids and submission keys are random: no oracle depends on them. Suite clock:
+ * Events have fixed ids (fixedEventId, namespace 4, sequential within a test) and their submission key is the event id, so
+ * every run builds the same events. No oracle depends on an event id's value. Suite clock:
  * T0 = 2026-10-14T12:00:00+08:00 (= 2026-10-14T04:00:00Z). The EVT-701 family opens at T0 - 1 day, closes at
  * T0 + 5 days 23:59 SGT and starts at T0 + 10 days 18:00 SGT, unless a case says otherwise.
  *
@@ -27,7 +31,6 @@
  */
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
 import { PDFParse } from 'pdf-parse';
 import pg from 'pg';
 import request from 'supertest';
@@ -96,6 +99,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
   });
   beforeEach(async () => {
     now = T0;
+    eventSeq = 0;
     const module = await Test.createTestingModule({ imports: [AppModule] })
       .overrideProvider(CLOCK)
       .useValue({ now: () => now })
@@ -150,6 +154,13 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
   const namedUser = (roles: string[], name: string, n: number) =>
     createUser(roles, name, fixtureId(2, n), `spm138-user-${n}@example.com`);
 
+  /**
+   * Fixed event ids (namespace 4, sequential from 1 within each test, reset in beforeEach). The submission key is the event
+   * id itself, which is unique per event, so no run depends on random ids. No oracle reads an event id's value.
+   */
+  let eventSeq = 0;
+  const fixedEventId = () => `40000000-0000-4000-8000-${String((eventSeq += 1)).padStart(12, '0')}`;
+
   /** Seeds an event. Defaults are the EVT-701 window: capacity 3, open at T0 - 1 day, closes T0 + 5 days 23:59. */
   async function seedEvent(options: {
     name?: string;
@@ -162,7 +173,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     coordinatorId?: string;
     organiserId?: string;
   } = {}) {
-    const id = randomUUID();
+    const id = fixedEventId();
     eventIds.push(id);
     const start = new Date(options.start ?? START_T0_PLUS_10D);
     await pool.query(
@@ -181,7 +192,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
         options.opens === undefined ? OPENS_T0_MINUS_1D : options.opens,
         options.closes === undefined ? CLOSES_T0_PLUS_5D : options.closes,
         options.status ?? 'Confirmed',
-        randomUUID(),
+        id,
         options.coordinatorId ?? null,
       ],
     );
@@ -277,9 +288,10 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
    * Polls pg_stat_activity until `count` requests are blocked on a lock taken by a FOR UPDATE statement on the
    * events row.
    *
-   * DOCUMENTED BOUNDED EXCEPTION to the no-sleep rule: this poll is the only timed wait in this file. It makes at most
-   * 200 attempts, 50 ms apart (about 10 s), and throws if the waiter never appears, so it fails loudly instead of racing.
-   * Nothing else in the file waits on time; the lock is released only after the waiter is observed.
+   * DOCUMENTED BOUNDED EXCEPTION to the no-sleep rule: this poll is the only sleep in the backend waitlist suite (this file
+   * and the unit specs under src/registrations). It is a bounded 200 x 50 ms poll on pg_stat_activity (about 10 s); it
+   * throws if the waiter never appears, so it fails loudly instead of racing. The lock is released only after the waiter
+   * is observed. No other sleep may be added to the backend waitlist suite.
    */
   async function waitForLockWaiters(count: number) {
     for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -517,6 +529,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (01-F, dual role): a user holding both Attendee and another role may join.
      */
+    // Kills: K-01F (a user holding another role besides Attendee is refused the join)
     it('JOIN-WAITLIST-01-F: a user who holds both the Attendee and another role may join', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const dual = await namedUser(['ATTENDEE', 'ORGANISER'], 'Dual Role', 2);
@@ -547,6 +560,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
      * Oracle (02-B): EVT-702 (9 of 10) is not full; EVT-704 is full but closed; EVT-705 is full but not yet open.
      * Each has waitlistAvailable false.
      */
+    // Kills: K-02B (waitlistAvailable ignores the registration window)
     it('JOIN-WAITLIST-02-B-INT: waitlistAvailable is false when the event has a free place, is closed, or is not yet open', async () => {
       const notFull = await seedEvent({ limit: 10 });
       for (const label of ['01', '02', '03', '06', '07', '08', '09', '10', '11']) await seedRegistered(notFull, (await attendee(label)).uid);
@@ -594,6 +608,28 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(waiting.body.registration.joinedAt).toBe(T0.toISOString());
       const registered = await mine(eventId, confirmed[0]).expect(200);
       expect(registered.body.registration.joinedAt).toBeUndefined();
+    });
+
+    /**
+     * Oracle (03-D, sad path): the attendee read settles a due list only for an event the attendee may see. A due waitlisted row
+     * on a Planning event (not attendee-visible) is not settled and reads as no registration; a non-attendee's read is refused
+     * (403) and settles nothing. Both rows stay Waitlisted. Kills K-03D (the settle is moved above the visibility filter).
+     */
+    // Kills: K-03D (the attendee read settles a due list before the visibility filter)
+    it('JOIN-WAITLIST-03-D-ERR: a read settles only a visible event (a non-visible due row and a non-attendee read leave the row Waitlisted)', async () => {
+      const hidden = await seedEvent({ status: 'Planning', closes: '2026-10-13T23:59:00+08:00' });
+      const reachable = await seedEvent({ closes: '2026-10-13T23:59:00+08:00' });
+      const waiter = await attendee('04');
+      await seedRow(hidden, waiter.uid, 'Waitlisted');
+      await seedRow(reachable, waiter.uid, 'Waitlisted');
+      const organiser = await namedUser(['ORGANISER'], 'Organiser Probe', 9);
+
+      const read = await mine(hidden, waiter).expect(200);
+      expect(read.body.registration).toBeNull();
+      expect(await statusOf(hidden, waiter.uid)).toBe('Waitlisted');
+
+      await mine(reachable, organiser).expect(403);
+      expect(await statusOf(reachable, waiter.uid)).toBe('Waitlisted');
     });
 
     /**
@@ -670,6 +706,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (05-A): ATT-04 (1), ATT-05 (2), ATT-06 (3) read their own position; the API value matches.
      */
+    // Kills: K-05A (positions run newest first)
     it('JOIN-WAITLIST-05-A: each waitlisted attendee reads their own position', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -759,6 +796,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (06-B): ATT-01 (Confirmed) withdraws; ATT-04 is promoted; ATT-05 is 1 and ATT-06 is 2.
      */
+    // Kills: K-06B (promotion takes the latest entry first)
     it('JOIN-WAITLIST-06-B-STATE: a confirmed attendee withdrawing promotes the first entry and moves the rest forward', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
@@ -775,6 +813,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (06-C): ATT-05 (middle) withdraws; ATT-04 stays 1; ATT-06 becomes 2; ATT-05 is withdrawn.
      */
+    // Kills: K-06C (withdrawn entries count as ahead of the others)
     it('JOIN-WAITLIST-06-C-STATE: the middle entry withdrawing leaves the first place unchanged', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6] = [await attendee('04'), await attendee('05'), await attendee('06')];
@@ -791,6 +830,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
      * Oracle (06-D): ATT-05 withdraws, ATT-07 joins, ATT-04 withdraws. ATT-06 is 1 and ATT-07 is 2; no gaps or duplicates;
      * the API ranking agrees with the database ranking.
      */
+    // Kills: K-06D (withdrawn entries count as ahead of the others)
     it('JOIN-WAITLIST-06-D-INT: withdrawals and a new join leave positions gap-free, with no duplicates', async () => {
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')]);
       const [a4, a5, a6, a7] = [await attendee('04'), await attendee('05'), await attendee('06'), await attendee('07')];
@@ -1095,6 +1135,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     /**
      * Oracle (09-A, added): promote, withdraw, rejoin, promote again gives two notifications, one per promotion.
      */
+    // Kills: K-09A (a promotion notice is written once per attendee and event)
     it('JOIN-WAITLIST-09-A-INT: a second promotion after a rejoin writes a second notification', async () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedFullGala(att);
@@ -1158,6 +1199,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
      * The registration window closes at 23:59 so the window itself does not remove the entry before the start.
      * Oracle (10-C C): at 18:30 the read still shows Waitlisted (the FE hides the Withdraw control).
      */
+    // Kills: K-10C (withdrawal is allowed at the exact event start)
     it('JOIN-WAITLIST-10-C-BND: withdrawal from the list stops at the event start, which is exclusive', async () => {
       const startDay = '2026-11-10T18:00:00+08:00';
       const closes = '2026-11-10T23:59:00+08:00';
@@ -1437,15 +1479,15 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
     });
   });
 
-  // JOIN-WAITLIST-14: the SPM-63 report shows Confirmed attendees only (the rule is unchanged)
-  describe('Cross-cutting: the SPM-63 report lists Confirmed attendees only (JOIN-WAITLIST-14)', () => {
+  // JOIN-WAITLIST-14: the SPM-63 report lists every status (SPM-138 owner decision); totals stay Confirmed-only
+  describe('Cross-cutting: the SPM-63 report lists every status; totals count Confirmed only (JOIN-WAITLIST-14)', () => {
     /**
-     * Oracle (14-A): EVT-706 clone (ATT-04 to ATT-06 waiting). COO-01 and ORG-01 see total 3 with rows for ATT-01 to ATT-03.
-     * The report, CSV and PDF text hold no name or email of ATT-04 to ATT-06. After ATT-01 withdraws and ATT-04 is promoted:
-     * total 3, rows ATT-02, ATT-03 and ATT-04.
-     * Kills M27: the report counts or lists waitlisted entries.
+     * Oracle (14-A, owner decision): EVT-706 clone (ATT-04 to ATT-06 waiting). COO-01 and ORG-01 see the three Confirmed rows
+     * and the three waitlisted rows, with positions 1 to 3, and Confirmed total 3 with waitlist count 3. CSV and PDF carry
+     * the same rows and the Waitlisted label. After ATT-01 withdraws and ATT-04 is promoted: ATT-04 reads as registered, ATT-05
+     * and ATT-06 stay waitlisted, and ATT-01 is listed as withdrawn (the rest of the list, after the waitlist).
      */
-    it('JOIN-WAITLIST-14-A: the report, CSV and PDF list only confirmed attendees', async () => {
+    it('JOIN-WAITLIST-14-A: the report, CSV and PDF list every status; totals count Confirmed only', async () => {
       const coordinator = await namedUser(['COORDINATOR'], 'Coordinator COO', 3);
       const organiser = await namedUser(['ORGANISER'], 'Organiser ORG', 4);
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
@@ -1454,25 +1496,28 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       const waiting = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of waiting) await joinAs(eventId, who);
 
-      const waitingNames = ['Attendee 04', 'Attendee 05', 'Attendee 06'];
-      const waitingEmails = waiting.map((who) => who.email);
       for (const who of [coordinator, organiser]) {
         const report = await request(app.getHttpServer()).get(`/api/events/${eventId}/registrations/report`).set('Cookie', who.cookie).expect(200);
-        expect(report.body.totalConfirmed).toBe(3);
-        expect(report.body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Queue 01', 'Queue 02', 'Queue 03']);
+        expect([report.body.totalConfirmed, report.body.waitlistCount, report.body.availableSpots]).toEqual([3, 3, 0]); // capacity 3
+        expect(report.body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual([
+          'Queue 01', 'Queue 02', 'Queue 03', 'Attendee 04', 'Attendee 05', 'Attendee 06',
+        ]);
+        expect(report.body.registrations.slice(3).map((r: { waitlistPosition: number }) => r.waitlistPosition)).toEqual([1, 2, 3]);
         const csv = (await download(app, `/api/events/${eventId}/registrations/report/export?format=csv`, who)).toString('utf8');
         const pdf = await pdfText(await download(app, `/api/events/${eventId}/registrations/report/export?format=pdf`, who));
-        for (const text of [csv, pdf, JSON.stringify(report.body)]) {
-          for (const name of waitingNames) expect(text).not.toContain(name);
-          for (const email of waitingEmails) expect(text).not.toContain(email);
-        }
+        expect(csv).toContain('Attendee 04');
+        expect(csv).toContain(',Waitlisted\r\n');
+        expect(pdf).toContain('Waitlisted');
       }
 
-      // ATT-01 withdraws: ATT-04 (the first entry) is promoted and appears in the report; ATT-05 and ATT-06 do not.
+      // ATT-01 withdraws: ATT-04 (the first entry) is promoted; ATT-01 is listed as withdrawn after the waitlist.
       await withdrawById((await rowOf(eventId, att[0].uid)).id, att[0]).expect(200);
       const after = await request(app.getHttpServer()).get(`/api/events/${eventId}/registrations/report`).set('Cookie', coordinator.cookie).expect(200);
-      expect(after.body.totalConfirmed).toBe(3);
-      expect(after.body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Queue 02', 'Queue 03', 'Attendee 04']);
+      expect([after.body.totalConfirmed, after.body.waitlistCount]).toEqual([3, 2]);
+      expect(after.body.registrations.map((r: { fullName: string; status: string }) => [r.fullName, r.status])).toEqual([
+        ['Queue 02', 'registered'], ['Queue 03', 'registered'], ['Attendee 04', 'registered'],
+        ['Attendee 05', 'waitlisted'], ['Attendee 06', 'waitlisted'], ['Queue 01', 'withdrawn'],
+      ]);
     });
   });
 

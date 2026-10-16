@@ -6,12 +6,15 @@ import { useRegistrationReport } from "@/features/registrations/components/repor
 import { useReportExport } from "@/features/registrations/components/report/useReportExport";
 import {
   REPORT_MESSAGES,
+  REPORT_STATUS_FILTERS,
+  REPORT_STATUS_LABELS,
   formatReportDateSgt,
   formatReportDateTimeSgt,
   filterRegistrations,
   type FilterType,
   type RegistrationReport,
   type ReportRow,
+  type ReportStatusFilter,
 } from "@/features/registrations/lib/registrationReport";
 
 const SEARCH_DEBOUNCE_MS = 150;
@@ -67,7 +70,7 @@ function Summary({
   registrationOpensAt?: string;
   registrationClosesAt?: string;
 }) {
-  const { event, totalConfirmed, availableSpots } = report;
+  const { event, totalConfirmed, availableSpots, waitlistCount } = report;
   return (
     <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm dark:border-gray-700 dark:bg-gray-900/40">
       <p className="font-medium text-gray-900 dark:text-gray-100">
@@ -79,7 +82,7 @@ function Summary({
           {registrationClosesAt ? formatReportDateTimeSgt(registrationClosesAt) : "—"}
         </p>
       )}
-      <p className="text-gray-600 dark:text-gray-400">No waitlist</p>
+      <p className="text-gray-600 dark:text-gray-400">{waitlistCount} on the waitlist</p>
       <p className="text-gray-600 dark:text-gray-400">
         Event: {formatReportDateTimeSgt(event.startDateTime)} – {formatReportDateTimeSgt(event.endDateTime)}
       </p>
@@ -125,7 +128,10 @@ function RegistrationCard({ row, expanded, onToggle }: { row: ReportRow; expande
             <dt className="font-medium text-gray-500 dark:text-gray-400">Registered at</dt>
             <dd className="text-gray-900 dark:text-gray-100">{formatReportDateTimeSgt(row.registeredAt)}</dd>
             <dt className="font-medium text-gray-500 dark:text-gray-400">Status</dt>
-            <dd className="text-gray-900 dark:text-gray-100">{row.status}</dd>
+            <dd className="text-gray-900 dark:text-gray-100">
+              {REPORT_STATUS_LABELS[row.status]}
+              {row.status === "waitlisted" && row.waitlistPosition !== undefined ? ` (position ${row.waitlistPosition})` : ""}
+            </dd>
           </dl>
         </div>
       )}
@@ -139,14 +145,16 @@ function RegistrationCard({ row, expanded, onToggle }: { row: ReportRow; expande
  * CSV/PDF are the server's exports of the full report; they are not narrowed by the search or filter.
  */
 export function RegistrationsModal({ eventId, registrationOpensAt, registrationClosesAt, onClose }: RegistrationsModalProps) {
-  const { state, retry } = useRegistrationReport(eventId);
-  const { downloading, exportError, exportAs } = useReportExport(eventId);
+  const [statusFilter, setStatusFilter] = useState<ReportStatusFilter>("all");
+  const { state, retry } = useRegistrationReport(eventId, statusFilter);
+  const { downloading, exportError, exportAs } = useReportExport(eventId, statusFilter);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<FilterType>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const searchId = useId();
   const filterId = useId();
+  const statusFilterId = useId();
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput), SEARCH_DEBOUNCE_MS);
@@ -204,6 +212,21 @@ export function RegistrationsModal({ eventId, registrationOpensAt, registrationC
               <label htmlFor={filterId} className="text-gray-600 dark:text-gray-400">
                 Filter:
               </label>
+              <label htmlFor={statusFilterId} className="text-gray-600 dark:text-gray-400">
+                Status:
+              </label>
+              <select
+                id={statusFilterId}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as ReportStatusFilter)}
+                className="min-w-[7.5rem] rounded-lg border border-gray-300 bg-white py-2 pl-2 pr-6 text-sm text-gray-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-gray-600 dark:bg-gray-900 dark:text-gray-100"
+              >
+                {REPORT_STATUS_FILTERS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
               <select
                 id={filterId}
                 value={filter}

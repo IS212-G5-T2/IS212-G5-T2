@@ -5,6 +5,11 @@
 export const SUITES = {
   // Unit specs for the registrations module, including the waitlist rules and the join rules.
   unit: { args: ['run', 'src/registrations'] },
+  // SPM-63 report (every status listed, status filter, Status column in the exports) and its e2e suite.
+  report: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/registrations.report.e2e-spec.ts'],
+    needsEnv: ['DATABASE_URL'],
+  },
   // PostgreSQL integration suite for the waitlist; needs DATABASE_URL with database/postgresql/init 001 to 016 and backend/migrations/011 applied.
   e2e: {
     args: ['run', '--config', './vitest.config.e2e.ts', 'test/registrations.waitlist.e2e-spec.ts'],
@@ -39,7 +44,6 @@ const JOIN_SETTLE_WINDOW = `      await settleLocked(client, eventId, now);
 const JOIN_BODY = '    const attendee = this.requireAttendee(identity);\n    this.requireEmptyBody(body);\n    this.requireEventId(eventId);';
 const JOIN_ROLE_ANCHOR = '    const attendee = this.requireAttendee(identity);\n    this.requireEmptyBody(body);';
 const WITHDRAW_LOOKUP = 'WHERE r.id = $1 AND r.attendee_id = $2';
-const REPORT_QUERY = "WHERE event_id = $1 AND status = 'Registered'\n        ORDER BY created_at ASC, id ASC";
 const LEAVE_COMMENT = '        // SPM-138: leaving the list releases no place, promotes nobody and sends no notification.';
 const PROMOTION_RETURN = '  return promoted;\n}';
 const SETTLE_CLOSED_CLAUSE = `        AND (NOT e.registration_enabled
@@ -128,9 +132,7 @@ export const MUTANTS = [
   { id: 'M26', name: 'the cancel releaser also cancels withdrawn entries', file: RELEASER,
     edits: [["WHERE event_id = $1 AND status = 'Waitlisted'", "WHERE event_id = $1 AND status IN ('Waitlisted', 'Withdrawn')"]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-12-C-REL')] },
-  { id: 'M27', name: 'the SPM-63 report lists waiting entries as well as confirmed ones', file: SERVICE,
-    edits: [[REPORT_QUERY, "WHERE event_id = $1 AND status IN ('Registered', 'Waitlisted')\n        ORDER BY created_at ASC, id ASC"]],
-    suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-14-A')] },
+  // M27 (retired, SPM-138 owner decision): the report lists every status; see the report mutants OWN-1 to OWN-5.
   { id: 'M28', name: 'the position is capped at 500', file: POSITION,
     edits: [['SELECT 1 + COUNT(*)::integer FROM event_registrations o', 'SELECT LEAST(500, 1 + COUNT(*))::integer FROM event_registrations o']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-13-A-BND')] },
@@ -259,3 +261,89 @@ export const MUTANTS = [
     edits: [['  if (!due.rows[0]) return 0;\n', '']],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-11-H-INT-NODUE')] },
 ];
+
+// ---- Kills-claim mutants (SPM-138 test-quality round). Each Kills line in the test files names one of these IDs. Each
+// mutant maps to exactly one test, so the runner reports that test as the killer. Copies reuse the edits of an existing
+// mutant; the others are new edits at a unique anchor.
+const byId = Object.fromEntries(MUTANTS.map((m) => [m.id, m]));
+const copyOf = (base, id, name, mapping) => MUTANTS.push({ ...byId[base], id, name, testMappings: [mapping] });
+const newMutant = (id, name, file, suites, edits, mapping) => MUTANTS.push({ id, name, file, suites, edits, testMappings: [mapping] });
+const JOIN_NOT_FOUND = "      if (!event || !ATTENDEE_VISIBLE.includes(event.status))";
+
+copyOf('M9', 'K-05A', 'positions run newest first (kills the 05-A position read)', e2e('JOIN-WAITLIST-05-A'));
+copyOf('M16', 'K-06B', 'promotion takes the latest entry first (kills 06-B)', e2e('JOIN-WAITLIST-06-B-STATE'));
+copyOf('M12', 'K-06C', 'withdrawn entries count as ahead of the others (kills 06-C)', e2e('JOIN-WAITLIST-06-C-STATE'));
+copyOf('M12', 'K-06D', 'withdrawn entries count as ahead of the others (kills 06-D)', e2e('JOIN-WAITLIST-06-D-INT'));
+copyOf('CAP-1', 'K-02B', 'waitlistAvailable ignores the registration window (kills 02-B)', e2e('JOIN-WAITLIST-02-B-INT'));
+copyOf('M6', 'K-01DOPEN', 'the join skips the not-yet-open check (unit, kills 01-D open)', unitJoin('JOIN-WAITLIST-01-D-ERR-UNIT-OPEN'));
+
+newMutant('K-01F', 'a user holding another role besides Attendee is refused the join', SERVICE, ['e2e'],
+  [['    const attendee = this.requireAttendee(identity);\n    this.requireEmptyBody(body);\n    this.requireEventId(eventId);\n\n    return this.database.transaction(async (client) => {\n      const selected',
+    '    const attendee = this.requireAttendee(identity?.roles.length === 1 ? identity : undefined);\n    this.requireEmptyBody(body);\n    this.requireEventId(eventId);\n\n    return this.database.transaction(async (client) => {\n      const selected']],
+  e2e('JOIN-WAITLIST-01-F'));
+newMutant('K-09A', 'a promotion notice is written only once per attendee and event', PROMO, ['e2e'],
+  [["       VALUES ($1, $2, 'WaitlistPromoted', $3, $4, $5::uuid)`,",
+    "       SELECT $1, $2, 'WaitlistPromoted', $3, $4, $5::uuid WHERE NOT EXISTS (SELECT 1 FROM notifications n WHERE n.recipient_id = $2 AND n.type = 'WaitlistPromoted' AND n.related_event_id = $4)`,"]],
+  e2e('JOIN-WAITLIST-09-A-INT'));
+newMutant('K-10C', 'withdrawal from the list is allowed at the exact event start (the start is not exclusive)', 'src/registrations/withdrawal/event-start.ts', ['e2e'],
+  [['  return now.getTime() >= event.startDateTime.getTime();', '  return now.getTime() > event.startDateTime.getTime();']],
+  e2e('JOIN-WAITLIST-10-C-BND'));
+newMutant('K-01EREG', 'a confirmed attendee joining gets the waitlist duplicate instead of the registration duplicate', SERVICE, ['unit'],
+  [["      if (existing.rows[0]?.status === 'Registered') throw this.duplicate();\n      if (existing.rows[0]?.status === 'Waitlisted') throw this.waitlistDuplicate();",
+    "      if (existing.rows[0]?.status === 'Waitlisted') throw this.waitlistDuplicate();"]],
+  unitJoin('JOIN-WAITLIST-01-E-ERR-UNIT-REG'));
+newMutant('K-01FNF', 'a join on an unknown event is not refused as not found', SERVICE, ['unit'],
+  [["const selected = await client.query('SELECT * FROM events WHERE id = $1 FOR UPDATE', [eventId]);\n      const event = selected.rows[0];\n" + JOIN_NOT_FOUND,
+    "const selected = await client.query('SELECT * FROM events WHERE id = $1 FOR UPDATE', [eventId]);\n      const event = selected.rows[0];\n      if (event && !ATTENDEE_VISIBLE.includes(event.status))"]],
+  unitJoin('JOIN-WAITLIST-01-F-ERR-UNIT-404'));
+newMutant('K-04CTX', 'the join runs its reads and writes outside a transaction', SERVICE, ['unit'],
+  [["    return this.database.transaction(async (client) => {\n      const selected = await client.query('SELECT * FROM events WHERE id = $1 FOR UPDATE', [eventId]);",
+    "    return (async (client) => {\n      const selected = await client.query('SELECT * FROM events WHERE id = $1 FOR UPDATE', [eventId]);"],
+   ["        message: MESSAGES.waitlistJoined(event.event_name, value),\n      };\n    });\n  }",
+    "        message: MESSAGES.waitlistJoined(event.event_name, value),\n      };\n    })(this.database);\n  }"]],
+  unitJoin('JOIN-WAITLIST-04-C-INT-TX'));
+newMutant('K-01EREGI', 'a waiting attendee is not refused a direct registration (the waitlist check on register is removed)', SERVICE, ['unit'],
+  [["      if (existing.rows[0]?.status === 'Waitlisted') throw this.waitlistDuplicate();\n\n      // Only Registered rows hold a place", "\n      // Only Registered rows hold a place"]],
+  unitJoin('JOIN-WAITLIST-01-E-ERR-UNIT-REGISTER'));
+newMutant('K-01AOPEN', 'an event with no opening bound is treated as not yet open', WINDOW, ['unit'],
+  [['  if (event.opensAt && instant < event.opensAt.getTime()) return \'not_open\';', '  if (!event.opensAt || instant < (event.opensAt?.getTime() ?? 0)) return \'not_open\';']],
+  unitJoin('JOIN-WAITLIST-01-A-BND-UNIT-OPEN-ENDED'));
+newMutant('K-04CRACE', 'a lost race on the insert is not refused (the guard is removed)', SERVICE, ['unit'],
+  [['      if (!saved.rows[0]) throw this.waitlistDuplicate();\n', '']],
+  unitJoin('JOIN-WAITLIST-04-C-ERR-GUARD'));
+newMutant('K-10ECAS', 'a waiting withdrawal that loses the compare-and-set does not answer 422', SERVICE, ['unit'],
+  [['        if (!left.rows[0]) throw this.alreadyWithdrawn();\n', '']],
+  unitJoin('JOIN-WAITLIST-10-E-ERR-CAS'));
+newMutant('K-08CGUARD', 'a missing event promotes with no guard (the zero-return is removed)', PROMO, ['unit'],
+  [['  if (!event.rows[0]) return 0;\n', '']],
+  { suite: 'unit', file: 'src/registrations/waitlist/waitlist-rules.spec.ts', title: 'JOIN-WAITLIST-08-C-ERR-GUARD' });
+
+newMutant('K-03D', 'the attendee read settles a due list before the visibility filter (the settle is moved above it)', SERVICE, ['e2e'],
+  [["    let result = await read();\n    if (result.rows[0]?.status === 'Waitlisted' && (await settleIfDue(this.database, eventId, this.clock.now())) > 0)\n      result = await read();",
+    "    await settleIfDue(this.database, eventId, this.clock.now());\n    let result = await read();"]],
+  e2e('JOIN-WAITLIST-03-D-ERR'));
+
+// ---- SPM-138 owner decision: the SPM-63 report lists every status. Five mutants guard the new behaviour (suite 'report').
+const RPT = 'test/registrations.report.e2e-spec.ts';
+const reportTest = (title) => ({ suite: 'report', file: RPT, title });
+const REPORT_SERVICE = 'src/registrations/registrations.service.ts';
+const REPORT_EXPORT = 'src/registrations/report/export.service.ts';
+const REPORT_CONTROLLER = 'src/registrations/registrations.controller.ts';
+const REPORT_STATUS = 'src/registrations/report/report-status.ts';
+MUTANTS.push(
+  { id: 'OWN-1', name: 'the status filter is ignored (the report always lists every status)', file: REPORT_SERVICE, suites: ['report'],
+    edits: [['        WHERE r.event_id = $1 AND r.status = ANY($2::text[])', '        WHERE r.event_id = $1 AND ($2::text[] IS NOT NULL OR r.status = ANY($2::text[]))']],
+    testMappings: [reportTest('REP-STATUS-02-A')] },
+  { id: 'OWN-2', name: 'Waitlisted entries are excluded from the unfiltered report', file: REPORT_STATUS, suites: ['report'],
+    edits: [['export const ALL_REPORT_DB_STATUSES: readonly string[] = REPORT_STATUSES.map((s) => REPORT_DB_STATUS[s]);', "export const ALL_REPORT_DB_STATUSES: readonly string[] = REPORT_STATUSES.filter((s) => s !== 'waitlisted').map((s) => REPORT_DB_STATUS[s]);"]],
+    testMappings: [reportTest('REP-STATUS-01-A')] },
+  { id: 'OWN-3', name: 'the waitlist count is added to the Confirmed total (waitlisted entries counted as capacity)', file: REPORT_SERVICE, suites: ['report'],
+    edits: [['      totalConfirmed: confirmed,', '      totalConfirmed: confirmed + counts.rows[0].waitlisted,']],
+    testMappings: [reportTest('REP-STATUS-01-B')] },
+  { id: 'OWN-4', name: 'the CSV export has no Status column', file: REPORT_EXPORT, suites: ['report'],
+    edits: [["  'Registration Date',\n  'Status',\n] as const;", "  'Registration Date',\n] as const;"]],
+    testMappings: [reportTest('REP-STATUS-03-A')] },
+  { id: 'OWN-5', name: 'the export ignores the status filter (CSV and PDF list every status)', file: REPORT_CONTROLLER, suites: ['report'],
+    edits: [['    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);', '    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);']],
+    testMappings: [reportTest('REP-STATUS-03-A')] },
+);

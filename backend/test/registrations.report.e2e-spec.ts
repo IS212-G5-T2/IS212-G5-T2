@@ -171,11 +171,24 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   async function seedRegistration(
     eventId: string,
     attendeeId: string,
-    options: { fullName: string; email: string; contact?: string | null; at: string; status?: 'Registered' | 'Withdrawn' | 'Cancelled'; id?: string },
+    options: {
+      fullName: string;
+      email: string;
+      contact?: string | null;
+      at: string;
+      status?: 'Registered' | 'Withdrawn' | 'Cancelled' | 'Waitlisted' | 'Removed';
+      id?: string;
+      /** Waitlisted rows: the join instant and the waitlist sequence (the position's tie-break). */
+      joinedAt?: string;
+      waitlistSeq?: number;
+      /** The instant the status last changed (orders the withdrawn, removed and cancelled rows). Defaults to `at`. */
+      updatedAt?: string;
+    },
   ) {
     const result = await pool.query<{ id: string }>(
-      `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
+      `INSERT INTO event_registrations (id, event_id, attendee_id, status, full_name, email, contact_number, created_at, updated_at,
+                                        joined_at, waitlist_seq)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
       [
         options.id ?? uuid('63a00000', 4095 - ++seq),
         eventId,
@@ -185,6 +198,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         options.email,
         options.contact === undefined ? '98765432' : options.contact,
         new Date(options.at),
+        new Date(options.updatedAt ?? options.at),
+        options.joinedAt ? new Date(options.joinedAt) : null,
+        options.waitlistSeq ?? null,
       ],
     );
     return result.rows[0].id;
@@ -239,7 +255,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     // Oracle (SPEC 01-A): COO-01 assigned to EVT-101 gets 200 with exactly REG-9007 then REG-9001, in registration-date
     // order; REG-9003 (Withdrawn) is absent. This is the case's own fixture: two Confirmed rows and one Withdrawn.
     // Kills: assignment lookup on the wrong column (the real coordinator is refused); Withdrawn row included.
-    it('VIEW-REG-INFO-01-A: the assigned coordinator gets 200 and exactly REG-9007 and REG-9001 in date order', async () => {
+    it('VIEW-REG-INFO-01-A: the assigned coordinator gets 200 with REG-9007 and REG-9001 in date order, then the withdrawn REG-9003', async () => {
       // Arrange: no REG-EXTRA-01 here, so the report holds exactly the rows the case names.
       const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
 
@@ -249,9 +265,10 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert
       expect(res.status).toBe(200);
       const body = JSON.parse(res.text);
-      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice]);
-      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Alice Tan']); // Ben Lim (REG-9003) absent
-      expect(body.totalConfirmed).toBe(2);
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice, REG_BEN]);
+      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Alice Tan', 'Ben Lim']);
+      expect(body.registrations.map((r: { status: string }) => r.status)).toEqual(['registered', 'registered', 'withdrawn']);
+      expect(body.totalConfirmed).toBe(2); // Confirmed only
     });
 
     // VIEW-REG-INFO-01-B
@@ -271,13 +288,13 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       const third = await reportJson(evt101, coo01.cookie);
 
       // Assert
-      expect([first.event.name, first.registrations.length]).toEqual(['Tech Talk: Cloud 101', 3]);
+      expect([first.event.name, first.registrations.length]).toEqual(['Tech Talk: Cloud 101', 4]);
       expect([second.event.name, second.registrations.map((r: { fullName: string }) => r.fullName)]).toEqual([
         'Data Science Meetup',
         ['Dev Patel', 'Ben Lim'], // date order: Dev 27 Sep, Ben 28 Sep
       ]);
       expect([second.event.capacity, second.totalConfirmed, second.availableSpots]).toEqual([2, 2, 0]);
-      expect([third.event.name, third.registrations.length]).toEqual(['Tech Talk: Cloud 101', 3]);
+      expect([third.event.name, third.registrations.length]).toEqual(['Tech Talk: Cloud 101', 4]);
     });
 
     // VIEW-REG-INFO-01-C
@@ -299,7 +316,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(asOrganiser.text).not.toContain(SENTINEL);
       expect(asOrganiser.text).not.toContain('org-sentinel@example.com');
       const body = JSON.parse(asOrganiser.text);
-      expect(Object.keys(body).sort()).toEqual(['availableSpots', 'event', 'generatedAt', 'registrations', 'totalConfirmed']);
+      expect(Object.keys(body).sort()).toEqual(['availableSpots', 'event', 'generatedAt', 'registrations', 'totalConfirmed', 'waitlistCount']);
       expect(Object.keys(body.event).sort()).toEqual(['capacity', 'endDateTime', 'id', 'name', 'startDateTime']);
       expect(Object.keys(body.registrations[0]).sort()).toEqual([
         'contactNumber', 'email', 'fullName', 'registeredAt', 'registrationId', 'status',
@@ -312,7 +329,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     // Oracle: a Cancelled registration is neither listed nor counted; only Registered rows are reported (the same
     // rule as the Withdrawn row in the 01-A fixture).
     // Kills: the report counting every non-Withdrawn row (a Cancelled attendee shown and counted).
-    it('VIEW-REG-DET-02-B: a Cancelled registration is absent from the report and not counted', async () => {
+    it('VIEW-REG-DET-02-B: a Cancelled registration is listed with status cancelled and is not counted', async () => {
       const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
       await addRegistration(eventId, { id: 'eeeeeeee-0000-4000-8000-00000000c001', fullName: 'Cara Teo', email: 'cara.teo@example.com', contact: '93334444', at: CHLOE_AT, status: 'Cancelled' });
 
@@ -320,14 +337,16 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       expect(res.status).toBe(200);
       const body = JSON.parse(res.text);
-      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice]);
+      // Order: Confirmed by registration date, then the rest by the instant their status last changed (Ben 28 Sep, Cara 29 Sep).
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([regs.dev, regs.alice, REG_BEN, 'eeeeeeee-0000-4000-8000-00000000c001']);
+      expect(body.registrations.map((r: { status: string }) => r.status)).toEqual(['registered', 'registered', 'withdrawn', 'cancelled']);
       expect(body.totalConfirmed).toBe(2);
     });
 
     // VIEW-REG-INFO-02-A
     // Oracle (SPEC 02-A, R5): 3 Confirmed + 1 Withdrawn, capacity 50 -> totalConfirmed 3, availableSpots 47, 3 rows.
     // Kills: count taken from all rows (4); capacity arithmetic wrong; Withdrawn counted.
-    it('VIEW-REG-INFO-02-A: counts Confirmed only and derives the available spots', async () => {
+    it('VIEW-REG-INFO-02-A: counts Confirmed only and derives the available spots (the withdrawn row is listed, not counted)', async () => {
       // Arrange
       const { eventId, coo01 } = await seedEvt101();
 
@@ -337,7 +356,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       // Assert
       expect(body.totalConfirmed).toBe(3);
       expect(body.availableSpots).toBe(47); // 50 - 3
-      expect(body.registrations).toHaveLength(3);
+      expect(body.waitlistCount).toBe(0);
+      expect(body.registrations).toHaveLength(4); // three Confirmed and the withdrawn row
       expect(body.event.capacity).toBe(50);
     });
 
@@ -391,7 +411,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       // Assert
       expect([after.totalConfirmed, after.availableSpots]).toEqual([2, 48]);
-      expect(after.registrations.map((r: { registrationId: string }) => r.registrationId)).not.toContain(regs.alice);
+      // The withdrawn row is still listed, with its new status; it is no longer counted.
+      expect(after.registrations.find((r: { registrationId: string }) => r.registrationId === regs.alice)).toMatchObject({ status: 'withdrawn' });
     });
   });
 
@@ -409,9 +430,10 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       // Assert
       expect(body.registrations).toEqual([
-        { registrationId: regs.dev, fullName: 'Dev Patel', email: 'dev.patel@example.com', contactNumber: '87654321', registeredAt: DEV_AT, status: 'Confirmed' },
-        { registrationId: regs.alice, fullName: 'Alice Tan', email: 'alice.tan@example.com', contactNumber: '98765432', registeredAt: ALICE_AT, status: 'Confirmed' },
-        { registrationId: regs.chloe, fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contactNumber: '91234567', registeredAt: CHLOE_AT, status: 'Confirmed' },
+        { registrationId: regs.dev, fullName: 'Dev Patel', email: 'dev.patel@example.com', contactNumber: '87654321', registeredAt: DEV_AT, status: 'registered' },
+        { registrationId: regs.alice, fullName: 'Alice Tan', email: 'alice.tan@example.com', contactNumber: '98765432', registeredAt: ALICE_AT, status: 'registered' },
+        { registrationId: regs.chloe, fullName: 'Chloe Ng', email: 'chloe.ng@example.com', contactNumber: '91234567', registeredAt: CHLOE_AT, status: 'registered' },
+        { registrationId: REG_BEN, fullName: 'Ben Lim', email: 'ben.lim@example.com', contactNumber: '90001111', registeredAt: BEN_AT, status: 'withdrawn' },
       ]);
       expect(body.generatedAt).toBe('2026-09-29T04:00:00.000Z'); // the injected clock, ISO UTC
       expect(body.event.startDateTime).toBe('2026-10-09T10:00:00.000Z');
@@ -476,7 +498,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         '﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status\r\n' +
           'Dev Patel,dev.patel@example.com,87654321,,27 Sep 2026 15:00,Confirmed\r\n' +
           'Alice Tan,alice.tan@example.com,98765432,,28 Sep 2026 10:30,Confirmed\r\n' +
-          'Chloe Ng,chloe.ng@example.com,91234567,,29 Sep 2026 09:00,Confirmed\r\n',
+          'Chloe Ng,chloe.ng@example.com,91234567,,29 Sep 2026 09:00,Confirmed\r\n' +
+          'Ben Lim,ben.lim@example.com,90001111,,28 Sep 2026 12:00,Withdrawn\r\n',
       );
     });
 
@@ -591,7 +614,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         'Generated 29 Sep 2026 12:00 SGT',
         '3 Attendees Registered (3 / 50)',
         'Name', 'Email', 'Contact Number', 'Special Requirements', 'Registration Date', 'Status',
-        'Dev Patel', 'Alice Tan', 'Chloe Ng',
+        'Dev Patel', 'Alice Tan', 'Chloe Ng', 'Ben Lim', 'Withdrawn',
       ];
       let cursor = 0;
       for (const piece of wanted) {
@@ -599,7 +622,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
         expect(at, `"${piece}" should appear after position ${cursor}`).toBeGreaterThanOrEqual(0);
         cursor = at + piece.length;
       }
-      expect(text).not.toContain('Ben Lim');
+      expect(text).toContain('Ben Lim');
     });
 
     // VIEW-REG-INFO-04-B-LONG
@@ -923,7 +946,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       const body = await reportJson(eventId, coo01.cookie);
 
       // Assert
-      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Chloe Ng', 'Alice Tan']);
+      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Chloe Ng', 'Alice Tan', 'Ben Lim']);
       expect(body.registrations[2].registrationId).toBe(regs.alice); // same row, reactivated in place
       expect(body.registrations[2].registeredAt).not.toBe(ALICE_AT);
       expect(new Date(body.registrations[2].registeredAt).getTime()).toBeGreaterThan(new Date(CHLOE_AT).getTime());
@@ -949,7 +972,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     // VIEW-REG-INFO-06-B
     // Oracle (SPEC 06-B BE): the report excludes REG-9001 immediately after the SPM-120 call, for the organiser session as well.
     // Kills: only the count updating (rows kept); withdrawn row kept until a refresh.
-    it('VIEW-REG-INFO-06-B: a withdrawal removes the row immediately for the organiser', async () => {
+    it('VIEW-REG-INFO-06-B: a withdrawal moves the row to the withdrawn group immediately for the organiser', async () => {
       // Arrange
       const { eventId, org01, att01, regs } = await seedEvt101();
       await request(app.getHttpServer()).post(`/api/registrations/${regs.alice}/withdraw`).set('Cookie', att01.cookie).expect(200);
@@ -958,8 +981,143 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       const body = await reportJson(eventId, org01.cookie);
 
       // Assert
-      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Chloe Ng']);
+      expect(body.registrations.map((r: { fullName: string }) => r.fullName)).toEqual(['Dev Patel', 'Chloe Ng', 'Ben Lim', 'Alice Tan']);
+      expect(body.registrations.map((r: { status: string }) => r.status)).toEqual(['registered', 'registered', 'withdrawn', 'withdrawn']);
       expect(body.totalConfirmed).toBe(2);
+    });
+  });
+
+  // SPM-138 owner decision: the report lists every registration status. Totals and spots stay Confirmed-only; the status
+  // filter narrows the rows. Order: Confirmed by registration date, Waitlisted by position, then the rest by the instant
+  // their status last changed.
+  describe('SPM-138 owner decision: the report lists every status and filters by status', () => {
+    const WAIT_1 = 'ffffffff-0000-4000-8000-000000000001';
+    const WAIT_2 = 'ffffffff-0000-4000-8000-000000000002';
+    const REMOVED = 'ffffffff-0000-4000-8000-000000000003';
+    const CANCELLED = 'ffffffff-0000-4000-8000-000000000004';
+
+    /** EVT-S: DEV and ALICE Confirmed; two waitlisted (ATT-W1 joined first); one withdrawn, one removed, one cancelled. */
+    async function seedAllStatuses() {
+      const coo = await createUser('COORDINATOR', 'Daniel Koh');
+      const org = await createUser('ORGANISER', 'Farid Rahman');
+      const eventId = await seedEvent({ name: 'Status Gala', organiserId: org.uid, coordinatorId: coo.uid });
+      const dev = await addRegistration(eventId, { id: REG_DEV, fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
+      await addRegistration(eventId, { id: REG_ALICE, fullName: 'Alice Tan', email: 'alice.tan@example.com', contact: '98765432', at: ALICE_AT });
+      // The logged-in attendee owns the first waitlisted entry, so the attendee read can be checked on it.
+      const attendee = await createUser('ATTENDEE', 'Wei Ling', { login: true });
+      const w1 = await seedRegistration(eventId, attendee.uid, {
+        id: WAIT_1, fullName: 'Wei Ling', email: 'wei.ling@example.com', contact: '91110001', at: '2026-09-29T02:00:00.000Z',
+        status: 'Waitlisted', joinedAt: '2026-09-29T02:00:00.000Z', waitlistSeq: 1,
+      });
+      const w2 = await addRegistration(eventId, {
+        id: WAIT_2, fullName: 'Raj Kumar', email: 'raj.kumar@example.com', contact: '91110002', at: '2026-09-29T02:05:00.000Z',
+        status: 'Waitlisted', joinedAt: '2026-09-29T02:05:00.000Z', waitlistSeq: 2,
+      });
+      await addRegistration(eventId, { id: REG_BEN, fullName: 'Ben Lim', email: 'ben.lim@example.com', contact: '90001111', at: BEN_AT, status: 'Withdrawn', updatedAt: '2026-09-28T05:00:00.000Z' });
+      await addRegistration(eventId, { id: REMOVED, fullName: 'Mei Tan', email: 'mei.tan@example.com', contact: '91110003', at: '2026-09-27T01:00:00.000Z', status: 'Removed', updatedAt: '2026-09-28T06:00:00.000Z' });
+      await addRegistration(eventId, { id: CANCELLED, fullName: 'Cara Teo', email: 'cara.teo@example.com', contact: '93334444', at: '2026-09-27T02:00:00.000Z', status: 'Cancelled', updatedAt: '2026-09-29T01:30:00.000Z' });
+      return { eventId, coo, org, dev, w1, w2, attendee };
+    }
+
+    // REP-STATUS-01-A
+    it('REP-STATUS-01-A: a coordinator sees all five statuses in the defined order, with positions and join times', async () => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const body = await reportJson(eventId, coo.cookie);
+
+      expect(body.registrations.map((r: { status: string }) => r.status)).toEqual([
+        'registered', 'registered', 'waitlisted', 'waitlisted', 'withdrawn', 'removed', 'cancelled',
+      ]);
+      expect(body.registrations.slice(2, 4)).toEqual([
+        expect.objectContaining({ registrationId: WAIT_1, waitlistPosition: 1, joinedAt: '2026-09-29T02:00:00.000Z' }),
+        expect.objectContaining({ registrationId: WAIT_2, waitlistPosition: 2, joinedAt: '2026-09-29T02:05:00.000Z' }),
+      ]);
+      expect(body.registrations[0]).not.toHaveProperty('waitlistPosition');
+    });
+
+    // REP-STATUS-01-B
+    it('REP-STATUS-01-B: totals and spots count Confirmed only; the waitlist count is reported and never takes capacity', async () => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const body = await reportJson(eventId, coo.cookie);
+
+      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots, body.event.capacity]).toEqual([2, 2, 48, 50]);
+    });
+
+    // REP-STATUS-02-A
+    it('REP-STATUS-02-A: the status filter returns only the chosen status, and the totals do not change', async () => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const res = await call(`${reportPath(eventId)}?status=waitlisted`, coo.cookie);
+
+      expect(res.status).toBe(200);
+      const body = JSON.parse(res.text);
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([WAIT_1, WAIT_2]);
+      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots]).toEqual([2, 2, 48]);
+    });
+
+    // REP-STATUS-02-B
+    it('REP-STATUS-02-B: a comma-separated list keeps every chosen status, in report order', async () => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const body = JSON.parse((await call(`${reportPath(eventId)}?status=withdrawn,registered`, coo.cookie)).text);
+
+      expect(body.registrations.map((r: { status: string }) => r.status)).toEqual(['registered', 'registered', 'withdrawn']);
+    });
+
+    // REP-STATUS-02-C-ERR
+    it.each([
+      ['an unknown status', 'pending'],
+      ['an empty value', ''],
+      ['a blank item in the list', 'registered,'],
+      ['an upper-case value', 'Registered'],
+    ])('REP-STATUS-02-C-ERR: %s is refused with 400 and the validation shape', async (_label, value) => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const res = await call(`${reportPath(eventId)}?status=${encodeURIComponent(value)}`, coo.cookie);
+
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.text)).toMatchObject({ statusCode: 400, code: 'validation_error', message: 'Please correct the highlighted fields.' });
+      expect(JSON.parse(res.text).errors).toHaveProperty('status');
+    });
+
+    // REP-STATUS-03-A
+    it('REP-STATUS-03-A: the CSV and PDF carry a Status column with the labels, and honour the filter', async () => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const csv = await call(`${exportPath(eventId, 'csv')}&status=waitlisted`, coo.cookie);
+      const all = await call(exportPath(eventId, 'csv'), coo.cookie);
+      const pdf = await call(exportPath(eventId, 'pdf'), coo.cookie);
+
+      expect(csv.status).toBe(200);
+      expect(csv.text.split('\r\n')[0]).toBe('﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status');
+      expect(csv.text).toContain('Wei Ling,wei.ling@example.com,91110001,,29 Sep 2026 10:00,Waitlisted');
+      expect(csv.text).not.toContain('Dev Patel');
+      expect(all.text).toContain('Ben Lim');
+      expect(all.text).toContain(',Withdrawn\r\n');
+      expect(all.text).toContain(',Removed\r\n');
+      expect(all.text).toContain(',Cancelled\r\n');
+      expect(await pdfText(pdf.bytes)).toContain('Waitlisted');
+    });
+
+    // REP-STATUS-04-A-ACCESS
+    it.each(DOORS)('REP-STATUS-04-A-ACCESS: the %s door refuses an attendee and another coordinator with 403, even with a filter', async (_name, path) => {
+      const { eventId } = await seedAllStatuses();
+      const attendee = await createUser('ATTENDEE', 'Attendee Probe', { login: true });
+      const other = await createUser('COORDINATOR', 'Other Coordinator');
+      const url = path(eventId).includes('?') ? `${path(eventId)}&status=waitlisted` : `${path(eventId)}?status=waitlisted`;
+
+      expect((await call(url, attendee.cookie)).status).toBe(403);
+      expect((await call(url, other.cookie)).status).toBe(403);
+    });
+
+    // REP-STATUS-05-A-ATTENDEE
+    it('REP-STATUS-05-A-ATTENDEE: the attendee read is unchanged: a waitlisted attendee sees only their own entry and position', async () => {
+      const { eventId, attendee } = await seedAllStatuses();
+
+      const res = await request(app.getHttpServer()).get(`/api/events/${eventId}/registrations/me`).set('Cookie', attendee.cookie).expect(200);
+
+      expect(res.body.registration).toMatchObject({ id: WAIT_1, status: 'waitlisted', waitlistPosition: 1 });
     });
   });
 });

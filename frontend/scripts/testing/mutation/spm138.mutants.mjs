@@ -13,6 +13,9 @@ export const SUITES = {
       'src/store/useAppStore.waitlist.test.ts',
       'src/features/events/pages/list/EventListPage.test.tsx',
       'src/features/events/lib/registration.test.ts',
+      'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx',
+      'src/features/registrations/components/report/ReportHeader.test.tsx',
+      'src/features/registrations/lib/registrationReport.status.test.ts',
       'src/features/events/pages/list/EventCard.attendee.test.tsx',
       'src/features/events/pages/detail/registration/RegistrationStatusCard.test.tsx',
       'src/features/events/pages/detail/registration/ConfirmDialog.test.tsx',
@@ -264,4 +267,43 @@ export const MUTANTS = [  { id: 'F1', name: 'an open, full event answers registe
     edits: [
     ['      {onJoin && (', '      {true && (']],
     testMappings: [{ suite: 'spm138', file: 'src/features/events/pages/detail/registration/WaitlistPanel.test.tsx', title: 'JOIN-WAITLIST-01-E-FE-STATE' }] },
+  { id: 'F-REP-FILTER-OPTIONS', name: 'the status filter omits Withdrawn', file: 'src/features/registrations/lib/registrationReport.ts', suites,
+    edits: [
+    ['export const REPORT_STATUS_FILTERS: { value: ReportStatusFilter; label: string }[] = [\n  { value: "all", label: "All" },\n  ...REPORT_STATUS_VALUES.map((value) => ({ value, label: REPORT_STATUS_LABELS[value] })),\n];', 'export const REPORT_STATUS_FILTERS: { value: ReportStatusFilter; label: string }[] = [\n  { value: "all", label: "All" },\n  ...REPORT_STATUS_VALUES.filter((value) => value !== "withdrawn").map((value) => ({ value, label: REPORT_STATUS_LABELS[value] })),\n];']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx', title: 'REP-FE-01-A: the filter lists All and the five statuses' }] },
+  { id: 'F-REP-BADGE', name: 'the table shows the raw status instead of its badge', file: 'src/features/registrations/components/report/ReportTable.tsx', suites,
+    edits: [
+    ['                  <StatusBadge status={row.status} />', '                  {row.status}']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx', title: 'REP-FE-01-B: each row carries its status badge' }] },
+  { id: 'F-REP-HEADER', name: 'the header omits the waitlist count', file: 'src/features/registrations/components/report/ReportHeader.tsx', suites,
+    edits: [
+    ['      <p className="text-sm text-gray-700 dark:text-gray-300">{waitlistCountLine(waitlistCount)}</p>', '      <p className="text-sm text-gray-700 dark:text-gray-300"></p>']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx', title: 'REP-FE-01-B: each row carries its status badge' }] },
+  { id: 'F-REP-FILTER-IGNORED', name: 'the report request ignores the chosen status', file: 'src/features/registrations/lib/registrationReport.ts', suites,
+    edits: [
+    ['  const query = reportStatusQuery(filter);\n  return api<RegistrationReport>', '  const query = "";\n  return api<RegistrationReport>']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx', title: 'REP-FE-02-A: choosing Waitlisted asks for waitlisted rows' }] },
+  { id: 'F-REP-EXPORT-IGNORES-FILTER', name: 'the export ignores the chosen status', file: 'src/features/registrations/lib/registrationReport.ts', suites,
+    edits: [
+    ['  const status = reportStatusQuery(filter);\n  let response: Response;', '  const status = "";\n  let response: Response;']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/lib/registrationReport.status.test.ts', title: 'REP-FE-03-C: the CSV request names the chosen status' }] },
 ];
+
+// ---- Kills-claim mutants for the period boundary tests (registration.test.ts, SPM-138 round). One test each.
+const RS = 'src/features/events/lib/registration.ts';
+const RT = 'src/features/events/lib/registration.test.ts';
+const PERIOD_OPEN = '  if (period.opensAt && current < new Date(period.opensAt).getTime()) return false;';
+const PERIOD_CLOSE = '  if (period.closesAt && current >= new Date(period.closesAt).getTime()) return false;';
+const boundary = (id, name, edits, title) => ({ id, name, file: RS, suites, edits, testMappings: [{ suite: 'spm138', file: RT, title }] });
+MUTANTS.push(
+  boundary('K-PERIOD-A', 'an opening that is not enforced (registration open before the opening instant)',
+    [[PERIOD_OPEN, '  if (period.opensAt && false) return false;']], '[A] one second before the opening instant, registration is not open'),
+  boundary('K-PERIOD-B', 'the opening instant is exclusive (exactly at the opening, registration reads closed)',
+    [[PERIOD_OPEN, PERIOD_OPEN.replace('current < new', 'current <= new')]], '[B] exactly at the opening instant, registration is open'),
+  boundary('K-PERIOD-C', 'the close is one minute early (registration closes a minute before the closing instant)',
+    [[PERIOD_CLOSE, PERIOD_CLOSE.replace('.getTime()) return false;', '.getTime() - 60_000) return false;')]], '[C] one minute before the closing instant, registration is still accepted'),
+  boundary('K-PERIOD-D', 'the closing instant is inclusive-open (exactly at the closing, registration reads open)',
+    [[PERIOD_CLOSE, PERIOD_CLOSE.replace('current >= new', 'current > new')]], '[D] exactly at the closing instant, registration is closed'),
+  boundary('K-PERIOD-BND', 'a missing opening bound is treated as closed',
+    [[PERIOD_OPEN, PERIOD_OPEN.replace('period.opensAt && current', '!period.opensAt || current')]], 'treats a missing bound as unbounded'),
+);

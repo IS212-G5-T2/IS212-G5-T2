@@ -34,7 +34,7 @@ Short definitions of the SPM-138 decision labels used in code and test comments.
 
 Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by label in comments. Users have fixed ids and emails per label (attendee `ATT-NN` is `10000000-0000-4000-8000-<NNNNNNNNNNNN>`, so a lower label sorts first), so every run builds the same users. Event ids and submission keys are random; no oracle depends on them.
 
-**Documented bounded exception (lock-waiter poll).** The backend e2e file has one timed wait: `waitForLockWaiters` polls `pg_stat_activity` for requests blocked on the event row lock, at most 200 attempts 50 ms apart (about 10 s). It throws if the waiter never appears, so it fails loudly rather than racing. Nothing else in the file waits on time. The frontend tests use a deferred promise that the test resolves; they use no timer.
+**Documented bounded exception (lock-waiter poll).** `waitForLockWaiters` in `backend/test/registrations.waitlist.e2e-spec.ts` is a bounded poll on `pg_stat_activity`: at most 200 attempts, 50 ms apart (about 10 s). It throws on timeout, so a waiter that never appears fails the test loudly rather than racing. It is the **only sleep in the backend waitlist suite** (the e2e file and the unit specs under `backend/src/registrations`); no other sleep may be added there. The frontend tests use a deferred promise that the test resolves and use no timer.
 
 | Label | Fixture |
 |---|---|
@@ -207,8 +207,10 @@ Oracle source for the added cases: the spec's 11-A, 11-B, 11-C and 11-D rules (A
 
 | Mutant | Runner meaning | Result | Reasoning or killer |
 |---|---|---|---|
-| P-G | The waiting-withdrawal UPDATE drops its status guard | EQUIVALENT | Every writer of `event_registrations.status` runs under the event row lock (inventory in `backend/scripts/mutation/spm138.mutants.mjs`, above P-G). The withdrawal re-reads the status under that lock, so the guard always holds. **SPM-136 must re-run P-G and P-R when it wires the releaser.** |
-| P-R | The registered compare-and-set drops its status guard | EQUIVALENT | Same reasoning as P-G. Re-run by SPM-136 when the releaser is wired. |
+| P-G | The waiting-withdrawal UPDATE drops its status guard | EQUIVALENT (documented exception 1 of 2) | Every writer of `event_registrations.status` runs under the event row lock (inventory in `backend/scripts/mutation/spm138.mutants.mjs`, above P-G). The withdrawal re-reads the status under that lock, so the guard always holds. **SPM-136 must re-run P-G and P-R when it wires the releaser.** |
+| P-R | The registered compare-and-set drops its status guard | EQUIVALENT (documented exception 2 of 2) | Same reasoning as P-G. **SPM-136 must re-run P-G and P-R when it wires the releaser.** |
+
+**Equivalent mutants: the two documented exceptions to zero equivalents.** The mutant suite has 60 mutants; 58 are killed and exactly two, P-G and P-R, are recorded as equivalent. Both rest on one invariant: every writer of `event_registrations.status` runs under the event row lock, and the withdrawal re-reads the status under that lock, so the guard each mutant removes can never be the thing that decides the outcome. The writer inventory is in `backend/scripts/mutation/spm138.mutants.mjs` (above P-G). Any future equivalent mutant needs a second entry here; the default is zero. SPM-136 must re-run P-G and P-R when it wires the cancel releaser, because a new writer would break the invariant.
 | X1 | EventCancelled removed from the attendee audience | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X2 | EventCancelled no longer maps to the attendee audience role | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X3 | The releaser's dedupe on Waitlisted is dropped (a second release notices again) | KILLED by JOIN-WAITLIST-12-C-REL | One notice per entry |
@@ -349,3 +351,48 @@ appendix above uses its new name.
 | `JOIN-WAITLIST-02-B-UNIT` | `JOIN-WAITLIST-02-B-INT-UNIT` | INT | window and status precedence table |
 | `JOIN-WAITLIST-01-E-FE` | `JOIN-WAITLIST-01-E-FE-STATE` | STATE | waiting indicator (section and panel) |
 | `JOIN-WAITLIST-03-A-FE-DASH` | `JOIN-WAITLIST-03-A-FE-STATE-DASH` | STATE | dashboard card |
+
+## Kill claims from the test-quality fix (K-mutants)
+
+Each Kills line in the named tests names one of these mutants. Every mutant maps to exactly one test and was verified by the runner (the named test is the killer). Backend mutants are in `backend/scripts/mutation/spm138.mutants.mjs`; frontend mutants in `frontend/scripts/testing/mutation/spm138.mutants.mjs`.
+
+| Side | Mutant | Test that kills it |
+|---|---|---|
+| backend | `K-05A` | `JOIN-WAITLIST-05-A` |
+| backend | `K-06B` | `JOIN-WAITLIST-06-B-STATE` |
+| backend | `K-06C` | `JOIN-WAITLIST-06-C-STATE` |
+| backend | `K-06D` | `JOIN-WAITLIST-06-D-INT` |
+| backend | `K-02B` | `JOIN-WAITLIST-02-B-INT` |
+| backend | `K-01DOPEN` | `JOIN-WAITLIST-01-D-ERR-UNIT-OPEN` |
+| backend | `K-01F` | `JOIN-WAITLIST-01-F` |
+| backend | `K-09A` | `JOIN-WAITLIST-09-A-INT` |
+| backend | `K-10C` | `JOIN-WAITLIST-10-C-BND` |
+| backend | `K-01EREG` | `JOIN-WAITLIST-01-E-ERR-UNIT-REG` |
+| backend | `K-01FNF` | `JOIN-WAITLIST-01-F-ERR-UNIT-404` |
+| backend | `K-04CTX` | `JOIN-WAITLIST-04-C-INT-TX` |
+| backend | `K-01EREGI` | `JOIN-WAITLIST-01-E-ERR-UNIT-REGISTER` |
+| backend | `K-01AOPEN` | `JOIN-WAITLIST-01-A-BND-UNIT-OPEN-ENDED` |
+| backend | `K-04CRACE` | `JOIN-WAITLIST-04-C-ERR-GUARD` |
+| backend | `K-10ECAS` | `JOIN-WAITLIST-10-E-ERR-CAS` |
+| backend | `K-08CGUARD` | `JOIN-WAITLIST-08-C-ERR-GUARD` |
+| backend | `K-03D` | `JOIN-WAITLIST-03-D-ERR` |
+| frontend | `K-PERIOD-A` | `[A] one second before the opening instant, registration is not open` |
+| frontend | `K-PERIOD-B` | `[B] exactly at the opening instant, registration is open` |
+| frontend | `K-PERIOD-C` | `[C] one minute before the closing instant, registration is still accepted` |
+| frontend | `K-PERIOD-D` | `[D] exactly at the closing instant, registration is closed` |
+| frontend | `K-PERIOD-BND` | `treats a missing bound as unbounded` |
+
+## Decision change: the registration report lists every status (owner decision, 2026-10-16)
+
+This overrides the earlier SPM-63 rule that the report lists Confirmed attendees only. The change is recorded here and in `AI_USAGE.md`.
+
+- **Rows.** The coordinator and organiser report lists Registered (API `registered`, labelled Confirmed), Waitlisted, Withdrawn, Removed and Cancelled rows. Attendee views are unchanged.
+- **API status values.** The report uses the lower-case values already used by the attendee read: `registered`, `waitlisted`, `withdrawn`, `removed`, `cancelled`. The stored `Registered` row is `registered` (not `confirmed`), so one name covers the attendee read, the filter and the report. The label on screen and in the exports is Confirmed.
+- **Order.** Confirmed by registration date; Waitlisted by position (joined_at, waitlist_seq); then Withdrawn, Removed and Cancelled by the instant their status last changed (withdrawn_at, removed_at, updated_at), then registration date and id.
+- **Waitlist fields.** Each Waitlisted row carries `waitlistPosition` (derived, D6) and `joinedAt`. Other rows carry neither.
+- **Filter.** `?status=` takes one or more values, comma-separated (for example `waitlisted` or `withdrawn,removed`). Absent means every status. An empty value, a blank list item, an unknown value or a repeated-case value is a 400 with `code: validation_error` and an `errors.status` entry. Access is checked before the filter is parsed (a 403 comes first).
+- **Totals.** `totalConfirmed` and `availableSpots` stay Confirmed-only and are not affected by the filter. `waitlistCount` is added (the Waitlisted rows, unfiltered). Waitlisted entries never take capacity.
+- **Exports.** The CSV and PDF go through the same `getReport` call and honour the same filter. The Status column (already present) shows the label for each row. The PDF empty state ("No registrations to display") is unchanged: an empty table now means no rows match the filter, which is the same meaning it had.
+- **Mutants.** M1 (the Confirmed-only status filter) and M27 (the report lists waiting entries) are retired: both encoded the superseded rule. The new expected behaviour is guarded by OWN-1 (filter ignored), OWN-2 (Waitlisted excluded), OWN-3 (waitlist counted in totals), OWN-4 (no Status column in the export) and OWN-5 (export ignores the filter), each killed by a named test in `test/registrations.report.e2e-spec.ts`. The frontend guards are F-REP-FILTER-OPTIONS, F-REP-BADGE, F-REP-HEADER, F-REP-FILTER-IGNORED and F-REP-EXPORT-IGNORES-FILTER.
+- **Tests changed.** The SPM-63 e2e assertions that excluded Withdrawn or Cancelled rows, or expected the row value `Confirmed`, now assert the new rule (the row values are `registered` and the withdrawn and cancelled rows are listed). JOIN-WAITLIST-14-A now asserts that the report lists the waitlist with positions and that totals count Confirmed only.
+

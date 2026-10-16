@@ -26,14 +26,17 @@ const valid = { fullName: "Alice Tan", email: "alice@example.com", contactNumber
 // EVENT-REG-01-BND-1: the opening boundary
 describe("EVENT-REG-01-BND-1: the opening boundary (period util)", () => {
   // [A] one second before opening, registration is not open.
+  // Kills: K-PERIOD-A (an opening that is not enforced)
   it("[A] one second before the opening instant, registration is not open", () => {
     expect(isRegistrationOpen(period, at(opensAt, -1000))).toBe(false);
   });
   // [B] the opening instant is open (inclusive).
+  // Kills: K-PERIOD-B (the opening instant is exclusive)
   it("[B] exactly at the opening instant, registration is open", () => {
     expect(isRegistrationOpen(period, new Date(opensAt))).toBe(true);
   });
   // A missing bound is unbounded on that side.
+  // Kills: K-PERIOD-BND (a missing opening bound is treated as closed)
   it("treats a missing bound as unbounded", () => {
     expect(isRegistrationOpen({ closesAt }, new Date("2000-01-01"))).toBe(true);
     expect(isRegistrationOpen({ opensAt }, new Date("2999-01-01"))).toBe(true);
@@ -43,10 +46,12 @@ describe("EVENT-REG-01-BND-1: the opening boundary (period util)", () => {
 // EVENT-REG-02-BND-1: the closing boundary (period util)
 describe("EVENT-REG-02-BND-1: the closing boundary (period util)", () => {
   // [C] one minute before the closing instant, registration is still accepted.
+  // Kills: K-PERIOD-C (the close is one minute early)
   it("[C] one minute before the closing instant, registration is still accepted", () => {
     expect(isRegistrationOpen(period, at(closesAt, -60_000))).toBe(true);
   });
   // [D] the closing instant is closed (exclusive).
+  // Kills: K-PERIOD-D (the closing instant is inclusive-open)
   it("[D] exactly at the closing instant, registration is closed", () => {
     expect(isRegistrationOpen(period, new Date(closesAt))).toBe(false);
   });

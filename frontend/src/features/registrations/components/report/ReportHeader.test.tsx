@@ -9,11 +9,12 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ReportHeader } from "./ReportHeader";
 
-const renderHeader = (totalConfirmed: number, availableSpots: number) =>
+const renderHeader = (totalConfirmed: number, availableSpots: number, waitlistCount = 0) =>
   render(
     <ReportHeader
       eventName="Tech Talk: Cloud 101"
       totalConfirmed={totalConfirmed}
+      waitlistCount={waitlistCount}
       capacity={50}
       availableSpots={availableSpots}
     />,
@@ -77,3 +78,16 @@ describe("SPM-63 AC2: the header shows the Confirmed count against capacity", ()
 
 // ASSUMPTION index
 // A4: singular "1 Attendee Registered (1 / N)"      -> 02-A-BND
+
+describe("SPM-138 owner decision: the header shows the waitlist count beside the Confirmed count", () => {
+  // REP-STATUS-01-B-FE: the header counts are the event's totals; a waitlisted entry never takes a spot.
+  // Kills: F-REP-HEADER (the waitlist count is not shown in the header).
+  it("REP-STATUS-01-B-FE: shows the Confirmed count, the waitlist count and the spots left", () => {
+    renderHeader(3, 47, 2);
+
+    expect(screen.getByText("3 Attendees Registered (3 / 50)")).toBeInTheDocument();
+    expect(screen.getByText("2 on the waitlist")).toBeInTheDocument();
+    expect(screen.getByText("47 spots available")).toBeInTheDocument();
+  });
+});
+
