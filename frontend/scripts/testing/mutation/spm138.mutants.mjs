@@ -14,6 +14,7 @@ export const SUITES = {
       'src/features/events/pages/list/EventListPage.test.tsx',
       'src/features/events/lib/registration.test.ts',
       'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx',
+      'src/features/registrations/components/report/RegistrationsModal.test.tsx',
       'src/features/registrations/components/report/ReportHeader.test.tsx',
       'src/features/registrations/lib/registrationReport.status.test.ts',
       'src/features/events/pages/list/EventCard.attendee.test.tsx',
@@ -307,3 +308,63 @@ MUTANTS.push(
   boundary('K-PERIOD-BND', 'a missing opening bound is treated as closed',
     [[PERIOD_OPEN, PERIOD_OPEN.replace('period.opensAt && current', '!period.opensAt || current')]], 'treats a missing bound as unbounded'),
 );
+
+// ---- Round-11 frontend mutants: header totals under a filter (TCR11-3) and the modal filter and position (TCR11-4).
+const PAGE = 'src/features/registrations/pages/report/RegistrationReportPage.tsx';
+const MODAL = 'src/features/registrations/components/report/RegistrationsModal.tsx';
+const RSTATUS = 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx';
+const MODAL_TEST = 'src/features/registrations/components/report/RegistrationsModal.test.tsx';
+MUTANTS.push(
+  { id: 'PF-HEADER-ROWS', name: 'the page header counts the filtered rows instead of the event total', file: PAGE, suites,
+    edits: [['        totalConfirmed={report.totalConfirmed}', '        totalConfirmed={report.registrations.length}']],
+    testMappings: [{ suite: 'spm138', file: RSTATUS, title: 'REP-FE-02-A: choosing Waitlisted asks for waitlisted rows, shows only them, and keeps the header totals' }] },
+  { id: 'PF-SPOTS-ROWS', name: 'the page spots line is computed from the filtered rows', file: PAGE, suites,
+    edits: [['        availableSpots={report.availableSpots}', '        availableSpots={report.event.capacity - report.registrations.length}']],
+    testMappings: [{ suite: 'spm138', file: RSTATUS, title: 'REP-FE-02-A: choosing Waitlisted asks for waitlisted rows, shows only them, and keeps the header totals' }] },
+  { id: 'PF-MODAL-REQ', name: 'the modal request ignores the chosen status', file: MODAL, suites,
+    edits: [['useRegistrationReport(eventId, statusFilter);', 'useRegistrationReport(eventId);']],
+    testMappings: [{ suite: 'spm138', file: MODAL_TEST, title: 'REP-MOD-01-A: choosing Waitlisted asks for ?status=waitlisted and shows the waitlisted entry' }] },
+  { id: 'PF-MODAL-EXPORT', name: 'the modal export drops the chosen status', file: MODAL, suites,
+    edits: [['useReportExport(eventId, statusFilter);', 'useReportExport(eventId);']],
+    testMappings: [{ suite: 'spm138', file: MODAL_TEST, title: 'REP-MOD-02-A: the CSV export is requested with the status on screen' }] },
+  { id: 'PF-MODAL-POS', name: 'an expanded waitlisted card omits its position', file: MODAL, suites,
+    edits: [['{row.status === "waitlisted" && row.waitlistPosition !== undefined ? ` (position ${row.waitlistPosition})` : ""}', '{""}']],
+    testMappings: [{ suite: 'spm138', file: MODAL_TEST, title: 'REP-MOD-03-A: an expanded waitlisted card reads Waitlisted (position 1)' }] },
+);
+
+// ---- Round-11 mutants for the untagged modal tests, the empty-status state and the status query helper.
+const MODAL_T = 'src/features/registrations/components/report/RegistrationsModal.test.tsx';
+const TABLE_FILE = 'src/features/registrations/components/report/ReportTable.tsx';
+const QUERY_FILE = 'src/features/registrations/lib/registrationReport.ts';
+const QUERY_TEST = 'src/features/registrations/lib/registrationReport.status.test.ts';
+const modalTitle = (title) => ({ suite: 'spm138', file: MODAL_T, title });
+MUTANTS.push(
+  { id: 'M-MODAL-SUMMARY-WL', name: 'the summary omits the waitlist count', file: MODAL, suites,
+    edits: [['<p className="text-gray-600 dark:text-gray-400">{waitlistCount} on the waitlist</p>', '<p className="text-gray-600 dark:text-gray-400"></p>']],
+    testMappings: [modalTitle('shows the count in the title and the capacity, period and waitlist summary')] },
+  { id: 'M-MODAL-403', name: 'the 403 access message is not shown', file: MODAL, suites,
+    edits: [['{state.status === "forbidden" && ', '{false && ']],
+    testMappings: [modalTitle('shows the access-refused message and no registrations on a 403')] },
+  { id: 'M-MODAL-EXPAND', name: 'a card never expands', file: MODAL, suites,
+    edits: [['{expanded && (', '{false && (']],
+    testMappings: [modalTitle('expands a card to show details and collapses it again')] },
+  { id: 'M-MODAL-SINGLE', name: 'every card expands when any card is open', file: MODAL, suites,
+    edits: [['expanded={expandedId === row.registrationId}', 'expanded={expandedId !== null}']],
+    testMappings: [modalTitle('keeps a single card expanded at a time')] },
+  { id: 'M-MODAL-EMPTY', name: 'the empty state shows the no-match text', file: MODAL, suites,
+    edits: [['{REPORT_MESSAGES.empty}', '{NO_MATCH}']],
+    testMappings: [modalTitle("shows 'No registrations yet' when there are none")] },
+  { id: 'M-MODAL-EXPORT-PDF', name: 'the PDF button exports CSV', file: MODAL, suites,
+    edits: [['onClick={() => void exportAs("pdf")}', 'onClick={() => void exportAs("csv")}']],
+    testMappings: [modalTitle('downloads the CSV and the PDF through the server export')] },
+  { id: 'M-MODAL-EXPORT-ERR', name: 'an export failure is not shown', file: MODAL, suites,
+    edits: [['{exportError && (', '{false && (']],
+    testMappings: [modalTitle('shows an export failure without closing the modal')] },
+  { id: 'F-REP-EMPTY-STATUS', name: 'a filtered empty status shows the all-empty text', file: TABLE_FILE, suites,
+    edits: [['{filter === "all" ? REPORT_MESSAGES.empty : REPORT_MESSAGES.emptyForStatus}', '{REPORT_MESSAGES.empty}']],
+    testMappings: [{ suite: 'spm138', file: 'src/features/registrations/pages/report/RegistrationReportStatus.test.tsx', title: 'REP-FE-03-B: a status with no rows shows that no registrations have it' }] },
+  { id: 'F-REP-QUERY-ALL', name: 'the query helper names a status for the all filter', file: QUERY_FILE, suites,
+    edits: [['  return filter === "all" ? "" : `status=${encodeURIComponent(filter)}`;', '  return `status=${encodeURIComponent(filter)}`;']],
+    testMappings: [{ suite: 'spm138', file: QUERY_TEST, title: 'REP-FE-03-D: the report query is empty for every status and names one status otherwise' }] },
+);
+

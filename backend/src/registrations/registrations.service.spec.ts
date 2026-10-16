@@ -87,8 +87,6 @@ interface Script {
   mine?: Row[];
   /** Rows for the report's Registered rows (Confirmed). The report lists every status (SPM-138 owner decision). */
   registered?: Row[];
-  /** Rows for the report's Waitlisted rows. */
-  waitlisted?: Row[];
   /** Rows for the withdrawal lookup (owned registration joined to its event). */
   found?: Row[];
   /** Rows for the withdrawal's guarded UPDATE ... RETURNING. */
@@ -115,7 +113,7 @@ function scripted(script: Script) {
     // SPM-138 report rows: every status, filtered by the status list (the fake returns the scripted rows as they are).
     if (/FROM event_registrations r\s+WHERE r\.event_id = \$1 AND r\.status = ANY/.test(sql))
       return {
-        rows: [...(script.registered ?? []), ...(script.waitlisted ?? [])].map((row) => ({ status: 'Registered', ...row })),
+        rows: (script.registered ?? []).map((row) => ({ status: 'Registered', ...row })),
       };
     // SPM-138 fillFreeSpots: the event's capacity and name, read after a withdrawal.
     if (/registration_limit AS capacity/.test(sql))
@@ -128,7 +126,7 @@ function scripted(script: Script) {
     if (/SELECT status FROM event_registrations/.test(sql)) return { rows: script.existing ?? [] };
     // SPM-138 report totals: Confirmed and Waitlisted counts, unfiltered.
     if (/COUNT\(\*\) FILTER/.test(sql))
-      return { rows: [{ confirmed: script.registered?.length ?? 0, waitlisted: script.waitlisted?.length ?? 0 }] };
+      return { rows: [{ confirmed: script.registered?.length ?? 0, waitlisted: 0 }] };
     if (/COUNT\(\*\)/.test(sql)) return { rows: [{ count: script.taken ?? 0 }] };
     if (/^\s*INSERT INTO event_registrations/.test(sql)) return { rows: script.inserted ?? [] };
     // SPM-138 settleIfDue: the lock-free due check on the attendee read (nothing is due unless a case scripts it).

@@ -11,7 +11,7 @@
  *  - Suite clock T0 = 2026-09-29T12:00:00+08:00 = 2026-09-29T04:00:00Z.
  *  - The Confluence ids (EVT-101, COO-01, REG-9001 ...) are labels; the repo uses UUIDs, so each test names its
  *    fixtures with those labels in comments. SPEC "Confirmed" is the stored status "Registered"; SPEC "Withdrawn"
- *    is 'Withdrawn'. Q8: a Cancelled registration cannot exist (CHECK constraint), so that fixture is Not Automated.
+ *    is 'Withdrawn'. Q8: a Cancelled registration is a stored status (the CHECK allows it); DET-02-B seeds one and reads it.
  *  - Q9: EVT-106 "Planning" is not an allowed event status, so the empty event is seeded as Confirmed.
  *  - The three "doors" (report, CSV export, PDF export) share one authorization rule; the AC5 tests run over all three.
  *  - Every fixture id is deterministic (Guide 3E: fixed ids): a per-test counter feeds uuid() below, nothing calls randomUUID.
@@ -215,7 +215,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   /**
    * EVT-101 with COO-01 assigned and ORG-01 owning it; REG-9007 Dev Patel, REG-9001 Alice Tan (ATT-01, can log in),
    * REG-EXTRA-01 Chloe Ng Confirmed (left out with `withChloe: false`, the 01-A fixture), and REG-9003 Ben Lim
-   * Withdrawn (absent from every channel).
+   * Withdrawn (listed last with status withdrawn; not counted in the Confirmed total).
    */
   async function seedEvt101(options: { withChloe?: boolean } = {}) {
     const { withChloe = true } = options;
@@ -252,9 +252,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
   describe('AC1: a manager can view the registration report', () => {
     // VIEW-REG-INFO-01-A
-    // Oracle (SPEC 01-A): COO-01 assigned to EVT-101 gets 200 with exactly REG-9007 then REG-9001, in registration-date
-    // order; REG-9003 (Withdrawn) is absent. This is the case's own fixture: two Confirmed rows and one Withdrawn.
-    // Kills: assignment lookup on the wrong column (the real coordinator is refused); Withdrawn row included.
+    // Oracle (SPEC 01-A, owner decision): COO-01 assigned to EVT-101 gets 200 with REG-9007 then REG-9001 in registration-date
+    // order, then REG-9003 (Withdrawn) listed last with status withdrawn. totalConfirmed is 2 (Confirmed only).
+    // Kills: ORDER-WITHDRAWN-FIRST (the withdrawn row sorted ahead of the Confirmed rows).
     it('VIEW-REG-INFO-01-A: the assigned coordinator gets 200 with REG-9007 and REG-9001 in date order, then the withdrawn REG-9003', async () => {
       // Arrange: no REG-EXTRA-01 here, so the report holds exactly the rows the case names.
       const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
@@ -272,8 +272,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     });
 
     // VIEW-REG-INFO-01-B
-    // Oracle (SPEC 01-B): EVT-101 shows 3 rows; EVT-105 (Data Science Meetup, capacity 2) shows Ben Lim and Dev Patel;
-    // EVT-101 again shows 3. The event name and capacity come from each event.
+    // Oracle (SPEC 01-B, owner decision): EVT-101 shows its 3 rows (Ben Lim listed last as withdrawn); EVT-105 (Data Science
+    // Meetup, capacity 2) shows Ben Lim and Dev Patel; EVT-101 again shows its 3 rows. The event name and capacity come from
+    // each event.
     // Kills: report not keyed by event id (a stale or shared result); capacity not read per event.
     it('VIEW-REG-INFO-01-B: switching events returns each event\'s own report', async () => {
       // Arrange: COO-01 manages EVT-101 and EVT-105.
@@ -326,9 +327,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
   describe('AC2: the report states how many attendees are registered', () => {
     // VIEW-REG-DET-02-B (state only)
-    // Oracle: a Cancelled registration is neither listed nor counted; only Registered rows are reported (the same
-    // rule as the Withdrawn row in the 01-A fixture).
-    // Kills: the report counting every non-Withdrawn row (a Cancelled attendee shown and counted).
+    // Oracle (owner decision): a Cancelled registration is listed last with status cancelled and is not counted; the
+    // Confirmed total stays 2 (the same rule as the Withdrawn row in the 01-A fixture).
+    // Kills: W-CANCEL-COUNT (the Confirmed total counts Cancelled rows).
     it('VIEW-REG-DET-02-B: a Cancelled registration is listed with status cancelled and is not counted', async () => {
       const { eventId, coo01, regs } = await seedEvt101({ withChloe: false });
       await addRegistration(eventId, { id: 'eeeeeeee-0000-4000-8000-00000000c001', fullName: 'Cara Teo', email: 'cara.teo@example.com', contact: '93334444', at: CHLOE_AT, status: 'Cancelled' });
@@ -344,8 +345,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     });
 
     // VIEW-REG-INFO-02-A
-    // Oracle (SPEC 02-A, R5): 3 Confirmed + 1 Withdrawn, capacity 50 -> totalConfirmed 3, availableSpots 47, 3 rows.
-    // Kills: count taken from all rows (4); capacity arithmetic wrong; Withdrawn counted.
+    // Oracle (SPEC 02-A, R5): 3 Confirmed + 1 Withdrawn, capacity 50 -> totalConfirmed 3, availableSpots 47, 4 rows listed.
+    // Kills: W-COUNT-WITHDRAWN (the Confirmed total counts Withdrawn rows).
     it('VIEW-REG-INFO-02-A: counts Confirmed only and derives the available spots (the withdrawn row is listed, not counted)', async () => {
       // Arrange
       const { eventId, coo01 } = await seedEvt101();
@@ -479,8 +480,8 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     // VIEW-REG-INFO-04-A
     // Oracle (SPEC 04-A, D2/D9, plus the user's filename and column requests): 200; text/csv; attachment named after the
     // event, lowercase with underscores (tech_talk_cloud_101_registrations.csv); body is the header (including Special
-    // Requirements) and the three rows in date order, BOM first, CRLF endings, the Withdrawn row absent.
-    // Kills: Withdrawn row exported; LF endings; header text drift; UTC hour; wrong filename or disposition.
+    // Requirements) and the three rows in date order, with the Withdrawn row last; BOM first, CRLF endings.
+    // Kills: Withdrawn row dropped from the export; LF endings; header text drift; UTC hour; wrong filename or disposition.
     it('VIEW-REG-INFO-04-A: the CSV export has the right headers and body', async () => {
       // Arrange
       const { eventId, coo01 } = await seedEvt101();
@@ -590,7 +591,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
     // VIEW-REG-INFO-04-B
     // Oracle (SPEC 04-B): 200 application/pdf, filename .pdf, body starts %PDF-; text in order: title, event range,
-    // generated line, count line, the five headings, the three names; Ben Lim (Withdrawn) absent.
+    // generated line, count line, the five headings, the names in report order; Ben Lim (Withdrawn) is listed last.
     // Kills: M19 PDF built from all statuses; summary count from all rows; headings missing; rows out of order.
     it('VIEW-REG-INFO-04-B: the PDF export has the header, the summary and the table', async () => {
       // Arrange
@@ -970,8 +971,9 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
     });
 
     // VIEW-REG-INFO-06-B
-    // Oracle (SPEC 06-B BE): the report excludes REG-9001 immediately after the SPM-120 call, for the organiser session as well.
-    // Kills: only the count updating (rows kept); withdrawn row kept until a refresh.
+    // Oracle (SPEC 06-B BE): REG-9001 is listed as withdrawn, after the Confirmed rows, immediately after the SPM-120 call,
+    // for the organiser session as well.
+    // Kills: ORDER-WITHDRAWN-FIRST (the withdrawn row sorted ahead of the Confirmed rows).
     it('VIEW-REG-INFO-06-B: a withdrawal moves the row to the withdrawn group immediately for the organiser', async () => {
       // Arrange
       const { eventId, org01, att01, regs } = await seedEvt101();
@@ -990,61 +992,79 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
   // SPM-138 owner decision: the report lists every registration status. Totals and spots stay Confirmed-only; the status
   // filter narrows the rows. Order: Confirmed by registration date, Waitlisted by position, then the rest by the instant
   // their status last changed.
+  // SPM-138 owner decision: the report lists every registration status. Totals and spots stay Confirmed-only; the status
+  // filter narrows the rows. Order: Confirmed by registration date, Waitlisted by position (joined_at, then waitlist_seq),
+  // then the rest by the instant their status last changed. The Waitlisted fixture is built so that created_at and the row
+  // id order the entries differently from the join order: only joined_at and waitlist_seq decide the position.
   describe('SPM-138 owner decision: the report lists every status and filters by status', () => {
-    const WAIT_1 = 'ffffffff-0000-4000-8000-000000000001';
-    const WAIT_2 = 'ffffffff-0000-4000-8000-000000000002';
+    // Waitlisted: WAIT_1 joined first but was created last with the highest id; WAIT_2 joined second with the lowest id;
+    // WAIT_3 and WAIT_4 joined at the same instant and differ only by waitlist_seq (3 before 4).
+    const WAIT_1 = 'ffffffff-0000-4000-8000-000000000009';
+    const WAIT_2 = 'ffffffff-0000-4000-8000-000000000001';
+    const WAIT_3 = 'ffffffff-0000-4000-8000-000000000006';
+    const WAIT_4 = 'ffffffff-0000-4000-8000-000000000005';
     const REMOVED = 'ffffffff-0000-4000-8000-000000000003';
     const CANCELLED = 'ffffffff-0000-4000-8000-000000000004';
+    const WAITLIST_ORDER = [WAIT_1, WAIT_2, WAIT_3, WAIT_4];
 
-    /** EVT-S: DEV and ALICE Confirmed; two waitlisted (ATT-W1 joined first); one withdrawn, one removed, one cancelled. */
+    /**
+     * EVT-S: DEV and ALICE Confirmed; four waitlisted entries (the logged-in ATT-W1 is WAIT_1); one withdrawn, one removed,
+     * one cancelled.
+     */
     async function seedAllStatuses() {
       const coo = await createUser('COORDINATOR', 'Daniel Koh');
       const org = await createUser('ORGANISER', 'Farid Rahman');
       const eventId = await seedEvent({ name: 'Status Gala', organiserId: org.uid, coordinatorId: coo.uid });
-      const dev = await addRegistration(eventId, { id: REG_DEV, fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
+      await addRegistration(eventId, { id: REG_DEV, fullName: 'Dev Patel', email: 'dev.patel@example.com', contact: '87654321', at: DEV_AT });
       await addRegistration(eventId, { id: REG_ALICE, fullName: 'Alice Tan', email: 'alice.tan@example.com', contact: '98765432', at: ALICE_AT });
-      // The logged-in attendee owns the first waitlisted entry, so the attendee read can be checked on it.
       const attendee = await createUser('ATTENDEE', 'Wei Ling', { login: true });
       const w1 = await seedRegistration(eventId, attendee.uid, {
-        id: WAIT_1, fullName: 'Wei Ling', email: 'wei.ling@example.com', contact: '91110001', at: '2026-09-29T02:00:00.000Z',
+        id: WAIT_1, fullName: 'Wei Ling', email: 'wei.ling@example.com', contact: '91110001', at: '2026-09-29T03:00:00.000Z',
         status: 'Waitlisted', joinedAt: '2026-09-29T02:00:00.000Z', waitlistSeq: 1,
       });
       const w2 = await addRegistration(eventId, {
-        id: WAIT_2, fullName: 'Raj Kumar', email: 'raj.kumar@example.com', contact: '91110002', at: '2026-09-29T02:05:00.000Z',
+        id: WAIT_2, fullName: 'Raj Kumar', email: 'raj.kumar@example.com', contact: '91110002', at: '2026-09-29T01:00:00.000Z',
         status: 'Waitlisted', joinedAt: '2026-09-29T02:05:00.000Z', waitlistSeq: 2,
+      });
+      const w3 = await addRegistration(eventId, {
+        id: WAIT_3, fullName: 'Sam Ong', email: 'sam.ong@example.com', contact: '91110004', at: '2026-09-29T00:40:00.000Z',
+        status: 'Waitlisted', joinedAt: '2026-09-29T02:10:00.000Z', waitlistSeq: 3,
+      });
+      const w4 = await addRegistration(eventId, {
+        id: WAIT_4, fullName: 'Lily Ho', email: 'lily.ho@example.com', contact: '91110005', at: '2026-09-29T00:20:00.000Z',
+        status: 'Waitlisted', joinedAt: '2026-09-29T02:10:00.000Z', waitlistSeq: 4,
       });
       await addRegistration(eventId, { id: REG_BEN, fullName: 'Ben Lim', email: 'ben.lim@example.com', contact: '90001111', at: BEN_AT, status: 'Withdrawn', updatedAt: '2026-09-28T05:00:00.000Z' });
       await addRegistration(eventId, { id: REMOVED, fullName: 'Mei Tan', email: 'mei.tan@example.com', contact: '91110003', at: '2026-09-27T01:00:00.000Z', status: 'Removed', updatedAt: '2026-09-28T06:00:00.000Z' });
       await addRegistration(eventId, { id: CANCELLED, fullName: 'Cara Teo', email: 'cara.teo@example.com', contact: '93334444', at: '2026-09-27T02:00:00.000Z', status: 'Cancelled', updatedAt: '2026-09-29T01:30:00.000Z' });
-      return { eventId, coo, org, dev, w1, w2, attendee };
+      return { eventId, coo, org, w1, w2, w3, w4, attendee };
     }
 
-    // REP-STATUS-01-A
-    it('REP-STATUS-01-A: a coordinator sees all five statuses in the defined order, with positions and join times', async () => {
+    // Kills: ORDER-WL-DROP (the Waitlisted ORDER BY terms are removed, so created_at and id decide the waitlist order)
+    it('REP-STATUS-01-A: a coordinator sees all five statuses; the waitlist is ordered by join time then sequence, with positions 1 to 4', async () => {
       const { eventId, coo } = await seedAllStatuses();
 
       const body = await reportJson(eventId, coo.cookie);
 
       expect(body.registrations.map((r: { status: string }) => r.status)).toEqual([
-        'registered', 'registered', 'waitlisted', 'waitlisted', 'withdrawn', 'removed', 'cancelled',
+        'registered', 'registered', 'waitlisted', 'waitlisted', 'waitlisted', 'waitlisted', 'withdrawn', 'removed', 'cancelled',
       ]);
-      expect(body.registrations.slice(2, 4)).toEqual([
-        expect.objectContaining({ registrationId: WAIT_1, waitlistPosition: 1, joinedAt: '2026-09-29T02:00:00.000Z' }),
-        expect.objectContaining({ registrationId: WAIT_2, waitlistPosition: 2, joinedAt: '2026-09-29T02:05:00.000Z' }),
-      ]);
+      expect(body.registrations.slice(2, 6).map((r: { registrationId: string }) => r.registrationId)).toEqual(WAITLIST_ORDER);
+      expect(body.registrations.slice(2, 6).map((r: { waitlistPosition: number }) => r.waitlistPosition)).toEqual([1, 2, 3, 4]);
+      expect(body.registrations[2]).toMatchObject({ joinedAt: '2026-09-29T02:00:00.000Z' });
       expect(body.registrations[0]).not.toHaveProperty('waitlistPosition');
     });
 
-    // REP-STATUS-01-B
+    // Kills: OWN-3 (the waitlist count is added to the Confirmed total)
     it('REP-STATUS-01-B: totals and spots count Confirmed only; the waitlist count is reported and never takes capacity', async () => {
       const { eventId, coo } = await seedAllStatuses();
 
       const body = await reportJson(eventId, coo.cookie);
 
-      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots, body.event.capacity]).toEqual([2, 2, 48, 50]);
+      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots, body.event.capacity]).toEqual([2, 4, 48, 50]);
     });
 
-    // REP-STATUS-02-A
+    // Kills: OWN-1 (the status filter is ignored)
     it('REP-STATUS-02-A: the status filter returns only the chosen status, and the totals do not change', async () => {
       const { eventId, coo } = await seedAllStatuses();
 
@@ -1052,11 +1072,11 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
 
       expect(res.status).toBe(200);
       const body = JSON.parse(res.text);
-      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual([WAIT_1, WAIT_2]);
-      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots]).toEqual([2, 2, 48]);
+      expect(body.registrations.map((r: { registrationId: string }) => r.registrationId)).toEqual(WAITLIST_ORDER);
+      expect([body.totalConfirmed, body.waitlistCount, body.availableSpots]).toEqual([2, 4, 48]);
     });
 
-    // REP-STATUS-02-B
+    // Kills: FILTER-ONE-ONLY (the list keeps only its first value)
     it('REP-STATUS-02-B: a comma-separated list keeps every chosen status, in report order', async () => {
       const { eventId, coo } = await seedAllStatuses();
 
@@ -1065,7 +1085,7 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(body.registrations.map((r: { status: string }) => r.status)).toEqual(['registered', 'registered', 'withdrawn']);
     });
 
-    // REP-STATUS-02-C-ERR
+    // Kills: FILTER-UNKNOWN-IGNORED (an unknown or blank value is ignored instead of refused)
     it.each([
       ['an unknown status', 'pending'],
       ['an empty value', ''],
@@ -1081,26 +1101,30 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect(JSON.parse(res.text).errors).toHaveProperty('status');
     });
 
-    // REP-STATUS-03-A
+    // Kills: OWN-4 (no Status column in the CSV) and OWN-5 (the export ignores the filter)
     it('REP-STATUS-03-A: the CSV and PDF carry a Status column with the labels, and honour the filter', async () => {
       const { eventId, coo } = await seedAllStatuses();
 
       const csv = await call(`${exportPath(eventId, 'csv')}&status=waitlisted`, coo.cookie);
       const all = await call(exportPath(eventId, 'csv'), coo.cookie);
       const pdf = await call(exportPath(eventId, 'pdf'), coo.cookie);
+      const pdfWaitlisted = await call(`${exportPath(eventId, 'pdf')}&status=waitlisted`, coo.cookie);
 
       expect(csv.status).toBe(200);
       expect(csv.text.split('\r\n')[0]).toBe('﻿Name,Email,Contact Number,Special Requirements,Registration Date,Status');
-      expect(csv.text).toContain('Wei Ling,wei.ling@example.com,91110001,,29 Sep 2026 10:00,Waitlisted');
+      expect(csv.text).toContain('Wei Ling,wei.ling@example.com,91110001,,29 Sep 2026 11:00,Waitlisted');
       expect(csv.text).not.toContain('Dev Patel');
       expect(all.text).toContain('Ben Lim');
       expect(all.text).toContain(',Withdrawn\r\n');
       expect(all.text).toContain(',Removed\r\n');
       expect(all.text).toContain(',Cancelled\r\n');
       expect(await pdfText(pdf.bytes)).toContain('Waitlisted');
+      const waitlistedPdf = await pdfText(pdfWaitlisted.bytes);
+      expect(waitlistedPdf).toContain('Wei Ling');
+      expect(waitlistedPdf).not.toContain('Dev Patel');
     });
 
-    // REP-STATUS-04-A-ACCESS
+    // Kills: ACCESS-SKIP-FILTERED (a filtered request skips the access check)
     it.each(DOORS)('REP-STATUS-04-A-ACCESS: the %s door refuses an attendee and another coordinator with 403, even with a filter', async (_name, path) => {
       const { eventId } = await seedAllStatuses();
       const attendee = await createUser('ATTENDEE', 'Attendee Probe', { login: true });
@@ -1111,7 +1135,28 @@ describe.skipIf(!database)('SPM-63 registration report (e2e, PostgreSQL)', () =>
       expect((await call(url, other.cookie)).status).toBe(403);
     });
 
-    // REP-STATUS-05-A-ATTENDEE
+    // Kills: FILTER-BEFORE-ACCESS (the filter is parsed above the access check, so a bogus value answers 400 to a non-manager)
+    it.each(DOORS)('REP-STATUS-04-B-ERR: the %s door refuses a non-manager with 403, not 400, when the status is bogus', async (_name, path) => {
+      const { eventId } = await seedAllStatuses();
+      const attendee = await createUser('ATTENDEE', 'Attendee Bogus', { login: true });
+      const other = await createUser('COORDINATOR', 'Other Coordinator Bogus');
+      const url = path(eventId).includes('?') ? `${path(eventId)}&status=bogus` : `${path(eventId)}?status=bogus`;
+
+      expect((await call(url, attendee.cookie)).status).toBe(403);
+      expect((await call(url, other.cookie)).status).toBe(403);
+    });
+
+    // Kills: FILTER-UNKNOWN-IGNORED (an unknown export status is ignored instead of refused)
+    it.each([['CSV', 'csv'], ['PDF', 'pdf']])('REP-STATUS-04-C-ERR: the %s export refuses an unknown status with 400 for the owner', async (_label, format) => {
+      const { eventId, coo } = await seedAllStatuses();
+
+      const res = await call(`${exportPath(eventId, format)}&status=pending`, coo.cookie);
+
+      expect(res.status).toBe(400);
+      expect(JSON.parse(res.text)).toMatchObject({ statusCode: 400, code: 'validation_error' });
+    });
+
+    // Kills: ME-POSITION-DROP (the attendee read drops the waitlist position)
     it('REP-STATUS-05-A-ATTENDEE: the attendee read is unchanged: a waitlisted attendee sees only their own entry and position', async () => {
       const { eventId, attendee } = await seedAllStatuses();
 

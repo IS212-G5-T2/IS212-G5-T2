@@ -316,12 +316,13 @@ export class RegistrationsService {
   }
 
   /**
-   * SPM-63: the registration report for an event the caller manages. This one method guards the report and both
-   * exports (the controller calls it for every door). Order of checks: authentication (middleware, 401 here as
-   * a backstop) -> event exists (404) -> assigned coordinator or owning organiser (403, logged) -> data. Identity
-   * comes from the verified session only. Count, rows, CSV and PDF all derive from the one Registered-status query,
-   * ordered by registration date then id; nothing is cached, so a registration or withdrawal shows on the next call.
-   * SPM-138 leaves this unchanged: waiting entries are Waitlisted rows and never appear here.
+   * SPM-63, changed by the SPM-138 owner decision: the registration report for an event the caller manages. This one
+   * method guards the report and both exports (the controller calls it for every door). Order of checks: authentication
+   * (middleware, 401 here as a backstop) -> event exists (404) -> assigned coordinator or owning organiser (403, logged)
+   * -> status filter parsed (400) -> data. Identity comes from the verified session only. The totals (Confirmed and
+   * waitlist counts) are read once, unfiltered. The rows list every status, or only the chosen ones, in report order
+   * (Confirmed by registration date, Waitlisted by position, the rest by the instant their status last changed). The
+   * CSV and PDF reuse the same rows. Nothing is cached, so a change shows on the next call.
    */
   async getReport(identity: AuthenticatedUser | undefined, eventId: string, status?: unknown): Promise<RegistrationReport> {
     if (!identity?.uid) throw new UnauthorizedException('Authentication required.');

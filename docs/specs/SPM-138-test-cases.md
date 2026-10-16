@@ -32,7 +32,7 @@ Short definitions of the SPM-138 decision labels used in code and test comments.
 
 ## Fixtures
 
-Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by label in comments. Users have fixed ids and emails per label (attendee `ATT-NN` is `10000000-0000-4000-8000-<NNNNNNNNNNNN>`, so a lower label sorts first), so every run builds the same users. Event ids and submission keys are random; no oracle depends on them.
+Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by label in comments. Users have fixed ids and emails per label (attendee `ATT-NN` is `10000000-0000-4000-8000-<NNNNNNNNNNNN>`, so a lower label sorts first), so every run builds the same users. Event ids are fixed: each seeded event takes the next id from a per-file counter (`fixedEventId()` in the waitlist e2e, `uuid()` in the report e2e), so every run builds the same ids. No oracle depends on id order.
 
 **Documented bounded exception (lock-waiter poll).** `waitForLockWaiters` in `backend/test/registrations.waitlist.e2e-spec.ts` is a bounded poll on `pg_stat_activity`: at most 200 attempts, 50 ms apart (about 10 s). It throws on timeout, so a waiter that never appears fails the test loudly rather than racing. It is the **only sleep in the backend waitlist suite** (the e2e file and the unit specs under `backend/src/registrations`); no other sleep may be added there. The frontend tests use a deferred promise that the test resolves and use no timer.
 
@@ -130,7 +130,7 @@ Suite clock `T0 = 2026-10-14T12:00:00+08:00`. Events and attendees are named by 
 ### Cross-cutting
 
 - **13-A** (BE). Bulk fixture: 500 waitlisted entries ATT-100 to ATT-599 with ascending join times. ATT-04 joins: 201, position 501, message "... Your position is 501." ATT-01 withdraws: ATT-100 Confirmed, ATT-04 is 500, ATT-101 is 1. No timing assertion. *Kills M28.*
-- **14-A** (BE + FE). EVT-706 clone: SPM-63 report for COO-01 and ORG-01 gives total 3, rows ATT-01, 02, 03. The report API, CSV and PDF text contain no name or email of ATT-04 to 06. After ATT-01 withdraws and ATT-04 is promoted: total 3, rows ATT-02, 03, 04. *Kills M27.*
+- **14-A** (BE + FE). EVT-706 clone with capacity 3: ATT-04 to ATT-06 waiting, ATT-01 to ATT-03 Confirmed. COO-01 and ORG-01 see the three Confirmed rows and the three Waitlisted rows at positions 1 to 3; totals are 3 Confirmed, 3 on the waitlist, 0 spots. The CSV and PDF carry the same rows with the Waitlisted label. After ATT-01 withdraws and ATT-04 is promoted: ATT-04 reads as registered with no position, ATT-05 and ATT-06 stay waitlisted, and ATT-01 is listed last as withdrawn. *Kills W14-TOTAL (the totals count Waitlisted rows). M27 retired: it encoded the superseded rule (see the decision change).*
 - **15-A** (BE). Body `{ "status": "Confirmed", "position": 1, "attendeeId": "ATT-01", "joinedAt": "2020-01-01T00:00:00Z", "eventId": "EVT-702" }` returns 400 (strict schema, SPM-61 D15); no rows for ATT-01 or EVT-702. `{}` and no body return 201. *Kills M29.*
 
 ## Open assumptions (cited, not reproduced)
@@ -175,7 +175,7 @@ The Kills lines above name M1 to M31 without defining them. The mutants in `back
 | M24 | Closing comparison one step late | 11-B | Spec does not define the mechanism; M24 is the SQL comparison |
 | M25 | Manual close (registration_enabled false) ignored by settle | 11-C (no ID in spec) | **ID collision.** Spec 12-A says "Kills M25" for a missing per-entry cancel notification (blocked). Recorded for the user; not renumbered |
 | M26 | Releaser cancels withdrawn entries | 12-C (blocked) | The releaser is killed by e2e JOIN-WAITLIST-12-C-REL, not the blocked 12-C case |
-| M27 | Report lists waiting entries | 14-A | None known |
+| M27 | Report lists waiting entries | 14-A | RETIRED (owner decision 2026-10-16): the report lists every status. Replaced by OWN-1 to OWN-5 and W14-TOTAL |
 | M28 | Position capped at 500 | 13-A | Spec does not define M28 |
 | M29 | Join ignores its body | 15-A | None known |
 | M30 | Withdraw-by-id lookup drops the owner filter | 05-C | Spec 05-C describes an attendee read by id; no GET-by-id route exists (A-05C). The 10-E ownership gap is also covered |
@@ -210,7 +210,7 @@ Oracle source for the added cases: the spec's 11-A, 11-B, 11-C and 11-D rules (A
 | P-G | The waiting-withdrawal UPDATE drops its status guard | EQUIVALENT (documented exception 1 of 2) | Every writer of `event_registrations.status` runs under the event row lock (inventory in `backend/scripts/mutation/spm138.mutants.mjs`, above P-G). The withdrawal re-reads the status under that lock, so the guard always holds. **SPM-136 must re-run P-G and P-R when it wires the releaser.** |
 | P-R | The registered compare-and-set drops its status guard | EQUIVALENT (documented exception 2 of 2) | Same reasoning as P-G. **SPM-136 must re-run P-G and P-R when it wires the releaser.** |
 
-**Equivalent mutants: the two documented exceptions to zero equivalents.** The mutant suite has 60 mutants; 58 are killed and exactly two, P-G and P-R, are recorded as equivalent. Both rest on one invariant: every writer of `event_registrations.status` runs under the event row lock, and the withdrawal re-reads the status under that lock, so the guard each mutant removes can never be the thing that decides the outcome. The writer inventory is in `backend/scripts/mutation/spm138.mutants.mjs` (above P-G). Any future equivalent mutant needs a second entry here; the default is zero. SPM-136 must re-run P-G and P-R when it wires the cancel releaser, because a new writer would break the invariant.
+**Equivalent mutants: the two documented exceptions to zero equivalents.** The backend SPM-138 mutant suite has 97 mutants (last measured run: 95 killed, 2 equivalent, 0 survived); exactly two, P-G and P-R, are recorded as equivalent. Both rest on one invariant: every writer of `event_registrations.status` runs under the event row lock, and the withdrawal re-reads the status under that lock, so the guard each mutant removes can never be the thing that decides the outcome. The writer inventory is in `backend/scripts/mutation/spm138.mutants.mjs` (above P-G). Any future equivalent mutant needs a second entry here; the default is zero. SPM-136 must re-run P-G and P-R when it wires the cancel releaser, because a new writer would break the invariant.
 | X1 | EventCancelled removed from the attendee audience | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X2 | EventCancelled no longer maps to the attendee audience role | KILLED by JOIN-WAITLIST-12-C-VIS | AC12 visibility |
 | X3 | The releaser's dedupe on Waitlisted is dropped (a second release notices again) | KILLED by JOIN-WAITLIST-12-C-REL | One notice per entry |
@@ -393,6 +393,43 @@ This overrides the earlier SPM-63 rule that the report lists Confirmed attendees
 - **Filter.** `?status=` takes one or more values, comma-separated (for example `waitlisted` or `withdrawn,removed`). Absent means every status. An empty value, a blank list item, an unknown value or a repeated-case value is a 400 with `code: validation_error` and an `errors.status` entry. Access is checked before the filter is parsed (a 403 comes first).
 - **Totals.** `totalConfirmed` and `availableSpots` stay Confirmed-only and are not affected by the filter. `waitlistCount` is added (the Waitlisted rows, unfiltered). Waitlisted entries never take capacity.
 - **Exports.** The CSV and PDF go through the same `getReport` call and honour the same filter. The Status column (already present) shows the label for each row. The PDF empty state ("No registrations to display") is unchanged: an empty table now means no rows match the filter, which is the same meaning it had.
-- **Mutants.** M1 (the Confirmed-only status filter) and M27 (the report lists waiting entries) are retired: both encoded the superseded rule. The new expected behaviour is guarded by OWN-1 (filter ignored), OWN-2 (Waitlisted excluded), OWN-3 (waitlist counted in totals), OWN-4 (no Status column in the export) and OWN-5 (export ignores the filter), each killed by a named test in `test/registrations.report.e2e-spec.ts`. The frontend guards are F-REP-FILTER-OPTIONS, F-REP-BADGE, F-REP-HEADER, F-REP-FILTER-IGNORED and F-REP-EXPORT-IGNORES-FILTER.
+- **Mutants.** Two superseded mutants are retired, both because they encoded the Confirmed-only rule: SPM-63 mutant M1 (the Confirmed-only status filter, in `backend/scripts/mutation/spm63.mutants.mjs`) and SPM-138 mutant M27 (the report lists waiting entries, in `spm138.mutants.mjs`). The new expected behaviour is guarded by OWN-1 (filter ignored, killed by REP-STATUS-02-A), OWN-2 (Waitlisted excluded from the unfiltered list, killed by REP-STATUS-01-A), OWN-3 (waitlist counted in totals, killed by REP-STATUS-01-B), OWN-4 (no Status column in the CSV, killed by REP-STATUS-03-A) and OWN-5 (export ignores the filter, killed by REP-STATUS-03-A). The frontend guards are F-REP-FILTER-OPTIONS, F-REP-BADGE, F-REP-HEADER, F-REP-FILTER-IGNORED, F-REP-EXPORT-IGNORES-FILTER, F-REP-EMPTY-STATUS, F-REP-QUERY-ALL, PF-HEADER-ROWS, PF-SPOTS-ROWS, PF-MODAL-REQ, PF-MODAL-EXPORT and PF-MODAL-POS.
 - **Tests changed.** The SPM-63 e2e assertions that excluded Withdrawn or Cancelled rows, or expected the row value `Confirmed`, now assert the new rule (the row values are `registered` and the withdrawn and cancelled rows are listed). JOIN-WAITLIST-14-A now asserts that the report lists the waitlist with positions and that totals count Confirmed only.
+
+### Case table: REP-STATUS and REP-FE (owner decision, 2026-10-16)
+
+Every ID below occurs in a test title (checked by grep both ways). Oracles are the owner decision and the status labels, not the code's output. "Mutant" is the runner mutant that the test's Kills line names and that the runner reports killed.
+
+| ID | File | Oracle source | Tier | Killing mutant |
+|---|---|---|---|---|
+| REP-STATUS-02-D-BND | `backend/src/registrations/report/report-status.spec.ts` | Owner decision: the unfiltered list keeps all five stored statuses | Unit | ALL-NARROWED |
+| REP-STATUS-02-D | same | Owner decision: a comma-separated filter keeps every chosen value | Unit | FILTER-ONE-ONLY-U |
+| REP-STATUS-02-C-ERR-UNIT | same | Owner decision: an unknown or blank value is refused with the validation shape (400) | Unit (it.each) | FILTER-UNKNOWN-IGNORED-U |
+| REP-STATUS-02-C-ERR-ARRAY | same | A repeated parameter (an array) is refused | Unit | FILTER-ARRAY-ACCEPTED |
+| REP-STATUS-02-E-MAP | same | API values map to their stored statuses and back (Waitlisted to Waitlisted) | Unit | DB-MAP-SWAP |
+| REP-STATUS-01-A | `backend/test/registrations.report.e2e-spec.ts` | Owner decision: five statuses; waitlist in join order then sequence, with positions | E2E (DB) | ORDER-WL-DROP (also OWN-2) |
+| REP-STATUS-01-B | same | Owner decision: totals and spots count Confirmed only; the waitlist count is reported | E2E (DB) | OWN-3 |
+| REP-STATUS-02-A | same | Owner decision: the filter returns only the chosen status; totals do not change | E2E (DB) | OWN-1 |
+| REP-STATUS-02-B | same | Owner decision: a comma-separated list keeps every chosen status in report order | E2E (DB) | FILTER-ONE-ONLY |
+| REP-STATUS-02-C-ERR | same | Owner decision: an unknown status is refused with 400 and the validation shape | E2E (DB, it.each) | FILTER-UNKNOWN-IGNORED |
+| REP-STATUS-03-A | same | Owner decision: CSV and PDF carry a Status column with labels and honour the filter | E2E (DB) | OWN-4, OWN-5 |
+| REP-STATUS-04-A-ACCESS | same | Access before filter: an attendee or another coordinator gets 403 even with a filter | E2E (DB, it.each) | ACCESS-SKIP-FILTERED |
+| REP-STATUS-04-B-ERR | same | Access before filter: a non-manager gets 403, not 400, for a bogus status | E2E (DB, it.each) | FILTER-BEFORE-ACCESS |
+| REP-STATUS-04-C-ERR | same | An export with an unknown status is refused with 400 for the owner | E2E (DB, it.each) | FILTER-UNKNOWN-IGNORED |
+| REP-STATUS-05-A-ATTENDEE | same | The attendee read is unchanged: a waitlisted attendee sees their own entry and position | E2E (DB) | ME-POSITION-DROP |
+| REP-STATUS-01-B-FE | `frontend/src/features/registrations/components/report/ReportHeader.test.tsx` | Owner decision: the header shows the waitlist count; a waitlisted entry never takes a spot | FE component | F-REP-HEADER |
+| REP-FE-01-A | `frontend/src/features/registrations/pages/report/RegistrationReportStatus.test.tsx` | Owner decision: the status filter offers every status | FE page (Vitest, mocked HTTP) | F-REP-FILTER-OPTIONS |
+| REP-FE-01-B | same | Badges per status; Waitlisted position; header counts | FE page | F-REP-BADGE, F-REP-HEADER |
+| REP-FE-02-A | same | The filter drives the request and the table; header totals stay Confirmed-only | FE page | F-REP-FILTER-IGNORED, PF-HEADER-ROWS, PF-SPOTS-ROWS |
+| REP-FE-03-A | same | CSV and PDF are requested with the status on screen | FE page | F-REP-EXPORT-IGNORES-FILTER |
+| REP-FE-03-B | same | A status with no rows shows that no registrations have it | FE page | F-REP-EMPTY-STATUS |
+| REP-FE-03-C | `frontend/src/features/registrations/lib/registrationReport.status.test.ts` | The export URL carries the chosen status; `all` adds no parameter | FE lib (real function, stubbed fetch) | F-REP-EXPORT-IGNORES-FILTER |
+| REP-FE-03-D | same | The query is empty for every status and names one status otherwise | FE lib | F-REP-QUERY-ALL |
+| REP-MOD-01-A | `frontend/src/features/registrations/components/report/RegistrationsModal.test.tsx` | Choosing Waitlisted requests `?status=waitlisted` and shows the entry | FE component | PF-MODAL-REQ |
+| REP-MOD-02-A | same | The CSV export is requested with the status on screen | FE component | PF-MODAL-EXPORT |
+| REP-MOD-03-A | same | An expanded waitlisted card reads Waitlisted (position 1) | FE component | PF-MODAL-POS |
+
+**Killing tests for OWN-1 to OWN-5.** OWN-1 (filter ignored): REP-STATUS-02-A. OWN-2 (Waitlisted excluded): REP-STATUS-01-A. OWN-3 (waitlist counted in totals): REP-STATUS-01-B. OWN-4 (no Status column): REP-STATUS-03-A. OWN-5 (export ignores the filter): REP-STATUS-03-A.
+
+**Removed IDs.** `REP-STATUS-02-E` existed only as a describe label in `report-status.spec.ts` (no test carries it; the test is REP-STATUS-02-E-MAP), so the label no longer carries an ID. No other ID was deleted: every other ID in code or spec occurs in a test title.
 

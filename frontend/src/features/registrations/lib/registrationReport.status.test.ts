@@ -21,7 +21,8 @@ describe("REP-FE-03-C: the export URL carries the chosen status", () => {
     expect(urls[1]).toMatch(/\/registrations\/report\/export\?format=csv$/);
   });
 
-  it("the report query is empty for every status and names one status otherwise", () => {
+  // Kills: F-REP-QUERY-ALL (the query helper names a status for the all filter)
+  it("REP-FE-03-D: the report query is empty for every status and names one status otherwise", () => {
     expect(reportStatusQuery("all")).toBe("");
     expect(reportStatusQuery("registered")).toBe("status=registered");
   });

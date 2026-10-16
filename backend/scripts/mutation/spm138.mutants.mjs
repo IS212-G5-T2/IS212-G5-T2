@@ -347,3 +347,58 @@ MUTANTS.push(
     edits: [['    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId, status);', '    const report = await this.registrations.getReport(request[CURRENT_USER_REQUEST_KEY], eventId);']],
     testMappings: [reportTest('REP-STATUS-03-A')] },
 );
+
+// ---- Round-11 mutants (report): each Kills line in the report e2e names one of these; each maps to one test.
+const RPT_SVC = 'src/registrations/registrations.service.ts';
+const RPT_STATUS = 'src/registrations/report/report-status.ts';
+const RPT_TEST = (title) => ({ suite: 'report', file: 'test/registrations.report.e2e-spec.ts', title });
+MUTANTS.push(
+  { id: 'ORDER-WL-DROP', name: 'the Waitlisted ORDER BY terms (joined_at, waitlist_seq) are dropped, so created_at and id order the waitlist', file: RPT_SVC, suites: ['report'],
+    edits: [["                 CASE WHEN r.status = 'Waitlisted' THEN r.joined_at END ASC,\n                 CASE WHEN r.status = 'Waitlisted' THEN r.waitlist_seq END ASC,\n", '']],
+    testMappings: [RPT_TEST('REP-STATUS-01-A')] },
+  { id: 'FILTER-BEFORE-ACCESS', name: 'the status filter is parsed above the access check (a bogus value answers 400 to a non-manager)', file: RPT_SVC, suites: ['report'],
+    edits: [['    this.requireEventId(eventId);\n\n    const found = await this.database.query(\n      `SELECT id, event_name, start_date_time, end_date_time, registration_limit, organiser_id, coordinator_id',
+      '    this.requireEventId(eventId);\n    parseReportStatusFilter(status);\n\n    const found = await this.database.query(\n      `SELECT id, event_name, start_date_time, end_date_time, registration_limit, organiser_id, coordinator_id']],
+    testMappings: [RPT_TEST('REP-STATUS-04-B-ERR')] },
+  { id: 'ACCESS-SKIP-FILTERED', name: 'a filtered report request skips the access check', file: RPT_SVC, suites: ['report'],
+    edits: [['    if (!canViewEventRegistrations(identity, { coordinatorId: event.coordinator_id, organiserId: event.organiser_id })) {',
+      '    if (status === undefined && !canViewEventRegistrations(identity, { coordinatorId: event.coordinator_id, organiserId: event.organiser_id })) {']],
+    testMappings: [RPT_TEST('REP-STATUS-04-A-ACCESS')] },
+  { id: 'FILTER-ONE-ONLY', name: 'a comma-separated status list keeps only its first value', file: RPT_STATUS, suites: ['report'],
+    edits: [['  return [...new Set(values as ReportStatus[])];', '  return [values[0] as ReportStatus];']],
+    testMappings: [RPT_TEST('REP-STATUS-02-B')] },
+  { id: 'FILTER-UNKNOWN-IGNORED', name: 'an unknown or blank status value is ignored instead of refused (400)', file: RPT_STATUS, suites: ['report'],
+    edits: [['  if (values.length === 0 || unknown.length > 0) {', '  if (values.length === 0 && unknown.length > 0) {']],
+    testMappings: [RPT_TEST('REP-STATUS-02-C-ERR')] },
+  { id: 'ME-POSITION-DROP', name: 'the attendee read drops the waitlist position', file: RPT_SVC, suites: ['report'],
+    edits: [['return { registration: row ? this.record(row, row.event_name, row.waitlist_position) : null };', 'return { registration: row ? this.record(row, row.event_name, null) : null };']],
+    testMappings: [RPT_TEST('REP-STATUS-05-A-ATTENDEE')] },
+  { id: 'W14-TOTAL', name: 'the report totals count Waitlisted rows as confirmed (Confirmed-only rule broken)', file: RPT_SVC, suites: ['e2e'],
+    edits: [["COUNT(*) FILTER (WHERE status = 'Registered')::integer AS confirmed,", "COUNT(*) FILTER (WHERE status IN ('Registered', 'Waitlisted'))::integer AS confirmed,"]],
+    testMappings: [e2e('JOIN-WAITLIST-14-A: the report, CSV and PDF list every status; totals count Confirmed only')] },
+  { id: 'ORDER-WITHDRAWN-FIRST', name: 'withdrawn, removed and cancelled rows sort ahead of the Confirmed rows', file: RPT_SVC, suites: ['report'],
+    edits: [['WHEN \'Waitlisted\' THEN 1 ELSE 2 END,', 'WHEN \'Waitlisted\' THEN 1 ELSE -1 END,']],
+    testMappings: [RPT_TEST('VIEW-REG-INFO-01-A: the assigned coordinator gets 200'), RPT_TEST('VIEW-REG-INFO-06-B: a withdrawal moves the row')] },
+  { id: 'W-COUNT-WITHDRAWN', name: 'the Confirmed total counts Withdrawn rows', file: RPT_SVC, suites: ['report'],
+    edits: [["COUNT(*) FILTER (WHERE status = 'Registered')::integer AS confirmed,", "COUNT(*) FILTER (WHERE status IN ('Registered', 'Withdrawn'))::integer AS confirmed,"]],
+    testMappings: [RPT_TEST('VIEW-REG-INFO-02-A: counts Confirmed only')] },
+  { id: 'W-CANCEL-COUNT', name: 'the Confirmed total counts Cancelled rows', file: RPT_SVC, suites: ['report'],
+    edits: [["COUNT(*) FILTER (WHERE status = 'Registered')::integer AS confirmed,", "COUNT(*) FILTER (WHERE status IN ('Registered', 'Cancelled'))::integer AS confirmed,"]],
+    testMappings: [RPT_TEST('VIEW-REG-DET-02-B: a Cancelled registration is listed')] },
+);
+
+// ---- Round-11 unit mutants for the parser spec (report-status.spec.ts): one test each.
+const RPT_UNIT = (title) => ({ suite: 'unit', file: 'src/registrations/report/report-status.spec.ts', title });
+MUTANTS.push(
+  { id: 'ALL-NARROWED', name: 'the unfiltered list of stored statuses drops Waitlisted', file: RPT_STATUS, suites: ['unit'],
+    edits: [['export const ALL_REPORT_DB_STATUSES: readonly string[] = REPORT_STATUSES.map((s) => REPORT_DB_STATUS[s]);', "export const ALL_REPORT_DB_STATUSES: readonly string[] = REPORT_STATUSES.filter((s) => s !== 'waitlisted').map((s) => REPORT_DB_STATUS[s]);"]],
+    testMappings: [RPT_UNIT('REP-STATUS-02-D-BND')] },
+  { ...MUTANTS.find((m) => m.id === 'FILTER-ONE-ONLY'), id: 'FILTER-ONE-ONLY-U', suites: ['unit'], testMappings: [RPT_UNIT('REP-STATUS-02-D: a comma-separated list keeps each value once')] },
+  { ...MUTANTS.find((m) => m.id === 'FILTER-UNKNOWN-IGNORED'), id: 'FILTER-UNKNOWN-IGNORED-U', suites: ['unit'], testMappings: [RPT_UNIT('REP-STATUS-02-C-ERR-UNIT')] },
+  { id: 'FILTER-ARRAY-ACCEPTED', name: 'a repeated status parameter (an array) is accepted as its values', file: RPT_STATUS, suites: ['unit'],
+    edits: [["  const values = typeof raw === 'string' ? raw.split(',').map((value) => value.trim()) : [];", "  const values = typeof raw === 'string' ? raw.split(',').map((value) => value.trim()) : Array.isArray(raw) ? (raw as string[]) : [];"]],
+    testMappings: [RPT_UNIT('REP-STATUS-02-C-ERR-ARRAY')] },
+  { id: 'DB-MAP-SWAP', name: 'the Waitlisted API value is mapped to the Removed stored status', file: RPT_STATUS, suites: ['unit'],
+    edits: [["  waitlisted: 'Waitlisted',", "  waitlisted: 'Removed',"]],
+    testMappings: [RPT_UNIT('REP-STATUS-02-E-MAP')] },
+);

@@ -1487,6 +1487,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
      * the same rows and the Waitlisted label. After ATT-01 withdraws and ATT-04 is promoted: ATT-04 reads as registered, ATT-05
      * and ATT-06 stay waitlisted, and ATT-01 is listed as withdrawn (the rest of the list, after the waitlist).
      */
+    // Kills: W14-TOTAL (the report totals count Waitlisted rows as confirmed)
     it('JOIN-WAITLIST-14-A: the report, CSV and PDF list every status; totals count Confirmed only', async () => {
       const coordinator = await namedUser(['COORDINATOR'], 'Coordinator COO', 3);
       const organiser = await namedUser(['ORGANISER'], 'Organiser ORG', 4);
@@ -1495,6 +1496,21 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       for (const [index, who] of att.entries()) await seedRegistered(eventId, who.uid, `0${index + 1}`);
       const waiting = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of waiting) await joinAs(eventId, who);
+      // The registration dates run in the opposite order to the join order (ATT-04 joined first, has the latest date), so
+      // only joined_at and waitlist_seq can give the waitlist its order. The dates sit after the seeded Confirmed rows, so
+      // after a promotion ATT-04 is the last Confirmed row.
+      await pool.query(
+        `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
+        [eventId, '2026-10-20T00:00:00.000Z', waiting[0].uid],
+      );
+      await pool.query(
+        `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
+        [eventId, '2026-10-19T00:00:00.000Z', waiting[1].uid],
+      );
+      await pool.query(
+        `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
+        [eventId, '2026-10-18T00:00:00.000Z', waiting[2].uid],
+      );
 
       for (const who of [coordinator, organiser]) {
         const report = await request(app.getHttpServer()).get(`/api/events/${eventId}/registrations/report`).set('Cookie', who.cookie).expect(200);
@@ -1503,6 +1519,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
           'Queue 01', 'Queue 02', 'Queue 03', 'Attendee 04', 'Attendee 05', 'Attendee 06',
         ]);
         expect(report.body.registrations.slice(3).map((r: { waitlistPosition: number }) => r.waitlistPosition)).toEqual([1, 2, 3]);
+        expect(report.body.registrations.slice(3).map((r: { fullName: string }) => r.fullName)).toEqual(['Attendee 04', 'Attendee 05', 'Attendee 06']);
         const csv = (await download(app, `/api/events/${eventId}/registrations/report/export?format=csv`, who)).toString('utf8');
         const pdf = await pdfText(await download(app, `/api/events/${eventId}/registrations/report/export?format=pdf`, who));
         expect(csv).toContain('Attendee 04');
@@ -1518,6 +1535,10 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
         ['Queue 02', 'registered'], ['Queue 03', 'registered'], ['Attendee 04', 'registered'],
         ['Attendee 05', 'waitlisted'], ['Attendee 06', 'waitlisted'], ['Queue 01', 'withdrawn'],
       ]);
+      // A promoted entry is Confirmed: it carries neither a waitlist position nor a join time.
+      const promoted = after.body.registrations.find((r: { fullName: string }) => r.fullName === 'Attendee 04');
+      expect(promoted).not.toHaveProperty('waitlistPosition');
+      expect(promoted).not.toHaveProperty('joinedAt');
     });
   });
 

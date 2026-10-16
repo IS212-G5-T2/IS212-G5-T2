@@ -106,7 +106,7 @@ describe("REP-FE-01-B: badges, positions and the header counts", () => {
 });
 
 describe("REP-FE-02-A: the filter drives the request and the table", () => {
-  // Kills: F-REP-FILTER-IGNORED (the request ignores the chosen status)
+  // Kills: F-REP-FILTER-IGNORED (the request ignores the chosen status), PF-HEADER-ROWS (the header counts the filtered rows), PF-SPOTS-ROWS (the spots line is computed from the filtered rows)
   it("REP-FE-02-A: choosing Waitlisted asks for waitlisted rows, shows only them, and keeps the header totals", async () => {
     serve((query) =>
       query === "status=waitlisted"
@@ -125,6 +125,8 @@ describe("REP-FE-02-A: the filter drives the request and the table", () => {
     expect(within(table).getByText("Wei Ling")).toBeInTheDocument();
     expect(within(table).queryByText("Dev Patel")).not.toBeInTheDocument();
     expect(screen.getByText("1 on the waitlist")).toBeInTheDocument();
+    expect(screen.getByText("2 Attendees Registered (2 / 50)")).toBeInTheDocument();
+    expect(screen.getByText("48 spots available")).toBeInTheDocument();
   });
 });
 
@@ -146,6 +148,7 @@ describe("REP-FE-03-A: the exports carry the current filter", () => {
 });
 
 describe("REP-FE-03-B: an empty status says so", () => {
+  // Kills: F-REP-EMPTY-STATUS (a filtered empty status shows the all-empty text)
   it("REP-FE-03-B: a status with no rows shows that no registrations have it", async () => {
     serve((query) => (query === "status=removed" ? buildReport({ registrations: [], totalConfirmed: 2, waitlistCount: 1, availableSpots: 48 }) : fullReport()));
     const user = userEvent.setup();
