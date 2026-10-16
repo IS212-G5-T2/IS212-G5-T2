@@ -102,25 +102,31 @@ afterEach(() => {
 });
 
 describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator and the submitting organiser only", () => {
-  // Kills: none identified
+  // Kills: F39 (the page hides Cancel Event on a Planning event)
   it("CANCEL-EVENT-01-A (page): the assigned coordinator sees Cancel Event on a Planning event", async () => {
     // Arrange
     renderAs(COORDINATOR, eventRecord());
 
-    // Act and assert: the action is visible to the assigned coordinator
-    expect(await screen.findByRole("button", { name: "Cancel Event" })).toBeInTheDocument();
+    // Act: wait for the page to render the action
+    const trigger = await screen.findByRole("button", { name: "Cancel Event" });
+
+    // Assert: the action is visible to the assigned coordinator
+    expect(trigger).toBeInTheDocument();
   });
 
-  // Kills: none identified
+  // Kills: F40 (the page hides Cancel Event from the organiser on a Confirmed event)
   it("CANCEL-EVENT-01-B (page): the submitting organiser sees Cancel Event on a Confirmed event", async () => {
     // Arrange
     renderAs(ORGANISER, eventRecord({ status: "confirmed" }));
 
-    // Act and assert: the action is visible to the submitting organiser
-    expect(await screen.findByRole("button", { name: "Cancel Event" })).toBeInTheDocument();
+    // Act: wait for the page to render the action
+    const trigger = await screen.findByRole("button", { name: "Cancel Event" });
+
+    // Assert: the action is visible to the submitting organiser
+    expect(trigger).toBeInTheDocument();
   });
 
-  // Kills: F1 (LEAD-01 row); F2 (ORG-02 row); none identified for the COO-02 row
+  // Kills: F26 (COO-02 row: the assigned-coordinator id check dropped); F1 (LEAD-01 row); F2 (ORG-02 row)
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator", roles: ["coordinator"] }],
     ["ORG-02, another organiser", { id: "org-02", role: "organiser", roles: ["organiser"] }],
@@ -136,7 +142,7 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator and t
     expect(screen.queryByRole("button", { name: "Cancel Event" })).not.toBeInTheDocument();
   });
 
-  // Kills: none identified
+  // Kills: F33 (cancelled allowed: the Cancel Event button shows on a cancelled event), F34 (completed allowed), F35 (rejected allowed)
   it.each([
     ["completed", "completed"],
     ["rejected", "rejected"],
@@ -253,7 +259,7 @@ describe("SPM-136 AC7 (RR-136-03): a cancelled event offers no clarification rep
     expect(screen.queryByRole("button", { name: "Resolve" })).not.toBeInTheDocument();
   });
 
-  // Kills: none identified
+  // Kills: F41 (Reply hidden on a live Planning event, so a live event loses its clarification controls)
   it("CANCEL-EVENT-07-A-CLAR (control): a live event with the same open clarification offers Reply and Resolve", async () => {
     // Arrange: the same clarification on a Planning event, so the hidden controls are caused by the cancelled status
     // Act

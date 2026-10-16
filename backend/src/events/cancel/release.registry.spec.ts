@@ -30,8 +30,11 @@ describe('SPM-136 release registry', () => {
     // Arrange: the registry is a module constant, so its order is read directly
     // SPM-138 AC12: the waiting list is released with the registrations (JOIN-WAITLIST-12-A to 12-C).
 
-    // Act and assert: the releaser names, in order
-    expect(DEFAULT_RELEASERS.map((releaser) => releaser.name)).toEqual([
+    // Act: read the releaser names from the registry, in order
+    const names = DEFAULT_RELEASERS.map((releaser) => releaser.name);
+
+    // Assert: the names are in the release order
+    expect(names).toEqual([
       'venue_bookings',
       'event_registrations',
       'event_registrations.waitlist',

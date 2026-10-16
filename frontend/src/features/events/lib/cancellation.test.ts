@@ -1,6 +1,7 @@
 /*
  * SPM-136 AC1 and AC3 (frontend rule): who is offered Cancel Event and on which statuses.
  * Literals come from the Confluence cases CANCEL-EVENT-01-C (F) and 03-B; not from the implementation.
+ * Mutant IDs in each "Kills:" line are defined in frontend/scripts/testing/mutation/spm136.mutants.mjs.
  */
 import { describe, expect, it } from "vitest";
 import { canCancelEvent } from "@/features/events/lib/cancellation";
@@ -18,38 +19,55 @@ const coordinator = { id: "coo-01", role: "coordinator", roles: ["coordinator"] 
 const organiser = { id: "org-01", role: "organiser", roles: ["organiser"] };
 
 describe("SPM-136 canCancelEvent", () => {
-  // Kills: none identified
+  // Kills: F24 (the assigned-coordinator branch dropped: only the organiser is offered)
   it("CANCEL-EVENT-01-A (FE): the assigned coordinator is offered Cancel Event", () => {
-    // Act and assert: the assigned coordinator is offered the action
-    expect(canCancelEvent({ event: base, currentUser: coordinator })).toBe(true);
+    // Act: the assigned coordinator is checked against the event
+    const offered = canCancelEvent({ event: base, currentUser: coordinator });
+
+    // Assert: the assigned coordinator is offered the action
+    expect(offered).toBe(true);
   });
 
-  // Kills: none identified
+  // Kills: F25 (the submitting-organiser branch dropped: only the assigned coordinator is offered)
   it("CANCEL-EVENT-01-B (FE): the submitting organiser is offered Cancel Event", () => {
-    // Act and assert: the submitting organiser is offered the action
-    expect(canCancelEvent({ event: base, currentUser: organiser })).toBe(true);
+    // Act: the submitting organiser is checked against the event
+    const offered = canCancelEvent({ event: base, currentUser: organiser });
+
+    // Assert: the submitting organiser is offered the action
+    expect(offered).toBe(true);
   });
 
-  // Kills: F1 (LEAD-01 row); F2 (ORG-02 row); none identified for the COO-02 and ATT-01 rows
+  // Kills: F26 (the assigned-coordinator id check dropped: COO-02 is offered), F1 (LEAD-01 row), F2 (ORG-02 row),
+  // F27 (the attendee ATT-01 row: an attendee is offered the action)
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator", roles: ["coordinator"] }],
     ["ORG-02, another organiser", { id: "org-02", role: "organiser", roles: ["organiser"] }],
     ["LEAD-01, Coordinator Lead", { id: "lead-01", role: "coordinator_lead", roles: ["coordinator_lead"] }],
     ["ATT-01, attendee", { id: "att-01", role: "attendee", roles: ["attendee"] }],
   ])("CANCEL-EVENT-01-C-F: %s is not offered Cancel Event", (_label, user) => {
-    // Act and assert: the user is not offered the action
-    expect(canCancelEvent({ event: base, currentUser: user })).toBe(false);
+    // Act: the user is checked against the event
+    const offered = canCancelEvent({ event: base, currentUser: user });
+
+    // Assert: the user is not offered the action
+    expect(offered).toBe(false);
   });
 
-  // Kills: F3 (approved row); none identified for the other rows
+  // Kills: F3 (approved dropped), F29 (submitted dropped), F30 (planning dropped), F31 (confirmed dropped)
   it.each(["submitted", "approved", "planning", "confirmed"])("CANCEL-EVENT-03-B: %s is offered for the assigned coordinator", (status) => {
-    // Act and assert: each cancellable status is offered to the assigned coordinator
-    expect(canCancelEvent({ event: { ...base, status } as EventRecord, currentUser: coordinator })).toBe(true);
+    // Act: the assigned coordinator is checked against an event in this status
+    const offered = canCancelEvent({ event: { ...base, status } as EventRecord, currentUser: coordinator });
+
+    // Assert: each cancellable status is offered to the assigned coordinator
+    expect(offered).toBe(true);
   });
 
-  // Kills: none identified
+  // Kills: F32 (a deny-list instead of the allow-list: draft is offered), F33 (cancelled allowed), F34 (completed
+  // allowed), F35 (rejected allowed)
   it.each(["completed", "rejected", "cancelled", "draft"])("CANCEL-EVENT-03-B: %s is not offered Cancel Event", (status) => {
-    // Act and assert: each non-cancellable status is not offered the action
-    expect(canCancelEvent({ event: { ...base, status } as EventRecord, currentUser: coordinator })).toBe(false);
+    // Act: the assigned coordinator is checked against an event in this status
+    const offered = canCancelEvent({ event: { ...base, status } as EventRecord, currentUser: coordinator });
+
+    // Assert: each non-cancellable status is not offered the action
+    expect(offered).toBe(false);
   });
 });

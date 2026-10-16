@@ -137,7 +137,7 @@ describe("CANCEL-EVENT-02-A: the cancelling user confirms in a dialog before any
     await waitFor(() => expect(screen.getByRole("status")).toBeInTheDocument());
   });
 
-  // Kills: none identified
+  // Kills: F36 (the error alert not rendered, so a refused cancel shows nothing)
   it("CANCEL-EVENT-02-A: a refused cancel (409) is shown as an alert and the dialog stays open", async () => {
     // Arrange: the event is no longer cancellable on the server
     apiMock.mockRejectedValue(new ApiError("This event can no longer be cancelled.", undefined, "EVENT_NOT_CANCELLABLE", 409));
@@ -166,7 +166,7 @@ describe("CANCEL-EVENT-02-A (TR-136-09): a failed cancel can be retried from the
     const props = renderDialog();
     const confirm = screen.getByRole("button", { name: "Confirm cancellation" });
 
-    // Act 1: the first attempt is rejected
+    // Act: the first attempt is rejected
     await user.click(confirm);
 
     // Assert 1: the failure is announced and the dialog remains available for a retry
@@ -174,7 +174,7 @@ describe("CANCEL-EVENT-02-A (TR-136-09): a failed cancel can be retried from the
     expect(props.onCancelled).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Confirm cancellation" })).toBeEnabled();
 
-    // Act 2: the user retries
+    // Act: the user retries
     await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
 
     // Assert 2: the alert is gone, the success line is shown, and both attempts were the same request
@@ -237,16 +237,17 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     const keep = screen.getByRole("button", { name: "Keep event" });
     const confirm = screen.getByRole("button", { name: "Confirm cancellation" });
 
-    // Act and assert: Shift+Tab wraps backwards to the confirm button
+    // Act: Shift+Tab wraps backwards, then Tab from the last button wraps forwards
     await user.keyboard("{Shift>}{Tab}{/Shift}");
+    // Assert: Shift+Tab lands on the confirm button
     expect(confirm).toHaveFocus();
-    // Act and assert: Tab from the last button wraps forwards to Keep event
     await user.keyboard("{Tab}");
+    // Assert: Tab from the last button lands on Keep event
     expect(keep).toHaveFocus();
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  // Kills: none identified
+  // Kills: F38 (every key closes the dialog, so the letter key closes it)
   it("CANCEL-EVENT-02-B: a letter key does nothing: no close, no request", async () => {
     // Enter would activate the focused Keep event button (a real click), so a plain letter is the probe.
     // Arrange
@@ -263,14 +264,14 @@ describe("CANCEL-EVENT-02-B: dismissing the dialog leaves the event untouched", 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
-  // Kills: none identified
+  // Kills: F37 (the fallback text dropped: a bare rejection shows no alert text)
   it("CANCEL-EVENT-02-A: a failure that is not an Error is shown with the fallback text and the dialog stays open", async () => {
     // Arrange: the transport rejects with a bare value
     apiMock.mockRejectedValue("network down");
     const user = userEvent.setup();
     renderDialog();
 
-    // Act
+    // Act: confirm the cancellation
     await user.click(screen.getByRole("button", { name: "Confirm cancellation" }));
 
     // Assert
@@ -492,10 +493,12 @@ describe("CANCEL-EVENT-02-B (TR-136-13): the Shift+Tab trap keeps focus inside t
     const keep = screen.getByRole("button", { name: "Keep event" });
     const confirm = screen.getByRole("button", { name: "Confirm cancellation" });
 
-    // Act and assert: Tab moves forward to confirm, Shift+Tab moves back to Keep event
+    // Act: Tab moves forward to confirm, then Shift+Tab moves back to Keep event
     await user.keyboard("{Tab}");
+    // Assert: focus is on Confirm cancellation after the forward move
     expect(confirm).toHaveFocus();
     await user.keyboard("{Shift>}{Tab}{/Shift}");
+    // Assert: focus is back on Keep event, inside the dialog
     expect(keep).toHaveFocus();
     expect(screen.getByRole("dialog")).toContainElement(document.activeElement as HTMLElement);
     expect(apiMock).not.toHaveBeenCalled();

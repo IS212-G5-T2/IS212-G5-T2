@@ -48,6 +48,19 @@ export const SUITES = {
   unitWithdraw: {
     args: ['run', 'src/registrations/withdrawal/registrations.withdraw.spec.ts'],
   },
+  // SPM-136 test-quality pass: file-scoped unit suites so each new kill is a named test, not the whole unit suite.
+  unitCancelRules: {
+    args: ['run', 'src/events/cancel/cancel-rules.spec.ts'],
+  },
+  unitCancelService: {
+    args: ['run', 'src/events/cancel/cancel-event.service.spec.ts'],
+  },
+  unitStatusRemoval: {
+    args: ['run', 'src/events/status/status.removal.spec.ts'],
+  },
+  unitNotifications: {
+    args: ['run', 'src/events/cancelled-notifications.spec.ts'],
+  },
 };
 
 const CANCEL = 'src/events/cancel/cancel-event.service.ts';
@@ -180,10 +193,10 @@ export const MUTANTS = [
   // suite 'waitlist12' with testMappings to the JOIN-WAITLIST-12 cases that must fail. A survivor is reported as a survivor.
   // W1: the waiting releaser is not registered: no waiting entry is cancelled and no notice is written.
   { id: 'W1', name: 'waitlist releaser not registered in DEFAULT_RELEASERS: waiting entries survive the cancel', file: 'src/events/cancel/release.registry.ts',
-    edits: [['  waitlistReleaser,\n', '']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A (waiting list): three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
+    edits: [['  waitlistReleaser,\n', '']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
   // W2: the waiting releaser's release is a no-op (registered, but it releases nothing).
   { id: 'W2', name: 'waitlist releaser release is a no-op: waiting entries are not cancelled', file: 'src/registrations/release/waitlist.releaser.ts',
-    edits: [['    await releaseWaitlistForCancelledEvent(client, eventId, now);', '    return;']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A (waiting list): three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
+    edits: [['    await releaseWaitlistForCancelledEvent(client, eventId, now);', '    return;']], suites: ['waitlist12', 'cancelE2e'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }, { suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-08-A-COMBINED: three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted' }] },
   // W6: the waiting notice INSERT is dropped (entries are cancelled, nobody is told).
   { id: 'W6', name: 'waitlist EventCancelled notice not written for each cancelled entry', file: 'src/registrations/waitlist/cancel-releaser.ts',
     edits: [['  for (const row of cancelled.rows) {', '  for (const row of [] as { attendee_id: string }[]) {']], suites: ['waitlist12'], testMappings: [{ suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-A: cancelling the event notifies each waitlisted attendee once' }, { suite: 'waitlist12', file: 'test/registrations.waitlist.e2e-spec.ts', title: 'JOIN-WAITLIST-12-C-REL: the releaser cancels waiting entries only, row by row' }] },
@@ -254,4 +267,90 @@ export const MUTANTS = [
     edits: [['      this.assertPlanning(locked.status);\n      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking',
       '      const snapshot = await this.reader.read(client, event.id, { lock: true });\n      const booking']],
     suites: both },
+  // ---- SPM-136 test-quality pass (none-identified rows strengthened; BND and INT tests, Guide 5E). Each mutant names
+  // the test that must go red against it, through testMappings (an exact test title or a describe title in the file).
+  // Cancellation rules: the confirmation and the cancellable set.
+  { id: 'R1', name: 'confirmation never accepted (02-C accepts confirmed: true)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (body as { confirmed?: unknown }).confirmed === true;', '  return false;']],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C: accepts confirmed: true' }] },
+  { id: 'R3', name: 'only false is refused: omitted, empty object and null confirm (02-C refusal rows)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (body as { confirmed?: unknown }).confirmed === true;', '  return (body as { confirmed?: unknown }).confirmed !== false;']],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C: refuses confirmation' }] },
+  { id: 'R4', name: 'confirmation by loose equality: the string "1" and the number 1 confirm (02-C BND-2)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (body as { confirmed?: unknown }).confirmed === true;', '  return (body as { confirmed?: unknown }).confirmed == true;']],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C-BND-2' }] },
+  { id: 'R5', name: 'any non-empty string confirms: the string "false" confirms (02-C BND-1)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (body as { confirmed?: unknown }).confirmed === true;', "  return (body as { confirmed?: unknown }).confirmed === true || (typeof (body as { confirmed?: unknown }).confirmed === 'string' && (body as { confirmed?: unknown }).confirmed !== '');"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C-BND-1' }] },
+  { id: 'R6', name: 'any boolean confirms: false is accepted (02-C false row)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (body as { confirmed?: unknown }).confirmed === true;', "  return typeof (body as { confirmed?: unknown }).confirmed === 'boolean';"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C: refuses confirmation' }] },
+  { id: 'R8', name: 'missing-body guard removed: no body throws instead of refusing (02-C no-body row)', file: RU, suites: ['unitCancelRules'],
+    edits: [["  if (!body || typeof body !== 'object') return false;\n", '']],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-02-C: refuses confirmation' }] },
+  { id: 'S30', name: 'Planning dropped from the cancellable set (03-B Planning row)', file: RU, suites: ['unitCancelRules'],
+    edits: [["export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;", "export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Confirmed'] as const;"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B: the cancellable set' }] },
+  { id: 'S31', name: 'Confirmed dropped from the cancellable set (03-B Confirmed row)', file: RU, suites: ['unitCancelRules'],
+    edits: [["export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;", "export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning'] as const;"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B: the cancellable set' }] },
+  { id: 'S32', name: 'Cancelled added to the cancellable set (03-B Cancelled row)', file: RU, suites: ['unitCancelRules'],
+    edits: [["export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;", "export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed', 'Cancelled'] as const;"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B: the cancellable set' }] },
+  { id: 'S33', name: 'status compared without regard to case (03-B lower-case rows)', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (CANCELLABLE_STATUSES as readonly string[]).includes(status);', '  return (CANCELLABLE_STATUSES as readonly string[]).some((s) => s.toLowerCase() === status.toLowerCase());']],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B: the cancellable set' }] },
+  { id: 'S34', name: 'deny-list instead of allow-list: unknown statuses are cancellable (03-B "" and "Under Review")', file: RU, suites: ['unitCancelRules'],
+    edits: [['  return (CANCELLABLE_STATUSES as readonly string[]).includes(status);', "  return !['Completed', 'Rejected', 'Cancelled'].includes(status);"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B: the cancellable set' }] },
+  { id: 'S35', name: 'Draft added to the cancellable set, one step before Submitted (03-B BND-1)', file: RU, suites: ['unitCancelRules'],
+    edits: [["export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;", "export const CANCELLABLE_STATUSES = ['Draft', 'Submitted', 'Approved', 'Planning', 'Confirmed'] as const;"]],
+    testMappings: [{ suite: 'unitCancelRules', file: 'src/events/cancel/cancel-rules.spec.ts', title: 'CANCEL-EVENT-03-B-BND-1' }] },
+  // Cancel service: the authentication, format and existence checks, and the order of the confirmation and status checks.
+  { id: 'C1', name: 'no-identity check removed: an anonymous request is not refused 401 (01-C no identity)', file: CA, suites: ['unitCancelService'],
+    edits: [["    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');", "    if (false) throw new UnauthorizedException('Authentication required.');"]],
+    testMappings: [{ suite: 'unitCancelService', file: 'src/events/cancel/cancel-event.service.spec.ts', title: 'CANCEL-EVENT-01-C: no identity is refused with 401' }] },
+  { id: 'C2', name: 'event id format check removed: a malformed id reaches the database (01-C malformed id)', file: CA, suites: ['unitCancelService'],
+    edits: [['    if (!UUID_PATTERN.test(eventId)) throw new NotFoundException(CANCEL_MESSAGES.notFound);', '    if (false) throw new NotFoundException(CANCEL_MESSAGES.notFound);']],
+    testMappings: [{ suite: 'unitCancelService', file: 'src/events/cancel/cancel-event.service.spec.ts', title: 'CANCEL-EVENT-01-C: a malformed event id is 404' }] },
+  { id: 'C3', name: 'missing-event check removed before the ownership check (01-C unknown id)', file: CA, suites: ['unitCancelService'],
+    edits: [['    const event = await this.findEvent(eventId);\n    if (!event) throw new NotFoundException(CANCEL_MESSAGES.notFound);', '    const event = await this.findEvent(eventId);']],
+    testMappings: [{ suite: 'unitCancelService', file: 'src/events/cancel/cancel-event.service.spec.ts', title: 'CANCEL-EVENT-01-C: an unknown event id (well-formed) is 404' }] },
+  { id: 'I2', name: 'status check placed before the confirmation check (02-C INT-2: a Completed event gives 409, not 400)', file: CA, suites: ['unitCancelService'],
+    edits: [['    if (!isConfirmed(body))', '    if (!isCancellable(event.status)) throw this.notCancellable();\n    if (!isConfirmed(body))']],
+    testMappings: [{ suite: 'unitCancelService', file: 'src/events/cancel/cancel-event.service.spec.ts', title: 'CANCEL-EVENT-02-C-INT-2' }] },
+  // Status service: the cancelled guard against the assignment check (INT-1), the pre-lock Planning check (INT-3), and the
+  // locked-row Planning check of the confirm-no-equipment and safety-check requests (B5, B6).
+  { id: 'I1', name: 'cancelled guard placed before the assignment check (01-C INT-1: an outsider gets 409, not 403)', file: ST, suites: ['unitStatusRemoval'],
+    edits: [['  async confirmNoEquipment(identity: AuthenticatedUser | undefined, eventId: string) {\n    const user = this.requireUser(identity);\n    const event = await this.assignedEventOrThrow(user, eventId);\n',
+      '  async confirmNoEquipment(identity: AuthenticatedUser | undefined, eventId: string) {\n    const user = this.requireUser(identity);\n    const early = await this.findEvent(eventId);\n    if (early) assertEventNotCancelled(early.status);\n    const event = await this.assignedEventOrThrow(user, eventId);\n']],
+    testMappings: [{ suite: 'unitStatusRemoval', file: 'src/events/status/status.removal.spec.ts', title: 'CANCEL-EVENT-01-C-INT-1' }] },
+  { id: 'I3', name: 'pre-lock Planning check removed from confirm-no-equipment (07-A INT-3: the lock is taken for a refused request)', file: ST, suites: ['unitStatusRemoval'],
+    edits: [['  async confirmNoEquipment(identity: AuthenticatedUser | undefined, eventId: string) {\n    const user = this.requireUser(identity);\n    const event = await this.assignedEventOrThrow(user, eventId);\n    assertEventNotCancelled(event.status);\n    this.assertPlanning(event.status);\n',
+      '  async confirmNoEquipment(identity: AuthenticatedUser | undefined, eventId: string) {\n    const user = this.requireUser(identity);\n    const event = await this.assignedEventOrThrow(user, eventId);\n    assertEventNotCancelled(event.status);\n']],
+    testMappings: [{ suite: 'unitStatusRemoval', file: 'src/events/status/status.removal.spec.ts', title: 'CANCEL-EVENT-07-A-INT-3' }] },
+  { id: 'B5', name: 'confirm-no-equipment lacks the locked-row Planning check (TR-136-12, Confirmed under the lock)', file: ST, suites: ['unitStatusRemoval'],
+    edits: [['      assertEventNotCancelled(row.status);\n      this.assertPlanning(row.status);\n      const snapshot = await this.reader.read(client, event.id, { lock: false });', '      assertEventNotCancelled(row.status);\n      const snapshot = await this.reader.read(client, event.id, { lock: false });']],
+    testMappings: [{ suite: 'unitStatusRemoval', file: 'src/events/status/status.removal.spec.ts', title: 'confirm-no-equipment on a row that is Confirmed under the lock is refused 422' }] },
+  { id: 'B6', name: 'safety-check request lacks the locked-row Planning check (TR-136-12, Confirmed under the lock)', file: ST, suites: ['unitStatusRemoval'],
+    edits: [['      assertEventNotCancelled(row.status);\n      this.assertPlanning(row.status);\n\n      const snapshot', '      assertEventNotCancelled(row.status);\n\n      const snapshot']],
+    testMappings: [{ suite: 'unitStatusRemoval', file: 'src/events/status/status.removal.spec.ts', title: 'a safety-check request on a row that is Confirmed under the lock is refused 422' }] },
+  // Notifications: the audience label of the EventCancelled notice (06-A organiser, coordinator, attendee and dual-role rows).
+  { id: 'N1', name: 'organiser copy labelled as the attendee copy (06-A organiser row)', file: EV, suites: ['unitNotifications'],
+    edits: [["    if (row.event_organiser_id === row.recipient_id) return 'organiser';", "    if (row.event_organiser_id === row.recipient_id) return 'attendee';"]],
+    testMappings: [{ suite: 'unitNotifications', file: 'src/events/cancelled-notifications.spec.ts', title: 'CANCEL-EVENT-06-A: the organiser who submitted the event reads the organiser copy' }] },
+  { id: 'N2', name: 'coordinator copy labelled as the attendee copy (06-A coordinator row)', file: EV, suites: ['unitNotifications'],
+    edits: [["    if (row.event_coordinator_id === row.recipient_id) return 'coordinator';", "    if (row.event_coordinator_id === row.recipient_id) return 'attendee';"]],
+    testMappings: [{ suite: 'unitNotifications', file: 'src/events/cancelled-notifications.spec.ts', title: 'CANCEL-EVENT-06-A: the assigned coordinator reads the coordinator copy' }] },
+  { id: 'N3', name: 'attendee copy labelled as the organiser copy (06-A-ATT row)', file: EV, suites: ['unitNotifications'],
+    edits: [["    return 'attendee';\n  }\n  if (row.type === 'coordinator_unavailable')", "    return 'organiser';\n  }\n  if (row.type === 'coordinator_unavailable')"]],
+    testMappings: [{ suite: 'unitNotifications', file: 'src/events/cancelled-notifications.spec.ts', title: 'a Waitlisted attendee who is neither organiser nor coordinator reads the attendee copy' }] },
+  { id: 'N4', name: 'audience label taken from the reader roles: an ORGANISER role reads the organiser copy (06-A-DUAL, RR-136-05)', file: EV, suites: ['unitNotifications'],
+    edits: [['      audienceRole: audienceRoleFor({', "      audienceRole: user.roles.includes('ORGANISER') && row.type === 'EventCancelled' ? 'organiser' : audienceRoleFor({"]],
+    testMappings: [{ suite: 'unitNotifications', file: 'src/events/cancelled-notifications.spec.ts', title: 'RR-136-05: a user holding BOTH roles who is only the assigned coordinator of the event reads the coordinator copy' }] },
+  // Equipment release (05-B): the equipment release must stay scoped to the cancelled event. Killed by the e2e file, so this
+  // mutant only runs in a full run (see docs/specs/SPM-136-test-results.md, the e2e baseline caveat).
+  { id: 'E1', name: 'equipment release not scoped to the cancelled event: another event reservation is released (05-B)', file: EQ, suites: ['cancelE2e'],
+    edits: [["WHERE event_id = $1 AND status IN ('Requested', 'Reserved', 'Unavailable')", "WHERE ($1::uuid IS NOT NULL) AND status IN ('Requested', 'Reserved', 'Unavailable')"]],
+    testMappings: [{ suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled' }] },
 ];

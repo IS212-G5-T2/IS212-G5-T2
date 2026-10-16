@@ -484,3 +484,156 @@ Scope: test code, comments, test-ID registry and this document. No production co
 | Kill maps | scratchpad (not committed): kill-backend-unit.json, kill-frontend.json, kill-backend-e2e.json |
 
 **Not completed in this run:** the final ID check, the final unit, frontend and lint runs, and the e2e cleanup described above. These were blocked by the permission classifier on a shared-resource action (the e2e cleanup) and on a batched check command. The Orchestrator should re-run them after the cleanup is approved.
+
+## Test-quality pass (none-identified, BND/INT, Act, coverage)
+
+Date: 2026-10-16. Scope: the SPM-136 test files, the two SPM-136 mutant definition files, the test-ID registry and this document. No production code, migration, or production mutant anchor was changed. Nothing was committed, staged, pushed, or changed in Jira. Every mutation run used a scratch copy and reported "original files untouched: yes".
+
+### A. The "Kills: none identified" markers (decisions)
+
+`grep -rn "Kills: none"` over the SPM-136 scope finds 22 marker lines, not the 25 the brief quoted. Seven further tests carry a partial comment ("none identified for the X row"). All 29 markers were decided: 27 strengthened with a named mutant, 2 deleted.
+
+| File | Test | Decision | Mutant and kill evidence |
+|---|---|---|---|
+| backend cancel-rules.spec.ts | CANCEL-EVENT-02-C: accepts confirmed: true | Strengthened | R1 (confirmation never accepted). Killed by the exact test title. |
+| cancel-rules.spec.ts | CANCEL-EVENT-02-C: refuses confirmation (partial: omitted, {}, null, no body, number 1) | Strengthened | R3 (only false refused), R6 (any boolean confirms), R8 (no-body guard removed), R4 (loose equality). The "true" string row stays on M10. Killed by the group title. |
+| cancel-rules.spec.ts | CANCEL-EVENT-03-B: %s is cancellable (partial: Planning, Confirmed) | Strengthened | S30 (Planning dropped), S31 (Confirmed dropped). Killed by the describe title. |
+| cancel-rules.spec.ts | CANCEL-EVENT-03-B: %j is not cancellable (partial: Cancelled, lower-case rows, "", "Under Review") | Strengthened | S32 (Cancelled added), S33 (case-insensitive match), S34 (deny-list: unknown statuses accepted). Killed by the describe title. |
+| status.removal.spec.ts | TR-136-12: confirm-no-equipment on a row Confirmed under the lock | Strengthened | B5 (locked-row Planning check removed). Killed by the exact title. |
+| status.removal.spec.ts | TR-136-12: safety-check request on a row Confirmed under the lock | Strengthened | B6 (locked-row Planning check removed from the safety-check request). Killed by the exact title. |
+| cancel-event.service.spec.ts | CANCEL-EVENT-01-C: no identity is refused with 401 | Strengthened | C1 (no-identity check removed). Killed by the exact title. |
+| cancel-event.service.spec.ts | CANCEL-EVENT-01-C: a malformed event id is 404 | Strengthened | C2 (id format check removed). Killed by the exact title. |
+| cancel-event.service.spec.ts | CANCEL-EVENT-01-C: an unknown event id (well-formed) is 404 | Strengthened | C3 (missing-event check removed). Killed by the exact title. |
+| cancel-event.service.spec.ts | CANCEL-EVENT-07-A: a service built with only the database still refuses an anonymous caller (default clock and releasers) | **Deleted** | Its only assertion (401 for an anonymous caller) is the one CANCEL-EVENT-01-C (no identity) already makes, so it duplicates C1. It asserts nothing about the default clock or releasers, so no mutant of those defaults can fail it. The real module wiring is exercised by the e2e suite, which builds AppModule. |
+| events-cancel.e2e-spec.ts | CANCEL-EVENT-01-C: no-token row of the refusal table | **Deleted** (e2e count 35 to 34) | The 401 comes from the shared AuthenticationMiddleware (src/app.module.ts, forRoutes) before any SPM-136 code runs. A scratch check with C1 applied still passed this row, which confirms it tests shared middleware, not SPM-136 code. The service-level 401 is the unit row above (C1). |
+| events-cancel.e2e-spec.ts | CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 | Strengthened | E1 (equipment release not scoped to the cancelled event). Killed by the exact title through run.mjs (cancelE2e suite). |
+| cancelled-notifications.spec.ts | CANCEL-EVENT-06-A: the organiser who submitted the event reads the organiser copy | Strengthened | N1 (organiser copy labelled attendee). Killed by the exact title. |
+| cancelled-notifications.spec.ts | CANCEL-EVENT-06-A: the assigned coordinator reads the coordinator copy | Strengthened | N2 (coordinator copy labelled attendee). Killed by the exact title. |
+| cancelled-notifications.spec.ts | CANCEL-EVENT-06-A-ATT: a Waitlisted attendee reads the attendee copy | Strengthened | N3 (attendee copy labelled organiser). Killed by the exact title. |
+| cancelled-notifications.spec.ts | CANCEL-EVENT-06-A-DUAL: dual-role user who is only the coordinator reads the coordinator copy | Strengthened | N4 (label taken from the reader's roles, which RR-136-05 forbids). Killed by the exact title. |
+| CancelEventDialog.test.tsx | CANCEL-EVENT-02-A: a refused cancel (409) is shown as an alert | Strengthened | F36 (error line not rendered). Killed by the exact title. |
+| CancelEventDialog.test.tsx | CANCEL-EVENT-02-A: a failure that is not an Error shows the fallback text | Strengthened | F37 (fallback text dropped). Killed by the exact title. |
+| CancelEventDialog.test.tsx | CANCEL-EVENT-02-B: a letter key does nothing | Strengthened | F38 (every key dismisses the dialog). Killed by the exact title. |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-A (page): coordinator sees Cancel Event on a Planning event | Strengthened | F39 (button hidden on Planning). Killed by the exact title. |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-B (page): organiser sees Cancel Event on a Confirmed event | Strengthened | F40 (button hidden from the organiser on Confirmed). Killed by the exact title. |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-03-B (page): completed, rejected, cancelled offer no action | Strengthened | F33, F34, F35 (each status added to the cancellable list). Killed by the suite (templated rows). |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-C-F (page): COO-02 row (partial) | Strengthened | F26 (assigned-coordinator id check dropped), F1, F2. Killed by the suite. |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-07-A-CLAR (control): live event offers Reply and Resolve | Strengthened | F41 (Reply hidden on a live Planning event). Killed by the exact title. |
+| cancellation.test.ts | CANCEL-EVENT-01-A (FE): assigned coordinator offered | Strengthened | F24 (assigned branch dropped). Killed by the exact title. |
+| cancellation.test.ts | CANCEL-EVENT-01-B (FE): submitting organiser offered | Strengthened | F25 (submitted branch dropped). Killed by the exact title. |
+| cancellation.test.ts | CANCEL-EVENT-01-C-F (FE): COO-02 and ATT-01 rows (partial) | Strengthened | F26 (COO-02), F27 (attendee offered). Killed by the suite. |
+| cancellation.test.ts | CANCEL-EVENT-03-B (FE): approved row (partial) and the other cancellable rows | Strengthened | F3 (existing, approved), F29 (submitted), F30 (planning), F31 (confirmed). Killed by the suite. |
+| cancellation.test.ts | CANCEL-EVENT-03-B (FE): completed, rejected, cancelled, draft offer no action | Strengthened | F32 (deny-list: draft offered), F33, F34, F35. Killed by the suite. |
+
+Two rules applied to the deletions: a test is deleted only when it duplicates another test and no plausible mutant of its own exists. The two deleted tests are the only rows removed; no other SPM-136 test ID lost its last test (CANCEL-EVENT-07-A and CANCEL-EVENT-01-C remain covered by the other tests named above).
+
+### B. Boundary (BND) and interaction (INT) tests
+
+| ID | Rule (Guide 5E) | Test file | Mutant that must fail it | Result |
+|---|---|---|---|---|
+| CANCEL-EVENT-02-C-BND-1 | Confirmation: the string "false" is one step from the boolean false | cancel-rules.spec.ts | R5 (any non-empty string confirms) | killed (exact title) |
+| CANCEL-EVENT-02-C-BND-2 | Confirmation: the string "1" is one step from the number 1 | cancel-rules.spec.ts | R4 (loose equality with true) | killed (exact title) |
+| CANCEL-EVENT-03-B-BND-1 | Cancellable set: Draft, one step before Submitted | cancel-rules.spec.ts | S35 (Draft added to the set) | killed (exact title) |
+| CANCEL-EVENT-01-C-INT-1 | Guard before assignment: a non-assigned coordinator on a Cancelled event gets 403 FORBIDDEN, not 409 | status.removal.spec.ts | I1 (cancelled guard moved before the assignment check) | killed (exact title) |
+| CANCEL-EVENT-02-C-INT-2 | Confirmation before status: confirmed false on a Completed event gets 400, not 409 | cancel-event.service.spec.ts | I2 (status check placed before the confirmation check) | killed (exact title) |
+| CANCEL-EVENT-07-A-INT-3 | Pre-lock status check before the lock: a Confirmed event is refused 422 before any transaction | status.removal.spec.ts | I3 (pre-lock Planning check removed) | killed (exact title) |
+
+Notes on the required candidates:
+- **Strict confirmation boundary:** the BND pair sits beside the existing sad rows (false, "true", 1, null, omitted), not on top of them.
+- **Cancellable-set edge:** Confirmed (accepted) and Completed (refused) were already rows of the set tests, so the new edge is Draft, one step before Submitted. Adding a Completed row again would duplicate an existing row.
+- **04-A window (venue released at the cancel instant versus an hour later):** the code has no such rule. The venue releaser releases every pending or approved booking of the event, unconditionally; it does not read `hold_expires_at`. No window test was added, because there is no window to bound.
+- **INT-3:** the answer is 422 whichever check refuses a Confirmed event, so the observable difference is whether the lock and transaction are opened. The order that changes the answer (locked Cancelled must give 409, not 422) is already covered by the TR-136-12 tests (B1, B3).
+- **Frontend:** no BND or INT test was added. `canCancelEvent` is one conjunction (role, ownership, status), so no rule order exists to test, and its status edges (draft before Submitted; completed, rejected and cancelled after Confirmed) are already rows.
+
+Each new ID is a SUPPORTING row in `docs/test-cases/workflow/test-id-registry.md`.
+
+### C. Act comments
+
+At HEAD, 27 tests in the nine SPM-136 test files had no standalone `// Act` line (the brief estimated about 21; a combined "Act and assert" comment was counted as missing). All 27 now carry a standalone `// Act` line, and a scan of the nine files finds none missing. Assertions are unchanged: combined blocks were split into Act and Assert comments. Several tests (the malformed-id, unknown-event, locked-row and 409 tests) now create the call in a named constant before their expectations, and the 403 table awaits each call in turn; they assert the same values as before.
+
+### D. Coverage
+
+Commands (2026-10-16): backend `npm run test:cov` (vitest, v8, unit specs); frontend `npm run test:cov`; backend end to end `npx vitest run --config ./vitest.config.e2e.ts --coverage` against `spm_test` (full e2e suite). Whole-project unit totals:
+- backend unit: statements 92.32% (2068/2240), branches 92.66% (1580/1705), functions 92.88% (470/506), lines 92.43% (1858/2010)
+- frontend unit: statements 93.20% (3498/3753), branches 92.34% (2690/2913), functions 89.18% (1105/1239), lines 94.18% (3045/3233)
+
+Backend SPM-136 production files. The union column combines unit and e2e hits per statement, branch and function (the real-database suites run `status.service.ts` and the waiting-list releaser, which the unit suite does not). Unit-only figures are in brackets where they differ materially.
+
+| File | Statements | Branches | Functions | Lines (statement lines) |
+|---|---|---|---|---|
+| src/events/cancel/cancel-event.service.ts | 100% (50/50) | 100% (30/30) | 100% (9/9) | 100% (38/38) |
+| src/events/cancel/cancel-rules.ts | 100% (5/5) | 100% (4/4) | 100% (2/2) | 100% (4/4) |
+| src/events/cancel/cancel.messages.ts | 100% (3/3) | n/a | 100% (1/1) | 100% (3/3) |
+| src/events/cancel/release.registry.ts | 100% (2/2) | n/a | n/a | 100% (2/2) |
+| src/events/cancelled-guard.ts | 100% (4/4) | 100% (2/2) | 100% (1/1) | 100% (4/4) |
+| src/events/status/status.service.ts | 95.48% (190/199) [unit 32.16%] | 90.43% (104/115) [unit 17.39%] | 97.06% (33/34) [unit 38.23%] | 97.80% (178/182) [unit 35.16%] |
+| src/events/status/arrangements.reader.ts | 92.31% (12/13) [unit 30.76%] | 100% (4/4) | 80% (4/5) | 92.31% (12/13) |
+| src/events/status/readiness.ts | 100% (51/51) | 100% (40/40) | 100% (7/7) | 100% (42/42) |
+| src/events/status/checklist.ts | 100% (45/45) | 100% (42/42) | 100% (15/15) | 100% (29/29) |
+| src/events/venue-summary.ts | 100% (1/1) | n/a | n/a | 100% (1/1) |
+| src/events/events.service.ts (whole file; the audience code is fully covered) | 100% (132/132) | 100% (135/135) | 100% (26/26) | 100% (117/117) |
+| src/registrations/release/registration.releaser.ts | 100% (5/5) | n/a | 100% (3/3) | 100% (4/4) |
+| src/registrations/release/waitlist.releaser.ts | 100% (2/2) | n/a | 100% (1/1) | 100% (2/2) |
+| src/registrations/waitlist/cancel-releaser.ts | 100% (6/6) [unit 0%] | n/a | 100% (1/1) | 100% (6/6) |
+| src/registrations/registrations.service.ts (whole file; withdraw and join paths covered) | 100% (155/155) | 100% (139/139) | 100% (25/25) | 100% (127/127) |
+| src/equipment/release/equipment-reservation.releaser.ts (added) | 100% (2/2) | n/a | 100% (1/1) | 100% (2/2) |
+| src/venues/release/venue-booking.releaser.ts (added) | 100% (2/2) | n/a | 100% (1/1) | 100% (2/2) |
+
+The brief named `src/registrations/waitlist/waitlist.releaser.ts`; that file does not exist. The waiting-list releaser is `src/registrations/release/waitlist.releaser.ts`, which is reported above. The equipment and venue releasers were added because the release mutants depend on them.
+
+Frontend SPM-136 files (unit only; the Playwright suites were not run, so there is no end-to-end figure for the frontend):
+
+| File | Statements | Branches | Functions | Lines |
+|---|---|---|---|---|
+| features/events/pages/detail/cancel/CancelEventDialog.tsx | 100% (49/49) | 100% (26/26) | 100% (10/10) | 100% (45/45) |
+| features/events/pages/detail/cancel/cancelEvent.ts | 100% (1/1) | n/a | 100% (1/1) | 100% (1/1) |
+| features/events/pages/detail/EventDetailPage.tsx (whole file; cancel, banner, timeline and clarification gates covered) | 92.79% (206/222) | 93.80% (197/210) | 86.95% (60/69) | 93.95% (171/182) |
+| features/events/lib/cancellation.ts | 100% (4/4) | 100% (7/7) | 100% (1/1) | 100% (4/4) |
+| features/events/lib/EventView.ts | 100% (39/39) | 100% (57/57) | 100% (5/5) | 100% (31/31) |
+| features/events/pages/list/EventCard.tsx | 100% (3/3) | 100% (25/25) | 100% (1/1) | 100% (3/3) |
+| features/events/pages/list/EventListPage.tsx | 100% (50/50) | 100% (45/45) | 100% (23/23) | 100% (37/37) |
+| store/useAppStore.ts (whole file: 65.19% statements; the SPM-136 part, setEventStatus at lines 269 to 275, is hit) | 65.19% (118/181) | 50.71% (71/140) | 58.75% (47/80) | 67.13% (96/143) |
+
+Uncovered lines that matter (SPM-136 code):
+- `status.service.ts` 168-169 and 210-211: the locked-row reassignment refusal in `confirmNoEquipment` and `requestSafetyCheck`. No test reaches it. It is a race-only path; a unit test whose locked row names another coordinator would close it. Not added in this pass.
+- `status.service.ts` 286 and 316: the removal path whose request row has gone under the lock (404). No test reaches it. Not added.
+- `status.service.ts` 446-449 and 463: the Confirm path's locked-row checks (not SPM-136 cancel code). Not added.
+- `EventDetailPage.tsx` uncovered lines (102, 155, 171, 209, 227-228, 321, 325, 445-446, 453, 475-476, 491, 496, 514, 529, 590-592) belong to submit, review, comments and registration. None is in the cancel or timeline code.
+- `arrangements.reader.ts` line 43: the default no-safety-record stub. Not SPM-136 behaviour.
+
+The e2e-only files (`status.service.ts` and the waiting-list releaser) need `spm_test`. The union figures above are from one full e2e run plus the unit run; the e2e run passed completely (see E).
+
+### E. Verification results (exact)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend unit (with coverage) | `npm run test:cov` (backend) | 63 files passed; 1407 tests passed, 0 failed (before this pass: 1402) |
+| Backend e2e, full suite | `DATABASE_URL=TEST_DATABASE_URL=postgresql://spm:spm_dev_password@localhost:5432/spm_test npx vitest run --config ./vitest.config.e2e.ts --coverage` | 31 files passed; 573 passed, 1 skipped (JOIN-WAITLIST-11-E), 1 todo, 0 failed (575 tests; one row removed, see A) |
+| Backend e2e, events-cancel file alone | `npx vitest run --config ./vitest.config.e2e.ts test/events-cancel.e2e-spec.ts` | 34 passed, 0 failed (before this pass: 33 passed, 2 failed) |
+| Frontend unit (with coverage) | `npm run test:cov` (frontend) | 98 files passed; 1340 passed, 1 skipped, 1 todo, 0 failed (unchanged) |
+| Backend lint | `npm run lint` | exit 0; 0 errors, 3 warnings, none in the changed files (events-safety-feedback.e2e-spec.ts and checklist.ts, unchanged in this pass) |
+| Frontend lint | `npm run lint` | exit 0; 0 errors, 4 warnings, none in the SPM-136 files |
+| Backend build | `npm run build` | exit 0 |
+| Backend mutants, new unit kills (file-scoped suites) | `node scripts/mutation/run.mjs --mutants spm136.mutants.mjs --only R1,R3,R4,R5,R6,R8,S30,S31,S32,S33,S34,S35,C1,C2,C3,I2,I1,I3,B5,B6,N1,N2,N3,N4` | 24 mutants: 24 killed, 0 survived, 0 misapplied |
+| Backend mutants, existing set, unit suite | `env -u DATABASE_URL -u TEST_DATABASE_URL node scripts/mutation/run.mjs --mutants spm136.mutants.mjs --suite unit` | 53 mutants: 35 killed, 1 equivalent (M13), 17 survived under the unit suite, 0 misapplied |
+| Backend mutants, the 17 unit survivors, e2e suite | `DATABASE_URL=TEST_DATABASE_URL=... node scripts/mutation/run.mjs --mutants spm136.mutants.mjs --suite e2e --only M5,M6,M11,M17,M20,M22,M25,S1,S2,S3,S4,S5,S6,S7,S8,S10,S19` | 17 mutants: 17 killed, 0 survived, 0 misapplied (baseline e2e green) |
+| Backend mutants, waiting list and equipment | `DATABASE_URL=TEST_DATABASE_URL=... node scripts/mutation/run.mjs --mutants spm136.mutants.mjs --only W1,W2,W4,W6,W7,W8,E1` | 7 mutants: 6 killed (W1, W2, W4, W6, W8, E1), 1 equivalent (W7), 0 survived, 0 misapplied |
+| Frontend mutants, full | `node scripts/testing/mutation/run.mjs --mutants spm136.mutants.mjs` (frontend) | 41 mutants: 39 killed, 2 equivalent (F4, F5), 0 survived, 0 misapplied; original files untouched: yes |
+| Backend mutants, full run as one command | not run | see F |
+| Backend trigger mutants | not run | see F |
+
+Summary of the backend mutant set (84 mutants in `spm136.mutants.mjs`): 82 killed, 2 equivalent (M13, W7), 0 survived, 0 misapplied. The equivalents are documented in the file. The count is the sum of the four backend runs above (unit suite, e2e suite for its survivors, waiting list and equipment, and the 24 new unit kills); M14 is in the unit-suite run only (see F).
+
+Frontend mutant set: 41 of 41 accounted for above (39 killed, 2 equivalent).
+
+### F. Database side effects and checks not run
+
+- **E1 scratch check changed two rows of the leftover fixture.** To confirm E1 before the runner could run it, the mutant was applied to a scratch copy and the CANCEL-EVENT-05-B test was run against `spm_test`. E1 releases every live equipment reservation in the table, not only one event's, so it released the two reservation rows of the leftover fixture event `9a15dea8-1dd0-4a62-ba15-99d5601d1089`: `aefcf8d3-d319-49e4-92cd-f4b75be6bd5d` (Projector, quantity 2) and `9d57df36-7ac1-4a2f-8def-132e96f538e3` (Microphone, quantity 4). Both now read `status = Released` with `released_at = 2026-10-12T04:00:00Z`. Their earlier status was `Reserved` (inferred: the first baseline showed the stock failure that only live reservations cause). The fixture event row itself is unchanged (still Confirmed). The rows were not restored, because that would be a further write to the fixture. This is also why the two events-cancel failures (CANCEL-EVENT-03-C and CANCEL-EVENT-05-A) did not reproduce after that check: the first baseline (33 passed, 2 failed) was taken before it. Decision needed: restore the two rows to `Reserved` with `released_at` NULL, or leave them.
+- **M14 was not run through the e2e suite.** M14 releases every pending or approved venue booking in the table. The leftover fixture has one pending and one approved booking, so the mutant would modify the fixture. It was killed in the unit suite, which does not touch the database.
+- **Trigger mutants (spm136.triggers.mutants.mjs) were not run.** `run-triggers.mjs` creates a scratch database and drops it with `DROP DATABASE ... WITH (FORCE)`. The brief forbids dropping or recreating a database, so the run was not performed. Its two trigger mutants (TR-T1, TR-T2) are unverified in this pass.
+- **The full backend mutation command was not run as one command.** Its e2e-suite mutants include M14, which is excluded above. The same 84 mutants were covered by the four runs listed in E.
+- **e2e counts.** The brief expected two e2e failures (CANCEL-EVENT-03-C, CANCEL-EVENT-05-A) from the leftover fixture. They appeared in the first baseline only (see the E1 note above); the final full e2e run is green.
+
+### G. Repository state
+
+`git status --short` before this document's edits: 12 modified files (no untracked files). `git diff --cached` lists 0 files. Nothing was committed, staged, pushed or changed in Jira.

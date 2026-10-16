@@ -336,13 +336,14 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
    * an anonymous caller nor the Coordinator Lead can cancel. Each refusal changes nothing.
    */
   describe('CANCEL-EVENT-01-C: only the assigned coordinator or the submitting organiser can cancel', () => {
-    // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, S19 (ATT-01 row); M1, M7, S19 (LEAD-01 row); none identified (no-token row)
+    // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, S19 (ATT-01 row); M1, M7, S19 (LEAD-01 row).
+    // The no-token case was deleted: its 401 comes from the shared AuthenticationMiddleware before any SPM-136 code runs,
+    // and the service-level 401 is the unit row CANCEL-EVENT-01-C (no identity), killed by C1.
     it.each([
       ['COO-02, not assigned', () => coordinator2, 403, MSG_FORBIDDEN],
       ['ORG-02, a different organiser', () => organiser2, 403, MSG_FORBIDDEN],
       ['ATT-01, a registered attendee', () => attendee1, 403, MSG_FORBIDDEN],
       ['LEAD-01, Coordinator Lead', () => lead, 403, MSG_FORBIDDEN],
-      ['no token', () => undefined, 401, undefined],
     ])('refuses %s with HTTP %i and changes nothing', async (_label, actor, status, message) => {
       // Arrange: EVT-301 Confirmed with arrangements, registrations and a notification-free history
       const { eventId } = await seedGalaEvent();
@@ -710,7 +711,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   }
 
   /** CANCEL-EVENT-05-B (part): another event's Projector reservation is untouched by the cancellation. */
-  // Kills: none identified
+  // Kills: E1 (the equipment release not scoped to the cancelled event: EQ-308 of another event is released too)
   it('CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled', async () => {
     // Arrange: EVT-301 holds Projector x2; EVT-308 holds Projector x1 Reserved
     const { eventId } = await seedGalaEvent();
@@ -883,17 +884,20 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     const withdrawnBefore = await pool.query('SELECT status, withdrawn_at FROM event_registrations WHERE id = $1', [withdrawnId]);
     await cancel(coordinator, eventId).expect(200);
 
-    // Act and assert 1: ATT-06's withdrawn row is identical
+    // Act: read ATT-06's withdrawn row back after the cancellation
     const withdrawnAfter = await pool.query('SELECT status, withdrawn_at FROM event_registrations WHERE id = $1', [withdrawnId]);
+
+    // Assert 1: ATT-06's withdrawn row is identical
     expect(withdrawnAfter.rows).toEqual(withdrawnBefore.rows);
     expect(withdrawnAfter.rows[0].status).toBe('Withdrawn');
 
-    // Act and assert 2: ATT-01 withdraws the cancelled registration: 409, no status change
+    // Act: ATT-01 withdraws the cancelled registration
     const withdraw = await http()
       .post(`/api/registrations/${registrations[0]}/withdraw`)
       .set('Cookie', attendee1.cookie)
       .send({})
       .expect(409);
+    // Assert 2: 409 with no status change
     // ASSUMPTION A3: the EVENT_CANCELLED code on a withdrawal of a cancelled registration is ASSUMED (the case asks for 409 only)
     expect(withdraw.body.code).toBe('EVENT_CANCELLED');
     const row = await pool.query('SELECT status FROM event_registrations WHERE id = $1', [registrations[0]]);

@@ -8,8 +8,10 @@
  * two removals) are covered here. A locked Cancelled row is refused 409 EVENT_CANCELLED; a locked Confirmed row (the
  * pre-check passed Planning, then the status changed before the lock) is refused 422 with the Planning-only message.
  * Every refusal issues no UPDATE, INSERT or DELETE.
+ *
+ * Mutant IDs in each "Kills:" line are defined in backend/scripts/mutation/spm136.mutants.mjs.
  */
-import { ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnprocessableEntityException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { StatusService } from './status.service.js';
@@ -17,10 +19,15 @@ import { STATUS_CODES } from './status.messages.js';
 
 const EVENT = '11111111-1111-4111-8111-111111111301';
 const coordinator: AuthenticatedUser = { uid: 'coo-01', roles: ['COORDINATOR'], email: 'c@example.test', name: 'Coordinator 1' };
+const otherCoordinator: AuthenticatedUser = { uid: 'coo-02', roles: ['COORDINATOR'], email: 'c2@example.test', name: 'Coordinator 2' };
 const MSG_CN_04 = 'This event has been cancelled and its arrangements cannot be changed.';
 const PLANNING_ONLY = 'Only events in Planning can be updated.';
 
-function serviceWith(lockedStatus: string | undefined) {
+/**
+ * `preStatus` is the status the unlocked pre-transaction read sees (default Planning); `lockedStatus` is the status the
+ * locked row holds under FOR UPDATE. A difference between them is a cancellation that landed between the two reads.
+ */
+function serviceWith(lockedStatus: string | undefined, preStatus = 'Planning') {
   const statements: Array<{ sql: string; params: unknown[] }> = [];
   const client = {
     query: vi.fn(async (sql: string, params: unknown[] = []) => {
@@ -48,9 +55,9 @@ function serviceWith(lockedStatus: string | undefined) {
     }),
   };
   const database = {
-    // Pre-transaction read: the event is Planning and assigned to COO-01 (the status a request sees first).
+    // Pre-transaction read: the event is assigned to COO-01 and has the status a request sees first.
     query: vi.fn(async () => ({
-      rows: [{ id: EVENT, status: 'Planning', event_name: 'Annual Gala Dinner', organiser_id: 'org-01', coordinator_id: 'coo-01' }],
+      rows: [{ id: EVENT, status: preStatus, event_name: 'Annual Gala Dinner', organiser_id: 'org-01', coordinator_id: 'coo-01' }],
     })),
     transaction: vi.fn(async (work: (c: unknown) => unknown) => work(client)),
   };
@@ -69,7 +76,7 @@ function serviceWith(lockedStatus: string | undefined) {
     { now: () => new Date('2026-10-12T04:00:00Z') } as never,
     { cancel: vi.fn() } as never,
   );
-  return { service, statements };
+  return { service, statements, database };
 }
 
 /** The statements that change data: any UPDATE, INSERT or DELETE issued on the transaction client. */
@@ -81,10 +88,10 @@ describe('SPM-136 RR-136-07: the locked event row is re-checked before a removal
     // Arrange: the event was Planning when the request started and is Cancelled when the lock is taken
     const { service, statements } = serviceWith('Cancelled');
 
-    // Act
+    // Act: the coordinator removes an equipment request
     const error = await service.removeEquipmentRequest(coordinator, EVENT, 'eq-1').catch((e: unknown) => e);
 
-    // Assert
+    // Assert: 409 EVENT_CANCELLED, and no DELETE
     expect(error).toBeInstanceOf(ConflictException);
     expect((error as ConflictException).getResponse()).toMatchObject({ code: 'EVENT_CANCELLED' });
     expect(statements.some((s) => /DELETE FROM equipment_reservations/.test(s.sql))).toBe(false);
@@ -95,7 +102,7 @@ describe('SPM-136 RR-136-07: the locked event row is re-checked before a removal
     // Arrange: Planning at the pre-check, Cancelled on the locked row
     const { service, statements } = serviceWith('Cancelled');
 
-    // Act
+    // Act: the coordinator removes a venue request
     const error = await service.removeVenueRequest(coordinator, EVENT, 'vb-1').catch((e: unknown) => e);
 
     // Assert: 409 EVENT_CANCELLED, and no DELETE
@@ -112,7 +119,7 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
     // Arrange: Planning at the pre-check, Cancelled on the locked row
     const { service, statements } = serviceWith('Cancelled');
 
-    // Act
+    // Act: the coordinator confirms that no equipment is needed
     const error = await service.confirmNoEquipment(coordinator, EVENT).catch((e: unknown) => e);
 
     // Assert: the refusal is the cancelled refusal, not a Planning refusal, and no UPDATE/INSERT/DELETE was issued
@@ -124,10 +131,10 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   /** TR-136-12 (a): the same locked-row refusal for the safety-check request, before the checklist is read or any row is written. */
   // Kills: B2, S23
   it('CANCEL-EVENT-07-A-LOCK: TR-136-12: a safety-check request on a row that is Cancelled under the lock is refused 409 EVENT_CANCELLED with MSG-CN-04, and writes nothing', async () => {
-    // Arrange
+    // Arrange: Planning at the pre-check, Cancelled on the locked row
     const { service, statements } = serviceWith('Cancelled');
 
-    // Act
+    // Act: the coordinator requests the safety check
     const error = await service.requestSafetyCheck(coordinator, EVENT).catch((e: unknown) => e);
 
     // Assert
@@ -137,12 +144,12 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   });
 
   /** TR-136-12 (b): the row is Confirmed under the lock (pre-check passed Planning): the Planning-only refusal applies, no write. */
-  // Kills: none identified
+  // Kills: B5 (the locked-row Planning check removed from confirm-no-equipment)
   it('CANCEL-EVENT-07-A-LOCK: TR-136-12: confirm-no-equipment on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
     // Arrange: Planning at the pre-check, Confirmed on the locked row
     const { service, statements } = serviceWith('Confirmed');
 
-    // Act
+    // Act: the coordinator confirms that no equipment is needed
     const error = await service.confirmNoEquipment(coordinator, EVENT).catch((e: unknown) => e);
 
     // Assert
@@ -155,12 +162,12 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
   });
 
   /** TR-136-12 (b): the same Planning-only refusal for the safety-check request when the status moved to Confirmed before the lock. */
-  // Kills: none identified
+  // Kills: B6 (the locked-row Planning check removed from the safety-check request)
   it('CANCEL-EVENT-07-A-LOCK: TR-136-12: a safety-check request on a row that is Confirmed under the lock is refused 422 with the Planning-only message, and writes nothing', async () => {
-    // Arrange
+    // Arrange: Planning at the pre-check, Confirmed on the locked row
     const { service, statements } = serviceWith('Confirmed');
 
-    // Act
+    // Act: the coordinator requests the safety check
     const error = await service.requestSafetyCheck(coordinator, EVENT).catch((e: unknown) => e);
 
     // Assert
@@ -171,6 +178,47 @@ describe('SPM-136 TR-136-12: confirm-no-equipment and the safety-check request r
     });
     expect(writesOf(statements)).toEqual([]);
   });
+
+  /**
+   * INT (CANCEL-EVENT-01-C x the cancelled guard): the assignment check runs before the cancelled guard. A user who is
+   * not assigned to a Cancelled event is refused 403 FORBIDDEN, not 409 EVENT_CANCELLED. A guard placed first would
+   * answer 409 and tell an outsider the event state.
+   */
+  // Kills: I1 (the cancelled guard moved before the assignment check)
+  it('CANCEL-EVENT-01-C-INT-1: a non-assigned coordinator on a Cancelled event is refused 403 FORBIDDEN, not 409, with no write', async () => {
+    // Arrange: the event is Cancelled and assigned to COO-01; COO-02 asks
+    const { service, statements } = serviceWith('Cancelled', 'Cancelled');
+
+    // Act: COO-02 confirms that no equipment is needed
+    const error = await service.confirmNoEquipment(otherCoordinator, EVENT).catch((e: unknown) => e);
+
+    // Assert: 403 FORBIDDEN, and no write
+    expect(error).toBeInstanceOf(ForbiddenException);
+    expect((error as ForbiddenException).getResponse()).toMatchObject({ code: 'FORBIDDEN' });
+    expect(writesOf(statements)).toEqual([]);
+  });
+
+  /**
+   * INT (the pre-lock status check and the lock): a Confirmed event is refused 422 before any transaction is opened, so
+   * no FOR UPDATE lock is taken for a request that can never succeed. The answer is the same whichever check refuses;
+   * the observable difference is whether the lock is taken.
+   */
+  // Kills: I3 (the pre-lock Planning check removed: the lock is taken, then the locked re-check refuses)
+  it('CANCEL-EVENT-07-A-INT-3: confirm-no-equipment on a Confirmed event is refused 422 before any transaction is opened', async () => {
+    // Arrange: Confirmed on the unlocked pre-check and on the locked row
+    const { service, database } = serviceWith('Confirmed', 'Confirmed');
+
+    // Act: the coordinator confirms that no equipment is needed
+    const error = await service.confirmNoEquipment(coordinator, EVENT).catch((e: unknown) => e);
+
+    // Assert: 422 with the Planning-only message, and the transaction (and so the lock) is never opened
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect((error as UnprocessableEntityException).getResponse()).toMatchObject({
+      code: STATUS_CODES.notConfirmable,
+      message: PLANNING_ONLY,
+    });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
 });
 
 describe('SPM-136 TR-136-12: the equipment and venue request removals re-check Planning on the locked row', () => {
@@ -180,7 +228,7 @@ describe('SPM-136 TR-136-12: the equipment and venue request removals re-check P
     // Arrange
     const { service, statements } = serviceWith('Confirmed');
 
-    // Act
+    // Act: the coordinator removes an equipment request
     const error = await service.removeEquipmentRequest(coordinator, EVENT, 'eq-1').catch((e: unknown) => e);
 
     // Assert
@@ -198,7 +246,7 @@ describe('SPM-136 TR-136-12: the equipment and venue request removals re-check P
     // Arrange
     const { service, statements } = serviceWith('Confirmed');
 
-    // Act
+    // Act: the coordinator removes a venue request
     const error = await service.removeVenueRequest(coordinator, EVENT, 'vb-1').catch((e: unknown) => e);
 
     // Assert

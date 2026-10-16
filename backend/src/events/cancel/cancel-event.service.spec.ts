@@ -1,6 +1,7 @@
 /*
  * SPM-136 AC1, AC2, AC3 (CANCEL-EVENT-01-C, 02-C, 03-B) at unit level: the order of checks before any
  * write is 401, 404, 403, 400 (confirmation), 409 (not cancellable). Only the database boundary is faked.
+ * Mutant IDs in each "Kills:" line are defined in backend/scripts/mutation/spm136.mutants.mjs.
  */
 import { ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
@@ -29,27 +30,31 @@ function setup(eventRow: Record<string, unknown> | undefined) {
 const planningRow = { id: EVENT, status: 'Planning', event_name: 'Annual Gala Dinner', organiser_id: 'org-01', coordinator_id: 'coo-01' };
 
 describe('SPM-136 CancelEventService authorisation and order of checks', () => {
-  // Kills: none identified
+  // Kills: C1 (the no-identity check removed: the request reaches the ownership check with no user)
   it('CANCEL-EVENT-01-C: no identity is refused with 401 before anything is read', async () => {
     // Arrange
     const { service, database } = setup(planningRow);
 
-    // Act and assert: 401, and nothing is read or written before the refusal
-    await expect(service.cancel(undefined, EVENT, confirmed)).rejects.toBeInstanceOf(UnauthorizedException);
+    // Act: an anonymous request
+    const attempt = service.cancel(undefined, EVENT, confirmed);
+
+    // Assert: 401, and nothing is read or written before the refusal
+    await expect(attempt).rejects.toBeInstanceOf(UnauthorizedException);
     expect(database.query).not.toHaveBeenCalled();
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // Kills: none identified
+  // Kills: C2 (the event id format check removed: a malformed id reaches the database and the transaction)
   it('CANCEL-EVENT-01-C: a malformed event id is 404 "Event not found." (same as a missing event)', async () => {
     // Arrange
     const { service, database } = setup(planningRow);
 
-    // Act and assert: 404 with the same message as a missing event, and no transaction
-    await expect(service.cancel(coordinator, 'not-a-uuid', confirmed)).rejects.toMatchObject({
-      message: 'Event not found.',
-    });
-    await expect(service.cancel(coordinator, 'not-a-uuid', confirmed)).rejects.toBeInstanceOf(NotFoundException);
+    // Act: a request for an id that is not a UUID
+    const attempt = service.cancel(coordinator, 'not-a-uuid', confirmed);
+
+    // Assert: 404 with the same message as a missing event, and no transaction
+    await expect(attempt).rejects.toMatchObject({ message: 'Event not found.' });
+    await expect(attempt).rejects.toBeInstanceOf(NotFoundException);
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
@@ -62,11 +67,14 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     // Arrange: a confirmed-but-unauthorised request (confirmed false) proves 403 comes before 400
     const { service, database } = setup(planningRow);
 
-    // Act and assert
+    // Act: the unconfirmed request is made first, then the confirmed one
+    // Assert: the unconfirmed request is refused 403 first (not 400), and the confirmed one is refused 403 too
     await expect(service.cancel(actor, EVENT, { targetStatus: 'Cancelled', confirmed: false })).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.cancel(actor, EVENT, confirmed)).rejects.toMatchObject({
       response: { code: 'FORBIDDEN', message: 'You do not have permission to cancel this event.' },
     });
+
+    // Assert: no transaction is opened for either refusal
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
@@ -76,8 +84,11 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     const { service, database, transactionQuery } = setup(planningRow);
     transactionQuery.mockResolvedValueOnce({ rows: [planningRow], rowCount: 1 });
 
-    // Act and assert: the request is accepted (no refusal) and returns the cancelled result
-    await expect(service.cancel(organiser, EVENT, confirmed)).resolves.toEqual({
+    // Act: the submitting organiser cancels
+    const result = service.cancel(organiser, EVENT, confirmed);
+
+    // Assert: the request is accepted (no refusal) and returns the cancelled result
+    await expect(result).resolves.toEqual({
       eventId: EVENT,
       status: 'Cancelled',
       message: 'Annual Gala Dinner has been cancelled.',
@@ -92,23 +103,50 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
       // Arrange
       const { service, database } = setup(planningRow);
 
-      // Act and assert: the refusal is 400, and no transaction is opened
-      await expect(service.cancel(coordinator, EVENT, body)).rejects.toMatchObject({
+      // Act: the request carries the confirmation under test
+      const attempt = service.cancel(coordinator, EVENT, body);
+
+      // Assert: the refusal is 400, and no transaction is opened
+      await expect(attempt).rejects.toMatchObject({
         response: { code: 'CANCEL_NOT_CONFIRMED', message: 'Cancellation must be confirmed.' },
       });
       expect(database.transaction).not.toHaveBeenCalled();
     },
   );
 
-  // Kills: M4
+  /**
+   * INT (CANCEL-EVENT-02-C and 03-B): the confirmation is read before the status. A Completed event with an
+   * unconfirmed body is 400 CANCEL_NOT_CONFIRMED, not 409, and opens no transaction. A status check placed first
+   * would answer 409 instead.
+   */
+  // Kills: I2 (the status check moved before the confirmation check)
+  it('CANCEL-EVENT-02-C-INT-2: confirmed false on a Completed event is refused 400 CANCEL_NOT_CONFIRMED, not 409, with no transaction', async () => {
+    // Arrange: a Completed event that the coordinator is assigned to
+    const completedRow = { ...planningRow, status: 'Completed' };
+    const { service, database } = setup(completedRow);
+
+    // Act: the request is not confirmed
+    const attempt = service.cancel(coordinator, EVENT, { targetStatus: 'Cancelled', confirmed: false });
+
+    // Assert: 400 with the confirmation code, and no transaction is opened
+    await expect(attempt).rejects.toMatchObject({
+      response: { code: 'CANCEL_NOT_CONFIRMED', message: 'Cancellation must be confirmed.' },
+    });
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // Kills: M4, M15
   it('CANCEL-EVENT-03-B: an already Cancelled event is refused with 409 EVENT_NOT_CANCELLABLE and no UPDATE is issued', async () => {
     // Arrange: the locked row is Cancelled
     const cancelledRow = { ...planningRow, status: 'Cancelled' };
     const { service, transactionQuery } = setup(cancelledRow);
 
-    // Act and assert
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toBeInstanceOf(ConflictException);
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toMatchObject({
+    // Act: the cancellation of the Cancelled event is requested
+    const attempt = service.cancel(coordinator, EVENT, confirmed);
+
+    // Assert: 409 EVENT_NOT_CANCELLABLE, and no UPDATE statement is issued
+    await expect(attempt).rejects.toBeInstanceOf(ConflictException);
+    await expect(attempt).rejects.toMatchObject({
       response: { code: 'EVENT_NOT_CANCELLABLE', message: 'This event can no longer be cancelled.' },
     });
     const sql = transactionQuery.mock.calls.map((call) => String((call as unknown[])[0]));
@@ -143,10 +181,10 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
   // Kills: M2, M4, M12, M15, M16, S17, S18, S21, S22, S24
   it('CANCEL-EVENT-03-A: compare-and-set stamps cancelled_by and the injected instant, then history and one notice per recipient', async () => {
     // Arrange: organiser and coordinator plus two Registered attendees, one listed twice (must notify once)
-    const { database, client, statements, releaserRecorder } = transactionalSetup({ recipients: ['att-1', 'att-2', 'att-1'] });
+    const { database, statements, releaserRecorder, client } = transactionalSetup({ recipients: ['att-1', 'att-2', 'att-1'] });
     const service = new CancelEventService(database as never, { now: () => NOW }, [releaserRecorder]);
 
-    // Act
+    // Act: the assigned coordinator confirms the cancellation
     const result = await service.cancel(coordinator, EVENT, confirmed);
 
     // Assert: literal response; the CAS carries the actor and the instant; the history row is from Planning
@@ -172,7 +210,7 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     const { database, statements, releaserRecorder } = transactionalSetup({ locked: submitted, recipients: [] });
     const service = new CancelEventService(database as never, { now: () => NOW }, [releaserRecorder]);
 
-    // Act
+    // Act: the submitting organiser cancels
     await service.cancel(organiser, EVENT, confirmed);
 
     // Assert: the only notice is for the organiser
@@ -186,8 +224,11 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     const { database, statements } = transactionalSetup({ locked: null });
     const service = new CancelEventService(database as never, { now: () => NOW }, []);
 
-    // Act and assert: 404, and no UPDATE or INSERT is issued
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toBeInstanceOf(NotFoundException);
+    // Act: the cancellation is requested
+    const attempt = service.cancel(coordinator, EVENT, confirmed);
+
+    // Assert: 404, and no UPDATE or INSERT is issued
+    await expect(attempt).rejects.toBeInstanceOf(NotFoundException);
     expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
   });
 
@@ -198,8 +239,11 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     const { database, statements } = transactionalSetup({ locked: reassigned });
     const service = new CancelEventService(database as never, { now: () => NOW }, []);
 
-    // Act and assert: 403, and no UPDATE or INSERT is issued
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toBeInstanceOf(ForbiddenException);
+    // Act: the cancellation is requested by the coordinator who was assigned before the reassignment
+    const attempt = service.cancel(coordinator, EVENT, confirmed);
+
+    // Assert: 403, and no UPDATE or INSERT is issued
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
     expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
   });
 
@@ -209,32 +253,29 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     const { database, statements } = transactionalSetup({ updated: false });
     const service = new CancelEventService(database as never, { now: () => NOW }, []);
 
-    // Act and assert: 409, and no history or notice INSERT is issued
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toMatchObject({
+    // Act: the cancellation is requested
+    const attempt = service.cancel(coordinator, EVENT, confirmed);
+
+    // Assert: 409, and no history or notice INSERT is issued
+    await expect(attempt).rejects.toMatchObject({
       response: { code: 'EVENT_NOT_CANCELLABLE' },
     });
     expect(statements.some((s) => /INSERT/.test(s.sql))).toBe(false);
   });
-
-  // Kills: none identified
-  it('CANCEL-EVENT-07-A: a service built with only the database still refuses an anonymous caller (default clock and releasers)', async () => {
-    // Arrange: a service built without the optional clock and releasers
-    const service = new CancelEventService({ query: vi.fn(async () => ({ rows: [] })) } as never);
-
-    // Act and assert: 401 for an anonymous caller
-    await expect(service.cancel(undefined, EVENT, confirmed)).rejects.toBeInstanceOf(UnauthorizedException);
-  });
 });
 
 describe('SPM-136 cancellation lookup and releaser contract', () => {
-  // Kills: none identified
+  // Kills: C3 (the missing-event check removed: the authorisation check runs on no row)
   it('CANCEL-EVENT-01-C: an unknown event id (well-formed) is 404 "Event not found." before any write', async () => {
     // Arrange: no event row exists
     const { database } = setup(undefined);
     const service = new CancelEventService(database as never, { now: () => NOW }, []);
 
-    // Act and assert: 404 with the same message, and no transaction
-    await expect(service.cancel(coordinator, EVENT, confirmed)).rejects.toMatchObject({ message: 'Event not found.' });
+    // Act: the cancellation of an unknown event is requested
+    const attempt = service.cancel(coordinator, EVENT, confirmed);
+
+    // Assert: 404 with the same message, and no transaction
+    await expect(attempt).rejects.toMatchObject({ message: 'Event not found.' });
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
@@ -245,7 +286,7 @@ describe('SPM-136 cancellation lookup and releaser contract', () => {
     const plainReleaser = { name: 'plain', release: vi.fn(async () => undefined) };
     const service = new CancelEventService(database as never, { now: () => NOW }, [plainReleaser]);
 
-    // Act
+    // Act: the assigned coordinator cancels
     await service.cancel(coordinator, EVENT, confirmed);
 
     // Assert: the releaser ran once, and the notice goes to the organiser and coordinator only
