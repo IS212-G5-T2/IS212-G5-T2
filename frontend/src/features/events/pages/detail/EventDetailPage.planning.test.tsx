@@ -363,7 +363,8 @@ describe("EventDetailPage planning information (coordinator)", () => {
       asCoordinator({ event: eventRecord({ status: "approved" }) });
       useAppStore.setState({ currentUser: { ...COORDINATOR_USER, id: `${role}-1`, role } });
       renderPage();
-      await screen.findByText("Event Details");
+      // Every role sees the page title; attendees see AttendeeEventView instead of the Event Details card.
+      await screen.findByRole("heading", { name: "Welcome Evening" });
       expect(planningCalls()).toHaveLength(0);
       expect(screen.queryByRole("region", { name: /planning information/i })).not.toBeInTheDocument();
     },
@@ -380,7 +381,31 @@ describe("EventDetailPage planning information (coordinator)", () => {
     const region = await planningRegion();
     expect(region).toBeInTheDocument();
     expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
-    expect(within(region).queryAllByRole("button")).toHaveLength(0);
+    // The only button allowed here is the read-only registrations report (offered once the event is confirmed).
+    const editControls = within(region).queryAllByRole("button").filter((b) => b.textContent !== "View Registrations");
+    expect(editControls).toHaveLength(0);
+  });
+
+  it("shows People inside the approved planning Event Information, with no View Registrations button and no separate Event Details card", async () => {
+    asCoordinator({ event: eventRecord({ status: "approved" }), readOnly: false, editableFields: [], pendingChanges: [] });
+    useAppStore.setState({ currentUser: COORDINATOR_USER });
+    renderPage();
+    const region = await planningRegion();
+    expect(within(region).getByText("People")).toBeInTheDocument();
+    expect(within(region).getByText("Coordinator")).toBeInTheDocument();
+    expect(within(region).queryByRole("button", { name: "View Registrations" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Event Details" })).not.toBeInTheDocument();
+  });
+
+  it("offers View Registrations inside People once the event is confirmed", async () => {
+    asCoordinator({ event: eventRecord({ status: "confirmed" }), readOnly: true, editableFields: [], pendingChanges: [] });
+    useAppStore.setState({ currentUser: COORDINATOR_USER });
+    renderPage();
+    const region = await planningRegion();
+    expect(within(region).getByRole("button", { name: "View Registrations" })).toBeInTheDocument();
+    // Confirmed events also show their details only in Planning Information, not in a second Event Details card.
+    expect(screen.queryByRole("heading", { name: "Event Details" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("heading", { name: "People" })).toHaveLength(1);
   });
 
   // EVENT-VIEW-05-B: AC5 — background refreshes pause while the tab is hidden and resume when it is visible again.

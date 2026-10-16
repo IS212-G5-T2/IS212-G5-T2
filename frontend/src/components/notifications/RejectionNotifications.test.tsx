@@ -1,9 +1,11 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import { RejectionNotifications } from "@/components/notifications/RejectionNotifications";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
+import { deferred } from "@/test/deferred";
 import type { Notification } from "@/types";
 
 /**
@@ -99,6 +101,114 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
         expect.objectContaining({ method: "POST" }),
       ),
     );
+  });
+
+  /**
+   * EVENT-REJECT-02-D: organisers can switch between unread-only and all rejection notifications.
+   */
+  it("SPM-83 toggles between unread and all rejection decisions", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification(),
+      rejectionNotification({
+        id: "notif-read",
+        message: 'Your event request "Past Event" was rejected: Capacity unavailable',
+        read: true,
+      }),
+    ]);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Welcome Evening/)).toBeInTheDocument();
+    expect(screen.queryByText(/Past Event/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show all/i }));
+    expect(screen.getByText(/Past Event/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show unread/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /show unread/i }));
+    expect(screen.queryByText(/Past Event/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /show all/i })).toBeInTheDocument();
+  });
+
+  /**
+   * EVENT-REJECT-02-E: organisers can retry after rejection-notification loading fails.
+   */
+  it("SPM-83 displays a rejection-notification load error and retries", async () => {
+    setUserRole("organiser");
+    apiMock
+      .mockRejectedValueOnce(new Error("network unavailable"))
+      .mockResolvedValueOnce([rejectionNotification()]);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not load request decisions.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    expect(await screen.findByText(/Welcome Evening/)).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * EVENT-REJECT-02-F: an empty successful rejection-notification feed renders no section.
+   */
+  it("does not render the decisions section when the successful feed is empty", async () => {
+    setUserRole("organiser");
+    // Hold the feed request open so the assertion cannot pass on the pre-load
+    // state: the panel must be empty specifically AFTER a successful empty load.
+    const pending = deferred<Notification[]>();
+    apiMock.mockReturnValue(pending.promise);
+    const { container } = render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+
+    // The request is still in flight.
+    expect(apiMock).toHaveBeenCalled();
+
+    // Complete the request with an empty feed and let the component settle.
+    await act(async () => {
+      pending.resolve([]);
+      await pending.promise;
+    });
+
+    // Only now — after the successful empty response has been applied — assert
+    // that no decisions section is rendered. A regression that rendered a
+    // header/wrapper on load would make this fail.
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  /**
+   * EVENT-REJECT-02-G: an all-read feed shows the caught-up state and remains reviewable.
+   */
+  it("shows the caught-up state and keeps read decisions available", async () => {
+    setUserRole("organiser");
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue([
+      rejectionNotification({ id: "notif-read", read: true }),
+    ]);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText(/No unread decisions/)).toBeInTheDocument();
+    expect(screen.getByText(/All caught up/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /mark as read/i })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /show all/i }));
+
+    expect(await screen.findByText(/Welcome Evening/)).toBeInTheDocument();
+    expect(screen.getByText(/Reason: Venue is not available/)).toBeInTheDocument();
   });
 
   it("renders nothing for a non-organiser", () => {

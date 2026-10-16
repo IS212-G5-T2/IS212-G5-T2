@@ -10,7 +10,7 @@
  * (suite clock T0 = 2026-10-04 12:00 SGT). The event-list badge and dashboard
  * card named in CAP-01 do not exist in this app, so they are not asserted (D19).
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -44,7 +44,7 @@ function renderPage(eventId: string) {
 async function withdrawThroughDialog() {
   const u = userEvent.setup();
   await u.click(await screen.findByRole("button", { name: "Withdraw" }));
-  await u.click(screen.getByRole("button", { name: "Confirm Withdrawal" }));
+  await u.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Withdraw" }));
 }
 
 beforeEach(() => {
@@ -170,7 +170,8 @@ describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
 
     await withdrawThroughDialog();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("The service is temporarily unavailable. Please try again.");
+    // The spec fixes the inline error; the server's own wording is not shown.
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't withdraw your registration. Try again.");
     expect(useAppStore.getState().isAuthenticated).toBe(true);
     expect(screen.queryByText("Login screen")).not.toBeInTheDocument();
   });

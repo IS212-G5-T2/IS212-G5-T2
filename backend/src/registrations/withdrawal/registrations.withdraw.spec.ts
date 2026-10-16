@@ -42,11 +42,12 @@ const isUpdate = (s: Statement) => /^\s*UPDATE/i.test(s.sql);
 const isSelect = (s: Statement) => /^\s*SELECT/i.test(s.sql);
 
 /** The registration the lookup returns: owned, on an event that starts at `start`. */
-const found = (status: string, start: Date): Row => ({
+const found = (status: string, start: Date, eventStatus = 'Confirmed'): Row => ({
   id: REG_ID,
   status,
   event_name: EVENT_NAME,
   start_date_time: start,
+  event_status: eventStatus,
 });
 
 /** What the UPDATE ... RETURNING * hands back after a successful withdrawal. */
@@ -127,7 +128,9 @@ describe('WITHDRAW-EVENT-REG-04-STATE-1 (AC4): a started event is refused before
       message: 'Event has already occurred',
     });
     expect(statements.filter(isUpdate)).toEqual([]);
-    expect(statements.filter(isSelect)).toHaveLength(1);
+
+    // The lookup, the event lock, then the status re-read under the lock (the branch uses that value).
+    expect(statements.filter(isSelect).map((q) => /FOR UPDATE/.test(q.sql))).toEqual([false, true, false]);
   });
 });
 
@@ -289,9 +292,10 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
       withdrawnAt: '2026-10-04T04:00:00.000Z',
       message: 'Your withdrawal from Tech Talk: Cloud 101 has been processed.',
     });
-    // Assert: the write
+    // Assert: exactly two writes, in order. The guarded withdrawal first; then the SPM-138 settle write (fillFreeSpots, D8)
+    // inside the same transaction, which touches only Waitlisted rows of a closed list.
     const writes = statements.filter(isUpdate);
-    expect(writes).toHaveLength(1);
+    expect(writes.map((w) => w.sql.match(/SET\s+status = '(\w+)'/)?.[1])).toEqual(['Withdrawn', 'Removed']);
     expect(writes[0].params).toEqual([REG_ID, OWNER.uid, T0]);
     expect(writes[0].sql).toMatch(/status = 'Registered'/);
     expect(writes[0].sql).not.toMatch(/now\(\)/i);
@@ -314,7 +318,9 @@ describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is ref
   // Kills: a cancelled registration falling through to the 422 "already withdrawn" branch, or an UPDATE issued first.
   it('a Cancelled registration -> 409 EVENT_CANCELLED and no UPDATE issued', async () => {
     // Arrange
-    const { database, statements } = recordingDatabase([found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR))]);
+    const { database, statements } = recordingDatabase([
+      found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR), 'Cancelled'),
+    ]);
 
     // Act
     const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));

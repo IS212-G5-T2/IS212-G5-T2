@@ -382,3 +382,55 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.getByText("Answered")).toBeInTheDocument();
   });
 });
+
+// SPM-148 AC7 (PLAN-STATUS-07-A, 07-D on the frontend). Clarifications stay open in Planning
+// and close at Confirmed; the thread stays readable. Mirrors the backend status lists.
+describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
+  it("PLAN-STATUS-07-A: the assigned Coordinator can post a clarification while the event is in Planning", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path === "/events/event-1/comments") return Promise.resolve([]);
+      if (path === "/events/event-1/clarifications" && init?.method === "POST") {
+        return Promise.resolve(comment({ message: "Is a stage required?" }));
+      }
+      return Promise.resolve(baseEvent({ status: "planning" }));
+    });
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Marcus Lee", email: "marcus@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    renderPage();
+
+    const textarea = await screen.findByPlaceholderText("Type a question or clarification…");
+    await user.type(textarea, "Is a stage required?");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(apiMock).toHaveBeenCalledWith(
+        "/events/event-1/clarifications",
+        expect.objectContaining({ method: "POST", body: JSON.stringify({ message: "Is a stage required?" }) }),
+      );
+    });
+  });
+
+  it("PLAN-STATUS-07-D: once Confirmed there is no composer and no reply button, and the thread is still shown", async () => {
+    apiMock.mockImplementation((path: string) => {
+      if (path === "/events/event-1/comments") return Promise.resolve([comment()]);
+      return Promise.resolve(baseEvent({ status: "confirmed" }));
+    });
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Marcus Lee", email: "marcus@example.test", role: "coordinator" },
+      events: [],
+    });
+
+    renderPage();
+
+    // The message can appear in more than one place in the thread; readable is what matters.
+    expect(
+      (await screen.findAllByText("Please confirm whether livestream needs a second camera angle.")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByPlaceholderText("Type a question or clarification…")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
+  });
+});

@@ -6,12 +6,17 @@ import type { Venue } from "@/types";
 export function VenueCard({
   venue,
   highlightSuitable,
-  onBook,
+  eventId,
+  onCheckAvailability,
 }: {
   venue: Venue;
   highlightSuitable?: boolean;
-  onBook?: () => void;
+  eventId?: string;
+  onCheckAvailability?: () => void;
 }) {
+  const detailsQuery = eventId
+    ? `?${new URLSearchParams({ eventId }).toString()}`
+    : "";
   return (
     <Card className={highlightSuitable ? "border-success-300 dark:border-success-700 ring-1 ring-success-200 dark:ring-success-800" : undefined}>
       <CardBody>
@@ -47,14 +52,14 @@ export function VenueCard({
         </p>
         <div className="mt-3 flex items-center justify-between">
           <Link
-            to={`/venues/${venue.id}`}
+            to={`/venues/${encodeURIComponent(venue.id)}${detailsQuery}`}
             className="text-sm font-medium text-primary-700 dark:text-primary-300 hover:underline"
           >
             View Details →
           </Link>
-          {onBook && (
-            <Button size="sm" onClick={onBook}>
-              Submit Booking Request
+          {onCheckAvailability && (
+            <Button size="sm" onClick={onCheckAvailability}>
+              Check Availability
             </Button>
           )}
         </div>

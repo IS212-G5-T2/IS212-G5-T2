@@ -20,6 +20,7 @@ const notice = (recipient: string, eventOrganiser: string) => ({
   read: false,
   created_at: new Date('2026-10-12T04:00:00.000Z'),
   event_organiser_id: eventOrganiser,
+  event_coordinator_id: 'coo-01',
 });
 
 describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancelled notice', () => {

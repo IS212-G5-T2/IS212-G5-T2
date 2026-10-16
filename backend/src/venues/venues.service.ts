@@ -14,8 +14,13 @@ import type {
 import { RbacRepository } from '../auth/authorization/repository/rbac.repository.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../events/status/planning.messages.js';
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
+import { validateBookingRequest } from './availability/dto/booking-request.js';
 import { VenuesRepository } from './repository/venues.repository.js';
 
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
@@ -109,6 +114,53 @@ export class VenuesService {
     const venue = await this.repository.get(id);
     if (!venue) throw new NotFoundException('Venue not found.');
     return venue;
+  }
+
+  /** Validates and atomically submits a booking request for an event assigned to the caller. */
+  async submitBookingRequest(
+    identity: AuthenticatedUser | undefined,
+    venueId: string,
+    body: unknown,
+  ) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    // SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    if (!UUID.test(venueId)) throw new NotFoundException('Venue not found.');
+
+    const input = validateBookingRequest(body);
+    const result = await this.repository.submitBookingRequest(
+      venueId,
+      identity.uid,
+      input,
+    );
+    if (result.kind === 'venue-not-found')
+      throw new NotFoundException('Venue not found.');
+    // SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.
+    if (result.kind === 'event-not-assigned')
+      throw new NotFoundException('Assigned event not found.');
+    // SPM-148 PLAN-STATUS-01-B: 409 EVENT_NOT_OPEN_FOR_BOOKING (MSG-PL-02) for closed statuses.
+    if (result.kind === 'event-not-open')
+      throw new ConflictException({
+        code: PLANNING_CODES.eventNotOpenForBooking,
+        message: PLANNING_MESSAGES.eventNotOpenForBooking,
+      });
+    if (result.kind === 'conflict')
+      throw new ConflictException(
+        `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
+      );
+    return {
+      id: result.id,
+      eventId: input.eventId,
+      venueId,
+      start: result.start,
+      end: result.end,
+      status: 'pending' as const,
+      eventStatus: result.eventStatus,
+      statusChanged: result.statusChanged,
+      bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    };
   }
 
   /** Venue Staff can save blockouts even when existing bookings are affected. */

@@ -46,6 +46,19 @@ catalogue scope by name or location, sort by name/capacity/location/status,
 and click any part of a card to open `/venue-records/:id` for
 accessibility, setup and turnaround details plus availability, bookings and
 tentative holds. Each card shows counts of bookings and active tentative holds.
+Coordinators can check an event date and time from the venue detail. Calendar
+view uses a navigable Singapore-time week/day grid with hourly rows, time-sized
+booking, hold, unavailable, free, setup-buffer, and turnaround-buffer entries;
+List view shows the same schedule records as date-grouped cards. Free periods
+are based on bookings, active holds, unavailable periods, and setup/turnaround
+buffers; no venue operating-hours schedule is used.
+Coordinators can switch between the calendar and list schedule views, review booking/hold/blockout conflicts,
+and submit a booking request only when the requested range is clear. The check
+includes the venue's configured setup and turnaround buffers; active holds show
+their expiry time and expired holds are omitted by the API. Submission posts to
+`POST /api/venues/:id/booking-requests`, which rechecks the live schedule and
+returns a booking reference only after the pending request is persisted.
+When Search Venues is opened from an event, the catalogue includes a **Back to event** link.
 The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database
 must have the SPM-50 venue structure and SPM-124 `venue_bookings` table. This branch's
@@ -66,12 +79,40 @@ GitHub Actions is configured to run the suite with coverage through
 npm test              # run the suite once
 npm run test:watch    # re-run on file changes while developing
 npm run test:cov      # run once with a coverage report
+npm run test:tz       # run the date-sensitive tests under TZ=UTC, Asia/Singapore and America/Los_Angeles
 ```
+
+`npm run test:tz` (`scripts/testing/tz-matrix.mjs`) runs the tests that assert SGT or calendar-date text in each of
+three host time zones and exits non-zero if any zone fails. The SGT formatter pins `Asia/Singapore`, so the output
+must not depend on the host zone. Run it after changing a date helper or a date assertion. To run one zone by hand,
+set the variable yourself, for example `TZ=America/Los_Angeles npx vitest run src/features/events/lib/registration.test.ts`.
 
 Test files live alongside the code they cover (for example,
 `src/features/account/pages/login/LoginPage.test.tsx` next to its page).
 Feature-owned fixtures stay with their feature; `src/test/setup.ts` provides
 global setup.
+
+### SPM-51 venue mutation checks
+
+Frontend mutation IDs use the `FE-Bxx` namespace, separate from backend
+`Bxx` IDs. Each mutant in `scripts/testing/mutation/spm51.mutants.mjs` maps to
+one or more exact frontend test titles in its `kills` metadata; the test
+comments point back to those mutant IDs. The runner verifies those test titles
+exist and prints the mappings with each result.
+
+Run the full frontend SPM-51 mutation set from this directory:
+
+```sh
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs --list
+node scripts/testing/mutation/run.mjs --mutants spm51.mutants.mjs --only FE-B06,FE-B07
+```
+
+Record the date, branch and commit, exact command, complete runner summary,
+per-mutant outcomes, and skipped or failed suites in the SPM-51 evidence record.
+Only `killed` is evidence that a mutant was caught. `SURVIVED`, `MISAPPLIED`,
+`SKIPPED`, and `ERROR` are distinct outcomes; skipped suites exit 3 and failed
+mutation processes exit 4, so neither can be reported as a successful run.
 
 ## Source layout
 
@@ -196,6 +237,10 @@ Organisers receive persistent rejection notifications above their main content, 
 Coordinators open an assigned Submitted request, choose **Review Event**, select **Approve**, and submit the decision without a reason. A successful decision changes the request to Approved, so it leaves the default Submitted pending list and the review controls disappear. The backend accepts only `Submitted → Approved`; stale, repeated, or backward decisions are rejected.
 
 Organisers receive a persistent approval confirmation in the shared **Request decisions** panel with a link back to the event. Approval and rejection notifications refresh and persist read state through the same API.
+
+## Waitlist (SPM-138)
+
+When an event is full and open for registration, the attendee's event page offers Join Waitlist (`POST /api/events/:id/waitlist`) instead of Register. The page states the full event, the availability and the closing date, and shows the waiting indicator and the owner's own position once on the list. The confirmation banner is built from the event name and the response position. The waitlist rules and copy live in `src/features/events/lib/registration.ts` (`registrationUiState`, `WAITLIST_MESSAGES`) and the controls in `src/features/events/pages/detail/registration/WaitlistPanel.tsx`. Tests: `npm test` (the `*.waitlist.test.tsx` and `waitlist.test.ts` files). The in-app promotion bell and the cancel flow are not built yet (SPM-136 and the bell story).
 
 ## Registration report
 

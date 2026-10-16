@@ -238,6 +238,42 @@ Existing bookings and events are unchanged.
 to the server clock time. `GET /api/venues/:id` exposes current and scheduled
 periods with reasons and a `current` flag for the early-end control.
 
+## Venue availability and booking requests (SPM-51)
+
+`GET /api/venues/:id` returns confirmed bookings, active tentative holds and
+unavailable periods for the venue. Pending holds include `holdExpiresAt`; holds
+whose expiry is at or before the server clock are omitted. Coordinators submit
+an assigned event's requested interval through
+`POST /api/venues/:id/booking-requests` with `{ "eventId", "start", "end" }`,
+where start/end are ISO instants. The request is stored as `pending` and the
+response includes its booking reference. The backend locks the venue, checks
+the fresh schedule against setup/turnaround buffers and blockouts, and returns
+409 without inserting when it finds a conflict. Only the event's currently
+assigned Coordinator may submit it.
+
+Backend evidence for the booking-request rules is in
+`src/venues/availability/booking-request.spec.ts`,
+`src/venues/availability/dto/booking-request.spec.ts`, and
+`test/venues-booking-requests.e2e-spec.ts`. The schedule schema supports
+`rejected` as the declined request status; it has no `cancelled` booking status.
+Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
+requests are tentative and rejected requests are absent, without claiming a
+cancelled status exists.
+
+Run SPM-51 fault-injection checks with a PostgreSQL database configured in
+`DATABASE_URL`:
+
+```sh
+node scripts/mutation/run.mjs --mutants spm51.mutants.mjs
+```
+
+The runner prints baseline and per-mutant results with the mapped test evidence;
+it does not persist a result report. Exit code `0` means all selected mutants
+were killed or marked equivalent, `1` means a non-equivalent mutant survived or
+could not be applied exactly once, `2` means setup/baseline validation failed,
+and `3` means one or more required suites were skipped because their database
+environment was unavailable. A skipped suite is not counted as a kill.
+
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's
@@ -274,6 +310,12 @@ Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_
 Notifications are persistent in-app messages, not email. The frontend checks
 for them on sign-in, focus, and every 30 seconds. Identity and recipient
 scoping come from the local session.
+
+## Waitlist (SPM-138)
+
+`POST /api/events/:eventId/waitlist` (body `{}` or none; any key is a 400) joins the waitlist of a full, open event as the signed-in attendee. Waiting entries are rows in `event_registrations` with status `Waitlisted`; a removed entry is `Removed`. Position is derived on read from `(joined_at, waitlist_seq)` and is returned only in the owner's own entry (`waitlistPosition`). A confirmed withdrawal promotes the first entry in the same transaction and writes one `WaitlistPromoted` notification. Registration closing (or a manual close) removes the waiting entries on the next read, on a join or withdrawal, or through `runRegistrationCloseJob`. The cancel releaser `releaseWaitlistForCancelledEvent` is not yet wired (SPM-136).
+
+Existing databases apply `backend/migrations/011_spm138_waitlist.sql` once; fresh volumes get the same change from `database/postgresql/init/017_spm138_waitlist.sql`. The e2e suite is `test/registrations.waitlist.e2e-spec.ts` (needs `DATABASE_URL` with both applied). The fault-injection check is `node scripts/mutation/run.mjs --mutants spm138.mutants.mjs`.
 
 ## Registration report and exports
 

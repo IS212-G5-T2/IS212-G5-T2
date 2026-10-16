@@ -14,6 +14,8 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
 import { VENUE_SUMMARY_SQL } from './venue-summary.js';
+import { settleIfDue } from '../registrations/waitlist/settle.js';
+import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
@@ -46,17 +48,22 @@ function reassignedFrom(row: pg.QueryResultRow, viewerUid?: string) {
 interface AudienceRow {
   type: string;
   recipient_id: string;
-  /** The joined event's organiser (SPM-136); null when the event row is gone. */
+  /** The joined event's organiser and assigned coordinator (SPM-136); null when the event row is gone. */
   event_organiser_id?: string | null;
+  event_coordinator_id?: string | null;
 }
 
 function audienceRoleFor(row: AudienceRow) {
+  if (row.type === 'WaitlistPromoted') return 'attendee';
+  // SPM-136: an EventCancelled notice goes to the organiser, the assigned coordinator and registered or waitlisted
+  // attendees. The reader's relation to that event decides the copy, whatever roles the account holds.
+  if (row.type === 'EventCancelled') {
+    if (row.event_organiser_id === row.recipient_id) return 'organiser';
+    if (row.event_coordinator_id === row.recipient_id) return 'coordinator';
+    return 'attendee';
+  }
   if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
   if (row.type.startsWith('coordinator_')) return 'coordinator';
-  // SPM-136: an EventCancelled notice is written for the organiser and the assigned coordinator. The reader's
-  // relation to the event decides the copy: the organiser of that event reads the organiser copy, anyone else
-  // (the assigned coordinator) reads the coordinator copy, whatever roles the account holds.
-  if (row.type === 'EventCancelled') return row.event_organiser_id === row.recipient_id ? 'organiser' : 'coordinator';
   return 'organiser';
 }
 
@@ -80,6 +87,31 @@ export class EventsService {
     if (!user.roles.includes('ORGANISER'))
       throw new ForbiddenException('Organiser access required.');
     return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
+  }
+
+  /**
+   * SPM-138 AC2 capacity fields. Confirmed is the Registered count; a place is free while it is below the limit. The
+   * waitlist is offered only for a full event that is open for registration.
+   */
+  private capacityFields(row: pg.QueryResultRow) {
+    const limit = Number(row.registration_limit);
+    const confirmed = Number(row.confirmed_registrations ?? 0);
+    const isFull = confirmed >= limit;
+    const registrationOpen = isRegistrationOpen(
+      {
+        registrationEnabled: row.registration_enabled,
+        status: row.status,
+        opensAt: row.registration_opens_at ?? null,
+        closesAt: row.registration_closes_at ?? null,
+      },
+      this.clock.now(),
+    );
+    return {
+      registrationLimit: limit,
+      isFull,
+      waitlistAvailable: isFull && registrationOpen,
+      availableSpots: Math.max(limit - confirmed, 0),
+    };
   }
 
   private record(row: pg.QueryResultRow, viewerUid?: string) {
@@ -127,10 +159,10 @@ export class EventsService {
       myRegistrationStatus: row.my_registration_status
         ? String(row.my_registration_status).toLowerCase()
         : undefined,
+      // SPM-138 AC2: capacity is read from the one Confirmed count (Registered rows only), never from waiting entries.
       availableRegistrationSpots:
-        row.available_registration_spots == null
-          ? undefined
-          : Number(row.available_registration_spots),
+        row.confirmed_registrations == null ? undefined : this.capacityFields(row).availableSpots,
+      ...this.capacityFields(row),
       changeRequests: [],
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
@@ -142,26 +174,28 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
-    const result = user.roles.includes('ATTENDEE')
+    // The attendee list settles the waitlists that are due before it reads statuses. The job scans only due lists,
+    // so an event that is not due takes no lock and is not written.
+    if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))
+      await runRegistrationCloseJob(this.database, this.clock.now());
+    // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
+    const result = user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, GREATEST(
-             0,
-             COALESCE(events.registration_limit, events.expected_attendance) - (
-               SELECT COUNT(*)::integer FROM event_registrations
-                WHERE event_id = events.id AND status = 'Registered'
-             )
-           )::integer AS available_registration_spots,
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
+          [user.uid],
+        )
+      : user.roles.includes('ATTENDEE')
+      ? await this.database.query(
+          `SELECT events.*, ${VENUE_SUMMARY_SQL},
            (SELECT r.status FROM event_registrations r
              WHERE r.event_id = events.id AND r.attendee_id::text = $1
-           ) AS my_registration_status
+           ) AS my_registration_status,
+           (SELECT COUNT(*)::integer FROM event_registrations
+             WHERE event_id = events.id AND status = 'Registered'
+           ) AS confirmed_registrations
              FROM events
             WHERE status IN (${ATTENDEE_VISIBLE_STATUSES.map((s) => `'${s}'`).join(', ')})
             ORDER BY start_date_time ASC`,
-          [user.uid],
-        )
-      : user.roles.includes('COORDINATOR')
-      ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ORGANISER')
@@ -196,13 +230,10 @@ export class EventsService {
     )
       throw new NotFoundException('Event not found.');
     const result = await this.database.query(
-      `SELECT events.*, GREATEST(
-         0,
-         COALESCE(events.registration_limit, events.expected_attendance) - (
-           SELECT COUNT(*)::integer FROM event_registrations
-            WHERE event_id = events.id AND status = 'Registered'
-         )
-       )::integer AS available_registration_spots,
+      `SELECT events.*,
+       (SELECT COUNT(*)::integer FROM event_registrations
+         WHERE event_id = events.id AND status = 'Registered'
+       ) AS confirmed_registrations,
        ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}
          FROM events WHERE id = $1`,
       [id],
@@ -229,6 +260,9 @@ export class EventsService {
       }
       throw new NotFoundException('Event not found.');
     }
+    // A closed waitlist is settled on read for an attendee who may see the event, so the response never shows a stale
+    // waiting entry. Organisers, coordinators and anyone not allowed to view the event take no lock and write nothing.
+    if (user.roles.includes('ATTENDEE') && isAttendeeViewable) await settleIfDue(this.database, id, this.clock.now());
     return this.record(row, user.uid);
   }
   private requireCoordinator(identity: AuthenticatedUser | undefined) {
@@ -373,6 +407,8 @@ export class EventsService {
         ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment', 'EventCancelled']
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
+      // SPM-138 AC9/AC12: an attendee reads only their own waitlist notices (the query also filters by recipient).
+      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),
     ];
     if (!types.length) throw new ForbiddenException('Organiser or coordinator access required.');
     return { user, types };
@@ -381,7 +417,7 @@ export class EventsService {
   async notifications(identity?: AuthenticatedUser) {
     const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      `SELECT n.*, e.organiser_id AS event_organiser_id
+      `SELECT n.*, e.organiser_id AS event_organiser_id, e.coordinator_id AS event_coordinator_id
          FROM notifications n
          LEFT JOIN events e ON e.id = n.related_event_id
         WHERE n.recipient_id = $1 AND n.type = ANY($2)
@@ -394,6 +430,7 @@ export class EventsService {
         type: row.type,
         recipient_id: row.recipient_id,
         event_organiser_id: row.event_organiser_id,
+        event_coordinator_id: row.event_coordinator_id,
       }),
       audienceUserId: row.recipient_id,
       type: row.type,

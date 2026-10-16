@@ -17,7 +17,7 @@ import {
   formatReportGenerated,
   spotsLine,
 } from './report-format.js';
-import type { ExportFormat, RegistrationReport } from './report-types.js';
+import { REPORT_STATUS_LABELS, type ExportFormat, type RegistrationReport } from './report-types.js';
 
 // Noto Sans (SIL OFL, backend/assets/fonts) is embedded so Latin-extended names render; the standard PDF fonts
 // cannot draw them reliably. It has no CJK coverage (Q4), which is listed as a known gap.
@@ -49,7 +49,7 @@ export function buildCsv(report: RegistrationReport): Buffer {
       row.contactNumber,
       row.specialRequirements ?? '',
       formatReportDateTime(new Date(row.registeredAt)),
-      row.status,
+      REPORT_STATUS_LABELS[row.status],
     ]
       .map(toCsvCell)
       .join(','),
@@ -149,7 +149,7 @@ export function buildPdf(report: RegistrationReport): Promise<Buffer> {
         row.contactNumber || MESSAGES.reportNotProvided,
         row.specialRequirements ?? '',
         formatReportDateTimeSgt(new Date(row.registeredAt)),
-        row.status,
+        REPORT_STATUS_LABELS[row.status],
       ]);
     }
     doc.end();

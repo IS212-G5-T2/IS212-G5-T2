@@ -163,6 +163,8 @@ For an existing volume, apply backend migrations 005–009 in order, then
 not rerun on an existing volume. Migration 010 removes the legacy operating
 days and opening-time columns after the availability migration is installed.
 
+The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `017_spm138_waitlist.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
+
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and

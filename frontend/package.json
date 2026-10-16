@@ -11,13 +11,16 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
-    "test:cov:spm37": "vitest run --config vitest.spm37.config.ts"
+    "test:cov:spm37": "vitest run --config vitest.spm37.config.ts",
+    "test:tz": "node scripts/testing/tz-matrix.mjs"
   },
   "dependencies": {
+    "@fullcalendar/react": "^7.1.1",
     "clsx": "^2.1.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router-dom": "^7.18.3",
+    "temporal-polyfill": "^1.0.5",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

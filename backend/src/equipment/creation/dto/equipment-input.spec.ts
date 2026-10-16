@@ -62,8 +62,8 @@ describe('validateEquipmentInput', () => {
     expect(result).toEqual(input);
   });
 
-  // SPM-111 EQUIP-CRE-02-A: validation returns only the documented equipment contract.
-  it('EQUIP-CRE-02-A removes unknown request properties from validated input', () => {
+  // EQUIP-CRE-03-E: unsupported client-controlled properties are discarded at the API boundary.
+  it('removes unknown request properties from validated input', () => {
     // Act: submit a valid payload containing an unsupported client-controlled property.
     const result = validateEquipmentInput({ ...validInput, id: 'forged-id' });
 
@@ -109,8 +109,8 @@ describe('validateEquipmentInput', () => {
     expectFieldError({ ...validInput, location: '   ' }, 'location');
   });
 
-  // SPM-111 EQUIP-CRE-02-A: a submitted location is trimmed before persistence.
-  it('EQUIP-CRE-02-A trims surrounding whitespace from the location', () => {
+  // EQUIP-CRE-02-B: a typed location is trimmed before submission.
+  it('EQUIP-CRE-02-B trims surrounding whitespace from the location', () => {
     expect(
       validateEquipmentInput({ ...validInput, location: '  Storage Room A  ' })
         .location,
@@ -152,9 +152,9 @@ describe('validateEquipmentInput', () => {
     },
   );
 
-  // SPM-111 EQUIP-CRE-03-BND-2: quantities must fit the PostgreSQL integer column.
+  // EQUIP-CRE-03-BND-2: quantities must fit the PostgreSQL integer column.
   it.each([MAX_EQUIPMENT_QUANTITY + 1, 1e21])(
-    'EQUIP-CRE-03-BND-2 rejects an out-of-range quantity %i',
+    'rejects an out-of-range quantity %i',
     (quantity) => {
       // Act and assert: persistence errors are prevented at the API boundary.
       expectFieldError({ ...validInput, quantity }, 'quantity');

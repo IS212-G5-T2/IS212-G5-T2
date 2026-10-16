@@ -20,7 +20,7 @@ export const DEV_PATEL: ReportRow = {
   email: "dev.patel@example.com",
   contactNumber: "87654321",
   registeredAt: "2026-09-27T07:00:00.000Z",
-  status: "Confirmed",
+  status: "registered",
 };
 /** REG-9001: ATT-01 Alice Tan, registered 28 Sep 2026 10:30 SGT. */
 export const ALICE_TAN: ReportRow = {
@@ -29,7 +29,7 @@ export const ALICE_TAN: ReportRow = {
   email: "alice.tan@example.com",
   contactNumber: "98765432",
   registeredAt: "2026-09-28T02:30:00.000Z",
-  status: "Confirmed",
+  status: "registered",
   specialRequirements: "Vegetarian menu",
 };
 /** REG-EXTRA-01: ATT-03 Chloe Ng, registered 29 Sep 2026 09:00 SGT. */
@@ -39,7 +39,7 @@ export const CHLOE_NG: ReportRow = {
   email: "chloe.ng@example.com",
   contactNumber: "91234567",
   registeredAt: "2026-09-29T01:00:00.000Z",
-  status: "Confirmed",
+  status: "registered",
 };
 /** ATT-05 Farhan Rahman registers during the 06-A scenario. */
 export const FARHAN_RAHMAN: ReportRow = {
@@ -48,7 +48,7 @@ export const FARHAN_RAHMAN: ReportRow = {
   email: "farhan.rahman@example.com",
   contactNumber: "81234567",
   registeredAt: "2026-09-29T04:00:00.000Z",
-  status: "Confirmed",
+  status: "registered",
 };
 
 /** EVT-101 "Tech Talk: Cloud 101", capacity 50, with the three Confirmed rows in date order. */
@@ -63,6 +63,7 @@ export function buildReport(overrides: Partial<RegistrationReport> = {}): Regist
       capacity: 50,
     },
     totalConfirmed: registrations.length,
+    waitlistCount: registrations.filter((r) => r.status === "waitlisted").length,
     availableSpots: 50 - registrations.length,
     generatedAt: "2026-09-29T04:00:00.000Z",
     ...overrides,

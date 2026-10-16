@@ -10,7 +10,7 @@
 //
 // Exit code: 0 when every mutant is killed (or listed as equivalent), 1 when a non-equivalent mutant
 // survives or an edit does not apply exactly once, 2 when a baseline suite is not green.
-// This file is kept identical in backend/ and frontend/ because each component owns its own test tooling.
+// Each component keeps a local runner with the same mutation-selection and result-reporting contract.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -28,9 +28,31 @@ const suiteOnly = flag('--suite');
 const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
 const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
 
+const mappingForKill = (kill, mutant) => {
+  if (!kill || typeof kill.file !== 'string' || typeof kill.title !== 'string') return undefined;
+  const suite = mutant.suites.find((candidate) =>
+    (SUITES[candidate]?.args ?? []).some((arg) =>
+      arg === kill.file || kill.file.startsWith(`${arg.replace(/\/$/, '')}/`),
+    ),
+  );
+  return suite ? { suite, file: kill.file, title: kill.title } : undefined;
+};
+const mappingsOf = (mutant) => {
+  if (Array.isArray(mutant.testMappings)) return mutant.testMappings;
+  if (Array.isArray(mutant.kills)) return mutant.kills.map((kill) => mappingForKill(kill, mutant));
+  return undefined;
+};
+
 const mappingErrors = [];
 for (const mutant of selected) {
-  for (const mapping of mutant.testMappings ?? []) {
+  const mappings = mappingsOf(mutant);
+  if (mappings?.some((mapping) => !mapping)) {
+    mappingErrors.push(`${mutant.id}: one or more kill labels could not be resolved to a suite, file, and exact test title`);
+    continue;
+  }
+  if (mappings && !mappings.some((mapping) => suitesOf(mutant).includes(mapping.suite)))
+    mappingErrors.push(`${mutant.id}: no exact test mapping targets its selected suites`);
+  for (const mapping of mappings ?? []) {
     const args = SUITES[mapping.suite]?.args ?? [];
     const fileIsInSuite = args.some((arg) =>
       arg === mapping.file || mapping.file.startsWith(`${arg.replace(/\/$/, '')}/`),
@@ -61,13 +83,17 @@ cpSync(root, scratch, {
   recursive: true,
   filter: (src) => !/(^|[\\/])(node_modules|dist|coverage|test-results)([\\/]|$)/.test(relative(root, src)),
 });
-symlinkSync(join(root, 'node_modules'), join(scratch, 'node_modules'));
+symlinkSync(
+  join(root, 'node_modules'),
+  join(scratch, 'node_modules'),
+  process.platform === 'win32' ? 'junction' : 'dir',
+);
 
 const run = (suite, mapping) =>
   spawnSync(process.execPath, [
     join(scratch, 'node_modules/vitest/vitest.mjs'),
     ...SUITES[suite].args,
-    ...(mapping ? ['--testNamePattern', mapping.title] : []),
+    ...(mapping ? ['--reporter=verbose', '--testNamePattern', mapping.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')] : []),
   ], {
     cwd: scratch,
     env: { ...process.env, ...SUITES[suite].env, CI: '1' },
@@ -75,6 +101,8 @@ const run = (suite, mapping) =>
     timeout: 180_000,
   });
 const skipped = (suite) => SUITES[suite].needsEnv?.find((name) => !process.env[name]);
+const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+const hasExecutedTests = (result) => /\bTests\s+\d+\s+(?:passed|failed)\b/i.test(outputOf(result));
 
 let exitCode = 0;
 try {
@@ -86,9 +114,10 @@ try {
       continue;
     }
     const result = run(suite);
-    console.log(`baseline ${suite}: ${result.status === 0 ? 'green' : 'NOT GREEN'}`);
-    if (result.status !== 0) {
-      console.log((result.stdout + result.stderr).split('\n').slice(-25).join('\n'));
+    const green = result.status === 0 && hasExecutedTests(result);
+    console.log(`baseline ${suite}: ${green ? 'green' : result.status === 0 ? 'NOT GREEN (zero tests executed)' : 'NOT GREEN'}`);
+    if (!green) {
+      console.log(outputOf(result).split('\n').slice(-25).join('\n'));
       exitCode = 2;
     }
   }
@@ -100,18 +129,23 @@ try {
       let mutated = source;
       let applied = true;
       for (const [from, to] of m.edits) {
-        if (mutated.split(from).length !== 2) applied = false;
-        mutated = mutated.replace(from, () => to);
+        // Mutant definitions use repository LF newlines, while a Windows
+        // checkout can materialise the same source with CRLF newlines.
+        const match = mutated.includes(from) ? from : from.replace(/\n/g, '\r\n');
+        const replacement = match === from ? to : to.replace(/\n/g, '\r\n');
+        if (mutated.split(match).length !== 2) applied = false;
+        mutated = mutated.replace(match, () => replacement);
       }
       let status;
       let by = [];
       const skippedMappings = [];
+      const emptyMappings = [];
       if (!applied) {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
       } else {
         writeFileSync(path, mutated);
-        const mappings = m.testMappings?.filter((mapping) => suitesOf(m).includes(mapping.suite));
+        const mappings = mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
         if (mappings?.length) {
           for (const mapping of mappings) {
             const missing = skipped(mapping.suite);
@@ -119,8 +153,12 @@ try {
               skippedMappings.push(`${mapping.suite} (set ${missing}): ${mapping.title}`);
               continue;
             }
-            if (run(mapping.suite, mapping).status !== 0)
+            const result = run(mapping.suite, mapping);
+            if (!outputOf(result).includes(mapping.title)) {
+              emptyMappings.push(`${mapping.suite}: zero tests selected for ${mapping.title}`);
+            } else if (result.status !== 0) {
               by.push(`${mapping.suite}: ${mapping.title}`);
+            }
           }
         } else {
           const runnable = suitesOf(m).filter((s) => !skipped(s));
@@ -133,7 +171,10 @@ try {
           skippedMappings.push(...suitesOf(m).filter((s) => skipped(s)).map((s) => `${s} (set ${skipped(s)})`));
         }
         writeFileSync(path, source);
-        if (by.length) {
+        if (emptyMappings.length) {
+          status = 'NO TEST SELECTED';
+          tally.misapplied += 1;
+        } else if (by.length) {
           status = 'killed';
           tally.killed += 1;
         } else if (skippedMappings.length) {
@@ -147,7 +188,12 @@ try {
           tally.survived += 1;
         }
       }
-      console.log(`${m.id.padEnd(8)} ${status.padEnd(10)} ${by.join(' | ') || skippedMappings.join(' | ')} ${m.name}`);
+      const evidence = [
+        by.length ? `killed by: ${by.join(' | ')}` : '',
+        emptyMappings.length ? emptyMappings.join(' | ') : '',
+        skippedMappings.length ? `skipped: ${skippedMappings.join(' | ')}` : '',
+      ].filter(Boolean).join(' | ');
+      console.log(`${m.id.padEnd(8)} ${status.padEnd(16)} ${evidence} ${m.name}`);
     }
     console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
     if (tally.survived || tally.misapplied) exitCode = 1;

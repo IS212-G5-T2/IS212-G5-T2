@@ -82,6 +82,7 @@ Provide:
 - Repository snapshot and affected components.
 - Expected outputs and completion criteria.
 - Permissions and operational boundaries.
+- For test cycles: the story scope file (`docs/test-cases/workflow/scopes/<story>.json`), a cycle folder under ignored `ai/runtime/test-cycles/`, and the Confluence matrix IDs file or the access to fetch it.
 
 Before reviewing, capture HEAD, branch, Git status, changed paths, and tracked/untracked review-input fingerprints.
 Do not change shared review inputs while Requirement and Code Quality Reviews are active. Wait for both reports before routing corrections or deciding completion.
@@ -94,7 +95,7 @@ Each reviewer returns:
 - `BLOCKED`: Substantiated findings prevent approval.
 - `UNABLE_TO_VERIFY`: Insufficient evidence or access.
 
-The Orchestrator evaluates the evidence and decides the next action.
+The Orchestrator evaluates the evidence and decides the next action. A Test Review report must carry the gate table and the metrics status from `ai/docs/test-workflow.md`; an AMBER status is a `PASS` only when the Orchestrator has accepted a disposition for every AMBER item.
 
 **PASS:** Advance to the next required stage or finish.
 
@@ -137,6 +138,7 @@ Confirm:
 - Applicable acceptance criteria have final verification statuses.
 - Currently due Definition of Done items have evidence; items awaiting Code Quality Review, PR/CI, human or PO approval, merge, and post-merge verification are reported as pending until proven, without claiming the Jira story is Done.
 - Required tests, build, lint, static-analysis, and integration checks passed, or limitations are disclosed.
+- For test cycles, the metrics report exists and every gate and number in it traces to a file in the cycle folder.
 - Documentation, including `AI_USAGE.md`, is updated where required.
 - If the user requested creation of a pull request, active `AI_USAGE.md` entries were archived before the PR was opened and the archive is included in the branch.
 - Changes are staged only where authorized.

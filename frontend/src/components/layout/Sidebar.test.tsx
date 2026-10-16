@@ -74,7 +74,7 @@ describe("SPM-30: signing out from the sidebar", () => {
 
     // Assert: staff-only creation is discoverable and shared venue routes remain one link.
     expect(screen.getByRole("link", { name: "Create Venue" })).toHaveAttribute("href", "/venues/create");
-    expect(screen.getAllByRole("link", { name: "Venues" })).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: "Venues" })).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "Venue Availability" })).toHaveLength(1);
   });
 
@@ -87,8 +87,8 @@ describe("SPM-30: signing out from the sidebar", () => {
       </MemoryRouter>,
     );
 
-    // Assert: the exact page is highlighted and the /venues prefix route is not.
+    // Assert: the availability item is highlighted and the generic catalogue item is absent.
     expect(screen.getByRole("link", { name: "Venue Availability" })).toHaveClass("bg-primary-50");
-    expect(screen.getByRole("link", { name: "Venues" })).not.toHaveClass("bg-primary-50");
+    expect(screen.queryByRole("link", { name: "Venues" })).not.toBeInTheDocument();
   });
 });

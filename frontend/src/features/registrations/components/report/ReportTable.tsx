@@ -1,17 +1,24 @@
 import { NOT_PROVIDED } from "@/utils/format";
-import { REPORT_MESSAGES, formatReportDateTimeSgt, type ReportRow } from "@/features/registrations/lib/registrationReport";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import {
+  REPORT_MESSAGES,
+  formatReportDateTimeSgt,
+  type ReportRow,
+  type ReportStatusFilter,
+} from "@/features/registrations/lib/registrationReport";
 
 const COLUMNS = ["Name", "Email", "Contact Number", "Registration Date", "Status"] as const;
 
 /**
- * SPM-63 AC3: one row per Confirmed registration, in the order the server sends (registration date ascending).
- * Attendee-supplied text is rendered as text only; React escapes it.
+ * SPM-63 AC3, SPM-138 owner decision: one row per registration the server sends, in its order (Confirmed by registration
+ * date, then the waitlist by position, then the rest). Each row carries its status badge; a waitlisted row also shows its
+ * position. Attendee-supplied text is rendered as text only; React escapes it.
  */
-export function ReportTable({ registrations }: { registrations: ReportRow[] }) {
+export function ReportTable({ registrations, filter = "all" }: { registrations: ReportRow[]; filter?: ReportStatusFilter }) {
   if (registrations.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 px-4 py-10 text-center text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
-        {REPORT_MESSAGES.empty}
+        {filter === "all" ? REPORT_MESSAGES.empty : REPORT_MESSAGES.emptyForStatus}
       </div>
     );
   }
@@ -34,7 +41,14 @@ export function ReportTable({ registrations }: { registrations: ReportRow[] }) {
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.email || NOT_PROVIDED}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.contactNumber || NOT_PROVIDED}</td>
               <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{formatReportDateTimeSgt(row.registeredAt)}</td>
-              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">{row.status}</td>
+              <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
+                <span className="flex flex-wrap items-center gap-2">
+                  <StatusBadge status={row.status} />
+                  {row.status === "waitlisted" && row.waitlistPosition !== undefined && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Position {row.waitlistPosition}</span>
+                  )}
+                </span>
+              </td>
             </tr>
           ))}
         </tbody>
