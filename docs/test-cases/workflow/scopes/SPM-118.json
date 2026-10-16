@@ -1,13 +1,14 @@
 {
   "story": "SPM-118",
   "title": "Update Equipment Records",
-  "note": "Jira is the source for AC1-AC6. Confluence SPM-118 Update Equipment Records Matrix (27295823) is the authoritative matrix; its 14 PRIMARY IDs EQUIP-UPDATE-01-{A|B|C}, 02-{A|B}, 03-{A|B|C}, 04-{A|B}, 05-A, 06-{A|B|C} are backed by individual case pages 27230285 / 27525142 / 27525158 / 27492357 / 27492373 / 27230301 whose Remarks list the authoritative automated-test mapping. The retired combined page 26902636 is archived. Confluence Standup 7 (15 Oct, row 4) clarifies AC2: only fields available at equipment creation are editable. The unchanged-value audit expectation follows the SPM-119 PO decision that unchanged requests create no audit entries.",
+  "note": "Jira is the source for AC1-AC6. Confluence SPM-118 Update Equipment Records Matrix (27295823) is the authoritative matrix; its 14 PRIMARY IDs EQUIP-UPDATE-01-{A|B|C}, 02-{A|B}, 03-{A|B|C}, 04-{A|B}, 05-A, 06-{A|B|C} are backed by individual case pages 27230285 / 27525142 / 27525158 / 27492357 / 27492373 / 27230301 whose Remarks list the authoritative automated-test mapping. The retired combined page 26902636 is archived. Confluence Standup 7 (15 Oct, row 4) clarifies AC2: only fields available at equipment creation are editable. The unchanged-value audit expectation follows the SPM-119 PO decision that unchanged requests create no audit entries. The SPM-119 availability unit suite is included in the backend run only to measure its executable shared EquipmentService branches; its EQUIP-UNAVAIL IDs remain outside the SPM-118 registry, records, and PRIMARY matrix mapping because it is not SPM-118 evidence.",
   "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
   "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
   "tests": {
     "backend-unit": [
       { "glob": "backend/src/equipment/equipment.service.spec.ts", "titleMatch": "EQUIP-UPDATE-" },
-      { "glob": "backend/src/equipment/equipment.controller.spec.ts", "titleMatch": "EQUIP-UPDATE-" }
+      { "glob": "backend/src/equipment/equipment.controller.spec.ts", "titleMatch": "EQUIP-UPDATE-" },
+      { "glob": "backend/src/equipment/availability/equipment-availability.spec.ts", "titleMatch": "EQUIP-UPDATE-" }
     ],
     "backend-e2e": ["backend/test/equipment-update.e2e-spec.ts"],
     "frontend": [

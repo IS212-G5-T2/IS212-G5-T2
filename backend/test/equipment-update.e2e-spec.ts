@@ -52,7 +52,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     }
   });
 
-  /** SPM-118 AC2/AC4/AC5/AC6: a complete edit persists all permitted fields and is visible in inventory and audit history. */
+  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC2/AC4/AC5/AC6: a complete edit persists all permitted fields and is visible in inventory and audit history. */
   it('EQUIP-UPDATE-06-A persists editable values and records the change with the authenticated actor', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);
@@ -93,13 +93,13 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
         quantity: 7,
         isAvailable: true,
         changeType: 'Equipment record updated',
-        reason: null,
+        reason: 'Updated fields: Equipment name, Equipment type, Location, Maintenance status, Quantity available.',
         changedBy: actor.email,
       }),
     ]);
   });
 
-  /** SPM-118 AC5: a saved edit is present in PostgreSQL and returned by the inventory API. */
+  /** Confluence EQUIP-UPDATE-05-A; SPM-118 AC5: a saved edit is present in PostgreSQL and returned by the inventory API. */
   it('EQUIP-UPDATE-05-A returns the updated record from the subsequent inventory read', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);
@@ -136,7 +136,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     expect(inventory.body.find((item: { id: string }) => item.id === equipmentId)).toMatchObject(updated);
   });
 
-  /** SPM-118 AC2: the HTTP and persistence boundary ignores retired Description and Specifications properties. */
+  /** Confluence EQUIP-UPDATE-02-B; SPM-118 AC2: the HTTP and persistence boundary ignores retired Description and Specifications properties. */
   it('EQUIP-UPDATE-02-B ignores retired Description and Specifications properties', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);
@@ -157,7 +157,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     expect(stored.rows[0].record).not.toHaveProperty('specifications');
   });
 
-  /** SPM-118 AC3: invalid required values return 400 and leave the equipment row and audit history unchanged. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: invalid required values return 400 and leave the equipment row and audit history unchanged. */
   it('EQUIP-UPDATE-03-B rejects every empty required field without changing inventory or audit history', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);
@@ -183,7 +183,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     }
   });
 
-  /** SPM-118 AC1: an unknown selected record returns 404 and malformed identifiers return 400. */
+  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: an unknown selected record returns 404 and malformed identifiers return 400. */
   it('EQUIP-UPDATE-01-B distinguishes missing and malformed equipment ids', async () => {
     const actor = await createUser('TECH_SUPPORT');
     await request(app.getHttpServer())
@@ -198,7 +198,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
       .expect(400);
   });
 
-  /** SPM-118 AC1 security: the update route requires a session and the Technical Support role. */
+  /** Confluence EQUIP-UPDATE-01-C; SPM-118 AC1 security: the update route requires a session and the Technical Support role. */
   it('EQUIP-UPDATE-01-C returns 401 for anonymous callers and 403 for another role', async () => {
     const organiser = await createUser('ORGANISER');
     await request(app.getHttpServer()).put('/api/equipment/11111111-1111-4111-8111-111111111118').send(initial).expect(401);
@@ -209,7 +209,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
       .expect(403);
   });
 
-  /** SPM-118 AC6: if the audit insert fails, the enclosing transaction rolls back the inventory update. */
+  /** Confluence EQUIP-UPDATE-06-B; SPM-118 AC6: if the audit insert fails, the enclosing transaction rolls back the inventory update. */
   it('EQUIP-UPDATE-06-B leaves inventory unchanged when audit persistence fails', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);
@@ -234,7 +234,7 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
     expect(audit.rows).toEqual([]);
   });
 
-  /** SPM-118 AC6: submitting identical values is not a state change and adds no duplicate audit entry. */
+  /** Confluence EQUIP-UPDATE-06-C; SPM-118 AC6: submitting identical values is not a state change and adds no duplicate audit entry. */
   it('EQUIP-UPDATE-06-C does not write an audit row for unchanged values', async () => {
     const actor = await createUser('TECH_SUPPORT');
     const equipmentId = await createEquipment(actor.cookie);

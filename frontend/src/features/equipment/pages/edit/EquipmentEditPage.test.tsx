@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -40,6 +40,16 @@ function renderEditPage() {
   );
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('EquipmentEditPage (SPM-118)', () => {
   beforeEach(() => {
     getEquipment.mockReset().mockResolvedValue([record]);
@@ -47,7 +57,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     navigate.mockReset();
   });
 
-  /** SPM-118 AC1/AC2: selecting Edit loads all and only the fields present at equipment creation. */
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC1/AC2: selecting Edit loads all and only the fields present at equipment creation. */
   it('EQUIP-UPDATE-02-A loads the selected record and exposes its five editable fields', async () => {
     renderEditPage();
 
@@ -64,7 +74,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(screen.queryByRole('textbox', { name: /description|specifications/i })).not.toBeInTheDocument();
   });
 
-  /** SPM-118 AC3: required fields block saving and show field-level validation errors. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: required fields block saving and show field-level validation errors. */
   it('EQUIP-UPDATE-03-A blocks empty required values before calling the update API', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -80,7 +90,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** SPM-118 AC3: quantities must be positive whole numbers within the database integer range. */
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities must be positive whole numbers within the database integer range. */
   it('EQUIP-UPDATE-03-C rejects a quantity below the allowed minimum', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -94,6 +104,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: fractional quantities are invalid. */
   it('EQUIP-UPDATE-03-C rejects a fractional quantity', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -107,6 +118,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: quantities above PostgreSQL integer maximum are invalid. */
   it('EQUIP-UPDATE-03-C rejects a quantity above the allowed maximum', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -120,7 +132,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
-  /** SPM-118 AC2/AC4/AC5/AC6: a valid save submits the selected record and confirms success. */
+  /** Confluence EQUIP-UPDATE-04-A; SPM-118 AC2/AC4/AC5/AC6: a valid save submits the selected record and confirms success. */
   it('EQUIP-UPDATE-04-A saves the edited record and shows the confirmation', async () => {
     const user = userEvent.setup();
     const updated = { ...record, name: 'Updated projector', location: 'Main Hall', quantity: 7 };
@@ -148,7 +160,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).toHaveBeenCalledWith('/equipment/availability');
   });
 
-  /** SPM-118 AC1: both page navigation controls return to the equipment inventory. */
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: both page navigation controls return to the equipment inventory. */
   it('EQUIP-UPDATE-01-A navigates back or cancels to the inventory', async () => {
     const user = userEvent.setup();
     renderEditPage();
@@ -161,7 +173,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).toHaveBeenNthCalledWith(2, '/equipment/availability');
   });
 
-  /** SPM-118 AC1: a selected id missing from the inventory is presented as an actionable load failure. */
+  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: a selected id missing from the inventory is presented as an actionable load failure. */
   it('EQUIP-UPDATE-01-B reports when the selected record is absent', async () => {
     getEquipment.mockResolvedValue([]);
     renderEditPage();
@@ -169,7 +181,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to load this equipment record/i);
   });
 
-  /** SPM-118 AC1: an inventory request failure is shown as a load error. */
+  /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: an inventory request failure is shown as a load error. */
   it('EQUIP-UPDATE-01-B reports when inventory cannot be loaded', async () => {
     getEquipment.mockRejectedValue(new Error('offline'));
     renderEditPage();
@@ -177,7 +189,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to load this equipment record/i);
   });
 
-  /** SPM-118 AC3: server validation errors are shown beside their corresponding fields. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: server validation errors are shown beside their corresponding fields. */
   it('EQUIP-UPDATE-03-A shows field errors returned by the update API', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new ApiError('Invalid equipment record.', { name: 'Equipment name is required.' }));
@@ -188,7 +200,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByText('Equipment name is required.')).toBeInTheDocument();
   });
 
-  /** SPM-118 AC3: body-level API validation errors are shown in the form. */
+  /** Confluence EQUIP-UPDATE-03-A; SPM-118 AC3: body-level API validation errors are shown in the form. */
   it('EQUIP-UPDATE-03-A shows general API validation errors', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new ApiError('Invalid equipment record.', { body: 'Equipment record could not be validated.' }));
@@ -199,7 +211,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Equipment record could not be validated.');
   });
 
-  /** SPM-118 AC4: users can dismiss the successful-save confirmation without navigation. */
+  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: users can dismiss the successful-save confirmation without navigation. */
   it('EQUIP-UPDATE-04-B closes the update confirmation', async () => {
     const user = userEvent.setup();
     updateEquipment.mockResolvedValue({ equipment: record, message: 'Equipment record updated.' });
@@ -214,7 +226,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 
-  /** SPM-118 AC4: an unexpected save failure is visible and does not claim success. */
+  /** Confluence EQUIP-UPDATE-04-B; SPM-118 AC4: an unexpected save failure is visible and does not claim success. */
   it('EQUIP-UPDATE-04-B reports an unexpected update failure', async () => {
     const user = userEvent.setup();
     updateEquipment.mockRejectedValue(new Error('offline'));
@@ -224,5 +236,39 @@ describe('EquipmentEditPage (SPM-118)', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/unable to update the equipment record/i);
     expect(screen.queryByRole('dialog', { name: 'Equipment Record Updated' })).not.toBeInTheDocument();
+  });
+
+  /** Confluence EQUIP-UPDATE-01-B; late inventory success after leaving the selected-record editor must not update an unmounted page. */
+  it('EQUIP-UPDATE-01-B ignores a late inventory success after unmount', async () => {
+    const pending = deferred<EquipmentRecord[]>();
+    getEquipment.mockReturnValue(pending.promise);
+    const view = renderEditPage();
+
+    view.unmount();
+    await act(async () => {
+      pending.resolve([record]);
+      await pending.promise;
+    });
+
+    expect(screen.queryByRole('heading', { name: 'Edit Equipment Record' })).not.toBeInTheDocument();
+  });
+
+  /** Confluence EQUIP-UPDATE-01-B; late inventory failure after leaving the selected-record editor must not publish a stale load error. */
+  it('EQUIP-UPDATE-01-B ignores a late inventory failure after unmount', async () => {
+    const pending = deferred<EquipmentRecord[]>();
+    getEquipment.mockReturnValue(pending.promise);
+    const view = renderEditPage();
+
+    view.unmount();
+    await act(async () => {
+      pending.reject(new Error('offline'));
+      try {
+        await pending.promise;
+      } catch {
+        // The component owns the rejection handler; this awaits the scheduled handler deterministically.
+      }
+    });
+
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

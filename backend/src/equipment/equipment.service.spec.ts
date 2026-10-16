@@ -485,7 +485,7 @@ describe('EquipmentService', () => {
     expect(database.query).not.toHaveBeenCalled();
   });
 
-  /** SPM-118 AC2/AC5/AC6: changed editable fields update inventory and write the new state to audit. */
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2/AC5/AC6: changed editable fields update inventory and write the new state to audit. */
   it('EQUIP-UPDATE-02-A updates all allowed values and writes an audit snapshot atomically', async () => {
     const before = {
       ...createdRow,
@@ -534,7 +534,17 @@ describe('EquipmentService', () => {
     expect(client.query).toHaveBeenNthCalledWith(
       3,
       expect.stringMatching(/INSERT INTO equipment_audit_trail[\s\S]*'Equipment record updated'/i),
-      ['equipment-1', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7, true, 'support@example.test'],
+      [
+        'equipment-1',
+        'Updated projector',
+        'Audio',
+        'Main Hall',
+        'Under Maintenance',
+        7,
+        true,
+        'Updated fields: Equipment name, Equipment type, Location, Maintenance status, Quantity available.',
+        'support@example.test',
+      ],
     );
     expect(result).toMatchObject({
       equipment: {
@@ -549,7 +559,7 @@ describe('EquipmentService', () => {
     });
   });
 
-  /** SPM-118 AC2: properties outside the five creation fields cannot alter the persisted record. */
+  /** Confluence EQUIP-UPDATE-02-B; SPM-118 AC2: properties outside the five creation fields cannot alter the persisted record. */
   it('EQUIP-UPDATE-02-B ignores retired Description and Specifications properties', async () => {
     const before = { ...createdRow, is_available: true };
     const after = { ...before, equipment_name: 'Updated projector', updated_at: new Date('2026-10-15T00:00:00.000Z') };
@@ -567,7 +577,7 @@ describe('EquipmentService', () => {
     expect(JSON.stringify(result)).not.toMatch(/must not persist/);
   });
 
-  /** SPM-118 AC3: the API rejects an empty required field before opening a persistence transaction. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: the API rejects an empty required field before opening a persistence transaction. */
   it('EQUIP-UPDATE-03-B rejects a blank equipment name without touching the database', async () => {
     await expect(
       service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
@@ -590,18 +600,18 @@ describe('EquipmentService', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   };
 
-  /** SPM-118 AC3: equipment type is required at the update service boundary. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment type is required at the update service boundary. */
   it('EQUIP-UPDATE-03-B rejects an empty type without opening a transaction', async () => rejectsAnEmptyField('type', 'Equipment type is required.', { type: '' }));
-  /** SPM-118 AC3: equipment location is required at the update service boundary. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment location is required at the update service boundary. */
   it('EQUIP-UPDATE-03-B rejects an empty location without opening a transaction', async () => rejectsAnEmptyField('location', 'Location is required.', { location: '   ' }));
-  /** SPM-118 AC3: maintenance status is required at the update service boundary. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: maintenance status is required at the update service boundary. */
   it('EQUIP-UPDATE-03-B rejects an empty maintenance status without opening a transaction', async () => rejectsAnEmptyField('maintenanceStatus', 'Maintenance status is required.', { maintenanceStatus: '' }));
-  /** SPM-118 AC3: quantity is required at the update service boundary. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: quantity is required at the update service boundary. */
   it('EQUIP-UPDATE-03-B rejects an empty quantity without opening a transaction', async () => rejectsAnEmptyField('quantity', 'Quantity is required.', { quantity: '' }));
-  /** SPM-118 AC3: equipment name is required at the update service boundary. */
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment name is required at the update service boundary. */
   it('EQUIP-UPDATE-03-B rejects an empty name without opening a transaction', async () => rejectsAnEmptyField('name', 'Equipment name is required.', { name: '   ' }));
 
-  /** SPM-118 AC1: a selected equipment id that is absent from inventory returns not found before writes. */
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: a selected equipment id that is absent from inventory returns not found before writes. */
   it('EQUIP-UPDATE-01-A reports a missing equipment record without writing', async () => {
     const client = { query: vi.fn().mockResolvedValue({ rows: [] }) };
     database.transaction.mockImplementation((work) => work(client));
@@ -618,7 +628,7 @@ describe('EquipmentService', () => {
     expect(client.query).toHaveBeenCalledTimes(1);
   });
 
-  /** SPM-118 AC6: submitting unchanged values leaves equipment and audit history untouched. */
+  /** Confluence EQUIP-UPDATE-06-C; SPM-118 AC6: submitting unchanged values leaves equipment and audit history untouched. */
   it('EQUIP-UPDATE-06-C returns the current record without adding an audit entry', async () => {
     const before = { ...createdRow, is_available: true };
     const client = { query: vi.fn().mockResolvedValue({ rows: [before] }) };
@@ -640,7 +650,7 @@ describe('EquipmentService', () => {
     expect(client.query).toHaveBeenCalledTimes(1);
   });
 
-  /** SPM-118 AC1/AC2 security: only Technical Support may update equipment inventory. */
+  /** Confluence EQUIP-UPDATE-01-C; SPM-118 AC1/AC2 security: only Technical Support may update equipment inventory. */
   it('EQUIP-UPDATE-01-C refuses non-Technical-Support roles before opening a persistence transaction', async () => {
     for (const role of ['ORGANISER', 'COORDINATOR', 'VENUE_STAFF', 'ATTENDEE'] as const) {
       await expect(

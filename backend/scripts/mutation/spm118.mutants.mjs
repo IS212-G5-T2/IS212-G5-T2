@@ -84,8 +84,8 @@ export const MUTANTS = [
       title: 'EQUIP-UPDATE-06-A persists editable values and records the change with the authenticated actor',
     }],
     edits: [[
-      "'Equipment record updated', NULL, $8)",
-      "'Equipment unavailable', NULL, $8)",
+      "'Equipment record updated', $8, $9)",
+      "'Equipment unavailable', $8, $9)",
     ]],
   },
   {
@@ -97,7 +97,7 @@ export const MUTANTS = [
       { suite: 'service', file: 'src/equipment/equipment.service.spec.ts', title: 'EQUIP-UPDATE-06-C returns the current record without adding an audit entry' },
       { suite: 'e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-UPDATE-06-C does not write an audit row for unchanged values' },
     ],
-    edits: [['if (!changed) {', 'if (false) {']],
+    edits: [['if (changedFields.length === 0) {', 'if (false) {']],
   },
   {
     id: 'BE-118-02',
@@ -122,7 +122,10 @@ export const MUTANTS = [
       suite: 'service', file: 'src/equipment/equipment.service.spec.ts',
       title: 'EQUIP-UPDATE-02-A updates all allowed values and writes an audit snapshot atomically',
     }],
-    edits: [['record.is_available,\n          actor.email,', "record.is_available,\n          'other@example.test',"]],
+    edits: [[
+      "record.is_available,\n          `Updated fields: ${changedFields.join(', ')}.`,\n          actor.email,",
+      "record.is_available,\n          `Updated fields: ${changedFields.join(', ')}.`,\n          'other@example.test',",
+    ]],
   },
   {
     id: 'BE-118-04',
@@ -156,8 +159,8 @@ export const MUTANTS = [
       { suite: 'e2e', file: 'test/equipment-update.e2e-spec.ts', title: 'EQUIP-UPDATE-01-B distinguishes missing and malformed equipment ids' },
     ],
     edits: [[
-      "const before = current.rows[0];\n      if (!before) throw new NotFoundException('Equipment record not found.');\n\n      const changed =",
-      "const before = current.rows[0];\n      if (false) throw new NotFoundException('Equipment record not found.');\n\n      const changed =",
+      "const before = current.rows[0];\n      if (!before) throw new NotFoundException('Equipment record not found.');\n\n      const changedFields =",
+      "const before = current.rows[0];\n      if (false) throw new NotFoundException('Equipment record not found.');\n\n      const changedFields =",
     ]],
   },
   {

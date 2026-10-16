@@ -15,7 +15,7 @@ const apiMock = vi.mocked(api);
 beforeEach(() => apiMock.mockReset());
 
 describe("equipment API contracts", () => {
-  /** SPM-118 AC2/AC5: update requests use the selected record id and create-field payload. */
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2/AC5: update requests use the selected record id and create-field payload. */
   it("EQUIP-UPDATE-02-A submits equipment edits using PUT", () => {
     const input = {
       name: "Updated projector",

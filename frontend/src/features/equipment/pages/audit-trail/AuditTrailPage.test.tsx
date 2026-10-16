@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe("AuditTrailPage: SPM-119 availability history", () => {
-  /** SPM-118 AC6: equipment detail edits appear in the same audit history with the technician recorded. */
+  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC6: equipment detail edits appear in the same audit history with the technician recorded. */
   it("EQUIP-UPDATE-06-A displays equipment detail updates in the shared history", async () => {
     getEquipmentAuditTrail.mockResolvedValue([
       makeEntry({
@@ -50,7 +50,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
         quantity: 7,
         changeType: "Equipment record updated",
         changedBy: "support@example.test",
-        reason: null,
+        reason: 'Updated fields: Equipment name, Quantity available.',
       }),
     ]);
 
@@ -58,6 +58,9 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
 
     expect(await screen.findByText("Updated projector")).toBeInTheDocument();
     expect(screen.getByText("Equipment record updated")).toBeInTheDocument();
+    expect(
+      screen.getByText("Updated fields: Equipment name, Quantity available."),
+    ).toBeInTheDocument();
     expect(screen.getByText("support@example.test")).toBeInTheDocument();
     expect(screen.getByText("History of all equipment changes.")).toBeInTheDocument();
   });
