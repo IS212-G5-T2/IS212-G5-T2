@@ -4,8 +4,9 @@
  * Withdrawn and Removed rows are never touched. Dedupe per registration: the UPDATE moves only Waitlisted rows, so an
  * entry can be cancelled, and therefore noticed, once.
  *
- * WIRING IS SPM-136's: the cancel flow is not in HEAD, so nothing calls this yet. The SPM-136 cases 12-A to 12-C stay
- * Blocked; 12-C-REL tests this function against rows. The caller must hold the event row lock (D7).
+ * Called by the cancellation core through the waitlist releaser (registrations/release/waitlist.releaser.ts), inside the
+ * cancellation transaction. 12-C-REL tests this function against rows; 12-A to 12-C test the whole flow. The caller must
+ * hold the event row lock (D7).
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';

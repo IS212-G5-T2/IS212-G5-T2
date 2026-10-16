@@ -25,10 +25,12 @@ function recordingClient(rows: unknown[][] = []) {
 }
 
 describe('SPM-136 release registry', () => {
-  it('registers the venue, registration and equipment releasers in that order (equipment last, for 04-C)', () => {
+  it('registers the venue, registration, waiting list and equipment releasers in that order (equipment last, for 04-C)', () => {
+    // SPM-138 AC12: the waiting list is released with the registrations (JOIN-WAITLIST-12-A to 12-C).
     expect(DEFAULT_RELEASERS.map((releaser) => releaser.name)).toEqual([
       'venue_bookings',
       'event_registrations',
+      'event_registrations.waitlist',
       'equipment_reservations',
     ]);
   });

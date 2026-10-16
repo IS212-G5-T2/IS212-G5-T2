@@ -6,6 +6,7 @@
 import type pg from 'pg';
 import { equipmentReservationReleaser } from '../../equipment/release/equipment-reservation.releaser.js';
 import { registrationReleaser } from '../../registrations/release/registration.releaser.js';
+import { waitlistReleaser } from '../../registrations/release/waitlist.releaser.js';
 import { venueBookingReleaser } from '../../venues/release/venue-booking.releaser.js';
 
 export interface EventReleaser {
@@ -24,5 +25,6 @@ export const EVENT_RELEASERS = 'EVENT_RELEASERS';
 export const DEFAULT_RELEASERS: readonly EventReleaser[] = [
   venueBookingReleaser,
   registrationReleaser,
+  waitlistReleaser,
   equipmentReservationReleaser,
 ];
