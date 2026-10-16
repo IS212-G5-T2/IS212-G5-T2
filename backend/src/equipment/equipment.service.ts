@@ -79,6 +79,19 @@ function toAuditEntry(row: AuditTrailRow) {
   };
 }
 
+function changedEquipmentFields(
+  before: EquipmentRow,
+  input: ReturnType<typeof validateEquipmentInput>,
+): string[] {
+  return [
+    before.equipment_name !== input.name && 'Equipment name',
+    before.equipment_type !== input.type && 'Equipment type',
+    before.location !== input.location && 'Location',
+    before.maintenance_status !== input.maintenanceStatus && 'Maintenance status',
+    before.quantity !== input.quantity && 'Quantity available',
+  ].filter((field): field is string => Boolean(field));
+}
+
 /* v8 ignore start -- Nest decorator metadata is not executable in unit tests. */
 @Injectable()
 /* v8 ignore stop */
@@ -127,6 +140,68 @@ export class EquipmentService {
       `SELECT DISTINCT location FROM equipment ORDER BY location ASC`,
     );
     return result.rows.map((row) => row.location);
+  }
+
+  /** SPM-118 AC2/AC5/AC6: update one inventory record and its audit snapshot atomically. */
+  async update(user: AuthenticatedUser | undefined, equipmentId: string, body: unknown) {
+    const actor = requireTechnicalSupport(user);
+    const input = validateEquipmentInput(body);
+
+    return this.database.transaction(async (client) => {
+      const current = await client.query<EquipmentRow>(
+        `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at
+         FROM equipment WHERE id = $1 FOR UPDATE`,
+        [equipmentId],
+      );
+      const before = current.rows[0];
+      if (!before) throw new NotFoundException('Equipment record not found.');
+
+      const changedFields = changedEquipmentFields(before, input);
+      if (changedFields.length === 0) {
+        return {
+          equipment: toEquipment(before),
+          message: 'No changes were made.',
+        };
+      }
+
+      const updated = await client.query<EquipmentRow>(
+        `UPDATE equipment
+         SET equipment_name = $2, equipment_type = $3, location = $4,
+             maintenance_status = $5, quantity = $6, updated_at = now()
+         WHERE id = $1
+         RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at`,
+        [
+          equipmentId,
+          input.name,
+          input.type,
+          input.location,
+          input.maintenanceStatus,
+          input.quantity,
+        ],
+      );
+      const record = updated.rows[0];
+      await client.query(
+        `INSERT INTO equipment_audit_trail
+           (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'Equipment record updated', $8, $9)`,
+        [
+          record.id,
+          record.equipment_name,
+          record.equipment_type,
+          record.location,
+          record.maintenance_status,
+          record.quantity,
+          record.is_available,
+          `Updated fields: ${changedFields.join(', ')}.`,
+          actor.email,
+        ],
+      );
+
+      return {
+        equipment: toEquipment(record),
+        message: 'Equipment record updated.',
+      };
+    });
   }
 
   /**

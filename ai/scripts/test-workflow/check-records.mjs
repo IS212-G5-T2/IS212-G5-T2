@@ -10,7 +10,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, WORKFLOW_DIR, abs, exitCodeFor, fileExists, levelOf, loadScope, parseArgs, parseCsv, printGate, readJson,
+  BLOCKED, PASS, WORKFLOW_DIR, abs, exitCodeFor, fileExists, isMain, levelOf, loadScope, parseArgs, parseCsv, printGate, readJson,
   readText, rel, scopeTests, scopedTests, testIdOf, toCsv, writeGate, writeText,
 } from './lib.mjs';
 import { readRegistry } from './check-ids.mjs';
@@ -192,4 +192,4 @@ async function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await main();
+if (isMain(import.meta.url)) await main();

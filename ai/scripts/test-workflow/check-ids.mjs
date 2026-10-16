@@ -7,7 +7,7 @@
 //   --scaffold  print registry rows for ids found in code but missing from the registry, then exit 0
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, exitCodeFor, fileExists, idFamily, idsIn, loadScope, parseArgs, parseTables,
+  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, exitCodeFor, fileExists, idFamily, idsIn, isMain, loadScope, parseArgs, parseTables,
   printGate, readText, scopeTests, scopedTests, stripTicks, worst, writeGate, writeText,
 } from './lib.mjs';
 
@@ -126,4 +126,4 @@ function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) main();
+if (isMain(import.meta.url)) main();

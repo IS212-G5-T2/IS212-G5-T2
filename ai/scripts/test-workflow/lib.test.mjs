@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  extractTests, globToRegExp, idFamily, idsIn, levelOf, parseArgs, parseCsv, parseTables, testIdOf, toCsv, worst,
+  extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, parseArgs, parseCsv, parseTables, testIdOf, toCsv, worst,
 } from './lib.mjs';
 
 test('parseArgs reads flags, values, repeats and positionals', () => {
@@ -40,6 +40,19 @@ test('parseTables normalises headers and tracks the heading', () => {
   assert.equal(tables[0].heading, 'SPM-135');
   assert.deepEqual(tables[0].header, ['ac', 'not_applicable']);
   assert.deepEqual(tables[0].rows.map((r) => r.ac), ['AC1', 'AC2']);
+});
+
+test('parseTables recognises SPM tier headings and tables with Windows CRLF endings', () => {
+  const tables = parseTables('## SPM-118\r\n\r\n| AC | Happy |\r\n|---|---|\r\n| AC1 | PRESENT (SPM118-AC1-01-UI) |\r\n');
+  assert.equal(tables[0].heading, 'SPM-118');
+  assert.equal(tables[0].rows[0].ac, 'AC1');
+});
+
+test('isMain resolves Windows-style entry paths against file URLs', () => {
+  const path = process.platform === 'win32' ? 'C:\\IS212-G5-T2\\ai\\scripts\\test-workflow\\check-spec.mjs' : '/repo/ai/scripts/test-workflow/check-spec.mjs';
+  const url = new URL(`file:///${path.replaceAll('\\', '/')}`).href;
+  assert.equal(isMain(url, path), true);
+  assert.equal(isMain(url, `${path}.other`), false);
 });
 
 test('csv round trip keeps commas, quotes and newlines', () => {

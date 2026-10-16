@@ -18,6 +18,7 @@ describe('EquipmentController route delegation', () => {
     list: vi.fn(),
     listLocations: vi.fn(),
     updateAvailability: vi.fn(),
+    update: vi.fn(),
     getAuditTrail: vi.fn(),
   };
   const controller = new EquipmentController(service as unknown as EquipmentService);
@@ -76,5 +77,14 @@ describe('EquipmentController route delegation', () => {
 
     expect(controller.getAuditTrail(request)).toEqual(['audit-entry']);
     expect(service.getAuditTrail).toHaveBeenCalledWith(identity);
+  });
+
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: the equipment update route forwards the selected id, body, and authenticated user. Kills: BE-118-07 (omits the authenticated caller). */
+  it('EQUIP-UPDATE-02-A delegates a record update with the verified caller', () => {
+    const body = { name: 'Projector', type: 'Visual', location: 'Main Hall', quantity: 2, maintenanceStatus: 'Active' };
+    service.update.mockReturnValue('updated');
+
+    expect(controller.update('equipment-1', body, request)).toBe('updated');
+    expect(service.update).toHaveBeenCalledWith(identity, 'equipment-1', body);
   });
 });

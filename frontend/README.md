@@ -221,10 +221,17 @@ review, success, and error messages appear in separate panels.
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view
-them at `/equipment/availability`. Quantity must be a whole number from 1
+them at `/equipment/availability`. Each inventory row has an Edit action for
+changing its name, type, location, quantity available, and maintenance status
+at `/equipment/:id/edit`; saving confirms the change and records it in the
+shared equipment audit trail. Quantity must be a whole number from 1
 through `2,147,483,647`; the create form prevents values outside that database
 range before it sends the request. The location combobox accepts either a
 saved location or new free text.
+
+The equipment update API and editor checks live beside their feature code.
+Run their fault-injection checks from this directory with
+`node scripts/testing/mutation/run.mjs --mutants spm118.mutants.mjs`.
 
 ## Rejecting requests (SPM-83)
 

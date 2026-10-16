@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ForbiddenException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -482,5 +483,198 @@ describe('EquipmentService', () => {
       service.getAuditTrail(userWithRole('ORGANISER')),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(database.query).not.toHaveBeenCalled();
+  });
+
+  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: changed editable fields update inventory and write the new state to audit. Kills: BE-118-02 (audit omitted), BE-118-03 (wrong actor), BE-118-04 (quantity omitted), BE-118-14 (name), BE-118-15 (type), BE-118-16 (location), BE-118-17 (maintenance), BE-118-18 (quantity mis-mapped). */
+  it('EQUIP-UPDATE-02-A updates all allowed values and writes an audit snapshot atomically', async () => {
+    const before = {
+      ...createdRow,
+      is_available: true,
+    };
+    const after = {
+      ...createdRow,
+      equipment_name: 'Updated projector',
+      equipment_type: 'Audio',
+      quantity: 7,
+      maintenance_status: 'Under Maintenance',
+      location: 'Main Hall',
+      is_available: true,
+      updated_at: new Date('2026-10-15T00:00:00.000Z'),
+    };
+    const client = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [before] })
+        .mockResolvedValueOnce({ rows: [after] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118',
+      {
+        name: 'Updated projector',
+        type: 'Audio',
+        location: 'Main Hall',
+        quantity: 7,
+        maintenanceStatus: 'Under Maintenance',
+      },
+    );
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringMatching(/FROM equipment WHERE id = \$1 FOR UPDATE/i),
+      ['11111111-1111-4111-8111-111111111118'],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/UPDATE equipment[\s\S]*maintenance_status = \$5, quantity = \$6[\s\S]*RETURNING/i),
+      ['11111111-1111-4111-8111-111111111118', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/INSERT INTO equipment_audit_trail[\s\S]*'Equipment record updated'/i),
+      [
+        'equipment-1',
+        'Updated projector',
+        'Audio',
+        'Main Hall',
+        'Under Maintenance',
+        7,
+        true,
+        'Updated fields: Equipment name, Equipment type, Location, Maintenance status, Quantity available.',
+        'support@example.test',
+      ],
+    );
+    expect(result).toMatchObject({
+      equipment: {
+        id: 'equipment-1',
+        name: 'Updated projector',
+        type: 'Audio',
+        location: 'Main Hall',
+        maintenanceStatus: 'Under Maintenance',
+        quantity: 7,
+      },
+      message: 'Equipment record updated.',
+    });
+  });
+
+  /** Confluence EQUIP-UPDATE-02-B; SPM-118 AC2: properties outside the five creation fields cannot alter the persisted record. Kills: BE-118-19 (Description persisted), BE-118-20 (Specifications persisted). */
+  it('EQUIP-UPDATE-02-B ignores retired Description and Specifications properties', async () => {
+    const before = { ...createdRow, is_available: true };
+    const after = { ...before, equipment_name: 'Updated projector', updated_at: new Date('2026-10-15T00:00:00.000Z') };
+    const client = { query: vi.fn().mockResolvedValueOnce({ rows: [before] }).mockResolvedValueOnce({ rows: [after] }).mockResolvedValueOnce({ rows: [] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+      name: 'Updated projector', type: 'Visual', location: 'Storage Room A', quantity: 5, maintenanceStatus: 'Active',
+      description: 'must not persist', specifications: 'must not persist',
+    });
+
+    expect(client.query).toHaveBeenNthCalledWith(2, expect.stringMatching(/UPDATE equipment[\s\S]*RETURNING/i), [
+      '11111111-1111-4111-8111-111111111118', 'Updated projector', 'Visual', 'Storage Room A', 'Active', 5,
+    ]);
+    expect(JSON.stringify(result)).not.toMatch(/must not persist/);
+  });
+
+  const rejectsAnEmptyField = async (field: string, message: string, override: Record<string, unknown>) => {
+    const error = await service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+      name: 'Projector', type: 'Visual', location: 'Main Hall', quantity: 1, maintenanceStatus: 'Active', ...override,
+    }).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toMatchObject({ errors: { [field]: message } });
+    expect(database.transaction).not.toHaveBeenCalled();
+  };
+
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment type is required at the update service boundary. Kills: BE-118-09 (accepts empty type). */
+  it('EQUIP-UPDATE-03-B rejects an empty type without opening a transaction', async () => rejectsAnEmptyField('type', 'Equipment type is required.', { type: '' }));
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment location is required at the update service boundary. Kills: BE-118-10 (accepts empty location). */
+  it('EQUIP-UPDATE-03-B rejects an empty location without opening a transaction', async () => rejectsAnEmptyField('location', 'Location is required.', { location: '   ' }));
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: maintenance status is required at the update service boundary. Kills: BE-118-11 (accepts empty maintenance status). */
+  it('EQUIP-UPDATE-03-B rejects an empty maintenance status without opening a transaction', async () => rejectsAnEmptyField('maintenanceStatus', 'Maintenance status is required.', { maintenanceStatus: '' }));
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: quantity is required at the update service boundary. Kills: BE-118-12 (accepts missing quantity). */
+  it('EQUIP-UPDATE-03-B rejects an empty quantity without opening a transaction', async () => rejectsAnEmptyField('quantity', 'Quantity is required.', { quantity: '' }));
+  /** Confluence EQUIP-UPDATE-03-B; SPM-118 AC3: equipment name is required at the update service boundary. Kills: BE-118-13 (accepts empty name). */
+  it('EQUIP-UPDATE-03-B rejects an empty name without opening a transaction', async () => rejectsAnEmptyField('name', 'Equipment name is required.', { name: '   ' }));
+
+  /** Confluence EQUIP-UPDATE-03-C; SPM-118 AC3: the update service rejects both sides of the shared integer quantity boundary. Kills: BE-118-23 (accepts zero), BE-118-24 (accepts above maximum). */
+  it('EQUIP-UPDATE-03-C rejects quantities outside the inclusive integer range before opening a transaction', async () => {
+    for (const quantity of [0, 2_147_483_648]) {
+      const error = await service.update(technicalSupportUser, '11111111-1111-4111-8111-111111111118', {
+        name: 'Projector', type: 'Visual', location: 'Main Hall', quantity, maintenanceStatus: 'Active',
+      }).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        errors: { quantity: 'Quantity must be a whole number between 1 and 2147483647.' },
+      });
+      expect(database.transaction).not.toHaveBeenCalled();
+    }
+  });
+
+  /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: a selected equipment id that is absent from inventory returns not found before writes. Kills: BE-118-06 (allows a missing record to update). */
+  it('EQUIP-UPDATE-01-A reports a missing equipment record without writing', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rows: [] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const error = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118', {
+        name: 'Projector', type: 'Visual', location: 'Main Hall', quantity: 1, maintenanceStatus: 'Active',
+      },
+    ).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(NotFoundException);
+    expect((error as NotFoundException).getResponse()).toMatchObject({ message: 'Equipment record not found.' });
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
+  /** Confluence EQUIP-UPDATE-06-C; SPM-118 AC6: submitting unchanged values leaves equipment and audit history untouched. ASSUMPTION: PO-confirmed SPM-119 rule — unchanged requested state is not audited. Kills: BE-118-01 (writes a duplicate audit entry). */
+  it('EQUIP-UPDATE-06-C returns the unchanged record without adding an audit entry', async () => {
+    const before = { ...createdRow, is_available: true };
+    const client = { query: vi.fn().mockResolvedValue({ rows: [before] }) };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118',
+      {
+        name: before.equipment_name,
+        type: before.equipment_type,
+        location: before.location,
+        quantity: before.quantity,
+        maintenanceStatus: before.maintenance_status,
+      },
+    );
+
+    expect(result).toEqual({
+      equipment: {
+        id: before.id,
+        name: before.equipment_name,
+        type: before.equipment_type,
+        location: before.location,
+        quantity: before.quantity,
+        maintenanceStatus: before.maintenance_status,
+        isAvailable: true,
+        createdAt: before.created_at.toISOString(),
+        updatedAt: before.updated_at.toISOString(),
+      },
+      message: 'No changes were made.',
+    });
+    expect(client.query).toHaveBeenCalledTimes(1);
+  });
+
+  /** Confluence EQUIP-UPDATE-01-C; SPM-118 AC1: only Technical Support may update equipment inventory. Kills: BE-118-05 (skips Technical Support authorization). */
+  it('EQUIP-UPDATE-01-C refuses non-Technical-Support roles before opening a persistence transaction', async () => {
+    for (const role of ['ORGANISER', 'COORDINATOR', 'VENUE_STAFF', 'ATTENDEE'] as const) {
+      await expect(
+        service.update(userWithRole(role), '11111111-1111-4111-8111-111111111118', {
+          name: 'Projector',
+          type: 'Visual',
+          location: 'Main Hall',
+          quantity: 1,
+          maintenanceStatus: 'Active',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(database.transaction).not.toHaveBeenCalled();
+    }
   });
 });

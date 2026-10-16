@@ -22,7 +22,7 @@ function FieldWrapper({ label, htmlFor, required, error, hint, labelAccessory, c
       {children}
       {hint && !error && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
       {error && (
-        <p className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">
+        <p id={`${htmlFor}-error`} className="mt-1 text-xs text-danger-600 dark:text-danger-400" role="alert">
           {error}
         </p>
       )}
@@ -57,6 +57,7 @@ export function TextInput({ label, error, hint, labelAccessory, id, className, .
         )}
         aria-invalid={!!error}
         {...rest}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
       />
     </FieldWrapper>
   );
@@ -82,6 +83,7 @@ export function TextArea({ label, error, hint, id, className, ...rest }: TextAre
         )}
         aria-invalid={!!error}
         {...rest}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
       />
     </FieldWrapper>
   );
@@ -112,6 +114,7 @@ export function Select({ label, options, error, hint, id, className, ...rest }: 
         )}
         aria-invalid={!!error}
         {...rest}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
       >
         <option value="">Select…</option>
         {options.map((opt) => (
@@ -225,6 +228,7 @@ export function ComboBox({ label, options, value, onChange, error, hint, require
             error ? "border-danger-400 dark:border-danger-600" : "border-gray-300 dark:border-gray-600"
           )}
           aria-invalid={!!error}
+          aria-describedby={error ? `${fieldId}-error` : undefined}
         />
         <button
           type="button"

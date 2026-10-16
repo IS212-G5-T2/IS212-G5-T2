@@ -64,7 +64,7 @@ INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", 
     (2, 7, true, true, true, false), (4, 7, false, true, true, false), (2, 8, false, true, false, false), (4, 8, true, true, true, true), (1, 9, false, true, false, false),
     (2, 9, false, true, false, false), (5, 9, true, true, false, true), (1, 10, false, true, false, false), (2, 10, false, true, false, false), (3, 10, false, true, false, false),
     (4, 10, false, true, false, false), (5, 10, false, true, false, false),
-    (4, 11, true, true, false, false),
+    (4, 11, true, true, true, false),
     (6, 1, false, true, true, false), (6, 2, false, true, false, false)
 ON CONFLICT (role_id, resource_id) DO UPDATE SET "create" = EXCLUDED."create", "read" = EXCLUDED."read", "update" = EXCLUDED."update", "delete" = EXCLUDED."delete";
 

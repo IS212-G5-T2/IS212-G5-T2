@@ -11,7 +11,7 @@ import { existsSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
-  BLOCKED, PASS, UNABLE, abs, exitCodeFor, loadScope, parseArgs, printGate, readText, worst, writeGate, writeText,
+  BLOCKED, PASS, UNABLE, abs, exitCodeFor, isMain, loadScope, parseArgs, printGate, readText, worst, writeGate, writeText,
 } from './lib.mjs';
 
 const RESULT = /^([A-Za-z][A-Za-z0-9-]*)\s+(killed|survived|equivalent|misapplied|skipped)\s+(.*)$/;
@@ -20,7 +20,7 @@ const BASELINE = /^baseline\s+(.*?):\s+(green|NOT GREEN|SKIPPED.*)$/;
 export function parseLog(text, suiteNames) {
   const results = new Map();
   const baselines = [];
-  for (const line of text.replace(/\x1b\[[0-9;]*m/g, '').split('\n')) {
+  for (const line of text.replace(/\x1b\[[0-9;]*m/g, '').replace(/\r\n?/g, '\n').split('\n')) {
     const baseline = line.match(BASELINE);
     if (baseline) {
       baselines.push({ suite: baseline[1], state: baseline[2] === 'green' ? 'green' : baseline[2].startsWith('SKIPPED') ? 'skipped' : 'not green' });
@@ -30,6 +30,8 @@ export function parseLog(text, suiteNames) {
     if (!match) continue;
     let rest = match[3].trim();
     const killers = [];
+    const killedBy = rest.match(/^killed by:\s*([A-Za-z][A-Za-z0-9-]*):/i);
+    if (killedBy && suiteNames.has(killedBy[1])) killers.push(killedBy[1]);
     for (;;) {
       const suite = [...suiteNames].sort((a, b) => b.length - a.length).find((name) => rest === name || rest.startsWith(`${name} `));
       if (!suite) break;
@@ -158,4 +160,4 @@ async function main() {
   process.exit(exitCodeFor(status));
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) await main();
+if (isMain(import.meta.url)) await main();
