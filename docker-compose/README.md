@@ -159,6 +159,12 @@ demo identity (`current-user`, no coordinator) are legacy-owned and stay
 invisible under real-identity scoping; they are not automatically migrated
 (see `backend/AGENTS.md`'s events-boundary policy). After backend
 changes, rebuild and start it with `docker compose up -d --build backend`.
+The backend code is built into its image, so new API routes (for example
+SPM-64's `/api/events/:id/change-requests` and `/api/change-requests`) return
+404 until the image is rebuilt. An existing `postgres-data` volume also needs
+the new schema: apply each new file in `backend/migrations` once, for SPM-64
+`docker compose exec -T postgres psql -U spm -d spm < ../backend/migrations/012_spm64_change_requests.sql`
+(without it the Change Requests page shows "Could not load your change requests.").
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.
