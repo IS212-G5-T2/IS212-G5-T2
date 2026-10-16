@@ -72,7 +72,8 @@ describe("SPM-63 registrations modal on the event detail page", () => {
     ["attendee", ATT_01, false],
   ])("VIEW-REG-INFO-05-E: %s sees button: %s", async (_who, user, shouldSee) => {
     renderAs(user);
-    await screen.findByRole("heading", { name: "People" });
+    // Attendees no longer see the People card; the page title shows for every role.
+    await screen.findByRole("heading", { name: event.name });
 
     const button = screen.queryByRole("button", { name: "View Registrations" });
     if (shouldSee) {

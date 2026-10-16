@@ -31,6 +31,13 @@ interface Props {
   registration?: Registration;
   /** Called after a successful withdrawal so the page can refetch the event's capacity. */
   onWithdrawn?: () => void;
+  /**
+   * AttendeeEventView's footer asks for the form: each change opens the registration form and moves focus to its
+   * first field. A counter, so a repeated click is a new request.
+   */
+  registerSignal?: number;
+  /** AttendeeEventView's footer asks to join the waitlist: each change runs the same join as the waitlist panel. */
+  joinSignal?: number;
 }
 
 // How often the open/closed state is re-checked while the page stays open.
@@ -53,7 +60,7 @@ function Meta({ label, value }: { label: string; value: string }) {
  * registration state. Register is offered only while a place is free and registration is open; Join Waitlist is offered
  * while the event is full and open. Every other state is text only. The server still enforces every rule.
  */
-export function RegistrationSection({ event, currentUser, registration, onWithdrawn }: Props) {
+export function RegistrationSection({ event, currentUser, registration, onWithdrawn, registerSignal = 0, joinSignal = 0 }: Props) {
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
   const submitWithdrawal = useAppStore((s) => s.submitWithdrawal);
   const joinWaitlist = useAppStore((s) => s.joinWaitlist);
@@ -82,21 +89,38 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const [joinError, setJoinError] = useState("");
   const [joinedPosition, setJoinedPosition] = useState<number | null>(null);
   const joinInFlight = useRef(false);
+  const sectionRef = useRef<HTMLElement>(null);
+  const [focusFormPending, setFocusFormPending] = useState(false);
+  // Set after the join function is declared below; the footer's join signal calls the latest one.
+  const joinNowRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), RECHECK_MS);
     return () => clearInterval(timer);
   }, []);
 
-  if (!event.registrationEnabled) {
-    return (
-      <Card className="lg:col-span-3">
-        <CardBody className="text-sm text-gray-600 dark:text-gray-400">
-          Registration through the website is not enabled for this event.
-        </CardBody>
-      </Card>
-    );
-  }
+  // The footer's Register action: open the form and move focus to its first field once it has rendered.
+  useEffect(() => {
+    if (registerSignal === 0) return;
+    setFormOpen(true);
+    setReregistering(false);
+    setDuplicateNotice("");
+    setFocusFormPending(true);
+  }, [registerSignal]);
+
+  useEffect(() => {
+    if (!focusFormPending || !formOpen) return;
+    const firstField = sectionRef.current?.querySelector<HTMLInputElement>('input[name="fullName"]');
+    firstField?.focus();
+    firstField?.scrollIntoView?.({ block: "center" });
+    setFocusFormPending(false);
+  }, [focusFormPending, formOpen]);
+
+  // The footer's Join waitlist action: the same join the waitlist panel offers, never a second implementation.
+  useEffect(() => {
+    if (joinSignal === 0) return;
+    joinNowRef.current();
+  }, [joinSignal]);
 
   const state = registrationState(event, now);
   const registered = current?.status === "registered";
@@ -226,10 +250,27 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     }
   };
 
+  // Keeps the join the footer's signal calls current. Written after render, never during it.
+  useEffect(() => {
+    joinNowRef.current = () => void joinNow();
+  });
+
+  // Registration through the website is off: the attendee is told so, and nothing else in this section applies.
+  if (!event.registrationEnabled) {
+    return (
+      <Card className="lg:col-span-3">
+        <CardBody className="text-sm text-gray-600 dark:text-gray-400">
+          Registration through the website is not enabled for this event.
+        </CardBody>
+      </Card>
+    );
+  }
+
+
   return (
     <Card className="lg:col-span-3">
       <CardBody className="space-y-3">
-        <section aria-label="Registration" className="space-y-3">
+        <section ref={sectionRef} aria-label="Registration" className="space-y-3">
           {withdrawn && current ? (
             <WithdrawnRegistrationStatus
               event={event}

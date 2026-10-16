@@ -12,7 +12,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "./EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
-import { formatDateTimeRange } from "@/utils/format";
+import { formatAttendeeDate, formatAttendeeTime } from "@/features/events/lib/attendeeEventView";
 import type { EventRecord, User } from "@/types";
 
 const attendee: User = {
@@ -159,12 +159,18 @@ describe("EventDetailPage attendee registration", () => {
 
     expect(await screen.findByRole("heading", { name: attendeeEvent.name })).toBeInTheDocument();
     expect(screen.getByText(attendeeEvent.description)).toBeInTheDocument();
-    expect(within(screen.getByText("Date & time").parentElement!).getByText(
-      formatDateTimeRange(attendeeEvent.startDateTime, attendeeEvent.endDateTime),
+    // The attendee view's key facts: date, time and venue, in the viewer's local time.
+    // The start date always leads the value; a fixture that runs past local midnight also shows the end date.
+    expect(
+      within(screen.getByText("Date").parentElement!).getByText(new RegExp(`^${formatAttendeeDate(attendeeEvent.startDateTime)}`)),
+    ).toBeInTheDocument();
+    expect(within(screen.getByText("Time").parentElement!).getByText(
+      `${formatAttendeeTime(attendeeEvent.startDateTime)} to ${formatAttendeeTime(attendeeEvent.endDateTime)}`,
     )).toBeInTheDocument();
-    expect(within(screen.getByText("Expected attendance").parentElement!).getByText("45")).toBeInTheDocument();
-    expect(screen.getByText("Event status")).toBeInTheDocument();
-    expect(screen.getByText("Upcoming", { selector: "dd" })).toBeInTheDocument();
+    expect(screen.getByText("Upcoming")).toBeInTheDocument();
+    // Internal planning details and the attendance count are not shown to attendees.
+    expect(screen.queryByText("Expected attendance")).not.toBeInTheDocument();
+    expect(screen.queryByText("Event status")).not.toBeInTheDocument();
   });
 
   // Supplementary refresh path: reloading the unchanged event must preserve the
@@ -285,7 +291,7 @@ describe("EventDetailPage attendee registration", () => {
 
     expect(await screen.findByRole("heading", { name: incompleteEvent.name })).toBeInTheDocument();
     expect(screen.getByText("No description provided.")).toBeInTheDocument();
-    expect(screen.getByText("Not yet booked")).toBeInTheDocument();
+    expect(screen.getByText("To be announced")).toBeInTheDocument();
   });
 
   // Supplementary negative path: attendee registration information is hidden
@@ -410,7 +416,9 @@ describe("EventDetailPage attendee registration", () => {
 
     await screen.findByRole("heading", { name: endedEvent.name });
     expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
-    expect(screen.getByText(label, { selector: "dd" })).toBeInTheDocument();
+    // The internal status is never shown to attendees; a cancelled or completed event reads as ended.
+    expect(screen.getByText("Ended")).toBeInTheDocument();
+    expect(screen.queryByText(label, { selector: "dd" })).not.toBeInTheDocument();
   });
 
   // Supplementary boundary path: zero is full, so no negative availability

@@ -8,7 +8,7 @@
  * "Change pending" with its reason (SPM-97 AC3). A venue that became
  * unavailable is marked on its booking as "Replacement venue required".
  */
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import type { FlaggedChange, PendingChange, PlanningView, ReplacementRequired } from "@/types";
 import { formatDateTime, formatDateTimeRange } from "@/utils/format";
@@ -18,6 +18,8 @@ interface Props {
   view: PlanningView;
   /** Set when the latest automatic refresh failed; the last data stays visible. */
   refreshError?: string;
+  /** People for the event (organiser, coordinator), shown as a sub-section of Event Information. */
+  people?: ReactNode;
 }
 
 const PENDING_BADGE =
@@ -86,7 +88,7 @@ export function EventInformationList({ view }: { view: PlanningView }) {
   );
 }
 
-export function PlanningInformationPanel({ view, refreshError }: Props) {
+export function PlanningInformationPanel({ view, refreshError, people }: Props) {
   const headingId = useId();
   const replacements = view.pendingChanges.filter(
     (change): change is ReplacementRequired => change.kind === "replacement_venue_required",
@@ -117,6 +119,12 @@ export function PlanningInformationPanel({ view, refreshError }: Props) {
           <div>
             <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Event Information</h3>
             <EventInformationList view={view} />
+            {people && (
+              <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+                <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">People</h4>
+                {people}
+              </div>
+            )}
           </div>
 
           <div>

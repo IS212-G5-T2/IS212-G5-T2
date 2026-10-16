@@ -15,6 +15,7 @@ const FILES = [
   'src/features/events/pages/detail/EventDetailPage.registration.test.tsx',
   'src/features/events/pages/detail/EventDetailPage.statusHistory.test.tsx',
   'src/features/events/pages/detail/EventDetailPage.withdraw.test.tsx',
+  'src/features/events/pages/detail/AttendeeEventView.test.tsx',
   'src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.test.tsx',
   'src/features/events/pages/detail/planning/StatusHistory.test.tsx',
   'src/features/events/pages/detail/registration/RegistrationSection.test.tsx',
