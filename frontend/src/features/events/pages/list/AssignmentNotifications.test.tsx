@@ -291,3 +291,25 @@ describe("SPM-123 AC9: periodic refresh while the page stays open", () => {
     expect(screen.getByText('New event request "Welcome Evening" is awaiting your review.')).toBeInTheDocument();
   });
 });
+
+describe("SPM-64 AC3: change request notifications", () => {
+  /** REQ-CHANGE-03-A: the assigned coordinator is told about a change request, with a link to the event's change requests. */
+  it("REQ-CHANGE-03-A shows a change request notice linking to the event's change requests", async () => {
+    api.mockResolvedValue([
+      {
+        ...assignment,
+        id: "notif-cr",
+        type: "coordinator_change_request",
+        message: 'Priya Nair requested a change to "Welcome Evening": expected attendance.',
+      },
+    ]);
+    render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText('Priya Nair requested a change to "Welcome Evening": expected attendance.')).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View Change Request" })).toHaveAttribute("href", "/events/event-1/change-requests");
+  });
+});
+

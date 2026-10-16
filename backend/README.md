@@ -108,6 +108,26 @@ TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e 
 DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
 ```
 
+## Event change requests (SPM-64)
+
+The owning organiser asks for changes to a submitted event; the assigned coordinator decides them (SPM-65, not built yet). A request stores only the proposed values: the event, its bookings and its safety check do not change until a coordinator approves it.
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `POST /api/events/:id/change-requests` | Owning organiser | `{ changes: { <field>: <value> }, reason? }` → 201 with the request (status `Pending`). Permitted fields: `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility` (special requirements), `equipmentNeeds`. `name` and the organiser fields are refused with their own message; any other field is refused by name. Values follow the same rules as `PATCH /planning`. Only fields that differ from the stored values are kept; none → 400. Allowed while the event is Submitted, Approved, Planning or Confirmed and has not started (else 409 `change_request_closed` / `event_started`). One pending request per event (409 `change_request_pending`, also enforced by a partial unique index). The assigned coordinator gets a `coordinator_change_request` notification. |
+| `GET /api/events/:id/change-requests` | Owning organiser, assigned coordinator | The event's requests, newest first |
+| `POST /api/events/:id/change-requests/:requestId/withdraw` | Owning organiser | Withdraw a pending request (409 once decided) |
+| `GET /api/change-requests[?status=Pending]` | Organiser, coordinator | The caller's requests across their own (organiser) or assigned (coordinator) events, for dashboards |
+
+Anyone else gets 404 for the event, as for `GET /api/events/:id`. Schema: `database/postgresql/init/018_spm64_change_requests.sql`; existing databases apply `backend/migrations/012_spm64_change_requests.sql` once (idempotent).
+
+```sh
+npx vitest run src/events/change-requests
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/change-requests.e2e-spec.ts
+```
+
+Conflict details under "Changes Awaiting Review" (`helpers/event-impact.ts`) show times in Singapore time with am/pm (`src/common/sgt-time.ts`). Flagged changes stored before this change keep their original UTC text.
+
 ## Checks
 
 Run local checks from this directory:

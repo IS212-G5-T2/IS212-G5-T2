@@ -53,7 +53,6 @@ function baseEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     registrationClosesAt: local(2026, 11, 5, 23, 59),
     availableRegistrationSpots: 20,
     registrationLimit: 40,
-    changeRequests: [],
     createdAt: local(2026, 9, 15),
     updatedAt: local(2026, 10, 2),
     ...overrides,

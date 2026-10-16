@@ -257,3 +257,10 @@ the viewer. The People-card modal mounts only while open and shares the report
 fetch/polling and CSV/PDF export hooks. Exports use the server's full report
 and filename, even when the modal view is filtered. Polling stops when the
 viewer leaves, changes events, or loses access. Release 1 has no waitlist.
+
+## Event change requests (SPM-64)
+
+The owning organiser of a Submitted, Approved, Planning or Confirmed event that has not started sees **Request Change** on the event page. It opens `/events/:id/change-requests`, where the organiser changes any of description, date/time, expected attendance, room layout, facilities, accessibility (special requirements) and equipment, with an optional reason; the event name and organiser are shown read-only. Date inputs are Singapore time. After submitting, the page confirms the request and lists every request with its status (Pending review, Approved, Denied with the coordinator's reason, Withdrawn); a pending request can be withdrawn. The event page shows the latest request's status, and My Events marks events with a pending request. The assigned coordinator sees the same list read-only and a notice on their events page; approving or denying is SPM-65. The route allows organisers and coordinators and leaves ownership to the server (404 otherwise). API client: `src/features/events/api/change-requests-api.ts`; rules: `src/features/events/lib/changeRequests.ts`; components: `src/features/events/pages/change-requests/`.
+
+Planning values and the "Changes Awaiting Review" times are shown in Singapore time with am/pm (`formatSgtDateTime` in `src/utils/sgtDate.ts`); `npm run test:tz` covers these tests in three host time zones.
+

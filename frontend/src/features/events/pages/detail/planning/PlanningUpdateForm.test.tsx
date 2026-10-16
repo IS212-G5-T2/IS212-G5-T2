@@ -9,7 +9,7 @@ import type { EventRecord } from "@/types";
 /**
  * SPM-49 — Coordinator updates event information (PlanningUpdateForm).
  * Contract: props { event, editableFields, lastUpdatedAt, onSave(patch) }; each
- * field shows an "Applies immediately" or "Needs review" badge; "Save changes"
+ * field shows an "Applies immediately" or "Changes need review" badge; "Save changes"
  * checks required fields, then sends only the changed fields and reports the
  * outcome. Confluence IDs: EVENT-UPDATE-*, EVENT-FLAG-01-A.
  */
@@ -31,7 +31,6 @@ function eventRecord(): EventRecord {
     venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering"], accessibility: ["Wheelchair ramps"] },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-09-13T00:00:00.000Z",
     updatedAt: "2026-10-04T09:00:00.000Z",
   };
@@ -69,7 +68,24 @@ describe("PlanningUpdateForm", () => {
   it("EVENT-UPDATE-02-A badges which fields apply immediately and which need review", () => {
     renderForm();
     expect(screen.getAllByText("Applies immediately")).toHaveLength(4);
-    expect(screen.getAllByText("Needs review")).toHaveLength(6);
+    expect(screen.getAllByText("Changes need review")).toHaveLength(6);
+  });
+
+  /**
+   * After a flagged change is resolved, the field's rule badge stays (it describes
+   * future edits), and the latest decision for that field is shown under it so a
+   * confirmed change no longer reads as pending.
+   */
+  it("EVENT-FLAG-05-A shows the latest decision under each field after it is resolved", () => {
+    const history = [
+      { id: "h2", field: "layout", originalValue: "Banquet", proposedValue: "Theatre", resolvedValue: "Theatre", resolvedBy: "Coord Nine", resolvedAt: "2026-10-05T10:00:00.000Z", status: "Applied" as const },
+      { id: "h1", field: "layout", originalValue: "Theatre", proposedValue: "Banquet", resolvedValue: "Banquet", resolvedBy: "Coord One", resolvedAt: "2026-10-04T10:00:00.000Z", status: "Applied" as const },
+      { id: "h0", field: "equipmentNeeds", originalValue: "A", proposedValue: "B", resolvedValue: "A", resolvedBy: "Coord Nine", resolvedAt: "2026-10-03T01:00:00.000Z", status: "Rejected" as const },
+    ];
+    render(<PlanningUpdateForm event={eventRecord()} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} history={history} onSave={vi.fn()} />);
+    expect(screen.getByTestId("last-change-layout")).toHaveTextContent("Last change confirmed by Coord Nine on 5 Oct 2026, 6:00 pm.");
+    expect(screen.getByTestId("last-change-equipmentNeeds")).toHaveTextContent("Last change rejected by Coord Nine on 3 Oct 2026, 9:00 am.");
+    expect(screen.queryByTestId("last-change-description")).not.toBeInTheDocument();
   });
 
   // EVENT-UPDATE-03-A: only the fields the coordinator changed are sent.
@@ -338,7 +354,7 @@ describe("PlanningUpdateForm: impact-based field labels (SPM-49 AC2/AC5)", () =>
     renderConditional();
     expect(screen.getAllByText("Applies immediately")).toHaveLength(4);
     expect(screen.getAllByText("Review if it affects bookings")).toHaveLength(4);
-    expect(screen.getAllByText("Needs review")).toHaveLength(2);
+    expect(screen.getAllByText("Changes need review")).toHaveLength(2);
   });
 
   // EVENT-UPDATE-02-B: each conditional field states its rule.
@@ -494,7 +510,7 @@ describe("PlanningUpdateForm: unusual inputs and server replies (SPM-49)", () =>
       />,
     );
     expect(screen.getAllByText("Applies immediately")).toHaveLength(1);
-    expect(screen.queryByText("Needs review")).not.toBeInTheDocument();
+    expect(screen.queryByText("Changes need review")).not.toBeInTheDocument();
     expect(screen.queryByText("Review if it affects bookings")).not.toBeInTheDocument();
   });
 

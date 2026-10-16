@@ -12,6 +12,7 @@ const iconByType: Record<Notification["type"], string> = {
   coordinator_reassignment: "🔁",
   coordinator_unassignment: "↪️",
   coordinator_unavailable: "⏸️",
+  coordinator_change_request: "✏️",
   venue_booking: "🏛️",
   event_change: "✏️",
   registration: "🎟️",

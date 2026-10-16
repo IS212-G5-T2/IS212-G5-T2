@@ -1,4 +1,5 @@
 import { api } from "@/utils/api";
+import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
 import type { EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -47,6 +48,22 @@ export function EventListPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [retry]);
+  // SPM-64 AC5: an organiser's dashboard marks events with a change request awaiting review.
+  // The badge is supplementary, so a failed load simply shows no badges.
+  const isOrganiser = currentUser.role === "organiser";
+  const [pendingChangeEvents, setPendingChangeEvents] = useState<ReadonlySet<string>>(new Set());
+  useEffect(() => {
+    if (!isOrganiser) return;
+    let active = true;
+    fetchMyChangeRequests("Pending")
+      .then((requests) => {
+        if (active) setPendingChangeEvents(new Set(requests.map((request) => request.eventId)));
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [isOrganiser, retry]);
   // Coordinators land on pending Submitted requests. Rejected requests remain
   // accessible through the explicit Rejected filter rather than mixing into
   // their decision queue.
@@ -134,6 +151,7 @@ export function EventListPage() {
               event={e}
               attendeeView={isAttendee}
               registrationStatus={isAttendee ? cardRegistrationStatus(e.myRegistrationStatus) : undefined}
+              changeRequestPending={pendingChangeEvents.has(e.id)}
             />
           ))}
         </div>

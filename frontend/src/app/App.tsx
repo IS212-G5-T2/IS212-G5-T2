@@ -3,7 +3,6 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { AppShell } from "@/components/layout/AppShell";
 import { RequireAuth } from "@/components/auth/RequireAuth";
-import { RequireAssignedCoordinator } from "@/components/auth/RequireAssignedCoordinator";
 import { RequireEventOwner } from "@/components/auth/RequireEventOwner";
 import { RequireRole } from "@/components/auth/RequireRole";
 import { LoginPage } from "@/features/account/pages/login/LoginPage";
@@ -72,7 +71,8 @@ export default function App() {
         <Route path="/events/:id" element={<EventDetailPage />} />
         {/* SPM-63: access is decided by the server (MSG-08 on refusal), so no client role redirect here. */}
         <Route path="/events/:id/registrations/report" element={<RegistrationReportPage />} />
-        <Route element={<RequireAssignedCoordinator />}>
+        {/* SPM-64: the owning organiser and the assigned coordinator; the server decides ownership (404 otherwise). */}
+        <Route element={<RequireRole allowedRoles={["organiser", "coordinator"]} />}>
           <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
         </Route>
 

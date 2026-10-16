@@ -50,15 +50,48 @@ export interface EventAttachment {
   dataUrl: string;
 }
 
+/** SPM-64: the event details an organiser may ask to change. */
+export type ChangeRequestField =
+  | "description"
+  | "startDateTime"
+  | "endDateTime"
+  | "expectedAttendance"
+  | "layout"
+  | "facilities"
+  | "accessibility"
+  | "equipmentNeeds";
+
+export type ChangeRequestStatus = "Pending" | "Approved" | "Denied" | "Withdrawn";
+
+/** One requested change: the value when the request was made and the value asked for. */
+export interface RequestedChange {
+  field: ChangeRequestField;
+  originalValue: unknown;
+  proposedValue: unknown;
+}
+
+/** SPM-64: an organiser's change request, as GET/POST /api/events/:id/change-requests return it. */
 export interface ChangeRequest {
   id: string;
   eventId: string;
+  eventName: string;
+  status: ChangeRequestStatus;
+  changes: RequestedChange[];
+  reason?: string;
+  /** Past approval: approving any change resets the event's safety check. */
+  requiresSafetyCheck: boolean;
   requestedBy: string;
-  summary: string;
-  fields: Array<"date_time" | "attendance" | "venue" | "equipment" | "other">;
-  reason: string;
-  status: "pending" | "approved" | "rejected";
   createdAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  /** SPM-65: the coordinator's reason for a denial. */
+  decisionReason?: string;
+}
+
+/** Body of POST /api/events/:id/change-requests. */
+export interface ChangeRequestSubmission {
+  changes: Partial<Record<ChangeRequestField, unknown>>;
+  reason?: string;
 }
 
 export interface EventRecord {
@@ -101,7 +134,6 @@ export interface EventRecord {
   venueName?: string;
   attachments?: EventAttachment[];
   rejectionReason?: string;
-  changeRequests: ChangeRequest[];
   createdAt: string;
   updatedAt: string;
 }
@@ -268,6 +300,7 @@ export type NotificationType =
   | "coordinator_reassignment"
   | "coordinator_unassignment"
   | "coordinator_unavailable"
+  | "coordinator_change_request"
   | "venue_booking"
   | "event_change"
   | "registration"

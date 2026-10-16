@@ -38,7 +38,6 @@ const event: EventRecord = {
   registrationEnabled: true,
   registrationOpensAt: "2020-10-01T09:00:00.000Z",
   registrationClosesAt: "2099-10-14T23:59:00.000Z",
-  changeRequests: [],
   createdAt: "2026-09-15T00:00:00.000Z",
   updatedAt: "2026-09-15T00:00:00.000Z",
 };

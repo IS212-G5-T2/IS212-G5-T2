@@ -11,6 +11,8 @@ import type {
 } from "@/types";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { acceptsChangeRequests } from "@/features/events/lib/changeRequests";
+import { ChangeRequestSummary } from "@/features/events/pages/change-requests/ChangeRequestSummary";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
@@ -315,6 +317,12 @@ export function EventDetailPage() {
                 <Button onClick={() => submitEvent(event.id)}>Submit For Review</Button>
               </>
             )}
+            {/* SPM-64 AC1: the owner can request a change while the event accepts one. */}
+            {isOwner && acceptsChangeRequests(event) && (
+              <Link to={`/events/${event.id}/change-requests`} state={{ openForm: true }}>
+                <Button variant="secondary">Request Change</Button>
+              </Link>
+            )}
             {isAssignedCoordinator && event.status === "submitted" && (
               <Button onClick={() => setShowReviewControls((previous) => !previous)}>
                 Review Event
@@ -329,6 +337,8 @@ export function EventDetailPage() {
         }
       />
 
+      {/* SPM-64 AC5: the owner sees the status of their latest change request. */}
+      {isOwner && event.status !== "draft" && <ChangeRequestSummary eventId={event.id} />}
       {(isOwner || isAssignedCoordinator) && (
         <>
           {!statusFlow.includes(event.status) ? (
@@ -531,6 +541,7 @@ export function EventDetailPage() {
                 pendingChanges={planningView.pendingChanges.filter(
                   (change): change is FlaggedChange => change.kind === "booking_conflict",
                 )}
+                history={changeHistory}
                 onSave={savePlanning}
               />
             </CardBody>

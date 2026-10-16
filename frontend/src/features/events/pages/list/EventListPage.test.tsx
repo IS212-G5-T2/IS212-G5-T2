@@ -6,6 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventCreatePage } from "@/features/events/pages/create/EventCreatePage";
 import { EventListPage } from "@/features/events/pages/list/EventListPage";
 import { api } from "@/utils/api";
+import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
 import { useAppStore } from "@/store/useAppStore";
 import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
@@ -15,7 +16,11 @@ vi.mock("@/utils/api", async (importOriginal) => ({
   api: vi.fn(),
 }));
 
+// SPM-64: the organiser's pending change requests load separately from the event list.
+vi.mock("@/features/events/api/change-requests-api", () => ({ fetchMyChangeRequests: vi.fn() }));
+
 const apiMock = vi.mocked(api);
+const pendingRequestsMock = vi.mocked(fetchMyChangeRequests);
 
 function submittedEvent(): EventRecord {
   const start = new Date();
@@ -44,7 +49,6 @@ function submittedEvent(): EventRecord {
     attachments: [],
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -57,6 +61,8 @@ beforeEach(() => {
   // clearAllMocks keeps queued *Once values; reset them so one test's leftovers can't reach the next.
   apiMock.mockReset();
   apiMock.mockResolvedValue([]);
+  pendingRequestsMock.mockReset();
+  pendingRequestsMock.mockResolvedValue([]);
   useAppStore.setState({
     authLoading: false,
     isAuthenticated: true,
@@ -107,6 +113,43 @@ describe("EventListPage", () => {
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
     expect(screen.getByText("Community building")).toBeTruthy();
     expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
+  });
+
+  /** REQ-CHANGE-05-A: an event with a change request awaiting review is marked on My Events; others are not. */
+  it("REQ-CHANGE-05-A marks events with a pending change request on My Events", async () => {
+    const pendingEvent = submittedEvent();
+    const otherEvent = { ...submittedEvent(), id: "00000000-0000-4000-8000-000000000037", name: "Other Evening" };
+    apiMock.mockResolvedValue([pendingEvent, otherEvent]);
+    pendingRequestsMock.mockResolvedValue([
+      { id: "cr-1", eventId: pendingEvent.id, eventName: pendingEvent.name, status: "Pending", changes: [], requiresSafetyCheck: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const pendingCard = (await screen.findByText("Welcome Evening")).closest("a")!;
+    expect(await within(pendingCard).findByText("Change requested: Pending")).toBeTruthy();
+    expect(within(screen.getByText("Other Evening").closest("a")!).queryByText("Change requested: Pending")).toBeNull();
+    expect(pendingRequestsMock).toHaveBeenCalledWith("Pending");
+  });
+
+  /** REQ-CHANGE-05-A: the badge is supplementary; if it cannot load, the list still shows and no error appears. */
+  it("REQ-CHANGE-05-A still lists events when pending change requests cannot load", async () => {
+    apiMock.mockResolvedValue([submittedEvent()]);
+    pendingRequestsMock.mockRejectedValue(new Error("down"));
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByText("Change requested: Pending")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   // Coordinators can view rejected requests via the "Rejected" status filter.

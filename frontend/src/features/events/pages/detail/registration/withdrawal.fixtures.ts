@@ -35,7 +35,6 @@ export function buildEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     registrationOpensAt: iso(-HOUR),
     registrationClosesAt: iso(9 * 24 * HOUR),
     availableRegistrationSpots: 47,
-    changeRequests: [],
     createdAt: iso(-HOUR),
     updatedAt: iso(-HOUR),
     ...overrides,

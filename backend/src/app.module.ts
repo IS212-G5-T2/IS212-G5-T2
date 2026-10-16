@@ -10,6 +10,8 @@ import { EventsService } from './events/events.service.js';
 import { EventPlanningController } from './events/planning/event-planning.controller.js';
 import { EventPlanningRepository } from './events/planning/event-planning.repository.js';
 import { EventPlanningService } from './events/planning/event-planning.service.js';
+import { ChangeRequestsController } from './events/change-requests/change-requests.controller.js';
+import { ChangeRequestsService } from './events/change-requests/change-requests.service.js';
 import { DraftsController } from './event-drafts/drafts.controller.js';
 import { DraftsService } from './event-drafts/drafts.service.js';
 import { AppController } from './app.controller.js';
@@ -43,6 +45,7 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     EventsController,
     EventRejectionsController,
     EventPlanningController,
+    ChangeRequestsController,
     DraftsController,
     RegistrationsController,
     EquipmentController,
@@ -61,6 +64,7 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     LeadAssignmentService,
     EventPlanningService,
     EventPlanningRepository,
+    ChangeRequestsService,
     ArrangementsReader,
     NoSafetyRecordSource,
     EventSafetyCheckSource,
@@ -80,6 +84,7 @@ export class AppModule implements NestModule {
         EventPlanningController,
         EventPlanningService,
         EventPlanningRepository,
+        ChangeRequestsController,
         DraftsController,
         RegistrationsController,
         EquipmentController,
