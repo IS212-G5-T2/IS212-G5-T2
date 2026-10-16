@@ -28,10 +28,15 @@ export async function releaseWaitlistForCancelledEvent(
     [eventId, now],
   );
   for (const row of cancelled.rows) {
+    // TR-136-18: an attendee who is also the organiser or the assigned coordinator already holds the core EventCancelled
+    // notice from the cancellation core (same transaction). The once-only index makes this a no-op, so that recipient
+    // keeps exactly one notice (the core text) and the cancel still succeeds.
+    // TR-136-21: created_at is the injected cancel instant (now), not the database clock.
     await client.query(
-      `INSERT INTO notifications (id, recipient_id, type, message, related_event_id, related_user_id)
-       VALUES ($1, $2, 'EventCancelled', $3, $4, $5::uuid)`,
-      [randomUUID(), row.attendee_id, MESSAGES.waitlistCancelled(event.rows[0].name), eventId, row.attendee_id],
+      `INSERT INTO notifications (id, recipient_id, type, message, related_event_id, related_user_id, created_at)
+       VALUES ($1, $2, 'EventCancelled', $3, $4, $5::uuid, $6)
+       ON CONFLICT (recipient_id, related_event_id, type) WHERE type = 'EventCancelled' DO NOTHING`,
+      [randomUUID(), row.attendee_id, MESSAGES.waitlistCancelled(event.rows[0].name), eventId, row.attendee_id, now],
     );
   }
   return cancelled.rows.length;

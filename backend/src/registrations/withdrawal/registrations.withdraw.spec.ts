@@ -335,3 +335,27 @@ describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is ref
   });
 
 });
+
+describe('SPM-136 TR-136-15 (SPM-138 JOIN-WAITLIST-10-F): the event status decides the refusal of a Cancelled entry', () => {
+  // Oracle (SPM-138 JOIN-WAITLIST-10-F): a Cancelled waiting entry on a LIVE event answers 409 registration_not_withdrawable
+  // and keeps its status. Only a cancelled EVENT gives EVENT_CANCELLED (08-B above). The event here is Confirmed.
+  // Kills: W4 (the event status ignored, so every Cancelled entry answers EVENT_CANCELLED).
+  it('a Cancelled waiting entry on a Confirmed event gives registration_not_withdrawable and no UPDATE', async () => {
+    // Arrange: the entry is Cancelled (for example, released by an earlier cancellation of its list), the event is live.
+    const { database, statements } = recordingDatabase([
+      found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR), 'Confirmed'),
+    ]);
+
+    // Act
+    const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));
+
+    // Assert: the outcome, then the side effect (none)
+    expect(error.getStatus()).toBe(409);
+    expect(error.getResponse()).toMatchObject({
+      code: 'registration_not_withdrawable',
+      message: 'This registration can no longer be withdrawn.',
+    });
+    expect(error.getResponse()).not.toMatchObject({ code: 'EVENT_CANCELLED' });
+    expect(statements.filter(isUpdate)).toEqual([]);
+  });
+});

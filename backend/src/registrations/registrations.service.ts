@@ -140,6 +140,9 @@ export class RegistrationsService {
       const event = selected.rows[0];
       if (!event || !ATTENDEE_VISIBLE.includes(event.status))
         throw new NotFoundException(MESSAGES.eventNotFound);
+      // SPM-136 rule: a person cannot be both a waiting-list attendee and this event's organiser or assigned coordinator.
+      if (attendee.uid === event.organiser_id || attendee.uid === event.coordinator_id)
+        throw new ForbiddenException({ code: 'WAITLIST_NOT_PERMITTED', message: MESSAGES.ownEventWaitlist });
 
       const now = this.clock.now();
       await settleLocked(client, eventId, now);

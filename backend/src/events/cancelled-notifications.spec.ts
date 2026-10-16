@@ -1,7 +1,8 @@
 /*
  * SPM-136 AC6 (TR-136-05, RR-136-05, CQ F1): the EventCancelled notice is labelled by the reader's relation to the
- * event, not by the reader's roles. The event row (joined on related_event_id) says who organised it; a recipient
- * who is that organiser reads the organiser copy, anyone else reads the coordinator copy. Unit level, database faked.
+ * event, not by the reader's roles. The event row (joined on related_event_id) says who organised it: a recipient who
+ * is that organiser reads the organiser copy, the assigned coordinator reads the coordinator copy, and any other
+ * recipient (a Registered or Waitlisted attendee) reads the attendee copy. Unit level, database faked.
  */
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,6 +47,18 @@ describe('CANCEL-EVENT-06-A (TR-136-05, RR-136-05): audience of the EventCancell
     const coordinator: AuthenticatedUser = { uid: 'coo-01', roles: ['COORDINATOR'], email: 'c@example.test', name: 'Coordinator 1' };
     const [item] = await service.notifications(coordinator);
     expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'coordinator', read: false });
+  });
+
+  it('TR-136-21(a): a Waitlisted attendee who is neither organiser nor coordinator reads the attendee copy', async () => {
+    // Arrange: att-04 holds only the ATTENDEE role and is neither the organiser (org-01) nor the coordinator (coo-01)
+    db.query.mockResolvedValue({ rows: [notice('att-04', 'org-01')] });
+    const attendee: AuthenticatedUser = { uid: 'att-04', roles: ['ATTENDEE'], email: 'a4@example.test', name: 'Attendee 4' };
+
+    // Act
+    const [item] = await service.notifications(attendee);
+
+    // Assert
+    expect(item).toMatchObject({ type: 'EventCancelled', audienceRole: 'attendee', read: false });
   });
 
   it('RR-136-05: a user holding BOTH roles who is only the assigned coordinator of the event reads the coordinator copy', async () => {

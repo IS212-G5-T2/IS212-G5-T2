@@ -27,9 +27,11 @@ import {
  * applied. Skipped locally when neither is set; in CI a missing database fails the run.
  *
  * Cases that need a route or table this repository does not have are not written here (Blocked):
- *   CANCEL-EVENT-05-B x4/x5 (no equipment request flow), 06-B and the waitlist half of 08-A (no waiting
- *   list, SPM-138), 06-A attendee bell (no attendee notification read path), 07-B A/B (no Safety Officer
- *   or Venue Staff approval routes). See docs/specs/SPM-136-test-results.md.
+ *   CANCEL-EVENT-05-B x4/x5 (no equipment request flow), 06-A attendee bell (no attendee notification read
+ *   path), 07-B A/B (no Safety Officer or Venue Staff approval routes). See docs/specs/SPM-136-test-results.md.
+ * The waiting list exists (SPM-138), so its SPM-136 cases are covered: CANCEL-EVENT-06-B (the waiting notices)
+ *   is JOIN-WAITLIST-12-A in test/registrations.waitlist.e2e-spec.ts, and the waiting-list half of 08-A is
+ *   JOIN-WAITLIST-12-A to 12-C there plus the combined CANCEL-EVENT-08-A test in this file.
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -228,6 +230,17 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
       `INSERT INTO event_registrations (event_id, attendee_id, status, full_name, email, withdrawn_at)
        VALUES ($1, $2, $3, 'Attendee', 'attendee@example.test', $4) RETURNING id`,
       [eventId, attendeeId, status, status === 'Withdrawn' ? '2026-10-10T04:00:00.000Z' : null],
+    );
+    return result.rows[0].id;
+  }
+
+  /** A Waitlisted entry with the SPM-138 row shape: joined_at and the waiting sequence set, no position stored. */
+  async function seedWaitlistEntry(eventId: string, attendeeId: string, joinedAt: string) {
+    const result = await pool.query<{ id: string }>(
+      `INSERT INTO event_registrations (event_id, attendee_id, status, full_name, email, joined_at, waitlist_seq)
+       VALUES ($1, $2, 'Waitlisted', 'Attendee', 'attendee@example.test', $3, nextval('event_registrations_waitlist_seq'))
+       RETURNING id`,
+      [eventId, attendeeId, joinedAt],
     );
     return result.rows[0].id;
   }
@@ -759,9 +772,9 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   // ---------- AC8: registrations ----------
 
-  /** CANCEL-EVENT-08-A: Registered rows become Cancelled with a reason; nothing is promoted. */
+  /** CANCEL-EVENT-08-A (registrations): Registered rows become Cancelled with a reason; nothing is promoted. */
   it('CANCEL-EVENT-08-A: three Registered rows become Cancelled with reason "Event cancelled" and nothing is promoted', async () => {
-    // Arrange: EVT-301 with ATT-01..03 Registered (waiting list entries are out of scope: see the Blocked list)
+    // Arrange: EVT-301 with ATT-01..03 Registered (the waiting-list half is the combined case below)
     const { eventId, registrations, withdrawnId } = await seedGalaEvent();
 
     // Act
@@ -779,6 +792,59 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     // Attendee view shows Cancelled (SPM-62 registration read)
     const mine = await http().get(`/api/events/${eventId}/registrations/me`).set('Cookie', attendee1.cookie).expect(200);
     expect(mine.body.registration.status).toBe('cancelled');
+  });
+
+  /**
+   * CANCEL-EVENT-08-A (waiting list, combined): one event with three Confirmed registrations and two Waitlisted entries.
+   * One cancel: the three registrations are Cancelled with the reason, the two waiting entries are Cancelled (their notices
+   * are JOIN-WAITLIST-12-A), nothing is promoted (no Registered row is created), and each attendee's registration view
+   * shows cancelled. Kills W1 and W2 (the waiting releaser is not registered or does nothing).
+   */
+  it('CANCEL-EVENT-08-A (waiting list): three Confirmed rows and two waiting entries are Cancelled, and nothing is promoted', async () => {
+    // Arrange: ATT-01..03 Registered; ATT-04 and ATT-05 Waitlisted (joined before the cancel instant T0)
+    const attendee4 = await createSession('ATTENDEE', 'Attendee 4');
+    const attendee5 = await createSession('ATTENDEE', 'Attendee 5');
+    const eventId = await seedEvent({ status: 'Confirmed' });
+    // The waiting list is open. registration_enabled defaults to false, which the settle step treats as a closed list
+    // (SPM-138 D9) and would mark the entries Removed, not Cancelled.
+    await pool.query(
+      `UPDATE events SET registration_enabled = true, registration_limit = 3,
+              registration_opens_at = '2026-10-11T04:00:00.000Z', registration_closes_at = '2026-10-19T15:59:00.000Z'
+        WHERE id = $1`,
+      [eventId],
+    );
+    const confirmed = [attendee1, attendee2, attendee3];
+    const waiting = [attendee4, attendee5];
+    for (const who of confirmed) await seedRegistration(eventId, who.uid, 'Registered');
+    await seedWaitlistEntry(eventId, attendee4.uid, '2026-10-12T03:00:00.000Z');
+    await seedWaitlistEntry(eventId, attendee5.uid, '2026-10-12T03:05:00.000Z');
+
+    // Act
+    await cancel(coordinator, eventId).expect(200);
+
+    // Assert 1: the three registrations are Cancelled with the reason; the two waiting entries are Cancelled
+    const rows = await pool.query<{ attendee_id: string; status: string; cancellation_reason: string | null }>(
+      'SELECT attendee_id, status, cancellation_reason FROM event_registrations WHERE event_id = $1',
+      [eventId],
+    );
+    const byAttendee = new Map(rows.rows.map((row) => [row.attendee_id, row]));
+    for (const who of confirmed)
+      expect(byAttendee.get(who.uid)).toMatchObject({ status: 'Cancelled', cancellation_reason: 'Event cancelled' });
+    for (const who of waiting) expect(byAttendee.get(who.uid)).toMatchObject({ status: 'Cancelled' });
+
+    // Assert 2: nothing is promoted: no Registered row exists for the event
+    const registered = await pool.query<{ count: number }>(
+      `SELECT COUNT(*)::integer AS count FROM event_registrations WHERE event_id = $1 AND status = 'Registered'`,
+      [eventId],
+    );
+    expect(registered.rows[0].count).toBe(0);
+
+    // Assert 3: every attendee's registration view shows cancelled, and no waiting position is offered
+    for (const who of [...confirmed, ...waiting]) {
+      const view = await http().get(`/api/events/${eventId}/registrations/me`).set('Cookie', who.cookie).expect(200);
+      expect(view.body.registration.status).toBe('cancelled');
+      expect(view.body.registration.waitlistPosition ?? null).toBeNull();
+    }
   });
 
   /**

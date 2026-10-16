@@ -69,6 +69,8 @@ const MSG_11 = `Your withdrawal from ${NAME} has been processed.`;
 const MSG_12 = 'This registration has already been withdrawn.';
 const MSG_OCCURRED = 'Event has already occurred';
 const MSG_ATTENDEE_ONLY = 'Attendee access required.';
+// SPM-136 rule (a person cannot be both a waiting-list attendee and the event's organiser or coordinator). ASSUMED wording.
+const MSG_OWN_EVENT = 'An organiser or the assigned coordinator cannot join the waiting list for their own event.';
 
 interface Who {
   uid: string;
@@ -1434,6 +1436,12 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
             related_event_id: eventId,
           }),
         ]);
+        // TR-136-21(b): the notice is stamped with the injected cancel instant (T0), not the database clock.
+        const stamped = await pool.query<{ created_at: Date }>(
+          `SELECT created_at FROM notifications WHERE recipient_id = $1 AND type = 'EventCancelled'`,
+          [who.uid],
+        );
+        expect(stamped.rows[0].created_at).toEqual(T0);
       }
     });
 
@@ -1488,6 +1496,64 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await statusOf(otherEvent, otherWaiting.uid)).toBe('Waitlisted');
       expect((await notificationsFor(otherWaiting.uid)).filter((n) => n.type === 'EventCancelled')).toEqual([]);
       expect(await statusOf(eventId, waiting.uid)).toBe('Cancelled');
+    });
+
+    /**
+     * JOIN-WAITLIST-12-D-COO-REFUSED: a person cannot be both a waiting-list attendee and the assigned coordinator of the
+     * event. The assigned coordinator who also holds ATTENDEE is refused the waiting list (403, no entry written). The
+     * cancel still answers 200 and the coordinator keeps exactly one EventCancelled notice (the core text).
+     * Kills W8 (the owner check removed: the join is allowed, then the cancel is exercised with a waiting entry).
+     */
+    it('JOIN-WAITLIST-12-D-COO-REFUSED: the assigned coordinator cannot join the waiting list of their own event', async () => {
+      // Arrange: COO is the assigned coordinator and holds ATTENDEE; the event is full with three Registered attendees.
+      const coo = await namedUser(['COORDINATOR', 'ATTENDEE'], 'Coordinator Attendee', 10);
+      const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')], {
+        coordinatorId: coo.uid,
+      });
+
+      // Act
+      const joinRes = await join(eventId, coo, {});
+
+      // Assert: refused, nothing written
+      expect(joinRes.status).toBe(403);
+      expect(joinRes.body.code).toBe('WAITLIST_NOT_PERMITTED');
+      expect(joinRes.body.message).toBe(MSG_OWN_EVENT);
+      expect(await rowOf(eventId, coo.uid)).toBeUndefined();
+
+      // The cancel still answers 200, and the coordinator keeps exactly one notice
+      expect((await cancel(eventId, coo)).status).toBe(200);
+      const notices = (await notificationsFor(coo.uid)).filter((n) => n.type === 'EventCancelled');
+      expect(notices).toEqual([
+        expect.objectContaining({ message: `${NAME} has been cancelled.`, related_event_id: eventId }),
+      ]);
+    });
+
+    /**
+     * JOIN-WAITLIST-12-D-ORG-REFUSED: the submitting organiser who also holds ATTENDEE is refused the waiting list of their
+     * own event (403, no entry written). The cancel answers 200 and the organiser keeps one EventCancelled notice.
+     * Kills W8 (the owner check removed).
+     */
+    it('JOIN-WAITLIST-12-D-ORG-REFUSED: the organiser cannot join the waiting list of their own event', async () => {
+      // Arrange: ORG is the submitter and holds ATTENDEE; the event is full with three Registered attendees.
+      const org = await namedUser(['ORGANISER', 'ATTENDEE'], 'Organiser Attendee', 11);
+      const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')], {
+        organiserId: org.uid,
+      });
+
+      // Act
+      const joinRes = await join(eventId, org, {});
+
+      // Assert: refused, nothing written
+      expect(joinRes.status).toBe(403);
+      expect(joinRes.body.code).toBe('WAITLIST_NOT_PERMITTED');
+      expect(joinRes.body.message).toBe(MSG_OWN_EVENT);
+      expect(await rowOf(eventId, org.uid)).toBeUndefined();
+
+      expect((await cancel(eventId, org)).status).toBe(200);
+      const notices = (await notificationsFor(org.uid)).filter((n) => n.type === 'EventCancelled');
+      expect(notices).toEqual([
+        expect.objectContaining({ message: `${NAME} has been cancelled.`, related_event_id: eventId }),
+      ]);
     });
   });
 

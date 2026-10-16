@@ -61,7 +61,7 @@ export const MUTANTS = [
     edits: [['body: JSON.stringify({ targetStatus: "Cancelled", confirmed: true }),', 'body: JSON.stringify({ targetStatus: "Cancelled" }),']] },
   // RR-136-03: a cancelled event offers no clarification Reply or Resolve.
   { id: 'F16', name: 'clarification Reply offered on a cancelled event (RR-136-03)', file: PAGE, suites,
-    edits: [['canReply={!isCancelled && (isOwner || isAssignedCoordinator)}', 'canReply={isOwner || isAssignedCoordinator}']] },
+    edits: [['canReply={!isCancelled && (isOwner || isAssignedCoordinator) && event.status !== "confirmed"}', 'canReply={(isOwner || isAssignedCoordinator) && event.status !== "confirmed"}']] },
   { id: 'F17', name: 'clarification Resolve offered on a cancelled event (RR-136-03)', file: PAGE, suites,
     edits: [['canResolve={!isCancelled && (isOwner || isAssignedCoordinator)}', 'canResolve={isOwner || isAssignedCoordinator}']] },
   // CQ F2: the dialog Tab trap follows the currently focusable buttons (after success only Close remains).

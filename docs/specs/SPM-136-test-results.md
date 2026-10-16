@@ -8,7 +8,7 @@ Story: SPM-136 (Jira status In Progress when implemented). Acceptance criteria A
 
 | Ref | Decision | Where it is applied |
 |---|---|---|
-| D2 (option A) | Release registry with a cancelled guard. Releasers registered for `event_registrations`, `venue_bookings` (approved bookings and pending holds) and `equipment_reservations`. There is no waiting-list table (SPM-138): nothing is registered for it, and its cases are Blocked. Safety-check rows are left untouched; every safety action is guarded. | `backend/src/events/cancel/release.registry.ts`, `backend/migrations/011_spm136_cancel_event.sql` (safety triggers skip the release transition) |
+| D2 (option A) | Release registry with a cancelled guard. Releasers registered for `event_registrations`, `venue_bookings` (approved bookings and pending holds) and `equipment_reservations`. The waiting list (SPM-138) is registered too: `waitlistReleaser` cancels its Waitlisted entries and writes their notices (correction cycle 5). Safety-check rows are left untouched; every safety action is guarded. | `backend/src/events/cancel/release.registry.ts`, `backend/migrations/011_spm136_cancel_event.sql` (safety triggers skip the release transition) |
 | D5 | The server enforces `confirmed === true` strictly. Missing, false, `"true"`, 1 and null give 400 `CANCEL_NOT_CONFIRMED` (MSG-CN-03). | `cancel-rules.ts` (`isConfirmed`), `cancel-event.service.ts` |
 | D9 / F9 | Cancellable set: Submitted, Approved, Planning, Confirmed. Completed, Rejected and Cancelled give 409 `EVENT_NOT_CANCELLABLE` (MSG-CN-06). The repository has no "Under Review" or "Draft" event status. | `cancel-rules.ts` (`CANCELLABLE_STATUSES`) |
 | D10 / D12 | Notifications are rows written inside the transaction, reusing `notifications`. A partial unique index `(recipient_id, related_event_id, type) WHERE type = 'EventCancelled'`. No attendee read path or bell UI. `EventCancelled` is added to the organiser and coordinator type lists of `GET /api/notifications`. | `011_spm136_cancel_event.sql`, `events.service.ts` (`notificationTypesFor`) |
@@ -51,11 +51,11 @@ Story: SPM-136 (Jira status In Progress when implemented). Acceptance criteria A
 | CANCEL-EVENT-05-A | AC5 | e2e, unit | Confluence 05-A: Projector 2 to 4, Microphone 6 to 10; Requested and Unavailable lines Released (TR-136-04) | M6, S12, S13 |
 | CANCEL-EVENT-05-B | AC5 | e2e (part) | Confluence 05-B: EQ-308 stays Reserved x1 | Blocked for x4/x5 |
 | CANCEL-EVENT-06-A | AC6 | e2e (DB rows and GET /api/notifications), unit | Confluence 06-A: one unread notice per recipient; coordinator copy labelled coordinator (TR-136-05) | M17, S15, S16 |
-| CANCEL-EVENT-06-B | AC6 | none | Confluence 06-B (waiting list, SPM-138) | Blocked |
+| CANCEL-EVENT-06-B | AC6 | e2e (JOIN-WAITLIST-12-A in `test/registrations.waitlist.e2e-spec.ts`) | Confluence 06-B: each waiting entry Cancelled with one EventCancelled notice | W1, W2, W6 |
 | CANCEL-EVENT-06-C | AC6 | e2e | Confluence 06-C: no notice for ATT-06, ATT-07, ORG-02, COO-02 | M18 |
 | CANCEL-EVENT-07-A | AC7 | e2e (11 routes), FE page | Confluence 07-A: 409 MSG-CN-04, DB unchanged | M20 |
 | CANCEL-EVENT-07-B | AC7 | e2e (C, D); Blocked (A, B) | Confluence 07-B | Blocked; C deviation (see below) |
-| CANCEL-EVENT-08-A | AC8 | e2e | Confluence 08-A: three Cancelled rows, reason, no promotion | M19 |
+| CANCEL-EVENT-08-A | AC8 | e2e (registrations; combined waiting-list case) | Confluence 08-A: three Cancelled rows, reason, no promotion; waiting entries Cancelled (JOIN-WAITLIST-12-B, 12-C) | M19, W1, W2 |
 | CANCEL-EVENT-08-B | AC8 | e2e | Confluence 08-B: ATT-06 unchanged, withdraw 409, report 0, register 422 | M19 |
 
 ## Test case results (every test case ID)
@@ -79,11 +79,11 @@ Result key: PASS = every step of the Confluence case is covered by a passing tes
 | 05-A | PASS | e2e: both lines `Released` with released_at T0; Projector 4 (before 2), Microphone 10 (before 6), derived by SQL. | Equipment availability screen not tested (no such view called). |
 | 05-B | PARTIAL | e2e: EQ-308 stays Reserved x1. | x4 accepted and x5 rejected: BLOCKED, no equipment request route exists in this repository. |
 | 06-A | PARTIAL | e2e: ORG-01, COO-01, ATT-01, ATT-02, ATT-03 each get exactly one unread `EventCancelled` notice naming "Annual Gala Dinner", for both cancellers (two clones). | The attendee bell and `GET /notifications/me` for attendees: BLOCKED, there is no attendee read path (D10/D12). Checked in the database instead. |
-| 06-B | BLOCKED | Nothing. | Waiting list does not exist (SPM-138). |
+| 06-B | PASS (waiting notices) | JOIN-WAITLIST-12-A (`registrations.waitlist.e2e-spec.ts`): each waiting entry is Cancelled and gets one EventCancelled notice, in the cancel transaction (correction cycle 5). | The attendee bell read path (06-A) is not part of 06-B. |
 | 06-C | PARTIAL | e2e: ATT-06 (Withdrawn), ATT-07, ORG-02 and COO-02 get no notice; the event has exactly five notices. | The mail catcher assertion: no email transport exists in this repository, so "no email sent" is UNABLE TO VERIFY. |
 | 07-A | PASS | e2e: 11 existing mutation routes on a cancelled event answer 409 EVENT_CANCELLED (MSG-CN-04) and every table is unchanged (route list below). FE: banner shown, Update Event Information and Confirm Event hidden on a cancelled event. | Replacement-venue request route: not located in this repository, not tested. |
 | 07-B | PARTIAL | e2e: D (COO-01 Confirmed gives 422 MSG-CF-05; Planning gives 422 INVALID_STATUS_TRANSITION (ASSUMED); status stays Cancelled). C: see the deviation below. | A (Safety Officer approve or change request) and B (Venue Staff approve booking): BLOCKED, no such routes exist (safety check outcome is SPM-126). |
-| 08-A | PARTIAL | e2e: three Registered rows become `Cancelled` with reason "Event cancelled"; the Withdrawn row is untouched; no promotion; ATT-01 registration view shows `cancelled`. | Waiting-list entries (ATT-04, ATT-05) becoming Cancelled: BLOCKED (SPM-138). |
+| 08-A | PASS | e2e: three Registered rows become `Cancelled` with reason "Event cancelled"; the Withdrawn row is untouched; no promotion; the combined case (three Confirmed plus two Waitlisted) turns both waiting entries Cancelled and every registration view shows `cancelled` (correction cycle 5). | None for the waiting half (JOIN-WAITLIST-12-B, 12-C, and the combined case). |
 | 08-B | PASS | e2e: ATT-06 row identical including withdrawn_at; ATT-01 withdraw of the cancelled registration gives 409 EVENT_CANCELLED with no status change; report `totalConfirmed` 0; ATT-07 registration gives 422 `registration_closed` "Registration has closed for this event.". | None. |
 
 ### Deviations and assumptions
@@ -115,7 +115,7 @@ Not guarded because they are not event arrangements or do not exist: venue unava
 
 | Gap | Case | Why it is not tested | Needed to test it (story or owner) |
 |---|---|---|---|
-| Waiting list entries and their notice | 06-B, 08-A (waitlist half) | No waiting-list table or routes | SPM-138 |
+| Waiting list entries and their notice | 06-B, 08-A (waitlist half) | Resolved in correction cycle 5 (SPM-138 is in the repository) | Covered by JOIN-WAITLIST-12-A to 12-C and the combined 08-A case |
 | Attendee notification read path and bell | 06-A (bell), 06-C (mail) | No attendee read path (D10/D12) | Unknown: attendee notifications story |
 | Email transport ("no email sent") | 06-C | No mail transport in this repository | Unknown: email delivery story |
 | Equipment request flow for x4/x5 | 05-B | No route to request equipment for an event | Unknown: equipment request story |
@@ -128,7 +128,7 @@ Not guarded because they are not event arrangements or do not exist: venue unava
 | Dialog-state "status still Confirmed while open" | 02-A | Read as "zero requests" | Acceptable as is |
 | Login returned 401 once in a full run (events-cancel; earlier also events-confirm and clarifications) | TR-136-08 | Environmental, not caused by SPM-136. Supertest listens on the wildcard address and then connects to 127.0.0.1:<port>; a Code Helper (editor) process listening on 127.0.0.1 with an ephemeral port can receive some of those connections, which answer `{"type":"error","error":{"type":"authentication_error",...}}`. Both SPM-136 suites now call `app.listen(0, '127.0.0.1')` (see Correction cycle 3). Diagnostics still report a non-201 login status and body. | Re-run the full e2e suite with no editor listening on loopback; a recurrence would show the non-JSON-API body above |
 | Equipment-availability suite deletes role 6 (COORDINATOR_LEAD) in its teardown | TR-136-08 (ruled out) | The earlier suspicion was wrong: the 401 comes from the editor listener, not from role 6 teardown. Recorded only so the reasoning is traceable. | None for SPM-136 |
-| Waiting list entries and notices (RR-136-04) | 06-B, 08-A (waitlist half), AC6, AC8 | Blocked on SPM-138. The story cannot be Done until SPM-138 is delivered, or the product owner re-scopes AC6 and AC8. | SPM-138 or PO re-scope |
+| Waiting list entries and notices (RR-136-04) | 06-B, 08-A (waitlist half), AC6, AC8 | Resolved in correction cycle 5: the waiting releaser is registered and tested (JOIN-WAITLIST-12-A to 12-D and the combined 08-A case). | None (closed) |
 | Coordinator notice UI (RR-136-06) | 06-A (coordinator copy) | No coordinator notification surface is in scope; the notice is readable through `GET /api/notifications` only. | Coordinator notification UI story |
 | CQ F3 circular type import | none | Intentionally skipped in cycle 3: refactor, not a behaviour change for SPM-136. | Separate refactor task |
 | CQ F6 duplicated code | none | Intentionally skipped in cycle 3. | Separate refactor task |
@@ -208,7 +208,7 @@ The M-numbers from M1 to M20 and S1 to S24 are listed below. M22 to M27 were add
 | B3 | killed | unit (status.removal.spec.ts, TR-136-12 b) | equipment request removal has no locked-row Planning check |
 | B4 | killed | unit (status.removal.spec.ts, TR-136-12 b) | venue request removal has no locked-row Planning check |
 
-M9 (the dialog Keep button sending a request) is a frontend mutant; it is F8 below. M21 (waiting list) is not applicable: there is no waiting list in this repository (SPM-138).
+M9 (the dialog Keep button sending a request) is a frontend mutant; it is F8 below. M21 is not used. The waiting list (SPM-138) is mutated as W1, W2, W4, W6 and W7 (correction cycle 5).
 
 ### Trigger mutants (SQL)
 
@@ -403,3 +403,41 @@ Order followed: each new mutant was run before its tests were written (or mapped
 | `cd frontend && npm run lint` | exit 0; 0 errors; 1 pre-existing warning (`PlanningUpdateForm.tsx`) |
 
 Not run in cycle 4: `npm run test:cov` (both components), the two builds, and the SPM-136 and SPM-135 trigger mutants. The production code and migrations did not change, so the cycle 3 numbers for these stand; they are not re-measured. No review gate was run. `AI_USAGE.md` was not edited (its user field stays `rickyshake3590`).
+
+## Correction cycle 5: resolution of the Test Review (iteration 4) findings
+
+**Snapshot.** HEAD 955c492 (merge of origin/dev into the SPM-136 branch) plus the uncommitted cycle 5 changes. Nothing committed or pushed.
+
+**Counts reconciled.** The earlier figures (56 files / 1295 tests in cycle 4) predate the merge of origin/dev, which added files and tests. The current backend unit run is **63 files, 1402 tests**. The earlier 1388 figure was the merged tree before the cycle 5 tests. Every row below uses the current run.
+
+| Finding | Resolution | Evidence |
+|---|---|---|
+| TR-136-15 (High) S9 anchor, W4 | S9 re-anchored to the event-status ternary in `registrations.service.ts` withdraw. W4 (event status ignored) added. | S9 killed by the unit 08-B case; W4 killed by `unitWithdraw` ("a Cancelled waiting entry on a Confirmed event gives registration_not_withdrawable and no UPDATE"). |
+| TR-136-16 (Medium) F16 anchor | F16 re-anchored to the current `canReply` line. | Frontend runner: F16 killed, 0 misapplied. |
+| TR-136-17 (High) waiting-list wiring has no committed mutants | W1 (releaser unregistered), W2 (release a no-op), W6 (notice dropped) added, killed by suite `waitlist12` (JOIN-WAITLIST-12-A, 12-C-REL) and W1/W2 also by `cancelE2e` (CANCEL-EVENT-08-A combined). M21 note corrected. | Runner: W1, W2, W6 killed. |
+| TR-136-18 (High) cancel returns 500 for a waiting attendee who is also the organiser or coordinator | **Decision (user):** a person cannot be both a waiting-list attendee and the event's organiser or assigned coordinator. The waiting-list join now refuses them: 403 `WAITLIST_NOT_PERMITTED`, no entry written. Message: "An organiser or the assigned coordinator cannot join the waiting list for their own event." (ASSUMED wording, for Product Owner confirmation). The waiting-list notice also keeps `ON CONFLICT ... DO NOTHING` as a defence. | JOIN-WAITLIST-12-D-COO-REFUSED and 12-D-ORG-REFUSED failed first (201 returned, expected 403), then passed. W8 (owner check removed) killed by both. W7 (ON CONFLICT removed) is **equivalent**: the join now refuses the organiser and coordinator, so no recipient of the waiting notice is also a recipient of the core notice. |
+| TR-136-19 (Medium) stale "Blocked" traceability | 06-B mapped to JOIN-WAITLIST-12-A; the waiting half of 08-A mapped to JOIN-WAITLIST-12-B and 12-C; a combined CANCEL-EVENT-08-A e2e case added (3 Confirmed registrations and 2 Waitlisted entries, one cancel, all statuses asserted). Stale rows in this document and in the `events-cancel` header corrected. | Combined 08-A case passes. |
+| TR-136-20 (Medium) workflow records | `docs/test-cases/workflow/`: scope file, records CSV, ID-registry rows, tier matrix and spec conflicts added for SPM-136. SC-002 (07-B C, 403) recorded as DECIDED: accepted by the user at Gate 1. | See the gate table below. |
+| TR-136-21 (Low) | Attendee branch unit case added in `cancelled-notifications.spec.ts` (it passes on the current code; it was shown to fail when the fallback was broken). The waiting notice's `created_at` is now the injected clock, not the database clock; 12-A asserts it equals T0. | RED: the notice timestamp was the database clock. GREEN after the fix. |
+
+**Environment note.** The local `spm_test` database did not have dev's `011_equipment_record_updates.sql` applied, so the SPM-118 equipment suites and one SPM-111 seed check failed. I applied that migration to `spm_test` by hand, as earlier migrations were applied. The migration is dev's; SPM-136 changes no SQL in this cycle.
+
+### Commands and exact results (cycle 5 final)
+
+| Check | Command | Result |
+|---|---|---|
+| Backend unit | `cd backend && npx vitest run` | exit 0; 63 files passed; 1402 tests passed |
+| Backend e2e (full) | `DATABASE_URL=TEST_DATABASE_URL=…/spm_test npx vitest run --config ./vitest.config.e2e.ts` | exit 0; 31 files passed; 574 passed; 1 skipped (JOIN-WAITLIST-11-E, Blocked on SPM-139); 1 todo |
+| Backend lint | `cd backend && npm run lint` | exit 0; 0 errors; 3 pre-existing warnings (checklist.ts x2, events-safety-feedback.e2e-spec.ts) |
+| Backend build | `cd backend && npm run build` | exit 0 |
+| Backend app mutants | `node scripts/mutation/run.mjs --mutants spm136.mutants.mjs` | exit 0; 59 mutants: 57 killed, 2 equivalent (M13, W7), 0 survived, 0 misapplied; original files untouched |
+| Trigger mutants (SPM-136) | `node scripts/mutation/run-triggers.mjs --mutants spm136.triggers.mutants.mjs` | exit 0; 2 killed, 0 survived, 0 misapplied |
+| Trigger mutants (SPM-135) | `node scripts/mutation/run-triggers.mjs` | exit 0; 7 mutants: 6 killed, 1 equivalent (TG7), 0 survived |
+| Frontend unit | `cd frontend && npx vitest run` | exit 0; 98 files passed; 1337 passed; 1 skipped (JOIN-WAITLIST-09-A-FE, Blocked on the bell); 1 todo |
+| Frontend lint | `cd frontend && npm run lint` | exit 0; 0 errors; 4 warnings, none in SPM-136 files |
+| Frontend build | `cd frontend && npm run build` | exit 0 |
+| Frontend mutants | `cd frontend && node scripts/testing/mutation/run.mjs --mutants spm136.mutants.mjs` | exit 0; 24 mutants: 22 killed, 2 equivalent (F4, F5), 0 survived, 0 misapplied; original files untouched |
+
+**Not run in cycle 5:** `npm run test:cov` (coverage was not re-measured for this cycle), the Playwright browser tests, and the workflow gates G5 to G7 through `run-cycle` (see the note in the workflow records).
+
+**Open decisions for the Product Owner.** The waiting-list refusal message for the organiser and coordinator (ASSUMED wording). The rule itself was stated by the user. Direct registration by the organiser or coordinator (SPM-61) is unchanged; the rule was only stated for the waiting list.
