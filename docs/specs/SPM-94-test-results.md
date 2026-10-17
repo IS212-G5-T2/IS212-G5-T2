@@ -231,3 +231,12 @@ Confluence updated: the matrix gained the missing 03-C row; case pages 01, 02 an
 - M3 (pending decisions): SC-SPM94-02, -04, -06 and -07 are marked pending (PO). The register now reports four pending confirmations, so the overall status is AMBER. SC-SPM94-07's text now matches the 01-B e2e.
 - M4 (planning-page step): tests assert the reached step and the next step for submitted, approved, planning and confirmed, and the rejected step in the danger colour.
 - Not changed: the runner does not yet require an assertion failure, rather than a timeout, to count a kill (shared tooling).
+
+## Dispositions (17 Oct 2026, follow the code)
+
+The matrix was last updated before the implementation, so the code is the reference where they differ.
+
+- SC-SPM94-02 (403 vs 404, 01-C): the detail endpoint returns 403 with no data. Follow-up: amend SPM-38 AC4 in Jira to 403, and align the planning endpoint, which still returns 404 for a non-owner.
+- SC-SPM94-04 (03-C status): a safety change request updates the safety record only; the event status stays Planning. The 03-C matrix wording is corrected.
+- SC-SPM94-06 (403 message): "You can only view your own events." is accepted. Follow-up: move it into the message catalogue.
+- SC-SPM94-07 (01-B badge): EVT-502 shows Approved, as in the 01-A fixture. The 01-B page is corrected.

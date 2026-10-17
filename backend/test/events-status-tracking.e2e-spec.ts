@@ -20,7 +20,6 @@ import { AppModule } from '../src/app.module.js';
  * case uses Approved (decided 17 Oct 2026).
  *
  * ASSUMPTION index
- * A4: the refusal message for another organiser's event is the service's literal -> 01-C
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -28,7 +27,7 @@ if (!database && process.env.CI)
   throw new Error('SPM-94 tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.');
 
 const PASSWORD = 'password123';
-// A4: the literal message the service returns when an organiser asks for another organiser's event (D6).
+// The literal message the service returns when an organiser asks for another organiser's event (D6; accepted as the code's wording, 17 Oct 2026).
 const OTHER_ORGANISER_MESSAGE = 'You can only view your own events.';
 
 describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () => {
