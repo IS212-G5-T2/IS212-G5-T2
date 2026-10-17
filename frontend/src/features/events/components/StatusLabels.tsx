@@ -60,15 +60,27 @@ export function safetyLabel(status: string): StateLabelInfo {
   }
 }
 
-/** Card labels name the resource and its state, for example "Venue reserved" or "Awaiting equipment request". */
-export function cardArrangementLabels(event: Pick<EventRecord, "venueRequestStatus" | "equipmentStatuses">): StateLabelInfo[] {
+/** Card labels name the resource and its state. "Reserved" states count only in the planning phase; when a planning event has
+ *  both its venue and all its equipment reserved, one combined label is shown. */
+export function cardArrangementLabels(
+  event: Pick<EventRecord, "status" | "venueRequestStatus" | "equipmentStatuses">,
+): StateLabelInfo[] {
+  const planning = event.status === "planning";
+  const statuses = event.equipmentStatuses ?? [];
+  const venueReserved = event.venueRequestStatus === "approved";
+  const equipmentReserved = statuses.length > 0 && statuses.every((s) => s === "Reserved");
   const labels: StateLabelInfo[] = [];
+
+  if (planning && venueReserved && equipmentReserved) {
+    labels.push({ label: "Equipment & Venue Reserved", tone: "green" });
+  } else {
+    if (venueReserved && planning) labels.push({ label: "Venue reserved", tone: "green" });
+    if (equipmentReserved && planning) labels.push({ label: "Equipment reserved", tone: "green" });
+  }
+
   switch (event.venueRequestStatus) {
     case "pending":
       labels.push({ label: "Awaiting venue request", tone: "amber" });
-      break;
-    case "approved":
-      labels.push({ label: "Venue reserved", tone: "green" });
       break;
     case "rejected":
       labels.push({ label: "Venue rejected", tone: "red" });
@@ -79,11 +91,10 @@ export function cardArrangementLabels(event: Pick<EventRecord, "venueRequestStat
   }
   const equipment: Record<string, StateLabelInfo> = {
     Requested: { label: "Awaiting equipment request", tone: "amber" },
-    Reserved: { label: "Equipment reserved", tone: "green" },
     Unavailable: { label: "Equipment unavailable", tone: "red" },
     Cancelled: { label: "Equipment cancelled", tone: "red" },
   };
-  for (const status of new Set(event.equipmentStatuses ?? [])) {
+  for (const status of new Set(statuses)) {
     if (equipment[status]) labels.push(equipment[status]);
   }
   return labels;

@@ -42,8 +42,8 @@ export function EventCard({ event, attendeeView = false, registrationStatus }: E
               {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
               {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}
               {!attendeeView && <AssignmentIndicator event={event} />}
-              {!attendeeView && <SafetyIndicator event={event} />}
               {!attendeeView && cardArrangementLabels(event).map((l) => <StateLabel key={`${l.tone}-${l.label}`} {...l} />)}
+              {!attendeeView && <SafetyIndicator event={event} />}
               {event.reassignedFrom && (
                 <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                   Reassigned

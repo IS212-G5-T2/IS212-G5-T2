@@ -34,22 +34,25 @@ describe("planning state labels by significance", () => {
 });
 
 describe("card labels name the resource and its state", () => {
-  it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested item read as awaiting requests", () => {
-    expect(cardArrangementLabels({ venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
-      { label: "Awaiting venue request", tone: "amber" },
-      { label: "Awaiting equipment request", tone: "amber" },
-      { label: "Equipment reserved", tone: "green" },
+  it("TRACK-EVENT-STATUS-01-A CARD: a planning event with venue and all equipment reserved shows one combined label", () => {
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved", "Reserved"] })).toEqual([
+      { label: "Equipment & Venue Reserved", tone: "green" },
     ]);
   });
 
-  it("TRACK-EVENT-STATUS-01-A CARD: an approved venue reads as venue reserved", () => {
-    expect(cardArrangementLabels({ venueRequestStatus: "approved", equipmentStatuses: [] })).toEqual([
-      { label: "Venue reserved", tone: "green" },
+  it("TRACK-EVENT-STATUS-01-A CARD: reserved labels are not shown outside the planning phase", () => {
+    expect(cardArrangementLabels({ status: "confirmed", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toEqual([]);
+  });
+
+  it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested item read as awaiting requests", () => {
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
+      { label: "Awaiting venue request", tone: "amber" },
+      { label: "Awaiting equipment request", tone: "amber" },
     ]);
   });
 
   it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
-    expect(cardArrangementLabels({ venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
       { label: "Venue rejected", tone: "red" },
       { label: "Equipment unavailable", tone: "red" },
       { label: "Equipment cancelled", tone: "red" },
