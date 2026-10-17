@@ -75,11 +75,3 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
 // ASSUMPTION index (additions)
 // A3: an empty-string coordinator id counts as unassigned (02-A BND row)
 
-describe('SPM-94 interaction of the assignment and safety rules', () => {
-  // INT: the two rules are independent, so an unassigned Submitted event with a pending safety check shows both.
-  // Kills: one rule short-circuiting or overwriting the other.
-  it('TRACK-EVENT-STATUS-02-A INT: an unassigned Submitted event with a pending safety check gets both indicators', () => {
-    expect(deriveAssignmentIndicator('Submitted', null)).toBe(true);
-    expect(deriveSafetyIndicator('pending', 'Submitted')).toBe('AWAITING_CHECK');
-  });
-});

@@ -51,4 +51,7 @@ export const MUTANTS = [
     edits: [['              key={e.id}\n              event={e}',
       '              key={e.id}\n              event={{ ...e, awaitingCoordinatorAssignment: undefined, safetyIndicator: undefined }}']],
     suites: ['spm94'] },
+  { id: 'X13', name: 'planning timeline shades one step short of the current status (01-B)', file: DETAIL,
+    edits: [['i <= currentStepIndex', 'i < currentStepIndex']],
+    suites: ['spm94'] },
 ];

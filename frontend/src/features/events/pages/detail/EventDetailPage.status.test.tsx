@@ -140,3 +140,29 @@ describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy"
     expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}`);
   });
 });
+
+describe("SPM-94 AC1: the planning page marks the exact current step", () => {
+  // Oracle: the status flow submitted -> approved -> planning -> confirmed; a reached step is shaded, the next one is not.
+  // Kills: a timeline one step ahead or behind (the step after the current one would be shaded).
+  it.each([
+    ["submitted", "submitted", "approved"],
+    ["approved", "approved", "planning"],
+    ["planning", "planning", "confirmed"],
+    ["confirmed", "confirmed", "cancelled"],
+  ] as const)("TRACK-EVENT-STATUS-01-B: %s marks %s reached and %s not yet reached", async (status, reached, next) => {
+    current = eventRecord({ status });
+    renderPage();
+    const timeline = await screen.findByLabelText("Event status timeline");
+    await waitFor(() => expect(within(timeline).getByText(reached)).toHaveClass("bg-primary-100"));
+    expect(within(timeline).getByText(next)).toHaveClass("text-gray-400");
+  });
+
+  // Oracle: a rejected event shows the rejected step in the danger colour, after the submitted step.
+  it("TRACK-EVENT-STATUS-01-B: rejected marks the rejected step in the danger colour", async () => {
+    current = eventRecord({ status: "rejected", rejectionReason: "Not suitable for this venue" });
+    renderPage();
+    const timeline = await screen.findByLabelText("Event status timeline");
+    await waitFor(() => expect(within(timeline).getByText("rejected")).toHaveClass("bg-danger-100"));
+    expect(within(timeline).getByText("submitted")).toHaveClass("bg-primary-100");
+  });
+});

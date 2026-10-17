@@ -111,7 +111,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     const email = `spm94-${randomUUID()}@example.com`;
     const created = await pool.query<{ id: string }>(
       `INSERT INTO users (email, display_name, password_hash)
-       VALUES ($1, $2, crypt($3, gen_salt('bf', 12))) RETURNING id`,
+       VALUES ($1, $2, crypt($3, gen_salt('bf', 4))) RETURNING id`, // cost 4: fixtures only, keeps each test inside its timeout
       [email, name, PASSWORD],
     );
     const uid = created.rows[0].id;
@@ -240,6 +240,17 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === rejected)).toMatchObject({ awaitingCoordinatorAssignment: false });
     expect(list.find((e) => e.id === rejected)).toMatchObject({ status: 'rejected' });
     expect((await detailFor(org.cookie, unassigned)).body).toMatchObject({ awaitingCoordinatorAssignment: true });
+  });
+
+  // TRACK-EVENT-STATUS-02-A (interaction of AC2 and AC3): an unassigned Submitted event with a pending safety check shows both indicators from the server.
+  // Kills: X12 (the safety indicator dropped while the event awaits assignment).
+  it('TRACK-EVENT-STATUS-02-A INT: an unassigned Submitted event with a pending safety check shows both indicators', async () => {
+    const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
+    const eventId = await seedEvent({ organiserId: org.uid, name: 'Both Indicators', status: 'Submitted', safety: 'pending' });
+
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === eventId)).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: 'AWAITING_CHECK' });
+    expect((await detailFor(org.cookie, eventId)).body).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: 'AWAITING_CHECK' });
   });
 
   // TRACK-EVENT-STATUS-02-B (AC2): the Lead's assignment clears the indicator on the list and the detail.

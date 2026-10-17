@@ -222,3 +222,12 @@ The independent Test Code Review of `cd1aa95` returned BLOCKED (nine open findin
 All gates pass: G1 IDs, G2 conflicts and tiers (0 open, 5 decided, 2 assumed), G3 records (41, all PASS), G4 determinism and timezones, G5 coverage (100% on the two SPM-94 files), G6 mutation (19 of 19 killed), G7 execution (110 passed). Overall: GREEN.
 
 Confluence updated: the matrix gained the missing 03-C row; case pages 01, 02 and 04 carry the new test-body counts (01-A 10, 01-C 3, 02-A 8, 04-B 4).
+
+## Fixes after the third Test Code Review (3d6c9b3)
+
+- H1 (flaky e2e): fixture password hashes use cost 4 instead of 12, so each test creates its users well inside the per-test timeout.
+- M1 (AC2 and AC3 interaction): the unit-level test that could not fail is replaced by an e2e test on a real unassigned Submitted event with a pending safety check. Mutant X12 (safety indicator dropped while awaiting assignment) is killed.
+- M2 (missing mutants): X10 (D6 exemption widened, killed by unit), X11 (detail no-store removed, killed by e2e), X12 above. X13 (timeline one step short) is killed by the planning-page step tests.
+- M3 (pending decisions): SC-SPM94-02, -04, -06 and -07 are marked pending (PO). The register now reports four pending confirmations, so the overall status is AMBER. SC-SPM94-07's text now matches the 01-B e2e.
+- M4 (planning-page step): tests assert the reached step and the next step for submitted, approved, planning and confirmed, and the rejected step in the danger colour.
+- Not changed: the runner does not yet require an assertion failure, rather than a timeout, to count a kill (shared tooling).

@@ -70,4 +70,13 @@ export const MUTANTS = [
     edits: [["throw new ForbiddenException('You can only view your own events.');",
       "throw new ForbiddenException({ message: 'You can only view your own events.', eventId: id, eventStatus: row.status });"]],
     suites: ['e2e'] },
+  { id: 'X10', name: 'D6 exemption widened: every non-owning organiser gets 403, whatever their other roles', file: SERVICE,
+    edits: [["!user.roles.some((role) => role === 'COORDINATOR' || role === 'ATTENDEE')", 'true']],
+    suites: ['unit'] },
+  { id: 'X11', name: 'detail route without no-store (04-A revisit)', file: CONTROLLER,
+    edits: [["  @Get('events/:id')\n  @Header('Cache-Control', 'no-store')\n", "  @Get('events/:id')\n"]],
+    suites: ['e2e'] },
+  { id: 'X12', name: 'safety indicator dropped while the event awaits assignment (AC2 with AC3)', file: SERVICE,
+    edits: [['safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status),', 'safetyIndicator: row.coordinator_id ? deriveSafetyIndicator(row.safety_status, row.status) : null,']],
+    suites: ['e2e'] },
 ];
