@@ -95,6 +95,10 @@ export interface EventRecord {
   availableSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
+  /** SPM-94 AC2: Submitted and not yet assigned to a Coordinator. */
+  awaitingCoordinatorAssignment?: boolean;
+  /** SPM-94 AC3: at most one safety indicator; null when there is none. */
+  safetyIndicator?: "AWAITING_CHECK" | "CHANGES_REQUESTED" | "CLEARED" | null;
   /** SPM-46: who the current coordinator received the event from, and when. */
   reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;

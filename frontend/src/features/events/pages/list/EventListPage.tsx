@@ -6,6 +6,8 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/FormControls";
+import { StatusBadge } from "@/components/ui/StatusBadge";
+import type { DraftRecord } from "@/features/events/types/draft";
 import { EventCard, type CardRegistrationStatus } from "@/features/events/pages/list/EventCard";
 import { AssignmentNotifications } from "@/features/events/pages/list/AssignmentNotifications";
 import type { EventStatus, RegistrationStatus } from "@/types";
@@ -38,6 +40,16 @@ export function EventListPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  // SPM-94 AC1 / R1: an organiser's unsubmitted drafts show in My Events too; they are read from the same requests API My Requests uses.
+  const [drafts, setDrafts] = useState<DraftRecord[]>([]);
+  useEffect(() => {
+    if (currentUser.role !== "organiser") return;
+    let active = true;
+    api<DraftRecord[]>("/requests")
+      .then(list => { if (active) setDrafts(Array.isArray(list) ? list.filter(d => d.status === "Draft") : []); })
+      .catch(() => { if (active) setDrafts([]); });
+    return () => { active = false; };
+  }, [currentUser.role, retry]);
   useEffect(() => {
     let active = true;
     setLoading(true); setError("");
@@ -121,6 +133,22 @@ export function EventListPage() {
           />
         )}
       </div>
+
+      {currentUser.role === "organiser" && drafts.length > 0 && (
+        <section aria-label="Draft requests" className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-700 dark:text-gray-300">Drafts</h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {drafts.map((d) => (
+              <li key={d.id}>
+                <Link to={`/requests/${d.id}`} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
+                  <span className="truncate font-medium text-gray-900 dark:text-gray-100">{d.fields.name || "Untitled draft"}</span>
+                  <StatusBadge status="draft" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {loading ? <p role="status">Loading events…</p> : error ? <div role="alert">{error} <Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button></div> : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">

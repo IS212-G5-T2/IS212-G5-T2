@@ -3,6 +3,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { EventRecord } from "@/types";
 import { formatDateRange } from "@/utils/format";
+import { AssignmentIndicator, SafetyIndicator } from "@/features/events/components/StatusIndicators";
 
 /** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
 export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
@@ -36,6 +37,9 @@ export function EventCard({ event, attendeeView = false, registrationStatus }: E
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
               {registrationStatus && <StatusBadge status={registrationStatus} />}
+              {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}
+              {!attendeeView && <AssignmentIndicator event={event} />}
+              {!attendeeView && <SafetyIndicator event={event} />}
               {event.reassignedFrom && (
                 <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                   Reassigned

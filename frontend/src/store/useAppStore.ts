@@ -541,7 +541,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await logout();
     } finally {
-      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      // SPM-94 AC4 / 04-B C: nothing from the previous session survives logout.
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER, events: [] });
     }
   },
 

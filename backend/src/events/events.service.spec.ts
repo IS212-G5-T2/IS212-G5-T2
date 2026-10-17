@@ -509,13 +509,14 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('EVE-REV-04-C hides the event from an organiser who does not own it', async () => {
+    // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
+    it('EVE-REV-04-C refuses the event to an organiser who does not own it with 403', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
 
       await expect(
         service.get(organiserUser({ uid: 'someone-else' }), row.id),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('EVE-REV-04-D requires authentication to view event details', async () => {
@@ -559,6 +560,28 @@ describe('EventsService', () => {
       await expect(
         service.get(coordinatorUser(), row.id),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // SPM-94 AC2/AC3: the owning organiser's event carries the derived indicators.
+  // Oracle: unassigned Submitted gives awaiting assignment; a pending safety check on a Planning event gives AWAITING_CHECK.
+  describe('SPM-94 AC2/AC3: organiser status indicators', () => {
+    it('TRACK-EVENT-STATUS-02-A: an unassigned Submitted event shows awaiting Coordinator assignment', async () => {
+      const row = { ...savedEventRow(), status: 'Submitted', coordinator_id: null, coordinator_name: null, safety_status: null };
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
+    });
+
+    it('TRACK-EVENT-STATUS-03-A: a pending safety check on a Planning event shows AWAITING_CHECK', async () => {
+      const row = { ...savedEventRow(), status: 'Planning', coordinator_id: 'coord-9', safety_status: 'pending' };
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({ awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' });
     });
   });
 

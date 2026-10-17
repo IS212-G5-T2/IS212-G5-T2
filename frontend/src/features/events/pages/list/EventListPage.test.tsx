@@ -17,6 +17,16 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
+// SPM-94: the organiser list also reads /requests for drafts. These helpers serve /requests with no drafts and
+// count only event-list loads, so the SPM-36 load-sequence tests below keep their meaning.
+function serveEvents(...loads: Array<() => Promise<EventRecord[]>>) {
+  apiMock.mockImplementation(((path: string) =>
+    path === "/requests" ? Promise.resolve([]) : loads.shift()!()) as typeof api);
+}
+function eventLoads() {
+  return apiMock.mock.calls.filter(([path]) => path === "/events").length;
+}
+
 function submittedEvent(): EventRecord {
   const start = new Date();
   start.setDate(start.getDate() + 7);
@@ -254,9 +264,10 @@ describe("EventListPage", () => {
   it("EVE-CRE-07-F shows a load error with Retry and loads the events again when Retry is clicked", async () => {
     const user = userEvent.setup();
     // Arrange: the first load fails and the second load succeeds.
-    apiMock
-      .mockRejectedValueOnce(new Error("Could not load events."))
-      .mockResolvedValueOnce([submittedEvent()]);
+    serveEvents(
+      () => Promise.reject(new Error("Could not load events.")),
+      () => Promise.resolve([submittedEvent()]),
+    );
 
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -277,7 +288,7 @@ describe("EventListPage", () => {
 
     // Assert: the list is requested again, the event appears, and the alert is gone.
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -288,7 +299,7 @@ describe("EventListPage", () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
     const current = deferred<EventRecord[]>();
-    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    serveEvents(() => stale.promise, () => current.promise);
 
     render(
       <StrictMode>
@@ -299,7 +310,7 @@ describe("EventListPage", () => {
         </MemoryRouter>
       </StrictMode>,
     );
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
 
     // Act: settle only the superseded load with a different event.
     await act(async () => {
@@ -329,7 +340,7 @@ describe("EventListPage", () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
     const current = deferred<EventRecord[]>();
-    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    serveEvents(() => stale.promise, () => current.promise);
 
     render(
       <StrictMode>
@@ -340,7 +351,7 @@ describe("EventListPage", () => {
         </MemoryRouter>
       </StrictMode>,
     );
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
 
     // Act: settle only the superseded load with a failure.
     await act(async () => {
@@ -423,5 +434,71 @@ describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as With
     const card = (await screen.findByText("My Withdrawn Event")).closest("a")!;
     expect(within(card).getByText("Withdrawn")).toBeInTheDocument();
     expect(within(card).queryByText("Confirmed")).not.toBeInTheDocument();
+  });
+});
+
+// SPM-94 AC1 / R1: the organiser's Draft requests show in My Events; Submitted ones do not come from this list.
+describe("SPM-94 AC1: organiser drafts in My Events", () => {
+  it("TRACK-EVENT-STATUS-01-A: lists the organiser's Draft requests and links each to its draft", async () => {
+    // Arrange: one Draft and one Submitted request from /requests; the events list is empty.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests"
+        ? Promise.resolve([
+            { id: "00000000-0000-4000-8000-000000000508", fields: { name: "Draft Concert" }, status: "Draft", version: 1, eventId: null, updatedAt: new Date().toISOString() },
+            { id: "00000000-0000-4000-8000-000000000509", fields: { name: "Sent Request" }, status: "Submitted", version: 1, eventId: null, updatedAt: new Date().toISOString() },
+          ])
+        : Promise.resolve([])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the Draft is listed with a link to its request; the Submitted request is not in the drafts section.
+    const drafts = await screen.findByRole("region", { name: "Draft requests" });
+    expect(within(drafts).getByText("Draft Concert").closest("a")).toHaveAttribute(
+      "href",
+      "/requests/00000000-0000-4000-8000-000000000508",
+    );
+    expect(within(drafts).queryByText("Sent Request")).toBeNull();
+  });
+});
+
+// SPM-94 AC4 / 04-B A and B: each visit (Back, or a new tab) refetches the list and shows the server's latest status.
+describe("SPM-94 AC4: each visit shows the latest status", () => {
+  it("TRACK-EVENT-STATUS-04-B: a remount requests the list again and shows the newer status", async () => {
+    // Arrange: the first visit sees Submitted; by the next visit the server holds Approved.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([]) : Promise.resolve([submittedEvent()])) as typeof api);
+    const first = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(eventLoads()).toBe(1);
+    first.unmount();
+
+    // Act: revisit (Back or a new tab mounts the page again) after the server changed the status.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([]) : Promise.resolve([{ ...submittedEvent(), status: "approved" }])) as typeof api);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the list was requested again and the card shows Approved, not the stale Submitted.
+    const card = (await screen.findByText("Welcome Evening")).closest("a")!;
+    expect(eventLoads()).toBe(2);
+    expect(within(card).getByText("Approved")).toBeInTheDocument();
+    expect(within(card).queryByText("Submitted")).not.toBeInTheDocument();
   });
 });

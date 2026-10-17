@@ -14,6 +14,10 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
 import { VENUE_SUMMARY_SQL } from './venue-summary.js';
+import { deriveAssignmentIndicator, deriveSafetyIndicator } from './status/event-indicators.js';
+
+// SPM-94: the safety-check state the event's indicators read (null when no record exists).
+const SAFETY_STATUS = `(SELECT s.status FROM event_safety_checks s WHERE s.event_id = events.id) AS safety_status`;
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
@@ -110,6 +114,9 @@ export class EventsService {
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
       reassignedFrom: reassignedFrom(row, viewerUid),
+      // SPM-94 AC2/AC3: derived on read from the same row, so the list and the detail agree.
+      awaitingCoordinatorAssignment: deriveAssignmentIndicator(row.status, row.coordinator_id),
+      safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status),
       status: row.status.toLowerCase(),
       venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,
@@ -185,7 +192,7 @@ export class EventsService {
         )
       : user.roles.includes('ORGANISER')
         ? await this.database.query(
-            `SELECT events.*, ${VENUE_SUMMARY_SQL} FROM events WHERE organiser_id = $1 ORDER BY created_at DESC`,
+            `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS} FROM events WHERE organiser_id = $1 ORDER BY created_at DESC`,
             [user.uid],
           )
         : { rows: [] as pg.QueryResultRow[] };
@@ -219,7 +226,7 @@ export class EventsService {
        (SELECT COUNT(*)::integer FROM event_registrations
          WHERE event_id = events.id AND status = 'Registered'
        ) AS confirmed_registrations,
-       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}
+       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}
          FROM events WHERE id = $1`,
       [id],
     );
@@ -232,6 +239,11 @@ export class EventsService {
     const isAttendeeViewable =
       user.roles.includes('ATTENDEE') &&
       ATTENDEE_VISIBLE_STATUSES.includes(row.status);
+    // SPM-94 D6: an organiser who is not the owner is refused with 403 and no event data.
+    const isOrganiserOnly = user.roles.includes('ORGANISER') && !user.roles.some((role) => role === 'COORDINATOR' || role === 'ATTENDEE');
+    if (!isOwningOrganiser && isOrganiserOnly) {
+      throw new ForbiddenException('You can only view your own events.');
+    }
     if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable) {
       // SPM-46 AC4: someone who held the event before is told it moved (without
       // naming who has it now); anyone else still learns nothing.
