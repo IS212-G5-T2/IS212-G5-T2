@@ -175,3 +175,19 @@ Overall: RED, because G6 is blocked. Nothing else blocks.
 Note: the cycle log `cycle2.txt` shows G1 BLOCKED, because it was written before the comment fix. The gate file `gates/G1.json` and `metrics.md` now show G1 PASS. `metrics-history.csv` has one SPM-94 row, labelled cycle 1 by the tooling and recorded during this run, so it still shows G1 BLOCKED. That row is generated and left unedited.
 
 The 7-row matrix fixture (01-A) is reproduced as an e2e test: six event rows and one draft, EVT-507 absent.
+
+### Cycle 3 (17 Oct 2026, after the G6 parser fix)
+
+The reconciler (`ai/scripts/test-workflow/reconcile-mutation.mjs`) read `killed by: <suite> <mutant name>` only when a colon followed the suite name, and `run.mjs` prints no colon. The parser now accepts both forms. A regression test covers the runner format, and all 60 workflow tests pass. No runner output changed.
+
+| Gate | Result |
+|---|---|
+| G1 IDs | PASS |
+| G2 Spec conflicts and tiers | PASS |
+| G3 Test records | PASS |
+| G4 Determinism | PASS |
+| G5 Coverage | PASS (100% on the two SPM-94 files) |
+| G6 Mutation | PASS: 15 of 15 killed (backend 10/10, frontend 5/5), each with a named killing suite |
+| G7 Execution | PASS (cycle 2 run, 107 tests) |
+
+Overall: AMBER. Only open item: the AC2 interaction tier cell is MISSING (no test combines an unassigned Submitted event with a safety record). Matrix conflicts SC-SPM94-01, -02, -03, -04 and -06 still need PO confirmation.
