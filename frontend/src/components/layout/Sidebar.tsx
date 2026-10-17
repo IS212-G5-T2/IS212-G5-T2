@@ -26,7 +26,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
       )}
       <aside
         className={clsx(
-          "fixed inset-y-0 left-0 z-40 w-64 transform border-r border-gray-200 bg-white transition-transform lg:static lg:translate-x-0 dark:border-gray-800 dark:bg-gray-900",
+          "fixed inset-y-0 left-0 z-40 flex h-screen w-64 shrink-0 flex-col transform border-r border-gray-200 bg-white transition-transform lg:sticky lg:top-0 lg:translate-x-0 dark:border-gray-800 dark:bg-gray-900",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
         aria-label="Primary navigation"
@@ -35,7 +35,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
           <span className="text-xl" aria-hidden="true">🌐</span>
           <span className="text-lg font-bold text-gray-900 dark:text-gray-100">ConnectSphere</span>
         </div>
-        <nav className="space-y-1 px-3 py-4">
+        <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
           {items.map((item) => (
             <NavLink
               key={item.to}
@@ -56,7 +56,7 @@ export function Sidebar({ mobileOpen, onCloseMobile }: { mobileOpen: boolean; on
             </NavLink>
           ))}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 space-y-1 border-t border-gray-100 px-3 py-4 dark:border-gray-800">
+        <div className="mt-auto space-y-1 border-t border-gray-100 px-3 py-4 dark:border-gray-800">
           <button
             type="button"
             onClick={handleLogout}

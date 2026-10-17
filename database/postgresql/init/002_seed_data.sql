@@ -17,7 +17,7 @@ INSERT INTO resources (id, name, description) VALUES
     (4, 'Venue', 'Represents a physical venue and its relatively static information, such as location, capacity, facilities, accessibility, layouts, and operating information.'),
     (5, 'Venue Unavailability', 'Represents manually recorded periods when a venue cannot be used, such as maintenance or closure. Venue availability itself is derived from these periods together with existing bookings.'),
     (6, 'Venue Booking', 'Represents the reservation/request to use a particular venue for an event during a specified period, including its pending, approved, or rejected state.'),
-    (7, 'Equipment Request', 'Represents the equipment requirements requested for an event, including equipment type, quantity, and technical requirements.'),
+    (7, 'Equipment Request', 'Represents named equipment items requested for an event, including equipment name, equipment type, and quantity.'),
     (8, 'Equipment Reservation', 'Represents equipment allocated or reserved for a particular event and time period.'),
     (9, 'Attendee Registration', 'Represents an attendee''s registration for an event, including their registration status and withdrawal.'),
     (10, 'Notification', 'Represents a notification delivered to a user about relevant event-related activity, such as approvals, changes, bookings, or cancellations.'),
