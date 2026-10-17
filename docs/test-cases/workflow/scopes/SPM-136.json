@@ -1,0 +1,71 @@
+{
+  "story": "SPM-136",
+  "title": "Cancel an Event and Release its Reservations",
+  "note": "Jira is the source for AC1 to AC8. The Confluence matrix 'Cancel an Event & Release its Reservations Matrix' and its CANCEL-EVENT-01-A to 08-B case pages are the PRIMARY oracles (21 IDs). The matrix was not re-fetched in this cycle (Atlassian access denied to the agent); the IDs are those recorded in docs/specs/SPM-136-test-results.md. The waiting-list rows (06-B, the waiting half of 08-A) are covered by JOIN-WAITLIST-12 cases from SPM-138, listed in the scope's waitlist e2e entry. Decisions D2, D5, D9, D10, D11, F1, F3 are in docs/specs/SPM-136-test-results.md.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "backend-unit": [
+      "backend/src/events/cancel/cancel-event.service.spec.ts",
+      "backend/src/events/cancel/cancel-rules.spec.ts",
+      "backend/src/events/cancel/release.registry.spec.ts",
+      "backend/src/events/cancelled-guard.spec.ts",
+      "backend/src/events/cancelled-notifications.spec.ts",
+      "backend/src/events/status/status.removal.spec.ts",
+      "backend/src/events/status/released-venue.spec.ts",
+      "backend/src/registrations/withdrawal/registrations.withdraw.spec.ts"
+    ],
+    "backend-e2e": [
+      "backend/test/events-cancel.e2e-spec.ts",
+      "backend/test/events-cancelled-guard.e2e-spec.ts",
+      { "glob": "backend/test/registrations.waitlist.e2e-spec.ts", "titleMatch": "JOIN-WAITLIST-12" }
+    ],
+    "frontend": [
+      "frontend/src/features/events/lib/cancellation.test.ts",
+      "frontend/src/features/events/pages/detail/cancel/CancelEventDialog.test.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.cancel.test.tsx"
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/cancel/cancel-event.service.ts",
+      "backend/src/events/cancel/cancel-rules.ts",
+      "backend/src/events/cancel/cancel.messages.ts",
+      "backend/src/events/cancel/release.registry.ts",
+      "backend/src/events/cancelled-guard.ts",
+      "backend/src/venues/release/venue-booking.releaser.ts",
+      "backend/src/equipment/release/equipment-reservation.releaser.ts",
+      "backend/src/registrations/release/registration.releaser.ts",
+      "backend/src/registrations/release/waitlist.releaser.ts",
+      "backend/src/registrations/waitlist/cancel-releaser.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/lib/cancellation.ts",
+      "frontend/src/features/events/pages/detail/cancel/CancelEventDialog.tsx",
+      "frontend/src/features/events/pages/detail/cancel/cancelEvent.ts"
+    ]
+  },
+  "suites": [
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL"] },
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "backend-cancel-event",
+      "cwd": "backend",
+      "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm136.mutants.mjs"],
+      "mutantsFile": "backend/scripts/mutation/spm136.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
+      "id": "frontend-cancel-event",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm136.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm136.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

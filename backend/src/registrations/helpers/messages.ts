@@ -67,6 +67,8 @@ export const MESSAGES = {
   waitlistNotAvailable: 'This event still has available spots. Please register directly.',
   waitlistDuplicate: 'You are already on the waitlist for this event.',
   waitlistPromoted: (eventName: string) => `A spot opened up. You are now registered for ${eventName}.`,
+  // SPM-136 rule (a person cannot be both a waiting-list attendee and the organiser or assigned coordinator). ASSUMED wording.
+  ownEventWaitlist: 'An organiser or the assigned coordinator cannot join the waiting list for their own event.',
   waitlistCancelled: (eventName: string) =>
     `${eventName} has been cancelled. Your waitlist place is cancelled.`,
   // A-NOT-WITHDRAWABLE: a Removed or Cancelled entry cannot be withdrawn. The copy is ours (the spec gives the 409 only).

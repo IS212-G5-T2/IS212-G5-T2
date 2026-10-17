@@ -50,13 +50,16 @@ export function EventListPage() {
   // Coordinators land on pending Submitted requests. Rejected requests remain
   // accessible through the explicit Rejected filter rather than mixing into
   // their decision queue.
-  const [statusFilter, setStatusFilter] = useState(
-    currentUser.role === "coordinator" ? "submitted" : "",
-  );
+  const eventListFilters = useAppStore((s) => s.eventListFilters);
+  const setEventListFilters = useAppStore((s) => s.setEventListFilters);
+  const statusFilter =
+    eventListFilters.status ?? (currentUser.role === "coordinator" ? "submitted" : "");
+  const setStatusFilter = (status: string) => setEventListFilters({ status });
   // SPM-61: attendees filter by their own relationship to each event instead
   // of by raw workflow status.
   const isAttendee = currentUser.role === "attendee";
-  const [attendeeFilter, setAttendeeFilter] = useState<AttendeeBrowseFilter>("upcoming");
+  const attendeeFilter = eventListFilters.attendee as AttendeeBrowseFilter;
+  const setAttendeeFilter = (attendee: AttendeeBrowseFilter) => setEventListFilters({ attendee });
 
   const scoped = useMemo(() => {
     if (currentUser.role === "attendee") {

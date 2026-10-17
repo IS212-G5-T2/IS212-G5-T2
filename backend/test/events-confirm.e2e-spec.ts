@@ -624,13 +624,13 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Confirmed');
   });
 
-  // Unsupported target: Cancelled is SPM-136's and is refused until its handler exists (D3).
+  // Unsupported target: Cancelled is handled by SPM-136 (the cancel path), so this uses Completed, which no handler supports.
   it('an unsupported target status is refused with 400 UNSUPPORTED_TARGET_STATUS and nothing changes', async () => {
     // Arrange
     const { eventId } = await seedReadyEvent();
 
     // Act
-    const response = await statusChange(coordinator, eventId, 'Cancelled').expect(400);
+    const response = await statusChange(coordinator, eventId, 'Completed').expect(400);
 
     // Assert
     expect(response.body.code).toBe('UNSUPPORTED_TARGET_STATUS');
