@@ -514,6 +514,7 @@ export function EventDetailPage() {
       {planningView && !isAssignedCoordinator && (
         <PlanningInformationPanel
           view={planningView}
+          safetyIndicator={event.safetyIndicator}
           refreshError={planningError}
           people={
             <EventPeople

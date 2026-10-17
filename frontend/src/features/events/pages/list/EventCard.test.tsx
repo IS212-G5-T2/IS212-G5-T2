@@ -123,3 +123,20 @@ describe("EventCard", () => {
     expect((screen.getByText("Untouched event").closest("a, article, div[class]") as HTMLElement).textContent).not.toContain("Reassigned");
   });
 });
+
+// SPM-94: a planning event whose venue and equipment are reserved shows the combined label, then the safety check.
+describe("EventCard reserved planning labels", () => {
+  it("TRACK-EVENT-STATUS-01-A CARD: venue and equipment reserved show the combined label, then the awaiting safety check", () => {
+    render(
+      <MemoryRouter>
+        <EventCard
+          event={{ ...baseEvent(), status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"], safetyIndicator: "AWAITING_CHECK" }}
+        />
+      </MemoryRouter>,
+    );
+    const combined = screen.getByText("Equipment & Venue Reserved");
+    const safety = screen.getByText("Awaiting Safety Officer Check");
+    expect(combined).toBeInTheDocument();
+    expect(combined.compareDocumentPosition(safety) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});

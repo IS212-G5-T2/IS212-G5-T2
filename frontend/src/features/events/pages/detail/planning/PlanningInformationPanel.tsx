@@ -15,8 +15,17 @@ import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import { formatFieldValue } from "@/utils/planning";
 import { StateLabel, equipmentLabel, venueLabel } from "@/features/events/components/StatusLabels";
 
+/** The safety state in plain words; the one safety label stays in the event header. */
+const SAFETY_SENTENCE = {
+  AWAITING_CHECK: "Waiting for the Safety Officer's check.",
+  CHANGES_REQUESTED: "The Safety Officer has requested changes; your coordinator will respond.",
+  CLEARED: "The Safety Officer has cleared this event.",
+} as const;
+
 interface Props {
   view: PlanningView;
+  /** The safety state the server derives for the event; the organiser sees it here. */
+  safetyIndicator?: "AWAITING_CHECK" | "CHANGES_REQUESTED" | "CLEARED" | null;
   /** Set when the latest automatic refresh failed; the last data stays visible. */
   refreshError?: string;
   /** People for the event (organiser, coordinator), shown as a sub-section of Event Information. */
@@ -89,7 +98,7 @@ export function EventInformationList({ view }: { view: PlanningView }) {
   );
 }
 
-export function PlanningInformationPanel({ view, refreshError, people }: Props) {
+export function PlanningInformationPanel({ view, refreshError, people, safetyIndicator }: Props) {
   const headingId = useId();
   const replacements = view.pendingChanges.filter(
     (change): change is ReplacementRequired => change.kind === "replacement_venue_required",
@@ -179,6 +188,15 @@ export function PlanningInformationPanel({ view, refreshError, people }: Props) 
               </ul>
             ) : (
               <p className="text-gray-500 dark:text-gray-400">No equipment arranged yet.</p>
+            )}
+          </div>
+
+          <div>
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Safety Check</h3>
+            {safetyIndicator ? (
+              <p className="text-gray-700 dark:text-gray-300">{SAFETY_SENTENCE[safetyIndicator]}</p>
+            ) : (
+              <p className="text-gray-500 dark:text-gray-400">No safety check requested yet.</p>
             )}
           </div>
 
