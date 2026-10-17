@@ -224,6 +224,7 @@ export class EventPlanningRepository {
                 WHEN b.status = 'rejected' THEN 'Unavailable'
                 ELSE 'Cancelled'
               END AS planning_status,
+              b.status AS request_status,
               COALESCE(
                 json_agg(
                   json_build_object('id', n.id,
@@ -255,6 +256,7 @@ export class EventPlanningRepository {
       start: iso(row.start_at),
       end: iso(row.end_at),
       status: row.planning_status,
+      requestStatus: row.request_status,
       neighbours: (row.neighbours as NeighbourBooking[]).map((n) => ({
         ...n,
         start: iso(n.start),

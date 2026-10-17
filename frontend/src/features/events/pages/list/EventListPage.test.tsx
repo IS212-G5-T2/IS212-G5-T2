@@ -10,6 +10,7 @@ import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api
 import { useAppStore } from "@/store/useAppStore";
 import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
+import type { DraftRecord } from "@/features/events/types/draft";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -21,6 +22,16 @@ vi.mock("@/features/events/api/change-requests-api", () => ({ fetchMyChangeReque
 
 const apiMock = vi.mocked(api);
 const pendingRequestsMock = vi.mocked(fetchMyChangeRequests);
+
+// SPM-94: the organiser list also reads /requests for drafts. These helpers serve /requests with no drafts and
+// count only event-list loads, so the SPM-36 load-sequence tests below keep their meaning.
+function serveEvents(...loads: Array<() => Promise<EventRecord[]>>) {
+  apiMock.mockImplementation(((path: string) =>
+    path === "/requests" ? Promise.resolve([]) : loads.shift()!()) as typeof api);
+}
+function eventLoads() {
+  return apiMock.mock.calls.filter(([path]) => path === "/events").length;
+}
 
 function submittedEvent(): EventRecord {
   const start = new Date();
@@ -206,7 +217,7 @@ describe("EventListPage", () => {
       id: "00000000-0000-4000-8000-0000000000ff",
       name: "Rejected Gala",
       status: "rejected",
-      rejectionReason: "Venue unavailable for the requested date.",
+      rejectionReason: "Venue Unavailable for the requested date.",
     };
     apiMock.mockResolvedValue([submittedEvent(), rejected]);
 
@@ -351,9 +362,10 @@ describe("EventListPage", () => {
   it("EVE-CRE-07-F shows a load error with Retry and loads the events again when Retry is clicked", async () => {
     const user = userEvent.setup();
     // Arrange: the first load fails and the second load succeeds.
-    apiMock
-      .mockRejectedValueOnce(new Error("Could not load events."))
-      .mockResolvedValueOnce([submittedEvent()]);
+    serveEvents(
+      () => Promise.reject(new Error("Could not load events.")),
+      () => Promise.resolve([submittedEvent()]),
+    );
 
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -374,7 +386,7 @@ describe("EventListPage", () => {
 
     // Assert: the list is requested again, the event appears, and the alert is gone.
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -385,7 +397,7 @@ describe("EventListPage", () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
     const current = deferred<EventRecord[]>();
-    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    serveEvents(() => stale.promise, () => current.promise);
 
     render(
       <StrictMode>
@@ -396,7 +408,7 @@ describe("EventListPage", () => {
         </MemoryRouter>
       </StrictMode>,
     );
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
 
     // Act: settle only the superseded load with a different event.
     await act(async () => {
@@ -426,7 +438,7 @@ describe("EventListPage", () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
     const current = deferred<EventRecord[]>();
-    apiMock.mockReturnValueOnce(stale.promise).mockReturnValueOnce(current.promise);
+    serveEvents(() => stale.promise, () => current.promise);
 
     render(
       <StrictMode>
@@ -437,7 +449,7 @@ describe("EventListPage", () => {
         </MemoryRouter>
       </StrictMode>,
     );
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(eventLoads()).toBe(2);
 
     // Act: settle only the superseded load with a failure.
     await act(async () => {
@@ -553,5 +565,218 @@ describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as With
     const card = (await screen.findByText("My Withdrawn Event")).closest("a")!;
     expect(within(card).getByText("Withdrawn")).toBeInTheDocument();
     expect(within(card).queryByText("Confirmed")).not.toBeInTheDocument();
+  });
+});
+
+// SPM-94 AC1 / R1: the organiser's Draft requests show in My Events; Submitted ones do not come from this list.
+describe("SPM-94 AC1: organiser drafts in My Events", () => {
+  it("TRACK-EVENT-STATUS-01-A: lists the organiser's Draft requests and links each to its draft", async () => {
+    // Arrange: one Draft and one Submitted request from /requests; the events list is empty.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests"
+        ? Promise.resolve([
+            { id: "00000000-0000-4000-8000-000000000508", fields: { name: "Draft Concert" }, status: "Draft", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" },
+            { id: "00000000-0000-4000-8000-000000000509", fields: { name: "Sent Request" }, status: "Submitted", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" },
+          ])
+        : Promise.resolve([])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the Draft is listed with a link to its request; the Submitted request is not in the drafts section.
+    const drafts = await screen.findByRole("region", { name: "Draft requests" });
+    expect(within(drafts).getByText("Draft Concert").closest("a")).toHaveAttribute(
+      "href",
+      "/requests/00000000-0000-4000-8000-000000000508",
+    );
+    expect(within(drafts).queryByText("Sent Request")).toBeNull();
+  });
+});
+
+// SPM-94 AC4 / 04-B A and B: each visit (Back, or a new tab) refetches the list and shows the server's latest status.
+describe("SPM-94 AC4: each visit shows the latest status", () => {
+  it("TRACK-EVENT-STATUS-04-B: a remount requests the list again and shows the newer status", async () => {
+    // Arrange: the first visit sees Submitted; by the next visit the server holds Approved.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([]) : Promise.resolve([submittedEvent()])) as typeof api);
+    const first = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(eventLoads()).toBe(1);
+    first.unmount();
+
+    // Act: revisit (Back or a new tab mounts the page again) after the server changed the status.
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([]) : Promise.resolve([{ ...submittedEvent(), status: "approved" }])) as typeof api);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the list was requested again and the card shows Approved, not the stale Submitted.
+    const card = (await screen.findByText("Welcome Evening")).closest("a")!;
+    expect(eventLoads()).toBe(2);
+    expect(within(card).getByText("Approved")).toBeInTheDocument();
+    expect(within(card).queryByText("Submitted")).not.toBeInTheDocument();
+  });
+});
+
+// SPM-94 drafts section: a superseded drafts request that answers late must not replace the current drafts.
+describe("SPM-94 drafts: a superseded drafts load cannot replace the current one", () => {
+  it("TRACK-EVENT-STATUS-01-A: a late stale drafts response is ignored after Retry reloads the page", async () => {
+    // Arrange: the first events load fails so the page offers Retry; the first drafts request is held open.
+    const staleDrafts = deferred<DraftRecord[]>();
+    const currentDrafts = deferred<DraftRecord[]>();
+    const draftRequests = [staleDrafts, currentDrafts];
+    const eventLoads = [
+      () => Promise.reject(new Error("Could not load events.")),
+      () => Promise.resolve([] as EventRecord[]),
+    ];
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? draftRequests.shift()!.promise : eventLoads.shift()!()) as typeof api);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("alert");
+
+    // Act: Retry starts a second drafts request; it answers first with Draft B.
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await act(async () => {
+      currentDrafts.resolve([draftRecord("00000000-0000-4000-8000-000000000602", "Draft B")]);
+      await currentDrafts.promise;
+    });
+    expect(await screen.findByText("Draft B")).toBeTruthy();
+
+    // Then the superseded request answers late with Draft A.
+    await act(async () => {
+      staleDrafts.resolve([draftRecord("00000000-0000-4000-8000-000000000601", "Draft A")]);
+      await staleDrafts.promise;
+    });
+
+    // Assert: the current drafts stay; the stale answer never reaches the screen.
+    expect(screen.getByText("Draft B")).toBeTruthy();
+    expect(screen.queryByText("Draft A")).toBeNull();
+  });
+});
+
+function draftRecord(id: string, name: string): DraftRecord {
+  return { id, fields: { name }, status: "Draft", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" } as DraftRecord;
+}
+
+// SPM-94 drafts are the organiser's own: other roles never request them, and a failed drafts request leaves the events list intact.
+describe("SPM-94 drafts: role guard and failure path", () => {
+  it("TRACK-EVENT-STATUS-01-A: a coordinator never requests drafts or sees a Draft requests section", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([draftRecord("00000000-0000-4000-8000-000000000603", "Leaked Draft")]) : Promise.resolve([submittedEvent()])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(apiMock.mock.calls.some(([path]) => path === "/requests")).toBe(false);
+    expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
+    expect(screen.queryByText("Leaked Draft")).toBeNull();
+  });
+
+  it("TRACK-EVENT-STATUS-01-A: when the drafts request fails, the events still list and no error is shown", async () => {
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.reject(new Error("drafts unavailable")) : Promise.resolve([submittedEvent()])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("TRACK-EVENT-STATUS-01-A: a draft with no name shows the Untitled draft label", async () => {
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([draftRecord("00000000-0000-4000-8000-000000000604", "")]) : Promise.resolve([])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const drafts = await screen.findByRole("region", { name: "Draft requests" });
+    expect(within(drafts).getByText("Untitled draft")).toBeInTheDocument();
+  });
+});
+
+// SPM-94 AC2/AC3: the organiser list page hands each card the server's indicator fields.
+describe("SPM-94 AC2/AC3 on the organiser list page", () => {
+  // Kills: the list page dropping the indicator fields before they reach the card.
+  it("TRACK-EVENT-STATUS-01-A: the organiser list shows both indicators on a card", async () => {
+    serveEvents(() => Promise.resolve([{ ...submittedEvent(), status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"], safetyIndicator: "AWAITING_CHECK" }]));
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Awaiting Safety Officer Check")).toBeInTheDocument();
+  });
+});
+
+// SPM-94 ordering: every view lists events from the earliest start date to the latest, so a grid row reads left (earlier) to right (later).
+describe("SPM-94 ordering: events read from the earliest start date", () => {
+  it("TRACK-EVENT-STATUS-01-A ORDER: the cards follow the start date, whatever order the server sends", async () => {
+    const base = submittedEvent();
+    const at = (day: number, name: string) => {
+      const start = new Date(Date.UTC(2026, 9, day, 10));
+      return { ...base, id: `00000000-0000-4000-8000-0000000007${day}`, name, startDateTime: start.toISOString(), endDateTime: new Date(start.getTime() + 7_200_000).toISOString() };
+    };
+    serveEvents(() => Promise.resolve([at(30, "Day 30"), at(25, "Day 25"), at(28, "Day 28"), at(27, "Day 27")]));
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Day 25");
+    const names = screen.getAllByRole("link").map((a) => a.textContent ?? "").filter((t) => t.startsWith("Day "));
+    expect(names.map((t) => t.match(/Day \d+/)?.[0])).toEqual(["Day 25", "Day 27", "Day 28", "Day 30"]);
   });
 });

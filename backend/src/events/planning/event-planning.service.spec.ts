@@ -191,11 +191,11 @@ describe('SPM-97 organiser view', () => {
     },
   );
 
-  // EVENT-VIEW-01-SEC-1: only the owning organiser may look; others cannot probe for events.
-  it('EVENT-VIEW-01-SEC-1 hides the event from a different organiser', async () => {
+  // EVENT-VIEW-01-SEC-1: only the owning organiser may look; a different organiser is refused with 403 and no data (SPM-94 D6).
+  it('EVENT-VIEW-01-SEC-1 refuses the event to a different organiser without data', async () => {
     await expect(
       service.getPlanningView(organiser({ uid: 'organiser-2' }), EVENT_ID),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('EVENT-VIEW-01-SEC-1 rejects unauthenticated, attendee and malformed-id requests', async () => {
@@ -1621,9 +1621,10 @@ describe('SPM-85 resolution: date halves, per-booking closing rule, access', () 
     ]);
     const history = await service.changeHistory(organiser(), EVENT_ID);
     expect(history).toHaveLength(1);
+    // SPM-94 D6: a different organiser is refused with 403 and no data.
     await expect(
       service.changeHistory(organiser({ uid: 'organiser-2' }), EVENT_ID),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
     await expect(
       service.changeHistory({ uid: 'att-1', roles: ['ATTENDEE'] }, EVENT_ID),
     ).rejects.toBeInstanceOf(ForbiddenException);

@@ -17,6 +17,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { AssignmentIndicator, SafetyIndicator } from "@/features/events/components/StatusIndicators";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/features/events/pages/detail/ClarificationThread";
@@ -371,6 +372,13 @@ export function EventDetailPage() {
       {(isOwner || isAssignedCoordinator) && event.status !== "draft" && <ChangeRequestSummary eventId={event.id} />}
       {(isOwner || isAssignedCoordinator) && (
         <>
+          {/* SPM-94 AC2/AC3: the same indicators as the list card, on the planning page. */}
+          {isOwner && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              <AssignmentIndicator event={event} />
+              <SafetyIndicator event={event} />
+            </div>
+          )}
           {!statusFlow.includes(event.status) ? (
             <div className="mb-6">
               <StatusBadge status={event.status} />
@@ -517,6 +525,7 @@ export function EventDetailPage() {
       {planningView && !isAssignedCoordinator && (
         <PlanningInformationPanel
           view={planningView}
+          safetyIndicator={event.safetyIndicator}
           refreshError={planningError}
           people={
             <EventPeople

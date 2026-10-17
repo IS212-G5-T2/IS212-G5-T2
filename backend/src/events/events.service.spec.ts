@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser, UserRole } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
 
@@ -509,12 +509,27 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('EVE-REV-04-C hides the event from an organiser who does not own it', async () => {
+    // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
+    it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
 
       await expect(
         service.get(organiserUser({ uid: 'someone-else' }), row.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
+    // Oracle: D6 says existing rules for other roles are unchanged, so these keep the SPM-38 AC4 404.
+    it.each([
+      [['ORGANISER', 'COORDINATOR'] as UserRole[]],
+      [['ORGANISER', 'ATTENDEE'] as UserRole[]],
+    ])('TRACK-EVENT-STATUS-01-C D6 role %j: a non-owning organiser with another role gets 404, not 403', async (roles) => {
+      const row = savedEventRow();
+      db.query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        service.get(organiserUser({ uid: 'someone-else', roles }), row.id),
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
@@ -559,6 +574,39 @@ describe('EventsService', () => {
       await expect(
         service.get(coordinatorUser(), row.id),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  // SPM-94 AC2/AC3: the owning organiser's event carries the derived indicators.
+  // Oracle: unassigned Submitted gives awaiting assignment; a pending safety check on a Planning event gives AWAITING_CHECK.
+  describe('SPM-94 AC2/AC3: organiser status indicators', () => {
+    it('TRACK-EVENT-STATUS-02-A: an unassigned Submitted event shows awaiting Coordinator assignment', async () => {
+      const row = { ...savedEventRow(), status: 'Submitted', coordinator_id: null, coordinator_name: null, safety_status: null };
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
+    });
+
+    it('TRACK-EVENT-STATUS-03-A: a pending safety check on a Planning event shows AWAITING_CHECK', async () => {
+      const row = { ...savedEventRow(), status: 'Planning', coordinator_id: 'coord-9', safety_status: 'pending' };
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({ awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' });
+    });
+
+    // SPM-94 F4: the safety state is never sent to an attendee, even on a Confirmed event with an approved safety check.
+    it('TRACK-EVENT-STATUS-03-B F4: an attendee gets no safety indicator field', async () => {
+      const attendeeVisible = { ...savedEventRow(), status: 'Confirmed', safety_status: 'approved', confirmed_registrations: 1 };
+      db.query.mockResolvedValueOnce({ rows: [attendeeVisible] }).mockResolvedValueOnce({ rows: [] });
+
+      const event = await service.get(attendeeUser(), attendeeVisible.id);
+
+      expect(event).not.toHaveProperty('safetyIndicator');
+      expect(event).toHaveProperty('awaitingCoordinatorAssignment', false);
     });
   });
 

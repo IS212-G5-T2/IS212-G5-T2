@@ -14,6 +14,13 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
 import { VENUE_SUMMARY_SQL } from './venue-summary.js';
+import { deriveAssignmentIndicator, deriveSafetyIndicator } from './status/event-indicators.js';
+
+// SPM-94: the safety-check state the event's indicators read (null when no record exists).
+const SAFETY_STATUS = `(SELECT s.status FROM event_safety_checks s WHERE s.event_id = events.id) AS safety_status`;
+// SPM-94 planning cards: the latest venue request and every equipment reservation status (organiser and coordinator lists only).
+const VENUE_REQUEST_STATUS = `(SELECT b.status FROM venue_bookings b WHERE b.event_id = events.id ORDER BY b.created_at DESC LIMIT 1) AS venue_request_status`;
+const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.created_at), '{}') FROM equipment_reservations r WHERE r.event_id = events.id) AS equipment_statuses`;
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
@@ -114,7 +121,8 @@ export class EventsService {
     };
   }
 
-  private record(row: pg.QueryResultRow, viewerUid?: string) {
+  // SPM-94 F4: the safety state is shown only to the owning organiser and the assigned coordinator (showSafety).
+  private record(row: pg.QueryResultRow, viewerUid?: string, showSafety = false) {
     return {
       id: row.id,
       name: row.event_name,
@@ -125,6 +133,11 @@ export class EventsService {
       coordinatorId: row.coordinator_id ?? undefined,
       coordinatorName: row.coordinator_name ?? undefined,
       reassignedFrom: reassignedFrom(row, viewerUid),
+      // SPM-94 AC2/AC3: derived on read from the same row, so the list and the detail agree.
+      awaitingCoordinatorAssignment: deriveAssignmentIndicator(row.status, row.coordinator_id),
+      ...(showSafety ? { safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status) } : {}),
+      // Planning arrangements are shown to the same viewers as the safety state (SPM-94 cards).
+      ...(showSafety ? { venueRequestStatus: row.venue_request_status ?? null, equipmentStatuses: row.equipment_statuses ?? [] } : {}),
       status: row.status.toLowerCase(),
       venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,
@@ -173,6 +186,8 @@ export class EventsService {
   // organiser/coordinator-facing endpoint.
   async list(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
+    // SPM-94 F4: organisers and coordinators see the safety state on their lists; attendees never do.
+    const showSafety = user.roles.includes('ORGANISER') || user.roles.includes('COORDINATOR');
     // The attendee list settles the waitlists that are due before it reads statuses. The job scans only due lists,
     // so an event that is not due takes no lock and is not written.
     if (user.roles.includes('ATTENDEE') && !user.roles.includes('COORDINATOR'))
@@ -180,7 +195,7 @@ export class EventsService {
     // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
     const result = user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT} FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC`,
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ATTENDEE')
@@ -199,7 +214,7 @@ export class EventsService {
         )
       : user.roles.includes('ORGANISER')
         ? await this.database.query(
-            `SELECT events.*, ${VENUE_SUMMARY_SQL} FROM events WHERE organiser_id = $1 ORDER BY created_at DESC`,
+            `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE organiser_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
             [user.uid],
           )
         : { rows: [] as pg.QueryResultRow[] };
@@ -208,7 +223,7 @@ export class EventsService {
     // tens of MB per attached file and make the page time out; the detail
     // endpoint (get) still returns the full attachments including dataUrl.
     return result.rows.map((row) => {
-      const record = this.record(row, user.uid);
+      const record = this.record(row, user.uid, showSafety);
       return {
         ...record,
         attachments: (record.attachments as EventAttachment[]).map(
@@ -233,7 +248,7 @@ export class EventsService {
        (SELECT COUNT(*)::integer FROM event_registrations
          WHERE event_id = events.id AND status = 'Registered'
        ) AS confirmed_registrations,
-       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}
+       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES}
          FROM events WHERE id = $1`,
       [id],
     );
@@ -246,6 +261,11 @@ export class EventsService {
     const isAttendeeViewable =
       user.roles.includes('ATTENDEE') &&
       ATTENDEE_VISIBLE_STATUSES.includes(row.status);
+    // SPM-94 D6: an organiser who is not the owner is refused with 403 and no event data.
+    const isOrganiserOnly = user.roles.includes('ORGANISER') && !user.roles.some((role) => role === 'COORDINATOR' || role === 'ATTENDEE');
+    if (!isOwningOrganiser && isOrganiserOnly) {
+      throw new ForbiddenException('You can only view your own events.');
+    }
     if (!isOwningOrganiser && !isAssignedCoordinator && !isAttendeeViewable) {
       // SPM-46 AC4: someone who held the event before is told it moved (without
       // naming who has it now); anyone else still learns nothing.
@@ -262,7 +282,7 @@ export class EventsService {
     // A closed waitlist is settled on read for an attendee who may see the event, so the response never shows a stale
     // waiting entry. Organisers, coordinators and anyone not allowed to view the event take no lock and write nothing.
     if (user.roles.includes('ATTENDEE') && isAttendeeViewable) await settleIfDue(this.database, id, this.clock.now());
-    return this.record(row, user.uid);
+    return this.record(row, user.uid, isOwningOrganiser || isAssignedCoordinator);
   }
   private requireCoordinator(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);

@@ -548,8 +548,17 @@ export class EventPlanningService {
     const isOwner =
       identity.roles.includes('ORGANISER') &&
       event.organiserId === identity.uid;
-    if (!isCoordinator && !isOwner)
+    if (!isCoordinator && !isOwner) {
+      // SPM-94 D6: an organiser who does not own the event, and holds no other role, is refused with 403 and no data
+      // (the same rule as GET /api/events/:id). Other roles keep the existing 404.
+      if (
+        identity.roles.includes('ORGANISER') &&
+        !identity.roles.includes('COORDINATOR') &&
+        !identity.roles.includes('ATTENDEE')
+      )
+        throw new ForbiddenException('You can only view your own events.');
       throw new NotFoundException('Event not found.');
+    }
     return { user: identity, event, isCoordinator };
   }
 

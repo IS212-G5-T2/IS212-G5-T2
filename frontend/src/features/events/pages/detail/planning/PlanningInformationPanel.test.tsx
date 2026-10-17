@@ -229,3 +229,20 @@ describe("PlanningInformationPanel: refresh problems", () => {
     expect(row("Room layout")).not.toHaveTextContent("Banquet");
   });
 });
+
+// SPM-94: the organiser sees the safety state in the planning information, in words (the label stays in the header).
+describe("planning information shows the safety check to the organiser", () => {
+  it.each([
+    ["AWAITING_CHECK", "Waiting for the Safety Officer's check."],
+    ["CHANGES_REQUESTED", "The Safety Officer has requested changes; your coordinator will respond."],
+    ["CLEARED", "The Safety Officer has cleared this event."],
+  ] as const)("TRACK-EVENT-STATUS-03-B PLANNING: %s is described in the planning information", (indicator, sentence) => {
+    render(<PlanningInformationPanel view={view()} safetyIndicator={indicator} />);
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+  });
+
+  it("TRACK-EVENT-STATUS-03-B PLANNING: no safety check requested yet when there is no indicator", () => {
+    render(<PlanningInformationPanel view={view()} safetyIndicator={null} />);
+    expect(screen.getByText("No safety check requested yet.")).toBeInTheDocument();
+  });
+});

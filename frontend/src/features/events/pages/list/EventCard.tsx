@@ -3,6 +3,8 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { EventRecord } from "@/types";
 import { formatDateRange } from "@/utils/format";
+import { AssignmentIndicator, SafetyIndicator } from "@/features/events/components/StatusIndicators";
+import { StateLabel, cardArrangementLabels } from "@/features/events/components/StatusLabels";
 
 /** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
 export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
@@ -37,9 +39,13 @@ export function EventCard({ event, attendeeView = false, registrationStatus, cha
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{`from ${event.reassignedFrom.coordinatorName}`}</p>
               )}
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
               {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
+              {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}
+              {!attendeeView && <AssignmentIndicator event={event} />}
+              {!attendeeView && cardArrangementLabels(event).map((l) => <StateLabel key={`${l.tone}-${l.label}`} {...l} />)}
+              {!attendeeView && <SafetyIndicator event={event} />}
               {changeRequestPending && (
                 <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
                   Change requested: Pending

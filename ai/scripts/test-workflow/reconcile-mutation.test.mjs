@@ -66,3 +66,10 @@ test('suiteLinks maps each suite to its test files and non-equivalent mutants', 
   assert.deepEqual(links.find((l) => l.suite === 'removal'), { entry: 'be', suite: 'removal', files: ['backend/test/a.e2e-spec.ts', 'backend/test/b.e2e-spec.ts'], mutants: ['R1', 'R2'] });
   assert.deepEqual(links.find((l) => l.suite === 'unit').mutants, ['R2']);
 });
+
+test('reads the killing suite from the runner format "killed by: <suite> <mutant name>"', () => {
+  const SUITES = new Set(['unit', 'e2e', 'assignE2e']);
+  const parsed = parseLog('baseline e2e: green\nM2       killed           killed by: e2e owner filter removed from the organiser list (01-A)\nM3e      killed           killed by: assignE2e the 404 owner branch disabled only\n', SUITES);
+  assert.deepEqual(parsed.results.get('M2').killers, ['e2e']);
+  assert.deepEqual(parsed.results.get('M3e').killers, ['assignE2e']);
+});

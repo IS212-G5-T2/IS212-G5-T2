@@ -423,7 +423,7 @@ describe("PlanningInformationPage", () => {
     current = { ...current, safetyCheck: { status: "pending", requestedDate: "2026-10-13T10:00:00.000Z" } };
     await user.click(button);
     await waitFor(() => expect(postCalls().map(([path]) => path)).toEqual([`/events/${EVENT_ID}/safety-check/request`]));
-    expect(await screen.findByText("Pending")).toBeInTheDocument();
+    expect(await screen.findByText("Awaiting Safety Officer Check")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Request For Safety Check" })).not.toBeInTheDocument();
   });
 
