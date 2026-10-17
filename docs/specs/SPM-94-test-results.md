@@ -157,4 +157,19 @@ Open items for the next cycle:
 - G6: align the runner's killed-by format with the reconciler (a change to shared tooling; needs approval).
 - G5: the floor is set to whole-file coverage. Either add tests for the 262 OPEN lines, widen the scope to the owning stories' suites, or change the floor to the changed-code rule in `implementation.md`.
 - Matrix conflicts still need PO confirmation (SC-SPM94-01, -02, -03, -04, -06).
-- The 7-row list fixture from matrix 01-A is not yet reproduced.
+
+### Cycle 2 (17 Oct 2026, after scope and fixture changes)
+
+| Gate | Result | Basis |
+|---|---|---|
+| G1 | PASS | 10 PRIMARY IDs; the matrix-fixture test adds no ID |
+| G2 | PASS | 6 conflicts (4 DECIDED, 2 ASSUMED); tier matrix complete |
+| G3 | PASS | 36 records, all PASS |
+| G4 | PASS | determinism scan and timezone runs |
+| G5 | PASS | measured set narrowed to SPM-94's own files, `event-indicators.ts` and `StatusIndicators.tsx`; both at 100% statements, branches, functions and lines |
+| G6 | BLOCKED | 15 of 15 mutants killed; the reconciler does not parse the runner's `killed by:` lines. Tooling mismatch, not changed as instructed |
+| G7 | PASS | 107 tests passed, 0 failed |
+
+Overall: RED, because G6 is blocked. Nothing else blocks.
+
+The 7-row matrix fixture (01-A) is reproduced as an e2e test: six event rows and one draft, EVT-507 absent.

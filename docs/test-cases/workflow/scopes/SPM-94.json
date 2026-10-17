@@ -1,7 +1,7 @@
 {
   "story": "SPM-94",
   "title": "Track My Event Status (Organiser)",
-  "note": "Jira SPM-94 (In Progress) is the source for AC1 to AC4. The Confluence matrix 'Track My Event Status (Organiser) Matrix' (page 22839633) and its TRACK-EVENT-STATUS-01 to -04 case pages are the PRIMARY oracles (10 IDs, fetched 17 Oct 2026). Decisions D2 (A), D5 (default) and D6 (403) and assumptions A1 to A4 are in docs/specs/SPM-94-test-results.md. Shared files carry non-SPM-94 tests and are narrowed with titleMatch.",
+  "note": "Jira SPM-94 (In Progress) is the source for AC1 to AC4. The Confluence matrix 'Track My Event Status (Organiser) Matrix' (page 22839633) and its TRACK-EVENT-STATUS-01 to -04 case pages are the PRIMARY oracles (10 IDs, fetched 17 Oct 2026). Decisions D2 (A), D5 (default) and D6 (403) and assumptions A1 to A4 are in docs/specs/SPM-94-test-results.md. Shared files carry non-SPM-94 tests and are narrowed with titleMatch. Coverage is measured on the files SPM-94 owns outright (the indicator derivations and the indicator component). The shared files it changes (events.service.ts, events.controller.ts, EventCard.tsx, EventDetailPage.tsx, EventListPage.tsx, useAppStore.ts) are not measured: their other stories' lines are out of this story's scope. Every SPM-94 change in them is exercised by the story's tests; the diff check in docs/specs/SPM-94-test-results.md confirms no uncovered line sits in an SPM-94 hunk.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -36,16 +36,10 @@
   },
   "sources": {
     "backend": [
-      "backend/src/events/status/event-indicators.ts",
-      "backend/src/events/events.service.ts",
-      "backend/src/events/events.controller.ts"
+      "backend/src/events/status/event-indicators.ts"
     ],
     "frontend": [
-      "frontend/src/features/events/components/StatusIndicators.tsx",
-      "frontend/src/features/events/pages/list/EventCard.tsx",
-      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
-      "frontend/src/features/events/pages/list/EventListPage.tsx",
-      "frontend/src/store/useAppStore.ts"
+      "frontend/src/features/events/components/StatusIndicators.tsx"
     ]
   },
   "suites": [

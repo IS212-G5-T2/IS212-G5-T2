@@ -38,6 +38,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
+  let createdDraftIds: string[];
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
@@ -50,6 +51,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   beforeEach(async () => {
     createdEventIds = [];
     createdUserIds = [];
+    createdDraftIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -59,6 +61,9 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     await app.close();
     if (createdEventIds.length) {
       await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [createdEventIds]);
+    }
+    if (createdDraftIds.length) {
+      await pool.query('DELETE FROM event_drafts WHERE id = ANY($1::uuid[])', [createdDraftIds]);
     }
     if (createdUserIds.length) {
       await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [createdUserIds]);
@@ -333,4 +338,59 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(detail.headers['cache-control']).toBe('no-store');
     expect(detail.body.status).toBe('approved');
   });
+
+  // TRACK-EVENT-STATUS-01-A (matrix fixture): EVT-501 to EVT-506 and EVT-508 for ORG-01, EVT-507 for ORG-02.
+  // Matrix rows: Submitted, Under Review, Planning, Planning, Confirmed, Rejected, Draft.
+  // Under Review is not a stored status, so EVT-502 is seeded Approved (ASSUMPTION A1, see the spec-conflict register).
+  // Draft EVT-508 is read from the drafts API and shown in its own section (owner decision, see the spec-conflict register).
+  // Kills: M2 (owner filter removed: EVT-507 would appear), status drift on any row, a draft merged into the event rows.
+  it('TRACK-EVENT-STATUS-01-A (matrix fixture): six events and one draft for ORG-01; EVT-507 absent', async () => {
+    // Arrange: the seven matrix rows, plus ORG-02's EVT-507.
+    const org1 = await createDatabaseUser('ORGANISER', 'SPM94 Organiser One');
+    const org2 = await createDatabaseUser('ORGANISER', 'SPM94 Organiser Two');
+    const coordinator = await createDatabaseUser('COORDINATOR', 'SPM94 Coordinator One');
+    const evt501 = await seedEvent({ organiserId: org1.uid, name: 'EVT-501 Student Mixer', status: 'Submitted' });
+    const evt502 = await seedEvent({ organiserId: org1.uid, name: 'EVT-502 Charity Bazaar', status: 'Approved', coordinatorId: coordinator.uid });
+    const evt503 = await seedEvent({ organiserId: org1.uid, name: 'EVT-503 Tech Showcase', status: 'Planning', coordinatorId: coordinator.uid, safety: 'pending' });
+    const evt504 = await seedEvent({ organiserId: org1.uid, name: 'EVT-504 Sports Day', status: 'Planning', coordinatorId: coordinator.uid, safety: 'changes_needed' });
+    const evt505 = await seedEvent({ organiserId: org1.uid, name: 'EVT-505 Orientation Talk', status: 'Confirmed', coordinatorId: coordinator.uid, safety: 'approved' });
+    const evt506 = await seedEvent({ organiserId: org1.uid, name: 'EVT-506 Late Request', status: 'Rejected' });
+    const evt507 = await seedEvent({ organiserId: org2.uid, name: 'EVT-507 Poetry Night', status: 'Submitted' });
+    const draftId = randomUUID();
+    await pool.query(
+      `INSERT INTO event_drafts (id, organiser_id, fields, status, version)
+       VALUES ($1, $2, $3, 'Draft', 1)`,
+      [draftId, org1.uid, JSON.stringify({ name: 'EVT-508 Draft Concert', purpose: 'Concert', description: '' })],
+    );
+    createdDraftIds.push(draftId);
+
+    // Act: the organiser's event list (mine=true, plain) and the drafts list.
+    const list = (await listFor(org1.cookie, '?mine=true')).body as Listed[];
+    const plain = (await listFor(org1.cookie)).body as Listed[];
+    const drafts = (await request(app.getHttpServer()).get('/api/requests').set('Cookie', org1.cookie).expect(200)).body as Array<{ id: string; fields: { name: string }; status: string }>;
+
+    // Assert: six event rows with the literal statuses, in both forms of the list.
+    const expected = [
+      { id: evt501, name: 'EVT-501 Student Mixer', status: 'submitted', awaitingCoordinatorAssignment: true },
+      { id: evt502, name: 'EVT-502 Charity Bazaar', status: 'approved', awaitingCoordinatorAssignment: false },
+      { id: evt503, name: 'EVT-503 Tech Showcase', status: 'planning', safetyIndicator: 'AWAITING_CHECK' },
+      { id: evt504, name: 'EVT-504 Sports Day', status: 'planning', safetyIndicator: 'CHANGES_REQUESTED' },
+      { id: evt505, name: 'EVT-505 Orientation Talk', status: 'confirmed', safetyIndicator: 'CLEARED' },
+      { id: evt506, name: 'EVT-506 Late Request', status: 'rejected' },
+    ];
+    expect(list.map((e) => e.id).sort()).toEqual(expected.map((e) => e.id).sort());
+    expect(plain.map((e) => e.id).sort()).toEqual(expected.map((e) => e.id).sort());
+    const byId = new Map(list.map((e) => [e.id, e]));
+    for (const row of expected) expect(byId.get(row.id)).toMatchObject(row);
+
+    // Assert: the draft is in the drafts list (EVT-508), not in the event rows; EVT-507 is in neither.
+    expect(drafts.map((d) => ({ id: d.id, name: d.fields.name, status: d.status }))).toEqual([
+      { id: draftId, name: 'EVT-508 Draft Concert', status: 'Draft' },
+    ]);
+    expect(list.find((e) => e.id === draftId)).toBeUndefined();
+    expect(list.find((e) => e.id === evt507)).toBeUndefined();
+    expect(drafts.find((d) => d.id === evt507)).toBeUndefined();
+    expect(list.length + drafts.length).toBe(7);
+  });
 });
+
