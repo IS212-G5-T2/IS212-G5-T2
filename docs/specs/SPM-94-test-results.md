@@ -162,7 +162,7 @@ Open items for the next cycle:
 
 | Gate | Result | Basis |
 |---|---|---|
-| G1 | PASS | 10 PRIMARY IDs; the matrix-fixture test adds no ID |
+| G1 | PASS (after a rerun) | First run BLOCKED: two spec-conflict labels in a test comment were read as test IDs. Reworded the comment; `check-ids.mjs` rerun gives PASS: 10 PRIMARY IDs, 0 invented, 0 orphans |
 | G2 | PASS | 6 conflicts (4 DECIDED, 2 ASSUMED); tier matrix complete |
 | G3 | PASS | 36 records, all PASS |
 | G4 | PASS | determinism scan and timezone runs |
@@ -171,5 +171,7 @@ Open items for the next cycle:
 | G7 | PASS | 107 tests passed, 0 failed |
 
 Overall: RED, because G6 is blocked. Nothing else blocks.
+
+Note: the cycle log `cycle2.txt` shows G1 BLOCKED, because it was written before the comment fix. The gate file `gates/G1.json` and `metrics.md` now show G1 PASS. `metrics-history.csv` has one SPM-94 row, labelled cycle 1 by the tooling and recorded during this run, so it still shows G1 BLOCKED. That row is generated and left unedited.
 
 The 7-row matrix fixture (01-A) is reproduced as an e2e test: six event rows and one draft, EVT-507 absent.
