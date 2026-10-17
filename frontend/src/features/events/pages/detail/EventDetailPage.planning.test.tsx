@@ -44,7 +44,6 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
     venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering"], accessibility: ["Wheelchair ramps"] },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-09-13T00:00:00.000Z",
     updatedAt: "2026-10-04T09:00:00.000Z",
     ...overrides,
@@ -276,7 +275,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
 
     const form = await screen.findByRole("form", { name: /update event information/i });
     expect(within(form).getByLabelText(/expected attendance/i)).toHaveValue(80);
-    expect(within(form).getAllByText("Needs review")).toHaveLength(REVIEW_FIELDS.length);
+    expect(within(form).getAllByText("Changes need review")).toHaveLength(REVIEW_FIELDS.length);
 
     const card = await screen.findByRole("article", { name: /expected attendance/i });
     expect(within(card).getByText("Proposed value").nextElementSibling).toHaveTextContent("150");

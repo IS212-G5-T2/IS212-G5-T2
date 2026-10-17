@@ -12,6 +12,7 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
+import { CHANGE_REQUEST_NOTICE, notifyPendingChangeRequest } from '../events/change-requests/change-request-notice.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
@@ -166,6 +167,8 @@ export class LeadAssignmentService {
           eventId,
         ],
       );
+      // SPM-64 AC3: a change request made before assignment reaches the coordinator now.
+      await notifyPendingChangeRequest(client, eventId, event.event_name, coordinator.id);
       return {
         event: {
           id: eventId,
@@ -258,7 +261,7 @@ export class LeadAssignmentService {
       await client.query(
         `UPDATE notifications SET read = true
           WHERE recipient_id = $1 AND related_event_id = $2
-            AND type IN ('coordinator_assignment', 'coordinator_reassignment') AND read = false`,
+            AND type IN ('coordinator_assignment', 'coordinator_reassignment', '${CHANGE_REQUEST_NOTICE}') AND read = false`,
         [event.coordinator_id, eventId],
       );
       await client.query(
@@ -276,6 +279,8 @@ export class LeadAssignmentService {
           eventId,
         ],
       );
+      // SPM-64 AC3: a pending change request follows the event to the new coordinator.
+      await notifyPendingChangeRequest(client, eventId, event.event_name, coordinator.id);
       return {
         event: {
           id: eventId,

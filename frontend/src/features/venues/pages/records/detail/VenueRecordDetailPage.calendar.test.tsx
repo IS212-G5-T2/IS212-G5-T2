@@ -73,7 +73,6 @@ beforeEach(() => {
       venueRequirements: { minCapacity: 10, accessibility: [], facilities: [], layout: "" },
       equipmentNeeds: "",
       registrationEnabled: false,
-      changeRequests: [],
       createdAt: "2030-01-01T00:00:00.000Z",
       updatedAt: "2030-01-01T00:00:00.000Z",
     }],
@@ -114,7 +113,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
         id: "event-1", name: "New workshop", purpose: "", description: "", organiserId: "org-1", organiserName: "Organiser", status: "submitted",
         startDateTime: "2030-01-12T06:00:00.000Z", endDateTime: "2030-01-12T07:00:00.000Z", expectedAttendance: 20,
         venueRequirements: { minCapacity: 10, accessibility: [], facilities: [], layout: "" }, equipmentNeeds: "", registrationEnabled: false,
-        changeRequests: [], createdAt: "2030-01-01T00:00:00.000Z", updatedAt: "2030-01-01T00:00:00.000Z",
+        createdAt: "2030-01-01T00:00:00.000Z", updatedAt: "2030-01-01T00:00:00.000Z",
       }],
     });
     apiMock.mockResolvedValue(venue);

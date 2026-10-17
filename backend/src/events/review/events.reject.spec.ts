@@ -53,7 +53,14 @@ const database = {
 const VALID_REASON = 'Venue unavailable for the requested date.';
 // Notification types a coordinator reads: SPM-123 assignment, SPM-47 reassignment to and away from them.
 // SPM-136 adds EventCancelled for coordinators (assigned coordinator is notified of a cancellation).
-const COORDINATOR_NOTIFICATION_TYPES = ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment', 'EventCancelled'];
+// SPM-64 AC3 adds the organiser's change request notice to the coordinator's feed.
+const COORDINATOR_NOTIFICATION_TYPES = [
+  'coordinator_assignment',
+  'coordinator_reassignment',
+  'coordinator_unassignment',
+  'EventCancelled',
+  'coordinator_change_request',
+];
 
 // Build a letters-only, >=3-word reason of an exact trimmed length.
 function reasonOfLength(n: number): string {

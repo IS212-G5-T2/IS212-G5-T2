@@ -24,7 +24,6 @@ const event: EventRecord = {
   attachments: [],
   equipmentNeeds: "Two microphones",
   registrationEnabled: false,
-  changeRequests: [],
   createdAt: "2030-01-01T00:00:00.000Z",
   updatedAt: "2030-01-01T00:00:00.000Z",
 };

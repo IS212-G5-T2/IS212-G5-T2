@@ -38,7 +38,6 @@ function reassignedEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: [], accessibility: [] },
     equipmentNeeds: "",
     registrationEnabled: false,
-    changeRequests: [],
     reassignedFrom: { coordinatorName: "Coordinator 1", reassignedAt },
     createdAt: "2026-09-15T00:00:00.000Z",
     updatedAt: "2026-10-07T06:05:00.000Z",

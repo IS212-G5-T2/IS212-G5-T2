@@ -16,9 +16,11 @@ interface EventCardProps {
   attendeeView?: boolean;
   /** The attendee's own registration for this event, shown as its badge beside the event status. */
   registrationStatus?: CardRegistrationStatus;
+  /** SPM-64 AC5: the organiser has a change request awaiting the coordinator's review. */
+  changeRequestPending?: boolean;
 }
 
-export function EventCard({ event, attendeeView = false, registrationStatus }: EventCardProps) {
+export function EventCard({ event, attendeeView = false, registrationStatus, changeRequestPending = false }: EventCardProps) {
   // For an attendee, an approved or confirmed event is only "published": that is not a registration, so it carries no badge.
   const showEventBadge = !(attendeeView && (event.status === "approved" || event.status === "confirmed"));
   // A registration on a cancelled event shows the event's red Cancelled badge, not a green Confirmed one (SPM-136).
@@ -38,6 +40,11 @@ export function EventCard({ event, attendeeView = false, registrationStatus }: E
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
               {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
+              {changeRequestPending && (
+                <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
+                  Change requested: Pending
+                </span>
+              )}
               {event.reassignedFrom && (
                 <span className="rounded-full bg-primary-50 px-2 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
                   Reassigned

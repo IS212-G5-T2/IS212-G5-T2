@@ -1,4 +1,5 @@
 import { api } from "@/utils/api";
+import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
 import type { EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
@@ -47,6 +48,30 @@ export function EventListPage() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [retry]);
+  // SPM-64 AC5: an organiser's dashboard marks events with a change request awaiting review.
+  // If that cannot load, the events still show and a notice says the badges are missing.
+  const isOrganiser = currentUser.role === "organiser";
+  const [pendingChangeEvents, setPendingChangeEvents] = useState<ReadonlySet<string>>(new Set());
+  const [changeRequestError, setChangeRequestError] = useState("");
+  useEffect(() => {
+    if (!isOrganiser) return;
+    let active = true;
+    setChangeRequestError("");
+    fetchMyChangeRequests("Pending")
+      .then((requests) => {
+        if (active) setPendingChangeEvents(new Set(requests.map((request) => request.eventId)));
+      })
+      .catch((e: unknown) => {
+        if (!active) return;
+        setPendingChangeEvents(new Set());
+        setChangeRequestError(
+          `Could not check your events for pending change requests.${e instanceof Error && e.message ? ` ${e.message}` : ""}`,
+        );
+      });
+    return () => {
+      active = false;
+    };
+  }, [isOrganiser, retry]);
   // Coordinators land on pending Submitted requests. Rejected requests remain
   // accessible through the explicit Rejected filter rather than mixing into
   // their decision queue.
@@ -125,6 +150,13 @@ export function EventListPage() {
         )}
       </div>
 
+      {changeRequestError && !error && (
+        <div role="alert" className="mb-4 flex flex-wrap items-center gap-2 rounded-md border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-900 dark:border-warning-700 dark:bg-warning-900/20 dark:text-warning-200">
+          {changeRequestError}{" "}
+          <Button size="sm" variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button>
+        </div>
+      )}
+
       {loading ? <p role="status">Loading events…</p> : error ? <div role="alert">{error} <Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button></div> : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
           No events match this filter.
@@ -137,6 +169,7 @@ export function EventListPage() {
               event={e}
               attendeeView={isAttendee}
               registrationStatus={isAttendee ? cardRegistrationStatus(e.myRegistrationStatus) : undefined}
+              changeRequestPending={pendingChangeEvents.has(e.id)}
             />
           ))}
         </div>

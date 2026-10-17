@@ -513,7 +513,6 @@ export class EventPlanningService {
       },
       equipmentNeeds: row.equipmentNeeds,
       registrationEnabled: row.registrationEnabled ?? false,
-      changeRequests: [],
       createdAt: row.createdAt ?? row.updatedAt,
       updatedAt: row.updatedAt,
     };

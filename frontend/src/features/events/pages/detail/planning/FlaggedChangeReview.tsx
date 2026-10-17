@@ -16,7 +16,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { BookingImpact, ChangeHistoryEntry, FlaggedChange, ResolveChangeRequest } from "@/types";
-import { formatDateTime } from "@/utils/format";
+import { formatSgtDateTime } from "@/utils/sgtDate";
 import { fieldLabel, formatFieldValue } from "@/utils/planning";
 
 interface Props {
@@ -85,6 +85,10 @@ function ChangeCard({
   const label = fieldLabel(change.field);
   const impacts = change.impacts ?? [];
   const wholeBusy = busyKey === change.id;
+  // Per-booking decisions close the change only once every impacted booking is
+  // decided, so show how far along it is instead of a bare "Needs Review".
+  const impacted = impacts.filter((impact) => impact.impacted);
+  const decided = impacted.filter((impact) => impact.decision).length;
   return (
     <article
       aria-labelledby={headingId}
@@ -96,6 +100,7 @@ function ChangeCard({
         </h3>
         <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
           {change.status}
+          {decided > 0 && ` · ${decided} of ${impacted.length} bookings decided`}
         </span>
       </header>
 
@@ -216,7 +221,7 @@ export function FlaggedChangeReview({ changes, history, onResolve }: Props) {
                 </span>
                 <span className="text-xs text-gray-500 dark:text-gray-400">
                   <span className="font-medium">{entry.status}</span> by {entry.resolvedBy} ·{" "}
-                  <time dateTime={entry.resolvedAt}>{formatDateTime(entry.resolvedAt)}</time>
+                  <time dateTime={entry.resolvedAt}>{formatSgtDateTime(entry.resolvedAt)}</time>
                 </span>
               </li>
             ))}
