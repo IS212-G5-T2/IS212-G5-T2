@@ -4,9 +4,10 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 
 ## Decisions applied
 
-- **D6 (403):** a non-owning organiser gets 403 with no event data on the detail route. This changes the SPM-38 AC4 404 behaviour (and its unit assertion EVE-REV-04-C). Confirm with PO.
+- **D6 (403):** a non-owning organiser gets 403 with the literal message `You can only view your own events.` and no event data. This changes the SPM-38 AC4 404 behaviour (and its unit assertion EVE-REV-04-C). Confirm with PO.
 - **Drafts:** shown in a separate Drafts section on My Events, from the existing `/requests` API. Drafts are not merged into the event cards.
 - **D2 (A), D5 (default):** safety read through the existing `event_safety_checks` table in SQL; no indicator for Rejected, Completed or Cancelled events, or a missing record.
+- Assumptions: A1 "Under Review" is not a stored status (Approved stands in); A2 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
 - Jira SPM-94 is `In Progress`, which passes the status gate.
 
 ## What changed
@@ -21,59 +22,88 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 | UI | `EventCard.tsx`, `EventDetailPage.tsx` | indicators on the organiser's card and planning header |
 | UI | `EventListPage.tsx` | organiser's separate Drafts section |
 | Logout | `frontend/src/store/useAppStore.ts` | `events` cleared on logout |
-| Tests | `backend/test/events-status-tracking.e2e-spec.ts` | new e2e spec (9 tests) |
-| Tests | `EventListPage.test.tsx` | SPM-36 load-sequence tests (EVE-CRE-07 F/G/H) now serve `/requests` separately; drafts and remount tests added |
+| Tests | `backend/src/events/status/event-indicators.spec.ts` | unit table tests, plus BND and INT rows |
+| Tests | `backend/test/events-status-tracking.e2e-spec.ts` | e2e spec, 9 tests, each with `Kills:` and assumption index |
+| Tests | `frontend/src/features/events/pages/list/EventListPage.test.tsx` | SPM-36 load-sequence tests (EVE-CRE-07 F/G/H) now serve `/requests` separately; drafts, remount and superseded-drafts tests added |
 
 ## Test cases
 
 | Test Case ID | Layer | Test | Result |
 |---|---|---|---|
-| 01-A | e2e | `events-status-tracking.e2e-spec.ts` :: list holds only the caller's events for mine=true, plain and mine=false | Pass |
-| 01-A | component | `EventListPage.test.tsx` :: drafts section; `StatusIndicators.test.tsx` :: organiser vs attendee card | Pass |
-| 01-B | e2e | same file :: list row and detail show the same status | Pass |
-| 01-C | e2e | same file :: 403 with no data; 401 without token; not in the other organiser's list | Pass |
-| 02-A | e2e + unit + component | same file, `event-indicators.spec.ts`, `StatusIndicators.test.tsx` | Pass |
-| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays Submitted (D11) | Pass |
-| 03-A | e2e + service | same file, `events.service.spec.ts` | Pass |
-| 03-B | e2e + unit + component | same file, `event-indicators.spec.ts`, `StatusIndicators.test.tsx` | Pass |
-| 03-C | e2e | same file :: indicator is gone once the Safety Officer responds | Pass |
-| 04-A | e2e | same file :: approve through the real endpoint; list and detail show Approved; both no-store | Pass |
+| 01-A | e2e | `events-status-tracking.e2e-spec.ts` :: list holds only the caller's events for mine=true, plain and mine=false; every output field asserted | Pass |
+| 01-A | component | `EventListPage.test.tsx` :: drafts section; superseded drafts load ignored | Pass |
+| 01-B | e2e | same file :: list row and detail show the literal statuses `submitted`, `planning`, `confirmed` | Pass |
+| 01-C | e2e | same file :: 403 with the literal message and no data; 401 without token; not in the other organiser's list | Pass |
+| 02-A | e2e + unit + component | same file; `event-indicators.spec.ts` BND row (empty id); `StatusIndicators.test.tsx` | Pass |
+| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays `submitted` (A2) | Pass |
+| 03-A | e2e + service | same file; `events.service.spec.ts` | Pass |
+| 03-B | e2e + unit + component | same file; `event-indicators.spec.ts` BND and INT rows; `StatusIndicators.test.tsx` | Pass |
+| 03-C | e2e | same file :: indicator gone once the Safety Officer responds | Pass |
+| 04-A | e2e | same file :: approve through the real endpoint; list and detail show `approved`; both `no-store` | Pass |
 | 04-B | component + store | `EventListPage.test.tsx` :: remount refetches and shows the newer status (A, B); `useAppStore.logout.test.ts` :: logout clears events (C) | Pass |
+
+Boundary (BND) and interaction (INT) rows are in `event-indicators.spec.ts`: an empty-string coordinator id counts as unassigned; Confirmed is not a terminal status; Submitted is not terminal; a terminal event shows no indicator whatever its safety state.
 
 ## Verification run
 
 | Check | Command | Result |
 |---|---|---|
-| Backend e2e (full) | `TEST_DATABASE_URL=… npx vitest run --config ./vitest.config.e2e.ts` on a fresh `spm_spm94` database (Docker Postgres, init 001 to 017 applied) | 29 files, 520 passed, 4 skipped, 1 todo (run before the new spec was added) |
-| Backend e2e (new spec) | same, `test/events-status-tracking.e2e-spec.ts` | 9 passed |
-| Backend unit (full) | `npx vitest run` | 57 files, 1353 passed |
-| Frontend unit (full) | `npx vitest run` | 97 files, 1296 passed, 2 skipped, 1 todo |
-| Backend lint | `npm run lint` | exit 0 (pre-existing warnings) |
-| Frontend lint | `npm run lint` | exit 0 (5 pre-existing warnings) |
+| Backend e2e (full) | `TEST_DATABASE_URL=… npx vitest run --config ./vitest.config.e2e.ts` on a fresh `spm_spm94` database (Docker Postgres, init 001 to 017) | 30 files, 529 passed, 4 skipped, 1 todo |
+| Backend unit (full) | `npx vitest run` | 57 files, 1361 passed |
+| Frontend unit (full) | `npx vitest run` | 97 files, 1297 passed, 2 skipped, 1 todo |
+| Frontend lint | `npm run lint` | exit 0, 5 pre-existing warnings |
 | Frontend type-check | `npx tsc --noEmit` | exit 0 |
 | Backend type-check | `npx tsc --noEmit` | 37 errors, all pre-existing in other files; none in touched files |
+| Timezones | SPM-94 unit, component and e2e files under `TZ=UTC`, `Asia/Singapore`, `America/Los_Angeles` | all pass in all three zones |
+
+The timezone runs confirm no timezone dependence. These tests don't assert formatted dates, so they don't verify SGT display.
 
 ## Mutation check
 
-Runner: `scratchpad/mutate.mjs`. Each mutant is applied to a scratch copy only, one at a time, and the test file is run there. The original files are never edited.
+Runner: `scratchpad/mutate.mjs`. Each mutant is applied to a scratch copy only, one at a time, and the named tests are run there. The original files are never edited.
 
 | Mutant | Change | Suite | Result |
 |---|---|---|---|
-| M2 | remove owner filter from the organiser list | e2e | Killed |
+| M2 | remove owner filter from organiser list | e2e (new) | Killed |
 | M3 | detail route without owner check (both 403 and 404 paths) | unit | Killed |
-| M3e | disable only the 404 path | e2e | Survived. The 403 branch still refuses non-owning organisers, so this mutant only weakens the coordinator path and is not the spec's M3 |
-| M5 | remove `no-store` on the list | e2e | Killed |
+| M3e | disable only the 404 path | e2e (new) + `events-assign` e2e | Killed. The new spec alone did not kill it; the existing `EVE-REV-04-F` coordinator 404 test does |
+| M5 | remove `no-store` on the list | e2e (new) | Killed |
 | M6 | assignment indicator for any unassigned event | unit | Killed |
 | M7 | assignment indicator persists after assignment | unit | Killed |
 | M8 | changes requested and cleared swapped | unit | Killed |
-| M8e | same swap | e2e | Killed |
+| M8e | same swap | e2e (new) | Killed |
+| approved shown as AWAITING_CHECK | `approved: 'AWAITING_CHECK'` | e2e (new) | Killed |
 | M9 | two safety indicators at once | component | Killed |
 | M12 | store not cleared on logout | unit | Killed |
-| approved state shown as AWAITING_CHECK | `approved: 'AWAITING_CHECK'` | e2e | Killed (first attempt was an invalid mutant: it added a duplicate key that the original line overrode; corrected and rerun) |
 | assignment gate removed in the component | `AssignmentIndicator` always renders | component | Killed |
-| drafts effect cleanup removed | no `active = false` on unmount | unit | Survived. No test covers a superseded drafts load; a gap to close in manual check |
+| drafts effect cleanup removed | no `active = false` on unmount | component | Killed by the superseded-drafts test (was surviving) |
 
-Killed: 10 of 12 real mutants. Survived: M3e (weaker than the spec's M3) and the drafts cleanup.
+Result: 13 of 13 killed. The first M3e run and the drafts-cleanup survivor from the previous round are now resolved.
+
+## Checklists (Guide 10C and 11)
+
+| Question | Answer |
+|---|---|
+| Does every test trace to an AC? | Yes. Exceptions: none. |
+| Does every test have a plausible failing implementation? | Yes. Each e2e test has a `Kills:` line; unit and component tests have one too. |
+| Can each setup, action and expected result be explained? | Yes. Fixtures are described in the e2e and unit files. |
+| Are expected values justified independently of the code? | Yes, with literals. Assumptions A1 to A4 are listed in the e2e and unit files. |
+| Deterministic and non-vacuous? | Mostly. Fixtures use SQL `now()` and `randomUUID()` (not fixed UUIDs). Frontend fixtures use `new Date()`. No test asserts on these values. |
+
+Pre-submit (Guide 11):
+- [x] Every test traces to an AC; no spec worked examples exist for SPM-94.
+- [x] Every test has a `Kills:` line (e2e tests added in this round).
+- [x] Happy, sad and boundary paths covered for each rule: BND and INT rows added in `event-indicators.spec.ts`.
+- [x] Every output field asserted in 01-A.
+- [x] Expected values are literals; assumptions A1 to A4 indexed.
+- [x] No loops that compute expectations; the list-comparison loops now assert literals.
+- [x] Sad-path no-side-effect: 02-B and 03-C assert stored and displayed state.
+- [ ] Rule-order interactions for every adjacent pair: only the terminal-before-state pair is covered.
+- [ ] Non-default parameters and non-ASCII names: not covered; no formula-injection payloads in the drafts display.
+- [ ] Time, UUID and clock controls: partial (see above).
+- [ ] Coverage run: not run.
+- [x] Mutation run: 13 of 13 killed.
+- [x] Original files untouched; scratch copies in the scratchpad.
 
 ## Gaps (deferred to manual check)
 
@@ -81,6 +111,7 @@ Killed: 10 of 12 real mutants. Survived: M3e (weaker than the spec's M3) and the
 - **Safety port** (D2 A): the list reads `event_safety_checks` in SQL, not through a `SafetyCheckReader` port.
 - **`no-store` middleware** (D8): inline `@Header` on the list route, not a shared middleware.
 - **Draft in the event cards:** drafts are in a separate section; a merged card needs a PO decision.
-- **Drafts superseded load** (mutant above): no test.
+- **Fixed fixtures:** e2e and frontend fixtures use `now()`, `randomUUID()` and `new Date()`; fixed UUIDs and a frozen clock would be more repeatable.
+- **Date display in SGT:** not asserted; no test checks formatted dates.
 - **Coverage:** not measured.
 - **Reviews:** Test Code Review, Requirement Review and Code Quality Review are pending, not run.

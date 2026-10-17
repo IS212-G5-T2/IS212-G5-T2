@@ -9,6 +9,7 @@ import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
+import type { DraftRecord } from "@/features/events/types/draft";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -502,3 +503,51 @@ describe("SPM-94 AC4: each visit shows the latest status", () => {
     expect(within(card).queryByText("Submitted")).not.toBeInTheDocument();
   });
 });
+
+// SPM-94 drafts section: a superseded drafts request that answers late must not replace the current drafts.
+describe("SPM-94 drafts: a superseded drafts load cannot replace the current one", () => {
+  it("TRACK-EVENT-STATUS-01-A: a late stale drafts response is ignored after Retry reloads the page", async () => {
+    // Arrange: the first events load fails so the page offers Retry; the first drafts request is held open.
+    const staleDrafts = deferred<DraftRecord[]>();
+    const currentDrafts = deferred<DraftRecord[]>();
+    const draftRequests = [staleDrafts, currentDrafts];
+    const eventLoads = [
+      () => Promise.reject(new Error("Could not load events.")),
+      () => Promise.resolve([] as EventRecord[]),
+    ];
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? draftRequests.shift()!.promise : eventLoads.shift()!()) as typeof api);
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByRole("alert");
+
+    // Act: Retry starts a second drafts request; it answers first with Draft B.
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    await act(async () => {
+      currentDrafts.resolve([draftRecord("00000000-0000-4000-8000-000000000602", "Draft B")]);
+      await currentDrafts.promise;
+    });
+    expect(await screen.findByText("Draft B")).toBeTruthy();
+
+    // Then the superseded request answers late with Draft A.
+    await act(async () => {
+      staleDrafts.resolve([draftRecord("00000000-0000-4000-8000-000000000601", "Draft A")]);
+      await staleDrafts.promise;
+    });
+
+    // Assert: the current drafts stay; the stale answer never reaches the screen.
+    expect(screen.getByText("Draft B")).toBeTruthy();
+    expect(screen.queryByText("Draft A")).toBeNull();
+  });
+});
+
+function draftRecord(id: string, name: string): DraftRecord {
+  return { id, fields: { name }, status: "Draft", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" } as DraftRecord;
+}

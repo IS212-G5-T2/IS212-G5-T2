@@ -15,8 +15,14 @@ import { AppModule } from '../src/app.module.js';
  * Test cases: TRACK-EVENT-STATUS-01-A, 01-B, 01-C, 02-A, 02-B, 03-A, 03-B, 03-C, 04-A.
  * 04-B (A, B, C) is a browser-side store and remount behaviour and lives in the frontend tests.
  *
- * Oracles are literals from the SPM-94 AC text and the Decision Register (D3, D5, D6). The status vocabulary is the one
- * the events table stores; "Under Review" does not exist there, so the non-Submitted case uses Approved (see results doc).
+ * Oracles are literals from the SPM-94 AC text and the Decision Register (D3, D5, D6), never from the
+ * implementation. "Under Review" is not a stored status (the events table CHECK), so the non-Submitted
+ * case uses Approved (ASSUMPTION A1).
+ *
+ * ASSUMPTION index
+ * A1: "Under Review" is not stored; Approved stands in for the non-Submitted case -> 02-A, 01-A
+ * A2: a coordinator assignment does not change the status (D11) -> 02-B
+ * A4: the refusal message for another organiser's event is the service's literal -> 01-C
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -24,6 +30,8 @@ if (!database && process.env.CI)
   throw new Error('SPM-94 tests must run in CI: set TEST_DATABASE_URL or DATABASE_URL.');
 
 const PASSWORD = 'password123';
+// A4: the literal message the service returns when an organiser asks for another organiser's event (D6).
+const OTHER_ORGANISER_MESSAGE = 'You can only view your own events.';
 
 describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () => {
   let app: INestApplication<App>;
@@ -118,7 +126,13 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     return { uid, cookie: cookie.split(';', 1)[0] };
   }
 
-  type Listed = { id: string; name: string; status: string; awaitingCoordinatorAssignment: boolean; safetyIndicator: string | null };
+  type Listed = {
+    id: string;
+    name: string;
+    status: string;
+    awaitingCoordinatorAssignment: boolean;
+    safetyIndicator: string | null;
+  };
 
   async function listFor(cookie: string, query = '') {
     return request(app.getHttpServer()).get(`/api/events${query}`).set('Cookie', cookie).expect(200);
@@ -128,9 +142,10 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     return request(app.getHttpServer()).get(`/api/events/${id}`).set('Cookie', cookie);
   }
 
-  // TRACK-EVENT-STATUS-01-A (AC1): the organiser's list holds their own events, with the scope taken from the token.
-  it('TRACK-EVENT-STATUS-01-A: the list holds only the caller\'s events, whatever the mine parameter says', async () => {
-    // Arrange: two organisers, each with events. ORG-A owns three; ORG-B owns one.
+  // TRACK-EVENT-STATUS-01-A (AC1): the organiser's list holds their own events, scoped from the token.
+  // Kills: M1 (scope taken from the mine parameter), M2 (owner filter removed), M14 (Draft dropped, not in this file).
+  it("TRACK-EVENT-STATUS-01-A: the list holds only the caller's events, whatever the mine parameter says", async () => {
+    // Arrange: ORG-A owns three events; ORG-B owns one that must never appear.
     const orgA = await createDatabaseUser('ORGANISER', 'SPM94 Organiser A');
     const orgB = await createDatabaseUser('ORGANISER', 'SPM94 Organiser B');
     const a1 = await seedEvent({ organiserId: orgA.uid, name: 'A Submitted', status: 'Submitted' });
@@ -143,47 +158,58 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     const plain = await listFor(orgA.cookie);
     const notMine = await listFor(orgA.cookie, '?mine=false');
 
-    // Assert: exactly ORG-A's three events, by id and status, in every form.
-    const expected = [a1, a2, a3].sort();
+    // Assert: exactly ORG-A's three events in every form, each with every output field.
+    const expected = [
+      { id: a1, name: 'A Submitted', status: 'submitted', awaitingCoordinatorAssignment: true, safetyIndicator: null },
+      { id: a2, name: 'A Planning', status: 'planning', awaitingCoordinatorAssignment: false, safetyIndicator: null },
+      { id: a3, name: 'A Approved', status: 'approved', awaitingCoordinatorAssignment: false, safetyIndicator: null },
+    ];
+    const byIdAsc = (x: { id: string }, y: { id: string }) => (x.id < y.id ? -1 : 1);
+    const sortedExpected = [...expected].sort(byIdAsc);
     for (const body of [mine.body, plain.body, notMine.body] as Listed[][]) {
-      expect(body.map((e) => e.id).sort()).toEqual(expected);
+      expect(body.length).toBe(sortedExpected.length);
+      [...body].sort(byIdAsc).forEach((row, i) => expect(row).toMatchObject(sortedExpected[i]));
     }
-    expect(mine.body.find((e: Listed) => e.id === a1)?.status).toBe('submitted');
-    expect(mine.body.find((e: Listed) => e.id === a2)?.status).toBe('planning');
-    expect(mine.body.find((e: Listed) => e.id === bOnly)).toBeUndefined();
+    expect((mine.body as Listed[]).find((e) => e.id === bOnly)).toBeUndefined();
   });
 
-  // TRACK-EVENT-STATUS-01-B (AC1): the list and the planning (detail) page read one status and show the same value.
+  // TRACK-EVENT-STATUS-01-B (AC1): the list row and the planning (detail) page show the same literal status.
+  // Kills: M11 (list and page read different sources), status casing drift.
   it('TRACK-EVENT-STATUS-01-B: the list row and the detail show the same status for the same event', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
-    const eventIds = [
-      await seedEvent({ organiserId: org.uid, name: 'B1', status: 'Submitted' }),
-      await seedEvent({ organiserId: org.uid, name: 'B2', status: 'Planning', coordinatorId: null }),
-      await seedEvent({ organiserId: org.uid, name: 'B3', status: 'Confirmed' }),
-    ];
+    const submitted = await seedEvent({ organiserId: org.uid, name: 'B1', status: 'Submitted' });
+    const planning = await seedEvent({ organiserId: org.uid, name: 'B2', status: 'Planning' });
+    const confirmed = await seedEvent({ organiserId: org.uid, name: 'B3', status: 'Confirmed' });
 
-    const list = await listFor(org.cookie);
-    for (const id of eventIds) {
-      const row = list.body.find((e: Listed) => e.id === id);
+    const list = (await listFor(org.cookie)).body as Listed[];
+    const literals: Array<[string, string]> = [
+      [submitted, 'submitted'],
+      [planning, 'planning'],
+      [confirmed, 'confirmed'],
+    ];
+    for (const [id, status] of literals) {
       const detail = await detailFor(org.cookie, id);
       expect(detail.status).toBe(200);
-      expect(detail.body.status).toBe(row.status);
+      expect(detail.body.status).toBe(status);
+      expect(list.find((e) => e.id === id)?.status).toBe(status);
     }
   });
 
-  // TRACK-EVENT-STATUS-01-C (AC1, D6): another organiser's event is 403 with no event data; no token is 401.
-  it('TRACK-EVENT-STATUS-01-C: another organiser gets 403 with no data; no token gets 401', async () => {
+  // TRACK-EVENT-STATUS-01-C (AC1, D6): another organiser's event is 403 with the literal message and no event data; no token is 401.
+  // Kills: M3 (detail route without owner check), M2 (owner filter removed from the list).
+  it('TRACK-EVENT-STATUS-01-C: another organiser gets 403 with the literal message and no data; no token gets 401', async () => {
     const owner = await createDatabaseUser('ORGANISER', 'SPM94 Owner');
     const other = await createDatabaseUser('ORGANISER', 'SPM94 Other');
     const eventId = await seedEvent({ organiserId: owner.uid, name: 'Private Gala', status: 'Submitted' });
 
     // A: not in the other organiser's list.
     const otherList = await listFor(other.cookie);
-    expect(otherList.body.find((e: Listed) => e.id === eventId)).toBeUndefined();
+    expect((otherList.body as Listed[]).find((e) => e.id === eventId)).toBeUndefined();
 
-    // B: direct access to the detail is refused with no event data (Decision Register D6).
+    // B: direct access to the detail is refused with the literal message and no event data.
     const refused = await detailFor(other.cookie, eventId);
     expect(refused.status).toBe(403);
+    expect(refused.body.message).toBe(OTHER_ORGANISER_MESSAGE);
     expect(JSON.stringify(refused.body)).not.toContain('Private Gala');
     expect(JSON.stringify(refused.body)).not.toContain(owner.uid);
 
@@ -193,29 +219,29 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-02-A (AC2): an unassigned Submitted event shows awaiting assignment; assigned or non-Submitted does not.
+  // Kills: M6 (indicator on any unassigned event), M7 (indicator persists after assignment).
   it('TRACK-EVENT-STATUS-02-A: awaiting Coordinator assignment only for an unassigned Submitted event', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const unassigned = await seedEvent({ organiserId: org.uid, name: 'Unassigned', status: 'Submitted' });
     const approved = await seedEvent({ organiserId: org.uid, name: 'Approved', status: 'Approved' });
     const rejected = await seedEvent({ organiserId: org.uid, name: 'Rejected', status: 'Rejected' });
 
-    const list = await listFor(org.cookie);
-    const byId = (id: string) => list.body.find((e: Listed) => e.id === id);
-    expect(byId(unassigned)).toMatchObject({ awaitingCoordinatorAssignment: true });
-    expect(byId(approved)).toMatchObject({ awaitingCoordinatorAssignment: false });
-    expect(byId(rejected)).toMatchObject({ awaitingCoordinatorAssignment: false });
-    expect((await detailFor(org.cookie, unassigned)).body.awaitingCoordinatorAssignment).toBe(true);
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === unassigned)).toMatchObject({ awaitingCoordinatorAssignment: true });
+    expect(list.find((e) => e.id === approved)).toMatchObject({ awaitingCoordinatorAssignment: false });
+    expect(list.find((e) => e.id === rejected)).toMatchObject({ awaitingCoordinatorAssignment: false });
+    expect((await detailFor(org.cookie, unassigned)).body).toMatchObject({ awaitingCoordinatorAssignment: true });
   });
 
   // TRACK-EVENT-STATUS-02-B (AC2): the Lead's assignment clears the indicator on the list and the detail.
-  // D11: assignment does not change the status, so the status stays Submitted (the document's "Under Review" is not a stored status).
+  // Kills: M7 (indicator persists after assignment). Oracle A2 (D11): the status stays Submitted.
   it('TRACK-EVENT-STATUS-02-B: the Lead assigning the event clears the indicator for the organiser', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'SPM94 Lead');
     const coordinator = await createDatabaseUser('COORDINATOR', 'SPM94 Coordinator');
     const eventId = await seedEvent({ organiserId: org.uid, name: 'To Assign', status: 'Submitted' });
 
-    expect((await listFor(org.cookie)).body.find((e: Listed) => e.id === eventId)).toMatchObject({
+    expect(((await listFor(org.cookie)).body as Listed[]).find((e) => e.id === eventId)).toMatchObject({
       awaitingCoordinatorAssignment: true,
     });
 
@@ -225,69 +251,69 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
       .send({ coordinatorId: coordinator.uid })
       .expect(201);
 
-    const list = await listFor(org.cookie);
-    expect(list.body.find((e: Listed) => e.id === eventId)).toMatchObject({
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === eventId)).toMatchObject({
       status: 'submitted',
       awaitingCoordinatorAssignment: false,
     });
-    expect((await detailFor(org.cookie, eventId)).body).toMatchObject({ awaitingCoordinatorAssignment: false });
+    expect((await detailFor(org.cookie, eventId)).body).toMatchObject({
+      status: 'submitted',
+      awaitingCoordinatorAssignment: false,
+    });
   });
 
   // TRACK-EVENT-STATUS-03-A (AC3): a pending safety check on a Planning event shows AWAITING_CHECK; no record shows none.
+  // Kills: M8 (safety mapping swapped), no-record case shows a guess.
   it('TRACK-EVENT-STATUS-03-A: a pending safety check shows AWAITING_CHECK; an event without a record shows none', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const pending = await seedEvent({ organiserId: org.uid, name: 'Pending Safety', status: 'Planning', coordinatorId: null, safety: 'pending' });
     const none = await seedEvent({ organiserId: org.uid, name: 'No Safety', status: 'Planning', coordinatorId: null });
 
-    const list = await listFor(org.cookie);
-    const byId = (id: string) => list.body.find((e: Listed) => e.id === id);
-    expect(byId(pending)).toMatchObject({ safetyIndicator: 'AWAITING_CHECK' });
-    expect(byId(none)).toMatchObject({ safetyIndicator: null });
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === pending)).toMatchObject({ safetyIndicator: 'AWAITING_CHECK' });
+    expect(list.find((e) => e.id === none)).toMatchObject({ safetyIndicator: null });
     expect((await detailFor(org.cookie, pending)).body).toMatchObject({ safetyIndicator: 'AWAITING_CHECK' });
   });
 
-  // TRACK-EVENT-STATUS-03-B (AC3): exactly one safety indicator, from the state; terminal events show none (D5).
+  // TRACK-EVENT-STATUS-03-B (AC3): each safety state gives exactly its own indicator; a terminal event shows none (D5).
+  // Kills: M8 (changes requested and cleared swapped), M9 (two indicators at once; the field holds one value).
   it('TRACK-EVENT-STATUS-03-B: each safety state gives exactly its own indicator, and a terminal event shows none', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const changes = await seedEvent({ organiserId: org.uid, name: 'Changes', status: 'Planning', coordinatorId: null, safety: 'changes_needed' });
     const cleared = await seedEvent({ organiserId: org.uid, name: 'Cleared', status: 'Confirmed', coordinatorId: null, safety: 'approved' });
     const cancelled = await seedEvent({ organiserId: org.uid, name: 'Cancelled', status: 'Cancelled', coordinatorId: null, safety: 'approved' });
 
-    const list = await listFor(org.cookie);
-    const byId = (id: string) => list.body.find((e: Listed) => e.id === id);
-    expect(byId(changes).safetyIndicator).toBe('CHANGES_REQUESTED');
-    expect(byId(cleared).safetyIndicator).toBe('CLEARED');
-    expect(byId(cancelled).safetyIndicator).toBeNull();
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === changes)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
+    expect(list.find((e) => e.id === cleared)).toMatchObject({ safetyIndicator: 'CLEARED' });
+    expect(list.find((e) => e.id === cancelled)).toMatchObject({ safetyIndicator: null });
   });
 
-  // TRACK-EVENT-STATUS-03-C (AC3): after the Safety Officer responds, the awaiting indicator is replaced by the response indicator.
-  // Stored event status after changes are requested is not asserted (document F3: Unknown).
+  // TRACK-EVENT-STATUS-03-C (AC3): once the Safety Officer responds, the awaiting indicator is replaced.
+  // Kills: M10 (awaiting kept after a response). The stored status after changes are requested is not asserted (F3: Unknown).
   it('TRACK-EVENT-STATUS-03-C: the awaiting indicator is gone once the Safety Officer responds', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const approvedClone = await seedEvent({ organiserId: org.uid, name: 'Clone Approve', status: 'Planning', coordinatorId: null, safety: 'pending' });
     const changesClone = await seedEvent({ organiserId: org.uid, name: 'Clone Changes', status: 'Planning', coordinatorId: null, safety: 'pending' });
 
-    // The Safety Officer's response is written to the safety record (the source the port reads).
+    // The Safety Officer's response is written to the safety record (the source the indicator reads).
     await pool.query("UPDATE event_safety_checks SET status = 'approved', approver_name = 'SAF-01', decided_at = now() WHERE event_id = $1", [approvedClone]);
     await pool.query("UPDATE event_safety_checks SET status = 'changes_needed', approver_name = 'SAF-01', decided_at = now() WHERE event_id = $1", [changesClone]);
 
-    const list = await listFor(org.cookie);
-    const byId = (id: string) => list.body.find((e: Listed) => e.id === id);
-    expect(byId(approvedClone)).toMatchObject({ safetyIndicator: 'CLEARED' });
-    expect(byId(changesClone)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
-    expect(byId(approvedClone).safetyIndicator).not.toBe('AWAITING_CHECK');
-    expect(byId(changesClone).safetyIndicator).not.toBe('AWAITING_CHECK');
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.find((e) => e.id === approvedClone)).toMatchObject({ safetyIndicator: 'CLEARED' });
+    expect(list.find((e) => e.id === changesClone)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
   });
 
-  // TRACK-EVENT-STATUS-04-A (AC4): the status is fresh after a change; both GET responses carry no-store.
+  // TRACK-EVENT-STATUS-04-A (AC4): after the coordinator approves, the organiser sees Approved; both GET responses are no-store.
+  // Kills: M4 (stale status), M5 (Cache-Control removed from the list).
   it('TRACK-EVENT-STATUS-04-A: after the coordinator approves, the organiser sees Approved and nothing is cached', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const coordinator = await createDatabaseUser('COORDINATOR', 'SPM94 Coordinator');
     const eventId = await seedEvent({ organiserId: org.uid, name: 'Fresh Status', status: 'Submitted', coordinatorId: coordinator.uid });
 
     // Before: the organiser reads Submitted.
-    const before = await listFor(org.cookie);
-    expect(before.body.find((e: Listed) => e.id === eventId)).toMatchObject({ status: 'submitted' });
+    expect(((await listFor(org.cookie)).body as Listed[]).find((e) => e.id === eventId)).toMatchObject({ status: 'submitted' });
 
     // Act: the assigned coordinator approves through the existing approval path.
     await request(app.getHttpServer())
@@ -298,7 +324,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     // Assert: the next visit shows Approved on the list and the detail, and both responses are no-store.
     const after = await request(app.getHttpServer()).get('/api/events').set('Cookie', org.cookie).expect(200);
     expect(after.headers['cache-control']).toBe('no-store');
-    expect(after.body.find((e: Listed) => e.id === eventId)).toMatchObject({ status: 'approved' });
+    expect((after.body as Listed[]).find((e) => e.id === eventId)).toMatchObject({ status: 'approved' });
 
     const detail = await detailFor(org.cookie, eventId);
     expect(detail.status).toBe(200);
