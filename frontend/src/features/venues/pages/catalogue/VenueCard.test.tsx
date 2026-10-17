@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import type { Venue } from "@/types";
@@ -17,14 +18,10 @@ const venue: Venue = {
   turnaroundTimeMinutes: 45,
 };
 
-function renderCard(
-  value: Venue,
-  onBook?: () => void,
-  highlightSuitable = true,
-) {
+function renderCard(value: Venue, onBook?: () => void) {
   return render(
     <MemoryRouter>
-      <VenueCard venue={value} highlightSuitable={highlightSuitable} onCheckAvailability={onBook} />
+      <VenueCard venue={value} onCheckAvailability={onBook} />
     </MemoryRouter>,
   );
 }
@@ -42,7 +39,6 @@ describe("VenueCard", () => {
     expect(screen.getByRole("link", { name: /view details/i }).getAttribute("href")).toBe(
       "/venues/venue-1",
     );
-    expect(screen.getByText("Suitable")).toBeTruthy();
   });
 
   // Optional saved images and availability navigation must remain connected to the card UI.
@@ -67,11 +63,59 @@ describe("VenueCard", () => {
     screen.getByRole("button", { name: "Check Availability" }).click();
     expect(onBook).toHaveBeenCalledOnce();
   });
+});
 
-  // Cards without suitability emphasis must omit the suitability badge.
-  it("omits the Suitable badge when the venue is not highlighted", () => {
-    renderCard(venue, undefined, false);
+describe("VenueCard search results (SPM-52)", () => {
+  /** SPM-52 AC6: each result lists its room layouts and key facilities. */
+  it("VEN-SRCH-06-D lists every room layout offered by the venue", () => {
+    render(
+      <MemoryRouter>
+        <VenueCard venue={{ ...venue, layouts: ["Classroom", "Boardroom"] }} />
+      </MemoryRouter>,
+    );
 
-    expect(screen.queryByText("Suitable")).toBeNull();
+    expect(screen.getByText("Layouts: Classroom, Boardroom")).toBeTruthy();
+    expect(screen.getByText("AV System")).toBeTruthy();
+    expect(screen.getByText("Wi-Fi")).toBeTruthy();
+  });
+
+  /** SPM-52 AC6: a venue with no recorded layouts says so instead of showing an empty list. */
+  it("VEN-SRCH-06-E says when no room layout is recorded for the venue", () => {
+    render(
+      <MemoryRouter>
+        <VenueCard venue={{ ...venue, layouts: [] }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Layouts: None listed")).toBeTruthy();
+  });
+
+  /** SPM-52 AC6: each result offers exactly one "Check Availability" button and no separate availability link; the button invokes the availability action. */
+  it("VEN-SRCH-06-F offers one Check Availability button per card and no separate availability link", async () => {
+    const user = userEvent.setup();
+    const onCheck = vi.fn();
+    render(
+      <MemoryRouter>
+        <VenueCard venue={venue} onCheckAvailability={onCheck} />
+      </MemoryRouter>,
+    );
+
+    const buttons = screen.getAllByRole("button", { name: "Check Availability" });
+    expect(buttons).toHaveLength(1);
+    expect(screen.queryByRole("link", { name: /availability/i })).toBeNull();
+    await user.click(buttons[0]);
+    expect(onCheck).toHaveBeenCalledTimes(1);
+  });
+
+  /** SPM-52 AC6: each result shows the venue's location and capacity. */
+  it("VEN-SRCH-06-G shows the venue's location and capacity on its card", () => {
+    render(
+      <MemoryRouter>
+        <VenueCard venue={venue} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText("Test Building, Level 3")).toBeTruthy();
+    expect(screen.getByText("Capacity: 120")).toBeTruthy();
   });
 });

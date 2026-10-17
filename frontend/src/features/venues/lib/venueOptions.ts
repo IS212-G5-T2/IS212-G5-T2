@@ -23,3 +23,11 @@ export const ROOM_LAYOUT_OPTIONS = [
   "Cabaret",
   "Hollow square",
 ] as const;
+
+/** Venue accessibility feature labels as stored and returned by the venue API. */
+export const ACCESSIBILITY_OPTIONS = [
+  "Wheelchair access",
+  "Accessible restrooms",
+  "Hearing loop",
+  "Elevator access",
+] as const;

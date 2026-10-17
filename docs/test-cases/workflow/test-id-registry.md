@@ -90,11 +90,64 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VENUE-SUMMARY-06 | SUPPORTING | SPM-135 | AC3 | Supporting group VENUE-SUMMARY; mapped in docs/specs/SPM-135-test-results.md | backend/test/events-venue-summary.e2e-spec.ts | pending (proposed 2026-10-14) | Active |
 | VENUE-SUMMARY-07 | SUPPORTING | SPM-135 | AC3 | Supporting group VENUE-SUMMARY; mapped in docs/specs/SPM-135-test-results.md | backend/test/events-venue-summary.e2e-spec.ts | pending (proposed 2026-10-14) | Active |
 | VENUE-SUMMARY-08 | SUPPORTING | SPM-135 | AC3 | Supporting group VENUE-SUMMARY; mapped in docs/specs/SPM-135-test-results.md | backend/test/events-venue-summary.e2e-spec.ts | pending (proposed 2026-10-14) | Active |
+| VEN-SRCH-01-A | PRIMARY | SPM-52 | AC1 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901396 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-01-B | PRIMARY | SPM-52 | AC1 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901396 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-01-C | PRIMARY | SPM-52 | AC1 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901396 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-01-D | PRIMARY | SPM-52 | AC1 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901396 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-02-A | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-02-B | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-02-C | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-02-D | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-02-E | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-02-F | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-02-G | PRIMARY | SPM-52 | AC2 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868628 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-03-A | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-B | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-C | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-D | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-E | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-G | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-03-I | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-03-J | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-03-K | PRIMARY | SPM-52 | AC3 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28901412 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-04-A | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-04-B | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-04-C | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-04-D | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-04-E | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-04-F | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-04-G | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-04-H | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-04-I | PRIMARY | SPM-52 | AC4 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868644 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-A | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-B | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-C | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-D | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-E | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-05-F | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-05-G | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-H | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-05-I | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/lib/venueSearch.test.ts | n/a (matrix) | Active |
+| VEN-SRCH-05-J | PRIMARY | SPM-52 | AC5 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803086 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-A | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-B | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-C | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-D | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenueCard.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-E | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenueCard.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-F | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenueCard.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-G | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenueCard.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-H | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-06-I | PRIMARY | SPM-52 | AC6 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28803102 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-07-A | PRIMARY | SPM-52 | AC7 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868663 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-07-B | PRIMARY | SPM-52 | AC7 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28868663 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-08-A | PRIMARY | SPM-52 | AC8 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28770318 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
+| VEN-SRCH-08-B | PRIMARY | SPM-52 | AC8 | Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix); case page 28770318 | frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx | n/a (matrix) | Active |
 
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.
 - Supporting-id AC mappings are proposed by the workflow author and stay `pending` until the story owner approves them.
+- SPM-52 (Search and Filter Venues): the Confluence matrix 28868679 was created on 2026-10-17; its VEN-SRCH ids are PRIMARY, each with its AC case page (01 to 08). Earlier they were SUPPORTING while no matrix existed.
 
 ## Non-test tokens
 
