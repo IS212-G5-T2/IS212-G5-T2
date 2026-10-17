@@ -72,6 +72,8 @@ export function cardArrangementLabels(
   event: Pick<EventRecord, "status" | "venueRequestStatus" | "equipmentStatuses">,
 ): StateLabelInfo[] {
   const planning = event.status === "planning";
+  // Venue and equipment labels belong to the planning phase only.
+  if (!planning) return [];
   const statuses = event.equipmentStatuses ?? [];
   const venueReserved = event.venueRequestStatus === "approved";
   const equipmentReserved = statuses.length > 0 && statuses.every((s) => s === "Reserved");

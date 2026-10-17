@@ -39,6 +39,12 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
+  it("TRACK-EVENT-STATUS-01-A CARD: venue and equipment labels are shown only in the planning phase", () => {
+    expect(cardArrangementLabels({ status: "submitted", venueRequestStatus: "pending", equipmentStatuses: ["Requested"] })).toEqual([]);
+    expect(cardArrangementLabels({ status: "approved", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable"] })).toEqual([]);
+    expect(cardArrangementLabels({ status: "confirmed", venueRequestStatus: null, equipmentStatuses: [] })).toEqual([]);
+  });
+
   it("TRACK-EVENT-STATUS-01-A CARD: reserved labels are not shown outside the planning phase", () => {
     expect(cardArrangementLabels({ status: "confirmed", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toEqual([]);
   });
