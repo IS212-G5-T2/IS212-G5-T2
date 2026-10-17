@@ -7,7 +7,7 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 - **D6 (403):** a non-owning organiser gets 403 with the literal message `You can only view your own events.` and no event data. This changes the SPM-38 AC4 404 behaviour (and its unit assertion EVE-REV-04-C). Confirm with PO.
 - **Drafts:** shown in a separate Drafts section on My Events, from the existing `/requests` API. Drafts are not merged into the event cards.
 - **D2 (A), D5 (default):** safety read through the existing `event_safety_checks` table in SQL; no indicator for Rejected, Completed or Cancelled events, or a missing record.
-- Decided 17 Oct 2026: EVT-502 is Approved in the 01-A fixture ('Under Review' is not a stored status). Assumptions: A5 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
+- Decided 17 Oct 2026: EVT-502 is Approved in the 01-A fixture ('Under Review' is not a stored status). Assumptions: assignment does not change status (D11; 'Under Review' = Submitted, decided 17 Oct 2026); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
 - Jira SPM-94 is `In Progress`, which passes the status gate.
 
 ## What changed
@@ -35,7 +35,7 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 | 01-B | e2e | same file :: list row and detail show the literal statuses `submitted`, `planning`, `confirmed` | Pass |
 | 01-C | e2e | same file :: 403 with the literal message and no data; 401 without token; not in the other organiser's list | Pass |
 | 02-A | e2e + unit + component | same file; `event-indicators.spec.ts` BND row (empty id); `StatusIndicators.test.tsx` | Pass |
-| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays `submitted` (A5) | Pass |
+| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays `submitted` (Under Review = Submitted, decided) | Pass |
 | 03-A | e2e + service | same file; `events.service.spec.ts` | Pass |
 | 03-B | e2e + unit + component | same file; `event-indicators.spec.ts` BND and INT rows; `StatusIndicators.test.tsx` | Pass |
 | 03-C | e2e | same file :: indicator gone once the Safety Officer responds | Pass |
@@ -87,7 +87,7 @@ Result: 13 of 13 killed. The first M3e run and the drafts-cleanup survivor from 
 | Does every test trace to an AC? | Yes. Exceptions: none. |
 | Does every test have a plausible failing implementation? | Yes. Each e2e test has a `Kills:` line; unit and component tests have one too. |
 | Can each setup, action and expected result be explained? | Yes. Fixtures are described in the e2e and unit files. |
-| Are expected values justified independently of the code? | Yes, with literals. Assumptions A2 to A5 are listed in the e2e and unit files. |
+| Are expected values justified independently of the code? | Yes, with literals. Assumptions A2 to A4 are listed in the e2e and unit files. |
 | Deterministic and non-vacuous? | Mostly. Fixtures use SQL `now()` and `randomUUID()` (not fixed UUIDs). Frontend fixtures use `new Date()`. No test asserts on these values. |
 
 Pre-submit (Guide 11):
@@ -95,7 +95,7 @@ Pre-submit (Guide 11):
 - [x] Every test has a `Kills:` line (e2e tests added in this round).
 - [x] Happy, sad and boundary paths covered for each rule: BND and INT rows added in `event-indicators.spec.ts`.
 - [x] Every output field asserted in 01-A.
-- [x] Expected values are literals; assumptions A2 to A5 indexed.
+- [x] Expected values are literals; assumptions A2 to A4 indexed.
 - [x] No loops that compute expectations; the list-comparison loops now assert literals.
 - [x] Sad-path no-side-effect: 02-B and 03-C assert stored and displayed state.
 - [ ] Rule-order interactions for every adjacent pair: only the terminal-before-state pair is covered.

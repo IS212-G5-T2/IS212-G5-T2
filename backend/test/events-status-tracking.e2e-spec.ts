@@ -20,7 +20,6 @@ import { AppModule } from '../src/app.module.js';
  * case uses Approved (decided 17 Oct 2026).
  *
  * ASSUMPTION index
- * A5: a coordinator assignment does not change the status (D11) -> 02-B
  * A4: the refusal message for another organiser's event is the service's literal -> 01-C
  */
 
@@ -239,7 +238,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-02-B (AC2): the Lead's assignment clears the indicator on the list and the detail.
-  // Kills: M7 (indicator persists after assignment). Oracle A5 (D11): the status stays Submitted.
+  // Kills: M7 (indicator persists after assignment). Oracle: the status stays Submitted, which is what 'Under Review' means (owner decision 17 Oct 2026; D11).
   it('TRACK-EVENT-STATUS-02-B: the Lead assigning the event clears the indicator for the organiser', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const lead = await createDatabaseUser('COORDINATOR_LEAD', 'SPM94 Lead');
