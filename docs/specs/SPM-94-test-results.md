@@ -199,3 +199,26 @@ Overall: AMBER. Only open item: the AC2 interaction tier cell is MISSING (no tes
 - No new case page: the 7-row fixture is a subcase of TRACK-EVENT-STATUS-01-A.
 - Results: 36 test bodies, all PASS. Counts: 01-A 9, 01-B 1, 01-C 2, 02-A 7, 02-B 2, 03-A 3, 03-B 8, 03-C 1, 04-A 1, 04-B 2.
 - Each case that depends on an open conflict says so in its Actual Result.
+
+## Test Code Review of cd1aa95 and the fixes
+
+The independent Test Code Review of `cd1aa95` returned BLOCKED (nine open findings). The fixes, and the fresh workflow cycle 2 on the fixed code:
+
+| Finding | Fix |
+|---|---|
+| F1 planning-page revisit untested | Detail-page test with a stale Submitted copy in the store; the page must show Approved from the server |
+| F2 D6 multi-role test had no record | Test form changed so the scanner reads it; oracle is D6 ("existing rules for other roles unchanged") |
+| F3 403 body check too narrow | Asserts the exact response keys (error, message, statusCode) |
+| F4 01-B partly covered | Approved and Rejected literals added; page timeline asserted in the revisit test |
+| F5 tier matrix did not match records | Rebuilt from the records: 21 PRESENT, 15 N/A, 0 MISSING |
+| F6, F7, F11 comments and judgement fields | Unbacked mutant claims removed; records corrected; stale row removed |
+| F8 7-row fixture gaps | Every indicator field asserted on every row |
+| F9 logout failure path | Test that the store is cleared when the logout request fails |
+| F10 list-page indicators | List-page test for both indicators |
+| Probe mutants R2, R4, R5, R6 | Added as X3, X7, X8, X9 in the repository runners; all killed |
+
+### Cycle 2 (17 Oct 2026, cycle folder `cycle-02`)
+
+All gates pass: G1 IDs, G2 conflicts and tiers (0 open, 5 decided, 2 assumed), G3 records (41, all PASS), G4 determinism and timezones, G5 coverage (100% on the two SPM-94 files), G6 mutation (19 of 19 killed), G7 execution (110 passed). Overall: GREEN.
+
+Confluence updated: the matrix gained the missing 03-C row; case pages 01, 02 and 04 carry the new test-body counts (01-A 10, 01-C 3, 02-A 8, 04-B 4).

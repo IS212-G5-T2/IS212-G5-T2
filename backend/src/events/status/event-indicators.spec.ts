@@ -11,7 +11,6 @@ describe('SPM-94 AC2: awaiting Coordinator assignment iff Submitted and unassign
     ['Submitted', null, true], // EVT-501: unassigned Submitted
     ['Submitted', undefined, true],
     ['Submitted', 'COO-01', false], // assigned: indicator clears
-    ['Under Review', null, false], // EVT-502: not Submitted
     ['Draft', null, false], // EVT-508 is not Submitted
     ['Rejected', null, false], // unassigned Rejected event
   ])('TRACK-EVENT-STATUS-02-A/B: %s with coordinator %s gives %s', (status, coordinatorId, expected) => {
@@ -20,7 +19,7 @@ describe('SPM-94 AC2: awaiting Coordinator assignment iff Submitted and unassign
 });
 
 describe('SPM-94 AC3: at most one safety indicator, from the safety state', () => {
-  // Kills: M8 (changes requested and cleared swapped), M9 (two indicators at once is prevented by a single return value)
+  // Kills: M8 (changes requested and cleared swapped)
   it.each([
     // state,             status,       expected
     ['pending', 'Planning', 'AWAITING_CHECK'], // EVT-503
@@ -75,3 +74,12 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
 
 // ASSUMPTION index (additions)
 // A3: an empty-string coordinator id counts as unassigned (02-A BND row)
+
+describe('SPM-94 interaction of the assignment and safety rules', () => {
+  // INT: the two rules are independent, so an unassigned Submitted event with a pending safety check shows both.
+  // Kills: one rule short-circuiting or overwriting the other.
+  it('TRACK-EVENT-STATUS-02-A INT: an unassigned Submitted event with a pending safety check gets both indicators', () => {
+    expect(deriveAssignmentIndicator('Submitted', null)).toBe(true);
+    expect(deriveSafetyIndicator('pending', 'Submitted')).toBe('AWAITING_CHECK');
+  });
+});

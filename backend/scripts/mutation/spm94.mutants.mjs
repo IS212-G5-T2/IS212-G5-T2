@@ -66,4 +66,8 @@ export const MUTANTS = [
   { id: 'X2', name: 'terminal statuses no longer suppress the safety indicator (D5)', file: INDICATORS,
     edits: [["if ((SAFETY_SUPPRESSED_STATUSES as readonly string[]).includes(status)) return null;", '']],
     suites: ['unit'] },
+  { id: 'X3', name: 'the 403 body also returns the event id and status (01-C: no event data)', file: SERVICE,
+    edits: [["throw new ForbiddenException('You can only view your own events.');",
+      "throw new ForbiddenException({ message: 'You can only view your own events.', eventId: id, eventStatus: row.status });"]],
+    suites: ['e2e'] },
 ];

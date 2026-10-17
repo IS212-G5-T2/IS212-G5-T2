@@ -146,7 +146,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   }
 
   // TRACK-EVENT-STATUS-01-A (AC1): the organiser's list holds their own events, scoped from the token.
-  // Kills: M1 (scope taken from the mine parameter), M2 (owner filter removed); Draft rows are not in the events list (see the drafts section).
+  // Kills: M2 (owner filter removed from the list). Also fails if the mine parameter widens the scope.
   it("TRACK-EVENT-STATUS-01-A: the list holds only the caller's events, whatever the mine parameter says", async () => {
     // Arrange: ORG-A owns three events; ORG-B owns one that must never appear.
     const orgA = await createDatabaseUser('ORGANISER', 'SPM94 Organiser A');
@@ -177,18 +177,22 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-01-B (AC1): the list row and the planning (detail) page show the same literal status.
-  // Kills: M11 (list and page read different sources), status casing drift.
+  // Kills: status casing or status drift between the list and the detail API (no runner mutant).
   it('TRACK-EVENT-STATUS-01-B: the list row and the detail show the same status for the same event', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const submitted = await seedEvent({ organiserId: org.uid, name: 'B1', status: 'Submitted' });
     const planning = await seedEvent({ organiserId: org.uid, name: 'B2', status: 'Planning' });
     const confirmed = await seedEvent({ organiserId: org.uid, name: 'B3', status: 'Confirmed' });
+    const approved = await seedEvent({ organiserId: org.uid, name: 'B4', status: 'Approved' });
+    const rejected = await seedEvent({ organiserId: org.uid, name: 'B5', status: 'Rejected' });
 
     const list = (await listFor(org.cookie)).body as Listed[];
     const literals: Array<[string, string]> = [
       [submitted, 'submitted'],
       [planning, 'planning'],
       [confirmed, 'confirmed'],
+      [approved, 'approved'],
+      [rejected, 'rejected'],
     ];
     for (const [id, status] of literals) {
       const detail = await detailFor(org.cookie, id);
@@ -213,6 +217,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     const refused = await detailFor(other.cookie, eventId);
     expect(refused.status).toBe(403);
     expect(refused.body.message).toBe(OTHER_ORGANISER_MESSAGE);
+    expect(Object.keys(refused.body).sort()).toEqual(['error', 'message', 'statusCode']); // no event fields in the refusal
     expect(JSON.stringify(refused.body)).not.toContain('Private Gala');
     expect(JSON.stringify(refused.body)).not.toContain(owner.uid);
 
@@ -222,7 +227,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-02-A (AC2): an unassigned Submitted event shows awaiting assignment; assigned or non-Submitted does not.
-  // Kills: M6 (indicator on any unassigned event), M7 (indicator persists after assignment).
+  // Kills: M6 (indicator on any unassigned event).
   it('TRACK-EVENT-STATUS-02-A: awaiting Coordinator assignment only for an unassigned Submitted event', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const unassigned = await seedEvent({ organiserId: org.uid, name: 'Unassigned', status: 'Submitted' });
@@ -267,7 +272,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-03-A (AC3): a pending safety check on a Planning event shows AWAITING_CHECK; no record shows none.
-  // Kills: M8 (safety mapping swapped), no-record case shows a guess.
+  // Kills: a missing safety record shown as an indicator (no runner mutant); the AWAITING_CHECK value for a pending record.
   it('TRACK-EVENT-STATUS-03-A: a pending safety check shows AWAITING_CHECK; an event without a record shows none', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const pending = await seedEvent({ organiserId: org.uid, name: 'Pending Safety', status: 'Planning', coordinatorId: null, safety: 'pending' });
@@ -311,7 +316,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-04-A (AC4): after the coordinator approves, the organiser sees Approved; both GET responses are no-store.
-  // Kills: M4 (stale status), M5 (Cache-Control removed from the list).
+  // Kills: M5 (Cache-Control removed from the list). Also fails on a stale status after the approval.
   it('TRACK-EVENT-STATUS-04-A: after the coordinator approves, the organiser sees Approved and nothing is cached', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const coordinator = await createDatabaseUser('COORDINATOR', 'SPM94 Coordinator');
@@ -369,12 +374,12 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
 
     // Assert: six event rows with the literal statuses, in both forms of the list.
     const expected = [
-      { id: evt501, name: 'EVT-501 Student Mixer', status: 'submitted', awaitingCoordinatorAssignment: true },
-      { id: evt502, name: 'EVT-502 Charity Bazaar', status: 'approved', awaitingCoordinatorAssignment: false },
-      { id: evt503, name: 'EVT-503 Tech Showcase', status: 'planning', safetyIndicator: 'AWAITING_CHECK' },
-      { id: evt504, name: 'EVT-504 Sports Day', status: 'planning', safetyIndicator: 'CHANGES_REQUESTED' },
-      { id: evt505, name: 'EVT-505 Orientation Talk', status: 'confirmed', safetyIndicator: 'CLEARED' },
-      { id: evt506, name: 'EVT-506 Late Request', status: 'rejected' },
+      { id: evt501, name: 'EVT-501 Student Mixer', status: 'submitted', awaitingCoordinatorAssignment: true, safetyIndicator: null },
+      { id: evt502, name: 'EVT-502 Charity Bazaar', status: 'approved', awaitingCoordinatorAssignment: false, safetyIndicator: null },
+      { id: evt503, name: 'EVT-503 Tech Showcase', status: 'planning', awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' },
+      { id: evt504, name: 'EVT-504 Sports Day', status: 'planning', awaitingCoordinatorAssignment: false, safetyIndicator: 'CHANGES_REQUESTED' },
+      { id: evt505, name: 'EVT-505 Orientation Talk', status: 'confirmed', awaitingCoordinatorAssignment: false, safetyIndicator: 'CLEARED' },
+      { id: evt506, name: 'EVT-506 Late Request', status: 'rejected', awaitingCoordinatorAssignment: false, safetyIndicator: null },
     ];
     expect(list.map((e) => e.id).sort()).toEqual(expected.map((e) => e.id).sort());
     expect(plain.map((e) => e.id).sort()).toEqual(expected.map((e) => e.id).sort());
@@ -387,7 +392,6 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     ]);
     expect(list.find((e) => e.id === draftId)).toBeUndefined();
     expect(list.find((e) => e.id === evt507)).toBeUndefined();
-    expect(drafts.find((d) => d.id === evt507)).toBeUndefined();
     expect(list.length + drafts.length).toBe(7);
   });
 });

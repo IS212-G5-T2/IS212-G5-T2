@@ -520,9 +520,10 @@ describe('EventsService', () => {
     });
 
     // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
-    it.each<[UserRole[]]>([
-      [['ORGANISER', 'COORDINATOR']],
-      [['ORGANISER', 'ATTENDEE']],
+    // Oracle: D6 says existing rules for other roles are unchanged, so these keep the SPM-38 AC4 404.
+    it.each([
+      [['ORGANISER', 'COORDINATOR'] as UserRole[]],
+      [['ORGANISER', 'ATTENDEE'] as UserRole[]],
     ])('TRACK-EVENT-STATUS-01-C D6 role %j: a non-owning organiser with another role gets 404, not 403', async (roles) => {
       const row = savedEventRow();
       db.query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });

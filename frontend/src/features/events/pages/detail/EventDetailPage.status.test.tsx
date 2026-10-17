@@ -1,7 +1,7 @@
 // Story: SPM-94 Track My Event Status (Organiser)
 // ACs: AC2 (awaiting assignment), AC3 (one safety indicator), shown on the planning page too
 // Test cases: TRACK-EVENT-STATUS-02-A, 03-A, 03-B (planning page)
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
@@ -81,7 +81,7 @@ afterEach(() => {
 });
 
 describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
-  // Kills: M6 (indicator for any unassigned event), M7 (indicator persists after assignment), indicator removed from the page.
+  // Kills: X5 (indicator removed from the planning page), X4 (shown without the server flag).
   it("TRACK-EVENT-STATUS-02-A: the owner sees Awaiting Coordinator assignment for an unassigned Submitted event", async () => {
     current = eventRecord({ status: "submitted", coordinatorId: undefined, awaitingCoordinatorAssignment: true });
     renderPage();
@@ -95,7 +95,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     expect(screen.queryByText("Awaiting Coordinator assignment")).not.toBeInTheDocument();
   });
 
-  // Kills: M8 (changes requested and cleared swapped on the page), indicator removed from the page.
+  // Kills: X5 (indicator removed from the planning page), the three indicator texts swapped.
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer check"],
     ["CHANGES_REQUESTED", "Safety changes requested"],
@@ -104,7 +104,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     current = eventRecord({ status: "planning", safetyIndicator: indicator });
     renderPage();
     expect(await screen.findByText(text)).toBeInTheDocument();
-    // Kills: M9 (two safety indicators at once): exactly one safety text is on the page.
+    // Exactly one safety text is on the page (M9-style: two at once would fail).
     expect(screen.getAllByText(/^(Awaiting Safety Officer check|Safety changes requested|Safety check cleared)$/)).toHaveLength(1);
   });
 
@@ -124,5 +124,19 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     renderPage();
     await screen.findByText("Student Mixer");
     expect(screen.queryByText("Awaiting Safety Officer check")).not.toBeInTheDocument();
+  });
+});
+
+describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy", () => {
+  // Oracle: the page requests the event on every visit and shows what the server holds (Approved).
+  // Kills: a refetch skipped when the store already holds the event (stale Submitted copy shown).
+  it("TRACK-EVENT-STATUS-04-B: a revisit with a stale Submitted copy in the store shows Approved from the server", async () => {
+    current = eventRecord({ status: "approved" });
+    useAppStore.setState({ events: [eventRecord({ status: "submitted" })] });
+    renderPage();
+
+    const timeline = await screen.findByLabelText("Event status timeline");
+    await waitFor(() => expect(within(timeline).getByText("approved")).toHaveClass("bg-primary-100"));
+    expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}`);
   });
 });

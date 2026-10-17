@@ -36,7 +36,7 @@ function card(overrides: Partial<EventRecord> = {}): EventRecord {
 }
 
 describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
-  // Kills: M6 (indicator on any unassigned event), M7 (indicator stays after assignment)
+  // Kills: X4 (assignment indicator shown without the server flag), and the indicator text changing
   it("TRACK-EVENT-STATUS-02-A: shows the exact text when the event is awaiting assignment", () => {
     render(<AssignmentIndicator event={{ awaitingCoordinatorAssignment: true }} />);
     expect(screen.getByText("Awaiting Coordinator assignment")).toBeInTheDocument();
@@ -49,7 +49,7 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
 });
 
 describe("SPM-94 AC3: one safety indicator from the safety state", () => {
-  // Kills: M8 (changes requested and cleared swapped), M9 (two indicators at once)
+  // Kills: M9 (two indicators at once), and the three indicator texts swapped
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer check"],
     ["CHANGES_REQUESTED", "Safety changes requested"],

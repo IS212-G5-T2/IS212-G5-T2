@@ -10,6 +10,7 @@ vi.mock("@/lib/auth", () => ({
   AuthError: class AuthError extends Error {},
 }));
 
+import { logout } from "@/lib/auth";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord } from "@/types";
 
@@ -30,5 +31,17 @@ describe("SPM-94 AC4 / 04-B C: logout leaves no previous organiser's data in the
 
     expect(useAppStore.getState().events).toEqual([]);
     expect(useAppStore.getState().isAuthenticated).toBe(false);
+  });
+});
+
+describe("SPM-94 AC4 / 04-B C: logout clears the store even when the request fails", () => {
+  // Kills: the clear moved after a successful logout request (a failed request would leave the previous organiser's events).
+  it("TRACK-EVENT-STATUS-04-B: the events list is empty after a failed logout request", async () => {
+    useAppStore.setState({ events: [orgOneEvent], isAuthenticated: true });
+    vi.mocked(logout).mockRejectedValueOnce(new Error("network down"));
+
+    await expect(useAppStore.getState().logout()).rejects.toThrow("network down");
+
+    expect(useAppStore.getState().events).toEqual([]);
   });
 });
