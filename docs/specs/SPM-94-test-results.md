@@ -191,3 +191,11 @@ The reconciler (`ai/scripts/test-workflow/reconcile-mutation.mjs`) read `killed 
 | G7 Execution | PASS (cycle 2 run, 107 tests) |
 
 Overall: AMBER. Only open item: the AC2 interaction tier cell is MISSING (no test combines an unassigned Submitted event with a safety record). Matrix conflicts SC-SPM94-01, -02, -03, -04 and -06 still need PO confirmation.
+
+### Confluence update (17 Oct 2026)
+
+- Matrix "Track My Event Status (Organiser) Matrix" (22839633): code module column replaced with repository paths; result column added (Pass, with test-body counts). Version 2.
+- Case pages TRACK-EVENT-STATUS-01 (22839692), -02 (22839712), -03 (22905343), -04 (22905359): each case has a "Test case results" table below its details table (Actual Result, Pass/Fail, Test bodies, Executed By, Date of Execution). Version 2 on each page.
+- No new case page: the 7-row fixture is a subcase of TRACK-EVENT-STATUS-01-A.
+- Results: 36 test bodies, all PASS. Counts: 01-A 9, 01-B 1, 01-C 2, 02-A 7, 02-B 2, 03-A 3, 03-B 8, 03-C 1, 04-A 1, 04-B 2.
+- Each case that depends on an open conflict says so in its Actual Result.
