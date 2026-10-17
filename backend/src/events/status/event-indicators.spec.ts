@@ -55,7 +55,8 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
   it.each([
     // state,     status,      expected
     ['approved', 'Planning', 'CLEARED'], // Planning is the last non-terminal step before Confirmed
-    ['pending', 'Submitted', 'AWAITING_CHECK'], // Submitted is not terminal
+    ['pending', 'Submitted', null], // awaiting Safety Officer check is a planning-phase state only (owner, 18 Oct 2026)
+    ['pending', 'Planning', 'AWAITING_CHECK'],
     ['pending', 'Planning', 'AWAITING_CHECK'],
   ])('TRACK-EVENT-STATUS-03-B BND: state %s on a %s event gives %s', (state, status, expected) => {
     expect(deriveSafetyIndicator(state, status)).toBe(expected);

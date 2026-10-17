@@ -8,8 +8,8 @@ describe("planning state labels by significance", () => {
   it.each([
     [{ status: "Booked", requestStatus: "pending" }, "Requested", "amber"],
     [{ status: "Booked", requestStatus: "approved" }, "Approved", "green"],
-    [{ status: "Unavailable", requestStatus: "rejected" }, "Rejected", "red"],
-    [{ status: "Cancelled", requestStatus: "released" }, "Cancelled", "red"],
+    [{ status: "Unavailable", requestStatus: "rejected" }, "Unavailable", "red"],
+    [{ status: "Cancelled", requestStatus: "released" }, "Unavailable", "red"],
   ] as const)("venue %j is %s (%s)", (booking, label, tone) => {
     expect(venueLabel(booking)).toEqual({ label, tone });
   });
@@ -18,7 +18,6 @@ describe("planning state labels by significance", () => {
     ["Requested", "amber"],
     ["Reserved", "green"],
     ["Unavailable", "red"],
-    ["Cancelled", "red"],
   ] as const)("equipment %s is %s", (status, tone) => {
     expect(equipmentLabel(status)).toEqual({ label: status, tone });
   });
@@ -60,9 +59,8 @@ describe("card labels name the resource and its state", () => {
 
   it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
-      { label: "Venue rejected", tone: "red" },
+      { label: "Venue unavailable", tone: "red" },
       { label: "Equipment unavailable", tone: "red" },
-      { label: "Equipment cancelled", tone: "red" },
     ]);
   });
 });

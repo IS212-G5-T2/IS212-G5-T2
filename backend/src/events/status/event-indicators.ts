@@ -34,5 +34,7 @@ export function deriveSafetyIndicator(
   if (!state) return null;
   // Owner decision (18 Oct 2026): a confirmed event needs no 'cleared' indicator; confirmation already implies it.
   if (status === 'Confirmed' && state === 'approved') return null;
+  // Owner decision (18 Oct 2026): the awaiting Safety Officer check is a planning-phase state only.
+  if (state === 'pending' && status !== 'Planning') return null;
   return SAFETY_INDICATOR_BY_STATE[state] ?? null;
 }

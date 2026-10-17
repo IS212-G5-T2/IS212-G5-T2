@@ -248,8 +248,9 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     const eventId = await seedEvent({ organiserId: org.uid, name: 'Both Indicators', status: 'Submitted', safety: 'pending' });
 
     const list = (await listFor(org.cookie)).body as Listed[];
-    expect(list.find((e) => e.id === eventId)).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: 'AWAITING_CHECK' });
-    expect((await detailFor(org.cookie, eventId)).body).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: 'AWAITING_CHECK' });
+    // Owner decision (18 Oct 2026): the awaiting safety check is a planning-phase state only, so a Submitted event shows none.
+    expect(list.find((e) => e.id === eventId)).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
+    expect((await detailFor(org.cookie, eventId)).body).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
   });
 
   // TRACK-EVENT-STATUS-02-B (AC2): the Lead's assignment clears the indicator on the list and the detail.

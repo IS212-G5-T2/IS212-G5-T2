@@ -1,6 +1,6 @@
 import type { EventRecord, PlanningVenueBooking } from "@/types";
 
-/** Colour by significance: awaiting or requested is amber, approved is green, rejected or cancelled is red. */
+/** Colour by significance: awaiting or requested is amber, approved is green, unavailable is red. */
 type Tone = "amber" | "green" | "red" | "gray";
 
 const TONE: Record<Tone, string> = {
@@ -24,8 +24,8 @@ export function StateLabel({ label, tone }: StateLabelInfo) {
 export function venueLabel(booking: Pick<PlanningVenueBooking, "status" | "requestStatus">): StateLabelInfo {
   if (booking.requestStatus === "pending") return { label: "Requested", tone: "amber" };
   if (booking.requestStatus === "approved") return { label: "Approved", tone: "green" };
-  if (booking.requestStatus === "rejected") return { label: "Rejected", tone: "red" };
-  if (booking.requestStatus === "released" || booking.status === "Cancelled") return { label: "Cancelled", tone: "red" };
+  // Rejected or released venues are unavailable: red venue states use "Unavailable" only.
+  if (booking.requestStatus === "rejected" || booking.requestStatus === "released" || booking.status === "Cancelled") return { label: "Unavailable", tone: "red" };
   if (booking.status === "Unavailable") return { label: "Unavailable", tone: "red" };
   return { label: booking.status, tone: "gray" };
 }
@@ -40,7 +40,7 @@ export function equipmentLabel(status: string): StateLabelInfo {
     case "Unavailable":
       return { label: "Unavailable", tone: "red" };
     case "Cancelled":
-      return { label: "Cancelled", tone: "red" };
+      return { label: "Unavailable", tone: "red" };
     default:
       return { label: status, tone: "gray" };
   }
@@ -87,19 +87,18 @@ export function cardArrangementLabels(
       labels.push({ label: "Awaiting venue request", tone: "amber" });
       break;
     case "rejected":
-      labels.push({ label: "Venue rejected", tone: "red" });
-      break;
     case "released":
-      labels.push({ label: "Venue cancelled", tone: "red" });
+      labels.push({ label: "Venue unavailable", tone: "red" });
       break;
   }
   const equipment: Record<string, StateLabelInfo> = {
     Requested: { label: "Awaiting equipment request", tone: "amber" },
     Unavailable: { label: "Equipment unavailable", tone: "red" },
-    Cancelled: { label: "Equipment cancelled", tone: "red" },
+    Cancelled: { label: "Equipment unavailable", tone: "red" },
   };
   for (const status of new Set(statuses)) {
     if (equipment[status]) labels.push(equipment[status]);
   }
-  return labels;
+  // Two items can read the same, such as Unavailable and Cancelled equipment: show each label once.
+  return labels.filter((l, i) => labels.findIndex((m) => m.label === l.label) === i);
 }
