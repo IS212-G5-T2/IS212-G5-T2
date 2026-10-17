@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -569,12 +570,13 @@ describe.skipIf(!database)(
       expect(history.map((h) => [h.field, h.status, h.resolvedValue])).toEqual([
         ['expectedAttendance', 'Rejected', 80],
       ]);
+      // SPM-94 D6: a non-owning organiser is refused with 403 (no data), not 404.
       await expect(
         service.changeHistory(
           { uid: 'someone-else', roles: ['ORGANISER'] },
           eventId,
         ),
-      ).rejects.toBeInstanceOf(NotFoundException);
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   },
 );

@@ -21,7 +21,13 @@ export function AssignmentIndicator({ event }: { event: Pick<EventRecord, "await
 export function SafetyIndicator({ event }: { event: Pick<EventRecord, "safetyIndicator"> }) {
   if (!event.safetyIndicator) return null;
   return (
-    <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-200">
+    <span
+      className={
+        event.safetyIndicator === "AWAITING_CHECK" || event.safetyIndicator === "CHANGES_REQUESTED"
+          ? "rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+          : "rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-800 dark:bg-sky-900/30 dark:text-sky-200"
+      }
+    >
       {SAFETY_INDICATOR_LABELS[event.safetyIndicator]}
     </span>
   );

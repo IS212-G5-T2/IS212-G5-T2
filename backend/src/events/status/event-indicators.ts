@@ -32,5 +32,7 @@ export function deriveSafetyIndicator(
 ): SafetyIndicator | null {
   if ((SAFETY_SUPPRESSED_STATUSES as readonly string[]).includes(status)) return null;
   if (!state) return null;
+  // Owner decision (18 Oct 2026): a confirmed event needs no 'cleared' indicator; confirmation already implies it.
+  if (status === 'Confirmed' && state === 'approved') return null;
   return SAFETY_INDICATOR_BY_STATE[state] ?? null;
 }

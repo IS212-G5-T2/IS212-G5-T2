@@ -304,7 +304,8 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
 
     const list = (await listFor(org.cookie)).body as Listed[];
     expect(list.find((e) => e.id === changes)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
-    expect(list.find((e) => e.id === cleared)).toMatchObject({ safetyIndicator: 'CLEARED' });
+    // Owner decision (18 Oct 2026): a confirmed event needs no 'cleared' indicator.
+    expect(list.find((e) => e.id === cleared)).toMatchObject({ safetyIndicator: null });
     expect(list.find((e) => e.id === cancelled)).toMatchObject({ safetyIndicator: null });
     expect(list.find((e) => e.id === cancelled)).toMatchObject({ status: 'cancelled' });
   });
@@ -388,7 +389,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
       { id: evt502, name: 'EVT-502 Charity Bazaar', status: 'approved', awaitingCoordinatorAssignment: false, safetyIndicator: null },
       { id: evt503, name: 'EVT-503 Tech Showcase', status: 'planning', awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' },
       { id: evt504, name: 'EVT-504 Sports Day', status: 'planning', awaitingCoordinatorAssignment: false, safetyIndicator: 'CHANGES_REQUESTED' },
-      { id: evt505, name: 'EVT-505 Orientation Talk', status: 'confirmed', awaitingCoordinatorAssignment: false, safetyIndicator: 'CLEARED' },
+      { id: evt505, name: 'EVT-505 Orientation Talk', status: 'confirmed', awaitingCoordinatorAssignment: false, safetyIndicator: null },
       { id: evt506, name: 'EVT-506 Late Request', status: 'rejected', awaitingCoordinatorAssignment: false, safetyIndicator: null },
     ];
     expect(list.map((e) => e.id).sort()).toEqual(expected.map((e) => e.id).sort());
@@ -404,5 +405,19 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === evt507)).toBeUndefined();
     expect(list.length + drafts.length).toBe(7);
   });
-});
 
+  // TRACK-EVENT-STATUS-01-A (ordering): the organiser's list runs from the earliest start date to the latest.
+  // Kills: the list ordered by creation time (the events are created latest-first on purpose).
+  it('TRACK-EVENT-STATUS-01-A ORDER: the organiser list is ordered by start date, earliest first', async () => {
+    const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
+    const late = await seedEvent({ organiserId: org.uid, name: 'Ordering late' });
+    const early = await seedEvent({ organiserId: org.uid, name: 'Ordering early' });
+    const middle = await seedEvent({ organiserId: org.uid, name: 'Ordering middle' });
+    await pool.query("UPDATE events SET start_date_time = now() + interval '30 days', end_date_time = now() + interval '30 days' + interval '2 hours' WHERE id = $1", [late]);
+    await pool.query("UPDATE events SET start_date_time = now() + interval '2 days', end_date_time = now() + interval '2 days' + interval '2 hours' WHERE id = $1", [early]);
+    await pool.query("UPDATE events SET start_date_time = now() + interval '9 days', end_date_time = now() + interval '9 days' + interval '2 hours' WHERE id = $1", [middle]);
+
+    const list = (await listFor(org.cookie)).body as Listed[];
+    expect(list.map((e) => e.id)).toEqual([early, middle, late]);
+  });
+});

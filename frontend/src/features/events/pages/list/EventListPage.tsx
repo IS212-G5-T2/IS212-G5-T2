@@ -83,12 +83,15 @@ export function EventListPage() {
     return events;
   }, [events, currentUser]);
 
-  const filtered = isAttendee
+  // Every view lists events from the earliest start date to the latest, so each grid row reads left (earlier) to right (later).
+  const byStartDate = (list: EventRecord[]) =>
+    [...list].sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime());
+  const filtered = byStartDate(isAttendee
     ? scoped.filter((e) => matchesAttendeeFilter(e, attendeeFilter, new Date()))
     : statusFilter
             // SPM-148 PLAN-STATUS-05-A, 05-C: the Planning filter; with no match the list shows 'No events match this filter.'
       ? scoped.filter((e) => e.status === (statusFilter as EventStatus))
-      : scoped;
+      : scoped);
 
   const title =
     currentUser.role === "organiser"

@@ -36,7 +36,7 @@ export function EventCard({ event, attendeeView = false, registrationStatus }: E
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{`from ${event.reassignedFrom.coordinatorName}`}</p>
               )}
             </div>
-            <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
               {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
               {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}

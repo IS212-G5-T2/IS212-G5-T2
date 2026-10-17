@@ -24,7 +24,7 @@ describe('SPM-94 AC3: at most one safety indicator, from the safety state', () =
     // state,             status,       expected
     ['pending', 'Planning', 'AWAITING_CHECK'], // EVT-503
     ['changes_needed', 'Planning', 'CHANGES_REQUESTED'], // EVT-504
-    ['approved', 'Confirmed', 'CLEARED'], // EVT-505
+    ['approved', 'Confirmed', null], // EVT-505: a confirmed event needs no cleared indicator (owner, 18 Oct 2026)
     ['rejected', 'Planning', null], // no indicator for a Rejected safety outcome (D5)
     [null, 'Planning', null], // no safety record: nothing guessed
     [undefined, 'Planning', null],
@@ -54,7 +54,7 @@ describe('SPM-94 boundaries and interactions for the indicator rules', () => {
   // Kills: suppression set missing a member, or Confirmed added to it.
   it.each([
     // state,     status,      expected
-    ['approved', 'Confirmed', 'CLEARED'], // smallest non-terminal status after Planning
+    ['approved', 'Planning', 'CLEARED'], // Planning is the last non-terminal step before Confirmed
     ['pending', 'Submitted', 'AWAITING_CHECK'], // Submitted is not terminal
     ['pending', 'Planning', 'AWAITING_CHECK'],
   ])('TRACK-EVENT-STATUS-03-B BND: state %s on a %s event gives %s', (state, status, expected) => {

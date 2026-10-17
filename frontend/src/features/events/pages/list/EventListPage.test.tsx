@@ -669,3 +669,27 @@ describe("SPM-94 AC2/AC3 on the organiser list page", () => {
     expect(screen.getByText("Awaiting Safety Officer check")).toBeInTheDocument();
   });
 });
+
+// SPM-94 ordering: every view lists events from the earliest start date to the latest, so a grid row reads left (earlier) to right (later).
+describe("SPM-94 ordering: events read from the earliest start date", () => {
+  it("TRACK-EVENT-STATUS-01-A ORDER: the cards follow the start date, whatever order the server sends", async () => {
+    const base = submittedEvent();
+    const at = (day: number, name: string) => {
+      const start = new Date(Date.UTC(2026, 9, day, 10));
+      return { ...base, id: `00000000-0000-4000-8000-0000000007${day}`, name, startDateTime: start.toISOString(), endDateTime: new Date(start.getTime() + 7_200_000).toISOString() };
+    };
+    serveEvents(() => Promise.resolve([at(30, "Day 30"), at(25, "Day 25"), at(28, "Day 28"), at(27, "Day 27")]));
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByText("Day 25");
+    const names = screen.getAllByRole("link").map((a) => a.textContent ?? "").filter((t) => t.startsWith("Day "));
+    expect(names.map((t) => t.match(/Day \d+/)?.[0])).toEqual(["Day 25", "Day 27", "Day 28", "Day 30"]);
+  });
+});

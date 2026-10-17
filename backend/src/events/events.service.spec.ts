@@ -597,6 +597,17 @@ describe('EventsService', () => {
 
       expect(event).toMatchObject({ awaitingCoordinatorAssignment: false, safetyIndicator: 'AWAITING_CHECK' });
     });
+
+    // SPM-94 F4: the safety state is never sent to an attendee, even on a Confirmed event with an approved safety check.
+    it('TRACK-EVENT-STATUS-03-B F4: an attendee gets no safety indicator field', async () => {
+      const attendeeVisible = { ...savedEventRow(), status: 'Confirmed', safety_status: 'approved', confirmed_registrations: 1 };
+      db.query.mockResolvedValueOnce({ rows: [attendeeVisible] }).mockResolvedValueOnce({ rows: [] });
+
+      const event = await service.get(attendeeUser(), attendeeVisible.id);
+
+      expect(event).not.toHaveProperty('safetyIndicator');
+      expect(event).toHaveProperty('awaitingCoordinatorAssignment', false);
+    });
   });
 
   // SPM-36 event lookup guard
