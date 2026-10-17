@@ -173,7 +173,7 @@ export function PlanningInformationPanel({ view, refreshError, people }: Props) 
                   >
                     <span className="font-medium text-gray-800 dark:text-gray-200">{item.name}</span>
                     <span className="text-gray-500 dark:text-gray-400">Qty {item.quantity}</span>
-                    <StateLabel {...equipmentLabel(item.status)} />
+                    <StateLabel {...equipmentLabel(item.status, item.name)} />
                   </li>
                 ))}
               </ul>

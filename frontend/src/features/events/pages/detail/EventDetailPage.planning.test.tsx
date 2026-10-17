@@ -119,10 +119,10 @@ describe("EventDetailPage planning information (organiser)", () => {
   it("EVENT-VIEW-02-A lists the booked venue, equipment arrangement and their status", async () => {
     renderPage();
     const region = await planningRegion();
-    expect(within(region).getByText(/Hall A/)).toBeInTheDocument();
-    expect(within(region).getByText(/Booked/)).toBeInTheDocument();
-    expect(within(region).getByText(/Projector/)).toBeInTheDocument();
-    expect(within(region).getByText(/Reserved/)).toBeInTheDocument();
+    expect(within(region).getAllByText(/Hall A/).length).toBeGreaterThan(0);
+    expect(within(region).getByText("Hall A booked")).toBeInTheDocument();
+    expect(within(region).getAllByText(/Projector/).length).toBeGreaterThan(0);
+    expect(within(region).getByText("Projector reserved")).toBeInTheDocument();
   });
 
   // EVENT-VIEW-03-A: a field with a change pending because of a booking conflict is marked.
@@ -440,7 +440,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     useAppStore.setState({ currentUser: { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" } });
     renderPage();
     const region = await planningRegion();
-    expect(within(region).getByText(/Hall A/)).toBeInTheDocument();
+    expect(within(region).getAllByText(/Hall A/).length).toBeGreaterThan(0);
 
     const baseline = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
@@ -452,7 +452,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     });
 
     const refreshed = await planningRegion();
-    expect(within(refreshed).getByText(/Hall A/)).toBeInTheDocument();
+    expect(within(refreshed).getAllByText(/Hall A/).length).toBeGreaterThan(0);
     expect(within(refreshed).getByRole("alert")).toHaveTextContent("Could not refresh planning information: Server down");
   });
 
