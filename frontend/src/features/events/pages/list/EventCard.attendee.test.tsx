@@ -20,6 +20,16 @@ const renderCard = (event: EventRecord, props: { attendeeView?: boolean; registr
     </MemoryRouter>,
   );
 
+describe("CARD-BADGE-09: a registration on a cancelled event shows the red Cancelled badge, not Confirmed", () => {
+  // Kills: BADGE-M9 (the registration badge kept on a cancelled event: green Confirmed beside the red Cancelled)
+  it("CARD-BADGE-09-A-STATE: a registered attendee on a cancelled event sees one Cancelled badge and no Confirmed badge", () => {
+    renderCard(buildGala({ status: "cancelled" }), { attendeeView: true, registrationStatus: "registered" });
+
+    expect(screen.getAllByText("Cancelled")).toHaveLength(1);
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
+  });
+});
+
 describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a registration", () => {
   // Kills: BADGE-M1
   it("CARD-BADGE-01-A-STATE: an unregistered attendee sees no Confirmed badge on a Confirmed event", () => {

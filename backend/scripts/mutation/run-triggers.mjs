@@ -10,9 +10,12 @@
 // SIGINT/SIGTERM run the same cleanup (kill the running suite, DROP DATABASE ... WITH (FORCE), remove the temp directory).
 // The backend tree is copied to a temp directory too (node_modules is linked), so vitest never writes into the repository.
 //
-//   node scripts/mutation/run-triggers.mjs                 # every trigger mutant (needs DATABASE_URL)
+//   node scripts/mutation/run-triggers.mjs                 # every trigger mutant in spm135.triggers.mutants.mjs (needs DATABASE_URL)
+//   node scripts/mutation/run-triggers.mjs --mutants spm136.triggers.mutants.mjs
 //   node scripts/mutation/run-triggers.mjs --only TG1,TG5  # a subset
 //   node scripts/mutation/run-triggers.mjs --list          # show the mutants and exit
+// A mutant may also carry backendEdits: [{ file, edits }] for files under backend/ (for example a migration that
+// the suites re-apply to the shared database). Those edits are applied to the backend COPY only.
 //
 // Requirements: DATABASE_URL must point at a PostgreSQL server where the user can CREATE DATABASE (the
 // CREATEDB role attribute) and DROP DATABASE it creates. 001_schema.sql runs CREATE EXTENSION pgcrypto, which
@@ -34,7 +37,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const initDir = fileURLToPath(new URL('../../../database/postgresql/init/', import.meta.url));
 const args = process.argv.slice(2);
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const { SUITES, TRIGGER_MUTANTS } = await import(pathToFileURL(join(here, 'spm135.triggers.mutants.mjs')).href);
+const { SUITES, TRIGGER_MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm135.triggers.mutants.mjs')).href);
 const only = flag('--only')?.split(',');
 const selected = TRIGGER_MUTANTS.filter((m) => !only || only.includes(m.id));
 
@@ -151,17 +154,33 @@ const interrupt = async (signal) => {
   process.exit(signal === 'SIGINT' ? 130 : 143);
 };
 
+// Backend files any mutant edits (restored from the repository before every scenario).
+const backendFiles = [...new Set(TRIGGER_MUTANTS.flatMap((m) => (m.backendEdits ?? []).map((e) => e.file)))];
+const backendOriginal = new Map(backendFiles.map((f) => [f, readFileSync(join(root, f), 'utf8')]));
+
+// Applies [from, to] edits exactly once each. Returns the mutated text, or undefined when an edit does not match once.
+const applyEdits = (text, edits) => {
+  let mutated = text;
+  for (const [from, to] of edits) {
+    if (mutated.split(from).length !== 2) return undefined;
+    mutated = mutated.replace(from, () => to);
+  }
+  return mutated;
+};
+
 // Writes the init copies (with the mutant's edits applied to the copy) and reports whether every edit applied once.
 const prepareCopies = (mutant) => {
   for (const [file, text] of originalSql) writeFileSync(join(sqlDir, file), text);
+  for (const file of backendFiles) writeFileSync(join(backendCopy, file), backendOriginal.get(file));
   if (!mutant) return true;
-  const path = join(sqlDir, mutant.file);
-  let mutated = originalSql.get(mutant.file);
-  for (const [from, to] of mutant.edits) {
-    if (mutated.split(from).length !== 2) return false;
-    mutated = mutated.replace(from, () => to);
+  const mutated = applyEdits(originalSql.get(mutant.file), mutant.edits);
+  if (mutated === undefined) return false;
+  writeFileSync(join(sqlDir, mutant.file), mutated);
+  for (const { file, edits } of mutant.backendEdits ?? []) {
+    const backendMutated = applyEdits(backendOriginal.get(file), edits);
+    if (backendMutated === undefined) return false;
+    writeFileSync(join(backendCopy, file), backendMutated);
   }
-  writeFileSync(path, mutated);
   return true;
 };
 
@@ -242,6 +261,12 @@ for (const [file, hash] of initHashes) {
     untouched = false;
   }
 }
-console.log(`database/postgresql/init untouched: ${untouched ? 'yes' : 'no'}`);
+for (const file of backendFiles) {
+  if (sha(join(root, file)) !== createHash('sha256').update(backendOriginal.get(file)).digest('hex')) {
+    console.error(`ERROR: ${file} changed on disk during the run`);
+    untouched = false;
+  }
+}
+console.log(`database/postgresql/init and backend mutation inputs untouched: ${untouched ? 'yes' : 'no'}`);
 if (!untouched) exitCode ||= 1;
 process.exit(exitCode);

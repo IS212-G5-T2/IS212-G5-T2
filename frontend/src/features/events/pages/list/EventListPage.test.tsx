@@ -64,6 +64,7 @@ function submittedEvent(): EventRecord {
 afterEach(cleanup);
 
 beforeEach(() => {
+  useAppStore.setState({ eventListFilters: { attendee: "upcoming", status: null } });
   vi.clearAllMocks();
   // clearAllMocks keeps queued *Once values; reset them so one test's leftovers can't reach the next.
   apiMock.mockReset();
@@ -242,11 +243,15 @@ describe("EventListPage", () => {
     expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
     expect(screen.queryByLabelText("Filter by status")).not.toBeInTheDocument();
 
-    // Registered Events: only my future registration, with its one Confirmed badge.
+    // Registered Events: my future registration with its one Confirmed badge, and my cancelled registration with one red
+    // Cancelled badge and no Confirmed badge.
     await user.selectOptions(screen.getByLabelText("Show"), "registered");
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("Open Approved Event")).not.toBeInTheDocument();
     expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
+    expect(screen.getByText("My Cancelled Event")).toBeInTheDocument();
+    expect(within(screen.getByText("My Cancelled Event").closest("a")!).getAllByText("Cancelled")).toHaveLength(1);
+    expect(within(screen.getByText("My Cancelled Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
 
     // Past Events keeps the Completed tag and adds Confirmed (the registration badge; the event status Confirmed is hidden).
     await user.selectOptions(screen.getByLabelText("Show"), "past");
@@ -254,10 +259,14 @@ describe("EventListPage", () => {
     expect(screen.getByText("Completed")).toBeInTheDocument();
     expect(within(screen.getByText("My Past Event").closest("a")!).getByText("Confirmed")).toBeInTheDocument();
 
-    // Cancelled: only the cancelled event I registered for.
-    await user.selectOptions(screen.getByLabelText("Show"), "cancelled");
-    expect(screen.getByText("My Cancelled Event")).toBeInTheDocument();
-    expect(screen.queryByText("My Past Event")).not.toBeInTheDocument();
+    // The Cancelled filter is removed: the Show dropdown lists only the three attendee filters.
+    expect(within(screen.getByLabelText("Show")).queryByRole("option", { name: "Cancelled" })).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("Show")).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "Select…",
+      "Upcoming events",
+      "Registered Events",
+      "Past Events",
+    ]);
   });
 
   // SPM-36 Test Case EVE-CRE-07-F: when the event list cannot be loaded, the
@@ -380,6 +389,39 @@ describe("EventListPage", () => {
  * JOIN-WAITLIST-03-A-FE-LIST: an attendee's waiting entry on the Upcoming dashboard shows the Waitlisted badge
  * inside that event's card. Kills F15 (the dashboard stops passing the waiting status to the card).
  */
+describe("EventListPage: the chosen filter survives leaving and returning to the list", () => {
+  // Kills: FILTER-M1 (the filter kept in local state and reset when the list unmounts, as on opening an event)
+  it("FILTER-KEEP-01-A: an attendee's Registered filter is still selected after the list is shown again", async () => {
+    const user = userEvent.setup();
+    const future = new Date(Date.now() + 7 * 86_400_000);
+    const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: new Date(future.getTime() + 3_600_000).toISOString() };
+    apiMock.mockResolvedValue([{ ...base, id: "e-mine", name: "My Registered Event", status: "confirmed", myRegistrationStatus: "registered" }]);
+    useAppStore.setState({ currentUser: { id: "attendee-1", name: "Alice", email: "alice@example.com", role: "attendee" } });
+    const { unmount } = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await user.selectOptions(await screen.findByLabelText("Show"), "registered");
+
+    // Act: leave the list (as opening an event does), then show the list again
+    unmount();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    // Assert: the Registered filter is still applied
+    expect(await screen.findByLabelText("Show")).toHaveValue("registered");
+    useAppStore.setState({ eventListFilters: { attendee: "upcoming", status: null } });
+  });
+});
+
 describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry reads Waitlisted (AC3)", () => {
   // Kills: BADGE-M1, BADGE-M4, F12, F15
   it("JOIN-WAITLIST-03-A-FE-LIST: the Waitlisted badge appears in the waiting event's card and not in the others", async () => {

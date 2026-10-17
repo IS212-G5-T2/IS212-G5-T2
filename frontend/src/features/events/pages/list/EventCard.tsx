@@ -22,6 +22,8 @@ interface EventCardProps {
 export function EventCard({ event, attendeeView = false, registrationStatus }: EventCardProps) {
   // For an attendee, an approved or confirmed event is only "published": that is not a registration, so it carries no badge.
   const showEventBadge = !(attendeeView && (event.status === "approved" || event.status === "confirmed"));
+  // A registration on a cancelled event shows the event's red Cancelled badge, not a green Confirmed one (SPM-136).
+  const showRegistrationBadge = Boolean(registrationStatus) && !(registrationStatus === "registered" && event.status === "cancelled");
   return (
     <Link to={`/events/${event.id}`} className="block">
       <Card className="transition-shadow hover:shadow-md">
@@ -36,7 +38,7 @@ export function EventCard({ event, attendeeView = false, registrationStatus }: E
             </div>
             <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
-              {registrationStatus && <StatusBadge status={registrationStatus} />}
+              {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
               {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}
               {!attendeeView && <AssignmentIndicator event={event} />}
               {!attendeeView && <SafetyIndicator event={event} />}

@@ -115,3 +115,26 @@ Pre-submit (Guide 11):
 - **Date display in SGT:** not asserted; no test checks formatted dates.
 - **Coverage:** not measured.
 - **Reviews:** Test Code Review, Requirement Review and Code Quality Review are pending, not run.
+
+## Test Code Review (independent gate, read-only)
+
+Result on snapshot 7153b22: **BLOCKED**. Findings and status after the follow-up commit `73257c9`:
+
+| Finding | Severity | Status |
+|---|---|---|
+| F1 planning-page indicators untested | High | Fixed: `EventDetailPage.status.test.tsx` (7 tests). Reviewer mutant killed |
+| F2 no test-workflow records (G1 to G7 not run) | High | Open: needs `scopes/SPM-94.json`, registry, tier matrix, conflict and determinism rows and records CSV. Not done in this pass |
+| F3 mutation runner not in the repo; some Kills ids unverified | High | Partly fixed: the reviewer's surviving mutants are now killed and the Kills claims are corrected. The runner still lives in `scratchpad/`, not the repo. Open |
+| F4 matrix/test conflicts not registered (02-B status, D6 vs 404, 01-A drafts, 03-C) | Medium | Open: needs `spec-conflicts.md` rows and Orchestrator or PO confirmation of D6, A1, A2 |
+| F5 D6 role exemption untested | Medium | Fixed: unit rows for `['ORGANISER','COORDINATOR']` and `['ORGANISER','ATTENDEE']` (404). Widened exemption killed |
+| F6 drafts untested for other roles or failures | Medium | Fixed: coordinator never requests drafts; failed drafts request keeps events; Untitled label |
+| F7 Rejected and Cancelled status not asserted | Low | Fixed: e2e asserts `rejected` and `cancelled` |
+| F8 weak Kills claims (M9 in e2e, M10 unverified) | Low | Fixed: M9 claim removed from e2e (checked at component level); M10 relabelled |
+| F9 determinism and PII exposure | Low | Open: `now()`, `randomUUID()` and `new Date()` need `determinism-exceptions.md` rows; `safetyIndicator` visibility to attendees flagged for Requirement Review |
+
+Coverage (measured on 7153b22 unless noted):
+- Backend unit: `event-indicators.ts` 100% statements and branches; `events.service.ts` 99.2% statements, 98.6% branches.
+- Backend e2e (events-related files only): `events.service.ts` 87.0% statements, 78.4% branches.
+- Frontend unit: `StatusIndicators.tsx` 100%; `EventCard.tsx` 100%; `EventDetailPage.tsx` 92.5%; `EventListPage.tsx` 98.2% statements; `useAppStore.ts` 64.8%.
+
+Mutation check: the reviewer's three surviving mutants (planning indicators removed, drafts role guard removed, D6 exemption widened) are all killed by the new tests.

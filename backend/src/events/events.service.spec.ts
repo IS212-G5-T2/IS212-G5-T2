@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AuthenticatedUser } from '../auth/types/auth.models.js';
+import type { AuthenticatedUser, UserRole } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
 
@@ -520,7 +520,7 @@ describe('EventsService', () => {
     });
 
     // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
-    it.each([
+    it.each<[UserRole[]]>([
       [['ORGANISER', 'COORDINATOR']],
       [['ORGANISER', 'ATTENDEE']],
     ])('TRACK-EVENT-STATUS-01-C D6 role %j: a non-owning organiser with another role gets 404, not 403', async (roles) => {

@@ -121,7 +121,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
       .post('/api/auth/login')
       .send({ email, password: PASSWORD })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) => value.startsWith('connectsphere_session='));
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');
     return { uid, cookie: cookie.split(';', 1)[0] };
   }

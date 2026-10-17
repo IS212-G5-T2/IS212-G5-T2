@@ -51,6 +51,12 @@ interface AppState {
   // True until the backend has checked the persisted HTTP-only local session.
   authLoading: boolean;
   events: EventRecord[];
+  /**
+   * The event list's chosen filters, kept here so they survive leaving the list (opening an event) and coming back.
+   * `status` is null until the user picks one, so the role default (coordinators: Submitted) still applies.
+   */
+  eventListFilters: { attendee: string; status: string | null };
+  setEventListFilters: (patch: Partial<AppState["eventListFilters"]>) => void;
   venues: Venue[];
   /** Creates a venue and returns the server confirmation message. */
   createVenue: (venue: VenueCreateInput) => Promise<string>;
@@ -105,6 +111,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   authLoading: true,
   events: [],
+  eventListFilters: { attendee: "upcoming", status: null },
+  setEventListFilters: (patch) => set((s) => ({ eventListFilters: { ...s.eventListFilters, ...patch } })),
   venues: [],
   createVenue: async (venue) => {
     const result = await api<{ venue: Venue; message: string }>("/venues", {

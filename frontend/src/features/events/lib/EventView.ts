@@ -94,13 +94,12 @@ export function withdrawnCardFooterState(event: EventRecord, now: Date): Withdra
   return { kind: "closed", closesAt: hasClosed ? closesAt : undefined };
 }
 
-export type AttendeeBrowseFilter = "upcoming" | "registered" | "past" | "cancelled";
+export type AttendeeBrowseFilter = "upcoming" | "registered" | "past";
 
 export const ATTENDEE_BROWSE_FILTERS: { value: AttendeeBrowseFilter; label: string }[] = [
   { value: "upcoming", label: "Upcoming events" },
   { value: "registered", label: "Registered Events" },
   { value: "past", label: "Past Events" },
-  { value: "cancelled", label: "Cancelled" },
 ];
 
 /**
@@ -115,19 +114,19 @@ export const ATTENDEE_BROWSE_FILTERS: { value: AttendeeBrowseFilter; label: stri
 export function matchesAttendeeFilter(event: EventRecord, filter: AttendeeBrowseFilter, now: Date): boolean {
   const published = event.status === "approved" || event.status === "confirmed";
   const ended = now.getTime() >= new Date(event.endDateTime).getTime();
-  const registered = event.myRegistrationStatus === "registered";
+  // A registration (or a waiting entry) cancelled with its event still counts as mine for the Registered filter.
+  const cancelledWithEvent = event.myRegistrationStatus === "cancelled" && event.status === "cancelled";
+  const registered = event.myRegistrationStatus === "registered" || cancelledWithEvent;
   switch (filter) {
     case "upcoming":
       // Every published event that has not ended, registered or not.
       return published && !ended;
     case "registered":
-      // Events I'm registered for that are still to come.
-      return registered && published && !ended;
+      // Events I'm registered for that are still to come, and any event I registered for that was cancelled
+      // (shown with its red Cancelled badge; cancellation supersedes the date).
+      return registered && (event.status === "cancelled" || (published && !ended));
     case "past":
       // Events I registered for that have finished.
       return registered && event.status !== "cancelled" && (event.status === "completed" || ended);
-    case "cancelled":
-      // Events I registered for that were cancelled.
-      return registered && event.status === "cancelled";
   }
 }

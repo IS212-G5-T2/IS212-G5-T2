@@ -8,8 +8,8 @@
 // scratch database (spm_mutant_<random>), runs the suites against it, and drops that database in a finally
 // block. Nothing under database/ or the shared spm_test / spm_manual databases is changed.
 //
-// The live definitions are the ones in 016_spm135_safety_reset_reason.sql: it runs after 014 and replaces the
-// same functions with CREATE OR REPLACE, so the mutants target 016. A mutant in 014 would be superseded and
+// The live trigger-function definitions are the ones in 017_spm136_cancel_event.sql (it replaces 016's with
+// CREATE OR REPLACE); invalidate_safety_check stays in 016. Mutants target whichever file is live. A mutant in 014 would be superseded and
 // equivalent by construction.
 //
 // `equivalent: true` is a claim that the survivor cannot change observable behaviour; the reason is given in
@@ -29,6 +29,9 @@ export const SUITES = {
 };
 
 const RESET_SQL = '016_spm135_safety_reset_reason.sql';
+// SPM-136 (017) redefines the two trigger functions (release transition skips the reset), so the DELETE-branch
+// anchors live there now; 016 still owns invalidate_safety_check itself.
+const TRIGGER_SQL = '017_spm136_cancel_event.sql';
 const VENUE_DELETE_RESET = "IF OLD.event_id IS NOT NULL THEN PERFORM invalidate_safety_check(OLD.event_id, 'The venue booking changed'); END IF;";
 const EQUIPMENT_DELETE_RESET = "PERFORM invalidate_safety_check(OLD.event_id, 'The equipment request changed');";
 const FUNCTION_START = '  DELETE FROM safety_check_feedback_items WHERE event_id = p_event_id;\n  IF EXISTS';
@@ -36,16 +39,16 @@ const GUARD = 'IF EXISTS (SELECT 1 FROM event_safety_checks WHERE event_id = p_e
 const both = ['removal', 'safetyInvalidation'];
 
 export const TRIGGER_MUTANTS = [
-  { id: 'TG1', name: 'venue DELETE reset reason text changed ("The venue booking was removed")', file: RESET_SQL,
+  { id: 'TG1', name: 'venue DELETE reset reason text changed ("The venue booking was removed")', file: TRIGGER_SQL,
     edits: [[VENUE_DELETE_RESET, VENUE_DELETE_RESET.replace("'The venue booking changed'", "'The venue booking was removed'")]],
     suites: both },
-  { id: 'TG2', name: 'equipment DELETE reset reason text changed ("The equipment request was removed")', file: RESET_SQL,
+  { id: 'TG2', name: 'equipment DELETE reset reason text changed ("The equipment request was removed")', file: TRIGGER_SQL,
     edits: [[EQUIPMENT_DELETE_RESET, EQUIPMENT_DELETE_RESET.replace("'The equipment request changed'", "'The equipment request was removed'")]],
     suites: both },
-  { id: 'TG3', name: 'venue DELETE path does not invalidate (returns early after the delete)', file: RESET_SQL,
+  { id: 'TG3', name: 'venue DELETE path does not invalidate (returns early after the delete)', file: TRIGGER_SQL,
     edits: [[VENUE_DELETE_RESET, 'NULL;']],
     suites: both },
-  { id: 'TG4', name: 'equipment DELETE path does not invalidate (returns early after the delete)', file: RESET_SQL,
+  { id: 'TG4', name: 'equipment DELETE path does not invalidate (returns early after the delete)', file: TRIGGER_SQL,
     edits: [[EQUIPMENT_DELETE_RESET, 'NULL;']],
     suites: both },
   { id: 'TG5', name: 'invalidate_safety_check does nothing when the event has no safety row (leftover feedback kept)', file: RESET_SQL,
@@ -60,7 +63,7 @@ export const TRIGGER_MUTANTS = [
   // `DELETE ... WHERE event_id = NULL` matches no row, and `EXISTS (... WHERE event_id = NULL)` is false, so
   // no safety row is touched and no reset row is written. The function therefore does nothing for a NULL
   // event, with or without the guard. The scratch run of this mutant reported no change in any suite result.
-  { id: 'TG7', name: 'OLD.event_id IS NOT NULL guard removed from the venue DELETE branch (equivalent: a NULL event_id makes invalidate_safety_check a no-op)', file: RESET_SQL, equivalent: true,
+  { id: 'TG7', name: 'OLD.event_id IS NOT NULL guard removed from the venue DELETE branch (equivalent: a NULL event_id makes invalidate_safety_check a no-op)', file: TRIGGER_SQL, equivalent: true,
     edits: [[VENUE_DELETE_RESET, VENUE_DELETE_RESET.replace('IF OLD.event_id IS NOT NULL THEN ', '').replace(' END IF;', '')]],
     suites: both },
 ];
