@@ -67,6 +67,29 @@ from `database/postgresql/init/008_spm124_sample_venues.sql`.
 The Coordinator's existing venue-planning and booking view remains at `/venues`
 and `/venues/:id`, including for accounts that also hold the Venue Staff role.
 
+## Equipment requests (SPM-57)
+
+Coordinators use `/equipment/requests` to review submitted equipment requests.
+The prominent **Create Equipment Request** action opens `/equipment/requests/create`,
+where they can choose an assigned Approved, Planning, or Confirmed event and
+submit one or more items. The create form displays the event name, date, time,
+and expected attendance; item rows include required nonblank equipment name,
+type, and positive whole-number quantity. Equipment names are trimmed before
+submission. An event can have only one equipment request; after submission,
+changes must use the existing request. A successful submission returns to My
+Equipment Requests with an accessible confirmation dialog showing the request
+reference and Pending Review status; the dialog remains open until **OK** is
+clicked.
+Beside a Pending Review request, **Update Event** opens a separate, prefilled
+`/equipment/requests/:requestId/update` page. Saving replaces the request items
+in place and preserves its ID and reference. An update confirmation dialog
+shows that same reference and closes only when **OK** is clicked. Updates are unavailable after the
+event is Confirmed. Technical Support uses `/equipment/requests` for the Pending
+Review queue. The pages use the credentialed API client for
+`POST /api/equipment/requests`, `PUT /api/equipment/requests/:requestId`,
+`GET /api/equipment/requests`, `GET /api/equipment/requests/eligible-events`,
+and `GET /api/equipment/requests/review-queue`.
+
 No deployment command is configured for this repository.
 
 ## Testing

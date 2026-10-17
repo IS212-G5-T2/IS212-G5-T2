@@ -24,7 +24,7 @@ FROM (VALUES
         'Small classroom workshop', 'Hands-on learning',
         'Short weekday workshop with a small group.', 14, '09:00'::time,
         14, '10:30'::time, 24, 'Classroom', ARRAY['Projector']::text[],
-        ARRAY[]::text[], 'Projector and whiteboard markers.', false, 'Confirmed',
+        ARRAY[]::text[], 'Projector and whiteboard markers.', false, 'Approved',
         'organiser1@connectsphere.test'
     ),
     (
@@ -44,7 +44,7 @@ FROM (VALUES
         '08:00'::time, 28, '17:00'::time, 320, 'Exhibition',
         ARRAY['Power outlets', 'Wi-Fi', 'AV System']::text[],
         ARRAY['Step-free access', 'Accessible restrooms']::text[],
-        'Display tables, extension cables, and two screens.', true, 'Confirmed',
+        'Display tables, extension cables, and two screens.', true, 'Approved',
         'organiser3@connectsphere.test'
     ),
     (
@@ -54,7 +54,7 @@ FROM (VALUES
         '18:30'::time, 35, '22:00'::time, 145, 'Cocktail',
         ARRAY['Catering', 'AV System']::text[],
         ARRAY['Quiet room', 'Accessible restrooms']::text[],
-        'Wireless microphone and portable speaker.', true, 'Confirmed',
+        'Wireless microphone and portable speaker.', true, 'Approved',
         'organiser1@connectsphere.test'
     ),
     (

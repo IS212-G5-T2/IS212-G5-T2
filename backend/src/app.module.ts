@@ -25,6 +25,9 @@ import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
+import { EquipmentRequestsController } from './equipment/requests/equipment-requests.controller.js';
+import { EquipmentRequestsRepository } from './equipment/requests/equipment-requests.repository.js';
+import { EquipmentRequestsService } from './equipment/requests/equipment-requests.service.js';
 import { CoordinatorAvailabilityController } from './coordinator-availability/coordinator-availability.controller.js';
 import { CoordinatorAvailabilityService } from './coordinator-availability/coordinator-availability.service.js';
 import { VenuesController } from './venues/venues.controller.js';
@@ -46,6 +49,7 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     DraftsController,
     RegistrationsController,
     EquipmentController,
+    EquipmentRequestsController,
     CoordinatorAvailabilityController,
     LeadAssignmentController,
     StatusController,
@@ -57,6 +61,8 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     RegistrationsService,
     ExportService,
     EquipmentService,
+    EquipmentRequestsRepository,
+    EquipmentRequestsService,
     CoordinatorAvailabilityService,
     LeadAssignmentService,
     EventPlanningService,
@@ -83,6 +89,7 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        EquipmentRequestsController,
         VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,

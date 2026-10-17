@@ -171,6 +171,31 @@ unavailable and writing its audit entry happen in one transaction; a failed
 audit insert rolls the availability change back. `GET /api/equipment` excludes
 unavailable records unless `includeUnavailable=true` is requested.
 
+## Equipment requests (SPM-57)
+
+An assigned Coordinator submits one or more equipment items with
+`POST /api/equipment/requests` using `{ eventId, items: [{ equipmentName,
+equipmentType, quantity }] }`. Equipment name is required, trimmed, and must be
+nonblank following SPM-111 name semantics and the SPM-57 AC3 change record;
+maintenance status and location are not request fields. Equipment type must
+match the existing equipment catalogue types; quantity is a positive whole
+number representable by PostgreSQL `integer`. A successful
+request returns its reference and `Pending Review` state. Coordinators read only
+their own requests at `GET /api/equipment/requests`; Technical Support reads the
+Pending Review queue at `GET /api/equipment/requests/review-queue`.
+
+Cancelled and Rejected events cannot be requested. For an Approved event, the
+first equipment request and `Approved` → `Planning` transition/history are
+written atomically; later requests in Planning do not repeat the transition.
+Beside a Pending Review request, its owner can choose **Update Event** to open
+the saved event and item values; saving uses
+`PUT /api/equipment/requests/:requestId`, preserves the request ID/reference,
+and is refused once the event is Confirmed. Request items own their corresponding
+planning reservations, so replacing an item updates only that request's rows.
+Fresh databases include these tables in `database/postgresql/init/001_schema.sql`;
+existing databases apply `migrations/012_spm57_equipment_requests.sql` and
+`migrations/014_spm57_request_reservations.sql`.
+
 ## Venue records (SPM-50)
 
 `POST /api/venues` requires a valid local session and the RBAC `Venue:create`

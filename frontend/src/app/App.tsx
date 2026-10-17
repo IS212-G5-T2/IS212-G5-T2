@@ -22,6 +22,7 @@ import { VenueAvailabilityPage } from "@/features/venues/pages/VenueAvailability
 import { BookingsPage } from "@/features/bookings/pages/requests/BookingsPage";
 import { EquipmentPage } from "@/features/equipment/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/features/equipment/pages/requests/EquipmentRequestsPage";
+import { EquipmentRequestEditorPage } from "@/features/equipment/pages/requests/EquipmentRequestEditorPage";
 import { EquipmentAvailabilityPage } from "@/features/equipment/pages/availability/EquipmentAvailabilityPage";
 import { AuditTrailPage } from "@/features/equipment/pages/audit-trail/AuditTrailPage";
 import { EquipmentCreatePage } from "@/features/equipment/pages/create/EquipmentCreatePage";
@@ -99,6 +100,10 @@ export default function App() {
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
           <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
+          <Route path="/equipment/requests/create" element={<EquipmentRequestEditorPage />} />
+          <Route path="/equipment/requests/:requestId/update" element={<EquipmentRequestEditorPage />} />
         </Route>
 
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>

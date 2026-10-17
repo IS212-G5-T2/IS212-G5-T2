@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests } from "@/features/equipment/api/equipment-requests-api";
 import App from "./App";
 import { useAppStore } from "@/store/useAppStore";
+
+vi.mock("@/features/equipment/api/equipment-requests-api", () => ({
+  getAssignedEvents: vi.fn(), getMyEquipmentRequests: vi.fn(),
+  getEquipmentRequestQueue: vi.fn(), submitEquipmentRequest: vi.fn(), updateEquipmentRequest: vi.fn(),
+}));
 
 describe("App venue creation route", () => {
   beforeEach(() => {
@@ -54,7 +60,7 @@ describe("App venue creation route", () => {
   // SPM-50 / AC1 regression: venue creation routing preserves the app's role-aware root destinations.
   it.each([
     ["venue_staff", "Venue Catalogue"],
-    ["tech_support", "Equipment Requests"],
+    ["tech_support", "Equipment Review Queue"],
     ["coordinator", "Pending Requests"],
   ] as const)("redirects %s from the root to %s", (role, destination) => {
     // Arrange a role-specific signed-in user at the root route.
@@ -176,5 +182,53 @@ describe("App equipment availability route", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
+  });
+});
+
+describe("App equipment request editor routes", () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "coordinator-1", name: "Coordinator", email: "coordinator@example.test", role: "coordinator" },
+      restoreAuthSession: vi.fn(),
+    });
+    vi.mocked(getAssignedEvents).mockResolvedValue([]);
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([]);
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([]);
+  });
+
+  /** EQUIP-REQUEST-05-A: after starting a request, the coordinator reaches the dedicated editor. */
+  it("routes coordinators to a dedicated create form page", async () => {
+    render(<MemoryRouter initialEntries={["/equipment/requests/create"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Create Equipment Request" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My Equipment Requests" })).toBeNull();
+  });
+
+  /** EQUIP-REQUEST-10-A: the request-specific route renders the separate update editor. */
+  it("routes coordinators to a request-specific update form page", async () => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{
+      id: "request-57", reference: "ER-12345678", eventId: "event-57", eventName: "Showcase",
+      eventStart: "2030-02-03T10:00:00.000Z", eventEnd: "2030-02-03T12:00:00.000Z", expectedAttendance: 120,
+      status: "Pending Review", eventStatus: "Planning", requestedBy: "coordinator-1", coordinatorName: "Coordinator",
+      createdAt: "2030-02-03T10:00:00.000Z", items: [{ id: "item-57", equipmentName: "Microphone", equipmentType: "Audio", quantity: 1 }],
+    }]);
+    vi.mocked(getAssignedEvents).mockResolvedValue([{
+      id: "event-57", name: "Showcase", status: "planning", startDateTime: "2030-02-03T10:00:00.000Z",
+      endDateTime: "2030-02-03T12:00:00.000Z", expectedAttendance: 120,
+    }]);
+    render(<MemoryRouter initialEntries={["/equipment/requests/request-57/update"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Update Equipment Request" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /Equipment name/ })).toHaveValue("Microphone");
+  });
+
+  /** EQUIP-REQUEST-10-N: a user without coordinator authorization is kept out of request editors. */
+  it("keeps create and update editor routes restricted to coordinators", async () => {
+    useAppStore.setState({
+      currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },
+    });
+    render(<MemoryRouter initialEntries={["/equipment/requests/create"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
   });
 });

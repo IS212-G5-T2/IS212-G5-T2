@@ -266,6 +266,42 @@ CREATE TABLE IF NOT EXISTS equipment_reservations (
 );
 CREATE INDEX IF NOT EXISTS equipment_reservations_event_idx ON equipment_reservations (event_id);
 
+CREATE TABLE IF NOT EXISTS equipment_requests (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    event_id uuid NOT NULL REFERENCES events (id) ON DELETE CASCADE,
+    requested_by uuid NOT NULL REFERENCES users (id),
+    status text NOT NULL DEFAULT 'Pending Review'
+        CHECK (status IN ('Pending Review', 'Reserved', 'Unavailable', 'Cancelled')),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS equipment_requests_event_idx ON equipment_requests (event_id, created_at);
+CREATE INDEX IF NOT EXISTS equipment_requests_requester_idx ON equipment_requests (requested_by, created_at DESC);
+CREATE INDEX IF NOT EXISTS equipment_requests_queue_idx ON equipment_requests (status, created_at);
+
+CREATE TABLE IF NOT EXISTS equipment_request_items (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    request_id uuid NOT NULL REFERENCES equipment_requests (id) ON DELETE CASCADE,
+    equipment_name text NOT NULL CHECK (length(btrim(equipment_name)) > 0),
+    equipment_type text NOT NULL CHECK (equipment_type IN ('Audio', 'Visual', 'Furniture', 'Lighting', 'Other')),
+    quantity integer NOT NULL CHECK (quantity > 0),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    item_order integer NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS equipment_request_items_request_idx ON equipment_request_items (request_id, created_at, id);
+
+ALTER TABLE equipment_reservations
+    ADD COLUMN IF NOT EXISTS equipment_request_item_id uuid;
+DO $$ BEGIN
+    ALTER TABLE equipment_reservations
+        ADD CONSTRAINT equipment_reservations_request_item_fk
+        FOREIGN KEY (equipment_request_item_id) REFERENCES equipment_request_items (id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+CREATE UNIQUE INDEX IF NOT EXISTS equipment_reservations_request_item_uidx
+    ON equipment_reservations (equipment_request_item_id)
+    WHERE equipment_request_item_id IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS event_flagged_changes (
     id uuid PRIMARY KEY,
     event_id uuid NOT NULL REFERENCES events (id) ON DELETE CASCADE,
