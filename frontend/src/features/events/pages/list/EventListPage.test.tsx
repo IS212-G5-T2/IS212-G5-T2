@@ -551,3 +551,60 @@ describe("SPM-94 drafts: a superseded drafts load cannot replace the current one
 function draftRecord(id: string, name: string): DraftRecord {
   return { id, fields: { name }, status: "Draft", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" } as DraftRecord;
 }
+
+// SPM-94 drafts are the organiser's own: other roles never request them, and a failed drafts request leaves the events list intact.
+describe("SPM-94 drafts: role guard and failure path", () => {
+  it("TRACK-EVENT-STATUS-01-A: a coordinator never requests drafts or sees a Draft requests section", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([draftRecord("00000000-0000-4000-8000-000000000603", "Leaked Draft")]) : Promise.resolve([submittedEvent()])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(apiMock.mock.calls.some(([path]) => path === "/requests")).toBe(false);
+    expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
+    expect(screen.queryByText("Leaked Draft")).toBeNull();
+  });
+
+  it("TRACK-EVENT-STATUS-01-A: when the drafts request fails, the events still list and no error is shown", async () => {
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.reject(new Error("drafts unavailable")) : Promise.resolve([submittedEvent()])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("TRACK-EVENT-STATUS-01-A: a draft with no name shows the Untitled draft label", async () => {
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve([draftRecord("00000000-0000-4000-8000-000000000604", "")]) : Promise.resolve([])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    const drafts = await screen.findByRole("region", { name: "Draft requests" });
+    expect(within(drafts).getByText("Untitled draft")).toBeInTheDocument();
+  });
+});

@@ -143,7 +143,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   }
 
   // TRACK-EVENT-STATUS-01-A (AC1): the organiser's list holds their own events, scoped from the token.
-  // Kills: M1 (scope taken from the mine parameter), M2 (owner filter removed), M14 (Draft dropped, not in this file).
+  // Kills: M1 (scope taken from the mine parameter), M2 (owner filter removed); Draft rows are not in the events list (see the drafts section).
   it("TRACK-EVENT-STATUS-01-A: the list holds only the caller's events, whatever the mine parameter says", async () => {
     // Arrange: ORG-A owns three events; ORG-B owns one that must never appear.
     const orgA = await createDatabaseUser('ORGANISER', 'SPM94 Organiser A');
@@ -230,6 +230,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === unassigned)).toMatchObject({ awaitingCoordinatorAssignment: true });
     expect(list.find((e) => e.id === approved)).toMatchObject({ awaitingCoordinatorAssignment: false });
     expect(list.find((e) => e.id === rejected)).toMatchObject({ awaitingCoordinatorAssignment: false });
+    expect(list.find((e) => e.id === rejected)).toMatchObject({ status: 'rejected' });
     expect((await detailFor(org.cookie, unassigned)).body).toMatchObject({ awaitingCoordinatorAssignment: true });
   });
 
@@ -276,7 +277,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   });
 
   // TRACK-EVENT-STATUS-03-B (AC3): each safety state gives exactly its own indicator; a terminal event shows none (D5).
-  // Kills: M8 (changes requested and cleared swapped), M9 (two indicators at once; the field holds one value).
+  // Kills: M8 (changes requested and cleared swapped). M9 (two indicators at once) is checked at component level, not here: the API holds one value.
   it('TRACK-EVENT-STATUS-03-B: each safety state gives exactly its own indicator, and a terminal event shows none', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const changes = await seedEvent({ organiserId: org.uid, name: 'Changes', status: 'Planning', coordinatorId: null, safety: 'changes_needed' });
@@ -287,10 +288,11 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
     expect(list.find((e) => e.id === changes)).toMatchObject({ safetyIndicator: 'CHANGES_REQUESTED' });
     expect(list.find((e) => e.id === cleared)).toMatchObject({ safetyIndicator: 'CLEARED' });
     expect(list.find((e) => e.id === cancelled)).toMatchObject({ safetyIndicator: null });
+    expect(list.find((e) => e.id === cancelled)).toMatchObject({ status: 'cancelled' });
   });
 
   // TRACK-EVENT-STATUS-03-C (AC3): once the Safety Officer responds, the awaiting indicator is replaced.
-  // Kills: M10 (awaiting kept after a response). The stored status after changes are requested is not asserted (F3: Unknown).
+  // Kills: awaiting indicator kept after a Safety Officer response (no spec mutant id). The stored status after changes are requested is not asserted (F3: Unknown).
   it('TRACK-EVENT-STATUS-03-C: the awaiting indicator is gone once the Safety Officer responds', async () => {
     const org = await createDatabaseUser('ORGANISER', 'SPM94 Organiser');
     const approvedClone = await seedEvent({ organiserId: org.uid, name: 'Clone Approve', status: 'Planning', coordinatorId: null, safety: 'pending' });

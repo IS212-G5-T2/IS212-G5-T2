@@ -519,6 +519,19 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(ForbiddenException);
     });
 
+    // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
+    it.each([
+      [['ORGANISER', 'COORDINATOR']],
+      [['ORGANISER', 'ATTENDEE']],
+    ])('TRACK-EVENT-STATUS-01-C D6 role %j: a non-owning organiser with another role gets 404, not 403', async (roles) => {
+      const row = savedEventRow();
+      db.query.mockResolvedValueOnce({ rows: [row] }).mockResolvedValueOnce({ rows: [] });
+
+      await expect(
+        service.get(organiserUser({ uid: 'someone-else', roles }), row.id),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it('EVE-REV-04-D requires authentication to view event details', async () => {
       await expect(
         service.get(undefined, savedEventRow().id),
