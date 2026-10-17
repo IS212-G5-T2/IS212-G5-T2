@@ -42,11 +42,12 @@ const isUpdate = (s: Statement) => /^\s*UPDATE/i.test(s.sql);
 const isSelect = (s: Statement) => /^\s*SELECT/i.test(s.sql);
 
 /** The registration the lookup returns: owned, on an event that starts at `start`. */
-const found = (status: string, start: Date): Row => ({
+const found = (status: string, start: Date, eventStatus = 'Confirmed'): Row => ({
   id: REG_ID,
   status,
   event_name: EVENT_NAME,
   start_date_time: start,
+  event_status: eventStatus,
 });
 
 /** What the UPDATE ... RETURNING * hands back after a successful withdrawal. */
@@ -308,6 +309,56 @@ describe('WITHDRAW-EVENT-REG-03-STATE-1 (AC3/AC5): a successful withdrawal write
  *  D14  one compare-and-set UPDATE decides concurrent withdrawals -> 05-STATE-1 (lost race), 03-STATE-1
  *  D15  the route accepts no body or {}; any other body is a 400 -> 05-STATE-2
  *  D16  another attendee's, unknown and malformed ids all get the same 404, never 403 -> 07-STATE-1, 07-STATE-2
+ *  SPM-136 A3  EVENT_CANCELLED code and MSG-CN-04 wording on a withdrawal of a cancelled registration, ASSUMED (SC-004)
+ *       -> 08-B (a Cancelled registration on a Cancelled event)
  *  REC  a recording client is the only way to observe a write that a rolled-back transaction hides, DERIVED from
  *       DatabaseService.transaction (BEGIN / COMMIT, ROLLBACK on throw) -> every test in this file
  */
+
+describe('SPM-136 08-B (cross-cutting): a cancelled registration or event is refused 409 before anything is written', () => {
+  // Oracle (SPM-136 D11, CANCEL-EVENT-08-B): withdrawing a cancelled registration is 409, not 422, and nothing changes.
+  // Kills: S9 (a cancelled registration falls through to a non-EVENT_CANCELLED refusal)
+  it('a Cancelled registration -> 409 EVENT_CANCELLED and no UPDATE issued', async () => {
+    // Arrange
+    const { database, statements } = recordingDatabase([
+      found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR), 'Cancelled'),
+    ]);
+
+    // Act
+    const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));
+
+    // Assert
+    // ASSUMPTION A3: the EVENT_CANCELLED code and the MSG-CN-04 wording on a withdrawal are ASSUMED (the case asks for 409 only)
+    expect(error.getStatus()).toBe(409);
+    expect(error.getResponse()).toMatchObject({
+      code: 'EVENT_CANCELLED',
+      message: 'This event has been cancelled and its arrangements cannot be changed.',
+    });
+    expect(statements.filter(isUpdate)).toEqual([]);
+  });
+
+});
+
+describe('SPM-136 TR-136-15 (SPM-138 JOIN-WAITLIST-10-F): the event status decides the refusal of a Cancelled entry', () => {
+  // Oracle (SPM-138 JOIN-WAITLIST-10-F): a Cancelled waiting entry on a LIVE event answers 409 registration_not_withdrawable
+  // and keeps its status. Only a cancelled EVENT gives EVENT_CANCELLED (08-B above). The event here is Confirmed.
+  // Kills: W4 (the event status ignored, so every Cancelled entry answers EVENT_CANCELLED).
+  it('a Cancelled waiting entry on a Confirmed event gives registration_not_withdrawable and no UPDATE', async () => {
+    // Arrange: the entry is Cancelled (for example, released by an earlier cancellation of its list), the event is live.
+    const { database, statements } = recordingDatabase([
+      found('Cancelled', new Date(T0.getTime() + 10 * 24 * HOUR), 'Confirmed'),
+    ]);
+
+    // Act
+    const error = await refusal(serviceFor(database).withdraw(OWNER, REG_ID, undefined));
+
+    // Assert: the outcome, then the side effect (none)
+    expect(error.getStatus()).toBe(409);
+    expect(error.getResponse()).toMatchObject({
+      code: 'registration_not_withdrawable',
+      message: 'This registration can no longer be withdrawn.',
+    });
+    expect(error.getResponse()).not.toMatchObject({ code: 'EVENT_CANCELLED' });
+    expect(statements.filter(isUpdate)).toEqual([]);
+  });
+});

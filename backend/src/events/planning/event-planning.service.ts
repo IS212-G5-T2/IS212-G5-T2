@@ -12,6 +12,7 @@
  *
  * See backend/HANDOVER.md "Event planning (SPM-97/49/85)" for assumptions.
  */
+import { assertEventNotCancelled } from '../cancelled-guard.js';
 import {
   BadRequestException,
   ConflictException,
@@ -558,6 +559,8 @@ export class EventPlanningService {
   ) {
     const access = await this.access(identity, eventId);
     if (!access.isCoordinator) throw new NotFoundException('Event not found.');
+    // SPM-136 AC7: a cancelled event's arrangements cannot change (MSG-CN-04).
+    assertEventNotCancelled(access.event.status);
     if (!EDITABLE_STATUSES.has(access.event.status.toLowerCase()))
       throw new ConflictException(
         'Event information can only be changed after approval and before confirmation.',

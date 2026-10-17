@@ -37,6 +37,8 @@ import { StatusController } from './events/status/status.controller.js';
 import { StatusService } from './events/status/status.service.js';
 import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
 import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
+import { CancelEventService } from './events/cancel/cancel-event.service.js';
+import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.registry.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
@@ -70,6 +72,8 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     EventSafetyCheckSource,
     { provide: SAFETY_OUTCOME_SOURCE, useExisting: EventSafetyCheckSource },
     StatusService,
+    CancelEventService,
+    { provide: EVENT_RELEASERS, useValue: DEFAULT_RELEASERS },
     { provide: CLOCK, useValue: systemClock },
   ],
 })

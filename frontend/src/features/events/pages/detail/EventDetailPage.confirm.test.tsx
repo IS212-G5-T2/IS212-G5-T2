@@ -177,10 +177,10 @@ describe("SPM-135 AC4: the status is Confirmed after a successful confirm, witho
     await user.click(button);
     expect(await screen.findByRole("status")).toHaveTextContent(`${EVENT_NAME} has been confirmed.`);
 
-    // Assert: the status timeline now marks confirmed as current and completed as not yet reached
+    // Assert: the status timeline now marks confirmed as current and cancelled as not yet reached
     const timeline = screen.getByRole("list", { name: "Event status timeline" });
     expect(within(timeline).getByText("confirmed")).toHaveClass("text-primary-800");
-    expect(within(timeline).getByText("completed")).toHaveClass("text-gray-400");
+    expect(within(timeline).getByText("cancelled")).toHaveClass("text-gray-400");
     // The event is not refetched by the confirm: the count is the same as before the click
     expect(eventFetchCalls()).toBe(fetchesBeforeClick);
     expect(screen.queryByRole("button", { name: "Confirm Event" })).not.toBeInTheDocument();

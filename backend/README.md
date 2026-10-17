@@ -128,6 +128,20 @@ DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- te
 
 Conflict details under "Changes Awaiting Review" (`helpers/event-impact.ts`) show times in Singapore time with am/pm (`src/common/sgt-time.ts`). Flagged changes stored before this change keep their original UTC text.
 
+## Cancel an event (SPM-136)
+
+`POST /api/events/:id/status-change` with `{ "targetStatus": "Cancelled", "confirmed": true }` cancels an event. The assigned coordinator or the submitting organiser may cancel a Submitted, Approved, Planning or Confirmed event. `confirmed` must be the boolean `true` (anything else: 400 `CANCEL_NOT_CONFIRMED`). Other refusals: 403 `FORBIDDEN` for anyone else, 409 `EVENT_NOT_CANCELLABLE` for any other status, and 409 `EVENT_CANCELLED` for every arrangement change on a cancelled event (`src/events/cancelled-guard.ts`). Reversing a cancellation is refused (422). Identity comes from the session only.
+
+The cancellation runs in one transaction: lock and re-check the event, compare-and-set `Cancelled` (stamped with the injected clock), write `event_status_history`, write one `EventCancelled` notification per recipient (organiser, assigned coordinator, Registered attendees), then run every releaser in `src/events/cancel/release.registry.ts`. Releasers live with their tables: venue bookings and holds (`src/venues/release`), equipment reservations (`src/equipment/release`) and registrations (`src/registrations/release`). Withdrawn registrations are never touched and there is no waiting-list promotion.
+
+Schema: `backend/migrations/011_spm136_cancel_event.sql` (the same file is `database/postgresql/init/017_spm136_cancel_event.sql` for fresh volumes). It is idempotent and adds `events.cancelled_by`/`cancelled_at`, the `released` venue booking status, `released_at` columns, `event_registrations.cancellation_reason`, and the once-only `EventCancelled` index. Notifications are readable by organisers and coordinators through `GET /api/notifications`; there is no attendee read path yet.
+
+```sh
+npx vitest run src/events/cancel src/events/cancelled-guard.spec.ts
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-cancel.e2e-spec.ts test/events-cancelled-guard.e2e-spec.ts
+node scripts/mutation/run.mjs --mutants spm136.mutants.mjs   # scratch copy only; needs DATABASE_URL
+```
+
 ## Checks
 
 Run local checks from this directory:

@@ -155,6 +155,10 @@ The Compose postgres service also mounts the backend-owned draft migration as `0
 
 Fresh PostgreSQL images receive the final event lifecycle directly from `001_schema.sql`: `Submitted`, `Approved`, or `Rejected`. A rejected event needs a 10–500-character `rejection_reason`. Existing volumes must retain their migration history: apply `backend/migrations/003_event_rejection.sql`, then `backend/migrations/004_allow_rejected_event_status.sql`, with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. Existing events and notifications are retained; no volume reset is needed.
 
+## Migration application order
+
+Each migration is applied once, in numeric order, against the database it targets: backend migrations under `backend/migrations/` for existing databases, and init files under `database/postgresql/init/` for fresh volumes. Init scripts never rerun on an existing volume, so an existing database must have every earlier migration installed before a later one. SPM-136 (`backend/migrations/011_spm136_cancel_event.sql`, mirrored as `init/017_spm136_cancel_event.sql`) supersedes migration 009's `venue_bookings` status and kind constraints and requires init 011-016 to be in place first.
+
 ## SPM-124 venue schedule
 
 The SPM-50 venue tables, SPM-124 `venue_bookings` table, and their lookup

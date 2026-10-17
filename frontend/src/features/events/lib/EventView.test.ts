@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { EventRecord } from "@/types";
-import { attendeeEventStatus, matchesAttendeeFilter, registrationState, registrationStateLabel } from "@/features/events/lib/EventView";
+import {
+  ATTENDEE_BROWSE_FILTERS,
+  attendeeEventStatus,
+  matchesAttendeeFilter,
+  registrationState,
+  registrationStateLabel,
+} from "@/features/events/lib/EventView";
 
 function event(overrides: Partial<EventRecord> = {}): EventRecord {
   return {
@@ -119,7 +125,13 @@ describe("SPM-61 attendee Browse Events filters", () => {
     expect(matching("registered", { ...future, myRegistrationStatus: "withdrawn" })).toBe(false);
     expect(matching("registered", { ...future })).toBe(false);
     expect(matching("registered", { ...ended, myRegistrationStatus: "registered" })).toBe(false);
-    expect(matching("registered", { ...future, status: "cancelled", myRegistrationStatus: "registered" })).toBe(false);
+    // A cancelled event I registered for stays under Registered, shown with its red Cancelled badge.
+    expect(matching("registered", { ...future, status: "cancelled", myRegistrationStatus: "registered" })).toBe(true);
+    // A registration that was cancelled with its event (or my waiting entry, cancelled with it) stays under Registered.
+    expect(matching("registered", { ...future, status: "cancelled", myRegistrationStatus: "cancelled" })).toBe(true);
+    expect(matching("registered", { ...ended, status: "cancelled", myRegistrationStatus: "cancelled" })).toBe(true);
+    // A cancelled registration on a live event is not one of my registrations.
+    expect(matching("registered", { ...future, status: "confirmed", myRegistrationStatus: "cancelled" })).toBe(false);
   });
 
   // Past Events: registered for, and finished by time or by Completed status.
@@ -130,9 +142,8 @@ describe("SPM-61 attendee Browse Events filters", () => {
     expect(matching("past", { ...ended, status: "cancelled", myRegistrationStatus: "registered" })).toBe(false);
   });
 
-  // Cancelled: only cancelled events I had registered for.
-  it("cancelled shows only cancelled events I registered for", () => {
-    expect(matching("cancelled", { ...future, status: "cancelled", myRegistrationStatus: "registered" })).toBe(true);
-    expect(matching("cancelled", { ...future, status: "cancelled" })).toBe(false);
+  // The Cancelled filter is removed: the attendee dropdown has three options only.
+  it("the attendee browse filters are Upcoming, Registered and Past (no Cancelled option)", () => {
+    expect(ATTENDEE_BROWSE_FILTERS.map((f) => f.value)).toEqual(["upcoming", "registered", "past"]);
   });
 });

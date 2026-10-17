@@ -17,7 +17,8 @@ export interface OutstandingItem {
 export interface VenueBookingFact {
   id: string;
   venueName: string;
-  status: 'pending' | 'approved' | 'rejected';
+  /** 'released' (SPM-136): a cancelled event's booking; it holds nothing and is never outstanding. */
+  status: 'pending' | 'approved' | 'rejected' | 'released';
   /** Pending bookings with a hold expiry are tentative holds (SPM-132/133). */
   holdExpiresAt: Date | null;
   /** An approved booking whose venue is flagged unavailable for the window. */
@@ -68,6 +69,7 @@ const SAFETY_LABEL = 'Safety Officer approval';
 const byId = <T extends { id: string }>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 function venueItem(booking: VenueBookingFact, now: Date): OutstandingItem | undefined {
+  if (booking.status === 'released') return undefined;
   if (booking.status === 'approved') {
     if (!booking.venueUnavailable) return undefined;
     return {

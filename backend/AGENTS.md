@@ -46,6 +46,12 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 - Draft and event routes require a verified local session with the ORGANISER role. Pass `request.currentUser` explicitly to services; scope every list/read/save/submit to its UID. Never use a shared demo identity or a body/header owner ID. Submission must preserve the same UID in events. Legacy demo-owned records require an explicit verified ownership migration, never automatic assignment.
 - Unit tests live beside the events module. `test/drafts.e2e-spec.ts` exercises middleware and PostgreSQL with two verified test identities; run it with TEST_DATABASE_URL and the dedicated integration configuration.
 
+## Cancellation boundary (SPM-136)
+
+- `src/events/cancel` owns the cancellation core (`CancelEventService`, reached through `POST /api/events/:id/status-change` with `targetStatus: 'Cancelled'`), its rules, messages and the release registry. The core knows no table names: each table's releaser sits in its own module and is registered in `release.registry.ts`.
+- `src/events/cancelled-guard.ts` is the one guard for "no arrangement change on a cancelled event" (409 `EVENT_CANCELLED`). Every existing mutation that takes an event calls it after identity and assignment checks. Add the call to any new mutation.
+- Tests: `test/events-cancel.e2e-spec.ts` and `test/events-cancelled-guard.e2e-spec.ts` need `DATABASE_URL` with `database/postgresql/init` 001 to 017 applied. Mutation check: `scripts/mutation/spm136.mutants.mjs`.
+
 ## Coordinators boundary
 
 - `src/coordinator-availability` owns `GET` and `PUT /api/coordinators/me/availability` (SPM-80) and writes `users.is_available`, plus (SPM-47 AC10) the Lead's `coordinator_unavailable` notification when a coordinator with active events becomes unavailable, marked read when they become available again. It does not own event assignment; assignment features (SPM-123, SPM-47) read the flag themselves.

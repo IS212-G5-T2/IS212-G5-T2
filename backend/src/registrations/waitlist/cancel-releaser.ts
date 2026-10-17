@@ -4,8 +4,9 @@
  * Withdrawn and Removed rows are never touched. Dedupe per registration: the UPDATE moves only Waitlisted rows, so an
  * entry can be cancelled, and therefore noticed, once.
  *
- * WIRING IS SPM-136's: the cancel flow is not in HEAD, so nothing calls this yet. The SPM-136 cases 12-A to 12-C stay
- * Blocked; 12-C-REL tests this function against rows. The caller must hold the event row lock (D7).
+ * Called by the cancellation core through the waitlist releaser (registrations/release/waitlist.releaser.ts), inside the
+ * cancellation transaction. 12-C-REL tests this function against rows; 12-A to 12-C test the whole flow. The caller must
+ * hold the event row lock (D7).
  */
 import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
@@ -27,10 +28,15 @@ export async function releaseWaitlistForCancelledEvent(
     [eventId, now],
   );
   for (const row of cancelled.rows) {
+    // TR-136-18: an attendee who is also the organiser or the assigned coordinator already holds the core EventCancelled
+    // notice from the cancellation core (same transaction). The once-only index makes this a no-op, so that recipient
+    // keeps exactly one notice (the core text) and the cancel still succeeds.
+    // TR-136-21: created_at is the injected cancel instant (now), not the database clock.
     await client.query(
-      `INSERT INTO notifications (id, recipient_id, type, message, related_event_id, related_user_id)
-       VALUES ($1, $2, 'EventCancelled', $3, $4, $5::uuid)`,
-      [randomUUID(), row.attendee_id, MESSAGES.waitlistCancelled(event.rows[0].name), eventId, row.attendee_id],
+      `INSERT INTO notifications (id, recipient_id, type, message, related_event_id, related_user_id, created_at)
+       VALUES ($1, $2, 'EventCancelled', $3, $4, $5::uuid, $6)
+       ON CONFLICT (recipient_id, related_event_id, type) WHERE type = 'EventCancelled' DO NOTHING`,
+      [randomUUID(), row.attendee_id, MESSAGES.waitlistCancelled(event.rows[0].name), eventId, row.attendee_id, now],
     );
   }
   return cancelled.rows.length;
