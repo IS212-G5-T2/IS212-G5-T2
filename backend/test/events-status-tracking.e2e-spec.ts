@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -37,8 +38,13 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
   let createdUserIds: string[];
   let createdDraftIds: string[];
 
-  beforeAll(() => {
+  beforeAll(async () => {
     pool = new pg.Pool({ connectionString: database });
+    // Drafts are read and written here, so the table must exist even when this file runs first on a fresh database.
+    // The migration is idempotent (CREATE TABLE IF NOT EXISTS).
+    await pool.query(
+      await readFile(new URL('../migrations/001_event_drafts.sql', import.meta.url), 'utf8'),
+    );
   });
 
   afterAll(async () => {

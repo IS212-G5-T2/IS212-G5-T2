@@ -34,7 +34,7 @@ const both = ['unit', 'e2e'];
 
 export const MUTANTS = [
   { id: 'M2', name: 'owner filter removed from the organiser list (01-A)', file: SERVICE,
-    edits: [['FROM events WHERE organiser_id = $1 ORDER BY created_at DESC', 'FROM events WHERE $1::text IS NOT NULL ORDER BY created_at DESC']],
+    edits: [['FROM events WHERE organiser_id = $1 ORDER BY start_date_time ASC, created_at DESC', 'FROM events WHERE $1::text IS NOT NULL ORDER BY start_date_time ASC, created_at DESC']],
     suites: ['e2e'] },
   { id: 'M3', name: 'detail route without the owner check, both 403 and 404 (01-C)', file: SERVICE,
     edits: [
@@ -77,6 +77,6 @@ export const MUTANTS = [
     edits: [["  @Get('events/:id')\n  @Header('Cache-Control', 'no-store')\n", "  @Get('events/:id')\n"]],
     suites: ['e2e'] },
   { id: 'X12', name: 'safety indicator dropped while the event awaits assignment (AC2 with AC3)', file: SERVICE,
-    edits: [['safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status),', 'safetyIndicator: row.coordinator_id ? deriveSafetyIndicator(row.safety_status, row.status) : null,']],
+    edits: [['safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status) }', 'safetyIndicator: row.coordinator_id ? deriveSafetyIndicator(row.safety_status, row.status) : null }']],
     suites: ['e2e'] },
 ];
