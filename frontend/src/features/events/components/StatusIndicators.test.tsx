@@ -49,6 +49,14 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
 });
 
 describe("SPM-94 AC3: one safety indicator from the safety state", () => {
+  // Owner decision (18 Oct 2026): no safety label until the venue and all equipment are reserved.
+  it("TRACK-EVENT-STATUS-03-B: a changes-requested label waits until the venue and equipment are reserved", () => {
+    const { container } = render(
+      <SafetyIndicator event={{ safetyIndicator: "CHANGES_REQUESTED", status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Requested"] }} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
   // Kills: M9 (two indicators at once), and the three indicator texts swapped
   it.each([
     ["AWAITING_CHECK", "Awaiting Safety Officer Check"],

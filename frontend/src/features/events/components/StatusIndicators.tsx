@@ -25,8 +25,8 @@ export function SafetyIndicator({
   event: Pick<EventRecord, "safetyIndicator" | "status" | "venueRequestStatus" | "equipmentStatuses">;
 }) {
   if (!event.safetyIndicator) return null;
-  // The awaiting check is shown only once the venue and all equipment are reserved (planning events).
-  if (event.safetyIndicator === "AWAITING_CHECK" && !arrangementsReserved(event)) return null;
+  // Every safety label waits until the venue and all equipment are reserved (planning events).
+  if (!arrangementsReserved(event)) return null;
   return (
     <span
       className={
