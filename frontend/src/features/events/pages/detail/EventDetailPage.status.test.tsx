@@ -82,37 +82,37 @@ afterEach(() => {
 
 describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
   // Kills: X5 (indicator removed from the planning page), X4 (shown without the server flag).
-  it("TRACK-EVENT-STATUS-02-A: the owner sees Awaiting Coordinator assignment for an unassigned Submitted event", async () => {
+  it("TRACK-EVENT-STATUS-02-A: the owner sees Awaiting Coordinator Assignment for an unassigned Submitted event", async () => {
     current = eventRecord({ status: "submitted", coordinatorId: undefined, awaitingCoordinatorAssignment: true });
     renderPage();
-    expect(await screen.findByText("Awaiting Coordinator assignment")).toBeInTheDocument();
+    expect(await screen.findByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
   });
 
   it("TRACK-EVENT-STATUS-02-A: the owner does not see the assignment indicator once a coordinator is assigned", async () => {
     current = eventRecord({ status: "submitted", coordinatorId: "COO-01", coordinatorName: "Coordinator One" });
     renderPage();
     await screen.findByText("Student Mixer");
-    expect(screen.queryByText("Awaiting Coordinator assignment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Awaiting Coordinator Assignment")).not.toBeInTheDocument();
   });
 
   // Kills: X5 (indicator removed from the planning page), the three indicator texts swapped.
   it.each([
-    ["AWAITING_CHECK", "Awaiting Safety Officer check"],
-    ["CHANGES_REQUESTED", "Safety changes requested"],
-    ["CLEARED", "Safety check cleared"],
+    ["AWAITING_CHECK", "Awaiting Safety Officer Check"],
+    ["CHANGES_REQUESTED", "Safety Changes Requested"],
+    ["CLEARED", "Safety Check Cleared"],
   ] as const)("TRACK-EVENT-STATUS-03-A/03-B: %s shows exactly '%s' on the planning page", async (indicator, text) => {
-    current = eventRecord({ status: "planning", safetyIndicator: indicator });
+    current = eventRecord({ safetyIndicator: indicator, status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] });
     renderPage();
     expect(await screen.findByText(text)).toBeInTheDocument();
     // Exactly one safety text is on the page (M9-style: two at once would fail).
-    expect(screen.getAllByText(/^(Awaiting Safety Officer check|Safety changes requested|Safety check cleared)$/)).toHaveLength(1);
+    expect(screen.getAllByText(/^(Awaiting Safety Officer Check|Safety Changes Requested|Safety Check Cleared)$/)).toHaveLength(1);
   });
 
   it("TRACK-EVENT-STATUS-03-B: a null safety indicator shows no safety text on the planning page", async () => {
     current = eventRecord({ status: "planning", safetyIndicator: null });
     renderPage();
     await screen.findByText("Student Mixer");
-    expect(screen.queryByText(/^(Awaiting Safety Officer check|Safety changes requested|Safety check cleared)$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^(Awaiting Safety Officer Check|Safety Changes Requested|Safety Check Cleared)$/)).not.toBeInTheDocument();
   });
 
   // Oracle: indicators are the organiser's view only (planning header is gated by isOwner).
@@ -123,7 +123,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     });
     renderPage();
     await screen.findByText("Student Mixer");
-    expect(screen.queryByText("Awaiting Safety Officer check")).not.toBeInTheDocument();
+    expect(screen.queryByText("Awaiting Safety Officer Check")).not.toBeInTheDocument();
   });
 });
 

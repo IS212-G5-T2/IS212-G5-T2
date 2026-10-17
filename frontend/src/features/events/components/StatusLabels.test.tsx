@@ -23,10 +23,10 @@ describe("planning state labels by significance", () => {
   });
 
   it.each([
-    ["pending", "Awaiting Safety Officer check", "amber"],
-    ["changes_needed", "Changes requested", "amber"],
+    ["pending", "Awaiting Safety Officer Check", "amber"],
+    ["changes_needed", "Changes Requested", "amber"],
     ["approved", "Approved", "green"],
-    ["not_requested", "Not requested", "gray"],
+    ["not_requested", "Not Requested", "gray"],
   ] as const)("safety %s is %s", (status, label, tone) => {
     expect(safetyLabel(status)).toEqual({ label, tone });
   });
@@ -45,8 +45,8 @@ describe("card labels name the resource and its state", () => {
 
   it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested item read as awaiting requests", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
-      { label: "Awaiting venue request", tone: "amber" },
-      { label: "Awaiting equipment request", tone: "amber" },
+      { label: "Awaiting Venue Request", tone: "amber" },
+      { label: "Awaiting Equipment Request", tone: "amber" },
     ]);
   });
 
@@ -59,8 +59,8 @@ describe("card labels name the resource and its state", () => {
 
   it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
-      { label: "Venue unavailable", tone: "red" },
-      { label: "Equipment unavailable", tone: "red" },
+      { label: "Venue Unavailable", tone: "red" },
+      { label: "Equipment Unavailable", tone: "red" },
     ]);
   });
 });

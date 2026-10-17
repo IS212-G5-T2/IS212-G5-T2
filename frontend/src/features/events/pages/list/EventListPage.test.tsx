@@ -129,7 +129,7 @@ describe("EventListPage", () => {
       id: "00000000-0000-4000-8000-0000000000ff",
       name: "Rejected Gala",
       status: "rejected",
-      rejectionReason: "Venue unavailable for the requested date.",
+      rejectionReason: "Venue Unavailable for the requested date.",
     };
     apiMock.mockResolvedValue([submittedEvent(), rejected]);
 
@@ -655,7 +655,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
 describe("SPM-94 AC2/AC3 on the organiser list page", () => {
   // Kills: the list page dropping the indicator fields before they reach the card.
   it("TRACK-EVENT-STATUS-01-A: the organiser list shows both indicators on a card", async () => {
-    serveEvents(() => Promise.resolve([{ ...submittedEvent(), awaitingCoordinatorAssignment: true, safetyIndicator: "AWAITING_CHECK" }]));
+    serveEvents(() => Promise.resolve([{ ...submittedEvent(), status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"], safetyIndicator: "AWAITING_CHECK" }]));
 
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -665,8 +665,7 @@ describe("SPM-94 AC2/AC3 on the organiser list page", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText("Awaiting Coordinator assignment")).toBeInTheDocument();
-    expect(screen.getByText("Awaiting Safety Officer check")).toBeInTheDocument();
+    expect(await screen.findByText("Awaiting Safety Officer Check")).toBeInTheDocument();
   });
 });
 

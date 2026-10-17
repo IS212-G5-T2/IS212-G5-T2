@@ -249,7 +249,7 @@ export class EventsService {
        (SELECT COUNT(*)::integer FROM event_registrations
          WHERE event_id = events.id AND status = 'Registered'
        ) AS confirmed_registrations,
-       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}
+       ${LATEST_REASSIGNMENT}, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES}
          FROM events WHERE id = $1`,
       [id],
     );

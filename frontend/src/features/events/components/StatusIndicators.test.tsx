@@ -39,7 +39,7 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
   // Kills: X4 (assignment indicator shown without the server flag), and the indicator text changing
   it("TRACK-EVENT-STATUS-02-A: shows the exact text when the event is awaiting assignment", () => {
     render(<AssignmentIndicator event={{ awaitingCoordinatorAssignment: true }} />);
-    expect(screen.getByText("Awaiting Coordinator assignment")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
   });
 
   it("TRACK-EVENT-STATUS-02-B: renders nothing once the event is assigned", () => {
@@ -51,17 +51,17 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
 describe("SPM-94 AC3: one safety indicator from the safety state", () => {
   // Kills: M9 (two indicators at once), and the three indicator texts swapped
   it.each([
-    ["AWAITING_CHECK", "Awaiting Safety Officer check"],
-    ["CHANGES_REQUESTED", "Safety changes requested"],
-    ["CLEARED", "Safety check cleared"],
+    ["AWAITING_CHECK", "Awaiting Safety Officer Check"],
+    ["CHANGES_REQUESTED", "Safety Changes Requested"],
+    ["CLEARED", "Safety Check Cleared"],
   ] as const)("TRACK-EVENT-STATUS-03-B: %s shows exactly '%s'", (indicator, text) => {
-    render(<SafetyIndicator event={{ safetyIndicator: indicator }} />);
+    render(<SafetyIndicator event={{ safetyIndicator: indicator, status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] }} />);
     expect(screen.getByText(text)).toBeInTheDocument();
     expect(screen.getAllByText(/Safety /)).toHaveLength(1);
   });
 
   it("TRACK-EVENT-STATUS-03-B: renders nothing when there is no safety indicator", () => {
-    const { container } = render(<SafetyIndicator event={{ safetyIndicator: null }} />);
+    const { container } = render(<SafetyIndicator event={{ safetyIndicator: null, status: "planning", venueRequestStatus: null, equipmentStatuses: [] }} />);
     expect(container).toBeEmptyDOMElement();
   });
 });
@@ -75,8 +75,9 @@ describe("SPM-94 AC2/AC3 on the organiser list card", () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.getByText("Awaiting Coordinator assignment")).toBeInTheDocument();
-    expect(screen.getByText("Awaiting Safety Officer check")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
+    // A submitted event shows no safety check label; the check is a planning-phase state (owner, 18 Oct 2026).
+    expect(screen.queryByText("Awaiting Safety Officer Check")).not.toBeInTheDocument();
   });
 
   it("TRACK-EVENT-STATUS-01-A: the attendee card never shows organiser indicators", () => {
@@ -88,7 +89,7 @@ describe("SPM-94 AC2/AC3 on the organiser list card", () => {
         />
       </MemoryRouter>,
     );
-    expect(screen.queryByText("Awaiting Coordinator assignment")).not.toBeInTheDocument();
-    expect(screen.queryByText("Safety check cleared")).not.toBeInTheDocument();
+    expect(screen.queryByText("Awaiting Coordinator Assignment")).not.toBeInTheDocument();
+    expect(screen.queryByText("Safety Check Cleared")).not.toBeInTheDocument();
   });
 });

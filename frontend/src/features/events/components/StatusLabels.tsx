@@ -50,14 +50,20 @@ export function equipmentLabel(status: string): StateLabelInfo {
 export function safetyLabel(status: string): StateLabelInfo {
   switch (status) {
     case "pending":
-      return { label: "Awaiting Safety Officer check", tone: "amber" };
+      return { label: "Awaiting Safety Officer Check", tone: "amber" };
     case "changes_needed":
-      return { label: "Changes requested", tone: "amber" };
+      return { label: "Changes Requested", tone: "amber" };
     case "approved":
       return { label: "Approved", tone: "green" };
     default:
-      return { label: "Not requested", tone: "gray" };
+      return { label: "Not Requested", tone: "gray" };
   }
+}
+
+/** A planning event whose venue and all equipment are reserved: only then is the awaiting safety check shown (owner, 18 Oct 2026). */
+export function arrangementsReserved(event: Pick<EventRecord, "status" | "venueRequestStatus" | "equipmentStatuses">): boolean {
+  const statuses = event.equipmentStatuses ?? [];
+  return event.status === "planning" && event.venueRequestStatus === "approved" && statuses.length > 0 && statuses.every((s) => s === "Reserved");
 }
 
 /** Card labels name the resource and its state. "Reserved" states count only in the planning phase; when a planning event has
@@ -74,8 +80,8 @@ export function cardArrangementLabels(
   if (planning && venueReserved && equipmentReserved) {
     labels.push({ label: "Equipment & Venue Reserved", tone: "green" });
   } else {
-    if (venueReserved && planning) labels.push({ label: "Venue reserved", tone: "green" });
-    if (equipmentReserved && planning) labels.push({ label: "Equipment reserved", tone: "green" });
+    if (venueReserved && planning) labels.push({ label: "Venue Reserved", tone: "green" });
+    if (equipmentReserved && planning) labels.push({ label: "Equipment Reserved", tone: "green" });
   }
 
   // A planning event with nothing requested yet is awaiting the request.
@@ -84,17 +90,17 @@ export function cardArrangementLabels(
 
   switch (event.venueRequestStatus) {
     case "pending":
-      labels.push({ label: "Awaiting venue request", tone: "amber" });
+      labels.push({ label: "Awaiting Venue Request", tone: "amber" });
       break;
     case "rejected":
     case "released":
-      labels.push({ label: "Venue unavailable", tone: "red" });
+      labels.push({ label: "Venue Unavailable", tone: "red" });
       break;
   }
   const equipment: Record<string, StateLabelInfo> = {
-    Requested: { label: "Awaiting equipment request", tone: "amber" },
-    Unavailable: { label: "Equipment unavailable", tone: "red" },
-    Cancelled: { label: "Equipment unavailable", tone: "red" },
+    Requested: { label: "Awaiting Equipment Request", tone: "amber" },
+    Unavailable: { label: "Equipment Unavailable", tone: "red" },
+    Cancelled: { label: "Equipment Unavailable", tone: "red" },
   };
   for (const status of new Set(statuses)) {
     if (equipment[status]) labels.push(equipment[status]);

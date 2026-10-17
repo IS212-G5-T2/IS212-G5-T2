@@ -1,10 +1,11 @@
 import type { EventRecord } from "@/types";
+import { arrangementsReserved } from "@/features/events/components/StatusLabels";
 
 /** SPM-94 D4: the exact indicator texts. */
 export const SAFETY_INDICATOR_LABELS: Record<NonNullable<EventRecord["safetyIndicator"]>, string> = {
-  AWAITING_CHECK: "Awaiting Safety Officer check",
-  CHANGES_REQUESTED: "Safety changes requested",
-  CLEARED: "Safety check cleared",
+  AWAITING_CHECK: "Awaiting Safety Officer Check",
+  CHANGES_REQUESTED: "Safety Changes Requested",
+  CLEARED: "Safety Check Cleared",
 };
 
 /** SPM-94 AC2: shown only while the event is Submitted and not assigned. Text, not colour alone. */
@@ -12,14 +13,20 @@ export function AssignmentIndicator({ event }: { event: Pick<EventRecord, "await
   if (!event.awaitingCoordinatorAssignment) return null;
   return (
     <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-      Awaiting Coordinator assignment
+      Awaiting Coordinator Assignment
     </span>
   );
 }
 
 /** SPM-94 AC3: renders at most one element, from the single safetyIndicator value. */
-export function SafetyIndicator({ event }: { event: Pick<EventRecord, "safetyIndicator"> }) {
+export function SafetyIndicator({
+  event,
+}: {
+  event: Pick<EventRecord, "safetyIndicator" | "status" | "venueRequestStatus" | "equipmentStatuses">;
+}) {
   if (!event.safetyIndicator) return null;
+  // The awaiting check is shown only once the venue and all equipment are reserved (planning events).
+  if (event.safetyIndicator === "AWAITING_CHECK" && !arrangementsReserved(event)) return null;
   return (
     <span
       className={
