@@ -38,6 +38,7 @@ import type pg from 'pg';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { DatabaseService } from '../../database/database.service.js';
+import { changeRequestNoticeMessage, insertChangeRequestNotice } from './change-request-notice.js';
 import {
   PERMITTED_CHANGE_FIELDS,
   validateChangeRequest,
@@ -85,16 +86,6 @@ const COLUMNS: Record<ChangeField, string> = {
 };
 
 /** Plain-English field names used in the coordinator's notification. */
-const FIELD_NAMES: Record<ChangeField, string> = {
-  description: 'description',
-  startDateTime: 'start date & time',
-  endDateTime: 'end date & time',
-  expectedAttendance: 'expected attendance',
-  layout: 'room layout',
-  facilities: 'required facilities',
-  accessibility: 'accessibility needs',
-  equipmentNeeds: 'equipment requirements',
-};
 
 export interface RequestedChange {
   field: ChangeField;
@@ -219,18 +210,13 @@ export class ChangeRequestsService {
         );
 
         // AC3: tell the assigned coordinator, in the same transaction.
+        // An event without a coordinator yet: the Lead's assignment sends it (notifyPendingChangeRequest).
         if (event.coordinator_id)
-          await client.query(
-            `INSERT INTO notifications (id, recipient_id, type, message, related_event_id)
-             VALUES ($1, $2, 'coordinator_change_request', $3, $4)`,
-            [
-              randomUUID(),
-              event.coordinator_id,
-              `${requestedBy} requested a change to "${event.event_name}": ${changes
-                .map((change) => FIELD_NAMES[change.field])
-                .join(', ')}.`,
-              eventId,
-            ],
+          await insertChangeRequestNotice(
+            client,
+            event.coordinator_id,
+            eventId,
+            changeRequestNoticeMessage(requestedBy, event.event_name, changes),
           );
 
         return this.toRecord(inserted.rows[0], event.event_name);

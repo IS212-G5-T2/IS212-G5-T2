@@ -200,13 +200,74 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(dashboard.body.map((r: { id: string }) => r.id)).toEqual([mine.body.id]);
   });
 
-  /** REQ-CHANGE-03-D: the request follows the event to a newly assigned coordinator. */
-  it('REQ-CHANGE-03-D follows the event when it is reassigned', async () => {
+  /** Change request notices a coordinator has, newest first. */
+  async function changeNotices(user: DatabaseUser) {
+    const response = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', user.cookie).expect(200);
+    return (response.body as { type: string; read: boolean; relatedEventId: string; message: string }[]).filter(
+      (n) => n.type === 'coordinator_change_request' && n.relatedEventId === eventId,
+    );
+  }
+
+  /** REQ-CHANGE-03-C: a request on an unassigned event waits; when the Lead assigns the event, that coordinator is notified. */
+  it('REQ-CHANGE-03-C notifies the coordinator the Lead assigns afterwards', async () => {
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
+    eventId = await seedEvent(organiser.uid, null, 'Submitted');
     await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
-    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [eventId, otherCoordinator.uid]);
+    expect(await changeNotices(coordinator)).toEqual([]);
+
+    await request(app.getHttpServer())
+      .post(`/api/lead/queue/${eventId}/assign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: coordinator.uid })
+      .expect(201);
+    expect(await changeNotices(coordinator)).toEqual([
+      expect.objectContaining({
+        read: false,
+        message: 'CR Organiser requested a change to "CR Welcome Evening": expected attendance.',
+      }),
+    ]);
+    const list = await request(app.getHttpServer()).get(url()).set('Cookie', coordinator.cookie).expect(200);
+    expect(list.body).toHaveLength(1);
+  });
+
+  /** REQ-CHANGE-03-D: on reassignment the request follows the event, the new coordinator is notified and the old notice is cleared. */
+  it('REQ-CHANGE-03-D follows the event when it is reassigned', async () => {
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
+    await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
+    expect(await changeNotices(coordinator)).toEqual([expect.objectContaining({ read: false })]);
+
+    await request(app.getHttpServer())
+      .post(`/api/lead/events/${eventId}/reassign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: otherCoordinator.uid, currentCoordinatorId: coordinator.uid })
+      .expect(201);
+
     await request(app.getHttpServer()).get(url()).set('Cookie', coordinator.cookie).expect(404);
+    expect(await changeNotices(coordinator)).toEqual([expect.objectContaining({ read: true })]);
     const list = await request(app.getHttpServer()).get(url()).set('Cookie', otherCoordinator.cookie).expect(200);
     expect(list.body).toHaveLength(1);
+    expect(await changeNotices(otherCoordinator)).toEqual([
+      expect.objectContaining({
+        read: false,
+        message: 'CR Organiser requested a change to "CR Welcome Evening": expected attendance.',
+      }),
+    ]);
+  });
+
+  /** REQ-CHANGE-03-D: a withdrawn request is not announced to a newly assigned coordinator. */
+  it('REQ-CHANGE-03-D sends no notice for a request that is no longer pending', async () => {
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'CR Lead');
+    const created = await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
+    await request(app.getHttpServer())
+      .post(`${url()}/${created.body.id}/withdraw`)
+      .set('Cookie', organiser.cookie)
+      .expect(200);
+    await request(app.getHttpServer())
+      .post(`/api/lead/events/${eventId}/reassign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: otherCoordinator.uid, currentCoordinatorId: coordinator.uid })
+      .expect(201);
+    expect(await changeNotices(otherCoordinator)).toEqual([]);
   });
 
   /** REQ-CHANGE-05-A, 05-D: the dashboard list shows the pending request from the server, filterable by status. */
@@ -297,6 +358,26 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     await submit(organiser, { changes: { description: 'Second try' } }).expect(201);
   });
 
+  /** REQ-CHANGE-08-D: prototype keys in the raw JSON body get a 400 naming the key, never a 500, and nothing is stored. */
+  it('REQ-CHANGE-08-D answers 400 for __proto__ and constructor keys', async () => {
+    for (const raw of [
+      '{"changes":{"__proto__":{"description":"x"}}}',
+      '{"changes":{"__proto__":"a","description":"New"}}',
+      '{"changes":{"constructor":"x"}}',
+      '{"__proto__":{"status":"Approved"},"changes":{"description":"New"}}',
+    ]) {
+      const response = await request(app.getHttpServer())
+        .post(url())
+        .set('Cookie', organiser.cookie)
+        .set('Content-Type', 'application/json')
+        .send(raw)
+        .expect(400);
+      const key = raw.includes('constructor') ? 'constructor' : '__proto__';
+      expect(Object.keys(response.body.errors)).toContain(key);
+    }
+    expect(await requestCount()).toBe(0);
+  });
+
   /** REQ-CHANGE-08-A: anonymous and non-owner callers are refused on every route. */
   it('REQ-CHANGE-08-A refuses anonymous, non-organiser and non-owner submissions', async () => {
     const server = app.getHttpServer();
@@ -328,7 +409,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     return result.rows[0].n as number;
   }
 
-  async function seedEvent(organiserId: string, coordinatorId: string, status: string) {
+  async function seedEvent(organiserId: string, coordinatorId: string | null, status: string) {
     const id = randomUUID();
     await pool.query(
       `INSERT INTO events (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
@@ -336,7 +417,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
          accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
        VALUES ($1,$2,'CR Organiser','organiser@example.test','CR Welcome Evening','Purpose','Description',
                $3,$4,80,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
-               $5,$6,'CR Coordinator',$7)`,
+               $5,$6,CASE WHEN $6::text IS NULL THEN NULL ELSE 'CR Coordinator' END,$7)`,
       [id, organiserId, START, END, status, coordinatorId, randomUUID()],
     );
     createdEventIds.push(id);

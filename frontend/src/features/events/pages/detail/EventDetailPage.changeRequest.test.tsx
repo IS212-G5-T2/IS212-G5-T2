@@ -113,6 +113,29 @@ describe("SPM-64 on the event page", () => {
     expect(status).toHaveTextContent("Expected attendance");
   });
 
+  /** REQ-CHANGE-03-A: the assigned coordinator sees the pending request on the event page with a link to the proposed changes. */
+  it("REQ-CHANGE-03-A shows the assigned coordinator the pending request and a link to review it", async () => {
+    stubApi(eventWith("planning"), [PENDING]);
+    renderAs(eventWith("planning"), "coordinator");
+    const status = await screen.findByRole("region", { name: "Change request status" });
+    expect(status).toHaveTextContent("Pending review");
+    expect(status).toHaveTextContent("Expected attendance");
+    expect(screen.getByRole("link", { name: "View Change Requests" })).toHaveAttribute(
+      "href",
+      "/events/event-1/change-requests",
+    );
+  });
+
+  /** REQ-CHANGE-03-B: a coordinator who is not assigned sees no change request block and nothing is fetched. */
+  it("REQ-CHANGE-03-B shows another coordinator no change request block", async () => {
+    const event = { ...eventWith("planning"), coordinatorId: "coordinator-2" };
+    stubApi(event, [PENDING]);
+    renderAs(event, "coordinator");
+    await screen.findByText("Innovation Showcase");
+    expect(screen.queryByRole("region", { name: "Change request status" })).not.toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalledWith("/events/event-1/change-requests");
+  });
+
   /** REQ-CHANGE-05-E: no status block before the first request. */
   it("REQ-CHANGE-05-E shows no status before any request", async () => {
     stubApi(eventWith("submitted"));

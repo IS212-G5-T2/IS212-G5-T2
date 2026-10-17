@@ -366,8 +366,9 @@ export function EventDetailPage() {
         />
       )}
 
-      {/* SPM-64 AC5: the owner sees the status of their latest change request. */}
-      {isOwner && event.status !== "draft" && <ChangeRequestSummary eventId={event.id} />}
+      {/* SPM-64 AC5: the owner sees the status of their latest change request.
+          AC3: the assigned coordinator sees it too, with the link to review the proposed changes. */}
+      {(isOwner || isAssignedCoordinator) && event.status !== "draft" && <ChangeRequestSummary eventId={event.id} />}
       {(isOwner || isAssignedCoordinator) && (
         <>
           {!statusFlow.includes(event.status) ? (

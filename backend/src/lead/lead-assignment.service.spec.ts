@@ -741,3 +741,61 @@ describe('SPM-46 AC2: each reassignment is recorded', () => {
     await expect(service.reassign(lead, EVENT_ID, reassignBody)).rejects.toThrow('history store down');
   });
 });
+
+// SPM-64 AC3: a change request pending on the event reaches the coordinator who receives it.
+describe('SPM-64 AC3: pending change requests follow assignment', () => {
+  const PENDING = { requested_by: 'Organiser 1', changes: [{ field: 'expectedAttendance' }] };
+
+  function withPending(pending: boolean) {
+    const base = client.query.getMockImplementation()!;
+    client.query.mockImplementation((sql: string, params?: unknown[]) => {
+      const text = String(sql).replace(/\s+/g, ' ').trim();
+      if (text.startsWith('SELECT') && text.includes('FROM event_change_requests'))
+        return { rows: pending ? [PENDING] : [] };
+      return base(sql, params);
+    });
+  }
+
+  const changeNotices = () =>
+    txStatements().filter(
+      (s) => s.sql.startsWith('INSERT INTO notifications') && s.sql.includes("'coordinator_change_request'"),
+    );
+
+  /** REQ-CHANGE-03-C: assigning an event with a pending request also sends the change request notice. */
+  it('REQ-CHANGE-03-C notifies the assigned coordinator of a pending change request', async () => {
+    wireAssign({});
+    withPending(true);
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+    const notices = changeNotices();
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params).toEqual(
+      expect.arrayContaining([
+        COORDINATOR_ID,
+        'Organiser 1 requested a change to "Welcome Evening": expected attendance.',
+        EVENT_ID,
+      ]),
+    );
+  });
+
+  /** REQ-CHANGE-03-C: no pending request, no change request notice. */
+  it('REQ-CHANGE-03-C sends no change request notice when none is pending', async () => {
+    wireAssign({});
+    withPending(false);
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+    expect(changeNotices()).toHaveLength(0);
+  });
+
+  /** REQ-CHANGE-03-D: reassignment notifies the new coordinator and clears the old coordinator's unread notice. */
+  it('REQ-CHANGE-03-D notifies the new coordinator and marks the old notice read', async () => {
+    wireReassign({});
+    withPending(true);
+    await service.reassign(lead, EVENT_ID, reassignBody);
+    const notices = changeNotices();
+    expect(notices).toHaveLength(1);
+    expect(notices[0].params).toEqual(expect.arrayContaining([NEW_COORDINATOR_ID, EVENT_ID]));
+    expect(notices[0].params).not.toContain(COORDINATOR_ID);
+    const markRead = txStatements().find((s) => s.sql.startsWith('UPDATE notifications'))!;
+    expect(markRead.sql).toContain("'coordinator_change_request'");
+    expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+  });
+});

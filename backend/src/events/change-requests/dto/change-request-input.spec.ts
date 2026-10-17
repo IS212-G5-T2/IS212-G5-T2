@@ -5,6 +5,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
 import {
+  INVALID_FIELDS_MESSAGE,
   LOCKED_FIELDS_MESSAGE,
   NOT_PERMITTED,
   PERMITTED_CHANGE_FIELDS,
@@ -202,5 +203,33 @@ describe('validateChangeRequest', () => {
     expect(rejection({ changes: { description: 'New' }, reason: 5 }).errors).toEqual({
       reason: 'Enter valid text.',
     });
+  });
+
+  /**
+   * REQ-CHANGE-08-D: keys that exist on Object.prototype, parsed from JSON as
+   * own properties, are refused by name with a 400 like any other field,
+   * never matched through the prototype chain or silently dropped.
+   */
+  it.each([
+    ['{"changes":{"__proto__":{"description":"x"}}}', 'changes', '__proto__', NOT_PERMITTED, INVALID_FIELDS_MESSAGE],
+    ['{"changes":{"__proto__":"a","description":"New"}}', 'changes', '__proto__', NOT_PERMITTED, INVALID_FIELDS_MESSAGE],
+    ['{"changes":{"constructor":"x"}}', 'changes', 'constructor', NOT_PERMITTED, INVALID_FIELDS_MESSAGE],
+    ['{"changes":{"toString":"x","description":"New"}}', 'changes', 'toString', NOT_PERMITTED, INVALID_FIELDS_MESSAGE],
+    ['{"__proto__":{"status":"Approved"},"changes":{"description":"New"}}', 'body', '__proto__', 'Unknown field.', INVALID_FIELDS_MESSAGE],
+  ])('REQ-CHANGE-08-D refuses the prototype key in %s', (json, _where, key, fieldMessage, message) => {
+    const body = rejection(JSON.parse(json));
+    expect(body.message).toBe(message);
+    expect(Object.getPrototypeOf(body.errors)).toBe(Object.prototype);
+    expect(Object.keys(body.errors)).toContain(key);
+    expect(body.errors[key]).toBe(fieldMessage);
+    // The response serialises with the offending key named.
+    expect(JSON.parse(JSON.stringify(body)).errors).toHaveProperty([key], fieldMessage);
+  });
+
+  /** REQ-CHANGE-08-D: a locked field next to a prototype key keeps the locked-field message. */
+  it('REQ-CHANGE-08-D keeps the locked message when a prototype key is also sent', () => {
+    const body = rejection(JSON.parse('{"changes":{"name":"X","constructor":"y"}}'));
+    expect(body.message).toBe(LOCKED_FIELDS_MESSAGE);
+    expect({ ...body.errors }).toEqual({ name: 'Event name cannot be changed.', constructor: NOT_PERMITTED });
   });
 });

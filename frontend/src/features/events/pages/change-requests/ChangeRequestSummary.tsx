@@ -2,7 +2,10 @@
  * SPM-64 AC5 — on the event page, the owning organiser sees the status of
  * their latest change request (pending, or the last decision with the
  * coordinator's reason) and a link to the full Change Requests page.
- * Renders nothing until the event has a change request.
+ * AC3 — the assigned coordinator sees the same block, so the proposed changes
+ * are one click away from the event page as well as from the notification.
+ * Renders nothing until the event has a change request; the full list,
+ * values and empty state are on the Change Requests page.
  */
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";

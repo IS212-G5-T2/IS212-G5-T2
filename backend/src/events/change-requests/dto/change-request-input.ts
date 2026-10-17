@@ -16,6 +16,10 @@
  * - Proposed values follow exactly the rules of a coordinator update
  *   (validateEventUpdate, SPM-49), so a request can never hold a value that
  *   could not later be applied. Every problem is reported in one response.
+ * - Keys are matched as own properties only, and errors are collected in a
+ *   prototype-free map, so names such as `__proto__`, `constructor` or
+ *   `toString` are reported like any other non-permitted field (400) instead
+ *   of matching Object.prototype or being silently dropped.
  * - Cross-field rules that need the stored event (end after the stored start,
  *   "is this actually a change") are checked by ChangeRequestsService.
  */
@@ -60,6 +64,11 @@ export interface ChangeRequestInput {
   reason?: string;
 }
 
+/** A map with no prototype, so any client-supplied key is stored as an ordinary own property. */
+function plainMap<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
+}
+
 function isPermitted(key: string): key is ChangeField {
   return (PERMITTED_CHANGE_FIELDS as readonly string[]).includes(key);
 }
@@ -95,7 +104,7 @@ export function validateChangeRequest(input: unknown): ChangeRequestInput {
       errors: {},
     });
 
-  const errors: Record<string, string> = {};
+  const errors = plainMap<string>();
   // The body itself is strict: anything besides `changes` and `reason` is a
   // client error, so server-owned values (status, requester, event) can never
   // be supplied (same rule as the waiting-list join, SPM-138).
@@ -111,9 +120,9 @@ export function validateChangeRequest(input: unknown): ChangeRequestInput {
     });
 
   let locked = false;
-  const permitted: Record<string, unknown> = {};
+  const permitted = plainMap<unknown>();
   for (const key of keys) {
-    if (key in LOCKED_FIELDS) {
+    if (Object.hasOwn(LOCKED_FIELDS, key)) {
       errors[key] = LOCKED_FIELDS[key];
       locked = true;
     } else if (!isPermitted(key)) errors[key] = NOT_PERMITTED;
@@ -126,7 +135,7 @@ export function validateChangeRequest(input: unknown): ChangeRequestInput {
   Object.assign(errors, values.errors);
 
   let reason: string | undefined;
-  if ('reason' in input && input.reason !== undefined && input.reason !== null) {
+  if (Object.hasOwn(input, 'reason') && input.reason !== undefined && input.reason !== null) {
     if (typeof input.reason !== 'string') errors.reason = 'Enter valid text.';
     else if (input.reason.trim().length > REASON_MAX)
       errors.reason = `Use ${REASON_MAX} characters or fewer.`;
@@ -136,7 +145,7 @@ export function validateChangeRequest(input: unknown): ChangeRequestInput {
   if (Object.keys(errors).length)
     throw new BadRequestException({
       message: locked ? LOCKED_FIELDS_MESSAGE : INVALID_FIELDS_MESSAGE,
-      errors,
+      errors: { ...errors },
     });
 
   return {

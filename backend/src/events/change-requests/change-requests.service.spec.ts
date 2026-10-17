@@ -268,7 +268,7 @@ describe('ChangeRequestsService.create', () => {
     await expect(svc.create(organiser, EVENT_ID, { changes: { description: 'New' } })).rejects.toBe(failure);
   });
 
-  /** REQ-CHANGE-03-C: an unassigned event's request is stored, with nobody to notify yet. */
+  /** REQ-CHANGE-03-C: an unassigned event's request is stored, with nobody to notify until the Lead assigns it. */
   it('REQ-CHANGE-03-C stores a request on an unassigned event without a notification', async () => {
     const { svc, calls } = service({ event: eventRow({ status: 'Submitted', coordinator_id: null }) });
     await svc.create(organiser, EVENT_ID, { changes: { description: 'New' } });
