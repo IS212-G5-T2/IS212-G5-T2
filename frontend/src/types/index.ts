@@ -326,6 +326,8 @@ export interface PlanningVenueBooking {
   end: string;
   /** "Unavailable": the venue was lost and a replacement is required. */
   status: "Booked" | "Unavailable" | "Cancelled";
+  /** The request itself: pending (awaiting approval), approved, rejected or released. */
+  requestStatus?: "pending" | "approved" | "rejected" | "released";
 }
 
 export interface PlanningEquipmentArrangement {

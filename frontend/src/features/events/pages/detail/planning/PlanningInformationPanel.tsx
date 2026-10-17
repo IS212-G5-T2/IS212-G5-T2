@@ -13,6 +13,7 @@ import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import type { FlaggedChange, PendingChange, PlanningView, ReplacementRequired } from "@/types";
 import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import { formatFieldValue } from "@/utils/planning";
+import { StateLabel, equipmentLabel, venueLabel } from "@/features/events/components/StatusLabels";
 
 interface Props {
   view: PlanningView;
@@ -143,7 +144,7 @@ export function PlanningInformationPanel({ view, refreshError, people }: Props) 
                         {formatDateTimeRange(booking.start, booking.end)}
                       </span>
                       <span className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{booking.status}</span>
+                        <StateLabel {...venueLabel(booking)} />
                         {replacement && <span className={PENDING_BADGE}>Replacement venue required</span>}
                       </span>
                     </li>
@@ -172,7 +173,7 @@ export function PlanningInformationPanel({ view, refreshError, people }: Props) 
                   >
                     <span className="font-medium text-gray-800 dark:text-gray-200">{item.name}</span>
                     <span className="text-gray-500 dark:text-gray-400">Qty {item.quantity}</span>
-                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{item.status}</span>
+                    <StateLabel {...equipmentLabel(item.status)} />
                   </li>
                 ))}
               </ul>
