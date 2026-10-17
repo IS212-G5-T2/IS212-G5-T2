@@ -108,6 +108,26 @@ TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e 
 DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
 ```
 
+## Event change requests (SPM-64)
+
+The owning organiser asks for changes to a submitted event; the assigned coordinator decides them (SPM-65, not built yet). A request stores only the proposed values: the event, its bookings and its safety check do not change until a coordinator approves it.
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `POST /api/events/:id/change-requests` | Owning organiser | `{ changes: { <field>: <value> }, reason? }` → 201 with the request (status `Pending`). Permitted fields: `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility` (special requirements), `equipmentNeeds`. `name` and the organiser fields are refused with their own message; any other field is refused by name. Values follow the same rules as `PATCH /planning`. Only fields that differ from the stored values are kept; none → 400. Allowed while the event is Submitted, Approved, Planning or Confirmed and has not started (else 409 `change_request_closed` / `event_started`). One pending request per event (409 `change_request_pending`, also enforced by a partial unique index). The assigned coordinator gets a `coordinator_change_request` notification; if the event has no coordinator yet, or the Lead reassigns it while the request is pending, the coordinator who receives it gets the same notice from `POST /api/lead/queue/:eventId/assign` or `POST /api/lead/events/:eventId/reassign` (`src/events/change-requests/change-request-notice.ts`), and the previous coordinator's unread notice is marked read. Keys are matched as own properties, so `__proto__`, `constructor` and similar keys in the body are refused by name with a 400. `requiresSafetyCheck` is true when the event has a safety check (a row in `event_safety_checks`, any status), because approving any change resets it; a pending request re-reads this on every list, a decided one keeps the value stored at submission. |
+| `GET /api/events/:id/change-requests` | Owning organiser, assigned coordinator | The event's requests, newest first |
+| `POST /api/events/:id/change-requests/:requestId/withdraw` | Owning organiser | Withdraw a pending request (SPM-64 AC8). 401 without a session, 403 for non-organisers, 404 for other organisers or a request under another event, 409 `This change request has already been decided.` once it is Approved, Denied or Withdrawn |
+| `GET /api/change-requests[?status=Pending]` | Organiser, coordinator | The caller's requests across their own (organiser) or assigned (coordinator) events, for dashboards |
+
+Anyone else gets 404 for the event, as for `GET /api/events/:id`. Schema: `database/postgresql/init/018_spm64_change_requests.sql`; existing databases apply `backend/migrations/012_spm64_change_requests.sql` once (idempotent).
+
+```sh
+npx vitest run src/events/change-requests
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/change-requests.e2e-spec.ts
+```
+
+Conflict details under "Changes Awaiting Review" (`helpers/event-impact.ts`) show times in Singapore time with am/pm (`src/common/sgt-time.ts`). Flagged changes stored before this change keep their original UTC text.
+
 ## Cancel an event (SPM-136)
 
 `POST /api/events/:id/status-change` with `{ "targetStatus": "Cancelled", "confirmed": true }` cancels an event. The assigned coordinator or the submitting organiser may cancel a Submitted, Approved, Planning or Confirmed event. `confirmed` must be the boolean `true` (anything else: 400 `CANCEL_NOT_CONFIRMED`). Other refusals: 403 `FORBIDDEN` for anyone else, 409 `EVENT_NOT_CANCELLABLE` for any other status, and 409 `EVENT_CANCELLED` for every arrangement change on a cancelled event (`src/events/cancelled-guard.ts`). Reversing a cancellation is refused (422). Identity comes from the session only.

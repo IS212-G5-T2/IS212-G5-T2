@@ -28,7 +28,6 @@ function card(overrides: Partial<EventRecord> = {}): EventRecord {
     attachments: [],
     equipmentNeeds: "",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-10-12T04:00:00.000Z",
     updatedAt: "2026-10-12T04:00:00.000Z",
     ...overrides,

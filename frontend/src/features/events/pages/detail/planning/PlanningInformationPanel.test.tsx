@@ -31,7 +31,6 @@ function eventRecord(): EventRecord {
     venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering", "AV System"], accessibility: [] },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-09-13T00:00:00.000Z",
     updatedAt: "2026-10-04T09:00:00.000Z",
   };
@@ -151,7 +150,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     );
     const marked = row("Date & time");
     expect(within(marked).getAllByText("Change pending")).toHaveLength(2);
-    expect(marked).toHaveTextContent(`Proposed: ${formatDateTime("2026-11-11T10:00:00.000Z")}`);
+    expect(marked).toHaveTextContent("Proposed: 11 Nov 2026, 6:00 pm"); // Singapore time with am/pm
   });
 
   // EVENT-VIEW-03-A: a pending list value is shown as readable text.

@@ -32,7 +32,6 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
     venueRequirements: { minCapacity: 20, layout: "Boardroom", facilities: [], accessibility: [] },
     equipmentNeeds: "",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-10-12T04:00:00.000Z",
     updatedAt: "2026-10-12T04:00:00.000Z",
     ...overrides,

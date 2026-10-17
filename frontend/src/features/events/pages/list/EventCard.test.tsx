@@ -31,7 +31,6 @@ function baseEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     attachments: [],
     equipmentNeeds: "",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,

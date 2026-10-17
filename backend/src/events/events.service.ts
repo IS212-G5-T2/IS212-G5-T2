@@ -176,7 +176,6 @@ export class EventsService {
       availableRegistrationSpots:
         row.confirmed_registrations == null ? undefined : this.capacityFields(row).availableSpots,
       ...this.capacityFields(row),
-      changeRequests: [],
       createdAt: row.created_at.toISOString(),
       updatedAt: row.updated_at.toISOString(),
     };
@@ -417,14 +416,22 @@ export class EventsService {
   // Which notification types each role reads and marks read: organisers get
   // their request decisions (SPM-83 rejection, SPM-40 approval); coordinators
   // get new assignments from the Event Coordinator Lead (SPM-123) and
-  // reassignments to and away from them (SPM-47); the Lead is told when a
+  // reassignments to and away from them (SPM-47) and organisers' change
+  // requests on their events (SPM-64); the Lead is told when a
   // coordinator with active events becomes unavailable (SPM-47).
   private notificationTypesFor(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const types = [
       ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval', 'EventConfirmed', 'EventCancelled'] : []),
       ...(user.roles.includes('COORDINATOR')
-        ? ['coordinator_assignment', 'coordinator_reassignment', 'coordinator_unassignment', 'EventCancelled']
+        ? [
+            'coordinator_assignment',
+            'coordinator_reassignment',
+            'coordinator_unassignment',
+            'EventCancelled',
+            // SPM-64 AC3: an organiser asked to change an event assigned to them.
+            'coordinator_change_request',
+          ]
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
       // SPM-138 AC9/AC12: an attendee reads only their own waitlist notices (the query also filters by recipient).

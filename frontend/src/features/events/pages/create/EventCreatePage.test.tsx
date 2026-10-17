@@ -51,7 +51,6 @@ function eventRecord(): EventRecord {
     attachments: [],
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };

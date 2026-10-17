@@ -9,7 +9,7 @@
  *   GET   /events/:id/planning/history                    ChangeHistoryEntry[]
  */
 import { api } from "@/utils/api";
-import { formatDateTime, formatDateTimeRange } from "@/utils/format";
+import { formatSgtDateTime, formatSgtDateTimeRange } from "@/utils/sgtDate";
 import type {
   ChangeHistoryEntry,
   EventStatus,
@@ -53,11 +53,11 @@ export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
 }
 
-/** Human-readable value for any planning field. */
+/** Human-readable value for any planning field; dates in Singapore time with am/pm. */
 export function formatFieldValue(field: string, value: unknown): string {
   if (value === null || value === undefined) return "None";
   if ((field === "startDateTime" || field === "endDateTime") && typeof value === "string")
-    return formatDateTime(value);
+    return formatSgtDateTime(value);
   if (Array.isArray(value)) return value.length ? value.join(", ") : "None";
   if (typeof value === "string") return value.trim() ? value : "None";
   return String(value);
@@ -70,7 +70,7 @@ export function formatFieldValue(field: string, value: unknown): string {
 export function describeCondition(condition: PlanningFieldCondition): string {
   switch (condition.kind) {
     case "within_window":
-      return `Applies immediately while the event stays within ${formatDateTimeRange(condition.start, condition.end)}; moving outside it needs review.`;
+      return `Applies immediately while the event stays within ${formatSgtDateTimeRange(condition.start, condition.end)}; moving outside it needs review.`;
     case "max_attendance":
       return `Applies immediately up to ${condition.max} attendees; more needs review.`;
     case "remove_only":

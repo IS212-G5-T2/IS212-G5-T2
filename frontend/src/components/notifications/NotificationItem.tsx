@@ -12,6 +12,7 @@ const iconByType: Record<Notification["type"], string> = {
   coordinator_reassignment: "🔁",
   coordinator_unassignment: "↪️",
   coordinator_unavailable: "⏸️",
+  coordinator_change_request: "✏️",
   venue_booking: "🏛️",
   event_change: "✏️",
   registration: "🎟️",
@@ -51,9 +52,14 @@ export function NotificationItem({
   );
 
   if (notification.relatedEventId) {
+    // SPM-64 AC3: a change request notice opens the proposed changes, not the event page.
+    const to =
+      notification.type === "coordinator_change_request"
+        ? `/events/${notification.relatedEventId}/change-requests`
+        : `/events/${notification.relatedEventId}`;
     return (
       <Link
-        to={`/events/${notification.relatedEventId}`}
+        to={to}
         onClick={() => onRead(notification.id)}
         className={rowClasses}
       >

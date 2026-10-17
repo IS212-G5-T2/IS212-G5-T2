@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/utils/api";
-import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import {
   PLANNING_REFRESH_MS,
   PLANNING_STATUSES,
@@ -131,10 +130,11 @@ describe("planning labels and values", () => {
     expect(formatFieldValue(field, value)).toBe(expected);
   });
 
-  it("EVENT-FLAG-02-A formats start and end values as date-times but leaves other strings alone", () => {
+  /** Start and end are shown in Singapore time with am/pm, whatever the browser's time zone. */
+  it("EVENT-FLAG-02-A formats start and end values as Singapore date-times but leaves other strings alone", () => {
     const iso = "2026-11-10T10:00:00.000Z";
-    expect(formatFieldValue("startDateTime", iso)).toBe(formatDateTime(iso));
-    expect(formatFieldValue("endDateTime", iso)).toBe(formatDateTime(iso));
+    expect(formatFieldValue("startDateTime", iso)).toBe("10 Nov 2026, 6:00 pm");
+    expect(formatFieldValue("endDateTime", "2026-11-10T16:30:00.000Z")).toBe("11 Nov 2026, 12:30 am");
     expect(formatFieldValue("description", iso)).toBe(iso);
   });
 });
@@ -144,7 +144,10 @@ describe("describeCondition (SPM-49 AC2)", () => {
   it("EVENT-UPDATE-02-B describes each kind of condition", () => {
     const start = "2026-11-10T10:00:00.000Z";
     const end = "2026-11-10T13:00:00.000Z";
-    expect(describeCondition({ kind: "within_window", start, end })).toContain(formatDateTimeRange(start, end));
+    // The window is shown in Singapore time with am/pm, not UTC or the browser's zone.
+    expect(describeCondition({ kind: "within_window", start, end })).toBe(
+      "Applies immediately while the event stays within 10 Nov 2026, 6:00 pm – 9:00 pm; moving outside it needs review.",
+    );
     expect(describeCondition({ kind: "max_attendance", max: 200 })).toBe(
       "Applies immediately up to 200 attendees; more needs review.",
     );

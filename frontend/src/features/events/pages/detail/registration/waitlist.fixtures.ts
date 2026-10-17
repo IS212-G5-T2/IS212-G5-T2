@@ -53,7 +53,6 @@ export function buildGala(overrides: Partial<EventRecord> = {}): EventRecord {
     availableSpots: 0,
     isFull: true,
     waitlistAvailable: true,
-    changeRequests: [],
     createdAt: iso(-HOUR),
     updatedAt: iso(-HOUR),
     ...overrides,
