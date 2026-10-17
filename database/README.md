@@ -55,6 +55,8 @@ a fresh database: `001_schema.sql` creates the complete local schema and
 | `venue_images` | Optional one-to-one venue image metadata and data URL (maximum 5 MB). |
 | `accessibility_features` | Controlled accessibility choices for venues. |
 | `venue_accessibility` | Accessibility selections linked to each venue. |
+| `equipment_requests` | Coordinator equipment requests with a Pending Review lifecycle and event/requester foreign keys. |
+| `equipment_request_items` | Ordered required nonblank equipment name, type, and positive integer quantity for each request. |
 
 To check a standalone database after it starts, connect with the local defaults:
 

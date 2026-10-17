@@ -108,10 +108,10 @@ Run in order. A failed gate is reported, not skipped. Each script writes `<cycle
 | G1 Traceability and IDs | `check-ids.mjs` | Code IDs = registry IDs; each PRIMARY ID is in the matrix and has a test; each SUPPORTING ID names a parent AC; no registry ID without a test | `ids-in-code.txt`, `ids-in-registry.txt` |
 | G2 Spec conflicts and tiers | `check-spec.mjs` | No OPEN conflict; every tier cell valid | `gates/G2.json` |
 | G3 Test records | `check-records.mjs` | Every test has a registered ID, a parent AC, a `kills` link, a tier, an oracle class, an `explained` value and no blocker oracle | `test-records.csv` |
-| G4 Determinism | `scan-determinism.mjs` plus the timezone runs of `run-cycle.mjs` | No unjustified hit; the scope's suites pass in UTC, Asia/Singapore and America/Los_Angeles | `determinism-scan.txt`, `tz-runs/` |
+| G4 Determinism | `scan-determinism.mjs` plus the timezone runs of `run-cycle.mjs` | No unjustified hit; the scope's suites pass in UTC, Asia/Singapore and America/Los_Angeles with no failed or skipped tests | `determinism-scan.txt`, `tz-runs/` |
 | G5 Coverage scope | `coverage-scope.mjs` | Source files in scope = measured files (minus recorded exclusions); every uncovered line has a status | `coverage/`, `gates/G5.json` |
 | G6 Mutation | `reconcile-mutation.mjs` | Every defined mutant has a result and every baseline is green; KILLED has a killing suite; EQUIVALENT has no killing suite and a written argument; no survivor, no misapplied mutant | `mutation-report.md` |
-| G7 Execution | `run-cycle.mjs` | Every suite in scope ran; none failed | `test-run/`, `test-run.log` |
+| G7 Execution | `run-cycle.mjs` | Every suite in scope ran; none failed or skipped | `test-run/`, `test-run.log` |
 
 **G4.** Prefer removing the hit. Where that is not possible, `determinism-exceptions.md` needs a reason, a per-file `Max`, and (for a wait on an external signal) a bound and an asserted outcome. A fixed `Date` replaces `new Date()` in fixtures; `randomUUID()` as a unique fixture key against the shared database is a standing exception with a per-file cap. The timezone runs apply to the scope's suites; the scope can be widened to the full suites for a release cycle.
 

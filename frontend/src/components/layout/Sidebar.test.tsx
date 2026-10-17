@@ -26,6 +26,17 @@ beforeEach(() => {
 });
 
 describe("SPM-30: signing out from the sidebar", () => {
+  it("keeps the sidebar viewport-height and anchors logout at its bottom", () => {
+    render(
+      <MemoryRouter>
+        <Sidebar mobileOpen={false} onCloseMobile={vi.fn()} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByRole("complementary", { name: "Primary navigation" })).toHaveClass("lg:sticky", "lg:top-0", "h-screen");
+    expect(screen.getByRole("button", { name: "Log out" }).parentElement).toHaveClass("mt-auto");
+  });
+
   // Log out sits at the bottom of the sidebar, where Settings used to be.
   it("USER-LOGIN-01-F logs out from the sidebar and returns to the login page", async () => {
     // Arrange: the sidebar on the events page.
