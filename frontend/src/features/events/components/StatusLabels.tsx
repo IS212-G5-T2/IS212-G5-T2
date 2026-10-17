@@ -60,14 +60,31 @@ export function safetyLabel(status: string): StateLabelInfo {
   }
 }
 
-/** Card labels: only the states that need attention (amber requested, red rejected, unavailable or cancelled). */
+/** Card labels name the resource and its state, for example "Venue reserved" or "Awaiting equipment request". */
 export function cardArrangementLabels(event: Pick<EventRecord, "venueRequestStatus" | "equipmentStatuses">): StateLabelInfo[] {
   const labels: StateLabelInfo[] = [];
-  if (event.venueRequestStatus) {
-    labels.push(venueLabel({ status: "Booked", requestStatus: event.venueRequestStatus }));
+  switch (event.venueRequestStatus) {
+    case "pending":
+      labels.push({ label: "Awaiting venue request", tone: "amber" });
+      break;
+    case "approved":
+      labels.push({ label: "Venue reserved", tone: "green" });
+      break;
+    case "rejected":
+      labels.push({ label: "Venue rejected", tone: "red" });
+      break;
+    case "released":
+      labels.push({ label: "Venue cancelled", tone: "red" });
+      break;
   }
+  const equipment: Record<string, StateLabelInfo> = {
+    Requested: { label: "Awaiting equipment request", tone: "amber" },
+    Reserved: { label: "Equipment reserved", tone: "green" },
+    Unavailable: { label: "Equipment unavailable", tone: "red" },
+    Cancelled: { label: "Equipment cancelled", tone: "red" },
+  };
   for (const status of new Set(event.equipmentStatuses ?? [])) {
-    labels.push(equipmentLabel(status));
+    if (equipment[status]) labels.push(equipment[status]);
   }
-  return labels.filter((l) => l.tone === "amber" || l.tone === "red");
+  return labels;
 }

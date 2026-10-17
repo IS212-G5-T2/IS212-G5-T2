@@ -33,21 +33,26 @@ describe("planning state labels by significance", () => {
   });
 });
 
-describe("card labels show only the states that need attention", () => {
-  // Kills: approved or reserved shown on the card (they need no action), or a requested state dropped.
-  it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested projector show as amber; approved and reserved do not", () => {
+describe("card labels name the resource and its state", () => {
+  it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested item read as awaiting requests", () => {
     expect(cardArrangementLabels({ venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
-      { label: "Requested", tone: "amber" }, // the venue request
-      { label: "Requested", tone: "amber" }, // the requested equipment; the reserved item is left off the card
+      { label: "Awaiting venue request", tone: "amber" },
+      { label: "Awaiting equipment request", tone: "amber" },
+      { label: "Equipment reserved", tone: "green" },
     ]);
-    expect(cardArrangementLabels({ venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toEqual([]);
   });
 
-  it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and an unavailable item show as red", () => {
+  it("TRACK-EVENT-STATUS-01-A CARD: an approved venue reads as venue reserved", () => {
+    expect(cardArrangementLabels({ venueRequestStatus: "approved", equipmentStatuses: [] })).toEqual([
+      { label: "Venue reserved", tone: "green" },
+    ]);
+  });
+
+  it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
     expect(cardArrangementLabels({ venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
-      { label: "Rejected", tone: "red" },
-      { label: "Unavailable", tone: "red" },
-      { label: "Cancelled", tone: "red" },
+      { label: "Venue rejected", tone: "red" },
+      { label: "Equipment unavailable", tone: "red" },
+      { label: "Equipment cancelled", tone: "red" },
     ]);
   });
 });
