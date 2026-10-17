@@ -78,6 +78,10 @@ export function cardArrangementLabels(
     if (equipmentReserved && planning) labels.push({ label: "Equipment reserved", tone: "green" });
   }
 
+  // A planning event with nothing requested yet is awaiting the request.
+  if (planning && !event.venueRequestStatus) labels.push({ label: "Awaiting Venue Request", tone: "amber" });
+  if (planning && statuses.length === 0) labels.push({ label: "Awaiting Equipment Request", tone: "amber" });
+
   switch (event.venueRequestStatus) {
     case "pending":
       labels.push({ label: "Awaiting venue request", tone: "amber" });

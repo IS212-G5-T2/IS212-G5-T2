@@ -51,6 +51,13 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
+  it("TRACK-EVENT-STATUS-01-A CARD: a planning event with nothing requested is awaiting both requests", () => {
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: null, equipmentStatuses: [] })).toEqual([
+      { label: "Awaiting Venue Request", tone: "amber" },
+      { label: "Awaiting Equipment Request", tone: "amber" },
+    ]);
+  });
+
   it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and unavailable or cancelled items read as red", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
       { label: "Venue rejected", tone: "red" },
