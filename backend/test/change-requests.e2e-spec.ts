@@ -338,7 +338,7 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     const withdrawUrl = `${url()}/${created.body.id}/withdraw`;
     await pool.query(
       `UPDATE event_change_requests
-          SET status = 'Denied', decided_by = 'CR Coordinator', decided_by_id = $2, decided_at = now(), decision_reason = 'No room.'
+          SET status = 'Denied', decided_by = 'CR Coordinator', decided_by_id = $2, decided_at = now(), decision_reason = 'No room on the new date.'
         WHERE id = $1`,
       [created.body.id, coordinator.uid],
     );

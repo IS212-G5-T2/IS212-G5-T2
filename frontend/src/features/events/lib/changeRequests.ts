@@ -43,6 +43,7 @@ export const STATUS_LABELS: Record<ChangeRequestStatus, string> = {
   Approved: "Approved",
   Denied: "Denied",
   Withdrawn: "Withdrawn",
+  Closed: "Closed",
 };
 
 export const STATUS_CLASSES: Record<ChangeRequestStatus, string> = {
@@ -50,7 +51,26 @@ export const STATUS_CLASSES: Record<ChangeRequestStatus, string> = {
   Approved: "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300",
   Denied: "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300",
   Withdrawn: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  Closed: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
 };
+
+/** SPM-65 AC5: a denial needs a reason of this length (the server checks it too). */
+export const DENIAL_REASON_MIN = 10;
+export const DENIAL_REASON_MAX = 500;
+
+/** SPM-65 AC5: the denial reason's error, or "" when it is valid. */
+export function denialReasonError(reason: string): string {
+  const trimmed = reason.trim();
+  if (!trimmed) return "Please give a reason for denying this change.";
+  if (trimmed.length < DENIAL_REASON_MIN || trimmed.length > DENIAL_REASON_MAX)
+    return `Use between ${DENIAL_REASON_MIN} and ${DENIAL_REASON_MAX} characters.`;
+  return "";
+}
+
+/** SPM-65 AC1: pending requests, oldest first, so the longest-waiting is reviewed first. */
+export function oldestFirst(requests: readonly ChangeRequest[]): ChangeRequest[] {
+  return [...requests].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+}
 
 /** The pending request, if any, from a list. */
 export function pendingRequest(requests: readonly ChangeRequest[]): ChangeRequest | undefined {

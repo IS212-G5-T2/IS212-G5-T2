@@ -6,7 +6,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventCreatePage } from "@/features/events/pages/create/EventCreatePage";
 import { EventListPage } from "@/features/events/pages/list/EventListPage";
 import { api } from "@/utils/api";
-import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
+import { fetchMyChangeRequests, fetchNewChangeRequestEventIds } from "@/features/events/api/change-requests-api";
 import { useAppStore } from "@/store/useAppStore";
 import { deferred } from "@/test/deferred";
 import type { EventRecord } from "@/types";
@@ -18,7 +18,11 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 }));
 
 // SPM-64: the organiser's pending change requests load separately from the event list.
-vi.mock("@/features/events/api/change-requests-api", () => ({ fetchMyChangeRequests: vi.fn() }));
+vi.mock("@/features/events/api/change-requests-api", () => ({
+  fetchMyChangeRequests: vi.fn(),
+  markChangeRequestNoticesRead: vi.fn(() => Promise.resolve()),
+  fetchNewChangeRequestEventIds: vi.fn(() => Promise.resolve(new Set<string>())),
+}));
 
 const apiMock = vi.mocked(api);
 const pendingRequestsMock = vi.mocked(fetchMyChangeRequests);
@@ -133,7 +137,7 @@ describe("EventListPage", () => {
     const otherEvent = { ...submittedEvent(), id: "00000000-0000-4000-8000-000000000037", name: "Other Evening" };
     apiMock.mockResolvedValue([pendingEvent, otherEvent]);
     pendingRequestsMock.mockResolvedValue([
-      { id: "cr-1", eventId: pendingEvent.id, eventName: pendingEvent.name, status: "Pending", changes: [], requiresSafetyCheck: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+      { id: "cr-1", eventId: pendingEvent.id, eventName: pendingEvent.name, status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
     ]);
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -155,7 +159,7 @@ describe("EventListPage", () => {
     pendingRequestsMock
       .mockRejectedValueOnce(new Error("The service is temporarily unavailable."))
       .mockResolvedValueOnce([
-        { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [], requiresSafetyCheck: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+        { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
       ]);
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -173,6 +177,108 @@ describe("EventListPage", () => {
     await userEvent.setup().click(within(alert).getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Change requested: Pending")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  /** REVIEW-CHANGE-01-A (SPM-65 AC1): a coordinator sees their pending change requests and the badge. */
+  it("REVIEW-CHANGE-01-A lists the coordinator's pending change requests and marks the event", async () => {
+    const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    apiMock.mockResolvedValue([event]);
+    pendingRequestsMock.mockResolvedValue([
+      { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [{ field: "layout", originalValue: "Banquet", proposedValue: "Theatre" }], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", organiserName: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const section = await screen.findByRole("region", { name: "Pending change requests" });
+    expect(section).toHaveTextContent("Welcome Evening");
+    expect(section).toHaveTextContent("Demo Organiser · Room layout");
+    expect(within(section).getByRole("link", { name: "Review Change Request" })).toHaveAttribute("href", `/events/${event.id}`);
+    expect(await screen.findByText("Change requested: Pending")).toBeTruthy();
+  });
+
+  /** REVIEW-CHANGE-01-F: the pending list is at the top, above Assignment Updates, and tags unopened requests New. */
+  it("REVIEW-CHANGE-01-F puts pending change requests first and tags unopened ones New", async () => {
+    const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === "/notifications"
+          ? [{ id: "n1", audienceRole: "coordinator", type: "coordinator_assignment", message: "Assigned to you.", relatedEventId: event.id, read: false, createdAt: "2026-10-01T00:00:00.000Z" }]
+          : [event],
+      ),
+    );
+    vi.mocked(fetchNewChangeRequestEventIds).mockResolvedValue(new Set([event.id]));
+    pendingRequestsMock.mockResolvedValue([
+      { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const pendingSection = await screen.findByRole("region", { name: "Pending change requests" });
+    expect(within(pendingSection).getByText("New")).toBeTruthy();
+    const updates = await screen.findByRole("region", { name: "Assignment updates" });
+    expect(pendingSection.compareDocumentPosition(updates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("REVIEW-CHANGE-01-F still lists pending requests when the New tags cannot load", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    vi.mocked(fetchNewChangeRequestEventIds).mockRejectedValueOnce(new Error("offline"));
+    pendingRequestsMock.mockResolvedValue([
+      { id: "cr-1", eventId: "e-1", eventName: "Welcome Evening", status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+    ]);
+    const view = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    const section = await screen.findByRole("region", { name: "Pending change requests" });
+    expect(within(section).queryByText("New")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    // A result that arrives after leaving the page changes nothing.
+    let resolve!: (ids: Set<string>) => void;
+    vi.mocked(fetchNewChangeRequestEventIds).mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    view.unmount();
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    ).unmount();
+    resolve(new Set(["e-1"]));
+    await Promise.resolve();
+  });
+
+  /** REVIEW-CHANGE-01-D: with nothing pending the coordinator sees the empty state; attendees see neither. */
+  it("REVIEW-CHANGE-01-D shows the coordinator's empty state", async () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+    });
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("No pending change requests.")).toBeTruthy();
   });
 
   /** REQ-CHANGE-05-F: a failure that arrives after leaving My Events shows nothing. */

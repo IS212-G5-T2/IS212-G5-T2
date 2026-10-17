@@ -93,6 +93,7 @@ function fakeDatabase(script: Script) {
       };
     }
     if (sql.includes('INSERT INTO notifications')) return { rows: [] };
+    if (sql.includes('INSERT INTO event_change_request_audit')) return { rows: [] };
     if (sql.startsWith('SELECT * FROM event_change_requests WHERE id'))
       return { rows: script.request ? [script.request] : [] };
     if (sql.includes("SET status = 'Withdrawn'"))
@@ -392,6 +393,21 @@ describe('ChangeRequestsService reads', () => {
     expect(calls[1].params).toEqual(['coord-1', false, true, null]);
   });
 
+  /** REVIEW-CHANGE-01-A (SPM-65 AC1): each record names the organiser and carries the review fields. */
+  it('REVIEW-CHANGE-01-A maps the organiser name, re-check list and safety reset', () => {
+    const { svc } = service({});
+    const recheck = [{ id: 'i1', kind: 'venue', refId: 'b1', name: 'Hall', details: [] }];
+    expect(svc.toRecord({ ...requestRow(), organiser_name: 'Org Name', recheck, safety_check_reset: true }, 'Night')).toMatchObject({
+      organiserName: 'Org Name',
+      recheck,
+      safetyCheckReset: true,
+    });
+    expect(svc.toRecord(requestRow(), 'Night', 'Given Name').organiserName).toBe('Given Name');
+    const bare = svc.toRecord(requestRow(), 'Night');
+    expect(bare).not.toHaveProperty('organiserName');
+    expect(bare).toMatchObject({ recheck: [], safetyCheckReset: false });
+  });
+
   /** An unknown status filter is a client error; attendees have no dashboard list. */
   it('rejects an unknown status filter and non-organiser, non-coordinator callers', async () => {
     await expect(service({}).svc.listMine(organiser, 'Maybe')).rejects.toBeInstanceOf(BadRequestException);
@@ -401,11 +417,15 @@ describe('ChangeRequestsService reads', () => {
 
 describe('ChangeRequestsService.withdraw', () => {
   /** REQ-CHANGE-09-C (AC8): the owner withdraws their own pending request. */
+  /** Also REVIEW-CHANGE-12-A (SPM-65 AC11): withdrawing closes the request (status Withdrawn) and audits it. */
   it('REQ-CHANGE-09-C withdraws the owner\'s pending request', async () => {
     const { svc, calls } = service({ event: eventRow(), request: requestRow() });
     const record = await svc.withdraw(organiser, EVENT_ID, REQUEST_ID);
     expect(record).toMatchObject({ status: 'Withdrawn', decidedBy: 'Organiser 1', decidedAt: NOW.toISOString() });
     expect(sqlOf(calls)).toContain('FOR UPDATE');
+    // SPM-65 AC10: the withdrawal is recorded in the change request audit log.
+    const audit = calls.find((call) => call.sql.includes('INSERT INTO event_change_request_audit'));
+    expect(audit?.params).toEqual(expect.arrayContaining([REQUEST_ID, 'Withdrawn', 'Organiser 1']));
   });
 
   /** REQ-CHANGE-09-B (AC8): a request that is already decided or withdrawn cannot be withdrawn. */

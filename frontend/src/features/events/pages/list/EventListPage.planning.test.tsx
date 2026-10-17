@@ -15,6 +15,10 @@ vi.mock("@/utils/api", async (importOriginal) => ({
   api: vi.fn(),
 }));
 const apiMock = vi.mocked(api);
+// SPM-65: the coordinator's events page also loads their pending change requests (none here).
+function resolveEvents(events: unknown) {
+  apiMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/change-requests") ? [] : events));
+}
 
 function eventIn(status: EventStatus, id: string, name: string): EventRecord {
   return {
@@ -41,7 +45,7 @@ function eventIn(status: EventStatus, id: string, name: string): EventRecord {
 describe("SPM-148 AC5: Planning events appear under the Planning filter", () => {
   beforeEach(() => {
     apiMock.mockReset();
-    apiMock.mockResolvedValue([
+    resolveEvents([
       eventIn("planning", "e-804", "Alumni Night"),
       eventIn("approved", "e-801", "Innovation Showcase"),
       eventIn("confirmed", "e-805", "Careers Fair"),
@@ -81,7 +85,7 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
   // Oracle: SPEC (prompt 2.6 05-C); the empty-filter text is ASSUMED wording, from the SPM-48 prompt.
   // Kills: the Planning filter showing another status's events, or an empty filter result with no message.
   it("PLAN-STATUS-05-C: choosing Planning when no event is in Planning shows 'No events match this filter.'", async () => {
-    apiMock.mockResolvedValue([eventIn("approved", "e-801", "Innovation Showcase")]);
+    resolveEvents([eventIn("approved", "e-801", "Innovation Showcase")]);
     useAppStore.setState({
       authLoading: false,
       isAuthenticated: true,
@@ -116,7 +120,7 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
     // The fake server answers each request with its current list, so a remount is a real reload.
     let serverEvents = [eventIn("approved", "e-801", "Innovation Showcase")];
     apiMock.mockReset();
-    apiMock.mockImplementation(() => Promise.resolve(serverEvents));
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.startsWith("/change-requests") ? [] : serverEvents));
     const first = render(
       <MemoryRouter initialEntries={["/planning"]}>
         <EventListPage />
@@ -151,7 +155,7 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
       events: [],
     });
     apiMock.mockReset();
-    apiMock.mockResolvedValue([eventIn("planning", "e-801", "Innovation Showcase")]);
+    resolveEvents([eventIn("planning", "e-801", "Innovation Showcase")]);
 
     render(
       <MemoryRouter initialEntries={["/events"]}>

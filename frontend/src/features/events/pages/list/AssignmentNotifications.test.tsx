@@ -293,8 +293,11 @@ describe("SPM-123 AC9: periodic refresh while the page stays open", () => {
 });
 
 describe("SPM-64 AC3: change request notifications", () => {
-  /** REQ-CHANGE-03-A: the assigned coordinator is told about a change request, with a link to the event's change requests. */
-  it("REQ-CHANGE-03-A shows a change request notice linking to the event's change requests", async () => {
+  /**
+   * REQ-CHANGE-03-A (revised 18 Oct 2026): a change request notice is not repeated under Assignment
+   * Updates; the Pending Change Requests section at the top of the events page shows it, tagged New.
+   */
+  it("REQ-CHANGE-03-A leaves change request notices to the Pending Change Requests section", async () => {
     api.mockResolvedValue([
       {
         ...assignment,
@@ -302,14 +305,26 @@ describe("SPM-64 AC3: change request notifications", () => {
         type: "coordinator_change_request",
         message: 'Priya Nair requested a change to "Welcome Evening": expected attendance.',
       },
+      assignment,
     ]);
     render(
       <MemoryRouter>
         <AssignmentNotifications />
       </MemoryRouter>,
     );
-    expect(await screen.findByText('Priya Nair requested a change to "Welcome Evening": expected attendance.')).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View Change Request" })).toHaveAttribute("href", "/events/event-1/change-requests");
+    expect(await screen.findByText(assignment.message)).toBeInTheDocument();
+    expect(screen.queryByText(/requested a change/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "View Change Request" })).not.toBeInTheDocument();
+  });
+
+  it("REQ-CHANGE-03-A shows no Assignment Updates panel when the only notice is a change request", async () => {
+    api.mockResolvedValue([{ ...assignment, id: "notif-cr", type: "coordinator_change_request", message: "x" }]);
+    const { container } = render(
+      <MemoryRouter>
+        <AssignmentNotifications />
+      </MemoryRouter>,
+    );
+    await waitFor(() => expect(api).toHaveBeenCalled());
+    expect(container).toBeEmptyDOMElement();
   });
 });
-

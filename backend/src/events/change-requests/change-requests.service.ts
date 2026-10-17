@@ -19,7 +19,8 @@
  *   and the organiser can list their requests with their status.
  * - One request per event can be Pending at a time; the event row lock and a
  *   partial unique index make concurrent submissions settle to one.
- * - The organiser can withdraw their own pending request.
+ * - The organiser can withdraw their own pending request (SPM-65 AC11: this closes it automatically,
+ *   status Withdrawn, so the coordinator can no longer decide it).
  *
  * Identity always comes from the verified session, never from the body.
  */
@@ -39,6 +40,7 @@ import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { changeRequestNoticeMessage, insertChangeRequestNotice } from './change-request-notice.js';
+import { recordOutcome } from './change-request-audit.js';
 import {
   PERMITTED_CHANGE_FIELDS,
   validateChangeRequest,
@@ -59,7 +61,7 @@ export const CHANGE_REQUEST_OPEN_STATUSES = ['Submitted', 'Approved', 'Planning'
 const HAS_SAFETY_CHECK =
   'EXISTS (SELECT 1 FROM event_safety_checks s WHERE s.event_id = r.event_id) AS has_safety_check';
 
-export const CHANGE_REQUEST_STATUSES = ['Pending', 'Approved', 'Denied', 'Withdrawn'] as const;
+export const CHANGE_REQUEST_STATUSES = ['Pending', 'Approved', 'Denied', 'Withdrawn', 'Closed'] as const;
 export type ChangeRequestStatus = (typeof CHANGE_REQUEST_STATUSES)[number];
 
 export const MESSAGES = {
@@ -106,6 +108,20 @@ export interface ChangeRequestRecord {
   decidedAt?: string;
   decidedBy?: string;
   decisionReason?: string;
+  /** The event's organiser (shown in the coordinator's pending list, SPM-65 AC1). */
+  organiserName?: string;
+  /** SPM-65 AC9: arrangements to re-check after approval, each ticked off by the coordinator. */
+  recheck: {
+    id: string;
+    kind: 'venue' | 'equipment';
+    refId: string;
+    name: string;
+    details: string[];
+    checkedAt?: string;
+    checkedBy?: string;
+  }[];
+  /** SPM-65 AC8: approving reset the event's safety check. */
+  safetyCheckReset: boolean;
 }
 
 type Queryable = Pick<pg.PoolClient, 'query'>;
@@ -246,7 +262,7 @@ export class ChangeRequestsService {
         ORDER BY r.created_at DESC, r.id`,
       [eventId],
     );
-    return result.rows.map((row) => this.toRecord(row, event.event_name));
+    return result.rows.map((row) => this.toRecord(row, event.event_name, event.organiser_name));
   }
 
   /**
@@ -259,7 +275,7 @@ export class ChangeRequestsService {
     if (status !== undefined && !(CHANGE_REQUEST_STATUSES as readonly unknown[]).includes(status))
       throw new BadRequestException('Choose a valid change request status.');
     const result = await this.database.query(
-      `SELECT r.*, e.event_name, ${HAS_SAFETY_CHECK}
+      `SELECT r.*, e.event_name, e.organiser_name, ${HAS_SAFETY_CHECK}
          FROM event_change_requests r
          JOIN events e ON e.id = r.event_id
         WHERE ((e.organiser_id = $1 AND $2) OR (e.coordinator_id = $1 AND $3))
@@ -291,20 +307,29 @@ export class ChangeRequestsService {
       const request = found.rows[0];
       if (!request) throw new NotFoundException(MESSAGES.requestNotFound);
       if (request.status !== 'Pending') throw new ConflictException(MESSAGES.decided);
+      const now = this.clock.now();
       const updated = await client.query(
         `UPDATE event_change_requests
             SET status = 'Withdrawn', decided_by = $2, decided_by_id = $3, decided_at = $4
           WHERE id = $1
           RETURNING *`,
-        [requestId, displayName(user, 'Organiser'), user.uid, this.clock.now()],
+        [requestId, displayName(user, 'Organiser'), user.uid, now],
       );
+      // SPM-65 AC10: every outcome is in the audit log, including the organiser's withdrawal.
+      await recordOutcome(client, request, 'Withdrawn', {
+        decidedBy: displayName(user, 'Organiser'),
+        decidedById: user.uid,
+        decidedAt: now,
+      });
       return this.toRecord(updated.rows[0], event.event_name);
     });
   }
 
   // ---------------------------------------------------------------- helpers
 
-  private toRecord(row: pg.QueryResultRow, eventName: string): ChangeRequestRecord {
+  /** The API shape of a request row (also used by SPM-65 ChangeRequestReviewService). */
+  toRecord(row: pg.QueryResultRow, eventName: string, organiserName?: string): ChangeRequestRecord {
+    const organiser = organiserName ?? row.organiser_name;
     return {
       id: row.id,
       eventId: row.event_id,
@@ -322,6 +347,9 @@ export class ChangeRequestsService {
       ...(row.decided_at ? { decidedAt: iso(row.decided_at) } : {}),
       ...(row.decided_by ? { decidedBy: row.decided_by } : {}),
       ...(row.decision_reason ? { decisionReason: row.decision_reason } : {}),
+      ...(organiser ? { organiserName: organiser } : {}),
+      recheck: row.recheck ?? [],
+      safetyCheckReset: row.safety_check_reset ?? false,
     };
   }
 

@@ -602,7 +602,7 @@ function pick(
 }
 
 /** Date fields compare as instants; lists compare as sets; others strictly. */
-function sameValue(
+export function sameValue(
   field: EventFieldKey,
   stored: unknown,
   proposed: unknown,
@@ -617,13 +617,13 @@ function sameValue(
   return stored === proposed;
 }
 
-function activeOnly(bookings: VenueBookingRow[]): VenueBookingRow[] {
+export function activeOnly(bookings: VenueBookingRow[]): VenueBookingRow[] {
   return bookings.filter(
     (b) => !INACTIVE_BOOKING_STATUSES.has(b.status.toLowerCase()),
   );
 }
 
-function activeEquipmentOnly(
+export function activeEquipmentOnly(
   equipment: EquipmentArrangementRow[],
 ): EquipmentArrangementRow[] {
   return equipment.filter(
@@ -632,11 +632,12 @@ function activeEquipmentOnly(
 }
 
 /**
+ * (Also used by SPM-65 change request review, so a request is assessed by the same rules.)
  * What to assess for one changed field. Date/time fields use every time field
  * in this update so a shifted event is assessed as one move, not two halves.
  * Facilities carry the current list so only additions need a venue check.
  */
-function proposalFor(
+export function proposalFor(
   field: EventFieldKey,
   patch: EventUpdatePatch,
   event: PlanningEventRow,
@@ -672,7 +673,7 @@ function proposalFor(
  *   shifting inside that window keeps every reservation valid.
  * - No other field touches equipment.
  */
-function equipmentImpacts(
+export function equipmentImpacts(
   field: EventFieldKey,
   patch: EventUpdatePatch,
   event: PlanningEventRow,

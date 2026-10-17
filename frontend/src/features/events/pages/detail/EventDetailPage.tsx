@@ -369,7 +369,17 @@ export function EventDetailPage() {
 
       {/* SPM-64 AC5: the owner sees the status of their latest change request.
           AC3: the assigned coordinator sees it too, with the link to review the proposed changes. */}
-      {(isOwner || isAssignedCoordinator) && event.status !== "draft" && <ChangeRequestSummary eventId={event.id} />}
+      {(isOwner || isAssignedCoordinator) && event.status !== "draft" && (
+        <ChangeRequestSummary
+          eventId={event.id}
+          reviewer={isAssignedCoordinator}
+          onDecided={() => {
+            // SPM-65 AC7: show the approved values (and the planning view's reset safety check).
+            refreshEvent();
+            if (planningEnabled) void loadPlanning();
+          }}
+        />
+      )}
       {(isOwner || isAssignedCoordinator) && (
         <>
           {/* SPM-94 AC2/AC3: the same indicators as the list card, on the planning page. */}

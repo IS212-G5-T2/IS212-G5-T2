@@ -2,6 +2,15 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ChangeRequestList } from "@/features/events/pages/change-requests/ChangeRequestList";
+import { fetchChangeRequestAudit, previewChangeRequestConflicts } from "@/features/events/api/change-requests-api";
+
+vi.mock("@/features/events/api/change-requests-api", () => ({
+  previewChangeRequestConflicts: vi.fn(),
+  fetchChangeRequestAudit: vi.fn(),
+  markArrangementRechecked: vi.fn(),
+  markChangeRequestNoticesRead: vi.fn(() => Promise.resolve()),
+  fetchNewChangeRequestEventIds: vi.fn(() => Promise.resolve(new Set<string>())),
+}));
 import type { ChangeRequest } from "@/types";
 
 /** SPM-64 AC5 — the change request history with statuses (REQ-CHANGE-05-*). */
@@ -17,6 +26,8 @@ function request(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
       { field: "startDateTime", originalValue: "2030-02-05T10:30:00.000Z", proposedValue: "2030-02-05T11:00:00.000Z" },
     ],
     requiresSafetyCheck: true,
+    recheck: [],
+    safetyCheckReset: false,
     requestedBy: "Organiser 1",
     createdAt: "2026-10-16T02:00:00.000Z",
     ...overrides,
@@ -79,5 +90,47 @@ describe("ChangeRequestList", () => {
     expect(await within(pending).findByRole("alert")).toHaveTextContent("This change request has already been decided.");
     await user.click(within(pending).getByRole("button", { name: "Withdraw Request" }));
     expect(await within(pending).findByText("Could not withdraw this change request.")).toBeInTheDocument();
+  });
+
+  /** SPM-65: closed requests, safety resets, re-check lists and the coordinator's review panel. */
+  it("REVIEW-CHANGE-12-B shows why a request was closed", () => {
+    render(<ChangeRequestList requests={[request({ status: "Closed", decidedBy: "System", decidedAt: "2026-10-18T02:00:00.000Z", decisionReason: "The event was cancelled." })]} />);
+    const card = screen.getByRole("article");
+    expect(card).toHaveTextContent("Closed by System on");
+    expect(card).toHaveTextContent("The event was cancelled.");
+    expect(vi.mocked(fetchChangeRequestAudit)).not.toHaveBeenCalled();
+  });
+
+  it("REVIEW-CHANGE-08-A notes the safety check reset and lists arrangements to re-check on an approved request", () => {
+    render(
+      <ChangeRequestList
+        requests={[
+          request({
+            status: "Approved",
+            decidedBy: "Coord",
+            decidedAt: "2026-10-18T02:00:00.000Z",
+            safetyCheckReset: true,
+            recheck: [{ id: "i1", kind: "venue", refId: "b1", name: "Hall", details: ["Must move"] }],
+          }),
+        ]}
+      />,
+    );
+    expect(screen.getByText("The event’s safety check was reset and must be requested again.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Arrangements to re-check" })).toHaveTextContent("Venue booking: Hall");
+    expect(screen.queryByRole("button", { name: "Mark As Re-checked" })).not.toBeInTheDocument();
+  });
+
+  it("REVIEW-CHANGE-02-A gives the coordinator the review panel on pending requests only", async () => {
+    vi.mocked(previewChangeRequestConflicts).mockResolvedValue({
+      requestId: "cr-1",
+      venueBookings: [],
+      equipment: [],
+      registrations: { registered: 0, waitlisted: 0, details: [] },
+      hasConflicts: false,
+    });
+    const review = { onApproved: vi.fn(), onDenied: vi.fn(), onRechecked: vi.fn(), onStale: vi.fn() };
+    render(<ChangeRequestList requests={[request(), request({ id: "cr-0", status: "Denied" })]} review={review} />);
+    expect(await screen.findAllByRole("region", { name: "Review this change request" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeInTheDocument();
   });
 });

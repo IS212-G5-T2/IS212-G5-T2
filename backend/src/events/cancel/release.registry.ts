@@ -8,6 +8,7 @@ import { equipmentReservationReleaser } from '../../equipment/release/equipment-
 import { registrationReleaser } from '../../registrations/release/registration.releaser.js';
 import { waitlistReleaser } from '../../registrations/release/waitlist.releaser.js';
 import { venueBookingReleaser } from '../../venues/release/venue-booking.releaser.js';
+import { changeRequestReleaser } from '../change-requests/release/change-request.releaser.js';
 
 export interface EventReleaser {
   /** Stable name for logs and tests. */
@@ -26,5 +27,7 @@ export const DEFAULT_RELEASERS: readonly EventReleaser[] = [
   venueBookingReleaser,
   registrationReleaser,
   waitlistReleaser,
+  // SPM-65: a pending change request on a cancelled event is closed.
+  changeRequestReleaser,
   equipmentReservationReleaser,
 ];

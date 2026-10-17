@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,22 +7,39 @@ import {
   fetchEventChangeRequests,
   submitChangeRequest,
   withdrawChangeRequest,
+  previewChangeRequestConflicts,
+  approveChangeRequest,
+  denyChangeRequest,
+  markArrangementRechecked,
+  fetchChangeRequestAudit,
 } from "@/features/events/api/change-requests-api";
 import { useAppStore } from "@/store/useAppStore";
 import type { ChangeRequest, EventRecord, User } from "@/types";
-import { api } from "@/utils/api";
+import { ApiError, api } from "@/utils/api";
 
 vi.mock("@/utils/api", async (importOriginal) => ({ ...(await importOriginal<object>()), api: vi.fn() }));
 vi.mock("@/features/events/api/change-requests-api", () => ({
   fetchEventChangeRequests: vi.fn(),
   submitChangeRequest: vi.fn(),
   withdrawChangeRequest: vi.fn(),
+  previewChangeRequestConflicts: vi.fn(),
+  approveChangeRequest: vi.fn(),
+  denyChangeRequest: vi.fn(),
+  markArrangementRechecked: vi.fn(),
+  fetchChangeRequestAudit: vi.fn(),
+  markChangeRequestNoticesRead: vi.fn(() => Promise.resolve()),
+  fetchNewChangeRequestEventIds: vi.fn(() => Promise.resolve(new Set<string>())),
 }));
 
 const apiMock = vi.mocked(api);
 const listMock = vi.mocked(fetchEventChangeRequests);
 const submitMock = vi.mocked(submitChangeRequest);
 const withdrawMock = vi.mocked(withdrawChangeRequest);
+const previewMock = vi.mocked(previewChangeRequestConflicts);
+const approveMock = vi.mocked(approveChangeRequest);
+const denyMock = vi.mocked(denyChangeRequest);
+const recheckMock = vi.mocked(markArrangementRechecked);
+const auditMock = vi.mocked(fetchChangeRequestAudit);
 
 /**
  * SPM-64 — the Change Requests page: the organiser requests a change, sees the
@@ -55,6 +72,14 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
   };
 }
 
+const NO_CONFLICTS = {
+  requestId: "cr-1",
+  venueBookings: [],
+  equipment: [],
+  registrations: { registered: 0, waitlisted: 0, details: [] },
+  hasConflicts: false,
+};
+
 function changeRequest(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
   return {
     id: "cr-1",
@@ -63,6 +88,8 @@ function changeRequest(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
     status: "Pending",
     changes: [{ field: "expectedAttendance", originalValue: 120, proposedValue: 140 }],
     requiresSafetyCheck: true,
+    recheck: [],
+    safetyCheckReset: false,
     requestedBy: "Organiser 1",
     createdAt: "2026-10-16T02:00:00.000Z",
     ...overrides,
@@ -83,6 +110,13 @@ function renderPage(user: User = ORGANISER, state?: unknown) {
 
 beforeEach(() => {
   apiMock.mockReset();
+  auditMock.mockReset();
+  auditMock.mockResolvedValue([]);
+  previewMock.mockReset();
+  previewMock.mockResolvedValue(NO_CONFLICTS);
+  approveMock.mockReset();
+  denyMock.mockReset();
+  recheckMock.mockReset();
   listMock.mockReset();
   submitMock.mockReset();
   withdrawMock.mockReset();
@@ -170,13 +204,26 @@ describe("EventChangeRequestsPage", () => {
   });
 
   /** REQ-CHANGE-03-A: the assigned coordinator reads the list without the form or withdraw action. */
-  it("REQ-CHANGE-03-A shows the coordinator a read-only list", async () => {
+  it("REQ-CHANGE-03-A shows the assigned coordinator the request, without the organiser's actions", async () => {
     listMock.mockResolvedValue([changeRequest()]);
     renderPage(COORDINATOR);
     expect(await screen.findByRole("article")).toHaveTextContent("Pending review");
     expect(screen.queryByRole("heading", { name: "Request a Change" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Withdraw Request" })).not.toBeInTheDocument();
+    // SPM-65: the assigned coordinator now reviews the request on this page.
+    expect(
+      screen.getByText("Review the changes the organiser has requested. Check for conflicts, then approve or deny each request."),
+    ).toBeInTheDocument();
+  });
+
+  /** REQ-CHANGE-03-A: anyone else the server lets read the list sees it read-only. */
+  it("REQ-CHANGE-03-A shows other readers a read-only list", async () => {
+    listMock.mockResolvedValue([changeRequest()]);
+    renderPage({ ...COORDINATOR, id: "coord-9" } as User);
+    expect(await screen.findByRole("article")).toHaveTextContent("Pending review");
     expect(screen.getByText("Changes the organiser has requested for this event.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve Change" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Audit Log" })).not.toBeInTheDocument();
   });
 
   /** REQ-CHANGE-05-C: someone the server refuses sees its message and a way back. */
@@ -238,5 +285,93 @@ describe("EventChangeRequestsPage", () => {
     listMock.mockRejectedValue("offline");
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load change requests.");
+  });
+
+  // ------------------------------------------------------------------ SPM-65
+
+  /** REVIEW-CHANGE-04-A, 06-A, 08-A, 09-A, 10-A: approving updates the list, confirms it and reloads the audit log. */
+  it("REVIEW-CHANGE-06-A confirms an approval, says the safety check was reset and lists the re-checks", async () => {
+    listMock.mockResolvedValue([changeRequest()]);
+    const approved = changeRequest({
+      status: "Approved",
+      decidedBy: "Coordinator 1",
+      decidedAt: "2026-10-18T02:00:00.000Z",
+      safetyCheckReset: true,
+      recheck: [{ id: "i1", kind: "venue", refId: "b1", name: "Hall", details: ["Attendance 140 exceeds capacity 120"] }],
+    });
+    approveMock.mockResolvedValue({ request: approved, eventStatus: "planning", safetyCheckReset: true });
+    recheckMock.mockResolvedValue({ ...approved, recheck: [{ ...approved.recheck[0], checkedAt: "2026-10-18T03:00:00.000Z", checkedBy: "Coordinator 1" }] });
+    const user = renderPage(COORDINATOR);
+    await user.click(await screen.findByRole("button", { name: "Approve Change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Approval" }));
+    const confirmation = await screen.findByText(/The change request was approved and Alumni Networking Night has been updated\./);
+    expect(confirmation).toHaveTextContent("The safety check was reset; request a new safety check. Re-check the affected arrangements below.");
+    expect(screen.getByRole("article")).toHaveTextContent("Approved by Coordinator 1");
+    expect(screen.queryByRole("button", { name: "Approve Change" })).not.toBeInTheDocument();
+    await waitFor(() => expect(auditMock).toHaveBeenCalledTimes(2));
+    // AC9: tick the arrangement off.
+    await user.click(screen.getByRole("button", { name: "Mark As Re-checked" }));
+    expect(await screen.findByText(/Re-checked by Coordinator 1 on/)).toBeInTheDocument();
+    expect(recheckMock).toHaveBeenCalledWith("evt-1", "cr-1", "i1");
+  });
+
+  it("confirms an approval without a reset or re-checks", async () => {
+    // An older decided request stays as it was.
+    listMock.mockResolvedValue([changeRequest(), changeRequest({ id: "cr-0", status: "Denied", decisionReason: "Earlier reason." })]);
+    approveMock.mockResolvedValue({ request: changeRequest({ status: "Approved" }), eventStatus: "planning", safetyCheckReset: false });
+    const user = renderPage(COORDINATOR);
+    await user.click(await screen.findByRole("button", { name: "Approve Change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Approval" }));
+    expect(await screen.findByText(/^The change request was approved and Alumni Networking Night has been updated\.$/)).toBeInTheDocument();
+    expect(screen.getAllByRole("article")[1]).toHaveTextContent("Earlier reason.");
+  });
+
+  /** REVIEW-CHANGE-05-A, 06-B: denying confirms it and shows the reason in the list. */
+  it("REVIEW-CHANGE-06-B confirms a denial", async () => {
+    listMock.mockResolvedValue([changeRequest()]);
+    denyMock.mockResolvedValue({
+      request: changeRequest({ status: "Denied", decidedBy: "Coordinator 1", decidedAt: "2026-10-18T02:00:00.000Z", decisionReason: "The hall is too small." }),
+    });
+    const user = renderPage(COORDINATOR);
+    await user.click(await screen.findByRole("button", { name: "Deny Change" }));
+    await user.type(screen.getByLabelText(/Reason for denying/), "The hall is too small.");
+    await user.click(screen.getByRole("button", { name: "Confirm Denial" }));
+    expect(await screen.findByText("The change request was denied. The organiser has been told why.")).toBeInTheDocument();
+    expect(screen.getByRole("article")).toHaveTextContent("Coordinator’s reason: “The hall is too small.”");
+    await waitFor(() => expect(auditMock).toHaveBeenCalledTimes(2));
+  });
+
+  /** REVIEW-CHANGE-12-C (AC11): a request withdrawn meanwhile is closed; the server's message shows and the list reloads. */
+  it("REVIEW-CHANGE-12-C reloads when the request was withdrawn meanwhile", async () => {
+    listMock
+      .mockResolvedValueOnce([changeRequest()])
+      .mockResolvedValueOnce([changeRequest({ status: "Withdrawn", decidedBy: "Organiser 1", decidedAt: "2026-10-18T02:00:00.000Z" })]);
+    approveMock.mockRejectedValue(new ApiError("The organiser has withdrawn this change request.", undefined, "change_request_withdrawn", 409));
+    const user = renderPage(COORDINATOR);
+    await user.click(await screen.findByRole("button", { name: "Approve Change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Approval" }));
+    expect(await screen.findByText("Withdrawn by Organiser 1", { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm Approval" })).not.toBeInTheDocument();
+    expect(listMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("still shows the request when the reload after a stale decision fails", async () => {
+    listMock.mockResolvedValueOnce([changeRequest()]).mockRejectedValueOnce(new Error("offline"));
+    approveMock.mockRejectedValue(new ApiError("This change request has already been decided.", undefined, "change_request_decided", 409));
+    const user = renderPage(COORDINATOR);
+    await user.click(await screen.findByRole("button", { name: "Approve Change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Approval" }));
+    expect(await screen.findByText("This change request has already been decided.")).toBeInTheDocument();
+    expect(within(screen.getByRole("article")).getByText("Pending review")).toBeInTheDocument();
+  });
+
+  /** REVIEW-CHANGE-10-B: the owner reads the audit log too, and a withdrawal reloads it. */
+  it("REVIEW-CHANGE-10-B shows the owner the audit log and reloads it after withdrawing", async () => {
+    listMock.mockResolvedValueOnce([changeRequest()]).mockResolvedValueOnce([changeRequest({ status: "Withdrawn" })]);
+    withdrawMock.mockResolvedValue(changeRequest({ status: "Withdrawn" }));
+    const user = renderPage();
+    expect(await screen.findByRole("heading", { name: "Audit Log" })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: "Withdraw Request" }));
+    await waitFor(() => expect(auditMock).toHaveBeenCalledTimes(2));
   });
 });
