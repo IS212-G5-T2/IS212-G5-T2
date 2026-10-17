@@ -1,6 +1,54 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@import "@fullcalendar/react/skeleton.css";
+@import "@fullcalendar/react/themes/breezy/theme.css";
+@import "@fullcalendar/react/themes/breezy/palettes/indigo.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-primary-50: #eff9fa;
+  --color-primary-100: #d7f0f2;
+  --color-primary-200: #b3e2e7;
+  --color-primary-300: #82ccd5;
+  --color-primary-400: #4aabb8;
+  --color-primary-500: #2c8d9c;
+  --color-primary-600: #237183;
+  --color-primary-700: #205c6b;
+  --color-primary-800: #1f4b58;
+  --color-primary-900: #1c3f4b;
+  --color-success-50: #eefbf2;
+  --color-success-100: #d5f5df;
+  --color-success-200: #aee9c1;
+  --color-success-300: #79d69d;
+  --color-success-400: #47bb7b;
+  --color-success-500: #279e61;
+  --color-success-600: #1c7e4e;
+  --color-success-700: #1a6441;
+  --color-success-800: #194f37;
+  --color-success-900: #164130;
+  --color-warning-50: #fffaeb;
+  --color-warning-100: #fff0c6;
+  --color-warning-200: #ffdf88;
+  --color-warning-300: #ffc84a;
+  --color-warning-400: #ffb020;
+  --color-warning-500: #f99007;
+  --color-warning-600: #dd6c02;
+  --color-warning-700: #b74b06;
+  --color-warning-800: #943a0c;
+  --color-warning-900: #7a300d;
+  --color-danger-50: #fef2f2;
+  --color-danger-100: #fde2e2;
+  --color-danger-200: #fbcaca;
+  --color-danger-300: #f7a5a5;
+  --color-danger-400: #f07272;
+  --color-danger-500: #e34848;
+  --color-danger-600: #cf2f2f;
+  --color-danger-700: #ad2424;
+  --color-danger-800: #8f2222;
+  --color-danger-900: #772222;
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --spacing-18: 4.5rem;
+}
 
 @layer base {
   html {
@@ -17,5 +65,128 @@
 @layer utilities {
   .sr-only-focusable:not(:focus) {
     @apply sr-only;
+  }
+}
+
+.venue-schedule-calendar {
+  --fc-breezy-background: #fff;
+  --fc-breezy-faint: #f9fafb;
+  --fc-breezy-muted: #f3f4f6;
+  --fc-breezy-border: #e5e7eb;
+  --fc-breezy-muted-border: #f3f4f6;
+  --fc-breezy-strong-border: #d1d5db;
+  --fc-breezy-foreground: #4b5563;
+  --fc-breezy-muted-foreground: #6b7280;
+  --fc-breezy-strong-foreground: #111827;
+  --fc-breezy-primary: #4f46e5;
+  --fc-breezy-primary-over: #4338ca;
+  --fc-breezy-primary-foreground: #fff;
+  --fc-breezy-highlight: rgb(79 70 229 / 5%);
+  font-family: inherit;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 1rem;
+  background: #fff;
+  padding: 1.125rem;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 6%);
+}
+
+.venue-schedule-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.875rem;
+  color: #4b5563;
+  font-size: 0.75rem;
+}
+
+.venue-schedule-caption {
+  margin: 0.5rem 0 0.875rem;
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.venue-schedule-calendar-scroll {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+.venue-schedule-calendar-scroll > div {
+  min-width: 700px;
+}
+
+.venue-schedule-calendar-scroll [class*="timegrid"] {
+  min-width: 700px;
+}
+
+.venue-schedule-calendar .venue-schedule-event {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.25;
+}
+
+.venue-schedule-calendar .venue-schedule-event strong {
+  font-weight: 650;
+}
+
+.venue-schedule-calendar .venue-schedule-event-time {
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.venue-schedule-calendar .venue-schedule-event span {
+  overflow-wrap: anywhere;
+}
+
+.venue-schedule-calendar .schedule-legend-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-right: 0.375rem;
+  border-radius: 9999px;
+}
+
+.venue-schedule-calendar .venue-schedule-buffer {
+  border-style: dashed !important;
+  color: #475569;
+}
+
+.dark .venue-schedule-calendar {
+  --fc-breezy-background: #1f2937;
+  --fc-breezy-faint: #111827;
+  --fc-breezy-muted: #374151;
+  --fc-breezy-border: #374151;
+  --fc-breezy-muted-border: #374151;
+  --fc-breezy-strong-border: #4b5563;
+  --fc-breezy-foreground: #d1d5db;
+  --fc-breezy-muted-foreground: #9ca3af;
+  --fc-breezy-strong-foreground: #f9fafb;
+  --fc-breezy-highlight: rgb(129 140 248 / 10%);
+}
+
+.dark .venue-schedule-calendar {
+  border-color: #374151;
+  background: #1f2937;
+}
+
+.dark .venue-schedule-legend,
+.dark .venue-schedule-caption {
+  color: #d1d5db;
+}
+
+.dark .venue-schedule-calendar .venue-schedule-buffer {
+  color: #cbd5e1;
+}
+
+@media (max-width: 640px) {
+  .venue-schedule-calendar {
+    padding: 0.75rem;
+  }
+
+  .venue-schedule-calendar-scroll > div,
+  .venue-schedule-calendar-scroll [class*="timegrid"] {
+    min-width: 620px;
   }
 }

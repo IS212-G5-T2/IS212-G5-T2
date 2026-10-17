@@ -3,7 +3,9 @@ export type UserRole =
   | "coordinator"
   | "venue_staff"
   | "tech_support"
-  | "attendee";
+  | "attendee"
+  /** SPM-123: the single Event Coordinator Lead, never also a coordinator. */
+  | "coordinator_lead";
 
 export interface User {
   id: string;
@@ -16,7 +18,10 @@ export interface User {
 }
 
 /** Checks every server-granted role, with a legacy fallback for test fixtures. */
-export function hasRole(user: Pick<User, "role"> & Partial<Pick<User, "roles">>, role: UserRole): boolean {
+export function hasRole(
+  user: Pick<User, "role"> & Partial<Pick<User, "roles">>,
+  role: UserRole,
+): boolean {
   return user.roles?.includes(role) ?? user.role === role;
 }
 
@@ -70,8 +75,28 @@ export interface EventRecord {
   venueRequirements: VenueRequirements;
   equipmentNeeds: string;
   registrationEnabled: boolean;
+  /** ISO timestamp at which attendee registration becomes available. */
+  registrationOpensAt?: string;
+  /** ISO timestamp after which attendee registration is no longer available. */
+  registrationClosesAt?: string;
+  /** Server-computed: the registration window is open right now (SPM-61). */
+  registrationOpen?: boolean;
+  /** The signed-in attendee's own registration status, on the browse list only (SPM-61). */
+  myRegistrationStatus?: RegistrationStatus;
+  /** Registration capacity remaining; separate from venue capacity. */
+  availableRegistrationSpots?: number;
+  /** SPM-138: the registration limit (the capacity counted against Confirmed attendees). */
+  registrationLimit?: number;
+  /** SPM-138: Confirmed attendees have reached the limit. */
+  isFull?: boolean;
+  /** SPM-138: the waitlist can be joined now (full and open for registration). */
+  waitlistAvailable?: boolean;
+  /** SPM-138: places left (limit minus Confirmed, never below zero). */
+  availableSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
+  /** SPM-46: who the current coordinator received the event from, and when. */
+  reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];
@@ -106,8 +131,24 @@ export interface Venue {
   facilities: string[];
   accessibility: string[];
   layouts: string[];
-  operatingHours: string;
+  operatingInformation: string;
+  setupTimeMinutes: number;
+  turnaroundTimeMinutes: number;
+  image?: VenueImage;
 }
+
+export interface VenueImage {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+}
+
+/** Venue details supplied by staff before the backend generates its UUID. */
+export type VenueCreateInput = Omit<
+  Venue,
+  "id"
+>;
 
 export type BookingStatus = "pending" | "approved" | "rejected";
 
@@ -140,11 +181,38 @@ export interface EquipmentItem {
   totalQuantity: number;
 }
 
+/** A persisted inventory record created by Technical Support (SPM-111). */
+export interface EquipmentRecord {
+  id: string;
+  name: string;
+  type: "Audio" | "Visual" | "Furniture" | "Lighting" | "Other";
+  quantity: number;
+  maintenanceStatus: "Active" | "Under Maintenance" | "Retired";
+  location: string;
+  /** SPM-119: booking availability, independent of maintenanceStatus. Defaults to true. */
+  isAvailable?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** SPM-118/119: one row of the shared equipment change audit trail. */
+export interface EquipmentAuditEntry {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  equipmentType: EquipmentRecord["type"];
+  location: string;
+  maintenanceStatus: EquipmentRecord["maintenanceStatus"];
+  quantity: number;
+  isAvailable: boolean;
+  changeType: "Marked unavailable" | "Reactivated" | "Equipment record updated";
+  reason: string | null;
+  changedBy: string;
+  timestamp: string;
+}
+
 export type EquipmentRequestStatus =
-  | "requested"
-  | "checking"
-  | "reserved"
-  | "unavailable";
+  "requested" | "checking" | "reserved" | "unavailable";
 
 export interface EquipmentRequest {
   id: string;
@@ -160,7 +228,16 @@ export interface EquipmentRequest {
   createdAt: string;
 }
 
-export type RegistrationStatus = "registered" | "withdrawn";
+/** SPM-138: the answer to POST /events/:id/waitlist (201). The position is read back from the server. */
+export interface WaitlistJoinResult {
+  registrationId: string;
+  status: "waitlisted";
+  position: number;
+  message: string;
+}
+
+/** Lower-case API values (D3). "waitlisted" and "removed" are SPM-138 waitlist states. */
+export type RegistrationStatus = "registered" | "withdrawn" | "cancelled" | "waitlisted" | "removed";
 
 export interface Registration {
   id: string;
@@ -169,6 +246,17 @@ export interface Registration {
   attendeeName: string;
   status: RegistrationStatus;
   registeredAt: string;
+  /** Instant of the withdrawal (SPM-120); set once by the server, absent while registered. */
+  withdrawnAt?: string;
+  /** SPM-138: the owner's own waitlist position; null for every other entry (the key is always present). */
+  waitlistPosition?: number | null;
+  /** SPM-138: when the attendee joined the waitlist (ISO instant). Set for a waitlisted entry only. */
+  joinedAt?: string;
+  /** Details captured at registration (SPM-61); absent on older records. */
+  fullName?: string;
+  email?: string;
+  contactNumber?: string;
+  specialRequirements?: string;
 }
 
 export type NotificationType =
@@ -177,11 +265,18 @@ export type NotificationType =
   | "approval"
   | "rejection"
   | "coordinator_assignment"
+  | "coordinator_reassignment"
+  | "coordinator_unassignment"
+  | "coordinator_unavailable"
   | "venue_booking"
   | "event_change"
   | "registration"
   | "confirmation"
-  | "cancellation";
+  | "cancellation"
+  /** SPM-138 AC9: an attendee was promoted from the waitlist to a place (MSG-WL-05). */
+  | "WaitlistPromoted"
+  /** SPM-138 AC12: a waiting entry was cancelled with its event (MSG-WL-06). */
+  | "EventCancelled";
 
 export interface Notification {
   id: string;
@@ -192,4 +287,153 @@ export interface Notification {
   relatedEventId?: string;
   read: boolean;
   createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// SPM-97 / SPM-49 / SPM-85: event information during the planning phase.
+// Mirrors backend/src/events/event-planning.service.ts responses.
+
+/**
+ * How a coordinator's change to a field is handled (SPM-49 AC2):
+ * - "direct": always applied immediately.
+ * - "conditional": applied immediately while it satisfies `condition` (stays
+ *   compatible with every existing booking/arrangement); otherwise flagged.
+ * - "needs_review": any change is flagged for review.
+ */
+export type PlanningFieldMode = "direct" | "conditional" | "needs_review";
+
+export type PlanningFieldCondition =
+  | { kind: "within_window"; start: string; end: string }
+  | { kind: "max_attendance"; max: number }
+  | { kind: "remove_only" };
+
+export interface PlanningEditableField {
+  field: string;
+  mode: PlanningFieldMode;
+  condition?: PlanningFieldCondition;
+}
+
+export interface PlanningVenueBooking {
+  id: string;
+  venueId?: string;
+  venueName: string;
+  capacity?: number;
+  start: string;
+  end: string;
+  /** "Unavailable": the venue was lost and a replacement is required. */
+  status: "Booked" | "Unavailable" | "Cancelled";
+}
+
+export interface PlanningEquipmentArrangement {
+  id: string;
+  name: string;
+  quantity: number;
+  status: string;
+}
+
+export interface BookingImpactConflict {
+  /**
+   * "window": the new time falls outside what the booking holds, so the
+   * booking must change. "requirements": layout/facility suitability must be
+   * re-checked by hand.
+   */
+  kind: "window" | "overlap" | "turnaround" | "capacity" | "requirements";
+  withBookingId?: string;
+  detail: string;
+}
+
+export interface BookingImpact {
+  bookingId: string;
+  venueId?: string;
+  venueName: string;
+  impacted: boolean;
+  conflicts: BookingImpactConflict[];
+  /** Per-booking decision already recorded for this venue booking (SPM-85 AC7). */
+  decision?: "Applied" | "Rejected";
+  decidedBy?: string;
+  decidedAt?: string;
+}
+
+export interface EquipmentImpact {
+  arrangementId: string;
+  name: string;
+  quantity: number;
+  detail: string;
+}
+
+export interface FlaggedChange {
+  id: string;
+  kind: "booking_conflict";
+  field: string;
+  currentValue: unknown;
+  proposedValue: unknown;
+  status: "Needs Review";
+  /** Present for the assigned coordinator only; hidden from the organiser. */
+  impacts?: BookingImpact[];
+  equipmentImpacts?: EquipmentImpact[];
+  proposedBy?: string;
+  createdAt?: string;
+}
+
+export interface ReplacementRequired {
+  id: string;
+  kind: "replacement_venue_required";
+  field: "venue";
+  bookingId: string;
+  venueName: string;
+  status: "Needs Review";
+}
+
+export type PendingChange = FlaggedChange | ReplacementRequired;
+
+export interface ChangeHistoryEntry {
+  id: string;
+  field: string;
+  originalValue: unknown;
+  proposedValue: unknown;
+  /** The value the event ended up with: proposed if Applied, original if Rejected. */
+  resolvedValue: unknown;
+  resolvedBy: string;
+  resolvedAt: string;
+  status: "Applied" | "Rejected";
+}
+
+export interface PlanningView {
+  event: EventRecord;
+  venueBookings: PlanningVenueBooking[];
+  equipmentArrangements: PlanningEquipmentArrangement[];
+  pendingChanges: PendingChange[];
+  /** True for the organiser, and for everyone once the event is confirmed. */
+  readOnly: boolean;
+  editableFields: PlanningEditableField[];
+  lastUpdatedAt: string;
+}
+
+/** Fields a coordinator may change during planning (PATCH /events/:id/planning). */
+export type PlanningUpdatePatch = Partial<{
+  name: string;
+  purpose: string;
+  description: string;
+  startDateTime: string;
+  endDateTime: string;
+  expectedAttendance: number;
+  layout: string;
+  facilities: string[];
+  accessibility: string[];
+  equipmentNeeds: string;
+}>;
+
+export interface PlanningUpdateResult {
+  event: EventRecord;
+  applied: string[];
+  flagged: FlaggedChange[];
+  /** True when applying these changes removed an existing safety check (SPM-135). */
+  safetyCheckReset?: boolean;
+  updatedAt: string;
+}
+
+export interface ResolveChangeRequest {
+  changeId: string;
+  decision: "confirm" | "reject";
+  bookingId?: string;
 }

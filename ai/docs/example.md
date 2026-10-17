@@ -1,0 +1,9 @@
+# Example: request a feature through the Orchestrator
+
+Send this to the primary Codex or Claude Code session from the repository root, replacing the key and feature details with a real task:
+
+> Implement Jira SPM-155 on a work branch. Read the complete Jira story and acceptance criteria, relevant linked Confluence pages, root and scoped AGENTS.md, and AI_USAGE.md. Follow the Orchestrator flow in AGENTS.md and ai/docs/sub-agents.md: delegate implementation first; run Test Code Review and resolve its gate; then run Requirement Review and Code Quality Review on the same snapshot, concurrently when available. Route accepted corrections to Implementation, rerun invalidated gates with Test first, and report the final evidence. Stage reviewable changes. Do not commit, push, open a pull request, or change Jira status without the required approval.
+
+The Orchestrator first checks the Jira status and existing branch/PR work. If the issue is eligible and requirements are available, it delegates the bounded implementation. Once that agent finishes, it accepts Test Review before assigning the other two reviewers. Requirement and Code Quality reviewers may work in parallel on one stable snapshot; the Orchestrator waits for both reports before routing fixes. If Test Review finds a missing boundary case, Implementation adds it and Test Review repeats before either later review begins. If Requirement Review finds missing authorization behavior, Implementation fixes it and the Orchestrator repeats Test Review, then any invalidated Requirement and Code Quality Reviews. The final report names unavailable integrations, skipped checks, and unresolved findings.
+
+For a request without a Jira key, give the feature description and acceptance conditions directly. The Orchestrator uses those supplied requirements, still reads repository instructions, and states that Jira was not applicable to the request.

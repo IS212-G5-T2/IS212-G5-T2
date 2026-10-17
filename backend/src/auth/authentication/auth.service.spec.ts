@@ -1,6 +1,6 @@
 import { UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { AuthRepository } from './auth.repository.js';
+import { AuthRepository } from './repository/auth.repository.js';
 import { AuthService } from './auth.service.js';
 
 describe('AuthService', () => {

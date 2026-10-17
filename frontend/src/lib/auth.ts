@@ -1,6 +1,5 @@
 import type { User, UserRole } from "@/types";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
+import { apiBaseUrl } from "@/utils/api";
 
 interface AuthUser {
   uid: string;
@@ -15,6 +14,7 @@ const roleByDatabaseRole: ReadonlyArray<{ databaseRole: string; role: UserRole }
   { databaseRole: "VENUE_STAFF", role: "venue_staff" },
   { databaseRole: "TECH_SUPPORT", role: "tech_support" },
   { databaseRole: "ATTENDEE", role: "attendee" },
+  { databaseRole: "COORDINATOR_LEAD", role: "coordinator_lead" },
 ];
 
 /** Converts the server-owned local account identity into the UI user model. */
@@ -36,7 +36,7 @@ export function toLocalUser(account: AuthUser): User | undefined {
 }
 
 export async function login(email: string, password: string): Promise<User> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+  const response = await fetch(`${apiBaseUrl()}/api/auth/login`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -51,7 +51,7 @@ export async function login(email: string, password: string): Promise<User> {
 }
 
 export async function restoreSession(): Promise<User | undefined> {
-  const response = await fetch(`${API_BASE_URL}/api/auth/me`, { credentials: "include" });
+  const response = await fetch(`${apiBaseUrl()}/api/auth/me`, { credentials: "include" });
   if (response.status === 401) return undefined;
 
   const body = await readBody(response);
@@ -60,7 +60,7 @@ export async function restoreSession(): Promise<User | undefined> {
 }
 
 export async function logout(): Promise<void> {
-  await fetch(`${API_BASE_URL}/api/auth/logout`, {
+  await fetch(`${apiBaseUrl()}/api/auth/logout`, {
     method: "POST",
     credentials: "include",
   });

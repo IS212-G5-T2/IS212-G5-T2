@@ -15,16 +15,9 @@ The cookie-based API never returns password hashes or session tokens:
 - `POST /api/auth/logout` revokes the persisted session and clears the
   cookie.
 
-The local database seeds one account per role. All use password
-`P@55w0rd` and are strictly for local development:
-
-| Role | Email |
-| --- | --- |
-| Organiser | `organiser@local.connectsphere.test` |
-| Coordinator | `coordinator@local.connectsphere.test` |
-| Venue Staff | `venue.staff@local.connectsphere.test` |
-| Tech Support | `tech.support@local.connectsphere.test` |
-| Attendee | `attendee@local.connectsphere.test` |
+Local-only account credentials and roles are listed in
+[database/README.md](../database/README.md#local-login-data); do not reuse them
+outside development.
 
 Sessions are opaque random values. PostgreSQL retains only their SHA-256
 digests in `auth_sessions`; passwords are verified with bcrypt through the
@@ -36,9 +29,8 @@ when serving HTTPS.
 ## Authorization
 
 Route-owning modules must apply `AuthenticationMiddleware` to protected
-controllers. The app module currently applies it only to `AuthController`.
-The current events controller is therefore not session-protected. When the
-middleware is applied to a controller, it:
+controllers. The app module applies it to authenticated event, clarification,
+and venue routes. When the middleware is applied to a controller, it:
 
 - Leaves public `GET /` and `GET /healthz` requests alone.
 - Requires a valid session cookie for that protected controller's non-public routes.
@@ -54,7 +46,7 @@ Auth code is organized by responsibility:
 | `src/config/auth.config.ts` | Authentication session environment parsing and validation. |
 | `src/auth/authentication/` | Session authentication, login/logout API, and request middleware. |
 | `src/auth/authorization/` | RBAC permission and ownership checks. |
-| `src/auth/models/` | Shared auth user, role, permission, and public-route models. |
+| `src/auth/types/` | Shared auth user, role, permission, and public-route types. |
 
 ## Database Access
 
@@ -74,8 +66,6 @@ Required runtime configuration:
 | `AUTH_COOKIE_SECURE` | Set `true` when the backend is served over HTTPS. |
 | `AUTH_SESSION_TTL_HOURS` | Session lifetime; defaults to `8`, maximum `168`. |
 
-This service was scaffolded with the official Nest CLI using npm and strict TypeScript settings. It exposes event submission and retrieval endpoints alongside the starter health checks.
-
 ## Setup
 
 Install dependencies:
@@ -91,6 +81,32 @@ npm run start:dev
 ```
 
 The service listens on `PORT` when set, otherwise `3000`.
+
+## Event planning (SPM-97, SPM-49, SPM-85)
+
+Routes (all behind `AuthenticationMiddleware`; the service checks role, ownership/assignment and event status):
+
+| Route | Who | Purpose |
+| --- | --- | --- |
+| `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`) |
+| `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
+| `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | `{ decision: 'confirm' \| 'reject', bookingId? }` |
+| `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Resolved changes, newest first |
+
+Rules, assumptions and the placeholder tables behind this are in `HANDOVER.md`; test cases are indexed in `../docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`.
+
+```sh
+# Unit tests for the rules (mocked repository)
+npx vitest run src/events/planning/dto/event-update-input.spec.ts src/events/planning/helpers/event-impact.spec.ts src/events/planning/event-planning.service.spec.ts
+
+# Integration tests against real SQL. Use a disposable database: the spec applies
+# database/postgresql/init/001_schema.sql to it. Uses TEST_DATABASE_URL,
+# else DATABASE_URL; skipped locally when neither is set, fails in CI when neither is set.
+TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.e2e-spec.ts
+
+# The same routes through HTTP, session-cookie auth and PostgreSQL
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.http.e2e-spec.ts
+```
 
 ## Checks
 
@@ -115,39 +131,154 @@ No deployment command is configured for this repository.
 
 ## Local event requests
 
-Set `DATABASE_URL` to the local PostgreSQL connection and
-`DEMO_ORGANISER_ENABLED=true` for the local sample. Compose supplies both
-through `.env.example`. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
+Set `DATABASE_URL` to the local PostgreSQL connection. Compose supplies it
+through `.env.example`. Every event route needs a signed-in session; there is
+no shared demo identity. `FRONTEND_ORIGIN` defaults to `http://localhost:5173`
 for CORS. The complete local schema and optional fictional seed live in
 `database/postgresql/init/001_schema.sql` and `002_seed_data.sql`.
 
 - `POST /api/events`: JSON fields `name`, `purpose`, `description`, `startDateTime`, `endDateTime`, `expectedAttendance`, `layout`, `facilities`, `accessibility`, `equipmentNeeds`, `submissionKey` (UUID v4).
-- `GET /api/events`: lists the fixed local demo organiser's events, newest first.
-- `GET /api/events/:id`: returns full details or 404.
+- `GET /api/events` and `GET /api/events/:id` return requests visible to the
+  signed-in account. Drafts use `/api/requests`. Submission leaves a request
+  unassigned until the Event Coordinator Lead assigns it.
 
-Name, purpose, start/end times and positive integer attendance are required. Times are ISO UTC strings; end must follow start. Requests receive field-specific 400 errors. The server owns the organiser and status; SQL stores `Submitted`, mapped to `submitted` in the frontend contract. A unique organiser/submission key prevents duplicate retries. Optional text and selection fields have size/value limits.
+The server derives ownership from the session, not client-supplied identity.
+Existing rows created with the old fixed demo identity remain inaccessible
+under session scoping; migrate ownership only after verifying the real owner.
+Submitted requests use the stored `Submitted` status and a unique
+organiser/submission key to protect retries. Email delivery is deferred.
 
-Firebase handles user accounts for `/auth/me`, but the event API does not yet
-use the authenticated Firebase user. Its demo identity is explicitly local-only;
-integrate server-side Firebase identity and RBAC before shared or production
-use. Email delivery and Save Draft are deferred.
+## Equipment records
 
-Event unit tests live beside their implementation:
-`src/events/event-input.spec.ts` covers validation and
-`src/events/events.service.spec.ts` covers persistence behavior with mocked
-database calls. They run through `npm test`. There is no committed
-database-container E2E test for the event endpoints.
+Technical Support users can create and list equipment through `POST /api/equipment`
+and `GET /api/equipment`; `GET /api/equipment/locations` returns distinct saved
+locations for the create form. Equipment requests require a non-blank name and
+location, predefined type and maintenance status, and a whole-number quantity
+from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
+
+Technical Support can update the same fields through `PUT /api/equipment/:id`.
+The update and its audit snapshot commit in one transaction; unchanged
+submissions return `No changes were made.` and do not add an audit entry.
+Existing databases must apply `migrations/011_equipment_record_updates.sql`;
+fresh local databases include the final audit constraint and Equipment update
+permission in the initializer.
+
+Run the SPM-118 equipment update fault-injection checks from this directory
+with `node scripts/mutation/run.mjs --mutants spm118.mutants.mjs`.
+
+Availability is separate from maintenance status. Marking equipment
+unavailable and writing its audit entry happen in one transaction; a failed
+audit insert rolls the availability change back. `GET /api/equipment` excludes
+unavailable records unless `includeUnavailable=true` is requested.
+
+## Venue records (SPM-50)
+
+`POST /api/venues` requires a valid local session and the RBAC `Venue:create`
+permission (granted to `VENUE_STAFF`). It accepts a venue name, one scalar location,
+positive integer capacity, non-empty facilities and layouts, optional
+accessibility features, one free-text operating information value, and
+non-negative whole-minute setup and turnaround durations. Operating days and
+opening-time fields are not part of the venue model; staff provide any relevant
+hours or closure information in the free-text operating information value. Facilities and
+layouts must match the controlled lookup values; an optional image must be an
+image data URL no larger than 5 MB. Successful requests persist the venue, its normalized
+relationships, optional image, and the authenticated Venue Staff account ID
+(`venues.owner_user_id`) atomically and return
+the saved record with `Venue created successfully.` PostgreSQL generates the
+venue UUID; the server derives ownership from the verified session, never from
+request fields. Missing or invalid fields
+return field-specific `400` errors. A case-insensitive, trimmed name/location
+pair must be unique; duplicates return a field-level `409` conflict while the
+UUID remains the stable identifier. `operatingInformation` is the only
+operating data; the backend does not store operating days or opening/closing
+times and does not create a compatibility schedule.
+
+Apply `migrations/005_venues.sql` followed by
+`migrations/006_venue_operating_information.sql`, then
+`migrations/007_venue_operating_schedule.sql`, then
+`migrations/008_venue_owner_user_id.sql`, `migrations/009_venue_availability.sql`,
+and `migrations/010_remove_venue_operating_schedule.sql` to existing databases,
+in that order. Migration 010 removes legacy schedule columns after the
+availability migration is installed. The owner
+migration leaves historical venues with unknown ownership unassigned, while
+requiring an owner for new rows and enforcing a foreign key to `users(id)`.
+Fresh local databases
+receive the tables through `database/postgresql/init/001_schema.sql`. Unit
+coverage lives in `src/venues/*.spec.ts`; the optional PostgreSQL integration
+test is `test/venues.e2e-spec.ts` and runs with `DATABASE_URL`.
+
+### Venue Staff catalogue (SPM-124)
+
+`GET /api/venues` and `GET /api/venues/:id` require `Venue:read` and return the
+shared catalogue to every authorized reader. `GET /api/venues?mine=true` narrows
+the list to venues whose `owner_user_id` matches the verified session; no client
+owner ID is accepted. Responses include venue fields, image,
+current and scheduled staff blockouts, approved bookings, and active pending
+holds. A booking is marked affected when a blockout overlaps its occupied
+setup-to-turnaround period. For an existing database, apply migrations 005–009
+in order, then `010_remove_venue_operating_schedule.sql`; fresh local
+initialization includes availability and sample venues without operating-hours
+columns.
+
+### Mark venue unavailable (SPM-122)
+
+Venue Staff can `POST /api/venues/:id/unavailable-periods` with ISO date-times
+`start`, `end`, and a required free-text `reason`. The response contains the
+saved `period` and `affectedBookings`, including setup and turnaround overlaps.
+The end time must be later than the current server time. A period that has
+already started can be saved if it is still in progress. The affected list
+contains current and upcoming bookings, including their setup and turnaround
+time; elapsed bookings are omitted.
+Existing bookings and events are unchanged.
+`POST /api/venues/:id/unavailable-periods/:periodId/end` shortens one active period
+to the server clock time. `GET /api/venues/:id` exposes current and scheduled
+periods with reasons and a `current` flag for the early-end control.
+
+## Venue availability and booking requests (SPM-51)
+
+`GET /api/venues/:id` returns confirmed bookings, active tentative holds and
+unavailable periods for the venue. Pending holds include `holdExpiresAt`; holds
+whose expiry is at or before the server clock are omitted. Coordinators submit
+an assigned event's requested interval through
+`POST /api/venues/:id/booking-requests` with `{ "eventId", "start", "end" }`,
+where start/end are ISO instants. The request is stored as `pending` and the
+response includes its booking reference. The backend locks the venue, checks
+the fresh schedule against setup/turnaround buffers and blockouts, and returns
+409 without inserting when it finds a conflict. Only the event's currently
+assigned Coordinator may submit it.
+
+Backend evidence for the booking-request rules is in
+`src/venues/availability/booking-request.spec.ts`,
+`src/venues/availability/dto/booking-request.spec.ts`, and
+`test/venues-booking-requests.e2e-spec.ts`. The schedule schema supports
+`rejected` as the declined request status; it has no `cancelled` booking status.
+Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
+requests are tentative and rejected requests are absent, without claiming a
+cancelled status exists.
+
+Run SPM-51 fault-injection checks with a PostgreSQL database configured in
+`DATABASE_URL`:
+
+```sh
+node scripts/mutation/run.mjs --mutants spm51.mutants.mjs
+```
+
+The runner prints baseline and per-mutant results with the mapped test evidence;
+it does not persist a result report. Exit code `0` means all selected mutants
+were killed or marked equivalent, `1` means a non-equivalent mutant survived or
+could not be applied exactly once, `2` means setup/baseline validation failed,
+and `3` means one or more required suites were skipped because their database
+environment was unavailable. A skipped suite is not counted as a kill.
 
 ## Clarification/amendment requests (SPM-39)
 
 Coordinators can open a clarification/amendment thread with the event's
-Organiser. Unlike the events endpoints above, these routes are protected by
-`FirebaseAuthenticationMiddleware` and use the real authenticated Firebase
-`uid`/`roles` for ownership checks.
+Organiser. Like other protected routes, these use the verified local session
+and check the account against the event's assigned coordinator or owner.
 
 - `POST /api/events/:id/clarifications`: Coordinator opens a clarification.
-  Requires `Authorization: Bearer <Firebase ID token>` for a user with the
-  `COORDINATOR` role whose uid matches the event's `coordinator_id`. Body:
+  Requires the `COORDINATOR` role and an account matching the event's
+  `coordinator_id`. Body:
   `{ "message": string }` (rejected with 400 if blank/whitespace-only).
   Notifies the Organiser. Does not change the event's status — "Under Review"
   was retired as a distinct status (SPM-38 follow-up); only `Submitted` and
@@ -159,21 +290,37 @@ Organiser. Unlike the events endpoints above, these routes are protected by
   a user with the `ORGANISER` role whose uid matches the event's
   `organiser_id`.
 
-See `HANDOVER.md` for known gaps: no endpoint yet assigns `coordinator_id`,
-and `EventsService`'s hardcoded demo-organiser identity means the reply
-endpoint's ownership check only matches events whose `organiser_id` is a real
-Firebase uid.
+The Lead assigns coordinators through `/api/lead/queue/:eventId/assign`.
+`test/clarifications.e2e-spec.ts` exercises the HTTP/session/PostgreSQL path
+with a dedicated test database.
 
-Unit tests: `src/clarifications/clarification-input.spec.ts` and
-`src/clarifications/clarifications.service.spec.ts`. E2E test:
-`test/clarifications.e2e-spec.ts`, run through `npm run test:e2e` against a
-real PostgreSQL database and the Firebase Auth Emulator.
-
-## Request rejection (SPM-83)
+## Request decisions (SPM-83 and SPM-40)
 
 Apply `migrations/003_event_rejection.sql`, then `migrations/004_allow_rejected_event_status.sql`, after the existing events and clarification schema (including its notifications table). Fresh local databases receive the final SPM-38/83 status and reason constraints directly from `database/postgresql/init/001_schema.sql`. This preserves existing rows; do not reset volumes.
 
 - `POST /api/events/:id/reject` accepts `{ "reason": "..." }`. It requires the verified COORDINATOR assigned to a Submitted event. The trimmed reason must be 10–500 characters, contain at least three words, and include letters. It returns the updated event, including `rejectionReason`.
+- `POST /api/events/:id/approve` takes no body. It requires the verified COORDINATOR assigned to a Submitted event and returns the updated event with status `approved`.
+- Approval locks the event and commits Approved status plus an organiser-addressed `approval` notification in one transaction. Any later attempt to approve or move the same request through this decision endpoint returns 409, preserving the forward-only status transition.
 - Rejection locks the event and commits Rejected status, reason and an organiser-addressed in-app notification in one transaction. A concurrent/stale decision returns 409; another coordinator's assignment returns 403. Failures roll back all writes.
-- `GET /api/notifications` returns only the verified ORGANISER's rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
-Notifications are persistent in-app messages, not email. The frontend checks for them on sign-in, focus and every 30 seconds. In local demo mode they are addressed to the existing fixed demo organiser. Build with `npm run build`; use configured Firebase coordinator and organiser accounts to verify the live workflow.
+- `GET /api/notifications` returns only the verified ORGANISER's approval and rejection notifications. `POST /api/notifications/:id/read` marks only that recipient's notification read.
+Notifications are persistent in-app messages, not email. The frontend checks
+for them on sign-in, focus, and every 30 seconds. Identity and recipient
+scoping come from the local session.
+
+## Waitlist (SPM-138)
+
+`POST /api/events/:eventId/waitlist` (body `{}` or none; any key is a 400) joins the waitlist of a full, open event as the signed-in attendee. Waiting entries are rows in `event_registrations` with status `Waitlisted`; a removed entry is `Removed`. Position is derived on read from `(joined_at, waitlist_seq)` and is returned only in the owner's own entry (`waitlistPosition`). A confirmed withdrawal promotes the first entry in the same transaction and writes one `WaitlistPromoted` notification. Registration closing (or a manual close) removes the waiting entries on the next read, on a join or withdrawal, or through `runRegistrationCloseJob`. The cancel releaser `releaseWaitlistForCancelledEvent` is not yet wired (SPM-136).
+
+Existing databases apply `backend/migrations/011_spm138_waitlist.sql` once; fresh volumes get the same change from `database/postgresql/init/017_spm138_waitlist.sql`. The e2e suite is `test/registrations.waitlist.e2e-spec.ts` (needs `DATABASE_URL` with both applied). The fault-injection check is `node scripts/mutation/run.mjs --mutants spm138.mutants.mjs`.
+
+## Registration report and exports
+
+The report and CSV/PDF exports all use `RegistrationsService.getReport`, so
+the owning organiser and assigned coordinator share one access rule. CSV
+formula neutralisation applies only to exported cells; stored values and the
+JSON report remain unchanged. The PDF embeds
+`assets/fonts/NotoSans-Regular.ttf` (SIL OFL); keep that asset in the Docker
+image. The font does not cover CJK glyphs, and large reports rely on PDFKit
+page wrapping. Integration checks require a dedicated PostgreSQL database and
+`npm run test:e2e`; the report mutation check is
+`node scripts/mutation/run.mjs --mutants spm63.mutants.mjs` with `DATABASE_URL`.

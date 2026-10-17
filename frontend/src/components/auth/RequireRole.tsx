@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { hasRole, type UserRole } from "@/types";
 import { AuthLoadingScreen } from "./AuthLoadingScreen";
 import { useAppStore } from "@/store/useAppStore";
+import { homePathByRole } from "@/components/layout/navConfig";
 
 /**
  * Restricts a route to users with one of the explicitly permitted roles.
@@ -34,7 +35,8 @@ export function RequireRole({
   }
 
   if (!allowedRoles.some((role) => hasRole(currentUser, role))) {
-    return <Navigate to="/events" replace />;
+    const fallback = homePathByRole[currentUser.role];
+    return <Navigate to={fallback} replace />;
   }
 
   return children ?? <Outlet />;

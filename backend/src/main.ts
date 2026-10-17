@@ -25,6 +25,8 @@ async function bootstrap() {
     origin: process.env.FRONTEND_ORIGIN ?? 'http://localhost:5173',
     credentials: true,
     allowedHeaders: ['Authorization', 'Content-Type', 'X-Demo-Role'],
+    // SPM-63: the browser must be able to read the server-chosen export filename across origins.
+    exposedHeaders: ['Content-Disposition'],
   });
   app.useBodyParser('json', { limit: MAX_BODY_SIZE });
   app.useBodyParser('urlencoded', { limit: MAX_BODY_SIZE, extended: true });

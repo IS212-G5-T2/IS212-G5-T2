@@ -8,6 +8,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5173",
     headless: true,
+    launchOptions: process.env.PLAYWRIGHT_CHROME_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROME_PATH }
+      : undefined,
   },
   outputDir: process.env.PLAYWRIGHT_OUTPUT_DIR ?? "./test-results",
 });

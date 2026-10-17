@@ -1,48 +1,38 @@
 /*
  * SPM-39: Coordinator clarification/amendment requests. Coordinators open a
  * clarification thread on an event assigned to them; the event's Organiser
- * replies. See backend/HANDOVER.md for the known limits of the
- * ownership checks here (they depend on events.organiser_id/coordinator_id
- * holding real Firebase uids, which EventsService's demo identity does not
- * yet guarantee).
+ * replies. Ownership checks compare the verified local session account with
+ * events.organiser_id or events.coordinator_id. Legacy demo-owned events
+ * require an explicit owner migration before real accounts can access them.
  */
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { AuthenticatedUser } from '../auth/models/auth.models.js';
+import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateMessage } from './clarification-input.js';
+import { UUID_PATTERN } from '../common/uuid.js';
+import type { CommentDto } from './dto/comment.dto.js';
+import { CLARIFICATION_OPEN_STATUSES } from '../events/types/event-status.js';
+import {
+  PLANNING_CODES,
+  PLANNING_MESSAGES,
+} from '../events/status/planning.messages.js';
+import { validateMessage } from './dto/clarification-input.js';
 import {
   ClarificationsRepository,
   type CommentRow,
   type EventForReview,
-} from './clarifications.repository.js';
+} from './repository/clarifications.repository.js';
 
-const UUID_PATTERN =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// Statuses a clarification request may be opened from. Submitting one no
+// Statuses a clarification request may be opened from are
+// CLARIFICATION_OPEN_STATUSES (SPM-148 adds Planning). Submitting one no
 // longer changes the event's status — "Under Review" was retired as a
 // distinct stage since coordinator assignment (its only other trigger) is
 // now automatic and never a meaningful "review started" signal.
-const CLARIFIABLE_STATUSES = ['Submitted', 'Approved'];
-
-export interface CommentDto {
-  id: string;
-  eventId: string;
-  parentId: string | null;
-  type: 'clarification' | 'reply';
-  authorId: string;
-  authorName: string;
-  authorRole: 'coordinator' | 'organiser';
-  message: string;
-  awaitingReply: boolean;
-  resolved: boolean;
-  createdAt: string;
-}
 
 @Injectable()
 export class ClarificationsService {
@@ -58,7 +48,7 @@ export class ClarificationsService {
   ): Promise<CommentDto> {
 
     this.requireValidEventId(eventId);
-    const message = validateMessage(body, 'Clarification message cannot be blank.');
+    const message = validateMessage(body, 'Clarification message is required');
 
     return this.database.transaction(async (client) => {
       const event = await this.repository.findEventForUpdate(client, eventId);
@@ -66,7 +56,9 @@ export class ClarificationsService {
 
       this.requireAssignedCoordinator(event, user);
 
-      if (!CLARIFIABLE_STATUSES.includes(event.status)) {
+      // SPM-148 PLAN-STATUS-07-A, 07-D: a clarification may be opened in Planning; Confirmed closes it (409 CLARIFICATIONS_CLOSED).
+      this.requireNotConfirmed(event);
+      if (!(CLARIFICATION_OPEN_STATUSES as readonly string[]).includes(event.status)) {
         throw new BadRequestException(
           "Clarification requests aren't allowed while the event is in its current status.",
         );
@@ -110,7 +102,9 @@ export class ClarificationsService {
       const event = await this.repository.findEventForUpdate(client, eventId);
       if (!event) throw new NotFoundException('Event not found.');
 
+      // SPM-148 PLAN-STATUS-07-D: replies are closed once Confirmed; the thread stays readable (listComments is unchanged).
       const authorRole = this.requireOrganiserOrAssignedCoordinator(event, user);
+      this.requireNotConfirmed(event);
 
       const clarification = await this.repository.findClarificationForUpdate(
         client,
@@ -203,29 +197,17 @@ export class ClarificationsService {
     });
   }
 
-  async listComments(eventId: string, user: AuthenticatedUser | undefined): Promise<CommentDto[]> {
+  async listComments(eventId: string, user: AuthenticatedUser): Promise<CommentDto[]> {
     this.requireValidEventId(eventId);
     const event = await this.repository.findEvent(eventId);
     if (!event) throw new NotFoundException('Event not found.');
 
-    // In demo mode without auth, skip authorization checks
-    if (user) {
-      const isOrganiser =
-        user.roles.includes('ORGANISER') && (
-          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
-          event.organiser_id === user.uid
-        );
-      const isAssignedCoordinator =
-        user.roles.includes('COORDINATOR') && (
-          process.env.DEMO_ORGANISER_ENABLED === 'true' ||
-          event.coordinator_id === user.uid
-        );
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
+    const isAssignedCoordinator =
+      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
 
-      if (!isOrganiser && !isAssignedCoordinator) {
-        throw new ForbiddenException(
-          "You don't have access to this event's comment history.",
-        );
-      }
+    if (!isOrganiser && !isAssignedCoordinator) {
+      throw new ForbiddenException("You don't have access to this event's comment history.");
     }
 
     const rows = await this.repository.listComments(eventId);
@@ -252,8 +234,7 @@ export class ClarificationsService {
       );
     }
 
-    // In demo mode, allow any coordinator; strict uid matching doesn't work with mixed identities
-    if (process.env.DEMO_ORGANISER_ENABLED !== 'true' && event.coordinator_id !== user.uid) {
+    if (event.coordinator_id !== user.uid) {
       throw new ForbiddenException(
         'Only the coordinator assigned to this event can request clarification.',
       );
@@ -267,21 +248,18 @@ export class ClarificationsService {
   // directly against events.organiser_id/coordinator_id instead of going
   // through RbacRepository's predicate, per the fallback documented in
   // RbacRepository's usage notes.
+  // SPM-148 PLAN-STATUS-07-E: only the event's Organiser or assigned Coordinator may reply or resolve; others get 403.
   private requireOrganiserOrAssignedCoordinator(
     event: EventForReview,
     user: AuthenticatedUser,
   ): 'organiser' | 'coordinator' {
-    const demo = process.env.DEMO_ORGANISER_ENABLED === 'true';
+    const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
 
-    // Check organiser: must either be in demo mode or match the event's organiser_id
-    const isOrganiser =
-      user.roles.includes('ORGANISER') && (demo || event.organiser_id === user.uid);
-
-    // Check coordinator: must either be in demo mode, match assigned coordinator_id,
-    // or have the COORDINATOR role when no coordinator is assigned yet
+    // Check coordinator: must match the assigned coordinator_id, or have the COORDINATOR role when no coordinator
+    // is assigned yet
     const isCoordinator =
       user.roles.includes('COORDINATOR') &&
-      (demo || event.coordinator_id === user.uid || !event.coordinator_id);
+      (event.coordinator_id === user.uid || !event.coordinator_id);
 
     // If both checks pass, prioritize coordinator (since they initiiate clarifications)
     if (isCoordinator) return 'coordinator';
@@ -290,6 +268,15 @@ export class ClarificationsService {
     throw new ForbiddenException(
       "Only this event's organiser or assigned coordinator can do this.",
     );
+  }
+
+  // SPM-148 AC7: Confirmed closes posting and replying; threads stay readable.
+  private requireNotConfirmed(event: EventForReview): void {
+    if (event.status === 'Confirmed')
+      throw new ConflictException({
+        code: PLANNING_CODES.clarificationsClosed,
+        message: PLANNING_MESSAGES.clarificationsClosed,
+      });
   }
 
   private displayName(user: AuthenticatedUser): string {

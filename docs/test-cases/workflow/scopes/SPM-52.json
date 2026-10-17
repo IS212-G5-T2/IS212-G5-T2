@@ -1,0 +1,35 @@
+{
+  "story": "SPM-52",
+  "title": "Search and Filter Venues",
+  "note": "Jira is the source for AC1-AC8 (To Do, read 2026-10-16). The Confluence matrix 28868679 (SPM-52 Search and Filter Venues Matrix) was created on 2026-10-17 with one case page per AC group (VEN-SRCH-01 to 08); every VEN-SRCH id is PRIMARY and has a case on its AC page. The three test files are shared with other stories, so titleMatch limits the records to the VEN-SRCH tests; the suite runs the whole files so coverage is measured from every test that executes. The SPM-51 availability rule is the shared checkVenueAvailability function in frontend/src/features/venues/pages/records/availability.ts, which is outside this scope and covered by its own story's records. The mutants in spm52.mutants.mjs are M1-M8, F2/F4/F5/F7a/F7b/F8/F9 and P1-P12 (the cycle-05 review probes, now tracked): every one is killed by named tests, except F10 which is equivalent (argued in its name). Story owner decisions SC-002 to SC-004 were recorded on 2026-10-17 (see spec-conflicts.md); the search clock re-judges holds while the page is open.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "frontend": [
+      { "glob": "frontend/src/features/venues/lib/venueSearch.test.ts", "titleMatch": "VEN-SRCH-" },
+      { "glob": "frontend/src/features/venues/pages/catalogue/VenuesPage.test.tsx", "titleMatch": "VEN-SRCH-" },
+      { "glob": "frontend/src/features/venues/pages/catalogue/VenueCard.test.tsx", "titleMatch": "VEN-SRCH-" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/venues/lib/venueSearch.ts",
+      "frontend/src/features/venues/lib/venueOptions.ts",
+      "frontend/src/features/venues/pages/catalogue/VenuesPage.tsx",
+      "frontend/src/features/venues/pages/catalogue/VenueCard.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "frontend-venue-search",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm52.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm52.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

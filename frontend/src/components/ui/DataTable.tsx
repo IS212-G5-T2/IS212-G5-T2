@@ -12,9 +12,10 @@ interface DataTableProps<T> {
   rowKey: (row: T) => string;
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string | undefined;
 }
 
-export function DataTable<T>({ columns, rows, rowKey, emptyMessage, onRowClick }: DataTableProps<T>) {
+export function DataTable<T>({ columns, rows, rowKey, emptyMessage, onRowClick, rowClassName }: DataTableProps<T>) {
   if (rows.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -44,7 +45,12 @@ export function DataTable<T>({ columns, rows, rowKey, emptyMessage, onRowClick }
             <tr
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={onRowClick ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" : undefined}
+              className={[
+                onRowClick ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800" : "",
+                rowClassName?.(row) ?? "",
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined}
             >
               {columns.map((col) => (
                 <td key={col.header} className={`px-4 py-3 text-gray-700 dark:text-gray-300 ${col.className ?? ""}`}>
