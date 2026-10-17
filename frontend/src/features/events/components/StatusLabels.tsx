@@ -20,35 +20,29 @@ export function StateLabel({ label, tone }: StateLabelInfo) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone]}`}>{label}</span>;
 }
 
-/** Names the state on the planning page ("Sample Orchid Hall reserved"); on cards the bare word is used. */
-function named(word: string, name?: string): string {
-  return name ? `${name} ${word.toLowerCase()}` : word;
-}
-
 /** Venue request: the request decides the label, because a pending hold is shown as Booked in the planning view. */
-export function venueLabel(booking: Pick<PlanningVenueBooking, "status" | "requestStatus"> & { venueName?: string }): StateLabelInfo {
-  const name = booking.venueName;
-  if (booking.requestStatus === "pending") return { label: named("Requested", name), tone: "amber" };
-  if (booking.requestStatus === "approved") return { label: named("Reserved", name), tone: "green" };
-  if (booking.requestStatus === "rejected") return { label: named("Rejected", name), tone: "red" };
-  if (booking.requestStatus === "released" || booking.status === "Cancelled") return { label: named("Cancelled", name), tone: "red" };
-  if (booking.status === "Unavailable") return { label: named("Unavailable", name), tone: "red" };
-  return { label: named(booking.status, name), tone: "gray" };
+export function venueLabel(booking: Pick<PlanningVenueBooking, "status" | "requestStatus">): StateLabelInfo {
+  if (booking.requestStatus === "pending") return { label: "Requested", tone: "amber" };
+  if (booking.requestStatus === "approved") return { label: "Approved", tone: "green" };
+  if (booking.requestStatus === "rejected") return { label: "Rejected", tone: "red" };
+  if (booking.requestStatus === "released" || booking.status === "Cancelled") return { label: "Cancelled", tone: "red" };
+  if (booking.status === "Unavailable") return { label: "Unavailable", tone: "red" };
+  return { label: booking.status, tone: "gray" };
 }
 
-/** Equipment reservation states, as the server reports them; the item name is used on the planning page. */
-export function equipmentLabel(status: string, itemName?: string): StateLabelInfo {
+/** Equipment reservation states, as the server reports them. */
+export function equipmentLabel(status: string): StateLabelInfo {
   switch (status) {
     case "Requested":
-      return { label: named("Requested", itemName), tone: "amber" };
+      return { label: "Requested", tone: "amber" };
     case "Reserved":
-      return { label: named("Reserved", itemName), tone: "green" };
+      return { label: "Reserved", tone: "green" };
     case "Unavailable":
-      return { label: named("Unavailable", itemName), tone: "red" };
+      return { label: "Unavailable", tone: "red" };
     case "Cancelled":
-      return { label: named("Cancelled", itemName), tone: "red" };
+      return { label: "Cancelled", tone: "red" };
     default:
-      return { label: named(status, itemName), tone: "gray" };
+      return { label: status, tone: "gray" };
   }
 }
 

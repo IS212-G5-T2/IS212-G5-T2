@@ -7,7 +7,7 @@ describe("planning state labels by significance", () => {
   // Kills: a pending venue request shown as approved (green) instead of requested (amber).
   it.each([
     [{ status: "Booked", requestStatus: "pending" }, "Requested", "amber"],
-    [{ status: "Booked", requestStatus: "approved" }, "Reserved", "green"],
+    [{ status: "Booked", requestStatus: "approved" }, "Approved", "green"],
     [{ status: "Unavailable", requestStatus: "rejected" }, "Rejected", "red"],
     [{ status: "Cancelled", requestStatus: "released" }, "Cancelled", "red"],
   ] as const)("venue %j is %s (%s)", (booking, label, tone) => {

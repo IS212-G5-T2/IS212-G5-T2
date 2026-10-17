@@ -81,10 +81,10 @@ describe("PlanningInformationPanel", () => {
     render(<PlanningInformationPanel view={view()} />);
     const venue = screen.getByText("Hall A").closest("li") as HTMLElement;
     expect(venue).toHaveTextContent(formatDateTimeRange(START, END));
-    expect(venue).toHaveTextContent("Hall A booked");
+    expect(venue).toHaveTextContent("Booked");
     const item = screen.getByText("Projector").closest("li") as HTMLElement;
     expect(item).toHaveTextContent("Qty 2");
-    expect(item).toHaveTextContent("Projector reserved");
+    expect(item).toHaveTextContent("Reserved");
   });
 
   // EVENT-VIEW-02-A: nothing booked yet is stated, not left blank.
@@ -184,7 +184,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     const hallA = screen.getByText("Hall A").closest("li") as HTMLElement;
     const hallB = screen.getByText("Hall B").closest("li") as HTMLElement;
     expect(within(hallA).getByText("Replacement venue required")).toBeInTheDocument();
-    expect(hallA).toHaveTextContent("Hall A unavailable");
+    expect(hallA).toHaveTextContent("Unavailable");
     expect(within(hallB).queryByText("Replacement venue required")).not.toBeInTheDocument();
   });
 
