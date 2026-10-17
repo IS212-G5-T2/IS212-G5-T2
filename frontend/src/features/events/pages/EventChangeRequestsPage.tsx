@@ -6,8 +6,12 @@
  *   pending (AC1). After submitting they see a confirmation message (AC4)
  *   and the request with its status in the list below (AC5); a pending
  *   request can be withdrawn.
- * - The assigned coordinator sees the same list read-only; approving or
- *   denying is SPM-65.
+ * - SPM-65: the assigned coordinator reviews each pending request in the list
+ *   (conflict preview, approve, deny), sees a confirmation after deciding
+ *   (AC6), ticks off the arrangements to re-check (AC9) and, like the owner,
+ *   reads the audit log (AC10). A request that is no longer pending reloads
+ *   the list with the server's message (AC11: closed automatically when
+ *   the organiser withdraws it or the event is cancelled).
  * - Everyone else gets the server's 404 message.
  *
  * Replaces the earlier mock page that read change requests from the client
@@ -19,7 +23,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAppStore } from "@/store/useAppStore";
-import { hasRole, type ChangeRequest, type ChangeRequestSubmission, type EventRecord } from "@/types";
+import {
+  hasRole,
+  type ChangeRequest,
+  type ChangeRequestApproval,
+  type ChangeRequestSubmission,
+  type EventRecord,
+} from "@/types";
 import { api } from "@/utils/api";
 import {
   fetchEventChangeRequests,
@@ -27,7 +37,8 @@ import {
   withdrawChangeRequest,
 } from "@/features/events/api/change-requests-api";
 import { acceptsChangeRequests, pendingRequest } from "@/features/events/lib/changeRequests";
-import { ChangeRequestList } from "@/features/events/pages/change-requests/ChangeRequestList";
+import { ChangeRequestAuditLog } from "@/features/events/pages/change-requests/ChangeRequestAuditLog";
+import { ChangeRequestList, type ReviewHandlers } from "@/features/events/pages/change-requests/ChangeRequestList";
 import { RequestChangeForm } from "@/features/events/pages/change-requests/RequestChangeForm";
 
 export function EventChangeRequestsPage() {
@@ -41,6 +52,8 @@ export function EventChangeRequestsPage() {
   // Opened directly from the event page's "Request Change" button.
   const [formOpen, setFormOpen] = useState(Boolean((location.state as { openForm?: boolean } | null)?.openForm));
   const [confirmation, setConfirmation] = useState("");
+  // Bumped after each decision so the audit log reloads.
+  const [auditVersion, setAuditVersion] = useState(0);
 
   const loadRequests = useCallback(async () => {
     setRequests(await fetchEventChangeRequests(id!));
@@ -79,6 +92,7 @@ export function EventChangeRequestsPage() {
     );
 
   const isOwner = hasRole(currentUser, "organiser") && event.organiserId === currentUser.id;
+  const isAssignedCoordinator = hasRole(currentUser, "coordinator") && event.coordinatorId === currentUser.id;
   const pending = pendingRequest(requests);
   const canRequest = isOwner && acceptsChangeRequests(event) && !pending;
 
@@ -100,8 +114,37 @@ export function EventChangeRequestsPage() {
       throw e;
     }
     setConfirmation("Your change request was withdrawn.");
+    setAuditVersion((v) => v + 1);
     await loadRequests();
   }
+
+  const replace = (updated: ChangeRequest) =>
+    setRequests((list) => list.map((request) => (request.id === updated.id ? updated : request)));
+
+  // SPM-65 AC6: a confirmation after each decision; AC8 says when the safety check was reset.
+  const review: ReviewHandlers = {
+    onApproved: (result: ChangeRequestApproval) => {
+      replace(result.request);
+      // AC8: a Confirmed event is back in Planning.
+      setEvent({ ...event!, status: result.eventStatus });
+      setConfirmation(
+        `The change request was approved and ${event.name} has been updated.${
+          result.safetyCheckReset ? " The safety check was reset; request a new safety check." : ""
+        }${result.request.recheck.length ? " Re-check the affected arrangements below." : ""}`,
+      );
+      setAuditVersion((v) => v + 1);
+    },
+    onDenied: (request: ChangeRequest) => {
+      replace(request);
+      setConfirmation("The change request was denied. The organiser has been told why.");
+      setAuditVersion((v) => v + 1);
+    },
+    onRechecked: replace,
+    onStale: () => {
+      void loadRequests().catch(() => undefined);
+      setAuditVersion((v) => v + 1);
+    },
+  };
 
   return (
     <div>
@@ -110,7 +153,9 @@ export function EventChangeRequestsPage() {
         description={
           isOwner
             ? "Request changes to your event. The assigned coordinator reviews each request before the event is updated."
-            : "Changes the organiser has requested for this event."
+            : isAssignedCoordinator
+              ? "Review the changes the organiser has requested. Check for conflicts, then approve or deny each request."
+              : "Changes the organiser has requested for this event."
         }
         actions={
           <Link to={`/events/${event.id}`}>
@@ -154,9 +199,24 @@ export function EventChangeRequestsPage() {
           <h2 className="font-semibold text-gray-900 dark:text-gray-100">Change Request History</h2>
         </CardHeader>
         <CardBody>
-          <ChangeRequestList requests={requests} onWithdraw={isOwner ? withdraw : undefined} />
+          <ChangeRequestList
+            requests={requests}
+            onWithdraw={isOwner ? withdraw : undefined}
+            review={isAssignedCoordinator ? review : undefined}
+          />
         </CardBody>
       </Card>
+
+      {(isOwner || isAssignedCoordinator) && (
+        <Card className="mt-6">
+          <CardHeader>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Audit Log</h2>
+          </CardHeader>
+          <CardBody>
+            <ChangeRequestAuditLog eventId={event.id} refreshKey={auditVersion} />
+          </CardBody>
+        </Card>
+      )}
     </div>
   );
 }

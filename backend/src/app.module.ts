@@ -12,6 +12,7 @@ import { EventPlanningRepository } from './events/planning/event-planning.reposi
 import { EventPlanningService } from './events/planning/event-planning.service.js';
 import { ChangeRequestsController } from './events/change-requests/change-requests.controller.js';
 import { ChangeRequestsService } from './events/change-requests/change-requests.service.js';
+import { ChangeRequestReviewService } from './events/change-requests/review/change-request-review.service.js';
 import { DraftsController } from './event-drafts/drafts.controller.js';
 import { DraftsService } from './event-drafts/drafts.service.js';
 import { AppController } from './app.controller.js';
@@ -67,6 +68,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     EventPlanningService,
     EventPlanningRepository,
     ChangeRequestsService,
+    ChangeRequestReviewService,
     ArrangementsReader,
     NoSafetyRecordSource,
     EventSafetyCheckSource,

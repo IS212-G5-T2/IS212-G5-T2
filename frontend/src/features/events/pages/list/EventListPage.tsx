@@ -1,6 +1,7 @@
 import { api } from "@/utils/api";
-import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
-import type { EventRecord } from "@/types";
+import { fetchMyChangeRequests, fetchNewChangeRequestEventIds } from "@/features/events/api/change-requests-api";
+import { PendingChangeRequests } from "@/features/events/pages/list/PendingChangeRequests";
+import type { ChangeRequest, EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
@@ -61,21 +62,39 @@ export function EventListPage() {
     return () => { active = false; };
   }, [retry]);
   // SPM-64 AC5: an organiser's dashboard marks events with a change request awaiting review.
-  // If that cannot load, the events still show and a notice says the badges are missing.
-  const isOrganiser = currentUser.role === "organiser";
-  const [pendingChangeEvents, setPendingChangeEvents] = useState<ReadonlySet<string>>(new Set());
+  // SPM-65 AC1: so does a coordinator's, which also lists the pending requests for their
+  // assigned events. If that cannot load, the events still show and a notice says so.
+  const tracksChangeRequests = currentUser.role === "organiser" || currentUser.role === "coordinator";
+  const isCoordinator = currentUser.role === "coordinator";
+  const [pendingChangeRequests, setPendingChangeRequests] = useState<ChangeRequest[] | null>(null);
+  const pendingChangeEvents = new Set((pendingChangeRequests ?? []).map((request) => request.eventId));
   const [changeRequestError, setChangeRequestError] = useState("");
+  // Requests the coordinator has not opened yet (unread SPM-64 AC3 notice) are tagged New.
+  const [newChangeRequestEvents, setNewChangeRequestEvents] = useState<ReadonlySet<string>>(new Set());
   useEffect(() => {
-    if (!isOrganiser) return;
+    if (!isCoordinator) return;
+    let active = true;
+    fetchNewChangeRequestEventIds()
+      .then((ids) => {
+        if (active) setNewChangeRequestEvents(ids);
+      })
+      // Without the notices the list still shows every pending request, just without New tags.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [isCoordinator, retry]);
+  useEffect(() => {
+    if (!tracksChangeRequests) return;
     let active = true;
     setChangeRequestError("");
     fetchMyChangeRequests("Pending")
       .then((requests) => {
-        if (active) setPendingChangeEvents(new Set(requests.map((request) => request.eventId)));
+        if (active) setPendingChangeRequests(requests);
       })
       .catch((e: unknown) => {
         if (!active) return;
-        setPendingChangeEvents(new Set());
+        setPendingChangeRequests(null);
         setChangeRequestError(
           `Could not check your events for pending change requests.${e instanceof Error && e.message ? ` ${e.message}` : ""}`,
         );
@@ -83,7 +102,7 @@ export function EventListPage() {
     return () => {
       active = false;
     };
-  }, [isOrganiser, retry]);
+  }, [tracksChangeRequests, retry]);
   // Coordinators land on pending Submitted requests. Rejected requests remain
   // accessible through the explicit Rejected filter rather than mixing into
   // their decision queue.
@@ -129,6 +148,10 @@ export function EventListPage() {
 
   return (
     <div>
+      {/* SPM-65 AC1: the coordinator's pending change requests come first, tagged New until opened. */}
+      {isCoordinator && pendingChangeRequests && (
+        <PendingChangeRequests requests={pendingChangeRequests} newEventIds={newChangeRequestEvents} />
+      )}
       {/* SPM-123 AC9: new assignments from the Event Coordinator Lead (coordinators only). */}
       <AssignmentNotifications />
       <PageHeader

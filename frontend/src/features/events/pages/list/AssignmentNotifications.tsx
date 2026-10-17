@@ -5,12 +5,12 @@ import { useAppStore } from "@/store/useAppStore";
 import { hasRole, type Notification } from "@/types";
 
 // An unassignment has no link: the event now belongs to another coordinator.
-// SPM-64 AC3: an organiser's change request on an assigned event links to its change requests.
+// SPM-64 AC3 change request notices are not shown here: the Pending Change Requests section at the
+// top of the events page lists each request, tagged New until the coordinator opens it (SPM-65).
 const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_assignment",
   "coordinator_reassignment",
   "coordinator_unassignment",
-  "coordinator_change_request",
 ];
 const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 
@@ -48,15 +48,8 @@ export function AssignmentNotifications() {
             <span className="text-gray-800 dark:text-gray-200">{notification.message}</span>
             <span className="flex items-center gap-3">
               {notification.relatedEventId && notification.type !== "coordinator_unassignment" && (
-                <Link
-                  to={
-                    notification.type === "coordinator_change_request"
-                      ? `/events/${notification.relatedEventId}/change-requests`
-                      : `/events/${notification.relatedEventId}`
-                  }
-                  className="font-medium text-primary-700 hover:underline"
-                >
-                  {notification.type === "coordinator_change_request" ? "View Change Request" : "View Request"}
+                <Link to={`/events/${notification.relatedEventId}`} className="font-medium text-primary-700 hover:underline">
+                  View Request
                 </Link>
               )}
               <Button variant="ghost" size="sm" onClick={() => void markRead(notification.id)}>

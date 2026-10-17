@@ -54,4 +54,10 @@ describe("NotificationItem", () => {
     await userEvent.setup().click(screen.getByRole("button"));
     expect(onRead).toHaveBeenCalledWith("n-1");
   });
+
+  /** SPM-65: the organiser's decision notices open the Change Requests page. */
+  it.each(["change_request_approved", "change_request_denied"] as const)("opens the Change Requests page for %s", (type) => {
+    renderItem(notice({ type, message: "Your change request was decided." }));
+    expect(screen.getByRole("link")).toHaveAttribute("href", "/events/event-1/change-requests");
+  });
 });
