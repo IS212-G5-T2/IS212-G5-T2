@@ -7,7 +7,7 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 - **D6 (403):** a non-owning organiser gets 403 with the literal message `You can only view your own events.` and no event data. This changes the SPM-38 AC4 404 behaviour (and its unit assertion EVE-REV-04-C). Confirm with PO.
 - **Drafts:** shown in a separate Drafts section on My Events, from the existing `/requests` API. Drafts are not merged into the event cards.
 - **D2 (A), D5 (default):** safety read through the existing `event_safety_checks` table in SQL; no indicator for Rejected, Completed or Cancelled events, or a missing record.
-- Assumptions: A1 "Under Review" is not a stored status (Approved stands in); A2 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
+- Assumptions: A1 "Under Review" is not a stored status (Approved stands in); A5 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
 - Jira SPM-94 is `In Progress`, which passes the status gate.
 
 ## What changed
@@ -35,7 +35,7 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 | 01-B | e2e | same file :: list row and detail show the literal statuses `submitted`, `planning`, `confirmed` | Pass |
 | 01-C | e2e | same file :: 403 with the literal message and no data; 401 without token; not in the other organiser's list | Pass |
 | 02-A | e2e + unit + component | same file; `event-indicators.spec.ts` BND row (empty id); `StatusIndicators.test.tsx` | Pass |
-| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays `submitted` (A2) | Pass |
+| 02-B | e2e | same file :: Lead's real assign endpoint clears the indicator; status stays `submitted` (A5) | Pass |
 | 03-A | e2e + service | same file; `events.service.spec.ts` | Pass |
 | 03-B | e2e + unit + component | same file; `event-indicators.spec.ts` BND and INT rows; `StatusIndicators.test.tsx` | Pass |
 | 03-C | e2e | same file :: indicator gone once the Safety Officer responds | Pass |
@@ -138,3 +138,23 @@ Coverage (measured on 7153b22 unless noted):
 - Frontend unit: `StatusIndicators.tsx` 100%; `EventCard.tsx` 100%; `EventDetailPage.tsx` 92.5%; `EventListPage.tsx` 98.2% statements; `useAppStore.ts` 64.8%.
 
 Mutation check: the reviewer's three surviving mutants (planning indicators removed, drafts role guard removed, D6 exemption widened) are all killed by the new tests.
+
+## Test-workflow cycle 1 (ai/docs/test-workflow.md)
+
+Scope: `docs/test-cases/workflow/scopes/SPM-94.json`. Cycle folder: `ai/runtime/test-cycles/SPM-94/cycle-01/` (ignored). Metrics report: `metrics.md` in that folder. Overall status: RED.
+
+| Gate | Result | Basis |
+|---|---|---|
+| G1 Traceability and IDs | PASS | 10 PRIMARY IDs match the Confluence matrix 22839633; 35 registry-linked tests; 0 invented IDs |
+| G2 Spec conflicts and tiers | PASS | 6 conflicts (4 DECIDED, 2 ASSUMED, 0 OPEN); tier matrix has no blank cells |
+| G3 Test records | PASS | 35 records, each with ID, AC, kills link, tier, oracle class and explained value; all 35 results PASS |
+| G4 Determinism | PASS | scan: 10 hits, all justified by DX-01, DX-10, DX-11, DX-12; timezone runs pass in UTC, Asia/Singapore, America/Los_Angeles |
+| G5 Coverage | PASS (floor missed) | Every uncovered line has a status. All 262 are OPEN: existing code from other stories, outside SPM-94's diff. No uncovered line is in a changed hunk. Whole-file coverage is 47.85% statements, against a 100% floor set in the scope |
+| G6 Mutation | BLOCKED | The runner reports 15 of 15 mutants killed (backend 10/10, frontend 5/5). The reconciler finds no killer because `run.mjs` prints `killed by: <suite> <mutant name>` and `reconcile-mutation.mjs` expects `<suite>:` or `<suite> <name>`. This is a tooling mismatch, not a surviving mutant |
+| G7 Execution | PASS | 106 tests run in scope under the cycle's runs; 0 failed |
+
+Open items for the next cycle:
+- G6: align the runner's killed-by format with the reconciler (a change to shared tooling; needs approval).
+- G5: the floor is set to whole-file coverage. Either add tests for the 262 OPEN lines, widen the scope to the owning stories' suites, or change the floor to the changed-code rule in `implementation.md`.
+- Matrix conflicts still need PO confirmation (SC-SPM94-01, -02, -03, -04, -06).
+- The 7-row list fixture from matrix 01-A is not yet reproduced.

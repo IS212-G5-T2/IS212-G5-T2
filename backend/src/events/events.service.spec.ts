@@ -510,7 +510,7 @@ describe('EventsService', () => {
     });
 
     // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
-    it('EVE-REV-04-C refuses the event to an organiser who does not own it with 403', async () => {
+    it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
 

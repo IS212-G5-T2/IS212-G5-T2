@@ -487,8 +487,8 @@ describe("SPM-94 AC1: organiser drafts in My Events", () => {
     apiMock.mockImplementation(((path: string) =>
       path === "/requests"
         ? Promise.resolve([
-            { id: "00000000-0000-4000-8000-000000000508", fields: { name: "Draft Concert" }, status: "Draft", version: 1, eventId: null, updatedAt: new Date().toISOString() },
-            { id: "00000000-0000-4000-8000-000000000509", fields: { name: "Sent Request" }, status: "Submitted", version: 1, eventId: null, updatedAt: new Date().toISOString() },
+            { id: "00000000-0000-4000-8000-000000000508", fields: { name: "Draft Concert" }, status: "Draft", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" },
+            { id: "00000000-0000-4000-8000-000000000509", fields: { name: "Sent Request" }, status: "Submitted", version: 1, eventId: null, updatedAt: "2026-10-12T04:00:00.000Z" },
           ])
         : Promise.resolve([])) as typeof api);
 
