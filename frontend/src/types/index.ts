@@ -99,6 +99,10 @@ export interface EventRecord {
   awaitingCoordinatorAssignment?: boolean;
   /** SPM-94 AC3: at most one safety indicator; null when there is none. */
   safetyIndicator?: "AWAITING_CHECK" | "CHANGES_REQUESTED" | "CLEARED" | null;
+  /** SPM-94 cards: the latest venue request (pending, approved, rejected or released), organiser and coordinator only. */
+  venueRequestStatus?: "pending" | "approved" | "rejected" | "released" | null;
+  /** SPM-94 cards: every equipment reservation status, organiser and coordinator only. */
+  equipmentStatuses?: string[];
   /** SPM-46: who the current coordinator received the event from, and when. */
   reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;

@@ -18,6 +18,9 @@ import { deriveAssignmentIndicator, deriveSafetyIndicator } from './status/event
 
 // SPM-94: the safety-check state the event's indicators read (null when no record exists).
 const SAFETY_STATUS = `(SELECT s.status FROM event_safety_checks s WHERE s.event_id = events.id) AS safety_status`;
+// SPM-94 planning cards: the latest venue request and every equipment reservation status (organiser and coordinator lists only).
+const VENUE_REQUEST_STATUS = `(SELECT b.status FROM venue_bookings b WHERE b.event_id = events.id ORDER BY b.created_at DESC LIMIT 1) AS venue_request_status`;
+const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.created_at), '{}') FROM equipment_reservations r WHERE r.event_id = events.id) AS equipment_statuses`;
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
@@ -133,6 +136,8 @@ export class EventsService {
       // SPM-94 AC2/AC3: derived on read from the same row, so the list and the detail agree.
       awaitingCoordinatorAssignment: deriveAssignmentIndicator(row.status, row.coordinator_id),
       ...(showSafety ? { safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status) } : {}),
+      // Planning arrangements are shown to the same viewers as the safety state (SPM-94 cards).
+      ...(showSafety ? { venueRequestStatus: row.venue_request_status ?? null, equipmentStatuses: row.equipment_statuses ?? [] } : {}),
       status: row.status.toLowerCase(),
       venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,
@@ -191,7 +196,7 @@ export class EventsService {
     // SPM-148 PLAN-STATUS-05-A, 05-C: a Coordinator sees only their own events (no other Coordinator's events); Planning events appear here.
     const result = user.roles.includes('COORDINATOR')
       ? await this.database.query(
-          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT}, ${SAFETY_STATUS} FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
+          `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${LATEST_REASSIGNMENT}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
           [user.uid],
         )
       : user.roles.includes('ATTENDEE')
@@ -210,7 +215,7 @@ export class EventsService {
         )
       : user.roles.includes('ORGANISER')
         ? await this.database.query(
-            `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS} FROM events WHERE organiser_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
+            `SELECT events.*, ${VENUE_SUMMARY_SQL}, ${SAFETY_STATUS}, ${VENUE_REQUEST_STATUS}, ${EQUIPMENT_STATUSES} FROM events WHERE organiser_id = $1 ORDER BY start_date_time ASC, created_at DESC`,
             [user.uid],
           )
         : { rows: [] as pg.QueryResultRow[] };

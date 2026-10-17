@@ -1,4 +1,4 @@
-import type { PlanningVenueBooking } from "@/types";
+import type { EventRecord, PlanningVenueBooking } from "@/types";
 
 /** Colour by significance: awaiting or requested is amber, approved is green, rejected or cancelled is red. */
 type Tone = "amber" | "green" | "red" | "gray";
@@ -58,4 +58,16 @@ export function safetyLabel(status: string): StateLabelInfo {
     default:
       return { label: "Not requested", tone: "gray" };
   }
+}
+
+/** Card labels: only the states that need attention (amber requested, red rejected, unavailable or cancelled). */
+export function cardArrangementLabels(event: Pick<EventRecord, "venueRequestStatus" | "equipmentStatuses">): StateLabelInfo[] {
+  const labels: StateLabelInfo[] = [];
+  if (event.venueRequestStatus) {
+    labels.push(venueLabel({ status: "Booked", requestStatus: event.venueRequestStatus }));
+  }
+  for (const status of new Set(event.equipmentStatuses ?? [])) {
+    labels.push(equipmentLabel(status));
+  }
+  return labels.filter((l) => l.tone === "amber" || l.tone === "red");
 }

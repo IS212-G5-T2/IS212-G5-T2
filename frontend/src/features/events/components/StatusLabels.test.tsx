@@ -1,7 +1,7 @@
 // Story: SPM-94 planning arrangements. Labels are coloured by significance:
 // awaiting or requested is amber, approved is green, rejected or cancelled is red.
 import { describe, expect, it } from "vitest";
-import { equipmentLabel, safetyLabel, venueLabel } from "@/features/events/components/StatusLabels";
+import { cardArrangementLabels, equipmentLabel, safetyLabel, venueLabel } from "@/features/events/components/StatusLabels";
 
 describe("planning state labels by significance", () => {
   // Kills: a pending venue request shown as approved (green) instead of requested (amber).
@@ -30,5 +30,24 @@ describe("planning state labels by significance", () => {
     ["not_requested", "Not requested", "gray"],
   ] as const)("safety %s is %s", (status, label, tone) => {
     expect(safetyLabel(status)).toEqual({ label, tone });
+  });
+});
+
+describe("card labels show only the states that need attention", () => {
+  // Kills: approved or reserved shown on the card (they need no action), or a requested state dropped.
+  it("TRACK-EVENT-STATUS-01-A CARD: a pending venue and a requested projector show as amber; approved and reserved do not", () => {
+    expect(cardArrangementLabels({ venueRequestStatus: "pending", equipmentStatuses: ["Requested", "Reserved"] })).toEqual([
+      { label: "Requested", tone: "amber" }, // the venue request
+      { label: "Requested", tone: "amber" }, // the requested equipment; the reserved item is left off the card
+    ]);
+    expect(cardArrangementLabels({ venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toEqual([]);
+  });
+
+  it("TRACK-EVENT-STATUS-01-A CARD: a rejected venue and an unavailable item show as red", () => {
+    expect(cardArrangementLabels({ venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
+      { label: "Rejected", tone: "red" },
+      { label: "Unavailable", tone: "red" },
+      { label: "Cancelled", tone: "red" },
+    ]);
   });
 });
