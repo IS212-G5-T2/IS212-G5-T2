@@ -10,7 +10,8 @@
  * - AC4: on success the parent shows the confirmation message.
  * - AC6: server errors are shown as a message (role="alert") and beside each
  *   field; the organiser's typed values are kept.
- * - Note: past approval, the form says a new safety check may be needed.
+ * - Note: past approval, the form says that if the event has a safety check,
+ *   approving the change will need a new one (any approved change resets it).
  *
  * Date inputs are Singapore wall time, matching the rest of the app.
  */
@@ -142,7 +143,7 @@ export function RequestChangeForm({ event, onSubmit, onCancel }: Props) {
 
       {mayNeedSafetyCheck(event) && (
         <p role="note" className="mb-3 rounded-md border border-warning-300 bg-warning-50 px-3 py-2 text-xs text-warning-900 dark:border-warning-700 dark:bg-warning-900/20 dark:text-warning-200">
-          If this change is approved, the event will need a new safety check before it can be confirmed.
+          If this event has a safety check, approving this change will require a new safety check before the event can be confirmed.
         </p>
       )}
 

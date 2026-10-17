@@ -50,12 +50,13 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const CHANGE_REQUEST_OPEN_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;
 
 /**
- * Statuses past approval, where the event has (or will have) a safety check.
- * The database resets an existing safety check whenever an approved change is
- * applied (database/postgresql/init/016), so a request on these events tells
- * the organiser a new safety check may be needed (SPM-64 note).
+ * SPM-64 note / SPM-65 AC8: approving any change resets the event's safety
+ * check (database/postgresql/init/014), so a request needs a new safety check
+ * exactly when the event has one. Stored at submission; a pending request is
+ * re-read live because a safety check can be requested while it waits.
  */
-const SAFETY_CHECK_STATUSES = new Set(['Approved', 'Planning', 'Confirmed']);
+const HAS_SAFETY_CHECK =
+  'EXISTS (SELECT 1 FROM event_safety_checks s WHERE s.event_id = r.event_id) AS has_safety_check';
 
 export const CHANGE_REQUEST_STATUSES = ['Pending', 'Approved', 'Denied', 'Withdrawn'] as const;
 export type ChangeRequestStatus = (typeof CHANGE_REQUEST_STATUSES)[number];
@@ -197,6 +198,8 @@ export class ChangeRequestsService {
         if (pending.rows.length)
           throw new ConflictException({ message: MESSAGES.pending, code: 'change_request_pending' });
 
+        const safety = await client.query('SELECT 1 FROM event_safety_checks WHERE event_id = $1', [eventId]);
+
         const requestedBy = displayName(user, 'Organiser');
         const inserted = await client.query(
           `INSERT INTO event_change_requests
@@ -210,7 +213,7 @@ export class ChangeRequestsService {
             requestedBy,
             JSON.stringify(changes),
             input.reason ?? null,
-            SAFETY_CHECK_STATUSES.has(event.status),
+            safety.rows.length > 0,
             this.clock.now(),
           ],
         );
@@ -251,7 +254,10 @@ export class ChangeRequestsService {
     const event = found.rows[0];
     if (!event || !this.canRead(user, event)) throw new NotFoundException(MESSAGES.notFound);
     const result = await this.database.query(
-      'SELECT * FROM event_change_requests WHERE event_id = $1 ORDER BY created_at DESC, id',
+      `SELECT r.*, ${HAS_SAFETY_CHECK}
+         FROM event_change_requests r
+        WHERE r.event_id = $1
+        ORDER BY r.created_at DESC, r.id`,
       [eventId],
     );
     return result.rows.map((row) => this.toRecord(row, event.event_name));
@@ -267,7 +273,7 @@ export class ChangeRequestsService {
     if (status !== undefined && !(CHANGE_REQUEST_STATUSES as readonly unknown[]).includes(status))
       throw new BadRequestException('Choose a valid change request status.');
     const result = await this.database.query(
-      `SELECT r.*, e.event_name
+      `SELECT r.*, e.event_name, ${HAS_SAFETY_CHECK}
          FROM event_change_requests r
          JOIN events e ON e.id = r.event_id
         WHERE ((e.organiser_id = $1 AND $2) OR (e.coordinator_id = $1 AND $3))
@@ -320,7 +326,11 @@ export class ChangeRequestsService {
       status: row.status,
       changes: row.changes,
       ...(row.reason ? { reason: row.reason } : {}),
-      requiresSafetyCheck: row.requires_safety_check,
+      // A pending request reflects the event's safety check now; a decided one keeps what was stored.
+      requiresSafetyCheck:
+        row.status === 'Pending' && typeof row.has_safety_check === 'boolean'
+          ? row.has_safety_check
+          : row.requires_safety_check,
       requestedBy: row.requested_by,
       createdAt: iso(row.created_at),
       ...(row.decided_at ? { decidedAt: iso(row.decided_at) } : {}),

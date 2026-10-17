@@ -141,8 +141,8 @@ describe("EventChangeRequestsPage", () => {
     },
   );
 
-  /** Withdrawing a pending request refreshes the list and allows a new request. */
-  it("withdraws the pending request and allows a new one", async () => {
+  /** REQ-CHANGE-09-C: withdrawing a pending request refreshes the list and allows a new request. */
+  it("REQ-CHANGE-09-C withdraws the pending request and allows a new one", async () => {
     listMock.mockResolvedValueOnce([changeRequest()]).mockResolvedValueOnce([changeRequest({ status: "Withdrawn", decidedBy: "Organiser 1", decidedAt: "2026-10-16T03:00:00.000Z" })]);
     withdrawMock.mockResolvedValue(changeRequest({ status: "Withdrawn" }));
     const user = renderPage();
@@ -151,6 +151,22 @@ describe("EventChangeRequestsPage", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Your change request was withdrawn.");
     expect(screen.getByRole("article")).toHaveTextContent("Withdrawn");
     expect(screen.getByRole("button", { name: "Request Change" })).toBeInTheDocument();
+  });
+
+  /** REQ-CHANGE-09-B: a request decided meanwhile cannot be withdrawn; the page shows the error and the request's current state. */
+  it("REQ-CHANGE-09-B shows the refusal and the current state when withdrawal fails", async () => {
+    listMock
+      .mockResolvedValueOnce([changeRequest()])
+      .mockResolvedValueOnce([
+        changeRequest({ status: "Denied", decidedBy: "Coordinator 1", decidedAt: "2026-10-16T03:00:00.000Z", decisionReason: "No room." }),
+      ]);
+    withdrawMock.mockRejectedValue(new Error("This change request has already been decided."));
+    const user = renderPage();
+    await user.click(await screen.findByRole("button", { name: "Withdraw Request" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This change request has already been decided.");
+    expect(screen.getByRole("article")).toHaveTextContent("Denied");
+    expect(screen.queryByRole("button", { name: "Withdraw Request" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Your change request was withdrawn.")).not.toBeInTheDocument();
   });
 
   /** REQ-CHANGE-03-A: the assigned coordinator reads the list without the form or withdraw action. */
@@ -169,6 +185,52 @@ describe("EventChangeRequestsPage", () => {
     renderPage();
     expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
     expect(screen.getByRole("link", { name: "Back To Events" })).toHaveAttribute("href", "/events");
+  });
+
+  /** REQ-CHANGE-09-B: if the list cannot be refreshed after a failed withdrawal, the refusal is still shown. */
+  it("REQ-CHANGE-09-B still shows the refusal when the refresh also fails", async () => {
+    listMock.mockResolvedValueOnce([changeRequest()]).mockRejectedValueOnce(new Error("offline"));
+    withdrawMock.mockRejectedValue(new Error("This change request has already been decided."));
+    const user = renderPage();
+    await user.click(await screen.findByRole("button", { name: "Withdraw Request" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("This change request has already been decided.");
+    expect(screen.getByRole("article")).toHaveTextContent("Pending review");
+  });
+
+  /** A load that finishes after leaving the page changes nothing. */
+  it("ignores a load that settles after unmounting", async () => {
+    let resolveEvent!: (event: EventRecord) => void;
+    apiMock.mockImplementationOnce(() => new Promise((r) => (resolveEvent = r)) as never);
+    useAppStore.setState({ currentUser: ORGANISER, isAuthenticated: true, authLoading: false });
+    const first = render(
+      <MemoryRouter initialEntries={["/events/evt-1/change-requests"]}>
+        <Routes>
+          <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    first.unmount();
+    resolveEvent(eventRecord());
+    let rejectEvent!: (error: unknown) => void;
+    apiMock.mockImplementationOnce(() => new Promise((_, r) => (rejectEvent = r)) as never);
+    const second = render(
+      <MemoryRouter initialEntries={["/events/evt-1/change-requests"]}>
+        <Routes>
+          <Route path="/events/:id/change-requests" element={<EventChangeRequestsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    second.unmount();
+    rejectEvent(new Error("late"));
+    await Promise.resolve();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  /** An empty event response shows "Event not found." with a way back. */
+  it("shows Event not found when the event is missing", async () => {
+    apiMock.mockResolvedValue(undefined as never);
+    renderPage();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Event not found.");
   });
 
   /** A non-Error failure still shows a readable message. */

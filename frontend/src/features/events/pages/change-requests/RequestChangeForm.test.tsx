@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RequestChangeForm } from "@/features/events/pages/change-requests/RequestChangeForm";
@@ -161,13 +161,30 @@ describe("RequestChangeForm", () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
-  /** REQ-CHANGE-07-A: past approval the organiser is told a new safety check may be needed; a Submitted event has none. */
+  /** REQ-CHANGE-07-A: past approval the organiser is told an existing safety check would need redoing; a Submitted event has none. */
   it("REQ-CHANGE-07-A shows the safety check note only for events past approval", () => {
     renderForm();
-    expect(screen.getByRole("note")).toHaveTextContent("the event will need a new safety check");
+    expect(screen.getByRole("note")).toHaveTextContent(
+      "If this event has a safety check, approving this change will require a new safety check before the event can be confirmed.",
+    );
     cleanup();
     renderForm(eventRecord({ status: "submitted" }));
     expect(screen.queryByRole("note")).not.toBeInTheDocument();
+  });
+
+  /** REQ-CHANGE-01-E: submitting the form directly (Enter key) with nothing changed sends nothing. */
+  it("REQ-CHANGE-01-E ignores a form submit with no changes", () => {
+    const { onSubmit } = renderForm();
+    fireEvent.submit(screen.getByRole("form", { name: "Request a change" }));
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  /** REQ-CHANGE-06-A: a server message without field errors is shown on its own. */
+  it("REQ-CHANGE-06-A shows a server message that has no field errors", async () => {
+    const { user } = renderForm(eventRecord(), vi.fn().mockRejectedValue(new ApiError("Change requests are not accepted for this event.")));
+    await user.type(screen.getByLabelText(/description/i), " More.");
+    await user.click(screen.getByRole("button", { name: "Submit Change Request" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Change requests are not accepted for this event.");
   });
 
   /** Cancel closes the form without submitting. */

@@ -8,7 +8,7 @@ import { fieldLabel } from "@/utils/planning";
 /** Event statuses that accept a change request (agreed: Submitted to Confirmed). */
 export const CHANGE_REQUEST_OPEN_STATUSES: readonly EventStatus[] = ["submitted", "approved", "planning", "confirmed"];
 
-/** Statuses past approval, where an approved change resets the safety check. */
+/** Statuses past approval, where the event can have a safety check that an approved change resets. */
 const SAFETY_CHECK_STATUSES: readonly EventStatus[] = ["approved", "planning", "confirmed"];
 
 /** The permitted change types, in form order (SPM-64 AC1). */
@@ -28,7 +28,7 @@ export function acceptsChangeRequests(event: Pick<EventRecord, "status" | "start
   return CHANGE_REQUEST_OPEN_STATUSES.includes(event.status) && Date.parse(event.startDateTime) > now;
 }
 
-/** SPM-64 note: past approval, a change may need a new safety check. */
+/** SPM-64 note: past approval the event may have a safety check, so the form says one would be needed again. */
 export function mayNeedSafetyCheck(event: Pick<EventRecord, "status">): boolean {
   return SAFETY_CHECK_STATUSES.includes(event.status);
 }

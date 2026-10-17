@@ -67,8 +67,8 @@ describe("ChangeRequestList", () => {
     expect(screen.getByText("No change requests for this event.")).toBeInTheDocument();
   });
 
-  /** The owner can withdraw only a pending request; a failure is shown and the button re-enabled. */
-  it("withdraws a pending request and reports a failure", async () => {
+  /** REQ-CHANGE-09-B: the owner can withdraw only a pending request; a failure is shown and the button re-enabled. */
+  it("REQ-CHANGE-09-B withdraws a pending request and reports a failure", async () => {
     const user = userEvent.setup();
     const onWithdraw = vi.fn().mockRejectedValueOnce(new Error("This change request has already been decided.")).mockRejectedValueOnce("x");
     render(<ChangeRequestList requests={[request(), request({ id: "cr-9", status: "Withdrawn" })]} onWithdraw={onWithdraw} />);

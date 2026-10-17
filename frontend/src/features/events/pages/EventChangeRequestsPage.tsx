@@ -87,12 +87,18 @@ export function EventChangeRequestsPage() {
     setFormOpen(false);
     // AC4: confirmation that the request was submitted.
     setConfirmation(`Your change request for ${event!.name} has been submitted for review.`);
-    setRequests((list) => [created, ...list.filter((r) => r.id !== created.id)]);
+    setRequests((list) => [created, ...list]);
     return created;
   }
 
   async function withdraw(request: ChangeRequest) {
-    await withdrawChangeRequest(event!.id, request.id);
+    try {
+      await withdrawChangeRequest(event!.id, request.id);
+    } catch (e) {
+      // AC8: the request may have been decided meanwhile; show its current state with the error.
+      await loadRequests().catch(() => undefined);
+      throw e;
+    }
     setConfirmation("Your change request was withdrawn.");
     await loadRequests();
   }

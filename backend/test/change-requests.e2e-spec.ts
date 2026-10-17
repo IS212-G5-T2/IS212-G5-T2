@@ -81,7 +81,8 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
       status: 'Pending',
       requestedBy: 'CR Organiser',
       reason: 'More guests confirmed.',
-      requiresSafetyCheck: true,
+      // No safety check on the event yet, so none to redo (REQ-CHANGE-07-A).
+      requiresSafetyCheck: false,
       changes: [
         { field: 'expectedAttendance', originalValue: 80, proposedValue: 140 },
         { field: 'layout', originalValue: 'Banquet', proposedValue: 'Theatre' },
@@ -163,9 +164,14 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
     expect(list.body).toHaveLength(1);
   });
 
-  /** REQ-CHANGE-03-B, 05-C: other coordinators and organisers are neither notified nor able to read it. */
+  /** REQ-CHANGE-03-B: other coordinators and organisers are neither notified nor able to read it; the assigned coordinator can. */
   it('REQ-CHANGE-03-B keeps the request away from everyone else', async () => {
     await submit(organiser, { changes: { expectedAttendance: 140 } }).expect(201);
+    // Positive control: the assigned coordinator reads it on both routes.
+    const assigned = await request(app.getHttpServer()).get(url()).set('Cookie', coordinator.cookie).expect(200);
+    expect(assigned.body).toHaveLength(1);
+    const assignedMine = await request(app.getHttpServer()).get('/api/change-requests').set('Cookie', coordinator.cookie).expect(200);
+    expect(assignedMine.body).toHaveLength(1);
     for (const user of [otherCoordinator, otherOrganiser]) {
       await request(app.getHttpServer()).get(url()).set('Cookie', user.cookie).expect(404);
       const mine = await request(app.getHttpServer()).get('/api/change-requests').set('Cookie', user.cookie).expect(200);
@@ -176,6 +182,22 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
       .set('Cookie', otherCoordinator.cookie)
       .expect(200);
     expect(notifications.body).toEqual([]);
+  });
+
+  /** REQ-CHANGE-05-C: an organiser sees only requests on their own events, on both read routes. */
+  it('REQ-CHANGE-05-C shows an organiser only their own events\' requests', async () => {
+    const otherEvent = await seedEvent(otherOrganiser.uid, otherCoordinator.uid, 'Planning');
+    const theirs = await submit(otherOrganiser, { changes: { description: 'Theirs' } }, otherEvent).expect(201);
+    const mine = await submit(organiser, { changes: { description: 'Mine' } }).expect(201);
+    const server = app.getHttpServer();
+    // Positive control: each owner reads their own request.
+    const own = await request(server).get(url(otherEvent)).set('Cookie', otherOrganiser.cookie).expect(200);
+    expect(own.body.map((r: { id: string }) => r.id)).toEqual([theirs.body.id]);
+    // Negative: ORG-01 cannot read ORG-02's event list (404, existence not revealed) and its dashboard omits it.
+    const refused = await request(server).get(url(otherEvent)).set('Cookie', organiser.cookie).expect(404);
+    expect(refused.body.message).toBe('Event not found.');
+    const dashboard = await request(server).get('/api/change-requests').set('Cookie', organiser.cookie).expect(200);
+    expect(dashboard.body.map((r: { id: string }) => r.id)).toEqual([mine.body.id]);
   });
 
   /** REQ-CHANGE-03-D: the request follows the event to a newly assigned coordinator. */
@@ -203,11 +225,72 @@ describe('SPM-64 change requests over HTTP (e2e)', () => {
       .expect(400);
   });
 
-  /** The owner can withdraw a pending request once; a new request can then be made. */
-  it('withdraws a pending request, refuses a second withdrawal, and allows a new request', async () => {
+  /** REQ-CHANGE-07-A: the flag follows the event's safety check, including one requested while the request waits. */
+  it('REQ-CHANGE-07-A flags a request when the event has a safety check', async () => {
+    const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
+    expect(created.body.requiresSafetyCheck).toBe(false);
+    await pool.query(
+      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by) VALUES ($1, 'pending', now(), 'CR Coordinator')`,
+      [eventId],
+    );
+    const list = await request(app.getHttpServer()).get(url()).set('Cookie', organiser.cookie).expect(200);
+    expect(list.body[0]).toMatchObject({ id: created.body.id, requiresSafetyCheck: true });
+    const mine = await request(app.getHttpServer())
+      .get('/api/change-requests?status=Pending')
+      .set('Cookie', organiser.cookie)
+      .expect(200);
+    expect(mine.body[0]).toMatchObject({ id: created.body.id, requiresSafetyCheck: true });
+
+    // A request submitted while the safety check exists stores the flag.
+    const confirmedId = await seedEvent(organiser.uid, coordinator.uid, 'Confirmed');
+    await pool.query(
+      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by) VALUES ($1, 'approved', now(), 'CR Coordinator')`,
+      [confirmedId],
+    );
+    const flagged = await submit(organiser, { changes: { equipmentNeeds: 'Two microphones.' } }, confirmedId).expect(201);
+    expect(flagged.body.requiresSafetyCheck).toBe(true);
+    const stored = await pool.query('SELECT requires_safety_check FROM event_change_requests WHERE id = $1', [flagged.body.id]);
+    expect(stored.rows).toEqual([{ requires_safety_check: true }]);
+  });
+
+  /** REQ-CHANGE-09-A: nobody but the owning organiser can withdraw, and the request stays pending. */
+  it('REQ-CHANGE-09-A refuses to withdraw for anyone but the owner', async () => {
     const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
     const withdrawUrl = `${url()}/${created.body.id}/withdraw`;
-    await request(app.getHttpServer()).post(withdrawUrl).set('Cookie', otherOrganiser.cookie).expect(404);
+    const server = app.getHttpServer();
+    await request(server).post(withdrawUrl).expect(401);
+    await request(server).post(withdrawUrl).set('Cookie', coordinator.cookie).expect(403);
+    await request(server).post(withdrawUrl).set('Cookie', otherOrganiser.cookie).expect(404);
+    // A request id under another event is not found.
+    const otherEvent = await seedEvent(organiser.uid, coordinator.uid, 'Planning');
+    await request(server)
+      .post(`${url(otherEvent)}/${created.body.id}/withdraw`)
+      .set('Cookie', organiser.cookie)
+      .expect(404);
+    const stored = await pool.query('SELECT status FROM event_change_requests WHERE id = $1', [created.body.id]);
+    expect(stored.rows).toEqual([{ status: 'Pending' }]);
+  });
+
+  /** REQ-CHANGE-09-B: a request that is already decided or withdrawn cannot be withdrawn. */
+  it('REQ-CHANGE-09-B refuses to withdraw a decided or withdrawn request', async () => {
+    const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
+    const withdrawUrl = `${url()}/${created.body.id}/withdraw`;
+    await pool.query(
+      `UPDATE event_change_requests
+          SET status = 'Denied', decided_by = 'CR Coordinator', decided_by_id = $2, decided_at = now(), decision_reason = 'No room.'
+        WHERE id = $1`,
+      [created.body.id, coordinator.uid],
+    );
+    const denied = await request(app.getHttpServer()).post(withdrawUrl).set('Cookie', organiser.cookie).expect(409);
+    expect(denied.body.message).toBe('This change request has already been decided.');
+    const stored = await pool.query('SELECT status FROM event_change_requests WHERE id = $1', [created.body.id]);
+    expect(stored.rows).toEqual([{ status: 'Denied' }]);
+  });
+
+  /** REQ-CHANGE-09-C: the owner withdraws a pending request once; a second withdrawal is refused and a new request is allowed. */
+  it('REQ-CHANGE-09-C withdraws a pending request and allows a new one', async () => {
+    const created = await submit(organiser, { changes: { description: 'New' } }).expect(201);
+    const withdrawUrl = `${url()}/${created.body.id}/withdraw`;
     const withdrawn = await request(app.getHttpServer()).post(withdrawUrl).set('Cookie', organiser.cookie).expect(200);
     expect(withdrawn.body).toMatchObject({ status: 'Withdrawn', decidedBy: 'CR Organiser' });
     await request(app.getHttpServer()).post(withdrawUrl).set('Cookie', organiser.cookie).expect(409);

@@ -6,7 +6,6 @@
  */
 import {
   BadRequestException,
-  ConflictException,
   ForbiddenException,
   NotFoundException,
   UnauthorizedException,
@@ -66,6 +65,8 @@ function requestRow(overrides: Record<string, unknown> = {}) {
 interface Script {
   event?: Record<string, unknown>;
   pending?: boolean;
+  /** Whether the event has a safety check (any status). */
+  safety?: boolean;
   request?: Record<string, unknown>;
   insertError?: unknown;
 }
@@ -76,6 +77,7 @@ function fakeDatabase(script: Script) {
   const query = vi.fn(async (sql: string, params: unknown[] = []) => {
     calls.push({ sql, params });
     if (sql.startsWith('SELECT * FROM events')) return { rows: script.event ? [script.event] : [] };
+    if (sql.startsWith('SELECT 1 FROM event_safety_checks')) return { rows: script.safety ? [{}] : [] };
     if (sql.includes("status = 'Pending'") && sql.startsWith('SELECT 1'))
       return { rows: script.pending ? [{}] : [] };
     if (sql.includes('INSERT INTO event_change_requests')) {
@@ -95,7 +97,7 @@ function fakeDatabase(script: Script) {
       return { rows: script.request ? [script.request] : [] };
     if (sql.includes("SET status = 'Withdrawn'"))
       return { rows: [requestRow({ status: 'Withdrawn', decided_by: params[1], decided_at: params[3] })] };
-    if (sql.startsWith('SELECT * FROM event_change_requests WHERE event_id'))
+    if (sql.includes('WHERE r.event_id'))
       return { rows: [requestRow()] };
     if (sql.includes('JOIN events e')) return { rows: [{ ...requestRow(), event_name: 'Alumni Networking Night' }] };
     throw new Error(`unexpected SQL: ${sql}`);
@@ -122,7 +124,7 @@ describe('ChangeRequestsService.create', () => {
 
   /** REQ-CHANGE-01-A, 03-A, 04-A: the owner's request is stored Pending, returned, and the coordinator notified. */
   it('REQ-CHANGE-01-A stores a pending request and notifies the assigned coordinator', async () => {
-    const { svc, calls } = service(script);
+    const { svc, calls } = service({ ...script, safety: true });
     const record = await svc.create(organiser, EVENT_ID, { changes: { expectedAttendance: 140 } });
     expect(record).toMatchObject({
       id: REQUEST_ID,
@@ -191,17 +193,32 @@ describe('ChangeRequestsService.create', () => {
     expect(error.getResponse().errors).toEqual({ [field]: MESSAGES.endBeforeStart });
   });
 
-  /** REQ-CHANGE-01-F: Submitted, Approved, Planning and Confirmed accept requests. */
+  /** REQ-CHANGE-01-F (AC7): Submitted, Approved, Planning and Confirmed accept requests. */
+  it.each(['Submitted', 'Approved', 'Planning', 'Confirmed'])(
+    'REQ-CHANGE-01-F accepts a request on a %s event',
+    async (status) => {
+      const { svc } = service({ event: eventRow({ status }) });
+      const record = await svc.create(organiser, EVENT_ID, { changes: { description: 'New' } });
+      expect(record.status).toBe('Pending');
+    },
+  );
+
+  /**
+   * REQ-CHANGE-07-A (SPM-64 note): a new safety check is needed exactly when the
+   * event has a safety check, whatever its status and whichever detail changes.
+   */
   it.each([
-    ['Submitted', false],
-    ['Approved', true],
-    ['Planning', true],
-    ['Confirmed', true],
-  ])('REQ-CHANGE-01-F accepts a request on a %s event', async (status, safety) => {
-    const { svc } = service({ event: eventRow({ status }) });
-    const record = await svc.create(organiser, EVENT_ID, { changes: { description: 'New' } });
-    // REQ-CHANGE-07-A: past approval, the organiser is told a new safety check may be needed.
+    ['Planning', true, { description: 'New' }],
+    ['Confirmed', true, { expectedAttendance: 140 }],
+    ['Approved', true, { equipmentNeeds: 'Two microphones.' }],
+    ['Planning', false, { startDateTime: '2027-02-05T11:00:00Z' }],
+    ['Submitted', false, { description: 'New' }],
+  ])('REQ-CHANGE-07-A flags a %s event with safety check %s', async (status, safety, changes) => {
+    const { svc, calls } = service({ event: eventRow({ status }), safety });
+    const record = await svc.create(organiser, EVENT_ID, { changes });
     expect(record.requiresSafetyCheck).toBe(safety);
+    const lookup = calls.find((c) => c.sql.startsWith('SELECT 1 FROM event_safety_checks'))!;
+    expect(lookup.params).toEqual([EVENT_ID]);
   });
 
   /** REQ-CHANGE-01-F: closed events refuse change requests. */
@@ -346,6 +363,25 @@ describe('ChangeRequestsService reads', () => {
     });
   });
 
+  /** REQ-CHANGE-07-A: a pending request shows the event's safety check now; a decided one keeps the stored flag. */
+  it('REQ-CHANGE-07-A reads the safety check live for pending requests only', async () => {
+    const { svc, database } = service({ event: eventRow() });
+    vi.mocked(database.query).mockImplementation(async (sql: string) =>
+      sql.startsWith('SELECT * FROM events')
+        ? ({ rows: [eventRow()] } as never)
+        : ({
+            rows: [
+              requestRow({ requires_safety_check: false, has_safety_check: true }),
+              requestRow({ id: 'cr-old', status: 'Denied', requires_safety_check: true, has_safety_check: false }),
+            ],
+          } as never),
+    );
+    const [pending, denied] = await svc.listForEvent(organiser, EVENT_ID);
+    expect(pending.requiresSafetyCheck).toBe(true);
+    expect(denied.requiresSafetyCheck).toBe(true);
+    expect(vi.mocked(database.query).mock.calls[1][0]).toContain('event_safety_checks');
+  });
+
   /** REQ-CHANGE-05-A: the dashboard list is scoped to the caller's own events and roles. */
   it('REQ-CHANGE-05-A lists the caller\'s requests scoped by role, optionally by status', async () => {
     const { svc, calls } = service({});
@@ -364,22 +400,27 @@ describe('ChangeRequestsService reads', () => {
 });
 
 describe('ChangeRequestsService.withdraw', () => {
-  /** The owner withdraws their own pending request. */
-  it('withdraws the owner\'s pending request', async () => {
+  /** REQ-CHANGE-09-C (AC8): the owner withdraws their own pending request. */
+  it('REQ-CHANGE-09-C withdraws the owner\'s pending request', async () => {
     const { svc, calls } = service({ event: eventRow(), request: requestRow() });
     const record = await svc.withdraw(organiser, EVENT_ID, REQUEST_ID);
     expect(record).toMatchObject({ status: 'Withdrawn', decidedBy: 'Organiser 1', decidedAt: NOW.toISOString() });
     expect(sqlOf(calls)).toContain('FOR UPDATE');
   });
 
-  /** A decided request cannot be withdrawn. */
-  it.each(['Approved', 'Denied', 'Withdrawn'])('refuses to withdraw a %s request', async (status) => {
-    const { svc } = service({ event: eventRow(), request: requestRow({ status }) });
-    await expect(svc.withdraw(organiser, EVENT_ID, REQUEST_ID)).rejects.toBeInstanceOf(ConflictException);
+  /** REQ-CHANGE-09-B (AC8): a request that is already decided or withdrawn cannot be withdrawn. */
+  it.each(['Approved', 'Denied', 'Withdrawn'])('REQ-CHANGE-09-B refuses to withdraw a %s request', async (status) => {
+    const { svc, calls } = service({ event: eventRow(), request: requestRow({ status }) });
+    await expect(svc.withdraw(organiser, EVENT_ID, REQUEST_ID)).rejects.toMatchObject({
+      status: 409,
+      response: { message: MESSAGES.decided },
+    });
+    expect(sqlOf(calls)).not.toContain("SET status = 'Withdrawn'");
   });
 
-  /** Only the owner may withdraw, and only a request of that event. */
-  it('refuses other users, unknown requests and malformed ids', async () => {
+  /** REQ-CHANGE-09-A (AC8): only the owner may withdraw, and only a request of that event. */
+  it('REQ-CHANGE-09-A refuses other users, unknown requests and malformed ids', async () => {
+    await expect(service({}).svc.withdraw(undefined, EVENT_ID, REQUEST_ID)).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(service({ event: eventRow(), request: requestRow() }).svc.withdraw(otherOrganiser, EVENT_ID, REQUEST_ID)).rejects.toBeInstanceOf(NotFoundException);
     await expect(service({ event: eventRow() }).svc.withdraw(organiser, EVENT_ID, REQUEST_ID)).rejects.toMatchObject({
       response: { message: MESSAGES.requestNotFound },

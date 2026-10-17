@@ -137,10 +137,15 @@ describe("EventListPage", () => {
     expect(pendingRequestsMock).toHaveBeenCalledWith("Pending");
   });
 
-  /** REQ-CHANGE-05-A: the badge is supplementary; if it cannot load, the list still shows and no error appears. */
-  it("REQ-CHANGE-05-A still lists events when pending change requests cannot load", async () => {
-    apiMock.mockResolvedValue([submittedEvent()]);
-    pendingRequestsMock.mockRejectedValue(new Error("down"));
+  /** REQ-CHANGE-05-F: if pending change requests cannot load, the events still show with a visible notice and Retry. */
+  it("REQ-CHANGE-05-F shows a notice with Retry when pending change requests cannot load", async () => {
+    const event = submittedEvent();
+    apiMock.mockResolvedValue([event]);
+    pendingRequestsMock
+      .mockRejectedValueOnce(new Error("The service is temporarily unavailable."))
+      .mockResolvedValueOnce([
+        { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [], requiresSafetyCheck: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
+      ]);
     render(
       <MemoryRouter initialEntries={["/events"]}>
         <Routes>
@@ -149,8 +154,48 @@ describe("EventListPage", () => {
       </MemoryRouter>,
     );
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      "Could not check your events for pending change requests. The service is temporarily unavailable.",
+    );
     expect(screen.queryByText("Change requested: Pending")).toBeNull();
+    await userEvent.setup().click(within(alert).getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Change requested: Pending")).toBeTruthy();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  /** REQ-CHANGE-05-F: a failure that arrives after leaving My Events shows nothing. */
+  it("REQ-CHANGE-05-F ignores a pending change request failure after unmounting", async () => {
+    apiMock.mockResolvedValue([submittedEvent()]);
+    let reject!: (error: unknown) => void;
+    pendingRequestsMock.mockImplementation(() => new Promise((_, r) => (reject = r)));
+    const view = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    view.unmount();
+    reject(new Error("late"));
+    await Promise.resolve();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  /** REQ-CHANGE-05-F: a failure without a message still shows the notice. */
+  it("REQ-CHANGE-05-F shows the notice for a failure without a message", async () => {
+    apiMock.mockResolvedValue([submittedEvent()]);
+    pendingRequestsMock.mockRejectedValue("offline");
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Could not check your events for pending change requests.",
+    );
   });
 
   // Coordinators can view rejected requests via the "Rejected" status filter.

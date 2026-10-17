@@ -62,4 +62,27 @@ describe("ChangeRequestSummary", () => {
     renderSummary();
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your change requests.");
   });
+
+  /** A load that finishes after leaving the event page changes nothing. */
+  it("ignores a load that settles after unmounting", async () => {
+    let resolve!: (requests: ChangeRequest[]) => void;
+    let reject!: (error: unknown) => void;
+    fetchMock
+      .mockImplementationOnce(() => new Promise((r) => (resolve = r)))
+      .mockImplementationOnce(() => new Promise((_, r) => (reject = r)));
+    renderSummary().unmount();
+    renderSummary().unmount();
+    resolve([LATEST]);
+    reject(new Error("late"));
+    await Promise.resolve();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByText("View Change Requests")).not.toBeInTheDocument();
+  });
+
+  /** A failure that is not an Error shows the plain message. */
+  it("shows the plain message for a non-Error failure", async () => {
+    fetchMock.mockRejectedValue("offline");
+    renderSummary();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not load your change requests\.$/);
+  });
 });
