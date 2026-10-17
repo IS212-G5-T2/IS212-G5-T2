@@ -7,7 +7,7 @@ Status: all 10 TRACK-EVENT-STATUS cases automated. Test Code Review, Requirement
 - **D6 (403):** a non-owning organiser gets 403 with the literal message `You can only view your own events.` and no event data. This changes the SPM-38 AC4 404 behaviour (and its unit assertion EVE-REV-04-C). Confirm with PO.
 - **Drafts:** shown in a separate Drafts section on My Events, from the existing `/requests` API. Drafts are not merged into the event cards.
 - **D2 (A), D5 (default):** safety read through the existing `event_safety_checks` table in SQL; no indicator for Rejected, Completed or Cancelled events, or a missing record.
-- Assumptions: A1 "Under Review" is not a stored status (Approved stands in); A5 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
+- Decided 17 Oct 2026: EVT-502 is Approved in the 01-A fixture ('Under Review' is not a stored status). Assumptions: A5 assignment does not change status (D11); A3 an empty coordinator id counts as unassigned; A4 the refusal message is the service literal.
 - Jira SPM-94 is `In Progress`, which passes the status gate.
 
 ## What changed
@@ -87,7 +87,7 @@ Result: 13 of 13 killed. The first M3e run and the drafts-cleanup survivor from 
 | Does every test trace to an AC? | Yes. Exceptions: none. |
 | Does every test have a plausible failing implementation? | Yes. Each e2e test has a `Kills:` line; unit and component tests have one too. |
 | Can each setup, action and expected result be explained? | Yes. Fixtures are described in the e2e and unit files. |
-| Are expected values justified independently of the code? | Yes, with literals. Assumptions A1 to A4 are listed in the e2e and unit files. |
+| Are expected values justified independently of the code? | Yes, with literals. Assumptions A2 to A5 are listed in the e2e and unit files. |
 | Deterministic and non-vacuous? | Mostly. Fixtures use SQL `now()` and `randomUUID()` (not fixed UUIDs). Frontend fixtures use `new Date()`. No test asserts on these values. |
 
 Pre-submit (Guide 11):
@@ -95,7 +95,7 @@ Pre-submit (Guide 11):
 - [x] Every test has a `Kills:` line (e2e tests added in this round).
 - [x] Happy, sad and boundary paths covered for each rule: BND and INT rows added in `event-indicators.spec.ts`.
 - [x] Every output field asserted in 01-A.
-- [x] Expected values are literals; assumptions A1 to A4 indexed.
+- [x] Expected values are literals; assumptions A2 to A5 indexed.
 - [x] No loops that compute expectations; the list-comparison loops now assert literals.
 - [x] Sad-path no-side-effect: 02-B and 03-C assert stored and displayed state.
 - [ ] Rule-order interactions for every adjacent pair: only the terminal-before-state pair is covered.
@@ -125,7 +125,7 @@ Result on snapshot 7153b22: **BLOCKED**. Findings and status after the follow-up
 | F1 planning-page indicators untested | High | Fixed: `EventDetailPage.status.test.tsx` (7 tests). Reviewer mutant killed |
 | F2 no test-workflow records (G1 to G7 not run) | High | Open: needs `scopes/SPM-94.json`, registry, tier matrix, conflict and determinism rows and records CSV. Not done in this pass |
 | F3 mutation runner not in the repo; some Kills ids unverified | High | Partly fixed: the reviewer's surviving mutants are now killed and the Kills claims are corrected. The runner still lives in `scratchpad/`, not the repo. Open |
-| F4 matrix/test conflicts not registered (02-B status, D6 vs 404, 01-A drafts, 03-C) | Medium | Open: needs `spec-conflicts.md` rows and Orchestrator or PO confirmation of D6, A1, A2 |
+| F4 matrix/test conflicts not registered (02-B status, D6 vs 404, 01-A drafts, 03-C) | Medium | Open: needs `spec-conflicts.md` rows and Orchestrator or PO confirmation of D6, A5 |
 | F5 D6 role exemption untested | Medium | Fixed: unit rows for `['ORGANISER','COORDINATOR']` and `['ORGANISER','ATTENDEE']` (404). Widened exemption killed |
 | F6 drafts untested for other roles or failures | Medium | Fixed: coordinator never requests drafts; failed drafts request keeps events; Untitled label |
 | F7 Rejected and Cancelled status not asserted | Low | Fixed: e2e asserts `rejected` and `cancelled` |

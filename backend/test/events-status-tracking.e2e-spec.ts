@@ -17,10 +17,9 @@ import { AppModule } from '../src/app.module.js';
  *
  * Oracles are literals from the SPM-94 AC text and the Decision Register (D3, D5, D6), never from the
  * implementation. "Under Review" is not a stored status (the events table CHECK), so the non-Submitted
- * case uses Approved (ASSUMPTION A1).
+ * case uses Approved (decided 17 Oct 2026).
  *
  * ASSUMPTION index
- * A1: "Under Review" is not stored; Approved stands in for the non-Submitted case -> 02-A, 01-A
  * A5: a coordinator assignment does not change the status (D11) -> 02-B
  * A4: the refusal message for another organiser's event is the service's literal -> 01-C
  */
@@ -341,7 +340,7 @@ describe.skipIf(!database)('SPM-94 Track My Event Status (organiser, e2e)', () =
 
   // TRACK-EVENT-STATUS-01-A (matrix fixture): EVT-501 to EVT-506 and EVT-508 for ORG-01, EVT-507 for ORG-02.
   // Matrix rows: Submitted, Under Review, Planning, Planning, Confirmed, Rejected, Draft.
-  // Under Review is not a stored status, so EVT-502 is seeded Approved (ASSUMPTION A1, see the spec-conflict register).
+  // Under Review is not a stored status, so EVT-502 is seeded Approved (decided 17 Oct 2026).
   // Draft EVT-508 is read from the drafts API and shown in its own section (owner decision, see the spec-conflict register).
   // Kills: M2 (owner filter removed: EVT-507 would appear), status drift on any row, a draft merged into the event rows.
   it('TRACK-EVENT-STATUS-01-A (matrix fixture): six events and one draft for ORG-01; EVT-507 absent', async () => {
