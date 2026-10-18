@@ -13,6 +13,8 @@ const iconByType: Record<Notification["type"], string> = {
   coordinator_unassignment: "↪️",
   coordinator_unavailable: "⏸️",
   coordinator_change_request: "✏️",
+  change_request_approved: "✅",
+  change_request_denied: "❌",
   venue_booking: "🏛️",
   event_change: "✏️",
   registration: "🎟️",
@@ -21,6 +23,12 @@ const iconByType: Record<Notification["type"], string> = {
   WaitlistPromoted: "🎟️",
   EventCancelled: "🚫",
 };
+
+const CHANGE_REQUEST_NOTICES: ReadonlySet<Notification["type"]> = new Set([
+  "coordinator_change_request",
+  "change_request_approved",
+  "change_request_denied",
+]);
 
 export function NotificationItem({
   notification,
@@ -52,11 +60,10 @@ export function NotificationItem({
   );
 
   if (notification.relatedEventId) {
-    // SPM-64 AC3: a change request notice opens the proposed changes, not the event page.
-    const to =
-      notification.type === "coordinator_change_request"
-        ? `/events/${notification.relatedEventId}/change-requests`
-        : `/events/${notification.relatedEventId}`;
+    // SPM-64 AC3 / SPM-65: a change request notice or decision opens the Change Requests page, not the event page.
+    const to = CHANGE_REQUEST_NOTICES.has(notification.type)
+      ? `/events/${notification.relatedEventId}/change-requests`
+      : `/events/${notification.relatedEventId}`;
     return (
       <Link
         to={to}

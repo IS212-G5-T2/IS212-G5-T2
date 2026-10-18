@@ -1,7 +1,8 @@
 // Story: SPM-64 Request a Change to a Submitted Event
 // ACs: AC1 (Request Change entry point), AC5 (status on the event page)
 // Test cases: REQ-CHANGE-01-F, REQ-CHANGE-05-A, REQ-CHANGE-05-E
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
@@ -44,6 +45,8 @@ const PENDING: ChangeRequest = {
   status: "Pending",
   changes: [{ field: "expectedAttendance", originalValue: 80, proposedValue: 120 }],
   requiresSafetyCheck: false,
+  recheck: [],
+  safetyCheckReset: false,
   requestedBy: "Priya Nair",
   createdAt: "2026-10-16T02:00:00.000Z",
 };
@@ -120,6 +123,9 @@ describe("SPM-64 on the event page", () => {
     const status = await screen.findByRole("region", { name: "Change request status" });
     expect(status).toHaveTextContent("Pending review");
     expect(status).toHaveTextContent("Expected attendance");
+    // SPM-65 REVIEW-CHANGE-02-A: the coordinator sees who asked, the changes and the review actions here.
+    expect(status).toHaveTextContent("Change Requested by Organiser");
+    expect(within(status).getByRole("button", { name: "Approve Change" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View Change Requests" })).toHaveAttribute(
       "href",
       "/events/event-1/change-requests",
@@ -142,5 +148,27 @@ describe("SPM-64 on the event page", () => {
     renderAs(eventWith("submitted"));
     await screen.findByRole("button", { name: "Request Change" });
     expect(screen.queryByRole("region", { name: "Change request status" })).not.toBeInTheDocument();
+  });
+
+  /** REVIEW-CHANGE-07-A: approving on the event page confirms it and reloads the event. */
+  it.each(["planning", "submitted"] as const)("REVIEW-CHANGE-07-A approves from the %s event page and reloads the event", async (status) => {
+    const event = eventWith(status);
+    stubApi(event, [PENDING]);
+    const base = apiMock.getMockImplementation()!;
+    apiMock.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith("/conflicts"))
+        return Promise.resolve({ requestId: PENDING.id, venueBookings: [], equipment: [], registrations: { registered: 0, waitlisted: 0, details: [] }, hasConflicts: false });
+      if (path.endsWith("/approve"))
+        return Promise.resolve({ request: { ...PENDING, status: "Approved" }, eventStatus: "planning", safetyCheckReset: false });
+      return base(path, init);
+    });
+    renderAs(event, "coordinator");
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: "Approve Change" }));
+    await user.click(screen.getByRole("button", { name: "Confirm Approval" }));
+    expect(await screen.findByText("Change request approved. Event details have been updated.")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(apiMock.mock.calls.filter(([path]) => path === `/events/${event.id}`).length).toBeGreaterThan(1),
+    );
   });
 });

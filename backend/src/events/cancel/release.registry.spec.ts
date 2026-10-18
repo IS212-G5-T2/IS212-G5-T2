@@ -38,6 +38,7 @@ describe('SPM-136 release registry', () => {
       'venue_bookings',
       'event_registrations',
       'event_registrations.waitlist',
+      'event_change_requests',
       'equipment_reservations',
     ]);
   });

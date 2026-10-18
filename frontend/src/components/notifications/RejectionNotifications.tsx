@@ -5,17 +5,24 @@ import { useAppStore } from "@/store/useAppStore";
 import { formatDateTime, timeAgo } from "@/utils/format";
 import { Button } from "@/components/ui/Button";
 
-// Rejections carry a reason in one combined backend message. Split that reason
-// into its own block; approval messages remain intact as a confirmation line.
+// Rejections (and SPM-65 change request denials) carry a reason in one combined backend
+// message. Split that reason into its own block; approval messages remain intact as a
+// confirmation line.
 function splitRejectionMessage(message: string): { headline: string; reason: string | null } {
-  const marker = " was rejected: ";
-  const idx = message.indexOf(marker);
-  if (idx === -1) return { headline: message, reason: null };
-  return {
-    headline: `${message.slice(0, idx)} was rejected`,
-    reason: message.slice(idx + marker.length),
-  };
+  for (const verb of ["rejected", "denied"]) {
+    const marker = ` was ${verb}: `;
+    const idx = message.indexOf(marker);
+    if (idx !== -1)
+      return {
+        headline: `${message.slice(0, idx)} was ${verb}`,
+        reason: message.slice(idx + marker.length),
+      };
+  }
+  return { headline: message, reason: null };
 }
+
+const APPROVALS = new Set(["approval", "change_request_approved"]);
+const CHANGE_REQUEST_DECISIONS = new Set(["change_request_approved", "change_request_denied"]);
 
 // Refresh on sign-in, window focus and periodically for organisers already online.
 export function RejectionNotifications() {
@@ -94,7 +101,8 @@ export function RejectionNotifications() {
         <ul className="divide-y divide-gray-100 dark:divide-gray-700">
           {visible.map((n) => {
             const { headline, reason } = splitRejectionMessage(n.message);
-            const isApproval = n.type === "approval";
+            const isApproval = APPROVALS.has(n.type);
+            const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
             return (
             <li
               key={n.id}
@@ -138,9 +146,9 @@ export function RejectionNotifications() {
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
                   <Link
                     className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
-                    to={`/events/${n.relatedEventId}`}
+                    to={isChangeRequest ? `/events/${n.relatedEventId}/change-requests` : `/events/${n.relatedEventId}`}
                   >
-                    View Request
+                    {isChangeRequest ? "View Change Request" : "View Request"}
                   </Link>
                   {!n.read && (
                     <button

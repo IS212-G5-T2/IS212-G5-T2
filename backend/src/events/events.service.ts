@@ -417,12 +417,23 @@ export class EventsService {
   // their request decisions (SPM-83 rejection, SPM-40 approval); coordinators
   // get new assignments from the Event Coordinator Lead (SPM-123) and
   // reassignments to and away from them (SPM-47) and organisers' change
-  // requests on their events (SPM-64); the Lead is told when a
+  // requests on their events (SPM-64), and organisers get the decision on
+  // their change requests (SPM-65); the Lead is told when a
   // coordinator with active events becomes unavailable (SPM-47).
   private notificationTypesFor(identity: AuthenticatedUser | undefined) {
     const user = this.requireUser(identity);
     const types = [
-      ...(user.roles.includes('ORGANISER') ? ['rejection', 'approval', 'EventConfirmed', 'EventCancelled'] : []),
+      ...(user.roles.includes('ORGANISER')
+        ? [
+            'rejection',
+            'approval',
+            'EventConfirmed',
+            'EventCancelled',
+            // SPM-65: the coordinator approved or denied the organiser's change request.
+            'change_request_approved',
+            'change_request_denied',
+          ]
+        : []),
       ...(user.roles.includes('COORDINATOR')
         ? [
             'coordinator_assignment',

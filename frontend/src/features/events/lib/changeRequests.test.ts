@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  DENIAL_REASON_MAX,
+  DENIAL_REASON_MIN,
+  STATUS_CLASSES,
+  STATUS_LABELS,
+  denialReasonError,
+  oldestFirst,
   CHANGE_FIELDS,
   acceptsChangeRequests,
   changeFieldLabel,
@@ -50,5 +56,30 @@ describe("change request rules", () => {
     const pending = { id: "p", status: "Pending" } as ChangeRequest;
     expect(pendingRequest([{ id: "a", status: "Approved" } as ChangeRequest, pending])).toBe(pending);
     expect(pendingRequest([])).toBeUndefined();
+  });
+});
+
+/** SPM-65 rules shared by the review panel and the coordinator's list. */
+describe("change request review rules (SPM-65)", () => {
+  it("REVIEW-CHANGE-05-B requires a denial reason of 10 to 500 characters", () => {
+    expect(denialReasonError("")).toBe("Please give a reason for denying this change.");
+    expect(denialReasonError("    ")).toBe("Please give a reason for denying this change.");
+    expect(denialReasonError("x".repeat(9))).toBe(`Use between ${DENIAL_REASON_MIN} and ${DENIAL_REASON_MAX} characters.`);
+    expect(denialReasonError("x".repeat(501))).toBe("Use between 10 and 500 characters.");
+    expect(denialReasonError(` ${"x".repeat(10)} `)).toBe("");
+    expect(denialReasonError("x".repeat(500))).toBe("");
+  });
+
+  it("REVIEW-CHANGE-01-A orders pending requests oldest first without changing the input", () => {
+    const newer = { id: "b", createdAt: "2026-10-17T00:00:00.000Z" } as ChangeRequest;
+    const older = { id: "a", createdAt: "2026-10-16T00:00:00.000Z" } as ChangeRequest;
+    const input = [newer, older];
+    expect(oldestFirst(input).map((r) => r.id)).toEqual(["a", "b"]);
+    expect(input.map((r) => r.id)).toEqual(["b", "a"]);
+  });
+
+  it("labels a closed request", () => {
+    expect(STATUS_LABELS.Closed).toBe("Closed");
+    expect(STATUS_CLASSES.Closed).toContain("bg-gray-100");
   });
 });

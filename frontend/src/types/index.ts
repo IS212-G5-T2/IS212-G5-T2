@@ -61,7 +61,8 @@ export type ChangeRequestField =
   | "accessibility"
   | "equipmentNeeds";
 
-export type ChangeRequestStatus = "Pending" | "Approved" | "Denied" | "Withdrawn";
+/** SPM-65: Closed = the event was cancelled while the request was pending. */
+export type ChangeRequestStatus = "Pending" | "Approved" | "Denied" | "Withdrawn" | "Closed";
 
 /** One requested change: the value when the request was made and the value asked for. */
 export interface RequestedChange {
@@ -84,8 +85,57 @@ export interface ChangeRequest {
   createdAt: string;
   decidedAt?: string;
   decidedBy?: string;
-  /** SPM-65: the coordinator's reason for a denial. */
+  /** SPM-65: the coordinator's reason for a denial, or why a request was closed. */
   decisionReason?: string;
+  /** SPM-65 AC1: the event's organiser. */
+  organiserName?: string;
+  /** SPM-65 AC9: arrangements to re-check after approval. */
+  recheck: RecheckItem[];
+  /** SPM-65 AC8: approving reset the event's safety check. */
+  safetyCheckReset: boolean;
+}
+
+/** SPM-65 AC3: one venue booking or equipment reservation the requested values conflict with. */
+export interface ArrangementImpact {
+  kind: "venue" | "equipment";
+  refId: string;
+  name: string;
+  details: string[];
+}
+
+/** SPM-65 AC9: an affected arrangement the coordinator ticks off once re-checked. */
+export interface RecheckItem extends ArrangementImpact {
+  id: string;
+  checkedAt?: string;
+  checkedBy?: string;
+}
+
+/** SPM-65 AC3: GET /api/events/:id/change-requests/:requestId/conflicts (read-only). */
+export interface ChangeRequestConflicts {
+  requestId: string;
+  venueBookings: ArrangementImpact[];
+  equipment: ArrangementImpact[];
+  registrations: { registered: number; waitlisted: number; details: string[] };
+  hasConflicts: boolean;
+}
+
+/** SPM-65 AC4/AC8: POST .../approve. */
+export interface ChangeRequestApproval {
+  request: ChangeRequest;
+  eventStatus: EventStatus;
+  safetyCheckReset: boolean;
+}
+
+/** SPM-65 AC10: one audit log entry. */
+export interface ChangeRequestAuditEntry {
+  id: string;
+  changeRequestId: string;
+  outcome: "Approved" | "Denied" | "Withdrawn" | "Closed";
+  changes: RequestedChange[];
+  requestedBy: string;
+  decidedBy: string;
+  reason?: string;
+  decidedAt: string;
 }
 
 /** Body of POST /api/events/:id/change-requests. */
@@ -309,6 +359,9 @@ export type NotificationType =
   | "coordinator_unassignment"
   | "coordinator_unavailable"
   | "coordinator_change_request"
+  /** SPM-65: the organiser's change request was approved or denied. */
+  | "change_request_approved"
+  | "change_request_denied"
   | "venue_booking"
   | "event_change"
   | "registration"
