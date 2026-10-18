@@ -119,6 +119,7 @@ export function EventListPage() {
   // SPM-61: attendees filter by their own relationship to each event instead
   // of by raw workflow status.
   const isAttendee = currentUser.role === "attendee";
+  const isOrganiser = currentUser.role === "organiser";
   const attendeeFilter = eventListFilters.attendee as AttendeeBrowseFilter;
   const setAttendeeFilter = (attendee: AttendeeBrowseFilter) => setEventListFilters({ attendee });
   // SPM-95 AC2, AC7: an organiser's multi-select lives in local state, so leaving the list for an event's details resets it.
