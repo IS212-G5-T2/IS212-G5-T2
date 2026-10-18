@@ -1,10 +1,7 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { BOOKING_OPEN_STATUSES, shouldTransitionToPlanning } from '../../events/types/event-status.js';
 import type pg from 'pg';
-import {
-  BOOKING_OPEN_STATUSES,
-  shouldTransitionToPlanning,
-} from '../../events/types/event-status.js';
 import { DatabaseService } from '../../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../../common/clock.js';
 import { accessibilityOptions } from '../helpers/accessibility-options.js';
@@ -176,42 +173,75 @@ export class VenuesRepository {
     | { kind: 'venue-not-found' }
     | { kind: 'event-not-assigned' }
     | { kind: 'event-not-open'; status: string }
+    | { kind: 'event-not-eligible' }
+    | { kind: 'duplicate-request'; id: string }
     | { kind: 'conflict'; reason: string }
-    | {
-        kind: 'created';
-        id: string;
-        start: string;
-        end: string;
-        eventStatus: string;
-        statusChanged: boolean;
-      }
+    | { kind: 'unsuitable'; reasons: string[] }
+    | { kind: 'created'; id: string; start: string; end: string; eventStatus: string; statusChanged: boolean }
   > {
     return this.database.transaction(async (client) => {
       const venue = await client.query<{
         id: string;
+        capacity: number;
         setup_time_minutes: number;
         turnaround_time_minutes: number;
+        facilities: string[];
+        accessibility: string[];
+        layouts: string[];
       }>(
-        'SELECT id, setup_time_minutes, turnaround_time_minutes FROM venues WHERE id = $1::uuid FOR UPDATE',
+        `SELECT v.id, v.capacity, v.setup_time_minutes, v.turnaround_time_minutes,
+          COALESCE((SELECT array_agg(f.name) FROM venue_facilities vf JOIN facilities f ON f.id = vf.facility_id WHERE vf.venue_id = v.id), ARRAY[]::varchar[]) AS facilities,
+          COALESCE((SELECT array_agg(a.label) FROM venue_accessibility va JOIN accessibility_features a ON a.id = va.accessibility_id WHERE va.venue_id = v.id), ARRAY[]::varchar[]) AS accessibility,
+          COALESCE((SELECT array_agg(l.name) FROM venue_layouts vl JOIN room_layouts l ON l.id = vl.layout_id WHERE vl.venue_id = v.id), ARRAY[]::varchar[]) AS layouts
+         FROM venues v WHERE v.id = $1::uuid FOR UPDATE OF v`,
         [venueId],
       );
       const venueRow = venue.rows[0];
       if (!venueRow) return { kind: 'venue-not-found' };
 
-      // SPM-148 PLAN-STATUS-02-E, 03-D: the event row lock (FOR UPDATE) serialises parallel first requests.
-      // The event row lock serialises first requests: the status check, the
-      // booking, the compare-and-set and the history row commit as one unit.
-      const event = await client.query<{ id: string; status: string }>(
-        'SELECT id, status FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
+      const event = await client.query<{
+        id: string; status: string; expected_attendance: number; preferred_room_layout: string;
+        required_facilities: string[]; accessibility_needs: string[];
+        start_date_time: Date; end_date_time: Date;
+      }>(
+        `SELECT id, status, expected_attendance, preferred_room_layout, required_facilities, accessibility_needs,
+                start_date_time, end_date_time
+         FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE`,
         [input.eventId, coordinatorId],
       );
+      if (!event.rows[0]) return { kind: 'event-not-assigned' };
       const eventRow = event.rows[0];
-      if (!eventRow) return { kind: 'event-not-assigned' };
-      // SPM-148 PLAN-STATUS-01-B: Submitted, Rejected, Completed and Cancelled answer 409 (event-not-open).
       if (!(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status))
         return { kind: 'event-not-open', status: eventRow.status };
 
-      // SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
+      // The pair-keyed request is permanent: terminal booking history still
+      // prevents another request for this event and venue, regardless of dates.
+      const duplicate = await client.query<{ id: string }>(
+        `SELECT b.id
+           FROM venue_booking_requests r
+           JOIN venue_bookings b ON b.event_id = r.event_id AND b.venue_id = r.venue_id
+          WHERE r.event_id = $1::uuid AND r.venue_id = $2::uuid
+          ORDER BY b.created_at DESC, b.id DESC
+          LIMIT 1`,
+        [input.eventId, venueId],
+      );
+      if (duplicate.rows[0]) return { kind: 'duplicate-request', id: duplicate.rows[0].id };
+
+      const normalize = (items: string[]) => new Set(items.map((item) => item.trim().toLocaleLowerCase()));
+      const availableFacilities = normalize(venueRow.facilities);
+      const availableAccessibility = normalize(venueRow.accessibility);
+      const availableLayouts = normalize(venueRow.layouts);
+      const reasons = [
+        ...(venueRow.capacity < eventRow.expected_attendance ? [`Capacity ${venueRow.capacity} is below required attendance ${eventRow.expected_attendance}.`] : []),
+        ...eventRow.required_facilities.filter((item) => !availableFacilities.has(item.trim().toLocaleLowerCase())).map((item) => `Missing facility: ${item}.`),
+        ...eventRow.accessibility_needs.filter((item) => !availableAccessibility.has(item.trim().toLocaleLowerCase())).map((item) => `Missing accessibility feature: ${item}.`),
+        ...(eventRow.preferred_room_layout && !availableLayouts.has(eventRow.preferred_room_layout.trim().toLocaleLowerCase()) ? [`Required layout unavailable: ${eventRow.preferred_room_layout}.`] : []),
+      ];
+      if (reasons.length) return { kind: 'unsuitable', reasons };
+
+      const start = eventRow.start_date_time;
+      const end = eventRow.end_date_time;
+
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
            SELECT COALESCE(reason, 'Venue unavailable') AS reason
@@ -233,8 +263,8 @@ export class VenuesRepository {
          ) conflicts LIMIT 1`,
         [
           venueId,
-          input.start,
-          input.end,
+          start,
+          end,
           venueRow.setup_time_minutes,
           venueRow.turnaround_time_minutes,
           this.clock.now(),
@@ -243,7 +273,12 @@ export class VenuesRepository {
       if (conflict.rows[0])
         return { kind: 'conflict', reason: conflict.rows[0].reason };
 
-      // SPM-148 PLAN-STATUS-02-A, 02-C: the booking row, written in the same transaction as the status change and history row.
+      await client.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
+         VALUES ($1::uuid, $2::uuid, $3)`,
+        [input.eventId, venueId, input.specialRequests ?? null],
+      );
+
       const saved = await client.query<{
         id: string;
         start_at: Date;
@@ -252,54 +287,63 @@ export class VenuesRepository {
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
          VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending')
          RETURNING id, start_at, end_at`,
-        [venueId, input.eventId, input.start, input.end],
+        [venueId, input.eventId, start, end],
       );
       const row = saved.rows[0];
-      // SPM-148 PLAN-STATUS-01-A, 01-B, 03-A, 03-B: transition in the same transaction as the booking; only a request for an Approved event moves it.
-      const statusChanged = await this.moveToPlanning(
-        client,
-        input.eventId,
-        coordinatorId,
-        eventRow.status,
-      );
-      return {
-        kind: 'created',
-        id: row.id,
-        start: row.start_at.toISOString(),
-        end: row.end_at.toISOString(),
-        eventStatus: statusChanged ? 'Planning' : eventRow.status,
-        statusChanged,
-      };
+      const statusChanged = await this.moveToPlanning(client, input.eventId, coordinatorId, eventRow.status);
+      return { kind: 'created', id: row.id, start: row.start_at.toISOString(), end: row.end_at.toISOString(), eventStatus: statusChanged ? 'Planning' : eventRow.status, statusChanged };
     });
   }
 
-  /**
-   * SPM-148 R1/R4: compare-and-set Approved -> Planning inside the booking
-   * transaction. Only the request whose UPDATE touches a row writes history.
-   */
-  private async moveToPlanning(
-    client: pg.PoolClient,
-    eventId: string,
-    actorId: string,
-    status: string,
-  ): Promise<boolean> {
-    // SPM-148 PLAN-STATUS-01-B, 03-A: only Approved moves to Planning; later requests leave the status alone.
+  private async moveToPlanning(client: pg.PoolClient, eventId: string, actorId: string, status: string): Promise<boolean> {
     if (!shouldTransitionToPlanning(status)) return false;
     const now = this.clock.now();
-    const moved = await client.query(
-      `UPDATE events SET status = 'Planning', updated_at = $2::timestamptz
-        WHERE id = $1::uuid AND status = 'Approved'`,
-      [eventId, now],
-    );
-    // SPM-148 PLAN-STATUS-02-E, 03-D: a lost compare-and-set writes no history row.
-    if (moved.rowCount !== 1) return false;
-    // SPM-148 PLAN-STATUS-02-D, 04-A, 04-C, 04-D: history row; actor is the session user and the time the injected clock (not SQL now()); append-only.
-    await client.query(
-      `INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at)
-       VALUES ($1::uuid, $2::uuid, 'Approved', 'Planning', $3::text, $4::timestamptz)`,
-      [randomUUID(), eventId, actorId, now],
-    );
+    const moved = await client.query(`UPDATE events SET status = 'Planning', updated_at = $2::timestamptz WHERE id = $1::uuid AND status = 'Approved'`, [eventId, now]);
+    if (moved?.rowCount !== 1) return false;
+    await client.query(`INSERT INTO event_status_history (id, event_id, from_status, to_status, actor_id, created_at) VALUES ($1::uuid, $2::uuid, 'Approved', 'Planning', $3::text, $4::timestamptz)`, [randomUUID(), eventId, actorId, now]);
     return true;
+  }
+
+  async listCoordinatorBookings(coordinatorId: string) {
+    const result = await this.database.query<{
+      id: string; event_id: string; event_name: string; venue_id: string; venue_name: string;
+      start_at: Date; end_at: Date; status: string; special_request: string | null; created_at: Date;
+      affected: boolean;
+    }>(`SELECT b.id, b.event_id, e.event_name, b.venue_id, v.name AS venue_name,
+          b.start_at, b.end_at, b.status, r.special_request, b.created_at,
+          EXISTS (SELECT 1 FROM venue_bookings x WHERE x.venue_id = b.venue_id AND x.status = 'blocked'
+            AND x.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)
+            AND x.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected
+        FROM venue_bookings b JOIN events e ON e.id = b.event_id JOIN venues v ON v.id = b.venue_id
+        LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
+        WHERE e.coordinator_id = $1::text AND b.status <> 'blocked'
+        ORDER BY b.created_at DESC, b.id`, [coordinatorId]);
+    return result.rows.map((row) => ({
+      id: row.id, eventId: row.event_id, eventName: row.event_name, venueId: row.venue_id,
+      venueName: row.venue_name, start: row.start_at.toISOString(), end: row.end_at.toISOString(),
+      status: row.status, specialRequests: row.special_request ?? '',
+      createdAt: row.created_at.toISOString(), affectedByUnavailablePeriod: row.affected,
+      bookingReference: `VB-${row.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    }));
+  }
+
+  async cancelCoordinatorBooking(coordinatorId: string, bookingId: string, confirmLastActive = false) {
+    return this.database.transaction(async (client) => {
+      const current = await client.query<{ event_id: string }>(
+        `SELECT b.event_id FROM venue_bookings b JOIN events e ON e.id = b.event_id
+          WHERE b.id = $1::uuid AND e.coordinator_id = $2::text AND b.status IN ('pending','approved') FOR UPDATE OF e, b`, [bookingId, coordinatorId]);
+      if (!current.rows[0]) return undefined;
+      const active = await client.query<{ count: string }>(
+        `SELECT count(*)::text AS count FROM venue_bookings WHERE event_id = $1::uuid AND status IN ('pending','approved')`, [current.rows[0].event_id]);
+      if (Number(active.rows[0]?.count) === 1 && !confirmLastActive) return { kind: 'confirmation-required' as const };
+      const row = await client.query<{ id: string; event_id: string }>(
+        `UPDATE venue_bookings b SET status = 'cancelled'
+          FROM events e WHERE b.id = $1::uuid AND b.event_id = e.id
+            AND e.coordinator_id = $2::text AND b.status IN ('pending','approved')
+          RETURNING b.id, b.event_id`, [bookingId, coordinatorId]);
+      if (!row.rows[0]) return undefined;
+      return { id: row.rows[0].id, eventId: row.rows[0].event_id, hasOtherActiveBookings: Number(active.rows[0]?.count) > 1 };
+    });
   }
 
   /** Block a venue without altering existing event bookings or holds. */

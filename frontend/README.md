@@ -53,7 +53,7 @@ List view shows the same schedule records as date-grouped cards. Free periods
 are based on bookings, active holds, unavailable periods, and setup/turnaround
 buffers; no venue operating-hours schedule is used.
 Coordinators can switch between the calendar and list schedule views, review booking/hold/blockout conflicts,
-and submit a booking request only when the requested range is clear. The check
+and submit a booking request only when the selected event's saved period is clear. Event times are read-only in this flow. The check
 includes the venue's configured setup and turnaround buffers; active holds show
 their expiry time and expired holds are omitted by the API. Submission posts to
 `POST /api/venues/:id/booking-requests`, which rechecks the live schedule and
@@ -218,6 +218,22 @@ allowed while its end remains ahead.
 Periods display as separate cards with Active now or Scheduled labels. The form
 places date fields side by side on wider screens and stacks them on small screens;
 review, success, and error messages appear in separate panels.
+
+## Submit a venue booking request (SPM-54)
+
+From an event-specific venue selection, the Coordinator sees capacity, facility,
+accessibility, and layout suitability reasons before continuing. The UI and
+server block mismatches and schedule conflicts. Event details are reused and
+special requests are optional. The request submits only the event ID and note;
+the backend reads booking times from the assigned event. **My Bookings** lists each venue request and
+marks bookings affected by unavailable periods; coordinators can request
+different venues for the same event while preserving prior booking history. A
+venue can be requested only once for an event, even after cancellation or rejection. Cancelling
+one pending or approved booking leaves other venue requests untouched. A
+browser confirmation is required when the selected request appears to be the
+event's last active booking; the server verifies that requirement as well.
+Run the SPM-54 UI mutation checks with
+`node scripts/testing/mutation/run.mjs --mutants spm54.mutants.mjs`.
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view

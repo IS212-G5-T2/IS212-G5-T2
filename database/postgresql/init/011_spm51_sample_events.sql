@@ -33,7 +33,9 @@ FROM (VALUES
         'Medium-length seminar with hybrid presentation equipment.', 21,
         '10:00'::time, 21, '13:00'::time, 80, 'Theatre',
         ARRAY['AV System', 'Wi-Fi']::text[],
-        ARRAY['Wheelchair ramps', 'Accessible restrooms']::text[],
+        -- Match the canonical venue accessibility label so at least one seeded
+        -- venue can satisfy this event without reporting a terminology-only mismatch.
+        ARRAY['Wheelchair access', 'Accessible restrooms']::text[],
         'Two microphones, camera, and presentation screen.', true, 'Approved',
         'organiser2@connectsphere.test'
     ),

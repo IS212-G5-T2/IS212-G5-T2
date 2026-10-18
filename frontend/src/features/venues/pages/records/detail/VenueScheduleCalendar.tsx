@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import FullCalendar from "@fullcalendar/react";
 import type { CalendarRef } from "@fullcalendar/react";
 import breezyThemePlugin from "@fullcalendar/react/themes/breezy";
@@ -21,6 +21,8 @@ export interface VenueScheduleEntry {
   display?: "auto" | "background";
   extendedProps: { detail: string; category: ScheduleCategory };
 }
+
+const MOBILE_VIEWPORT_QUERY = "(max-width: 640px)";
 
 /** Selection validity depends on a positive time range, not venue operating hours. */
 export function isValidVenueSelection(start: Date, end: Date): boolean {
@@ -119,6 +121,13 @@ interface VenueScheduleCalendarProps {
 
 export function VenueScheduleCalendar({ venue, initialDate, selectedRange, onSelectRange, onClearSelection }: VenueScheduleCalendarProps) {
   const calendarRef = useRef<CalendarRef | null>(null);
+  const [isMobileViewport, setIsMobileViewport] = useState(
+    () => typeof window !== "undefined" && (
+      typeof window.matchMedia === "function"
+        ? window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+        : window.innerWidth <= 640
+    ),
+  );
   const events = (range: { start: Date; end: Date }, success: (events: VenueScheduleEntry[]) => void) => {
     const selectedEvent = selectedRange
       ? [{
@@ -138,21 +147,43 @@ export function VenueScheduleCalendar({ venue, initialDate, selectedRange, onSel
     if (initialDate) calendarRef.current?.getApi().gotoDate(initialDate);
   }, [initialDate]);
 
+  useEffect(() => {
+    const mediaQuery = typeof window.matchMedia === "function"
+      ? window.matchMedia(MOBILE_VIEWPORT_QUERY)
+      : undefined;
+    const updateViewport = () => setIsMobileViewport(mediaQuery?.matches ?? window.innerWidth <= 640);
+    updateViewport();
+    window.addEventListener("resize", updateViewport);
+    mediaQuery?.addEventListener("change", updateViewport);
+    return () => {
+      window.removeEventListener("resize", updateViewport);
+      mediaQuery?.removeEventListener("change", updateViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    const calendar = calendarRef.current?.getApi();
+    if (!calendar) return;
+    calendar.changeView(isMobileViewport ? "timeGridDay" : "timeGridWeek", calendar.getDate());
+  }, [isMobileViewport]);
+
+  const responsiveClass = isMobileViewport ? "venue-schedule-calendar--mobile" : "venue-schedule-calendar--desktop";
+
   return (
-    <section className="venue-schedule-calendar" aria-label="Venue schedule calendar">
-      <div aria-label="Schedule legend" className="venue-schedule-legend">
+    <section className={`venue-schedule-calendar ${responsiveClass} w-full min-w-0 max-w-full overflow-hidden`} aria-label="Venue schedule calendar">
+      <div aria-label="Schedule legend" className="venue-schedule-legend flex min-w-0 max-w-full flex-wrap">
         <span><i className="schedule-legend-dot bg-blue-700" />Confirmed booking</span>
         <span><i className="schedule-legend-dot bg-yellow-700" />Tentative hold</span>
         <span><i className="schedule-legend-dot bg-red-700" />Unavailable</span>
         <span><i className="schedule-legend-dot bg-green-700" />Available</span>
         <span><i className="schedule-legend-dot bg-slate-500" />Setup and turnaround buffer</span>
       </div>
-  <p className="venue-schedule-caption">Times are shown in Singapore Time (SGT). Green periods are clear of bookings, holds, unavailable periods, setup, and turnaround buffers; check availability before submitting.</p>
-      <div className="venue-schedule-calendar-scroll">
+  <p className="venue-schedule-caption break-words">Times are shown in Singapore Time (SGT). Green periods are clear of bookings, holds, unavailable periods, setup, and turnaround buffers; check availability before submitting.</p>
+      <div className="venue-schedule-calendar-scroll w-full min-w-0 max-w-full overflow-x-auto">
         <FullCalendar
         ref={calendarRef}
           plugins={[breezyThemePlugin, timeGridPlugin, interactionPlugin]}
-        initialView="timeGridWeek"
+        initialView={isMobileViewport ? "timeGridDay" : "timeGridWeek"}
         initialDate={initialDate || undefined}
         timeZone="Asia/Singapore"
         allDaySlot={false}
@@ -166,12 +197,16 @@ export function VenueScheduleCalendar({ venue, initialDate, selectedRange, onSel
         slotDuration="01:00:00"
         slotHeaderInterval="01:00:00"
         scrollTime="08:00:00"
-        headerToolbar={{ left: "title", center: "", right: "prev,next today timeGridWeek,timeGridDay" }}
+        headerToolbar={{ left: "title", center: "", right: isMobileViewport ? "prev,next today" : "prev,next today timeGridWeek,timeGridDay" }}
+        prevText={isMobileViewport ? "‹" : undefined}
+        nextText={isMobileViewport ? "›" : undefined}
+        prevHint={isMobileViewport ? "Previous day" : "Previous Week"}
+        nextHint={isMobileViewport ? "Next day" : "Next Week"}
         dayHeaderFormat={{ weekday: "short", month: "numeric", day: "numeric" }}
         tableHeaderSticky
         nowIndicator
         events={events}
-        selectable
+        selectable={Boolean(onSelectRange)}
         selectMirror
         selectAllow={(selection) => isValidVenueSelection(selection.start, selection.end)}
         select={onSelectRange ? (selection) => onSelectRange(selection.start, selection.end) : undefined}
@@ -180,7 +215,7 @@ export function VenueScheduleCalendar({ venue, initialDate, selectedRange, onSel
         }}
         eventContent={(info) => (
           info.event.extendedProps.category === "selected" ? (
-            <div className="venue-schedule-event" title="Click to clear the selected event time">
+            <div className="venue-schedule-event" title={onClearSelection ? "Click to clear the selected event time" : "Selected event time"}>
               {info.timeText}
             </div>
           ) : (

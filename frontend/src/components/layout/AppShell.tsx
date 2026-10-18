@@ -17,10 +17,10 @@ export function AppShell() {
         Skip to main content
       </a>
       <Sidebar mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} />
-      <div className="flex min-h-screen flex-1 flex-col">
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         <TopNav onMenuClick={() => setMobileNavOpen(true)} />
-        <main id="main-content" className="flex-1 px-4 py-6 lg:px-8">
-          <div className="mx-auto max-w-6xl">
+        <main id="main-content" className="min-w-0 flex-1 px-4 py-6 lg:px-8">
+          <div className="mx-auto w-full min-w-0 max-w-6xl">
             <RejectionNotifications />
             <WaitlistNotifications />
             <Outlet />

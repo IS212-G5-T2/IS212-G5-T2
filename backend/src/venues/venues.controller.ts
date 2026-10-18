@@ -10,6 +10,16 @@ export class VenuesController {
   /* v8 ignore stop */
   constructor(private readonly venues: VenuesService) {}
 
+  @Get('my-bookings')
+  myBookings(@Req() request: AuthenticatedRequest) {
+    return this.venues.myBookings(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
+  @Post('booking-requests/:bookingId/cancel')
+  cancelBookingRequest(@Req() request: AuthenticatedRequest, @Param('bookingId') bookingId: string, @Body() body: unknown) {
+    return this.venues.cancelBookingRequest(request[CURRENT_USER_REQUEST_KEY], bookingId, body);
+  }
+
   @Get()
   list(@Req() request: AuthenticatedRequest, @Query('mine') mine?: string) {
     return this.venues.list(request[CURRENT_USER_REQUEST_KEY], mine === 'true');

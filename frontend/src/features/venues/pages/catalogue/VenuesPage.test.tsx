@@ -73,6 +73,11 @@ function SwitchCatalogueEvent() {
   </>;
 }
 
+function AbandonSearch() {
+  const navigate = useNavigate();
+  return <button onClick={() => navigate(`/events/${event.id}`)}>Abandon venue search</button>;
+}
+
 describe("VenuesPage catalogue loading", () => {
   beforeEach(() => {
     apiMock.mockReset();
@@ -108,6 +113,46 @@ describe("VenuesPage catalogue loading", () => {
     expect(screen.getByText(/Searching venues suitable for/)).toHaveTextContent("Planning Workshop");
     expect(screen.getByText("Suitable")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Back to event" })).toHaveAttribute("href", "/events/event-51");
+  });
+
+  /** VEN-BKG-06-B: opening then abandoning event-specific replacement search makes no booking POST and leaves event/booking state unchanged. */
+  it("abandons an event-specific venue search without submitting or changing the event's booking history", async () => {
+    const originalBooking = {
+      id: "booking-original",
+      eventId: event.id,
+      venueId: venue.id,
+      eventName: event.name,
+      venueName: venue.name,
+      requestedBy: "Coordinator",
+      start: event.startDateTime,
+      end: event.endDateTime,
+      status: "approved" as const,
+      bookingReference: "VB-ORIGINAL",
+      createdAt: "2026-10-01T00:00:00Z",
+    };
+    const user = userEvent.setup();
+    useAppStore.setState({ bookings: [originalBooking] });
+    apiMock.mockResolvedValue([venue]);
+    render(
+      <MemoryRouter initialEntries={["/venues?eventId=event-51"]}>
+        <AbandonSearch />
+        <Routes>
+          <Route path="/venues" element={<VenuesPage />} />
+          <Route path="/events/:id" element={<p>Returned to event planning</p>} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Orchid Hall" })).toBeInTheDocument();
+    expect(screen.getByText(/Searching venues suitable for/)).toHaveTextContent(event.name);
+    await user.click(screen.getByRole("button", { name: "Abandon venue search" }));
+
+    expect(await screen.findByText("Returned to event planning")).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    expect(apiMock).toHaveBeenCalledWith("/venues");
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("booking-requests"))).toBe(false);
+    expect(useAppStore.getState().events).toEqual([event]);
+    expect(useAppStore.getState().bookings).toEqual([originalBooking]);
   });
 
   /** SPM-51 refresh regression: a cold store loads the URL's event before exposing its availability action. */

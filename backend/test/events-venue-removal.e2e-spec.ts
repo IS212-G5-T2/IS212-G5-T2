@@ -168,7 +168,7 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
 
   /**
    * An unavailable (blocked-window) venue request can be removed. The response confirms removal, the
-   * booking row is gone, the approved safety check is reset, and the venue section is not requested.
+   * booking history is retained as cancelled, the approved safety check is reset, and the venue section is not requested.
    */
   it('VENUE-REMOVE-01: removing the only (unavailable) venue request leaves the venue not requested', async () => {
     // Arrange: the approved booking is blocked for its window; the approved safety check is in place
@@ -183,7 +183,8 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
 
     // Assert
     expect(response.body).toMatchObject({ eventId: id, removed: true });
-    expect(await bookingExists(bookingId)).toBe(0);
+    expect(await bookingExists(bookingId)).toBe(1);
+    expect((await pool.query('SELECT status FROM venue_bookings WHERE id = $1', [bookingId])).rows[0].status).toBe('cancelled');
     expect(await safetyOf(id)).toBeUndefined();
     const checklist = await checklistOf(id);
     expect(checklist.venue).toMatchObject({ status: 'not_requested', items: [] });
@@ -275,7 +276,7 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
     expect(await bookingExists(pendingId)).toBe(1);
   });
 
-  /** A rejected venue request counts as unavailable, so the coordinator can remove it (200). */
+  /** A rejected venue request counts as unavailable, so the coordinator can remove it while preserving cancelled history (200). */
   it('VENUE-REMOVE-06: a rejected venue request is removed from the list', async () => {
     // Arrange: a second request was rejected by the venue
     const { id } = await seedApprovedEvent();
@@ -288,7 +289,8 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
 
     // Assert
     expect(response.body).toMatchObject({ eventId: id, venueRequestId: rejectedId, removed: true });
-    expect(await bookingExists(rejectedId)).toBe(0);
+    expect(await bookingExists(rejectedId)).toBe(1);
+    expect((await pool.query('SELECT status FROM venue_bookings WHERE id = $1', [rejectedId])).rows[0].status).toBe('cancelled');
     expect(await safetyOf(id)).toBeUndefined();
   });
 

@@ -18,19 +18,42 @@ const coordinator: AuthenticatedUser = {
 };
 const body = {
   eventId,
-  start: '2030-01-12T04:00:00.000Z',
-  end: '2030-01-12T05:00:00.000Z',
+  specialRequests: 'Step-free access',
 };
+const eventStart = '2030-01-12T04:00:00.000Z';
+const eventEnd = '2030-01-12T05:00:00.000Z';
 
 describe('SPM-51 venue booking request submission', () => {
   const submitBookingRequest = vi.fn();
+  const listCoordinatorBookings = vi.fn();
+  const cancelCoordinatorBooking = vi.fn();
   const service = new VenuesService(
-    { submitBookingRequest } as unknown as VenuesRepository,
+    { submitBookingRequest, listCoordinatorBookings, cancelCoordinatorBooking } as unknown as VenuesRepository,
     {} as RbacRepository,
   );
 
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  /** VEN-BKG-08: only an authenticated Coordinator can read their venue booking list. */
+  it('authorizes and scopes the booking list to the verified coordinator identity', async () => {
+    listCoordinatorBookings.mockResolvedValue([]);
+    await expect(service.myBookings(coordinator)).resolves.toEqual([]);
+    expect(listCoordinatorBookings).toHaveBeenCalledWith(coordinator.uid);
+    await expect(service.myBookings(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.myBookings({ uid: 'staff', roles: ['VENUE_STAFF'] })).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  /** VEN-BKG-09/10: cancellation verifies ownership and enforces last-active confirmation. */
+  it('validates one booking cancellation and requires confirmation for the final active request', async () => {
+    await expect(service.cancelBookingRequest(coordinator, 'invalid', {})).rejects.toBeInstanceOf(NotFoundException);
+    cancelCoordinatorBooking.mockResolvedValueOnce({ kind: 'confirmation-required' });
+    await expect(service.cancelBookingRequest(coordinator, '00000000-0000-4000-8000-000000000099', {})).rejects.toBeInstanceOf(ConflictException);
+    cancelCoordinatorBooking.mockResolvedValueOnce({ id: 'booking-1', eventId, hasOtherActiveBookings: true });
+    await expect(service.cancelBookingRequest(coordinator, '00000000-0000-4000-8000-000000000099', { confirmLastActive: true })).resolves.toEqual({ id: 'booking-1', eventId, hasOtherActiveBookings: true });
+    await expect(service.cancelBookingRequest(undefined, '00000000-0000-4000-8000-000000000099', {})).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(service.cancelBookingRequest({ uid: 'staff', roles: ['VENUE_STAFF'] }, '00000000-0000-4000-8000-000000000099', {})).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   /** VEN-AVL-07-SEC-1: an API conflict refuses the request and leaves persistence untouched. */
@@ -55,8 +78,8 @@ describe('SPM-51 venue booking request submission', () => {
     submitBookingRequest.mockResolvedValue({
       kind: 'created',
       id: '00000000-0000-4000-8000-000000000099',
-      start: body.start,
-      end: body.end,
+      start: eventStart,
+      end: eventEnd,
     });
 
     await expect(
@@ -65,10 +88,11 @@ describe('SPM-51 venue booking request submission', () => {
       id: '00000000-0000-4000-8000-000000000099',
       eventId,
       venueId,
-      start: body.start,
-      end: body.end,
+      start: eventStart,
+      end: eventEnd,
       status: 'pending',
       bookingReference: 'VB-00000000',
+      specialRequests: 'Step-free access',
     });
   });
 

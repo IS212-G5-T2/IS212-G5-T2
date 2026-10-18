@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { api, ApiError } from "@/utils/api";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/FormControls";
 import { BookingCard } from "@/features/bookings/pages/requests/BookingCard";
@@ -9,19 +10,31 @@ import type { Booking } from "@/types";
 export function BookingsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const bookings = useAppStore((s) => s.bookings);
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("");
   const [selected, setSelected] = useState<Booking | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [reload, setReload] = useState(0);
+  useEffect(() => {
+    if (currentUser.role !== "coordinator") return;
+    let active = true;
+    api<Array<Booking & { affectedByUnavailablePeriod?: boolean; specialRequests?: string; bookingReference?: string }>>("/venues/my-bookings")
+      .then((records) => {
+        if (active) {
+          useAppStore.setState({ bookings: records.map((record) => ({ ...record, requestedBy: currentUser.name, status: record.status as Booking["status"] })) });
+          setLoadError("");
+        }
+      })
+      .catch((error: unknown) => { if (active) setLoadError(error instanceof ApiError ? error.message : "Unable to load your venue bookings."); });
+    return () => { active = false; };
+  }, [currentUser.name, currentUser.role, reload]);
 
   const filtered = useMemo(() => {
     let scoped = bookings;
-    if (currentUser.role === "coordinator") {
-      scoped = bookings.filter((b) => b.requestedBy === currentUser.name);
-    }
     if (statusFilter) {
       scoped = scoped.filter((b) => b.status === statusFilter);
     }
-    return scoped.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }, [bookings, currentUser, statusFilter]);
+    return [...scoped].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [bookings, statusFilter]);
 
   return (
     <div>
@@ -34,6 +47,7 @@ export function BookingsPage() {
         }
       />
 
+      {loadError && <p role="alert">{loadError}</p>}
       <div className="mb-4 max-w-xs">
         <Select
           label="Status filter"
@@ -43,6 +57,7 @@ export function BookingsPage() {
             { value: "pending", label: "Pending" },
             { value: "approved", label: "Approved" },
             { value: "rejected", label: "Rejected" },
+            { value: "cancelled", label: "Cancelled" },
           ]}
         />
       </div>
@@ -54,7 +69,7 @@ export function BookingsPage() {
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {filtered.map((b) => (
-            <BookingCard key={b.id} booking={b} onReview={setSelected} />
+            <BookingCard key={b.id} booking={b} onReview={setSelected} onCancelled={() => setReload((value) => value + 1)} />
           ))}
         </div>
       )}

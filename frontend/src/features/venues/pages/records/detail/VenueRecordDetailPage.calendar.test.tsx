@@ -13,15 +13,19 @@ import type { VenueRecord } from "../venue-records";
 
 vi.mock("@fullcalendar/react", () => ({
   default: (props: Record<string, unknown>) => createElement(
-    "button",
-    {
+    "div",
+    null,
+    createElement("button", {
       type: "button",
       onClick: () => (props.select as (selection: { start: Date; end: Date }) => void)?.({
         start: new Date("2030-01-12T08:00:00.000Z"),
         end: new Date("2030-01-12T09:00:00.000Z"),
       }),
-    },
-    "Drag event range",
+    }, "Drag event range"),
+    createElement("button", {
+      type: "button",
+      onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)?.({ event: { id: "selected-event-time" } }),
+    }, "Clear selected event range"),
   ),
 }));
 
@@ -66,7 +70,7 @@ beforeEach(() => {
       description: "",
       organiserId: "org-1",
       organiserName: "Organiser",
-      status: "submitted",
+      status: "approved",
       startDateTime: "2030-01-12T06:00:00.000Z",
       endDateTime: "2030-01-12T07:00:00.000Z",
       expectedAttendance: 20,
@@ -84,25 +88,40 @@ afterEach(() => {
 });
 
 function renderPage() {
-  return render(<MemoryRouter initialEntries={[`/venue-records/${venueId}`]}>
+  return render(<MemoryRouter initialEntries={[`/venue-records/${venueId}?eventId=event-1`]}>
     <Routes><Route path="/venue-records/:id" element={<VenueRecordDetailPage />} /></Routes>
   </MemoryRouter>);
 }
 
 describe("VenueRecordDetailPage calendar range handoff", () => {
+  /** SPM-51 calendar browsing remains editable without an event; selected ranges can be cleared. */
+  it("supports selecting and clearing an availability range without event booking context", async () => {
+    apiMock.mockImplementation(async () => venue as never);
+    render(<MemoryRouter initialEntries={[`/venue-records/${venueId}`]}>
+      <Routes><Route path="/venue-records/:id" element={<VenueRecordDetailPage />} /></Routes>
+    </MemoryRouter>);
+
+    await screen.findByRole("heading", { name: "Conference Room" });
+    fireEvent.click(screen.getByRole("button", { name: "Drag event range" }));
+    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T16:00");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T17:00");
+    fireEvent.click(screen.getByRole("button", { name: "Clear selected event range" }));
+    expect(screen.getByLabelText("Event starts")).toHaveValue("");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("");
+  });
+
   /** SPM-51 AC6: the loaded schedule immediately determines availability; refreshing is optional. */
   it("shows the available result and review action without requiring a schedule refresh", async () => {
-    apiMock.mockResolvedValue(venue);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
     renderPage();
 
     await screen.findByRole("heading", { name: "Conference Room" });
     fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T14:00" } });
     fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T15:00" } });
 
-    expect(screen.getByRole("status")).toHaveTextContent("available for this venue");
-    expect(screen.getByRole("button", { name: "Continue to booking request" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh schedule" })).toBeInTheDocument();
-    expect(apiMock).toHaveBeenCalledOnce();
+    await act(async () => { await vi.waitFor(() => expect(apiMock).toHaveBeenCalledWith("/venues/my-bookings")); });
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Continue to booking request" })).not.toBeInTheDocument();
   });
 
   /** SPM-51 ignores stale event IDs and empty start values without creating a valid range. */
@@ -116,7 +135,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
         createdAt: "2030-01-01T00:00:00.000Z", updatedAt: "2030-01-01T00:00:00.000Z",
       }],
     });
-    apiMock.mockResolvedValue(venue);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
     render(<MemoryRouter initialEntries={[`/venue-records/${venueId}?eventId=missing-event`]}>
       <Routes><Route path="/venue-records/:id" element={<VenueRecordDetailPage />} /></Routes>
     </MemoryRouter>);
@@ -125,12 +144,10 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     expect(screen.getByLabelText("Event starts")).toHaveValue("");
     fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T14:00" } });
     fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T15:00" } });
-    fireEvent.change(screen.getByLabelText("Event for booking request"), { target: { value: "missing-event" } });
     fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "" } });
 
     expect(screen.getByLabelText("Event starts")).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Refresh schedule" })).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Continue to booking request" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
   });
 
   /** SPM-51 date formatting safely supplies an empty part if a host formatter omits a requested field. */
@@ -143,7 +160,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
       omitYear = false;
       return parts.filter((part) => part.type !== "year");
     });
-    apiMock.mockResolvedValue(venue);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
 
     try {
       renderPage();
@@ -154,26 +171,18 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     }
   });
 
-  /** SPM-51 drag selection updates the requested range and exits stale review even when both ranges are free. */
-  it("recomputes availability after a calendar drag instead of retaining review eligibility", async () => {
-    apiMock.mockResolvedValue(venue);
+  /** SPM-54 AC3: calendar drag cannot replace the period of the selected persisted event. */
+  it("keeps event-specific booking times unchanged after a calendar drag", async () => {
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
     renderPage();
 
     await screen.findByRole("heading", { name: "Conference Room" });
-    fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T14:00" } });
-    fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T15:00" } });
-    expect(screen.getByRole("button", { name: "Continue to booking request" })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Continue to booking request" }));
-    expect(screen.getByRole("region", { name: "Review booking request" })).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Drag event range" }));
 
-    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T16:00");
-    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T17:00");
-    expect(screen.getByRole("status")).toHaveTextContent("available");
-    expect(screen.getByRole("button", { name: "Continue to booking request" })).toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Review booking request" })).not.toBeInTheDocument();
-    expect(apiMock).toHaveBeenCalledOnce();
+    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T14:00");
+    expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T15:00");
+    expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
   });
 
   /** VEN-AVL-10-A/B/BND-1 / ASSUMPTION A1: a hold becomes available at its expiry instant. */
@@ -182,7 +191,12 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
     vi.useFakeTimers();
     vi.setSystemTime(fixedNow);
-    apiMock.mockResolvedValue({
+    useAppStore.setState((state) => ({
+      events: state.events.map((event) => event.id === "event-1"
+        ? { ...event, startDateTime: "2030-01-12T04:00:00.000Z", endDateTime: "2030-01-12T05:00:00.000Z" }
+        : event),
+    }));
+    const scheduledVenue = {
       ...venue,
       reservations: [{
         id: "short-hold",
@@ -201,14 +215,13 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
         holdExpiresAt: "2030-01-01T12:00:02.000Z",
         affectedByUnavailablePeriod: false,
       }],
-    });
+    };
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : scheduledVenue) as never);
 
     try {
       renderPage();
       await act(async () => { await vi.advanceTimersByTimeAsync(0); });
       expect(screen.getByRole("heading", { name: "Conference Room" })).toBeInTheDocument();
-      fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T12:00" } });
-      fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T13:00" } });
       fireEvent.click(screen.getByRole("button", { name: "List" }));
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Expiring hold");
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Later hold");
@@ -217,7 +230,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
       await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
       expect(screen.getByRole("list", { name: "Venue schedule" })).not.toHaveTextContent("Expiring hold");
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Later hold");
-      expect(screen.getByRole("status")).toHaveTextContent("available");
+      expect(screen.getByRole("status")).toHaveTextContent("This time is available for this venue.");
       // ASSUMPTION A2: the product requires distinct available slots; it does not prescribe this exact visible label.
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("Available slot");
       expect(screen.getByRole("list", { name: "Venue schedule" })).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)");

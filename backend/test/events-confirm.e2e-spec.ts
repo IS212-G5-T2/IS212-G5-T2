@@ -165,7 +165,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     return result.rows[0].id;
   }
 
-  async function seedBooking(eventId: string, venueId: string, status: 'approved' | 'pending', holdExpiresAt?: string) {
+  async function seedBooking(eventId: string, venueId: string, status: 'approved' | 'pending' | 'cancelled' | 'rejected', holdExpiresAt?: string) {
     const result = await pool.query<{ id: string }>(
       `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status, hold_expires_at)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`,
@@ -370,6 +370,25 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       ['equipment', 'Requested'],
       ['safety', 'Awaiting Check'],
     ]);
+  });
+
+  /** SPM-135 AC1: canceled booking history remains in PostgreSQL but is absent from the planning read model. */
+  it('SPM-135 AC1: arrangements-status omits cancelled bookings while retaining active requests', async () => {
+    const eventId = await seedEvent({ name: 'Cancelled booking history', status: 'Planning', coordinatorId: coordinator.uid });
+    const cancelledVenueId = await seedVenue('Cancelled Venue');
+    const activeVenueId = await seedVenue('Active Venue');
+    const cancelledId = await seedBooking(eventId, cancelledVenueId, 'cancelled');
+    const activeId = await seedBooking(eventId, activeVenueId, 'pending');
+
+    const response = await http().get(`/api/events/${eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+
+    expect(response.body.checklist.venue.items).toEqual([
+      expect.objectContaining({ id: activeId, venueName: 'Active Venue', status: 'pending' }),
+    ]);
+    expect(response.body.outstanding.filter((item: { type: string }) => item.type === 'venue')).toEqual([
+      expect.objectContaining({ type: 'venue', state: 'Pending' }),
+    ]);
+    expect((await pool.query('SELECT status FROM venue_bookings WHERE id = $1', [cancelledId])).rows).toEqual([{ status: 'cancelled' }]);
   });
 
   // CONFIRM-EVENT-03-B (BE): satisfied items are not listed; after the venue is approved the confirm succeeds.

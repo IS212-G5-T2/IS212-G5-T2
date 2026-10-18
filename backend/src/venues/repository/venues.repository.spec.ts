@@ -28,6 +28,128 @@ const venueInput = {
 const ownerUserId = '8ff4073d-8baa-4d32-984e-b93a46cbe49d';
 
 describe('VenuesRepository', () => {
+  /** VEN-BKG-02: the backend rejects facility and capacity mismatches without inserting a request. */
+  it('refuses an unsuitable venue before schedule or insert queries', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: 25, setup_time_minutes: 0, turnaround_time_minutes: 0, facilities: [], accessibility: [], layouts: [] }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Approved', expected_attendance: 30, required_facilities: ['Projector'], accessibility_needs: ['Ramp'], preferred_room_layout: 'Classroom' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
+      eventId: '00000000-0000-4000-8000-000000000001',
+    })).resolves.toEqual({ kind: 'unsuitable', reasons: ['Capacity 25 is below required attendance 30.', 'Missing facility: Projector.', 'Missing accessibility feature: Ramp.', 'Required layout unavailable: Classroom.'] });
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  /** VEN-BKG-01-BND-1: capacity equal to attendance is suitable (equality is not a mismatch). */
+  it('allows a venue whose capacity exactly matches event attendance', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: 30, setup_time_minutes: 0, turnaround_time_minutes: 0, facilities: [], accessibility: [], layouts: [] }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning', expected_attendance: 30, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', start_date_time: new Date('2030-01-12T04:00:00Z'), end_date_time: new Date('2030-01-12T05:00:00Z') }] })
+      .mockResolvedValueOnce({ rows: [] }) // no permanent event/venue request
+      .mockResolvedValueOnce({ rows: [] }) // no schedule conflict
+      .mockResolvedValueOnce({ rows: [] }) // request association insert
+      .mockResolvedValueOnce({ rows: [{ id: 'booking-1', start_at: new Date('2030-01-12T04:00:00Z'), end_at: new Date('2030-01-12T05:00:00Z') }] });
+    const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+
+    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
+      eventId: '00000000-0000-4000-8000-000000000001',
+    })).resolves.toMatchObject({ kind: 'created' });
+    expect(query).toHaveBeenCalledTimes(6);
+  });
+
+  /** Only Approved and Planning events may reach availability checks and the venue-booking insert. */
+  it.each(['Submitted', 'Draft', 'Rejected', 'Completed', 'Cancelled', 'Unexpected'])(
+    'rejects a %s event before schedule checks or booking insertion',
+    async (status) => {
+      const query = vi.fn()
+        .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: 120, setup_time_minutes: 0, turnaround_time_minutes: 0, facilities: [], accessibility: [], layouts: [] }] })
+        .mockResolvedValueOnce({ rows: [{ id: 'event-1', status, expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', start_date_time: new Date('2030-01-12T04:00:00Z'), end_date_time: new Date('2030-01-12T05:00:00Z') }] })
+        .mockResolvedValueOnce({ rows: [] });
+      const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+
+      await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+      })).resolves.toEqual({ kind: 'event-not-open', status });
+      expect(query).toHaveBeenCalledTimes(2);
+      expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO venue_bookings'))).toBe(false);
+    },
+  );
+
+  /** VEN-BKG-10: the last active venue booking needs an explicit confirmation before cancellation. */
+  it('requires confirmation before cancelling the last active event booking', async () => {
+    const eventId = '00000000-0000-4000-8000-000000000001';
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ event_id: eventId }] })
+      .mockResolvedValueOnce({ rows: [{ count: '1' }] })
+      .mockResolvedValueOnce({ rows: [{ event_id: eventId }] })
+      .mockResolvedValueOnce({ rows: [{ count: '1' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'booking-1', event_id: eventId }] });
+    const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+    await expect(repository.cancelCoordinatorBooking(ownerUserId, 'booking-1')).resolves.toEqual({ kind: 'confirmation-required' });
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'cancelled'"))).toBe(false);
+    await expect(repository.cancelCoordinatorBooking(ownerUserId, 'booking-1', true)).resolves.toEqual({ id: 'booking-1', eventId, hasOtherActiveBookings: false });
+    expect(query.mock.calls.filter(([sql]) => String(sql).includes("SET status = 'cancelled'")).length).toBe(1);
+    expect(String(query.mock.calls[0][0])).toContain('b.id = $1::uuid');
+    expect(String(query.mock.calls[0][0])).toContain('e.coordinator_id = $2::text');
+  });
+
+  /** VEN-BKG-08: the session coordinator's list contains independent venue statuses and affected-booking detail. */
+  it('maps every coordinator venue booking with its event, venue, status, and unavailable indicator', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [{
+      id: '00000000-0000-4000-8000-000000000099', event_id: 'event-1', event_name: 'Forum',
+      venue_id: 'venue-1', venue_name: 'East Hall', start_at: new Date('2030-01-12T04:00:00Z'),
+      end_at: new Date('2030-01-12T05:00:00Z'), status: 'pending', special_request: 'Ramp',
+      created_at: new Date('2030-01-01T00:00:00Z'), affected: true,
+    }] });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService);
+    await expect(repository.listCoordinatorBookings(ownerUserId)).resolves.toEqual([{
+      id: '00000000-0000-4000-8000-000000000099', eventId: 'event-1', eventName: 'Forum',
+      venueId: 'venue-1', venueName: 'East Hall', start: '2030-01-12T04:00:00.000Z',
+      end: '2030-01-12T05:00:00.000Z', status: 'pending', specialRequests: 'Ramp',
+      createdAt: '2030-01-01T00:00:00.000Z', affectedByUnavailablePeriod: true,
+      bookingReference: 'VB-00000000',
+    }]);
+    expect(String(query.mock.calls[0][0])).toContain('WHERE e.coordinator_id = $1::text');
+    expect(String(query.mock.calls[0][0])).toContain("b.status <> 'blocked'");
+    expect(String(query.mock.calls[0][0])).toContain("x.status = 'blocked'");
+    expect(String(query.mock.calls[0][0])).toContain('AS affected');
+    expect(query.mock.calls[0][1]).toEqual([ownerUserId]);
+  });
+
+  /** VEN-BKG-08-A/SEC-1: retain each non-blocked status while scoping the list to the signed-in Coordinator. */
+  it('returns multiple booking rows with distinct statuses and enforces coordinator ownership in SQL', async () => {
+    const statuses = ['pending', 'approved', 'rejected', 'cancelled'] as const;
+    const query = vi.fn().mockResolvedValue({ rows: statuses.map((status, index) => ({
+      id: `booking-${index}`, event_id: 'event-1', event_name: 'Forum', venue_id: `venue-${index}`, venue_name: `Hall ${index}`,
+      start_at: new Date('2030-01-12T04:00:00Z'), end_at: new Date('2030-01-12T05:00:00Z'), status,
+      special_request: null, created_at: new Date('2030-01-01T00:00:00Z'), affected: false,
+    })) });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService);
+    const result = await repository.listCoordinatorBookings(ownerUserId);
+    expect(result.map((booking) => booking.status)).toEqual(statuses);
+    expect(new Set(result.map((booking) => booking.id)).size).toBe(4);
+    expect(String(query.mock.calls[0][0])).toContain('WHERE e.coordinator_id = $1::text AND b.status <> \'blocked\'');
+    expect(query.mock.calls[0][1]).toEqual([ownerUserId]);
+  });
+
+  /** VEN-BKG-09/10-A/C: only pending and approved rows count as active; update remains scoped to the selected row. */
+  it('does not count rejected or cancelled rows as active and updates only the selected booking', async () => {
+    const eventId = '00000000-0000-4000-8000-000000000001';
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ event_id: eventId }] })
+      .mockResolvedValueOnce({ rows: [{ count: '2' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'booking-1', event_id: eventId }] });
+    const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+    await expect(repository.cancelCoordinatorBooking(ownerUserId, 'booking-1')).resolves.toEqual({ id: 'booking-1', eventId, hasOtherActiveBookings: true });
+    const countSql = String(query.mock.calls[1][0]);
+    const updateSql = String(query.mock.calls[2][0]);
+    expect(countSql).toContain("status IN ('pending','approved')");
+    expect(countSql).not.toContain("'rejected'");
+    expect(updateSql).toContain('WHERE b.id = $1::uuid');
+    expect(updateSql).toContain('e.coordinator_id = $2::text');
+    expect(query.mock.calls[2][1]).toEqual(['booking-1', ownerUserId]);
+  });
   /** SPM-51 AC6: submission stops before event lookup when the venue no longer exists. */
   it('returns venue-not-found before looking up the coordinator event', async () => {
     const query = vi.fn().mockResolvedValue({ rows: [] });
@@ -39,8 +161,6 @@ describe('VenuesRepository', () => {
     await expect(
       repository.submitBookingRequest(venue.id, ownerUserId, {
         eventId: '00000000-0000-4000-8000-000000000001',
-        start: '2030-01-12T04:00:00.000Z',
-        end: '2030-01-12T05:00:00.000Z',
       }),
     ).resolves.toEqual({ kind: 'venue-not-found' });
     expect(query).toHaveBeenCalledOnce();
@@ -68,8 +188,6 @@ describe('VenuesRepository', () => {
     await expect(
       repository.submitBookingRequest(venue.id, ownerUserId, {
         eventId: '00000000-0000-4000-8000-000000000001',
-        start: '2030-01-12T04:00:00.000Z',
-        end: '2030-01-12T05:00:00.000Z',
       }),
     ).resolves.toEqual({ kind: 'event-not-assigned' });
     expect(query).toHaveBeenCalledTimes(2);
@@ -84,18 +202,20 @@ describe('VenuesRepository', () => {
       query: vi.fn(async (sql: string, values: unknown[] = []) => {
         queries.push(sql);
         parameters.push(values);
-        if (sql.includes('FROM venues WHERE id'))
+        if (sql.includes('FROM venues v WHERE v.id'))
           return {
             rows: [
               {
                 id: venue.id,
+                capacity: 120,
                 setup_time_minutes: 15,
                 turnaround_time_minutes: 20,
+                facilities: [], accessibility: [], layouts: [],
               },
             ],
           };
         if (sql.includes('FROM events WHERE id'))
-          return { rows: [{ id: 'event-1', status: 'Planning' }] };
+          return { rows: [{ id: 'event-1', status: 'Approved', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', start_date_time: new Date('2030-01-12T04:00:00Z'), end_date_time: new Date('2030-01-12T05:00:00Z') }] };
         if (sql.includes('SELECT reason FROM'))
           return { rows: [{ reason: 'Workshop' }] };
         return { rows: [] };
@@ -115,19 +235,52 @@ describe('VenuesRepository', () => {
       ownerUserId,
       {
         eventId: '00000000-0000-4000-8000-000000000001',
-        start: '2030-01-12T04:00:00.000Z',
-        end: '2030-01-12T05:00:00.000Z',
+        specialRequests: 'Step-free access',
       },
     );
 
     expect(result).toEqual({ kind: 'conflict', reason: 'Workshop' });
     expect(queries[0]).toContain('FOR UPDATE');
     expect(queries[1]).toContain('coordinator_id = $2::text');
-    expect(queries[2]).toContain('hold_expires_at > $6::timestamptz');
-    expect(parameters[2][5]).toBe(now);
+    const duplicateSql = queries[2].replace(/\s+/g, ' ');
+    expect(duplicateSql).toContain('r.event_id = $1::uuid AND r.venue_id = $2::uuid');
+    expect(duplicateSql).not.toContain('status =');
+    expect(duplicateSql).not.toContain('start_at');
+    expect(duplicateSql).not.toContain('end_at');
+    const conflictSql = queries[3].replace(/\s+/g, ' ');
+    expect(conflictSql).toContain('hold_expires_at > $6::timestamptz');
+    expect(conflictSql).toContain("status = 'blocked'");
+    expect(conflictSql).toContain('start_at < $3::timestamptz + make_interval(mins => $5::int)');
+    expect(conflictSql).toContain('end_at > $2::timestamptz - make_interval(mins => $4::int)');
+    expect(conflictSql).toContain("b.status = 'pending'");
+    expect(conflictSql).toContain("b.status = 'approved'");
+    expect(conflictSql).toContain('b.start_at - make_interval(mins => $4::int) < $3::timestamptz + make_interval(mins => $5::int)');
+    expect(conflictSql).toContain('b.end_at + make_interval(mins => $5::int) > $2::timestamptz - make_interval(mins => $4::int)');
+    expect(parameters[3][5]).toBe(now);
     expect(
       queries.some((sql) => sql.includes('INSERT INTO venue_bookings')),
     ).toBe(false);
+  });
+
+  /** SPM-54 AC5: a request for an event/venue pair returns its existing row regardless of status or event time. */
+  it('returns the existing booking for a prior event and venue request', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: 120, setup_time_minutes: 30, turnaround_time_minutes: 45, facilities: [], accessibility: [], layouts: [] }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', start_date_time: new Date('2030-01-12T04:00:00Z'), end_date_time: new Date('2030-01-12T05:00:00Z') }] })
+      .mockResolvedValueOnce({ rows: [{ id: 'existing-booking-id' }] });
+    const repository = new VenuesRepository({ transaction: (work) => work({ query }) } as unknown as DatabaseService);
+
+    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
+      eventId: '00000000-0000-4000-8000-000000000001',
+    })).resolves.toEqual({ kind: 'duplicate-request', id: 'existing-booking-id' });
+    expect(query).toHaveBeenCalledTimes(3);
+    const duplicateSql = String(query.mock.calls[2][0]).replace(/\s+/g, ' ');
+    expect(duplicateSql).toContain('WHERE r.event_id = $1::uuid AND r.venue_id = $2::uuid');
+    expect(duplicateSql).not.toContain('status =');
+    expect(duplicateSql).not.toContain('start_at');
+    expect(duplicateSql).not.toContain('end_at');
+    expect(query.mock.calls[2][1]).toEqual(['00000000-0000-4000-8000-000000000001', venue.id]);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO venue_bookings'))).toBe(false);
   });
 
   /** VEN-AVL-08-A/B: a clear range is recorded only after the locked fresh schedule check. */
@@ -139,22 +292,18 @@ describe('VenuesRepository', () => {
           rows: [
             {
               id: venue.id,
+              capacity: 120,
               setup_time_minutes: 15,
               turnaround_time_minutes: 20,
+              facilities: [], accessibility: [], layouts: [],
             },
           ],
         })
-        .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning' }] })
-        .mockResolvedValueOnce({ rows: [] })
-        .mockResolvedValueOnce({
-          rows: [
-            {
-              id: '00000000-0000-4000-8000-000000000099',
-              start_at: new Date('2030-01-12T04:00:00.000Z'),
-              end_at: new Date('2030-01-12T05:00:00.000Z'),
-            },
-          ],
-        }),
+        .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Approved', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', start_date_time: new Date('2030-01-12T04:00:00Z'), end_date_time: new Date('2030-01-12T05:00:00Z') }] })
+        .mockResolvedValueOnce({ rows: [] }) // no permanent event/venue request
+        .mockResolvedValueOnce({ rows: [] }) // no schedule conflict
+        .mockResolvedValueOnce({ rows: [] }) // request association insert
+        .mockResolvedValueOnce({ rows: [{ id: '00000000-0000-4000-8000-000000000099', start_at: new Date('2030-01-12T04:00:00.000Z'), end_at: new Date('2030-01-12T05:00:00.000Z') }] }),
     };
     const database = {
       transaction: (work: (queryable: unknown) => Promise<unknown>) =>
@@ -169,8 +318,7 @@ describe('VenuesRepository', () => {
       ownerUserId,
       {
         eventId: '00000000-0000-4000-8000-000000000001',
-        start: '2030-01-12T04:00:00.000Z',
-        end: '2030-01-12T05:00:00.000Z',
+        specialRequests: 'Step-free access',
       },
     );
 
@@ -178,8 +326,11 @@ describe('VenuesRepository', () => {
       kind: 'created',
       id: '00000000-0000-4000-8000-000000000099',
     });
-    expect(client.query).toHaveBeenCalledTimes(4);
-    expect(String(client.query.mock.calls[3][0])).toContain("'pending'");
+    expect(client.query).toHaveBeenCalledTimes(7);
+    expect(String(client.query.mock.calls[4][0])).toContain('INSERT INTO venue_booking_requests');
+    expect(client.query.mock.calls[4][1]).toEqual(['00000000-0000-4000-8000-000000000001', venue.id, 'Step-free access']);
+    expect(String(client.query.mock.calls[5][0])).toContain("'pending'");
+    expect(client.query.mock.calls[5][1]).toEqual([venue.id, '00000000-0000-4000-8000-000000000001', new Date('2030-01-12T04:00:00Z'), new Date('2030-01-12T05:00:00Z')]);
   });
 
   // SPM-50 / VEN-CRE-05-A, VEN-CRE-05-B: the venue and all normalized selections are stored together.
@@ -797,90 +948,5 @@ describe('SPM-124 venue reads', () => {
     ).resolves.toBeUndefined();
     expect(query.mock.calls[0][1]).toEqual([venue.id, row.id, now]);
     expect(query.mock.calls[1][1]).toEqual([venue.id, 'missing', now]);
-  });
-
-  // SPM-148 R1/R4 (PLAN-STATUS-01-A/B, 02-A). Unit-level evidence for the transition: the
-  // status UPDATE and the history row are written only for an Approved event whose
-  // compare-and-set moves a row. Routed by SQL text, like the tests above.
-  describe('SPM-148 booking transition', () => {
-    const eventId = '00000000-0000-4000-8000-000000000148';
-    const now = new Date('2026-10-15T04:00:00.000Z');
-    const input = {
-      eventId,
-      start: '2026-11-04T10:00:00.000Z',
-      end: '2026-11-04T11:00:00.000Z',
-    };
-
-    /** A client whose event row has `eventStatus`; the compare-and-set UPDATE moves `casRows` rows. */
-    function clientFor(eventStatus: string, casRows: number) {
-      const queries: string[] = [];
-      const parameters: unknown[][] = [];
-      const query = vi.fn(async (sql: string, values: unknown[] = []) => {
-        queries.push(sql);
-        parameters.push(values);
-        if (sql.includes('FROM venues WHERE id'))
-          return { rows: [{ id: venue.id, setup_time_minutes: 0, turnaround_time_minutes: 0 }] };
-        if (sql.includes('FROM events WHERE id'))
-          return { rows: [{ id: eventId, status: eventStatus }] };
-        if (sql.includes('SELECT reason FROM')) return { rows: [] };
-        if (sql.includes('INSERT INTO venue_bookings'))
-          return {
-            rows: [{ id: '00000000-0000-4000-8000-000000000999', start_at: new Date(input.start), end_at: new Date(input.end) }],
-          };
-        if (sql.includes('UPDATE events SET status')) return { rows: [], rowCount: casRows };
-        return { rows: [], rowCount: 0 };
-      });
-      const repository = new VenuesRepository(
-        { transaction: (work: (c: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
-        { now: () => now },
-      );
-      const find = (fragment: string) => queries.findIndex((sql) => sql.includes(fragment));
-      return { repository, parameters, queries, find };
-    }
-
-    // Kills: M1 (no status guard), M7 (history written on every request), M10 (DB clock instead of injected clock).
-    it('PLAN-STATUS-01-A: an Approved event moves to Planning and gets one history row stamped with the injected clock', async () => {
-      const { repository, parameters, find } = clientFor('Approved', 1);
-
-      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
-
-      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Planning', statusChanged: true });
-      expect(find('UPDATE events SET status')).toBeGreaterThan(-1);
-      const history = parameters[find('INSERT INTO event_status_history')];
-      expect(history).toEqual([expect.any(String), eventId, ownerUserId, now]);
-    });
-
-    // Kills: M2 (transition also fires from Confirmed).
-    it('PLAN-STATUS-01-B: a Confirmed event keeps its status, with no UPDATE and no history row', async () => {
-      const { repository, find } = clientFor('Confirmed', 0);
-
-      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
-
-      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Confirmed', statusChanged: false });
-      expect(find('UPDATE events SET status')).toBe(-1);
-      expect(find('INSERT INTO event_status_history')).toBe(-1);
-    });
-
-    // Kills: M6 (no compare-and-set: a lost race still writes history).
-    it('PLAN-STATUS-02-E: a lost compare-and-set reports no transition and writes no history row', async () => {
-      const { repository, find } = clientFor('Approved', 0);
-
-      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
-
-      expect(result).toMatchObject({ kind: 'created', eventStatus: 'Approved', statusChanged: false });
-      expect(find('INSERT INTO event_status_history')).toBe(-1);
-    });
-
-    // Kills: M22/M1 variants that let a Submitted event book or transition.
-    it('PLAN-STATUS-01-B: a Submitted event is refused with no booking, UPDATE or history row', async () => {
-      const { repository, find } = clientFor('Submitted', 0);
-
-      const result = await repository.submitBookingRequest(venue.id, ownerUserId, input);
-
-      expect(result).toEqual({ kind: 'event-not-open', status: 'Submitted' });
-      expect(find('INSERT INTO venue_bookings')).toBe(-1);
-      expect(find('UPDATE events SET status')).toBe(-1);
-      expect(find('INSERT INTO event_status_history')).toBe(-1);
-    });
   });
 });

@@ -190,7 +190,7 @@ export type VenueCreateInput = Omit<
   "id"
 >;
 
-export type BookingStatus = "pending" | "approved" | "rejected";
+export type BookingStatus = "pending" | "approved" | "rejected" | "cancelled";
 
 export interface BookingConflict {
   withBookingId: string;
@@ -209,6 +209,9 @@ export interface Booking {
   start: string;
   end: string;
   status: BookingStatus;
+  bookingReference?: string;
+  specialRequests?: string;
+  affectedByUnavailablePeriod?: boolean;
   conflict?: BookingConflict;
   rejectionReason?: string;
   createdAt: string;

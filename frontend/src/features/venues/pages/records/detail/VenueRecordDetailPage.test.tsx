@@ -4,6 +4,7 @@
 // Active venue holds require an explicit future expiry; ordinary pending requests are not reservations.
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -15,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Link, MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { ApiError, api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
+import { BookingsPage } from "@/features/bookings/pages/requests/BookingsPage";
 import {
   getVenueDetailErrorMessage,
   VenueRecordDetailPage,
@@ -68,11 +70,21 @@ const venue: VenueRecord = {
   ],
 };
 
-beforeEach(() => vi.resetAllMocks());
+beforeEach(() => {
+  vi.resetAllMocks();
+  apiMock.mockImplementation(async (path) => {
+    if (path === "/venues/my-bookings") return [] as never;
+    if (path.startsWith("/events/")) {
+      const eventId = path.slice("/events/".length);
+      return useAppStore.getState().events.find((event) => event.id === eventId) as never;
+    }
+    return venue as never;
+  });
+});
 const originalUser = useAppStore.getState().currentUser;
 afterEach(() => {
   cleanup();
-  useAppStore.setState({ currentUser: originalUser });
+  useAppStore.setState({ currentUser: originalUser, bookings: [] });
 });
 
 function renderPage(initialEntry = `/venue-records/${id}`) {
@@ -85,6 +97,10 @@ function renderPage(initialEntry = `/venue-records/${id}`) {
   );
 }
 
+async function waitForAvailabilityCheck() {
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 300)));
+}
+
 function coordinatorEvent(eventId: string) {
   return {
     id: eventId,
@@ -93,7 +109,7 @@ function coordinatorEvent(eventId: string) {
     description: "",
     organiserId: "org-1",
     organiserName: "Organiser",
-    status: "submitted" as const,
+    status: "approved" as const,
     startDateTime: eventId === "event-52" ? "2030-01-13T04:00:00.000Z" : eventId === "event-53" ? "2030-01-14T04:00:00.000Z" : "2030-01-12T04:00:00.000Z",
     endDateTime: eventId === "event-52" ? "2030-01-13T05:00:00.000Z" : eventId === "event-53" ? "2030-01-14T05:00:00.000Z" : "2030-01-12T05:00:00.000Z",
     expectedAttendance: 20,
@@ -105,6 +121,7 @@ function coordinatorEvent(eventId: string) {
     },
     equipmentNeeds: "",
     registrationEnabled: false,
+    changeRequests: [],
     createdAt: "2030-01-01T00:00:00.000Z",
     updatedAt: "2030-01-01T00:00:00.000Z",
   };
@@ -131,21 +148,131 @@ function SwitchDetailEvent() {
 }
 
 describe("VenueRecordDetailPage (SPM-124)", () => {
+  /** A Confirmed event remains eligible under the shared booking-open status rule. */
+  it("keeps a confirmed event from the URL eligible for venue booking", async () => {
+    const approvedEvent = { ...coordinatorEvent("approved-event"), name: "Approved workshop", status: "approved" as const };
+    const planningEvent = { ...coordinatorEvent("planning-event"), name: "Planning workshop", status: "planning" as const };
+    const confirmedEvent = { ...coordinatorEvent("confirmed-event"), name: "Confirmed seminar", status: "confirmed" as const };
+    setCoordinator();
+    useAppStore.setState({ events: [approvedEvent, planningEvent, confirmedEvent] });
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+
+    renderPage(`/venue-records/${id}?eventId=confirmed-event`);
+
+    await screen.findByRole("heading", { name: "Conference Room" });
+    expect(screen.getByRole("heading", { name: "Suitability assessment for Confirmed seminar" })).toBeInTheDocument();
+    expect(screen.queryByText(/not eligible for venue booking/)).not.toBeInTheDocument();
+  });
+
+  /** A Planning event selected through the URL remains selected and requestable. */
+  it("keeps a planning event from the URL selected for a booking request", async () => {
+    const planningEvent = { ...coordinatorEvent("planning-event"), name: "Planning workshop", status: "planning" as const };
+    setCoordinator();
+    useAppStore.setState({ events: [planningEvent] });
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+
+    renderPage(`/venue-records/${id}?eventId=planning-event`);
+
+    await screen.findByRole("heading", { name: "Conference Room" });
+    expect(screen.getByRole("heading", { name: "Suitability assessment for Planning workshop" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
+    expect(screen.queryByText(/not eligible for venue booking/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-BKG-01: capacity and missing requirement mismatches block submission with reasons. */
+  it("SPM-54 AC1: assesses venue suitability and blocks an incompatible choice", async () => {
+    const event = { ...coordinatorEvent("event-1"), expectedAttendance: 100,
+      venueRequirements: { minCapacity: 100, accessibility: ["Ramp"], facilities: ["Projector", "Sound system"], layout: "Theatre" } };
+    setCoordinator(["event-1"]);
+    useAppStore.setState({ events: [event] });
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await waitForAvailabilityCheck();
+    expect(screen.getByRole("heading", { name: "Suitability assessment for Event event-1" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("Capacity 80 is below the required 100");
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing facility: Sound system");
+    expect(screen.getByRole("alert")).toHaveTextContent("Missing accessibility feature: Ramp");
+    expect(screen.getByRole("alert")).toHaveTextContent("Required layout unavailable: Theatre");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-BKG-01-A/C: each suitability mismatch is identified independently and prevents booking. */
+  it.each([
+    {
+      name: "capacity",
+      event: { ...coordinatorEvent("event-1"), expectedAttendance: venue.capacity + 1 },
+      reason: `Capacity ${venue.capacity} is below the required ${venue.capacity + 1}`,
+    },
+    {
+      name: "facility",
+      event: { ...coordinatorEvent("event-1"), venueRequirements: { ...coordinatorEvent("event-1").venueRequirements, facilities: ["Sound system"] } },
+      reason: "Missing facility: Sound system",
+    },
+    {
+      name: "accessibility",
+      event: { ...coordinatorEvent("event-1"), venueRequirements: { ...coordinatorEvent("event-1").venueRequirements, accessibility: ["Step-free entry"] } },
+      reason: "Missing accessibility feature: Step-free entry",
+    },
+    {
+      name: "layout",
+      event: { ...coordinatorEvent("event-1"), venueRequirements: { ...coordinatorEvent("event-1").venueRequirements, layout: "Theatre" } },
+      reason: "Required layout unavailable: Theatre",
+    },
+  ])("shows only the $name mismatch and suppresses submission", async ({ event, reason }) => {
+    setCoordinator();
+    useAppStore.setState({ events: [event] });
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    const assessment = await screen.findByRole("region", { name: "Venue suitability assessment" });
+    await waitForAvailabilityCheck();
+
+    expect(assessment).toHaveTextContent(reason);
+    expect(assessment.querySelectorAll("li")).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-BKG-01-BND-1: capacity equal to event attendance is suitable, not a mismatch. */
+  it("SPM-54 AC1 BND-1: accepts capacity exactly equal to expected attendance", async () => {
+    const event = { ...coordinatorEvent("event-1"), expectedAttendance: venue.capacity,
+      venueRequirements: { minCapacity: venue.capacity, accessibility: [], facilities: [], layout: "" } };
+    setCoordinator(["event-1"]);
+    useAppStore.setState({ events: [event] });
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    expect(await screen.findByLabelText("Suitability result")).toHaveTextContent("meets the event's capacity");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+  });
+
   /** SPM-51 sends the selected event's time range to the availability check in Singapore local time. */
   it("prefills event and time range from a Search Venues link", async () => {
     setCoordinator(["event-1"]);
-    apiMock.mockResolvedValue(venue);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
     renderPage(`/venue-records/${id}?eventId=event-1`);
 
     await screen.findByRole("heading", { name: "Conference Room" });
     expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
+    const timeRow = screen.getByRole("group", { name: "Event time and availability" });
+    expect(within(timeRow).getByLabelText("Event starts")).toBeInTheDocument();
+    expect(within(timeRow).getByLabelText("Event ends")).toBeInTheDocument();
+    expect(within(timeRow).queryByRole("button", { name: "Refresh schedule" })).not.toBeInTheDocument();
+    expect(timeRow).toHaveClass("min-w-0");
+    expect(within(timeRow).getByLabelText("Event starts")).toHaveClass("min-w-0", "max-w-full");
+    expect(within(timeRow).getByLabelText("Event ends")).toHaveClass("min-w-0", "max-w-full");
     expect(screen.getByRole("link", { name: "Back to Search Venues" })).toHaveAttribute(
       "href",
       "/venues?eventId=event-1",
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: "Refresh schedule" }));
-    expect(await screen.findByLabelText("Event for booking request")).toHaveValue("event-1");
+    await screen.findByRole("region", { name: "Booking request form" });
+    expect(await screen.findByRole("region", { name: "Booking request form" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Suitability assessment for Event event-1" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
   });
 
   /** SPM-51 refresh regression: a cold store fetches the linked event and prefills its range and request selection. */
@@ -162,9 +289,30 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     await screen.findByRole("heading", { name: "Conference Room" });
     await waitFor(() => expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00"));
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
-    expect(screen.getByLabelText("Event for booking request")).toHaveValue("event-1");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/events/event-1");
     expect(useAppStore.getState().events).toContainEqual(requestedEvent);
+  });
+
+  /** VEN-BKG-03: an event denied by the event API is not exposed as booking context or made requestable. */
+  it("does not expose an unassigned event when its API request is denied", async () => {
+    setCoordinator();
+    useAppStore.setState({ events: [] });
+    apiMock.mockImplementation(async (path) => {
+      if (path === `/venues/${id}`) return venue as never;
+      if (path === "/events/unassigned-event") throw new ApiError("Forbidden", undefined, undefined, 403);
+      if (path === "/venues/my-bookings") return [] as never;
+      throw new Error(`Unexpected API call: ${path}`);
+    });
+
+    renderPage(`/venue-records/${id}?eventId=unassigned-event`);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load the selected event");
+    expect(screen.queryByLabelText("Expected attendance")).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("/booking-requests"))).toBe(false);
   });
 
   /** SPM-51 event-load failure is visible and retry restores the selected event range. */
@@ -187,7 +335,8 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load the selected event");
     await user.click(screen.getByRole("button", { name: "Retry event" }));
     await waitFor(() => expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00"));
-    expect(screen.getByLabelText("Event for booking request")).toHaveValue("event-1");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
   });
 
   /** SPM-51 unavailable linked events receive a specific not-found message instead of an empty booking selector. */
@@ -201,7 +350,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     renderPage(`/venue-records/${id}?eventId=event-missing`);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("The selected event could not be found");
-    expect(screen.queryByRole("region", { name: "Review booking request" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
   });
 
   /** SPM-51 route changes discard an older event response so only the current query controls the selected range. */
@@ -235,11 +384,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-14T12:00");
   });
 
-  /** Clicking the selected time clears the requested range and returns the coordinator to an unselected state. */
-  it("clears the selected event range when its calendar block is clicked", async () => {
+  /** SPM-54 AC3: selected event periods are read-only and calendar interactions cannot alter booking times. */
+  it("keeps the persisted event period read-only in the calendar and booking context", async () => {
     setCoordinator(["event-1"]);
     const user = userEvent.setup();
-    apiMock.mockResolvedValue(venue);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
     renderPage(`/venue-records/${id}?eventId=event-1`);
 
     await screen.findByRole("heading", { name: "Conference Room" });
@@ -247,54 +396,37 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     const selectedEvent = schedule.querySelector(".venue-schedule-selected");
     expect(selectedEvent).toBeInTheDocument();
     expect(selectedEvent).toHaveTextContent(/\d/);
-    expect(selectedEvent).not.toHaveTextContent("Selected event time");
-    expect(selectedEvent).not.toHaveTextContent("Requested event time");
-    expect(selectedEvent?.querySelector(".venue-schedule-event-time")).toBeNull();
+    expect(selectedEvent?.querySelector(".venue-schedule-event")).toHaveAttribute("title", "Selected event time");
 
-    await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
+    await waitForAvailabilityCheck();
     await screen.findByText("This time is available for this venue.");
-    expect(screen.getByRole("button", { name: "Refresh schedule" })).toBeInTheDocument();
-    expect(screen.getByText(/availability reflects the displayed schedule/i)).toHaveTextContent("submitting also checks again on the server");
-    await user.click(screen.getByRole("button", { name: "Continue to booking request" }));
-    expect(screen.getByRole("region", { name: "Review booking request" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh schedule" })).not.toBeInTheDocument();
+    expect(screen.getByText(/availability updates automatically/i)).toHaveTextContent(/submitting checks again on the server/i);
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
 
     await user.click(schedule.querySelector(".venue-schedule-selected")!);
 
-    expect(screen.getByLabelText("Event starts")).toHaveValue("");
-    expect(screen.getByLabelText("Event ends")).toHaveValue("");
-    expect(screen.queryByRole("region", { name: "Review booking request" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("status")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Continue to booking request" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh schedule" })).toBeDisabled();
+    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
+    expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refresh schedule" })).not.toBeInTheDocument();
   });
 
-  /** VEN-AVL-01-A / AC1: equal start and end instants are invalid and cannot enter the booking-request review. */
-  it("does not check availability or continue with a zero-duration event", async () => {
+  /** SPM-54 AC3: event period values are displayed from event details and cannot be edited. */
+  it("keeps the selected event period read-only for booking requests", async () => {
     setCoordinator(["event-1"]);
-    const user = userEvent.setup();
     apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce(venue);
     renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
-    fireEvent.change(screen.getByLabelText("Event starts"), {
-      target: { value: "2030-01-12T12:00" },
-    });
-    fireEvent.change(screen.getByLabelText("Event ends"), {
-      target: { value: "2030-01-12T12:00" },
-    });
+    await waitForAvailabilityCheck();
 
-    const checkButton = screen.getByRole("button", {
-      name: "Refresh schedule",
-    });
-    expect(checkButton).toBeDisabled();
-    await user.click(checkButton);
-
-    expect(apiMock).toHaveBeenCalledOnce();
-    expect(
-      screen.queryByRole("button", { name: "Continue to booking request" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("region", { name: "Review booking request" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
+    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
   });
 
   /** Missing detail data uses a not-found fallback while real API errors keep their message. */
@@ -339,7 +471,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
           description: "",
           organiserId: "org-1",
           organiserName: "Organiser",
-          status: "submitted",
+          status: "approved",
           startDateTime: "2030-01-12T04:00:00.000Z",
           endDateTime: "2030-01-12T05:00:00.000Z",
           expectedAttendance: 20,
@@ -356,7 +488,6 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
         },
       ],
     });
-    const user = userEvent.setup();
     apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce(venue);
 
     renderPage();
@@ -367,9 +498,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     fireEvent.change(screen.getByLabelText("Event ends"), {
       target: { value: "2026-10-05T21:00" },
     });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
+    await waitForAvailabilityCheck();
 
     expect(screen.getByRole("alert")).toHaveTextContent("Confirmed booking");
     expect(screen.getByRole("alert")).toHaveTextContent("Welcome Evening");
@@ -379,113 +508,354 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(useAppStore.getState().bookings).toEqual([]);
   });
 
-  /** VEN-AVL-06-A: a schedule-derived available range continues into a booking request. */
-  it("SPM-51: submits a request for a schedule-derived available range", async () => {
-    useAppStore.setState({
-      currentUser: {
-        id: "coordinator",
-        name: "Coordinator",
-        email: "coordinator@example.test",
-        role: "coordinator",
-      },
-      events: [
-        {
-          id: "event-1",
-          name: "New Workshop",
-          purpose: "",
-          description: "",
-          organiserId: "org-1",
-          organiserName: "Organiser",
-          status: "submitted",
-          startDateTime: "2030-01-12T04:00:00.000Z",
-          endDateTime: "2030-01-12T05:00:00.000Z",
-          expectedAttendance: 20,
-          venueRequirements: {
-            minCapacity: 10,
-            accessibility: [],
-            facilities: [],
-            layout: "",
-          },
-          equipmentNeeds: "",
-          registrationEnabled: false,
-          createdAt: "2030-01-01T00:00:00.000Z",
-          updatedAt: "2030-01-01T00:00:00.000Z",
-        },
-      ],
-    });
+  /** VEN-BKG-03 / VEN-AVL-06-A: event context is reused and optional special requests accompany a clear booking request. */
+  it("SPM-54 AC3: submits a request for the event-specific URL context and optional note", async () => {
+    setCoordinator(["event-1", "event-2"]);
     useAppStore.setState((state) => ({
-      events: [
-        ...state.events,
-        { ...state.events[0], id: "event-2", name: "Second event" },
-      ],
+      events: state.events.map((event) => event.id === "event-1"
+        ? { ...event, name: "New Workshop" }
+        : { ...event, name: "Second event", startDateTime: "2030-01-13T04:00:00.000Z", endDateTime: "2030-01-13T05:00:00.000Z" }),
     }));
     const user = userEvent.setup();
-    apiMock
-      .mockResolvedValueOnce(venue)
-      .mockResolvedValueOnce(venue)
-      .mockResolvedValueOnce({ bookingReference: "VB-00000000" });
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}/booking-requests`) return { bookingReference: "VB-00000000" } as never;
+      return venue as never;
+    });
 
-    renderPage();
+    renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
-    fireEvent.change(screen.getByLabelText("Event starts"), {
-      target: { value: "2030-01-12T12:00" },
-    });
-    fireEvent.change(screen.getByLabelText("Event ends"), {
-      target: { value: "2030-01-12T13:00" },
-    });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
-    expect(apiMock).toHaveBeenCalledTimes(2);
-    await user.selectOptions(
-      screen.getByLabelText("Event for booking request"),
-      "event-2",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Continue to booking request" }),
-    );
-
-    const review = screen.getByRole("region", {
-      name: "Review booking request",
-    });
+    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
+    await waitForAvailabilityCheck();
+    expect(apiMock).toHaveBeenCalledWith("/venues/my-bookings");
+    const review = screen.getByRole("region", { name: "Booking request form" });
     expect(review).toHaveTextContent("Conference Room");
-    expect(review).toHaveTextContent("Second event");
+    expect(review).toHaveTextContent("New Workshop");
+    expect(review).not.toHaveTextContent("Second event");
     expect(review).toHaveTextContent("Expected attendance20");
     expect(review).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)");
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    await user.type(within(review).getByLabelText("Special requests (optional)"), "Step-free setup");
     await user.click(
-      within(review).getByRole("button", { name: "Back to availability" }),
-    );
-    expect(
-      screen.queryByRole("region", { name: "Review booking request" }),
-    ).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Continue to booking request" }),
-    );
-
-    const confirmedReview = screen.getByRole("region", {
-      name: "Review booking request",
-    });
-    await user.click(
-      within(confirmedReview).getByRole("button", {
+      within(review).getByRole("button", {
         name: "Submit booking request",
       }),
     );
 
     expect(apiMock).toHaveBeenNthCalledWith(
-      3,
+      4,
       `/venues/${id}/booking-requests`,
       {
         method: "POST",
         body: JSON.stringify({
-          eventId: "event-2",
-          start: "2030-01-12T04:00:00.000Z",
-          end: "2030-01-12T05:00:00.000Z",
+          eventId: "event-1",
+          specialRequests: "Step-free setup",
         }),
       },
     );
     expect(useAppStore.getState().bookings).toEqual([]);
-    expect(screen.getByText(/Reference: VB-00000000/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Booking request submitted")).toHaveTextContent("VB-00000000");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Special requests (optional)")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+  });
+
+  /** VEN-BKG-03-A: a blank optional note is omitted and event-owned identity/time/attendance remain authoritative. */
+  it("omits a blank note and submits only the selected event identity", async () => {
+    setCoordinator(["event-1"]);
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}/booking-requests`) return { bookingReference: "VB-BLANK" } as never;
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await waitForAvailabilityCheck();
+    const form = screen.getByRole("region", { name: "Booking request form" });
+    expect(within(form).getByText("Event event-1")).toBeInTheDocument();
+    expect(form).toHaveTextContent("Expected attendance20");
+    expect(form).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Submit booking request" }));
+
+    expect(apiMock).toHaveBeenCalledWith(`/venues/${id}/booking-requests`, {
+      method: "POST",
+      body: JSON.stringify({ eventId: "event-1" }),
+    });
+  });
+
+  /** VEN-BKG-04-A: successful submission appears in My Bookings with the same server reference and pending status. */
+  it("shows the submitted request in My Bookings after navigating from the confirmation", async () => {
+    setCoordinator(["event-1"]);
+    let persisted: Array<Record<string, unknown>> = [];
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return persisted as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        persisted = [{
+          id: "booking-flow",
+          eventId: "event-1",
+          eventName: "Event event-1",
+          venueId: id,
+          venueName: "Conference Room",
+          requestedBy: "Coordinator",
+          start: "2030-01-12T04:00:00.000Z",
+          end: "2030-01-12T05:00:00.000Z",
+          status: "pending",
+          bookingReference: "VB-FLOW-1",
+          createdAt: "2030-01-01T00:00:00.000Z",
+        }];
+        return { bookingReference: "VB-FLOW-1" } as never;
+      }
+      return venue as never;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/venue-records/${id}?eventId=event-1`]}>
+        <Routes>
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+          <Route path="/bookings" element={<BookingsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await waitForAvailabilityCheck();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Submit booking request" }));
+    expect(await screen.findByLabelText("Booking request submitted")).toHaveTextContent("VB-FLOW-1");
+    await userEvent.setup().click(screen.getByRole("link", { name: "View bookings" }));
+
+    expect(await screen.findByText("VB-FLOW-1")).toBeInTheDocument();
+    expect(screen.getByText("Pending", { selector: "span" })).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith("/venues/my-bookings");
+  });
+
+  /** VEN-BKG-05-A/06-A: another suitable venue can be requested for the same event while the original remains recorded. */
+  it("allows an alternate venue request without replacing the original venue request", async () => {
+    const alternateId = "00000000-0000-4000-8000-000000000125";
+    const alternateVenue = { ...venue, id: alternateId, name: "Garden Pavilion" };
+    const original = {
+      id: "original-booking",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      requestedBy: "Coordinator",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "approved",
+      bookingReference: "VB-ORIGINAL",
+      affectedByUnavailablePeriod: true,
+      createdAt: "2030-01-01T00:00:00.000Z",
+    };
+    const records: Array<Record<string, unknown>> = [original];
+    setCoordinator(["event-1"]);
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return records as never;
+      if (path === `/venues/${alternateId}`) return alternateVenue as never;
+      if (path === `/venues/${alternateId}/booking-requests`) {
+        records.push({
+          id: "replacement-booking",
+          eventId: "event-1",
+          eventName: "Event event-1",
+          venueId: alternateId,
+          venueName: "Garden Pavilion",
+          requestedBy: "Coordinator",
+          start: "2030-01-12T04:00:00.000Z",
+          end: "2030-01-12T05:00:00.000Z",
+          status: "pending",
+          bookingReference: "VB-REPLACEMENT",
+          createdAt: "2030-01-02T00:00:00.000Z",
+        });
+        return { bookingReference: "VB-REPLACEMENT" } as never;
+      }
+      return venue as never;
+    });
+    render(
+      <MemoryRouter initialEntries={[`/venue-records/${alternateId}?eventId=event-1`]}>
+        <Routes>
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+          <Route path="/bookings" element={<BookingsPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    await screen.findByRole("heading", { name: "Garden Pavilion" });
+    await waitForAvailabilityCheck();
+    expect(await screen.findByRole("region", { name: "Booking request form" })).toHaveTextContent("Event event-1");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Submit booking request" }));
+
+    expect(await screen.findByLabelText("Booking request submitted")).toHaveTextContent("VB-REPLACEMENT");
+    expect(apiMock).toHaveBeenCalledWith(`/venues/${alternateId}/booking-requests`, {
+      method: "POST",
+      body: JSON.stringify({ eventId: "event-1" }),
+    });
+    expect(screen.getByLabelText("Booking request submitted")).not.toHaveTextContent("VB-ORIGINAL");
+    await userEvent.setup().click(screen.getByRole("link", { name: "View bookings" }));
+    expect(await screen.findByText("VB-ORIGINAL")).toBeInTheDocument();
+    expect(screen.getByText("VB-REPLACEMENT")).toBeInTheDocument();
+    expect(screen.getByText("Approved", { selector: "span" })).toBeInTheDocument();
+    expect(screen.getByText("Pending", { selector: "span" })).toBeInTheDocument();
+    expect(records.map((record) => record.bookingReference)).toEqual(["VB-ORIGINAL", "VB-REPLACEMENT"]);
+  });
+
+  /** VEN-BKG-05-B: a conflicting replacement venue is refused while the original approved booking stays unchanged. */
+  it("refuses a conflicting replacement without cancelling the original request", async () => {
+    const alternateId = "00000000-0000-4000-8000-000000000126";
+    const original = { id: "original-booking", eventId: "event-1", venueId: id, status: "approved", bookingReference: "VB-ORIGINAL" };
+    const records = [original];
+    const conflictingVenue = {
+      ...venue,
+      id: alternateId,
+      name: "Garden Pavilion",
+      reservations: [{
+        id: "venue-conflict", eventName: "Another workshop", start: "2030-01-12T03:45:00.000Z",
+        end: "2030-01-12T05:15:00.000Z", status: "booked" as const, affectedByUnavailablePeriod: false,
+      }],
+    };
+    setCoordinator(["event-1"]);
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return records as never;
+      if (path === `/venues/${alternateId}`) return conflictingVenue as never;
+      return venue as never;
+    });
+    renderPage(`/venue-records/${alternateId}?eventId=event-1`);
+
+    await screen.findByRole("heading", { name: "Garden Pavilion" });
+    await waitForAvailabilityCheck();
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Confirmed booking: Another workshop");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+    expect(useAppStore.getState().bookings).toEqual([]);
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("/booking-requests"))).toBe(false);
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("/cancel"))).toBe(false);
+    expect(records).toEqual([original]);
+  });
+
+  /** SPM-54 AC2/AC3: persisted event-period updates refresh availability and stale responses cannot replace the latest schedule. */
+  it("ignores a stale background availability response after the persisted event period changes", async () => {
+    setCoordinator(["event-1"]);
+    let venueCalls = 0;
+    let bookingsCalls = 0;
+    let resolveOldVenue!: (value: VenueRecord) => void;
+    let resolveOldBookings!: (value: unknown[]) => void;
+    let resolveNewVenue!: (value: VenueRecord) => void;
+    let resolveNewBookings!: (value: unknown[]) => void;
+    apiMock.mockImplementation((path) => {
+      if (path === "/venues/my-bookings") {
+        bookingsCalls += 1;
+        return new Promise((resolve) => {
+          if (bookingsCalls === 1) resolveOldBookings = resolve;
+          else resolveNewBookings = resolve;
+        }) as never;
+      }
+      venueCalls += 1;
+      if (venueCalls === 1) return Promise.resolve(venue) as never;
+      return new Promise((resolve) => {
+        if (venueCalls === 2) resolveOldVenue = resolve;
+        else resolveNewVenue = resolve;
+      }) as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await waitFor(() => expect(venueCalls).toBe(2));
+    await act(async () => {
+      useAppStore.setState((state) => ({
+        events: state.events.map((event) => event.id === "event-1"
+          ? { ...event, startDateTime: "2030-01-13T04:00:00.000Z", endDateTime: "2030-01-13T05:00:00.000Z" }
+          : event),
+      }));
+    });
+    await waitFor(() => expect(venueCalls).toBe(3));
+    resolveNewVenue({ ...venue, reservations: [{ id: "latest", eventName: "Latest schedule", start: "2030-01-13T04:00:00.000Z", end: "2030-01-13T05:00:00.000Z", status: "booked", affectedByUnavailablePeriod: false }] });
+    resolveNewBookings([]);
+    await waitFor(() => expect(screen.getAllByText("Latest schedule").length).toBeGreaterThan(0));
+    resolveOldVenue({ ...venue, reservations: [{ id: "stale", eventName: "Stale schedule", start: "2030-01-12T04:00:00.000Z", end: "2030-01-12T05:00:00.000Z", status: "booked", affectedByUnavailablePeriod: false }] });
+    resolveOldBookings([]);
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    expect(screen.getByRole("region", { name: "Venue schedule" })).toHaveTextContent("Latest schedule");
+    expect(screen.getByRole("region", { name: "Venue schedule" })).not.toHaveTextContent("Stale schedule");
+  });
+
+  /** VEN-BKG-02-A: changing the persisted event period rechecks setup/turnaround and removes a newly conflicting request form. */
+  it("updates availability reasons after the event period changes", async () => {
+    setCoordinator(["event-1"]);
+    let scheduleCalls = 0;
+    const freshConflict = {
+      ...venue,
+      reservations: [{
+        id: "adjacent-booking",
+        eventName: "Adjacent workshop",
+        start: "2030-01-13T03:45:00.000Z",
+        end: "2030-01-13T04:15:00.000Z",
+        status: "booked" as const,
+        affectedByUnavailablePeriod: false,
+      }],
+    };
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}`) {
+        scheduleCalls += 1;
+        return (scheduleCalls > 1 ? freshConflict : venue) as never;
+      }
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    expect(screen.getByText(/30 minutes for setup and 45 minutes for turnaround/)).toBeInTheDocument();
+    await waitForAvailabilityCheck();
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
+
+    await act(async () => {
+      useAppStore.setState((state) => ({
+        events: state.events.map((event) => event.id === "event-1"
+          ? { ...event, startDateTime: "2030-01-13T04:00:00.000Z", endDateTime: "2030-01-13T05:00:00.000Z" }
+          : event),
+      }));
+    });
+
+    const conflict = await screen.findByRole("alert");
+    expect(conflict).toHaveTextContent("Confirmed booking: Adjacent workshop");
+    expect(conflict).toHaveTextContent("13 Jan 2030, 11:45");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+  });
+
+  /** SPM-54 AC5: each persisted active or terminal request status suppresses a second request for its event/venue pair. */
+  it.each(["pending", "approved", "rejected", "cancelled"] as const)(
+    "SPM-54 AC5: suppresses repeat submission for every persisted booking status (%s)",
+    async (status) => {
+    setCoordinator(["event-1"]);
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [{ id: `booking-${status}`, eventId: "event-1", venueId: id, start: "2030-01-12T04:00:00.000Z", end: "2030-01-12T05:00:00.000Z", status, bookingReference: `VB-${status.toUpperCase()}` }] as never;
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const existing = await screen.findByLabelText("Existing booking request");
+    expect(existing).toHaveTextContent(`VB-${status.toUpperCase()}`);
+    expect(existing).toHaveTextContent("A request already exists for this event and venue.");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
+    expect(apiMock.mock.calls.some(([path]) => String(path).includes("/booking-requests"))).toBe(false);
+    },
+  );
+
+  /** SPM-54 AC5: a duplicate 409 shows its stable reference and removes the form. */
+  it("SPM-54 AC5: duplicate response reveals the existing booking reference and hides submission", async () => {
+    setCoordinator(["event-1"]);
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}/booking-requests`) throw new ApiError("Already requested", undefined, "duplicate_venue_request", 409, "booking-existing", "VB-EXISTING");
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
+    await screen.findByRole("heading", { name: "Conference Room" });
+    await userEvent.setup().click(await screen.findByRole("button", { name: "Submit booking request" }));
+    const existing = await screen.findByLabelText("Existing booking request");
+    expect(existing).toHaveTextContent("VB-EXISTING");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit booking request" })).not.toBeInTheDocument();
   });
 
   /**
@@ -507,7 +877,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
           description: "",
           organiserId: "org-1",
           organiserName: "Organiser",
-          status: "submitted",
+          status: "approved",
           startDateTime: "2030-01-12T04:00:00.000Z",
           endDateTime: "2030-01-12T05:00:00.000Z",
           expectedAttendance: 20,
@@ -525,32 +895,17 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       ],
     });
     const user = userEvent.setup();
-    apiMock
-      .mockResolvedValueOnce(venue)
-      .mockResolvedValueOnce(venue)
-      .mockRejectedValueOnce(
-        new ApiError(
-          "Venue is no longer available because of a new booking.",
-          undefined,
-          undefined,
-          409,
-        ),
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}/booking-requests`) throw new ApiError(
+        "Venue is no longer available because of a new booking.", undefined, undefined, 409,
       );
+      return venue as never;
+    });
 
-    renderPage();
+    renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
-    fireEvent.change(screen.getByLabelText("Event starts"), {
-      target: { value: "2030-01-12T12:00" },
-    });
-    fireEvent.change(screen.getByLabelText("Event ends"), {
-      target: { value: "2030-01-12T13:00" },
-    });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Continue to booking request" }),
-    );
+    await waitForAvailabilityCheck();
     await user.click(
       screen.getByRole("button", { name: "Submit booking request" }),
     );
@@ -560,7 +915,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       screen.queryByText(/Booking request submitted/),
     ).not.toBeInTheDocument();
     expect(useAppStore.getState().bookings).toEqual([]);
-    expect(apiMock).toHaveBeenCalledTimes(3);
+    expect(apiMock).toHaveBeenCalledTimes(4);
   });
 
   /** API and transport failures while refreshing availability show an actionable error. */
@@ -569,9 +924,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     { failure: new Error("offline"), message: "Unable to refresh venue availability. Try again.", label: "network error" },
   ])("shows the expected refresh message after $label", async ({ failure, message }) => {
     setCoordinator(["event-1"]);
-    const user = userEvent.setup();
-    apiMock.mockResolvedValueOnce(venue).mockRejectedValueOnce(failure);
-    renderPage();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") throw failure;
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-15T12:00" },
@@ -580,9 +937,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       target: { value: "2030-01-15T13:00" },
     });
 
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
+    await waitForAvailabilityCheck();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(message);
   });
@@ -591,24 +946,14 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   it("shows a generic submission error when the API transport fails", async () => {
     setCoordinator(["event-1"]);
     const user = userEvent.setup();
-    apiMock
-      .mockResolvedValueOnce(venue)
-      .mockResolvedValueOnce(venue)
-      .mockRejectedValueOnce(new Error("offline"));
-    renderPage();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path === `/venues/${id}/booking-requests`) throw new Error("offline");
+      return venue as never;
+    });
+    renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
-    fireEvent.change(screen.getByLabelText("Event starts"), {
-      target: { value: "2030-01-15T12:00" },
-    });
-    fireEvent.change(screen.getByLabelText("Event ends"), {
-      target: { value: "2030-01-15T13:00" },
-    });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Continue to booking request" }),
-    );
+    await waitForAvailabilityCheck();
     await user.click(
       screen.getByRole("button", { name: "Submit booking request" }),
     );
@@ -619,9 +964,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(
       screen.queryByText(/Booking request submitted/),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    ).toBeEnabled();
+    expect(screen.getByRole("region", { name: "Booking request form" })).toBeInTheDocument();
   });
 
   /** SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
@@ -646,19 +989,12 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     fireEvent.change(screen.getByLabelText("Event ends"), {
       target: { value: "2030-01-15T13:00" },
     });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
+    await waitForAvailabilityCheck();
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "available for this venue",
-    );
-    expect(
-      screen.getByText(/Choose an event in the venue catalogue/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Submit booking request" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Availability will be checked automatically.");
+    expect(screen.getByText(/Venue booking requests must be tied to an approved or planning event/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose an event first" })).toHaveAttribute("href", "/events");
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
   });
 
   /** VEN-AVL-02-A/B/C/05-A/B and VEN-AVL-03-A/B: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. */
@@ -714,9 +1050,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     fireEvent.change(screen.getByLabelText("Event ends"), {
       target: { value: "2030-01-12T18:00" },
     });
-    await user.click(
-      screen.getByRole("button", { name: "Refresh schedule" }),
-    );
+    await waitForAvailabilityCheck();
 
     const startsBeforeToggle = (
       screen.getByLabelText("Event starts") as HTMLInputElement
@@ -746,6 +1080,10 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       "12 Jan 2030, 17:30 – 12 Jan 2030, 18:00 (SGT)",
     ];
     const calendar = screen.getByRole("region", { name: "Venue schedule" });
+    const calendarPanel = screen.getByRole("region", { name: "Venue schedule calendar" });
+    expect(calendarPanel).toHaveClass("min-w-0", "max-w-full", "overflow-hidden");
+    expect(calendarPanel.querySelector(".venue-schedule-calendar-scroll")).toHaveClass("min-w-0", "max-w-full", "overflow-x-auto");
+    expect(calendarPanel.querySelector("[aria-label='Schedule legend']")).toHaveClass("flex-wrap", "min-w-0", "max-w-full");
     expect(calendar.querySelector("[role='grid'][aria-colcount='7']")).toBeInTheDocument();
     expect(calendar.querySelectorAll("[role='gridcell'][data-date]").length).toBeGreaterThan(1);
     expect(calendar).toHaveTextContent("Setup buffer");
@@ -782,7 +1120,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(
       screen.getByRole("region", { name: "Venue schedule" }),
     ).toHaveTextContent("Held seminar");
-    expect(apiMock).toHaveBeenCalledTimes(2);
+    expect(apiMock).toHaveBeenCalledWith(`/venues/${id}`);
   });
 
   /** VEN-AVL-05-B: changing venues replaces schedule entries instead of retaining the previous venue's bookings. */
@@ -837,7 +1175,8 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
     setCoordinator(["event-1"]);
     const user = userEvent.setup();
-    apiMock.mockResolvedValue({ ...venue, reservations: [], unavailablePeriods: [] });
+    const emptySchedule = { ...venue, reservations: [], unavailablePeriods: [] };
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : emptySchedule) as never);
     renderPage("/venue-records/00000000-0000-4000-8000-000000000124?eventId=event-1");
 
     try {
@@ -870,26 +1209,36 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
-  /** SPM-51 AC1: changing the selected event period clears the prior availability result. */
-  it("recomputes availability when the selected event changes the requested dates", async () => {
-    setCoordinator(["event-1", "event-2"]);
+  /** SPM-51 AC1: opening another event-specific link pre-fills that event's period without a selector. */
+  it("recomputes availability context when a different event-specific URL is opened", async () => {
+    setCoordinator(["event-52", "event-53"]);
     useAppStore.setState((state) => ({
-      events: state.events.map((event) => event.id === "event-2"
+      events: state.events.map((event) => event.id === "event-53"
         ? { ...event, startDateTime: "2030-01-13T06:00:00.000Z", endDateTime: "2030-01-13T07:00:00.000Z" }
         : event),
     }));
     const user = userEvent.setup();
-    apiMock.mockResolvedValue(venue);
-    renderPage(`/venue-records/${id}?eventId=event-1`);
+    apiMock.mockImplementation(async (path) => (path === "/venues/my-bookings" ? [] : venue) as never);
+    render(
+      <MemoryRouter initialEntries={[`/venue-records/${id}?eventId=event-52`]}>
+        <SwitchDetailEvent />
+        <Routes>
+          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
 
     await screen.findByRole("heading", { name: "Conference Room" });
-    await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
+    await waitForAvailabilityCheck();
     expect(screen.getByRole("status")).toHaveTextContent("available");
-    await user.selectOptions(screen.getByLabelText("Event for booking request"), "event-2");
+    await user.click(screen.getByRole("button", { name: "Switch again" }));
     expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-13T14:00");
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-13T15:00");
-    expect(screen.getByRole("status")).toHaveTextContent("available");
-    expect(screen.getByRole("button", { name: "Continue to booking request" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Event for booking request")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(/checking this time/i);
+    expect(screen.queryByRole("region", { name: "Booking request form" })).not.toBeInTheDocument();
+    await waitForAvailabilityCheck();
+    expect(await screen.findByRole("region", { name: "Booking request form" })).toBeInTheDocument();
   });
 
   /** SPM-51 AC8: zero setup and turnaround values show the booking without zero-length buffer rows. */
@@ -923,7 +1272,6 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
         role: "coordinator",
       },
     });
-    const user = userEvent.setup();
     const activeSchedule = {
       ...venue,
       unavailablePeriods: [],
@@ -954,9 +1302,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       fireEvent.change(screen.getByLabelText("Event ends"), {
         target: { value: "2030-01-12T13:00" },
       });
-      await user.click(
-        screen.getByRole("button", { name: "Refresh schedule" }),
-      );
+      await waitForAvailabilityCheck();
 
       const alert = screen.getByRole("alert");
       expect(alert).toHaveTextContent("Active Hold");

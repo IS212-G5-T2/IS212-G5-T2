@@ -83,6 +83,10 @@
   --fc-breezy-primary-foreground: #fff;
   --fc-breezy-highlight: rgb(79 70 229 / 5%);
   font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow: hidden;
   border: 1px solid #e5e7eb;
   border-radius: 1rem;
@@ -94,23 +98,45 @@
 .venue-schedule-legend {
   display: flex;
   flex-wrap: wrap;
+  min-width: 0;
+  max-width: 100%;
   gap: 0.5rem 0.875rem;
   color: #4b5563;
   font-size: 0.75rem;
 }
 
+.venue-schedule-legend > span {
+  display: inline-flex;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+}
+
+.venue-schedule-legend .schedule-legend-dot {
+  flex: 0 0 auto;
+}
+
 .venue-schedule-caption {
+  max-width: 100%;
+  overflow-wrap: anywhere;
   margin: 0.5rem 0 0.875rem;
   color: #6b7280;
   font-size: 0.75rem;
 }
 
 .venue-schedule-calendar-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
   overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .venue-schedule-calendar-scroll > div {
+  width: 100%;
   min-width: 700px;
 }
 
@@ -185,8 +211,9 @@
     padding: 0.75rem;
   }
 
-  .venue-schedule-calendar-scroll > div,
-  .venue-schedule-calendar-scroll [class*="timegrid"] {
-    min-width: 620px;
+  .venue-schedule-calendar--mobile .venue-schedule-calendar-scroll > div,
+  .venue-schedule-calendar--mobile .venue-schedule-calendar-scroll [class*="timegrid"] {
+    width: 100%;
+    min-width: 0;
   }
 }

@@ -21,6 +21,16 @@ describe("venue staff navigation", () => {
     );
   });
 
+  /** Keep unfinished availability and staff-review screens out of the active navigation. */
+  it("omits Venue Availability and the nonfunctional staff booking review link", () => {
+    expect(navByRole.coordinator.some((item) => item.to === "/venues/availability")).toBe(false);
+    expect(navByRole.venue_staff.some((item) => item.to === "/venues/availability")).toBe(false);
+    expect(navByRole.venue_staff.some((item) => item.to === "/bookings")).toBe(false);
+    expect(navByRole.coordinator).toContainEqual(
+      expect.objectContaining({ label: "Bookings", to: "/bookings" }),
+    );
+  });
+
   // SPM-51: Coordinators reach the catalogue from Search Venues rather than a generic sidebar item.
   it("keeps venue catalogue out of coordinator navigation", () => {
     expect(navByRole.coordinator.some((item) => item.label === "Venues" || item.to === "/venues")).toBe(false);
@@ -43,7 +53,8 @@ describe("venue staff navigation", () => {
       ]),
     );
     expect(items.some((item) => item.label === "Venues" || item.to === "/venues")).toBe(false);
-    expect(items.filter((item) => item.to === "/venues/availability")).toHaveLength(1);
+    expect(items.some((item) => item.to === "/venues/availability")).toBe(false);
+    expect(items.some((item) => item.to === "/bookings")).toBe(true);
   });
 });
 

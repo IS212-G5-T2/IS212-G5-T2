@@ -1,6 +1,6 @@
-import { createElement, useState } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
 import { getVenueScheduleEntries, isValidVenueSelection, VenueScheduleCalendar } from "./VenueScheduleCalendar";
 import type { VenueRecord } from "../venue-records";
@@ -8,6 +8,29 @@ import type { VenueRecord } from "../venue-records";
 vi.mock("@fullcalendar/react", () => ({
   default: function FullCalendarMock(props: Record<string, unknown>) {
     const [allowed, setAllowed] = useState("");
+    const [activeView, setActiveView] = useState(String(props.initialView));
+    const [calendarDate, setCalendarDate] = useState(String(props.initialDate ?? "2030-01-07"));
+    const currentDate = useRef(new Date(calendarDate));
+    const calendarApi = useMemo(() => {
+      const updateDate = (value: Date | string) => {
+        currentDate.current = value instanceof Date ? value : new Date(value);
+        setCalendarDate(currentDate.current.toISOString().slice(0, 10));
+      };
+      return {
+        getDate: () => new Date(currentDate.current),
+        changeView: (view: string, date?: Date | string) => {
+          setActiveView(view);
+          if (date) updateDate(date);
+        },
+        gotoDate: (date: Date | string) => updateDate(date),
+      };
+    }, []);
+    useEffect(() => {
+      const ref = props.ref as { current: { getApi: () => unknown } | null } | undefined;
+      if (!ref) return;
+      ref.current = { getApi: () => calendarApi };
+      return () => { ref.current = null; };
+    }, [calendarApi, props.ref]);
     const start = sgtLocalDateTimeToDate("2030-01-07T10:00");
     const end = sgtLocalDateTimeToDate("2030-01-07T11:00");
     const otherDayStart = sgtLocalDateTimeToDate("2030-01-09T10:00");
@@ -21,7 +44,15 @@ vi.mock("@fullcalendar/react", () => ({
     const earlyStart = sgtLocalDateTimeToDate("2030-01-07T08:30");
     const lateEnd = sgtLocalDateTimeToDate("2030-01-08T18:30");
     const allow = (start: Date, end: Date) => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start, end })));
-    return createElement("div", null,
+    return createElement("div", {
+      "data-calendar-view": activeView,
+      "data-calendar-date": calendarDate,
+      "data-calendar-toolbar": JSON.stringify(props.headerToolbar),
+      "data-calendar-prev-text": String(props.prevText ?? ""),
+      "data-calendar-next-text": String(props.nextText ?? ""),
+      "data-calendar-prev-hint": String(props.prevHint),
+      "data-calendar-next-hint": String(props.nextHint),
+    },
       createElement("button", { onClick: () => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start, end }))) }, "Select operating time"),
       createElement("button", { onClick: () => setAllowed(String((props.selectAllow as (range: { start: Date; end: Date }) => boolean)({ start: otherDayStart, end: otherDayEnd }))) }, "Select another weekday"),
       createElement("button", { onClick: () => allow(overnightStart, overnightEnd) }, "Select valid overnight range"),
@@ -57,6 +88,16 @@ const venue: VenueRecord = {
   unavailablePeriods: [],
   reservations: [],
 };
+
+const originalViewportWidth = window.innerWidth;
+afterEach(() => {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: originalViewportWidth });
+});
+
+function resizeTo(width: number) {
+  Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+  fireEvent(window, new Event("resize"));
+}
 
 function range(start: string, end: string): [Date, Date] {
   return [sgtLocalDateTimeToDate(start), sgtLocalDateTimeToDate(end)];
@@ -199,6 +240,44 @@ describe("venue schedule occupancy", () => {
 });
 
 describe("VenueScheduleCalendar interactions", () => {
+  it("uses a compact single-day view on mobile and preserves the active date across resizes", async () => {
+    resizeTo(390);
+    const { container } = render(
+      <VenueScheduleCalendar venue={venue} initialDate="2030-01-07" selectedRange={{ start: "2030-01-07T10:00", end: "2030-01-07T11:00" }} />,
+    );
+
+    const calendar = container.querySelector("[data-calendar-view]")!;
+    await waitFor(() => expect(calendar).toHaveAttribute("data-calendar-view", "timeGridDay"));
+    expect(calendar).toHaveAttribute("data-calendar-date", "2030-01-07");
+    expect(calendar.getAttribute("data-calendar-toolbar")).toContain("prev,next today");
+    expect(calendar.getAttribute("data-calendar-toolbar")).not.toContain("timeGridWeek");
+    expect(calendar.getAttribute("data-calendar-prev-hint")).toBe("Previous day");
+    expect(calendar.getAttribute("data-calendar-next-hint")).toBe("Next day");
+    expect(calendar.getAttribute("data-calendar-prev-text")).toBe("‹");
+    expect(calendar.getAttribute("data-calendar-next-text")).toBe("›");
+
+    resizeTo(1024);
+    await waitFor(() => expect(calendar).toHaveAttribute("data-calendar-view", "timeGridWeek"));
+    expect(calendar).toHaveAttribute("data-calendar-date", "2030-01-07");
+
+    resizeTo(390);
+    await waitFor(() => expect(calendar).toHaveAttribute("data-calendar-view", "timeGridDay"));
+    expect(calendar).toHaveAttribute("data-calendar-date", "2030-01-07");
+  });
+
+  it("retains the weekly view and view switcher on desktop", () => {
+    resizeTo(1024);
+    const { container } = render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
+    const calendar = container.querySelector("[data-calendar-view]")!;
+
+    expect(calendar).toHaveAttribute("data-calendar-view", "timeGridWeek");
+    expect(calendar.getAttribute("data-calendar-toolbar")).toContain("timeGridWeek,timeGridDay");
+    expect(calendar.getAttribute("data-calendar-prev-hint")).toBe("Previous Week");
+    expect(calendar.getAttribute("data-calendar-next-hint")).toBe("Next Week");
+    expect(calendar.getAttribute("data-calendar-prev-text")).toBe("");
+    expect(calendar.getAttribute("data-calendar-next-text")).toBe("");
+  });
+
   /** SPM-51 calendar selection accepts ranges without applying retired operating-hours rules. */
   it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);

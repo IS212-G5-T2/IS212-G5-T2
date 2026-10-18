@@ -41,9 +41,10 @@ describe('SPM-50 venue service', () => {
   const create = vi.fn();
   const list = vi.fn();
   const get = vi.fn();
+  const submitBookingRequest = vi.fn();
   const hasPermission = vi.fn();
   const service = new VenuesService(
-    { create, list, get } as unknown as VenuesRepository,
+    { create, list, get, submitBookingRequest } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
   );
 
@@ -84,6 +85,39 @@ describe('SPM-50 venue service', () => {
     // Assert exact mapping and repository input.
     expect(response).toEqual({ venue, message: 'Venue created successfully.' });
     expect(create).toHaveBeenCalledWith(staff.uid, venueInput);
+  });
+
+  /** SPM-54 AC5: duplicate booking conflicts expose the existing ID and stable reference to the client. */
+  it('returns a conflict with the existing booking reference for a duplicate request', async () => {
+    submitBookingRequest.mockResolvedValue({ kind: 'duplicate-request', id: '12345678-0000-4000-8000-000000000000' });
+
+    await expect(service.submitBookingRequest(coordinator, venue.id, {
+      eventId: '00000000-0000-4000-8000-000000000001',
+    })).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'duplicate_venue_request',
+        bookingId: '12345678-0000-4000-8000-000000000000',
+        bookingReference: 'VB-12345678',
+      },
+    });
+  });
+
+  /** A non-requestable assigned event becomes a clear HTTP conflict and is not reported as a booking. */
+  it('rejects a venue request for a non-requestable event with a clear conflict', async () => {
+    submitBookingRequest.mockResolvedValue({ kind: 'event-not-eligible' });
+
+    await expect(service.submitBookingRequest(coordinator, venue.id, {
+      eventId: '00000000-0000-4000-8000-000000000001',
+    })).rejects.toMatchObject({
+      status: 409,
+      response: {
+        statusCode: 409,
+        error: 'Conflict',
+        message: 'Only approved or planning events can have venue booking requests.',
+      },
+    });
+    expect(submitBookingRequest).toHaveBeenCalledOnce();
   });
 
   // SPM-50 owner rule: request fields cannot replace the verified creator ID.

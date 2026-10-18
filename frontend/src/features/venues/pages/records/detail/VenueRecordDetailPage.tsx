@@ -57,25 +57,33 @@ export function VenueRecordDetailPage() {
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [calendarDate, setCalendarDate] = useState("");
   const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
-  const [reviewingRequest, setReviewingRequest] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [checkedAvailabilityKey, setCheckedAvailabilityKey] = useState("");
   const [requestedEventRevision, setRequestedEventRevision] = useState(0);
   const [requestedEventLoading, setRequestedEventLoading] = useState(false);
   const [requestedEventError, setRequestedEventError] = useState("");
-  const [selectedEventId, setSelectedEventId] = useState(requestedEventId);
-  const prefilledEventId = useRef("");
-  const selectedRequestEvent = events.find(
-    (event) => event.id === (selectedEventId || requestedEventId),
-  ) ?? (requestedEventId ? undefined : events[0]);
+  const prefilledEventKey = useRef("");
+  const requestedEvent = events.find((event) => event.id === requestedEventId);
+  const selectedRequestEvent = requestedEvent && ["approved", "planning", "confirmed"].includes(requestedEvent.status)
+    ? requestedEvent
+    : undefined;
+  const selectedRequestEventId = selectedRequestEvent?.id;
+  const selectedEventTimeReadOnly = Boolean(selectedRequestEvent);
   const [requestError, setRequestError] = useState("");
+  const [existingBookingReference, setExistingBookingReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
   const [movedToPlanning, setMovedToPlanning] = useState("");
+  const [specialRequests, setSpecialRequests] = useState("");
   const [checking, setChecking] = useState(false);
   const validRange =
     Number.isFinite(parseRequestTime(start)) &&
     Number.isFinite(parseRequestTime(end)) &&
     parseRequestTime(start) < parseRequestTime(end);
+  const availabilityKey = validRange
+    ? `${id ?? ""}:${requestedEventId}:${start}:${end}`
+    : "";
+  const availabilityEstablished = Boolean(availabilityKey) && checkedAvailabilityKey === availabilityKey;
   const activeReservations = useMemo(
     () => (venue?.reservations ?? []).filter(
       (reservation) => reservation.status === "booked" || Date.parse(reservation.holdExpiresAt) > availabilityNow,
@@ -126,6 +134,29 @@ export function VenueRecordDetailPage() {
     );
   }, [venue, scheduleVenue, activeReservations, validRange, start, end]);
   const detailError = getVenueDetailErrorMessage(error, venue);
+  const availabilityMessage = submitted
+    ? "Your request is pending Venue Staff review."
+    : existingBookingReference
+      ? "A request already exists for this event and venue."
+      : availabilityEstablished
+        ? "This time is available for this venue."
+        : checking
+          ? "Checking this time against the latest schedule…"
+          : requestError
+            ? "Availability could not be confirmed yet."
+            : "Availability will be checked automatically.";
+  const matchesRequired = (available: string[], required: string[]) => {
+    const normalized = new Set(available.map((item) => item.trim().toLocaleLowerCase()));
+    return required.filter((item) => !normalized.has(item.trim().toLocaleLowerCase()));
+  };
+  const suitabilityIssues = selectedRequestEvent && venue ? [
+    ...(venue.capacity < selectedRequestEvent.venueRequirements.minCapacity || venue.capacity < selectedRequestEvent.expectedAttendance
+      ? [`Capacity ${venue.capacity} is below the required ${Math.max(selectedRequestEvent.venueRequirements.minCapacity, selectedRequestEvent.expectedAttendance)}.`] : []),
+    ...matchesRequired(venue.facilities, selectedRequestEvent.venueRequirements.facilities).map((item) => `Missing facility: ${item}.`),
+    ...matchesRequired(venue.accessibility, selectedRequestEvent.venueRequirements.accessibility).map((item) => `Missing accessibility feature: ${item}.`),
+    ...(selectedRequestEvent.venueRequirements.layout && !matchesRequired(venue.layouts, [selectedRequestEvent.venueRequirements.layout]).length
+      ? [] : selectedRequestEvent.venueRequirements.layout ? [`Required layout unavailable: ${selectedRequestEvent.venueRequirements.layout}.`] : []),
+  ] : [];
 
   useEffect(() => {
     const nextExpiry = (venue?.reservations ?? [])
@@ -147,7 +178,6 @@ export function VenueRecordDetailPage() {
       return;
     }
 
-    setSelectedEventId(requestedEventId);
     if (useAppStore.getState().events.some((event) => event.id === requestedEventId)) {
       setRequestedEventLoading(false);
       setRequestedEventError("");
@@ -183,41 +213,74 @@ export function VenueRecordDetailPage() {
   }, [requestedEventId, requestedEventRevision]);
 
   useEffect(() => {
-    if (!requestedEventId || prefilledEventId.current === requestedEventId) return;
+    if (!requestedEventId) return;
     const event = events.find((item) => item.id === requestedEventId);
     if (!event) return;
-    prefilledEventId.current = event.id;
-    setSelectedEventId(event.id);
+    const eventKey = `${event.id}:${event.startDateTime}:${event.endDateTime}`;
+    if (prefilledEventKey.current === eventKey) return;
+    prefilledEventKey.current = eventKey;
     setStart(toSgtDateTimeLocal(event.startDateTime));
     setEnd(toSgtDateTimeLocal(event.endDateTime));
     setCalendarDate(toSgtDateTimeLocal(event.startDateTime).slice(0, 10));
-    setReviewingRequest(false);
     setSubmitted(false);
+    setExistingBookingReference("");
+    setRequestError("");
   }, [requestedEventId, events]);
 
-  async function refreshAvailability() {
-    // The coordinator-only form renders this action only for a loaded venue and valid range.
-    const selectedVenueId = id!;
-    setChecking(true);
-    setRequestError("");
-    try {
-      const fresh = await api<VenueRecord>(
-        `/venues/${encodeURIComponent(selectedVenueId)}`,
-      );
-      setVenue(fresh);
-      setReviewingRequest(false);
-      setSubmitted(false);
-    } catch (failure) {
-      setReviewingRequest(false);
-      setRequestError(
-        failure instanceof ApiError
-          ? failure.message
-          : "Unable to refresh venue availability. Try again.",
-      );
-    } finally {
+  useEffect(() => {
+    if (!id || !venue?.id || !selectedRequestEventId || requestedEventLoading || requestedEventError || !availabilityKey) {
       setChecking(false);
+      setCheckedAvailabilityKey("");
+      return;
     }
-  }
+
+    let active = true;
+    const requestedAvailabilityKey = availabilityKey;
+    setChecking(true);
+    setCheckedAvailabilityKey("");
+    setRequestError("");
+    const timer = window.setTimeout(() => {
+      Promise.all([
+        api<VenueRecord>(`/venues/${encodeURIComponent(id)}`),
+        api<Array<{
+          id: string;
+          eventId: string;
+          venueId: string;
+          start: string;
+          end: string;
+          status: string;
+          bookingReference: string;
+        }>>("/venues/my-bookings"),
+      ]).then(
+        ([fresh, bookings]) => {
+          if (!active) return;
+          const duplicate = bookings.find((booking) =>
+          booking.eventId === requestedEventId &&
+            booking.venueId === id,
+          );
+          setVenue(fresh);
+          setExistingBookingReference(duplicate?.bookingReference ?? "");
+          setSubmitted(false);
+          setCheckedAvailabilityKey(requestedAvailabilityKey);
+        },
+        (failure: unknown) => {
+          if (!active) return;
+          setRequestError(
+            failure instanceof ApiError
+              ? failure.message
+              : "Unable to refresh venue availability. Try again.",
+          );
+        },
+      ).finally(() => {
+        if (active) setChecking(false);
+      });
+    }, 250);
+
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [id, venue?.id, selectedRequestEventId, requestedEventId, requestedEventLoading, requestedEventError, availabilityKey, revision]);
 
   // SPM-148 PLAN-STATUS-01-A, 03-D: one request per submit; Submit is disabled while the request is in flight.
   async function submitRequest() {
@@ -237,8 +300,7 @@ export function VenueRecordDetailPage() {
           method: "POST",
           body: JSON.stringify({
             eventId,
-            start: sgtLocalDateTimeToDate(start).toISOString(),
-            end: sgtLocalDateTimeToDate(end).toISOString(),
+            specialRequests: specialRequests.trim() || undefined,
           }),
         },
       );
@@ -258,12 +320,16 @@ export function VenueRecordDetailPage() {
       setSubmitted(true);
     } catch (failure) {
       setSubmitted(false);
-      setReviewingRequest(false);
-      setRequestError(
-        failure instanceof ApiError
-          ? failure.message
-          : "Unable to submit the booking request. Try again.",
-      );
+      if (failure instanceof ApiError && failure.code === "duplicate_venue_request" && failure.bookingReference) {
+        setExistingBookingReference(failure.bookingReference);
+        setRequestError("");
+      } else {
+        setRequestError(
+          failure instanceof ApiError
+            ? failure.message
+            : "Unable to submit the booking request. Try again.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
@@ -326,7 +392,7 @@ export function VenueRecordDetailPage() {
     );
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <PageHeader
         title={venue.name}
         description={venue.location}
@@ -345,11 +411,11 @@ export function VenueRecordDetailPage() {
         }
       />
       {hasRole(user, "coordinator") && (
-        <Card className="mb-4">
+        <Card className="mb-4 min-w-0 max-w-full">
           <CardHeader>
             <h2 className="font-semibold">Venue availability</h2>
           </CardHeader>
-          <CardBody className="space-y-4">
+          <CardBody className="min-w-0 space-y-4">
             {requestedEventId && requestedEventLoading && (
               <p role="status">Loading the selected event…</p>
             )}
@@ -364,43 +430,48 @@ export function VenueRecordDetailPage() {
                 </Button>
               </div>
             )}
-            <p className="text-sm">
-              Enter the event start and end time. Availability includes{" "}
+            {requestedEvent && !selectedRequestEvent && (
+              <p role="status">
+                This event is not eligible for venue booking. Only approved or planning events can have requests.
+                {" "}<Link className="underline" to="/events">Choose another event</Link>.
+              </p>
+            )}
+            {!requestedEventId && (
+              <p className="text-sm">
+                Venue booking requests must be tied to an approved or planning event.{" "}
+                <Link className="underline" to="/events">Choose an event first</Link>.
+              </p>
+            )}
+            <p className="break-words text-sm">
+              {selectedRequestEvent ? "This event's period comes from its saved event details. Availability includes" : "Enter the event start and end time. Availability includes"}{" "}
               {venue.setupTimeMinutes} minutes for setup and{" "}
               {venue.turnaroundTimeMinutes} minutes for turnaround. Schedule
               booking rows show event times; available gaps exclude those setup
               and turnaround periods.
             </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm">
+            <div className="grid min-w-0 gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end" role="group" aria-label="Event time and availability">
+              <label className="min-w-0 text-sm">
                 Event starts
                 <input
                   aria-label="Event starts"
                   type="datetime-local"
                   value={start}
-                  onChange={(event) => {
-                    setStart(event.target.value);
-                    if (event.target.value) setCalendarDate(event.target.value.slice(0, 10));
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
+                  onChange={(event) => { if (!selectedRequestEvent) setStart(event.target.value); }}
+                  readOnly={selectedEventTimeReadOnly}
+                  aria-readonly={selectedRequestEvent ? "true" : undefined}
+                  className="mt-1 block box-border w-full min-w-0 max-w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
                 />
               </label>
-              <label className="text-sm">
+              <label className="min-w-0 text-sm">
                 Event ends
                 <input
                   aria-label="Event ends"
                   type="datetime-local"
                   value={end}
-                  onChange={(event) => {
-                    setEnd(event.target.value);
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
+                  onChange={(event) => { if (!selectedRequestEvent) setEnd(event.target.value); }}
+                  readOnly={selectedEventTimeReadOnly}
+                  aria-readonly={selectedRequestEvent ? "true" : undefined}
+                  className="mt-1 block box-border w-full min-w-0 max-w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
                 />
               </label>
             </div>
@@ -431,23 +502,17 @@ export function VenueRecordDetailPage() {
                   venue={scheduleVenue!}
                   initialDate={calendarDate || (scheduleItems[0] ? toSgtDateTimeLocal(scheduleItems[0].start).slice(0, 10) : "")}
                   selectedRange={validRange ? { start, end } : undefined}
-                  onSelectRange={(rangeStart, rangeEnd) => {
+                  onSelectRange={!selectedRequestEvent ? (rangeStart, rangeEnd) => {
                     const nextStart = toSgtDateTimeLocal(rangeStart.toISOString());
                     const nextEnd = toSgtDateTimeLocal(rangeEnd.toISOString());
                     setStart(nextStart);
                     setEnd(nextEnd);
                     setCalendarDate(nextStart.slice(0, 10));
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  onClearSelection={() => {
+                  } : undefined}
+                  onClearSelection={!selectedRequestEvent ? () => {
                     setStart("");
                     setEnd("");
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
+                  } : undefined}
                 />
               </div>
             </div>
@@ -484,14 +549,16 @@ export function VenueRecordDetailPage() {
               </>
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-300">
-              Availability reflects the displayed schedule. You can refresh the schedule; submitting also checks again on the server.
+              {checking
+                ? "Checking the latest schedule…"
+                : "Availability updates automatically when the event time changes. Submitting checks again on the server."}
             </p>
-            <Button
-              disabled={!validRange || checking}
-              onClick={() => void refreshAvailability()}
-            >
-              {checking ? "Refreshing schedule…" : "Refresh schedule"}
-            </Button>
+            {selectedRequestEvent && <section aria-label="Venue suitability assessment">
+              <h3 className="font-semibold">Suitability assessment for {selectedRequestEvent.name}</h3>
+              {suitabilityIssues.length > 0
+                ? <div role="alert"><p>This venue does not meet the event requirements:</p><ul className="mt-2 space-y-1">{suitabilityIssues.map((issue) => <li key={issue} className="flex items-start gap-2"><span aria-hidden="true" className="shrink-0 font-semibold text-amber-600 dark:text-amber-400">⚠</span><span>{issue}</span></li>)}</ul></div>
+                : <p aria-label="Suitability result">This venue meets the event's capacity, facility, accessibility, and layout requirements.</p>}
+            </section>}
             {validRange &&
               (conflicts.length ? (
                 <div role="alert">
@@ -513,14 +580,34 @@ export function VenueRecordDetailPage() {
                 </div>
               ) : (
                 <div>
-                  <p role="status">This time is available for this venue.</p>
-                  {events.length ? (
-                    reviewingRequest ? (
+                  <p role="status">
+                    {availabilityMessage}
+                  </p>
+                  {(submitted || existingBookingReference) && (
+                    <section
+                      aria-label={submitted ? "Booking request submitted" : "Existing booking request"}
+                      className={`rounded-lg border p-4 ${submitted
+                        ? "border-green-300 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
+                        : "border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30"}`}
+                    >
+                      <h3 className="font-semibold">{submitted ? "Request submitted" : "Request already exists"}</h3>
+                      <p className="mt-1 text-sm">
+                        {submitted
+                          ? "Venue Staff will review your request."
+                          : "A request already exists for this event and venue."}
+                      </p>
+                      <p className="mt-2 text-sm">
+                        Booking reference: <strong>{submitted ? bookingReference : existingBookingReference}</strong>
+                      </p>
+                      <Link className="mt-2 inline-block underline" to="/bookings">View bookings</Link>
+                    </section>
+                  )}
+                  {availabilityEstablished && selectedRequestEvent && !requestedEventLoading && !requestedEventError && suitabilityIssues.length === 0 && !existingBookingReference && !submitted && (
                       <section
-                        aria-label="Review booking request"
+                        aria-label="Booking request form"
                         className="space-y-3 rounded border p-4"
                       >
-                        <h3 className="font-semibold">Review booking request</h3>
+                        <h3 className="font-semibold">Venue booking request</h3>
                         <dl className="grid gap-2 text-sm sm:grid-cols-2">
                           <div>
                             <dt>Venue</dt>
@@ -532,7 +619,7 @@ export function VenueRecordDetailPage() {
                           </div>
                           <div>
                             <dt>Expected attendance</dt>
-                            <dd>{selectedRequestEvent?.expectedAttendance}</dd>
+                            <dd>{selectedRequestEvent.expectedAttendance}</dd>
                           </div>
                           <div>
                             <dt>Event period</dt>
@@ -542,81 +629,20 @@ export function VenueRecordDetailPage() {
                         <p className="text-sm">
                           Submitting records a pending booking request for Venue Staff to review.
                         </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="secondary"
-                            disabled={submitting || submitted}
-                            onClick={() => setReviewingRequest(false)}
-                          >
-                            Back to availability
-                          </Button>
-                          <Button
-                            disabled={submitting || submitted}
-                            onClick={() => void submitRequest()}
-                          >
-                            {submitting ? "Submitting…" : "Submit booking request"}
-                          </Button>
-                        </div>
-                      </section>
-                    ) : (
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="availability-event"
-                          className="block text-sm"
-                        >
-                          Event for booking request
+                        <label className="block text-sm">
+                          Special requests (optional)
+                          <textarea maxLength={2000} value={specialRequests} onChange={(event) => setSpecialRequests(event.target.value)} className="mt-1 block w-full rounded-md border p-2" />
                         </label>
-                        <select
-                          id="availability-event"
-                          aria-label="Event for booking request"
-                          value={selectedRequestEvent?.id ?? ""}
-                          className="mt-1 block w-full rounded-md border p-2"
-                          onChange={(event) => {
-                            const nextEvent = events.find((item) => item.id === event.target.value);
-                            setSelectedEventId(event.target.value);
-                            if (nextEvent) {
-                              const nextStart = toSgtDateTimeLocal(nextEvent.startDateTime);
-                              const nextEnd = toSgtDateTimeLocal(nextEvent.endDateTime);
-                              if (nextStart !== start || nextEnd !== end) {
-                                setStart(nextStart);
-                                setEnd(nextEnd);
-                                setCalendarDate(nextStart.slice(0, 10));
-                                setReviewingRequest(false);
-                                setSubmitted(false);
-                              }
-                            }
-                            setReviewingRequest(false);
-                            setSubmitted(false);
-                          }}
-                        >
-                          {!selectedRequestEvent && <option value="">Choose an event…</option>}
-                          {events.map((event) => (
-                            <option key={event.id} value={event.id}>
-                              {event.name}
-                            </option>
-                          ))}
-                        </select>
                         <Button
-                          disabled={!selectedRequestEvent}
-                          onClick={() => {
-                            setRequestError("");
-                            setReviewingRequest(true);
-                          }}
+                          disabled={
+                            submitting || submitted || !validRange || !availabilityEstablished ||
+                            !selectedRequestEvent || suitabilityIssues.length > 0 || conflicts.length > 0
+                          }
+                          onClick={() => void submitRequest()}
                         >
-                          Continue to booking request
+                          {submitting ? "Submitting…" : "Submit booking request"}
                         </Button>
-                      </div>
-                    )
-                  ) : (
-                    <p>
-                      Choose an event in the venue catalogue to submit a booking
-                      request.
-                    </p>
-                  )}
-                  {submitted && (
-                    <p role="status">
-                      Booking request submitted. Reference: {bookingReference}.
-                    </p>
+                      </section>
                   )}
                   {submitted && movedToPlanning && (
                     <p role="status">

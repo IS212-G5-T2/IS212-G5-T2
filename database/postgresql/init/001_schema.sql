@@ -234,13 +234,20 @@ CREATE TABLE IF NOT EXISTS event_registrations (
 );
 CREATE INDEX IF NOT EXISTS event_registrations_event_status_idx ON event_registrations (event_id, status);
 
+CREATE TABLE IF NOT EXISTS venue_booking_requests (
+    event_id uuid NOT NULL REFERENCES events (id) ON DELETE CASCADE,
+    venue_id uuid NOT NULL REFERENCES venues (id) ON DELETE CASCADE,
+    special_request text,
+    PRIMARY KEY (event_id, venue_id)
+);
+
 CREATE TABLE IF NOT EXISTS venue_bookings (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     venue_id uuid NOT NULL REFERENCES venues (id) ON DELETE CASCADE,
     event_id uuid REFERENCES events (id) ON DELETE CASCADE,
     start_at timestamptz NOT NULL,
     end_at timestamptz NOT NULL,
-    status text NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'blocked')),
+    status text NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'blocked', 'cancelled')),
     reason text,
     hold_expires_at timestamptz,
     created_at timestamptz NOT NULL DEFAULT now(),
@@ -248,9 +255,41 @@ CREATE TABLE IF NOT EXISTS venue_bookings (
     CONSTRAINT venue_bookings_kind_check CHECK (
         (status = 'blocked' AND event_id IS NULL AND reason IS NOT NULL
             AND length(btrim(reason)) BETWEEN 1 AND 500 AND hold_expires_at IS NULL)
-        OR (status IN ('pending', 'approved', 'rejected') AND event_id IS NOT NULL AND reason IS NULL)
+        OR (status IN ('pending', 'approved', 'rejected', 'cancelled') AND event_id IS NOT NULL AND reason IS NULL)
     )
 );
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'venue_bookings_request_fk'
+          AND conrelid = 'venue_bookings'::regclass
+    ) THEN
+        ALTER TABLE venue_bookings
+            ADD CONSTRAINT venue_bookings_request_fk
+            FOREIGN KEY (event_id, venue_id)
+            REFERENCES venue_booking_requests (event_id, venue_id)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION ensure_venue_booking_request_association()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.event_id IS NOT NULL THEN
+        INSERT INTO venue_booking_requests (event_id, venue_id)
+        VALUES (NEW.event_id, NEW.venue_id)
+        ON CONFLICT (event_id, venue_id) DO NOTHING;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS venue_bookings_request_association_trigger ON venue_bookings;
+CREATE TRIGGER venue_bookings_request_association_trigger
+    BEFORE INSERT OR UPDATE ON venue_bookings
+    FOR EACH ROW EXECUTE FUNCTION ensure_venue_booking_request_association();
+
 CREATE INDEX IF NOT EXISTS venue_bookings_venue_end_idx ON venue_bookings (venue_id, end_at, start_at);
 CREATE INDEX IF NOT EXISTS venue_bookings_event_idx ON venue_bookings (event_id);
 

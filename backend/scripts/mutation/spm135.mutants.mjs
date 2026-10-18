@@ -28,7 +28,7 @@
 export const SUITES = {
   // Pure rule specs: the readiness function (fail-closed table, hold boundary, ordering) and the planning checklist.
   unit: {
-    args: ['run', 'src/events/status/readiness.spec.ts', 'src/events/status/checklist.spec.ts'],
+    args: ['run', 'src/events/status/readiness.spec.ts', 'src/events/status/checklist.spec.ts', 'src/events/status/arrangements.reader.spec.ts'],
   },
   // Pure FACT_STATE mapping of the stored safety check status (safety-check.source.ts).
   safetyUnit: {
@@ -80,8 +80,15 @@ const safetySource = ['safetyUnit', 'confirmRealSafety'];
 
 const ASSIGNED = "const isAssigned = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;";
 const LOCK_RECHECK = 'if (current.coordinator_id !== identity.uid)';
+const ARRANGEMENTS_READER = 'src/events/status/arrangements.reader.ts';
 
 export const MUTANTS = [
+  { id: 'AR1', name: 'cancelled venue bookings remain in the SPM-135 arrangements snapshot', file: ARRANGEMENTS_READER,
+    edits: [["b.status <> 'cancelled'", "true"]], suites: unitOnly,
+    kills: ['src/events/status/arrangements.reader.spec.ts :: filters cancelled venue booking rows from the planning snapshot'] },
+  { id: 'AR2', name: 'cancelled venue bookings appear in the PostgreSQL-backed planning read model', file: ARRANGEMENTS_READER,
+    edits: [["b.status <> 'cancelled'", 'true']], suites: e2eOnly,
+    kills: ['test/events-confirm.e2e-spec.ts :: SPM-135 AC1: arrangements-status omits cancelled bookings while retaining active requests'] },
   // ---- readiness.ts (pure rule; also reached over HTTP) ----
   { id: 'M1', name: 'only the first venue booking is checked (kills 02-C rule; 01-B)', file: READINESS,
     edits: [['for (const booking of [...snapshot.venueBookings].sort(byId)) {', 'for (const booking of [...snapshot.venueBookings].sort(byId).slice(0, 1)) {']],

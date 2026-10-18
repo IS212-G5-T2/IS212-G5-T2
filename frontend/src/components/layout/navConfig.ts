@@ -16,15 +16,12 @@ export const navByRole: Record<UserRole, NavItem[]> = {
   coordinator: [
     { label: "Events", to: "/events", icon: "📅", feature: "Feature 3, 4, 5, 6" },
     { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
-    { label: "Venue Availability", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
     { label: "Bookings", to: "/bookings", icon: "📝", feature: "Feature 9, 11" },
     { label: "Equipment", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },
   ],
   venue_staff: [
     { label: "Venue Records", to: "/venue-records", icon: "🏛️", feature: "SPM-124" },
     { label: "Create Venue", to: "/venues/create", icon: "➕", feature: "SPM-50" },
-    { label: "Availability Calendar", to: "/venues/availability", icon: "🗓️", feature: "Feature 8" },
-    { label: "Booking Requests", to: "/bookings", icon: "📝", feature: "Feature 10, 11" },
   ],
   tech_support: [
     { label: "Equipment Requests", to: "/equipment/requests", icon: "🎛️", feature: "Feature 12" },

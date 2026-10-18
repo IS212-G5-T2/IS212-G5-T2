@@ -83,7 +83,7 @@ export class ArrangementsReader {
               ) AS venue_unavailable
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
-        WHERE b.event_id = $1
+        WHERE b.event_id = $1 AND b.status <> 'cancelled'
         ORDER BY b.start_at, b.id${lock}`,
       [eventId],
     );

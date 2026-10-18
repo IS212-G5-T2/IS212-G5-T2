@@ -273,22 +273,49 @@ periods with reasons and a `current` flag for the early-end control.
 `GET /api/venues/:id` returns confirmed bookings, active tentative holds and
 unavailable periods for the venue. Pending holds include `holdExpiresAt`; holds
 whose expiry is at or before the server clock are omitted. Coordinators submit
-an assigned event's requested interval through
-`POST /api/venues/:id/booking-requests` with `{ "eventId", "start", "end" }`,
-where start/end are ISO instants. The request is stored as `pending` and the
+an assigned event through
+`POST /api/venues/:id/booking-requests` with `{ "eventId", "specialRequests?" }`.
+The event's persisted start/end instants are authoritative; callers cannot
+supply booking times. The request is stored as `pending` and the
 response includes its booking reference. The backend locks the venue, checks
 the fresh schedule against setup/turnaround buffers and blockouts, and returns
-409 without inserting when it finds a conflict. Only the event's currently
-assigned Coordinator may submit it.
+409 without inserting when it finds a conflict. `Approved` and `Planning`
+events may receive venue booking requests; confirmed and other event statuses
+are rejected with 409 before availability checks or a booking row is inserted.
+Only the event's currently assigned Coordinator may submit it.
 
 Backend evidence for the booking-request rules is in
 `src/venues/availability/booking-request.spec.ts`,
 `src/venues/availability/dto/booking-request.spec.ts`, and
 `test/venues-booking-requests.e2e-spec.ts`. The schedule schema supports
-`rejected` as the declined request status; it has no `cancelled` booking status.
-Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
-requests are tentative and rejected requests are absent, without claiming a
-cancelled status exists.
+`rejected` as the declined request status. Before SPM-54, it had no `cancelled`
+status; VEN-AVL-02-C therefore checks pending and rejected schedule behaviour
+without depending on the later cancellation status.
+
+### Venue booking requests (SPM-54)
+
+Only one request can exist for an event/venue pair, including after a request
+has been cancelled, rejected, or approved. Requests for distinct venues remain
+independent. `venue_booking_requests` stores the event/venue pair as its
+composite primary key and owns the optional special request. `venue_bookings`
+retains its booking IDs and status history, with an event/venue foreign key to
+the request row. Coordinators can include optional `specialRequests` (up to 2,000 characters)
+when submitting a request. Submission rechecks event capacity, facilities,
+accessibility, layout, schedule conflicts, and unavailable periods on the
+server. `GET /api/venues/my-bookings` lists venue bookings for the signed-in
+coordinator's assigned events, including venue, status, reference, and an
+affected-by-unavailability indicator. `POST /api/venues/booking-requests/:bookingId/cancel`
+cancels one pending or approved
+booking; cancelling the last active booking for an event requires
+`{ "confirmLastActive": true }`. Migration
+`011_spm54_venue_booking_requests.sql` adds cancelled status and special-request
+storage; `012_spm54_event_venue_request_key.sql` creates and backfills the
+composite request association while retaining historical booking rows. Fresh
+databases receive the current schema through `database/`.
+Run the SPM-54 unit mutation checks without PostgreSQL using
+`node scripts/mutation/run.mjs --mutants spm54.mutants.mjs`. PostgreSQL-only
+multi-venue and persisted cancellation checks remain in
+`test/venues-booking-requests.e2e-spec.ts`.
 
 Run SPM-51 fault-injection checks with a PostgreSQL database configured in
 `DATABASE_URL`:

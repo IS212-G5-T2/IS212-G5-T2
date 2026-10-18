@@ -1,7 +1,7 @@
 // Story: SPM-148 Event Status Changes from Approved to Planning
 // ACs: AC1, AC3
 // Test cases: PLAN-STATUS-01-A (FE), PLAN-STATUS-03-A (FE), PLAN-STATUS-03-D (FE)
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -33,6 +33,7 @@ const venue: VenueRecord = {
   reservations: [],
 };
 const originalUser = useAppStore.getState().currentUser;
+let postResponse: unknown;
 
 /** The Coordinator's event in the given status; the name is the MSG-PL-01 oracle. */
 function seedEvent(status: "approved" | "planning") {
@@ -60,28 +61,30 @@ function seedEvent(status: "approved" | "planning") {
   });
 }
 
-/** Opens the review step for the seeded event (venue read, schedule refresh, continue). */
+/** Opens the event-linked form after the page automatically checks availability. */
 async function openReview() {
   const user = userEvent.setup();
   render(
-    <MemoryRouter initialEntries={[`/venue-records/${VENUE_ID}`]}>
+    <MemoryRouter initialEntries={[`/venue-records/${VENUE_ID}?eventId=event-801`]}>
       <Routes>
         <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
       </Routes>
     </MemoryRouter>,
   );
   await screen.findByRole("heading", { name: "Main Hall" });
-  fireEvent.change(screen.getByLabelText("Event starts"), { target: { value: "2030-01-12T12:00" } });
-  fireEvent.change(screen.getByLabelText("Event ends"), { target: { value: "2030-01-12T13:00" } });
-  await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
-  await user.click(screen.getByRole("button", { name: "Continue to booking request" }));
-  return { user, review: screen.getByRole("region", { name: "Review booking request" }) };
+  return { user, review: await screen.findByRole("region", { name: "Booking request form" }) };
 }
 
 describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce(venue);
+    postResponse = { bookingReference: "VB-00000000", eventStatus: "Planning", statusChanged: false };
+    apiMock.mockImplementation(async (path, init) => {
+      if (path === "/venues/my-bookings") return [] as never;
+      if (path.startsWith("/events/")) return useAppStore.getState().events.find((event) => event.id === path.slice("/events/".length)) as never;
+      if ((init as RequestInit | undefined)?.method === "POST") return postResponse as never;
+      return venue as never;
+    });
   });
   afterEach(() => {
     cleanup();
@@ -92,7 +95,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
   it("PLAN-STATUS-01-A: the first request shows MSG-PL-01 and the event becomes Planning without a reload", async () => {
     // Arrange: Approved event, server reports the transition.
     seedEvent("approved");
-    apiMock.mockResolvedValueOnce({ bookingReference: "VB-00000148", eventStatus: "Planning", statusChanged: true });
+    postResponse = { bookingReference: "VB-00000148", eventStatus: "Planning", statusChanged: true };
     useAppStore.setState((state) => ({
       events: [...state.events, { ...state.events[0], id: "event-900", name: "Other event", status: "approved" }],
     }));
@@ -112,14 +115,14 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
   it("PLAN-STATUS-03-A: a later request shows no Planning message and leaves the status alone", async () => {
     // Arrange: already Planning, server reports no change.
     seedEvent("planning");
-    apiMock.mockResolvedValueOnce({ bookingReference: "VB-00000149", eventStatus: "Planning", statusChanged: false });
+    postResponse = { bookingReference: "VB-00000149", eventStatus: "Planning", statusChanged: false };
     const { user, review } = await openReview();
 
     // Act
     await user.click(within(review).getByRole("button", { name: "Submit booking request" }));
 
     // Assert
-    expect(await screen.findByText(/Booking request submitted\. Reference: VB-00000149\./)).toBeInTheDocument();
+    expect(await screen.findByLabelText("Booking request submitted")).toHaveTextContent("VB-00000149");
     expect(screen.queryByText(/is now in Planning/)).not.toBeInTheDocument();
     expect(useAppStore.getState().events[0].status).toBe("planning");
   });
@@ -129,7 +132,7 @@ describe("SPM-148 AC1/AC3: the booking form reports the move to Planning", () =>
     // Arrange: hold the booking request open.
     seedEvent("approved");
     const pending = deferred<{ bookingReference: string; eventStatus: string; statusChanged: boolean }>();
-    apiMock.mockReturnValueOnce(pending.promise);
+    postResponse = pending.promise;
     const { user, review } = await openReview();
     const submit = within(review).getByRole("button", { name: "Submit booking request" });
 

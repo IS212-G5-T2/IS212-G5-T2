@@ -326,8 +326,11 @@ export class StatusService {
           code: STATUS_CODES.venueRequestNotRemovable,
           message: STATUS_MESSAGES.venueRequestNotRemovable,
         });
-      // Deleting the booking also resets any safety check (venue_bookings trigger, migration 014).
-      await client.query('DELETE FROM venue_bookings WHERE id = $1 AND event_id = $2', [venueRequestId, event.id]);
+      // Keep the event/venue request key and booking history; the arrangements reader excludes cancelled rows.
+      await client.query(
+        "UPDATE venue_bookings SET status = 'cancelled' WHERE id = $1 AND event_id = $2",
+        [venueRequestId, event.id],
+      );
       return { eventId: event.id, venueRequestId, removed: true };
     });
   }
