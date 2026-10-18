@@ -128,7 +128,8 @@ describe("EventListPage", () => {
     expect(await screen.findByRole("heading", { name: "My Events" })).toBeTruthy();
     expect(await screen.findByText("Welcome Evening")).toBeTruthy();
     expect(screen.getByText("Community building")).toBeTruthy();
-    expect(screen.getByText("Submitted", { selector: "span" })).toBeTruthy();
+    // The status filter's "Submitted" checkbox is also a span, so the badge is read from the card itself.
+    expect(within(screen.getByText("Welcome Evening").closest("a")!).getByText("Submitted", { selector: "span" })).toBeTruthy();
   });
 
   /** REQ-CHANGE-05-A: an event with a change request awaiting review is marked on My Events; others are not. */
@@ -884,5 +885,208 @@ describe("SPM-94 ordering: events read from the earliest start date", () => {
     await screen.findByText("Day 25");
     const names = screen.getAllByRole("link").map((a) => a.textContent ?? "").filter((t) => t.startsWith("Day "));
     expect(names.map((t) => t.match(/Day \d+/)?.[0])).toEqual(["Day 25", "Day 27", "Day 28", "Day 30"]);
+  });
+});
+
+// SPM-95: My Events status filter. Confluence matrix: FILTER-EVT-01-B through FILTER-EVT-07-A (records/SPM-95.csv).
+describe("SPM-95: the organiser's status filter on My Events", () => {
+  const ID = (n: number) => `00000000-0000-4000-8000-0000000009${String(n).padStart(2, "0")}`;
+  function sample(n: number, name: string, overrides: Partial<EventRecord>): EventRecord {
+    return { ...submittedEvent(), id: ID(n), name, ...overrides };
+  }
+  /** One event per filterable state, so each test can show which events a filter keeps. */
+  function sampleEvents(): EventRecord[] {
+    return [
+      sample(1, "Submitted Talk", { status: "submitted" }),
+      sample(2, "Approved Gala", { status: "approved" }),
+      sample(3, "Confirmed Fair", { status: "confirmed" }),
+      sample(4, "Safety Pending", { status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"], safetyIndicator: "AWAITING_CHECK" }),
+    ];
+  }
+  function renderOrganiserList() {
+    return render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+  const statusGroup = () => screen.getByRole("group", { name: "Filter by status" });
+  const shownNames = () =>
+    ["Submitted Talk", "Approved Gala", "Confirmed Fair", "Safety Pending"].filter((name) =>
+      screen.queryByText(name),
+    );
+
+  /** SPM-95 AC1: with no filter selected, I see all of my events. */
+  it("FILTER-EVT-01-B: with no filter selected, every one of my events is listed and no filter is checked", async () => {
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+
+    await screen.findByText("Submitted Talk");
+
+    expect(shownNames()).toHaveLength(4);
+    for (const box of within(statusGroup()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
+  });
+
+  /** SPM-95 AC2: selecting several statuses shows only my events that match any of them. */
+  it("FILTER-EVT-02-C: selecting Submitted and Approved shows events in either status and hides the rest", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Submitted" }));
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Approved" }));
+
+    expect(shownNames()).toEqual(["Submitted Talk", "Approved Gala"]);
+    expect(screen.queryByText("Confirmed Fair")).toBeNull();
+    expect(screen.queryByText("Safety Pending")).toBeNull();
+  });
+
+  /** SPM-95 AC3: the active filters are visible, and one action clears them all. */
+  it("FILTER-EVT-03-A: the active filters are named, and Clear all filters restores the unfiltered list", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Approved" }));
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Confirmed" }));
+
+    expect(screen.getByText("Active filters: Approved, Confirmed")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Clear all filters" }));
+
+    expect(shownNames()).toHaveLength(4);
+    for (const box of within(statusGroup()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
+    expect(screen.queryByText(/Active filters/)).toBeNull();
+  });
+
+  /** SPM-95 AC4: when no event matches the selected filters, the list says "No matching events found". */
+  it("FILTER-EVT-04-A: a filter with no matching event shows the No matching events found message", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Cancelled" }));
+
+    expect(screen.getByText("No matching events found")).toBeInTheDocument();
+    expect(screen.queryByText("Submitted Talk")).toBeNull();
+  });
+
+  /** SPM-95 AC5: Awaiting Safety Check keeps only events whose safety check is awaited. */
+  it("FILTER-EVT-05-G: Awaiting Safety Check shows only the event awaiting its safety check", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Awaiting Safety Check" }));
+
+    expect(shownNames()).toEqual(["Safety Pending"]);
+  });
+
+  /** SPM-95 AC6: filtering narrows the organiser's own list from the server and fetches no other events. */
+  it("FILTER-EVT-06-A: filtering narrows the list the server returned for me without loading events again", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Confirmed" }));
+
+    expect(shownNames()).toEqual(["Confirmed Fair"]);
+    expect(eventLoads()).toBe(1);
+  });
+
+  /** SPM-95 AC7: leaving the list for an event's details and returning shows the unfiltered list, and nothing is stored globally. */
+  it("FILTER-EVT-07-A: returning to the list after leaving it resets the filters to unfiltered", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue(sampleEvents());
+    const first = renderOrganiserList();
+    await screen.findByText("Submitted Talk");
+    await user.click(within(statusGroup()).getByRole("checkbox", { name: "Approved" }));
+    expect(shownNames()).toEqual(["Approved Gala"]);
+
+    // Leaving the list for an event's details unmounts it.
+    first.unmount();
+    renderOrganiserList();
+
+    await screen.findByText("Submitted Talk");
+    expect(shownNames()).toHaveLength(4);
+    for (const box of within(statusGroup()).getAllByRole("checkbox")) {
+      expect(box).not.toBeChecked();
+    }
+    expect(useAppStore.getState().eventListFilters.status).toBeNull();
+  });
+});
+
+// SPM-95 keeps other roles' status filter as it was; these tests cover the branches the organiser change left on shared code.
+describe("SPM-95: the other roles' status filter and the drafts loader", () => {
+  /** SPM-95 AC1 (other roles): a coordinator whose status filter is the All statuses value sees every event. */
+  it("FILTER-EVT-01-C: a coordinator with the All statuses value sees every event, not only Submitted", async () => {
+    apiMock.mockResolvedValue([submittedEvent(), { ...submittedEvent(), id: "00000000-0000-4000-8000-0000000009a1", name: "Approved Party", status: "approved" }]);
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+      eventListFilters: { attendee: "upcoming", status: "" },
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Approved Party")).toBeTruthy();
+    expect(screen.getByText("Welcome Evening")).toBeTruthy();
+  });
+
+  /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts answer that is not a list shows no Drafts section and leaves the events. */
+  it("TRACK-EVENT-STATUS-01-A: a drafts response that is not a list shows no Drafts section and the events still list", async () => {
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? Promise.resolve({ unexpected: true }) : Promise.resolve([submittedEvent()])) as typeof api);
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
+  });
+
+  /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts failure that arrives after the page was left is ignored. */
+  it("TRACK-EVENT-STATUS-01-A: a drafts failure that arrives after the page was left shows nothing", async () => {
+    const drafts = deferred<DraftRecord[]>();
+    apiMock.mockImplementation(((path: string) =>
+      path === "/requests" ? drafts.promise : Promise.resolve([] as EventRecord[])) as typeof api);
+
+    const view = render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await screen.findByText("No matching events found");
+    view.unmount();
+
+    await act(async () => {
+      drafts.reject(new Error("Drafts unavailable."));
+      await drafts.promise.catch(() => undefined);
+    });
+
+    expect(screen.queryByText("Drafts unavailable.")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 });

@@ -60,10 +60,17 @@ export function safetyLabel(status: string): StateLabelInfo {
   }
 }
 
-/** A planning event whose venue and all equipment are reserved: only then is the awaiting safety check shown (owner, 18 Oct 2026). */
+/** A planning event whose venue and all equipment are reserved: used for the combined "Equipment & Venue Reserved" card label. */
 export function arrangementsReserved(event: Pick<EventRecord, "status" | "venueRequestStatus" | "equipmentStatuses">): boolean {
   const statuses = event.equipmentStatuses ?? [];
   return event.status === "planning" && event.venueRequestStatus === "approved" && statuses.length > 0 && statuses.every((s) => s === "Reserved");
+}
+
+/** A planning event whose venue is approved and no equipment is still pending: the safety check can proceed.
+ *  Unlike arrangementsReserved, this returns true when the event has no equipment needs at all. */
+export function safetyCheckReady(event: Pick<EventRecord, "status" | "venueRequestStatus" | "equipmentStatuses">): boolean {
+  const statuses = event.equipmentStatuses ?? [];
+  return event.status === "planning" && event.venueRequestStatus === "approved" && statuses.every((s) => s === "Reserved");
 }
 
 /** Card labels name the resource and its state. "Reserved" states count only in the planning phase; when a planning event has
@@ -86,9 +93,7 @@ export function cardArrangementLabels(
     if (equipmentReserved && planning) labels.push({ label: "Equipment Reserved", tone: "green" });
   }
 
-  // A planning event with nothing requested yet is awaiting the request.
   if (planning && !event.venueRequestStatus) labels.push({ label: "Awaiting Venue Request", tone: "amber" });
-  if (planning && statuses.length === 0) labels.push({ label: "Awaiting Equipment Request", tone: "amber" });
 
   switch (event.venueRequestStatus) {
     case "pending":

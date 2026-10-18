@@ -81,14 +81,8 @@ afterEach(() => {
 
 describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
   // Kills: X5 (indicator removed from the planning page), X4 (shown without the server flag).
-  it("TRACK-EVENT-STATUS-02-A: the owner sees Awaiting Coordinator Assignment for an unassigned Submitted event", async () => {
+  it("TRACK-EVENT-STATUS-02-A: the assignment indicator is not rendered (redundant with Coordinator field)", async () => {
     current = eventRecord({ status: "submitted", coordinatorId: undefined, awaitingCoordinatorAssignment: true });
-    renderPage();
-    expect(await screen.findByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
-  });
-
-  it("TRACK-EVENT-STATUS-02-A: the owner does not see the assignment indicator once a coordinator is assigned", async () => {
-    current = eventRecord({ status: "submitted", coordinatorId: "COO-01", coordinatorName: "Coordinator One" });
     renderPage();
     await screen.findByText("Student Mixer");
     expect(screen.queryByText("Awaiting Coordinator Assignment")).not.toBeInTheDocument();

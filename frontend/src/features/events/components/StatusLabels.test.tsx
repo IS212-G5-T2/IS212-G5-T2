@@ -56,10 +56,9 @@ describe("card labels name the resource and its state", () => {
     ]);
   });
 
-  it("TRACK-EVENT-STATUS-01-A CARD: a planning event with nothing requested is awaiting both requests", () => {
+  it("TRACK-EVENT-STATUS-01-A CARD: a planning event with no venue and no equipment shows only the venue awaiting label", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: null, equipmentStatuses: [] })).toEqual([
       { label: "Awaiting Venue Request", tone: "amber" },
-      { label: "Awaiting Equipment Request", tone: "amber" },
     ]);
   });
 
