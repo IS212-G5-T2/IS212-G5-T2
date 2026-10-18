@@ -48,7 +48,11 @@ CREATE INDEX IF NOT EXISTS event_change_request_audit_event_idx
 CREATE UNIQUE INDEX IF NOT EXISTS event_change_request_audit_one_outcome
     ON event_change_request_audit (change_request_id);
 
--- Append-only: entries are never edited. (Rows are still removed with their event by ON DELETE CASCADE.)
+-- Append-only: entries are never edited (an UPDATE raises). Known limit (PR #72 review): entries are not
+-- delete-protected. The application has no route or query that deletes events, change requests or
+-- audit entries (events are cancelled, never deleted), but a direct database DELETE of an event or
+-- change request removes its audit entries through ON DELETE CASCADE, and a direct DELETE on this
+-- table is not blocked. Kept so test and maintenance clean-up of events still works.
 CREATE OR REPLACE FUNCTION trg_change_request_audit_no_update() RETURNS trigger
 LANGUAGE plpgsql AS $$
 BEGIN

@@ -91,10 +91,46 @@ describe("ChangeRequestReview", () => {
   it("shows why the preview could not load", async () => {
     previewMock.mockRejectedValue(new Error("Change request not found."));
     renderReview();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Change request not found.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Change request not found. Approval is unavailable until the conflict check succeeds.",
+    );
     previewMock.mockRejectedValue("offline");
     renderReview({ id: "cr-2" });
-    expect(await screen.findByText("Could not check for conflicts.")).toBeInTheDocument();
+    expect(await screen.findByText(/^Could not check for conflicts\./)).toBeInTheDocument();
+  });
+
+  /** REVIEW-CHANGE-03-I (PR #72 review): approval waits for a successful conflict check. */
+  it("REVIEW-CHANGE-03-I keeps Approve disabled while the conflict check loads", async () => {
+    let resolve!: (value: ChangeRequestConflicts) => void;
+    previewMock.mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    renderReview();
+    expect(screen.getByRole("status")).toHaveTextContent("Checking for conflicts…");
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Approve Change" })).toHaveAttribute(
+      "title",
+      "Available once the conflict check has loaded",
+    );
+    expect(screen.getByRole("button", { name: "Deny Change" })).toBeEnabled();
+    resolve(conflicts);
+    expect(await screen.findByText("Venue bookings")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Approve Change" })).not.toHaveAttribute("title");
+  });
+
+  it("REVIEW-CHANGE-03-I keeps Approve disabled when the check fails, until a retry succeeds", async () => {
+    previewMock.mockRejectedValueOnce(new Error("The service is temporarily unavailable. Please try again."));
+    const { user } = renderReview();
+    await screen.findByRole("alert");
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeDisabled();
+    expect(approveMock).not.toHaveBeenCalled();
+    // Denying does not depend on the check.
+    expect(screen.getByRole("button", { name: "Deny Change" })).toBeEnabled();
+    previewMock.mockResolvedValueOnce(conflicts);
+    await user.click(screen.getByRole("button", { name: "Retry Conflict Check" }));
+    expect(await screen.findByText("Venue bookings")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve Change" })).toBeEnabled();
+    expect(previewMock).toHaveBeenCalledTimes(2);
   });
 
   it("REVIEW-CHANGE-04-A approves after confirmation, mentioning the safety check reset", async () => {

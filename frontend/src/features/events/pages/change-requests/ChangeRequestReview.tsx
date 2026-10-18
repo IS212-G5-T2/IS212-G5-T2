@@ -5,7 +5,9 @@
  *   on the events page goes away).
  * - AC3: a read-only conflict preview loads with the request: venue bookings, equipment
  *   reservations and registrations the requested values conflict with. Loading it changes nothing.
- * - AC4: Approve asks for confirmation first, then applies the change.
+ * - AC4: Approve asks for confirmation first, then applies the change. It stays disabled until the
+ *   conflict check has loaded, so the coordinator never approves without seeing the conflicts; if the
+ *   check fails it can be retried. Deny does not depend on the check.
  * - AC5: Deny needs a reason of 10 to 500 characters.
  * - AC6: the parent shows the confirmation message (onDecided).
  * - AC11: a pending request is closed automatically when the organiser withdraws it or the event is
@@ -86,6 +88,8 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
   const [reasonError, setReasonError] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // Bumped by "Retry Conflict Check" to load the preview again.
+  const [previewAttempt, setPreviewAttempt] = useState(0);
 
   // Opening the review counts as seeing the request: it is no longer tagged New on the events page.
   useEffect(() => {
@@ -94,6 +98,8 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
 
   useEffect(() => {
     let active = true;
+    setConflicts(null);
+    setPreviewError("");
     previewChangeRequestConflicts(request.eventId, request.id)
       .then((loaded) => {
         if (active) setConflicts(loaded);
@@ -104,7 +110,7 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
     return () => {
       active = false;
     };
-  }, [request.eventId, request.id]);
+  }, [request.eventId, request.id, previewAttempt]);
 
   async function decide(work: () => Promise<void>) {
     setBusy(true);
@@ -141,9 +147,12 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
       <p className="text-xs text-gray-500 dark:text-gray-400">A preview only: nothing changes until you approve.</p>
       <div className="mt-2">
         {previewError ? (
-          <p role="alert" className="text-danger-600 dark:text-danger-400">
-            {previewError}
-          </p>
+          <div role="alert" className="text-danger-600 dark:text-danger-400">
+            <p>{previewError} Approval is unavailable until the conflict check succeeds.</p>
+            <Button size="sm" variant="secondary" className="mt-2" onClick={() => setPreviewAttempt((n) => n + 1)}>
+              Retry Conflict Check
+            </Button>
+          </div>
         ) : conflicts ? (
           <ConflictPreview conflicts={conflicts} />
         ) : (
@@ -159,7 +168,12 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
 
       {mode === "idle" && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <Button size="sm" onClick={() => setMode("confirmApprove")}>
+          <Button
+            size="sm"
+            disabled={!conflicts}
+            title={conflicts ? undefined : "Available once the conflict check has loaded"}
+            onClick={() => setMode("confirmApprove")}
+          >
             Approve Change
           </Button>
           <Button size="sm" variant="secondary" onClick={() => setMode("deny")}>
@@ -175,7 +189,7 @@ export function ChangeRequestReview({ request, onApproved, onDenied, onStale }: 
             {request.requiresSafetyCheck && " Its safety check will be reset and must be requested again."}
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
-            <Button size="sm" disabled={busy} onClick={() => void approve()}>
+            <Button size="sm" disabled={busy || !conflicts} onClick={() => void approve()}>
               Confirm Approval
             </Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => setMode("idle")}>
