@@ -30,7 +30,11 @@
  *   'requirements' entry telling the coordinator to re-check suitability.
  *   Removing facilities only (no additions) can never make a venue unsuitable,
  *   so it is compatible when `currentFacilities` is supplied.
+ * - Times inside conflict details are Singapore wall-clock time with am/pm
+ *   (common/sgt-time.ts), because the coordinator reads them as-is.
  */
+
+import { sgtRange } from '../../../common/sgt-time.js';
 
 /** Minimum free time a venue needs between two different events' bookings. */
 export const TURNAROUND_MINUTES = 30;
@@ -86,14 +90,6 @@ export interface BookingImpact {
   conflicts: ImpactConflict[];
 }
 
-function clock(value: number): string {
-  return new Date(value).toISOString().slice(11, 16);
-}
-
-function stamp(value: number): string {
-  const iso = new Date(value).toISOString();
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)}`;
-}
 
 /** True when [start, end] lies inside the window [heldStart, heldEnd]. */
 export function withinWindow(
@@ -118,7 +114,7 @@ function timeConflicts(
       conflicts.push({
         kind: 'overlap',
         withBookingId: other.id,
-        detail: `Overlaps ${other.eventName} (${clock(otherStart)}–${clock(otherEnd)} UTC)`,
+        detail: `Overlaps ${other.eventName} (${sgtRange(otherStart, otherEnd)})`,
       });
       continue;
     }
@@ -163,7 +159,7 @@ export function assessVenueBookings(
     if (moves && !withinWindow(start, end, heldStart, heldEnd)) {
       conflicts.push({
         kind: 'window',
-        detail: `Booking holds ${booking.venueName} ${stamp(heldStart)}–${clock(heldEnd)} UTC; the event would run ${stamp(start)}–${clock(end)} UTC, so the booking must change`,
+        detail: `Booking holds ${booking.venueName} ${sgtRange(heldStart, heldEnd)}; the event would run ${sgtRange(start, end)}, so the booking must change`,
       });
       conflicts.push(...timeConflicts(start, end, booking.neighbours));
     }

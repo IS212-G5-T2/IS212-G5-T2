@@ -63,6 +63,21 @@ describe('assessVenueBookings', () => {
     });
   });
 
+  /**
+   * Conflict text is read by coordinators in Singapore, so the neighbour's
+   * period is shown in Singapore time with am/pm, never as UTC.
+   */
+  it('EVENT-FLAG-02-A shows the overlapping booking in Singapore am/pm time', () => {
+    const [result] = assessVenueBookings({ endDateTime: iso('15:00') }, [
+      booking({ neighbours: [neighbour(iso('14:00'), iso('16:00'))] }),
+    ]);
+    // 14:00–16:00 UTC is 10:00 pm – 12:00 am SGT, crossing into the next day.
+    expect(result.conflicts[1].detail).toBe(
+      'Overlaps Chemistry Workshop (10 Nov 2026, 10:00 pm – 11 Nov 2026, 12:00 am)',
+    );
+    expect(result.conflicts[1].detail).not.toContain('UTC');
+  });
+
   // EVENT-FLAG-02-B: a gap shorter than setup/turnaround time is also a conflict.
   it('EVENT-FLAG-02-B reports a turnaround conflict when the gap is too short', () => {
     // Start moved one hour earlier, to within T-1 minutes of the neighbour.
@@ -378,7 +393,7 @@ describe('assessVenueBookings: compatible changes leave bookings unimpacted (SPM
       {
         kind: 'window',
         detail:
-          'Booking holds Hall A 2026-11-10 10:00–13:00 UTC; the event would run 2026-11-10 10:00–14:00 UTC, so the booking must change',
+          'Booking holds Hall A 10 Nov 2026, 6:00 pm – 9:00 pm; the event would run 10 Nov 2026, 6:00 pm – 10:00 pm, so the booking must change',
       },
     ]);
   });

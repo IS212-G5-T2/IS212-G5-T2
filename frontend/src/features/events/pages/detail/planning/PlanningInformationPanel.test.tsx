@@ -31,7 +31,6 @@ function eventRecord(): EventRecord {
     venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering", "AV System"], accessibility: [] },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    changeRequests: [],
     createdAt: "2026-09-13T00:00:00.000Z",
     updatedAt: "2026-10-04T09:00:00.000Z",
   };
@@ -151,7 +150,7 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     );
     const marked = row("Date & time");
     expect(within(marked).getAllByText("Change pending")).toHaveLength(2);
-    expect(marked).toHaveTextContent(`Proposed: ${formatDateTime("2026-11-11T10:00:00.000Z")}`);
+    expect(marked).toHaveTextContent("Proposed: 11 Nov 2026, 6:00 pm"); // Singapore time with am/pm
   });
 
   // EVENT-VIEW-03-A: a pending list value is shown as readable text.
@@ -228,5 +227,22 @@ describe("PlanningInformationPanel: refresh problems", () => {
     render(<PlanningInformationPanel view={view({ event })} />);
     expect(row("Room layout")).toHaveTextContent("—");
     expect(row("Room layout")).not.toHaveTextContent("Banquet");
+  });
+});
+
+// SPM-94: the organiser sees the safety state in the planning information, in words (the label stays in the header).
+describe("planning information shows the safety check to the organiser", () => {
+  it.each([
+    ["AWAITING_CHECK", "Waiting for the Safety Officer's check."],
+    ["CHANGES_REQUESTED", "The Safety Officer has requested changes; your coordinator will respond."],
+    ["CLEARED", "The Safety Officer has cleared this event."],
+  ] as const)("TRACK-EVENT-STATUS-03-B PLANNING: %s is described in the planning information", (indicator, sentence) => {
+    render(<PlanningInformationPanel view={view()} safetyIndicator={indicator} />);
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+  });
+
+  it("TRACK-EVENT-STATUS-03-B PLANNING: no safety check requested yet when there is no indicator", () => {
+    render(<PlanningInformationPanel view={view()} safetyIndicator={null} />);
+    expect(screen.getByText("No safety check requested yet.")).toBeInTheDocument();
   });
 });

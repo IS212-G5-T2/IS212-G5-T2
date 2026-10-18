@@ -529,3 +529,22 @@ describe('EventPlanningRepository row mapping', () => {
     ).resolves.toBeUndefined();
   });
 });
+
+/** SPM-65: change request review writes its own rows on the same connection as applyFields. */
+describe('EventPlanningRepository.query and safetyCheckExists (SPM-65)', () => {
+  it('uses the pool outside a transaction and the transaction client inside one', async () => {
+    const { repository, poolQuery, clientQuery } = makeDatabase([{ x: 1 }]);
+    await expect(repository.query('SELECT 1', ['a'])).resolves.toEqual({ rows: [{ x: 1 }] });
+    expect(poolQuery).toHaveBeenCalledWith('SELECT 1', ['a']);
+    await repository.runInTransaction(async () => {
+      await repository.query('SELECT 2');
+      expect(await repository.safetyCheckExists(EVENT_ID)).toBe(true);
+    });
+    expect(clientQuery).toHaveBeenCalledWith('SELECT 2', undefined);
+    expect(clientQuery).toHaveBeenCalledWith('SELECT 1 FROM event_safety_checks WHERE event_id = $1', [EVENT_ID]);
+  });
+
+  it('reports no safety check when none exists', async () => {
+    expect(await makeDatabase([]).repository.safetyCheckExists(EVENT_ID)).toBe(false);
+  });
+});

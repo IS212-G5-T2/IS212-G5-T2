@@ -9,12 +9,15 @@ import type {
   PlanningView,
   ResolveChangeRequest,
 } from "@/types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { acceptsChangeRequests } from "@/features/events/lib/changeRequests";
+import { ChangeRequestSummary } from "@/features/events/pages/change-requests/ChangeRequestSummary";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { AssignmentIndicator, SafetyIndicator } from "@/features/events/components/StatusIndicators";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import { ClarificationThread } from "@/features/events/pages/detail/ClarificationThread";
@@ -33,6 +36,8 @@ import {
   resolvePlanningChange,
   updatePlanning,
 } from "@/utils/planning";
+import { canCancelEvent } from "@/features/events/lib/cancellation";
+import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
 import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
 import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
@@ -53,7 +58,7 @@ const STATUS_FLOW = [
   "approved",
   "planning",
   "confirmed",
-  "completed",
+  "cancelled",
 ] as const;
 
 // A rejection is terminal for this request, so it leaves the normal approval
@@ -127,6 +132,11 @@ export function EventDetailPage() {
   const [rejectionReason, setRejectionReason] = useState("");
   const [rejectionError, setRejectionError] = useState(false);
   const [submittingDecision, setSubmittingDecision] = useState(false);
+  // SPM-136: the cancel dialog is mounted only while it is open.
+  const [showCancel, setShowCancel] = useState(false);
+  // CQ F2: where focus goes when the dialog closes: the cancelled banner if the event is now cancelled, else the trigger.
+  const cancelTriggerRef = useRef<HTMLButtonElement>(null);
+  const cancelledBannerRef = useRef<HTMLParagraphElement>(null);
 
   const event = events.find((e) => e.id === id);
 
@@ -243,6 +253,9 @@ export function EventDetailPage() {
 
   const isOwner = currentUser.role === "organiser";
   const isAssignedCoordinator = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
+  // SPM-136 AC7: a cancelled event shows no change controls; the action is offered only where the server accepts it.
+  const isCancelled = event.status === "cancelled";
+  const canCancel = canCancelEvent({ event, currentUser });
 
   // The latest registration of any status: a withdrawn one still shows its status and time (SPM-120).
   const myRegistration = registrations.find(
@@ -315,6 +328,12 @@ export function EventDetailPage() {
                 <Button onClick={() => submitEvent(event.id)}>Submit For Review</Button>
               </>
             )}
+            {/* SPM-64 AC1: the owner can request a change while the event accepts one. */}
+            {isOwner && acceptsChangeRequests(event) && (
+              <Link to={`/events/${event.id}/change-requests`} state={{ openForm: true }}>
+                <Button variant="secondary">Request Change</Button>
+              </Link>
+            )}
             {isAssignedCoordinator && event.status === "submitted" && (
               <Button onClick={() => setShowReviewControls((previous) => !previous)}>
                 Review Event
@@ -325,12 +344,51 @@ export function EventDetailPage() {
                 <Button variant="secondary">Search Venues</Button>
               </Link>
             )}
+            {canCancel && (
+              <Button ref={cancelTriggerRef} variant="danger" onClick={() => setShowCancel(true)}>
+                Cancel Event
+              </Button>
+            )}
           </>
         }
       />
+      {isCancelled && (
+        <p ref={cancelledBannerRef} tabIndex={-1} role="note" className="mb-6 rounded-lg border border-danger-300 bg-danger-50 p-4 text-sm font-medium text-danger-900 dark:border-danger-700 dark:bg-danger-900/20 dark:text-danger-300">
+          This event has been cancelled.
+        </p>
+      )}
+      {showCancel && (
+        <CancelEventDialog
+          eventId={event.id}
+          eventName={event.name}
+          onClose={() => setShowCancel(false)}
+          returnFocus={() => cancelledBannerRef.current ?? cancelTriggerRef.current}
+          onCancelled={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
 
+      {/* SPM-64 AC5: the owner sees the status of their latest change request.
+          AC3: the assigned coordinator sees it too, with the link to review the proposed changes. */}
+      {(isOwner || isAssignedCoordinator) && event.status !== "draft" && (
+        <ChangeRequestSummary
+          eventId={event.id}
+          reviewer={isAssignedCoordinator}
+          onDecided={() => {
+            // SPM-65 AC7: show the approved values (and the planning view's reset safety check).
+            refreshEvent();
+            if (planningEnabled) void loadPlanning();
+          }}
+        />
+      )}
       {(isOwner || isAssignedCoordinator) && (
         <>
+          {/* SPM-94 AC2/AC3: the same indicators as the list card, on the planning page. */}
+          {isOwner && (
+            <div className="mb-6 flex flex-wrap gap-2">
+              <AssignmentIndicator event={event} />
+              <SafetyIndicator event={event} />
+            </div>
+          )}
           {!statusFlow.includes(event.status) ? (
             <div className="mb-6">
               <StatusBadge status={event.status} />
@@ -477,6 +535,7 @@ export function EventDetailPage() {
       {planningView && !isAssignedCoordinator && (
         <PlanningInformationPanel
           view={planningView}
+          safetyIndicator={event.safetyIndicator}
           refreshError={planningError}
           people={
             <EventPeople
@@ -488,7 +547,7 @@ export function EventDetailPage() {
           }
         />
       )}
-      {planningView && isAssignedCoordinator && (
+      {planningView && isAssignedCoordinator && !isCancelled && (
         <PlanningInformationPage
           view={planningView}
           status={event.status}
@@ -514,7 +573,7 @@ export function EventDetailPage() {
           {planningError}
         </div>
       )}
-      {planningView && isPlanningCoordinator && !planningView.readOnly && (
+      {planningView && isPlanningCoordinator && !planningView.readOnly && !isCancelled && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <Card>
             <CardHeader>
@@ -531,6 +590,7 @@ export function EventDetailPage() {
                 pendingChanges={planningView.pendingChanges.filter(
                   (change): change is FlaggedChange => change.kind === "booking_conflict",
                 )}
+                history={changeHistory}
                 onSave={savePlanning}
               />
             </CardBody>
@@ -675,10 +735,10 @@ export function EventDetailPage() {
               comments={comments}
               canRequestClarification={canRequestClarification}
               onSubmitClarification={submitClarification}
-                            // SPM-148 PLAN-STATUS-07-D: replies are hidden once Confirmed; the thread stays visible.
-              canReply={(isOwner || isAssignedCoordinator) && event.status !== "confirmed"}
+              // SPM-148 PLAN-STATUS-07-D: replies are hidden once Confirmed; the thread stays visible.
+              canReply={!isCancelled && (isOwner || isAssignedCoordinator) && event.status !== "confirmed"}
               onSubmitReply={submitClarificationReply}
-              canResolve={isOwner || isAssignedCoordinator}
+              canResolve={!isCancelled && (isOwner || isAssignedCoordinator)}
               onResolve={submitClarificationResolve}
             />
           </div>

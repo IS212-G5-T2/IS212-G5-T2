@@ -65,7 +65,7 @@ export class ArrangementsReader {
     const bookings = await db.query<{
       id: string;
       venue_name: string;
-      status: 'pending' | 'approved' | 'rejected';
+      status: 'pending' | 'approved' | 'rejected' | 'released';
       hold_expires_at: Date | null;
       start_at: Date;
       end_at: Date;

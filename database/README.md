@@ -155,6 +155,10 @@ The Compose postgres service also mounts the backend-owned draft migration as `0
 
 Fresh PostgreSQL images receive the final event lifecycle directly from `001_schema.sql`: `Submitted`, `Approved`, or `Rejected`. A rejected event needs a 10–500-character `rejection_reason`. Existing volumes must retain their migration history: apply `backend/migrations/003_event_rejection.sql`, then `backend/migrations/004_allow_rejected_event_status.sql`, with `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. Existing events and notifications are retained; no volume reset is needed.
 
+## Migration application order
+
+Each migration is applied once, in numeric order, against the database it targets: backend migrations under `backend/migrations/` for existing databases, and init files under `database/postgresql/init/` for fresh volumes. Init scripts never rerun on an existing volume, so an existing database must have every earlier migration installed before a later one. SPM-136 (`backend/migrations/011_spm136_cancel_event.sql`, mirrored as `init/017_spm136_cancel_event.sql`) supersedes migration 009's `venue_bookings` status and kind constraints and requires init 011-016 to be in place first.
+
 ## SPM-124 venue schedule
 
 The SPM-50 venue tables, SPM-124 `venue_bookings` table, and their lookup
@@ -166,6 +170,10 @@ not rerun on an existing volume. Migration 010 removes the legacy operating
 days and opening-time columns after the availability migration is installed.
 
 The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `017_spm138_waitlist.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
+
+SPM-64 change requests add the `event_change_requests` table in `018_spm64_change_requests.sql` (one row per organiser request; at most one `Pending` per event). For an existing volume, apply `backend/migrations/012_spm64_change_requests.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+
+SPM-65 change request review (`019_spm65_change_request_review.sql`) adds `recheck` (jsonb array) and `safety_check_reset` to `event_change_requests`, the `Closed` status (SPM-65 AC11: a pending request is closed automatically when its event is cancelled; one the organiser withdraws keeps `Withdrawn`), a check that a Denied request has a 10 to 500 character `decision_reason`, and the append-only `event_change_request_audit` table (one entry per request; an `UPDATE` raises). The audit table is not delete-protected: its entries are removed with their event or change request (`ON DELETE CASCADE`), and a direct `DELETE` is not blocked; the application itself never deletes them. For an existing volume, apply `backend/migrations/013_spm65_change_request_review.sql` once; it is idempotent.
 
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff

@@ -245,4 +245,32 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
       "/events/event-1",
     );
   });
+
+  /** SPM-65: change request decisions show with their reason and open the Change Requests page. */
+  it("REVIEW-CHANGE-05-D shows a change request denial with its reason and an approval as a confirmation", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification({
+        id: "cr-denied",
+        type: "change_request_denied",
+        message: 'Your change request for "Welcome Evening" was denied: The hall is too small.',
+      }),
+      rejectionNotification({
+        id: "cr-approved",
+        type: "change_request_approved",
+        message: 'Your change request for "Welcome Evening" was approved.',
+      }),
+    ]);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText(/Your change request for "Welcome Evening" was denied$/)).toBeTruthy();
+    expect(screen.getByText(/Reason: The hall is too small\./)).toBeTruthy();
+    expect(screen.getByText('Your change request for "Welcome Evening" was approved.')).toBeTruthy();
+    const links = screen.getAllByRole("link", { name: "View Change Request" });
+    expect(links).toHaveLength(2);
+    expect(links[0].getAttribute("href")).toBe("/events/event-1/change-requests");
+  });
 });

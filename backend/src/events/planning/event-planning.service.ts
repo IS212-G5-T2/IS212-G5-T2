@@ -12,6 +12,7 @@
  *
  * See backend/HANDOVER.md "Event planning (SPM-97/49/85)" for assumptions.
  */
+import { assertEventNotCancelled } from '../cancelled-guard.js';
 import {
   BadRequestException,
   ConflictException,
@@ -512,7 +513,6 @@ export class EventPlanningService {
       },
       equipmentNeeds: row.equipmentNeeds,
       registrationEnabled: row.registrationEnabled ?? false,
-      changeRequests: [],
       createdAt: row.createdAt ?? row.updatedAt,
       updatedAt: row.updatedAt,
     };
@@ -548,8 +548,17 @@ export class EventPlanningService {
     const isOwner =
       identity.roles.includes('ORGANISER') &&
       event.organiserId === identity.uid;
-    if (!isCoordinator && !isOwner)
+    if (!isCoordinator && !isOwner) {
+      // SPM-94 D6: an organiser who does not own the event, and holds no other role, is refused with 403 and no data
+      // (the same rule as GET /api/events/:id). Other roles keep the existing 404.
+      if (
+        identity.roles.includes('ORGANISER') &&
+        !identity.roles.includes('COORDINATOR') &&
+        !identity.roles.includes('ATTENDEE')
+      )
+        throw new ForbiddenException('You can only view your own events.');
       throw new NotFoundException('Event not found.');
+    }
     return { user: identity, event, isCoordinator };
   }
 
@@ -559,6 +568,8 @@ export class EventPlanningService {
   ) {
     const access = await this.access(identity, eventId);
     if (!access.isCoordinator) throw new NotFoundException('Event not found.');
+    // SPM-136 AC7: a cancelled event's arrangements cannot change (MSG-CN-04).
+    assertEventNotCancelled(access.event.status);
     if (!EDITABLE_STATUSES.has(access.event.status.toLowerCase()))
       throw new ConflictException(
         'Event information can only be changed after approval and before confirmation.',
@@ -591,7 +602,7 @@ function pick(
 }
 
 /** Date fields compare as instants; lists compare as sets; others strictly. */
-function sameValue(
+export function sameValue(
   field: EventFieldKey,
   stored: unknown,
   proposed: unknown,
@@ -606,13 +617,13 @@ function sameValue(
   return stored === proposed;
 }
 
-function activeOnly(bookings: VenueBookingRow[]): VenueBookingRow[] {
+export function activeOnly(bookings: VenueBookingRow[]): VenueBookingRow[] {
   return bookings.filter(
     (b) => !INACTIVE_BOOKING_STATUSES.has(b.status.toLowerCase()),
   );
 }
 
-function activeEquipmentOnly(
+export function activeEquipmentOnly(
   equipment: EquipmentArrangementRow[],
 ): EquipmentArrangementRow[] {
   return equipment.filter(
@@ -621,11 +632,12 @@ function activeEquipmentOnly(
 }
 
 /**
+ * (Also used by SPM-65 change request review, so a request is assessed by the same rules.)
  * What to assess for one changed field. Date/time fields use every time field
  * in this update so a shifted event is assessed as one move, not two halves.
  * Facilities carry the current list so only additions need a venue check.
  */
-function proposalFor(
+export function proposalFor(
   field: EventFieldKey,
   patch: EventUpdatePatch,
   event: PlanningEventRow,
@@ -661,7 +673,7 @@ function proposalFor(
  *   shifting inside that window keeps every reservation valid.
  * - No other field touches equipment.
  */
-function equipmentImpacts(
+export function equipmentImpacts(
   field: EventFieldKey,
   patch: EventUpdatePatch,
   event: PlanningEventRow,

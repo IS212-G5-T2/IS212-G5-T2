@@ -26,6 +26,7 @@ import {
 import { EventInformationList } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
 import { SafetyCheckChangesNeeded } from "@/features/events/pages/detail/planning/SafetyCheckChangesNeeded";
+import { StateLabel, safetyLabel } from "@/features/events/components/StatusLabels";
 
 type TabKey = "event" | "venues" | "equipment";
 
@@ -555,11 +556,11 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
                 )}
               </div>
             )}
+            <p className="mb-2">
+              <StateLabel {...safetyLabel(safety.status)} />
+            </p>
             {safety.status === "pending" && (
               <p className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-                <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
-                  Pending
-                </span>
                 Requested {date(safety.requestedDate)}
               </p>
             )}

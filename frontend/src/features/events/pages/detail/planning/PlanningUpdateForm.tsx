@@ -3,8 +3,8 @@
  *
  * - Pre-filled with the current information (AC1).
  * - Every field carries a badge from the server's editableFields (AC2):
- *   "Applies immediately" (always direct), "Needs review" (any change is
- *   flagged) or "Review if it affects bookings" (conditional: the rule is shown
+ *   "Applies immediately" (always direct), "Changes need review" (any future
+ *   change is flagged; this describes the field, not a pending change) or "Review if it affects bookings" (conditional: the rule is shown
  *   under the field, and once the field is edited the form says whether that
  *   value will apply immediately or be sent for review).
  * - "Save changes" sends only the fields that actually changed (AC3, AC5). The
@@ -29,6 +29,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
 import { CheckboxGroup, Select, TextArea, TextInput } from "@/components/ui/FormControls";
 import type {
+  ChangeHistoryEntry,
   EventRecord,
   FlaggedChange,
   PlanningEditableField,
@@ -38,6 +39,7 @@ import type {
 } from "@/types";
 import { ApiError } from "@/utils/api";
 import { formatDateTime } from "@/utils/format";
+import { formatSgtDateTime } from "@/utils/sgtDate";
 import {
   ACCESSIBILITY,
   FACILITIES,
@@ -54,6 +56,8 @@ interface Props {
   lastUpdatedAt: string;
   /** Changes awaiting review; their fields are locked and the proposal is shown. */
   pendingChanges?: FlaggedChange[];
+  /** Resolved flagged changes, newest first; the latest per field is shown under it. */
+  history?: ChangeHistoryEntry[];
   onSave: (patch: PlanningUpdatePatch) => Promise<PlanningUpdateResult | void | unknown>;
 }
 
@@ -136,7 +140,9 @@ const BADGES: Record<PlanningFieldMode, { text: string; className: string }> = {
     className: "bg-primary-100 text-primary-800 dark:bg-primary-900/30 dark:text-primary-300",
   },
   needs_review: {
-    text: "Needs review",
+    // Describes the field's rule for future edits, so it stays after a change
+    // is confirmed; the pending note and the "Last change" line show status.
+    text: "Changes need review",
     className: "bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300",
   },
 };
@@ -147,7 +153,7 @@ function PolicyBadge({ mode }: { mode?: PlanningFieldMode }) {
   return <span className={`${BADGE} ${badge.className}`}>{badge.text}</span>;
 }
 
-export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendingChanges = [], onSave }: Props) {
+export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendingChanges = [], history = [], onSave }: Props) {
   const incoming = initialValues(event);
   const incomingKey = JSON.stringify(incoming);
   const [baseline, setBaseline] = useState<FormValues>(incoming);
@@ -168,6 +174,9 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
 
   const entries = Object.fromEntries(editableFields.map((f) => [f.field, f])) as Record<string, PlanningEditableField>;
   const pendingByField = Object.fromEntries(pendingChanges.map((c) => [c.field, c])) as Record<string, FlaggedChange>;
+  // History is newest first, so the first entry per field is its latest decision.
+  const lastDecision: Record<string, ChangeHistoryEntry> = {};
+  for (const entry of history) lastDecision[entry.field] ??= entry;
   const set = <K extends FieldKey>(key: K, value: FormValues[K]) => setValues((v) => ({ ...v, [key]: value }));
   const locked = (key: FieldKey) => !!pendingByField[key];
 
@@ -201,6 +210,12 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
           <PolicyBadge mode={entry?.mode} />
         </div>
         {control}
+        {!pending && lastDecision[key] && (
+          <p data-testid={`last-change-${key}`} className="-mt-3 mb-1 text-xs text-gray-500 dark:text-gray-400">
+            Last change {lastDecision[key].status === "Applied" ? "confirmed" : "rejected"} by{" "}
+            {lastDecision[key].resolvedBy} on {formatSgtDateTime(lastDecision[key].resolvedAt)}.
+          </p>
+        )}
         {pending ? (
           <p
             data-testid={`pending-${key}`}

@@ -29,6 +29,9 @@ import {
 } from './arrangements.reader.js';
 import { buildChecklist } from './checklist.js';
 import { EventSafetyCheckSource } from './safety-check.source.js';
+import { CancelEventService } from '../cancel/cancel-event.service.js';
+import { CANCEL_CODES, CANCEL_MESSAGES } from '../cancel/cancel.messages.js';
+import { assertEventNotCancelled } from '../cancelled-guard.js';
 import { STATUS_CODES, STATUS_MESSAGES } from './status.messages.js';
 import {
   evaluateReadiness,
@@ -64,13 +67,21 @@ export class StatusService {
     private readonly safetyChecks: EventSafetyCheckSource,
     @Inject(SAFETY_OUTCOME_SOURCE) private readonly safety: SafetyOutcomeSource,
     @Optional() @Inject(CLOCK) private readonly clock: Clock = systemClock,
+    private readonly cancellation: CancelEventService,
   ) {}
 
   async changeStatus(identity: AuthenticatedUser | undefined, eventId: string, body: unknown) {
-    const user = this.requireUser(identity);
     const targetStatus = this.targetStatusOf(body);
+    // SPM-136: Cancelled has its own authorisation (assigned Coordinator or submitting Organiser).
+    if (targetStatus === 'Cancelled') return this.cancellation.cancel(identity, eventId, body);
+    const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
-    // SPM-136 adds `Cancelled` here.
+    // SPM-136: a cancelled event can only be confirmed (refused by the Confirmed handler, MSG-CF-05).
+    if (event.status === 'Cancelled' && targetStatus !== 'Confirmed')
+      throw new UnprocessableEntityException({
+        code: CANCEL_CODES.invalidTransition,
+        message: CANCEL_MESSAGES.invalidTransition,
+      });
     // SPM-148 PLAN-STATUS-08-A: the public status-change endpoint refuses Planning (400 UNSUPPORTED_TARGET_STATUS).
     if (targetStatus !== 'Confirmed')
       throw new BadRequestException({
@@ -143,6 +154,7 @@ export class StatusService {
   async confirmNoEquipment(identity: AuthenticatedUser | undefined, eventId: string) {
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    assertEventNotCancelled(event.status);
     this.assertPlanning(event.status);
     const now = this.clock.now();
     return this.database.transaction(async (client) => {
@@ -155,6 +167,7 @@ export class StatusService {
       ).rows[0];
       if (!row || row.coordinator_id !== user.uid)
         throw new ForbiddenException({ code: 'FORBIDDEN', message: STATUS_MESSAGES.notAssigned });
+      assertEventNotCancelled(row.status);
       this.assertPlanning(row.status);
       const snapshot = await this.reader.read(client, event.id, { lock: false });
       const checklist = buildChecklist({
@@ -183,6 +196,7 @@ export class StatusService {
   async requestSafetyCheck(identity: AuthenticatedUser | undefined, eventId: string) {
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    assertEventNotCancelled(event.status);
     this.assertPlanning(event.status);
     const now = this.clock.now();
     return this.database.transaction(async (client) => {
@@ -195,6 +209,7 @@ export class StatusService {
       ).rows[0];
       if (!row || row.coordinator_id !== user.uid)
         throw new ForbiddenException({ code: 'FORBIDDEN', message: STATUS_MESSAGES.notAssigned });
+      assertEventNotCancelled(row.status);
       this.assertPlanning(row.status);
 
       const snapshot = await this.reader.read(client, event.id, { lock: true });
@@ -261,9 +276,16 @@ export class StatusService {
   async removeEquipmentRequest(identity: AuthenticatedUser | undefined, eventId: string, equipmentReservationId: string) {
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    assertEventNotCancelled(event.status);
     this.assertPlanning(event.status);
     return this.database.transaction(async (client) => {
-      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);
+      // RR-136-07: the status is re-checked on the locked row, not only before the transaction.
+      const locked = (
+        await client.query<{ id: string; status: string }>('SELECT id, status FROM events WHERE id = $1 FOR UPDATE', [event.id])
+      ).rows[0];
+      if (!locked) throw new NotFoundException(STATUS_MESSAGES.notFound);
+      assertEventNotCancelled(locked.status);
+      this.assertPlanning(locked.status);
       const snapshot = await this.reader.read(client, event.id, { lock: true });
       const reservation = snapshot.equipment.find((e) => e.id === equipmentReservationId);
       if (!reservation)
@@ -284,9 +306,16 @@ export class StatusService {
   async removeVenueRequest(identity: AuthenticatedUser | undefined, eventId: string, venueRequestId: string) {
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    assertEventNotCancelled(event.status);
     this.assertPlanning(event.status);
     return this.database.transaction(async (client) => {
-      await client.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [event.id]);
+      // RR-136-07: the status is re-checked on the locked row, not only before the transaction.
+      const locked = (
+        await client.query<{ id: string; status: string }>('SELECT id, status FROM events WHERE id = $1 FOR UPDATE', [event.id])
+      ).rows[0];
+      if (!locked) throw new NotFoundException(STATUS_MESSAGES.notFound);
+      assertEventNotCancelled(locked.status);
+      this.assertPlanning(locked.status);
       const snapshot = await this.reader.read(client, event.id, { lock: true });
       const booking = snapshot.venueBookings.find((b) => b.id === venueRequestId);
       if (!booking)
@@ -321,6 +350,7 @@ export class StatusService {
   ) {
     const user = this.requireUser(identity);
     const event = await this.assignedEventOrThrow(user, eventId);
+    assertEventNotCancelled(event.status);
     this.assertPlanning(event.status);
     const now = this.clock.now();
     return this.database.transaction(async (client) => {

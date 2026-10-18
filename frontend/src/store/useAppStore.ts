@@ -4,7 +4,6 @@ import { ApiError, api } from "@/utils/api";
 import type { RegistrationDetails } from "@/features/events/lib/registration";
 import type {
   Booking,
-  ChangeRequest,
   EquipmentItem,
   EquipmentRequest,
   EventRecord,
@@ -51,6 +50,12 @@ interface AppState {
   // True until the backend has checked the persisted HTTP-only local session.
   authLoading: boolean;
   events: EventRecord[];
+  /**
+   * The event list's chosen filters, kept here so they survive leaving the list (opening an event) and coming back.
+   * `status` is null until the user picks one, so the role default (coordinators: Submitted) still applies.
+   */
+  eventListFilters: { attendee: string; status: string | null };
+  setEventListFilters: (patch: Partial<AppState["eventListFilters"]>) => void;
   venues: Venue[];
   /** Creates a venue and returns the server confirmation message. */
   createVenue: (venue: VenueCreateInput) => Promise<string>;
@@ -66,8 +71,6 @@ interface AppState {
   approveEvent: (id: string) => Promise<void>;
   rejectEvent: (id: string, reason: string) => Promise<void>;
   setEventStatus: (id: string, status: EventStatus) => void;
-  requestEventChange: (eventId: string, cr: Omit<ChangeRequest, "id" | "eventId" | "status" | "createdAt">) => void;
-  reviewChangeRequest: (eventId: string, crId: string, decision: "approved" | "rejected") => void;
 
   submitBookingRequest: (data: Omit<Booking, "id" | "status" | "createdAt" | "conflict">) => void;
   reviewBooking: (id: string, decision: "approved" | "rejected", reason?: string) => void;
@@ -105,6 +108,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   authLoading: true,
   events: [],
+  eventListFilters: { attendee: "upcoming", status: null },
+  setEventListFilters: (patch) => set((s) => ({ eventListFilters: { ...s.eventListFilters, ...patch } })),
   venues: [],
   createVenue: async (venue) => {
     const result = await api<{ venue: Venue; message: string }>("/venues", {
@@ -141,7 +146,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       equipmentNeeds: data.equipmentNeeds ?? "",
       attachments: data.attachments ?? [],
       registrationEnabled: data.registrationEnabled ?? false,
-      changeRequests: [],
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -264,75 +268,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         e.id === id ? { ...e, status, updatedAt: new Date().toISOString() } : e
       ),
     }));
-  },
-
-  requestEventChange: (eventId, cr) => {
-    const record: ChangeRequest = {
-      ...cr,
-      id: nextId("cr"),
-      eventId,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    };
-    set((s) => ({
-      events: s.events.map((e) =>
-        e.id === eventId ? { ...e, changeRequests: [record, ...e.changeRequests] } : e
-      ),
-    }));
-    const event = get().events.find((e) => e.id === eventId);
-    if (event) {
-      get().pushNotification({
-        audienceRole: "coordinator",
-        type: "event_change",
-        message: `Change request submitted for "${event.name}": ${cr.summary}`,
-        relatedEventId: eventId,
-      });
-    }
-  },
-
-  reviewChangeRequest: (eventId, crId, decision) => {
-    set((s) => ({
-      events: s.events.map((e) =>
-        e.id === eventId
-          ? {
-              ...e,
-              changeRequests: e.changeRequests.map((cr) =>
-                cr.id === crId ? { ...cr, status: decision } : cr
-              ),
-            }
-          : e
-      ),
-    }));
-    const event = get().events.find((e) => e.id === eventId);
-    const cr = event?.changeRequests.find((c) => c.id === crId);
-    if (event && cr) {
-      const cascades = cr.fields.filter((f) => f === "venue" || f === "equipment" || f === "date_time");
-      if (decision === "approved" && cascades.length > 0) {
-        if (cascades.includes("venue") || cascades.includes("date_time")) {
-          get().pushNotification({
-            audienceRole: "venue_staff",
-            type: "event_change",
-            message: `"${event.name}" changed — please re-confirm venue booking.`,
-            relatedEventId: eventId,
-          });
-        }
-        if (cascades.includes("equipment") || cascades.includes("date_time")) {
-          get().pushNotification({
-            audienceRole: "tech_support",
-            type: "event_change",
-            message: `"${event.name}" changed — please re-check equipment reservations.`,
-            relatedEventId: eventId,
-          });
-        }
-      }
-      get().pushNotification({
-        audienceRole: "organiser",
-        audienceUserId: event.organiserId,
-        type: "event_change",
-        message: `Your change request for "${event.name}" was ${decision}.`,
-        relatedEventId: eventId,
-      });
-    }
   },
 
   submitBookingRequest: (data) => {
@@ -541,7 +476,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       await logout();
     } finally {
-      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      // SPM-94 AC4 / 04-B C: nothing from the previous session survives logout.
+      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER, events: [] });
     }
   },
 

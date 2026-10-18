@@ -50,15 +50,98 @@ export interface EventAttachment {
   dataUrl: string;
 }
 
+/** SPM-64: the event details an organiser may ask to change. */
+export type ChangeRequestField =
+  | "description"
+  | "startDateTime"
+  | "endDateTime"
+  | "expectedAttendance"
+  | "layout"
+  | "facilities"
+  | "accessibility"
+  | "equipmentNeeds";
+
+/** SPM-65: Closed = the event was cancelled while the request was pending. */
+export type ChangeRequestStatus = "Pending" | "Approved" | "Denied" | "Withdrawn" | "Closed";
+
+/** One requested change: the value when the request was made and the value asked for. */
+export interface RequestedChange {
+  field: ChangeRequestField;
+  originalValue: unknown;
+  proposedValue: unknown;
+}
+
+/** SPM-64: an organiser's change request, as GET/POST /api/events/:id/change-requests return it. */
 export interface ChangeRequest {
   id: string;
   eventId: string;
+  eventName: string;
+  status: ChangeRequestStatus;
+  changes: RequestedChange[];
+  reason?: string;
+  /** Past approval: approving any change resets the event's safety check. */
+  requiresSafetyCheck: boolean;
   requestedBy: string;
-  summary: string;
-  fields: Array<"date_time" | "attendance" | "venue" | "equipment" | "other">;
-  reason: string;
-  status: "pending" | "approved" | "rejected";
   createdAt: string;
+  decidedAt?: string;
+  decidedBy?: string;
+  /** SPM-65: the coordinator's reason for a denial, or why a request was closed. */
+  decisionReason?: string;
+  /** SPM-65 AC1: the event's organiser. */
+  organiserName?: string;
+  /** SPM-65 AC9: arrangements to re-check after approval. */
+  recheck: RecheckItem[];
+  /** SPM-65 AC8: approving reset the event's safety check. */
+  safetyCheckReset: boolean;
+}
+
+/** SPM-65 AC3: one venue booking or equipment reservation the requested values conflict with. */
+export interface ArrangementImpact {
+  kind: "venue" | "equipment";
+  refId: string;
+  name: string;
+  details: string[];
+}
+
+/** SPM-65 AC9: an affected arrangement the coordinator ticks off once re-checked. */
+export interface RecheckItem extends ArrangementImpact {
+  id: string;
+  checkedAt?: string;
+  checkedBy?: string;
+}
+
+/** SPM-65 AC3: GET /api/events/:id/change-requests/:requestId/conflicts (read-only). */
+export interface ChangeRequestConflicts {
+  requestId: string;
+  venueBookings: ArrangementImpact[];
+  equipment: ArrangementImpact[];
+  registrations: { registered: number; waitlisted: number; details: string[] };
+  hasConflicts: boolean;
+}
+
+/** SPM-65 AC4/AC8: POST .../approve. */
+export interface ChangeRequestApproval {
+  request: ChangeRequest;
+  eventStatus: EventStatus;
+  safetyCheckReset: boolean;
+}
+
+/** SPM-65 AC10: one audit log entry. */
+export interface ChangeRequestAuditEntry {
+  id: string;
+  changeRequestId: string;
+  outcome: "Approved" | "Denied" | "Withdrawn" | "Closed";
+  changes: RequestedChange[];
+  requestedBy: string;
+  decidedBy: string;
+  reason?: string;
+  decidedAt: string;
+}
+
+/** Body of POST /api/events/:id/change-requests. */
+export interface ChangeRequestSubmission {
+  changes: Partial<Record<ChangeRequestField, unknown>>;
+  reason?: string;
 }
 
 export interface EventRecord {
@@ -95,13 +178,20 @@ export interface EventRecord {
   availableSpots?: number;
   coordinatorId?: string;
   coordinatorName?: string;
+  /** SPM-94 AC2: Submitted and not yet assigned to a Coordinator. */
+  awaitingCoordinatorAssignment?: boolean;
+  /** SPM-94 AC3: at most one safety indicator; null when there is none. */
+  safetyIndicator?: "AWAITING_CHECK" | "CHANGES_REQUESTED" | "CLEARED" | null;
+  /** SPM-94 cards: the latest venue request (pending, approved, rejected or released), organiser and coordinator only. */
+  venueRequestStatus?: "pending" | "approved" | "rejected" | "released" | null;
+  /** SPM-94 cards: every equipment reservation status, organiser and coordinator only. */
+  equipmentStatuses?: string[];
   /** SPM-46: who the current coordinator received the event from, and when. */
   reassignedFrom?: { coordinatorName: string; reassignedAt: string };
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];
   rejectionReason?: string;
-  changeRequests: ChangeRequest[];
   createdAt: string;
   updatedAt: string;
 }
@@ -268,6 +358,10 @@ export type NotificationType =
   | "coordinator_reassignment"
   | "coordinator_unassignment"
   | "coordinator_unavailable"
+  | "coordinator_change_request"
+  /** SPM-65: the organiser's change request was approved or denied. */
+  | "change_request_approved"
+  | "change_request_denied"
   | "venue_booking"
   | "event_change"
   | "registration"
@@ -322,6 +416,8 @@ export interface PlanningVenueBooking {
   end: string;
   /** "Unavailable": the venue was lost and a replacement is required. */
   status: "Booked" | "Unavailable" | "Cancelled";
+  /** The request itself: pending (awaiting approval), approved, rejected or released. */
+  requestStatus?: "pending" | "approved" | "rejected" | "released";
 }
 
 export interface PlanningEquipmentArrangement {

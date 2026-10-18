@@ -6,7 +6,10 @@ import { EventsService } from './events.service.js';
 @Controller('api')
 export class EventsController {
   constructor(@Inject(EventsService) private readonly events: EventsService) {}
-  @Get('events') list(@Req() request: AuthenticatedRequest) {
+  // SPM-94 AC4: live status is never served from a cache.
+  @Get('events')
+  @Header('Cache-Control', 'no-store')
+  list(@Req() request: AuthenticatedRequest) {
     return this.events.list(request[CURRENT_USER_REQUEST_KEY]);
   }
   @Get('events/:id')

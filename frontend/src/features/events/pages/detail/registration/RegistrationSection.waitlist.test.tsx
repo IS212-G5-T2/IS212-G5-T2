@@ -441,11 +441,21 @@ describe("JOIN-WAITLIST-11-D-FE: after close, a freed place does not show Regist
   });
 });
 
-// JOIN-WAITLIST-12-B-FE: a cancelled entry (SPM-136).
-describe("JOIN-WAITLIST-12-B-FE: a cancelled waiting entry (Blocked: SPM-136 cancel flow is not in HEAD)", () => {
-  // Kills: none. Blocked placeholder (skipped, asserts nothing); see the spec for the blocker.
-  it.skip("JOIN-WAITLIST-12-B-FE: Blocked (SPM-136): a cancelled entry shows Cancelled and no controls", () => {
-    // Intentionally empty until SPM-136 provides the cancel flow.
+// JOIN-WAITLIST-12-B-FE: a waiting entry cancelled with its event (AC12). The cancel itself is covered by the backend
+// e2e (12-A and 12-B); this renders the state the attendee then sees.
+describe("JOIN-WAITLIST-12-B-FE: a cancelled waiting entry shows Cancelled and no controls", () => {
+  // Kills: a waiting-list control kept on a cancelled entry (F-CANCELLED-CONTROLS), a position shown for a cancelled entry.
+  it("JOIN-WAITLIST-12-B-FE: a cancelled entry shows Cancelled and no controls", () => {
+    // Arrange: ATT-05's entry was cancelled with the event (status cancelled, no position).
+    const cancelled = buildWaitlisted(ATT_05.id, null, { status: "cancelled" });
+
+    // Act
+    renderSection(buildGala(), ATT_05, cancelled);
+
+    // Assert: the cancelled heading, no position, and no withdraw, leave, join or register control.
+    expect(screen.getByText("Registration cancelled")).toBeInTheDocument();
+    expect(screen.queryByText(/position/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /withdraw|leave waitlist|join waitlist|register/i })).not.toBeInTheDocument();
   });
 });
 

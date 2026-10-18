@@ -5,7 +5,13 @@ import { useAppStore } from "@/store/useAppStore";
 import { hasRole, type Notification } from "@/types";
 
 // An unassignment has no link: the event now belongs to another coordinator.
-const COORDINATOR_TYPES: Notification["type"][] = ["coordinator_assignment", "coordinator_reassignment", "coordinator_unassignment"];
+// SPM-64 AC3 change request notices are not shown here: the Pending Change Requests section at the
+// top of the events page lists each request, tagged New until the coordinator opens it (SPM-65).
+const COORDINATOR_TYPES: Notification["type"][] = [
+  "coordinator_assignment",
+  "coordinator_reassignment",
+  "coordinator_unassignment",
+];
 const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 
 // SPM-123 AC9: tells a coordinator which requests the Event Coordinator Lead

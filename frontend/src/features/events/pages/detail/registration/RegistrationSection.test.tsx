@@ -31,7 +31,7 @@ const baseEvent: EventRecord = {
   venueRequirements: { minCapacity: 50, accessibility: [], facilities: [], layout: "" },
   equipmentNeeds: "", registrationEnabled: true,
   registrationOpensAt: iso(-HOUR), registrationClosesAt: iso(24 * HOUR), availableRegistrationSpots: 48,
-  changeRequests: [], createdAt: iso(-HOUR), updatedAt: iso(-HOUR),
+  createdAt: iso(-HOUR), updatedAt: iso(-HOUR),
 };
 const created: Registration = {
   id: "REG-9001", eventId: "event-1", attendeeId: attendee.id, attendeeName: "Alice Tan",

@@ -2,7 +2,6 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
-import { formatDateTime } from "@/utils/format";
 import type { ChangeHistoryEntry, FlaggedChange } from "@/types";
 
 /**
@@ -98,7 +97,7 @@ describe("FlaggedChangeReview", () => {
     expect(rows[0]).toHaveTextContent("Banquet → Theatre");
     expect(rows[0]).toHaveTextContent("Coord Nine");
     expect(rows[0]).toHaveTextContent("Rejected");
-    expect(rows[0]).toHaveTextContent(formatDateTime("2026-10-05T10:00:00.000Z"));
+    expect(rows[0]).toHaveTextContent("5 Oct 2026, 6:00 pm"); // Singapore time with am/pm
     expect(rows[1]).toHaveTextContent("60 → 80");
     expect(rows[1]).toHaveTextContent("Applied");
   });
@@ -177,6 +176,22 @@ describe("FlaggedChangeReview: decisions", () => {
     expect(within(hallB).queryAllByRole("button")).toHaveLength(0);
     // The change itself can still be settled as a whole.
     expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
+  });
+
+  /**
+   * A change stays "Needs Review" until every impacted booking is decided, so the
+   * badge says how many are decided; with none decided it shows the status only.
+   */
+  it("EVENT-FLAG-07-A shows how many impacted bookings are decided while the change is still open", () => {
+    const { card } = renderChange({
+      ...CHANGE,
+      impacts: [{ ...CHANGE.impacts![0], decision: "Applied" }, CHANGE.impacts![1], CHANGE.impacts![2]],
+    });
+    expect(within(card).getByText(/Needs Review · 1 of 2 bookings decided/)).toBeInTheDocument();
+    cleanup();
+    const fresh = renderChange(CHANGE).card;
+    expect(within(fresh).getByText("Needs Review")).toBeInTheDocument();
+    expect(within(fresh).queryByText(/bookings decided/)).not.toBeInTheDocument();
   });
 
   // EVENT-FLAG-04-A: while a decision is being saved the actions are disabled, so it cannot be sent twice.
@@ -273,7 +288,7 @@ describe("FlaggedChangeReview: empty states and history values", () => {
       />,
     );
     const rows = within(screen.getByRole("list", { name: /change history/i })).getAllByRole("listitem");
-    expect(rows[0]).toHaveTextContent(`${formatDateTime("2026-11-10T10:00:00.000Z")} → ${formatDateTime("2026-11-11T10:00:00.000Z")}`);
+    expect(rows[0]).toHaveTextContent("10 Nov 2026, 6:00 pm → 11 Nov 2026, 6:00 pm"); // Singapore time with am/pm
     expect(rows[0]).toHaveTextContent("Start date & time:");
     expect(rows[1]).toHaveTextContent("Catering → Catering, AV System");
     expect(rows[2]).toHaveTextContent("Hearing loop → None");

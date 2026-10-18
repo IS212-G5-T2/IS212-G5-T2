@@ -30,7 +30,8 @@ export function parseLog(text, suiteNames) {
     if (!match) continue;
     let rest = match[3].trim();
     const killers = [];
-    const killedBy = rest.match(/^killed by:\s*([A-Za-z][A-Za-z0-9-]*):/i);
+    // run.mjs prints "killed by: <suite> <mutant name>"; the older form put a colon after the suite name. Accept both.
+    const killedBy = rest.match(/^killed by:\s*([A-Za-z][A-Za-z0-9-]*)(?=:|\s|$)/i);
     if (killedBy && suiteNames.has(killedBy[1])) killers.push(killedBy[1]);
     for (;;) {
       const suite = [...suiteNames].sort((a, b) => b.length - a.length).find((name) => rest === name || rest.startsWith(`${name} `));

@@ -22,6 +22,7 @@ import { DatabaseService } from '../database/database.service.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { hasEventStarted } from './withdrawal/event-start.js';
+import { EVENT_CANCELLED_CODE, EVENT_CANCELLED_MESSAGE } from '../events/cancelled-guard.js';
 import { MESSAGES, REGISTRATION_ERROR_CODES } from './helpers/messages.js';
 import { ATTENDEE_VISIBLE_STATUSES, registrationWindowState } from './registration/registration-window.js';
 import { canViewEventRegistrations } from './report/report-access.js';
@@ -139,6 +140,9 @@ export class RegistrationsService {
       const event = selected.rows[0];
       if (!event || !ATTENDEE_VISIBLE.includes(event.status))
         throw new NotFoundException(MESSAGES.eventNotFound);
+      // SPM-136 rule: a person cannot be both a waiting-list attendee and this event's organiser or assigned coordinator.
+      if (attendee.uid === event.organiser_id || attendee.uid === event.coordinator_id)
+        throw new ForbiddenException({ code: 'WAITLIST_NOT_PERMITTED', message: MESSAGES.ownEventWaitlist });
 
       const now = this.clock.now();
       await settleLocked(client, eventId, now);
@@ -245,7 +249,7 @@ export class RegistrationsService {
     const outcome = await this.database.transaction(async (client) => {
       // Ownership-scoped lookup: another user's registration looks like a missing one.
       const found = await client.query(
-        `SELECT r.id, e.event_name, e.start_date_time, r.event_id
+        `SELECT r.id, e.event_name, e.start_date_time, e.status AS event_status, r.event_id
            FROM event_registrations r JOIN events e ON e.id = r.event_id
           WHERE r.id = $1 AND r.attendee_id = $2`,
         [registrationId, identity.uid],
@@ -265,7 +269,11 @@ export class RegistrationsService {
         await settleLocked(client, current.event_id, now);
         status = await readStatus();
       }
-      if (status === 'Removed' || status === 'Cancelled') return { refused: this.notWithdrawable() };
+      // SPM-136 D11 / 08-B: a registration of a cancelled event cannot be withdrawn: 409 EVENT_CANCELLED (accepted wording).
+      // A Cancelled entry on a live event keeps SPM-138's refusal (JOIN-WAITLIST-10-F).
+      if (status === 'Cancelled')
+        return { refused: current.event_status === 'Cancelled' ? this.eventCancelledWithdrawal() : this.notWithdrawable() };
+      if (status === 'Removed') return { refused: this.notWithdrawable() };
       if (status !== 'Registered' && status !== 'Waitlisted') return { refused: this.alreadyWithdrawn() };
 
       if (hasEventStarted({ startDateTime: current.start_date_time }, now))
@@ -465,6 +473,10 @@ export class RegistrationsService {
       code: REGISTRATION_ERROR_CODES.alreadyWithdrawn,
       message: MESSAGES.alreadyWithdrawn,
     });
+  }
+
+  private eventCancelledWithdrawal(): ConflictException {
+    return new ConflictException({ code: EVENT_CANCELLED_CODE, message: EVENT_CANCELLED_MESSAGE });
   }
 
   private notWithdrawable(): ConflictException {

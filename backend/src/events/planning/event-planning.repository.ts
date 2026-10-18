@@ -184,6 +184,14 @@ export class EventPlanningRepository {
     return this.context.getStore() ?? this.database;
   }
 
+  /**
+   * Runs one statement on the current transaction's connection (or the pool outside one). Lets
+   * SPM-65 change request review write its own rows in the same transaction as applyFields.
+   */
+  query(text: string, params?: unknown[]): Promise<pg.QueryResult> {
+    return this.db().query(text, params);
+  }
+
   /** Whether a safety check (any status) exists; applying event details resets it (database trigger). */
   async safetyCheckExists(eventId: string): Promise<boolean> {
     const result = await this.db().query('SELECT 1 FROM event_safety_checks WHERE event_id = $1', [eventId]);
@@ -224,6 +232,7 @@ export class EventPlanningRepository {
                 WHEN b.status = 'rejected' THEN 'Unavailable'
                 ELSE 'Cancelled'
               END AS planning_status,
+              b.status AS request_status,
               COALESCE(
                 json_agg(
                   json_build_object('id', n.id,
@@ -255,6 +264,7 @@ export class EventPlanningRepository {
       start: iso(row.start_at),
       end: iso(row.end_at),
       status: row.planning_status,
+      requestStatus: row.request_status,
       neighbours: (row.neighbours as NeighbourBooking[]).map((n) => ({
         ...n,
         start: iso(n.start),

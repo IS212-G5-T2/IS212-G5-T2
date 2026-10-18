@@ -10,6 +10,9 @@ import { EventsService } from './events/events.service.js';
 import { EventPlanningController } from './events/planning/event-planning.controller.js';
 import { EventPlanningRepository } from './events/planning/event-planning.repository.js';
 import { EventPlanningService } from './events/planning/event-planning.service.js';
+import { ChangeRequestsController } from './events/change-requests/change-requests.controller.js';
+import { ChangeRequestsService } from './events/change-requests/change-requests.service.js';
+import { ChangeRequestReviewService } from './events/change-requests/review/change-request-review.service.js';
 import { DraftsController } from './event-drafts/drafts.controller.js';
 import { DraftsService } from './event-drafts/drafts.service.js';
 import { AppController } from './app.controller.js';
@@ -35,6 +38,8 @@ import { StatusController } from './events/status/status.controller.js';
 import { StatusService } from './events/status/status.service.js';
 import { ArrangementsReader, NoSafetyRecordSource, SAFETY_OUTCOME_SOURCE } from './events/status/arrangements.reader.js';
 import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
+import { CancelEventService } from './events/cancel/cancel-event.service.js';
+import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.registry.js';
 
 @Module({
   imports: [AuthModule, ClarificationsModule, DatabaseModule, VenuesModule],
@@ -43,6 +48,7 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     EventsController,
     EventRejectionsController,
     EventPlanningController,
+    ChangeRequestsController,
     DraftsController,
     RegistrationsController,
     EquipmentController,
@@ -61,11 +67,15 @@ import { EventSafetyCheckSource } from './events/status/safety-check.source.js';
     LeadAssignmentService,
     EventPlanningService,
     EventPlanningRepository,
+    ChangeRequestsService,
+    ChangeRequestReviewService,
     ArrangementsReader,
     NoSafetyRecordSource,
     EventSafetyCheckSource,
     { provide: SAFETY_OUTCOME_SOURCE, useExisting: EventSafetyCheckSource },
     StatusService,
+    CancelEventService,
+    { provide: EVENT_RELEASERS, useValue: DEFAULT_RELEASERS },
     { provide: CLOCK, useValue: systemClock },
   ],
 })
@@ -80,6 +90,7 @@ export class AppModule implements NestModule {
         EventPlanningController,
         EventPlanningService,
         EventPlanningRepository,
+        ChangeRequestsController,
         DraftsController,
         RegistrationsController,
         EquipmentController,

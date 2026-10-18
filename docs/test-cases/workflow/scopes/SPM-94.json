@@ -1,0 +1,103 @@
+{
+  "story": "SPM-94",
+  "title": "Track My Event Status (Organiser)",
+  "note": "Jira SPM-94 (In Progress) is the source for AC1 to AC4. The Confluence matrix 'Track My Event Status (Organiser) Matrix' (page 22839633) and its TRACK-EVENT-STATUS-01 to -04 case pages are the PRIMARY oracles (10 IDs, fetched 17 Oct 2026). Decisions D2 (A), D5 (default) and D6 (403) and assumptions A1 to A4 are in docs/specs/SPM-94-test-results.md. Shared files carry non-SPM-94 tests and are narrowed with titleMatch. Coverage is measured on the files SPM-94 owns outright (the indicator derivations and the indicator component). The shared files it changes (events.service.ts, events.controller.ts, EventCard.tsx, EventDetailPage.tsx, EventListPage.tsx, useAppStore.ts) are not measured: their other stories' lines are out of this story's scope. Every SPM-94 change in them is exercised by the story's tests; the diff check in docs/specs/SPM-94-test-results.md confirms no uncovered line sits in an SPM-94 hunk.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      "backend/src/events/status/event-indicators.spec.ts",
+      {
+        "glob": "backend/src/events/events.service.spec.ts",
+        "titleMatch": "TRACK-EVENT-STATUS|SPM-94"
+      }
+    ],
+    "backend-e2e": [
+      "backend/test/events-status-tracking.e2e-spec.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/components/StatusIndicators.test.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.status.test.tsx",
+      "frontend/src/store/useAppStore.logout.test.ts",
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "TRACK-EVENT-STATUS|SPM-94"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/status/event-indicators.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/components/StatusIndicators.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-track-status",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm94.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm94.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-track-status",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm94.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm94.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
