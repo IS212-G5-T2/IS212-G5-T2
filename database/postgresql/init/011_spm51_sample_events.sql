@@ -77,3 +77,50 @@ JOIN users coordinator ON coordinator.email = 'coordinator1@connectsphere.test'
 ON CONFLICT (id) DO UPDATE
 SET event_name = EXCLUDED.event_name
 WHERE events.event_name LIKE 'SPM-51 Seed:%';
+
+-- Coordinator 2 sample events for venue search with event pre-fill (SPM-52).
+INSERT INTO events (
+    id, organiser_id, organiser_name, organiser_email, event_name, purpose,
+    description, start_date_time, end_date_time, expected_attendance,
+    preferred_room_layout, required_facilities, accessibility_needs,
+    equipment_needs, registration_enabled, status, coordinator_id,
+    coordinator_name, submission_key
+)
+SELECT sample.id, organiser.id::text, organiser.display_name, organiser.email,
+    sample.event_name, sample.purpose, sample.description,
+    ((CURRENT_DATE + sample.start_day)::timestamp + sample.start_time)
+        AT TIME ZONE 'Asia/Singapore',
+    ((CURRENT_DATE + sample.end_day)::timestamp + sample.end_time)
+        AT TIME ZONE 'Asia/Singapore',
+    sample.expected_attendance, sample.room_layout, sample.facilities,
+    sample.accessibility, sample.equipment, sample.registration_enabled,
+    sample.status, coordinator.id::text, coordinator.display_name, sample.id
+FROM (VALUES
+    (
+        '00000000-0000-4000-8000-000000000206'::uuid,
+        'Team planning session', 'Sprint planning',
+        'Small team session to review priorities and assign tasks.', 7,
+        '14:00'::time, 7, '16:00'::time, 10, 'Boardroom',
+        ARRAY['Whiteboard', 'Video conferencing']::text[],
+        ARRAY['Elevator access']::text[],
+        'Whiteboard markers and video conferencing setup.', false, 'Approved',
+        'organiser1@connectsphere.test'
+    ),
+    (
+        '00000000-0000-4000-8000-000000000207'::uuid,
+        'Faculty orientation briefing', 'Onboard new faculty',
+        'Orientation for new faculty with campus tour briefing.', 14,
+        '09:00'::time, 14, '12:00'::time, 50, 'Classroom',
+        ARRAY['Projector', 'AV System']::text[],
+        ARRAY['Wheelchair ramps', 'Accessible restrooms']::text[],
+        'Projector, portable speaker, and orientation packs.', false, 'Approved',
+        'organiser3@connectsphere.test'
+    )
+) AS sample(
+    id, event_name, purpose, description, start_day, start_time, end_day,
+    end_time, expected_attendance, room_layout, facilities, accessibility,
+    equipment, registration_enabled, status, organiser_email
+)
+JOIN users organiser ON organiser.email = sample.organiser_email
+JOIN users coordinator ON coordinator.email = 'coordinator2@connectsphere.test'
+ON CONFLICT (id) DO NOTHING;

@@ -3,17 +3,31 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Select, TextInput } from "@/components/ui/FormControls";
+import { CheckboxGroup, Select, TextInput } from "@/components/ui/FormControls";
 import { VenueCard } from "@/features/venues/pages/catalogue/VenueCard";
 import { Card, CardBody } from "@/components/ui/Card";
 import { api } from "@/utils/api";
-import { hasRole, type EventRecord, type Venue } from "@/types";
+import { hasRole, type EventRecord } from "@/types";
+import type { VenueRecord } from "@/features/venues/pages/records/venue-records";
+import { formatVenueRange } from "@/features/venues/pages/records/availability";
+import {
+  ACCESSIBILITY_OPTIONS,
+  FACILITY_OPTIONS,
+  ROOM_LAYOUT_OPTIONS,
+} from "@/features/venues/lib/venueOptions";
+import {
+  EMPTY_VENUE_SEARCH,
+  applyVenueSearch,
+  criteriaFromEvent,
+  validateVenueSearch,
+  type VenueSearchCriteria,
+} from "@/features/venues/lib/venueSearch";
 
-/** Renders the persisted venue catalogue and its client-side filters. */
+/** Renders the persisted venue catalogue and its client-side search and filters (SPM-52). */
 export function VenuesPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const events = useAppStore((s) => s.events);
-  const [venues, setVenues] = useState<Venue[]>([]);
+  const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [venuesLoading, setVenuesLoading] = useState(true);
   const [venuesLoadError, setVenuesLoadError] = useState(false);
   const [venuesRevision, setVenuesRevision] = useState(0);
@@ -26,17 +40,17 @@ export function VenuesPage() {
   const creationMessage = (location.state as { creationMessage?: string } | null)
     ?.creationMessage;
 
-  const [minCapacity, setMinCapacity] = useState("");
-  const [facility, setFacility] = useState("");
-  const [accessibility, setAccessibility] = useState("");
-  const [locationQuery, setLocationQuery] = useState("");
+  const [criteria, setCriteria] = useState<VenueSearchCriteria>(EMPTY_VENUE_SEARCH);
+  const [prefilledEventId, setPrefilledEventId] = useState("");
+  // Hold expiry is judged against this clock; it advances when the next active hold expires (SC-004).
+  const [searchTime, setSearchTime] = useState(() => Date.now());
   const navigate = useNavigate();
 
   useEffect(() => {
     let active = true;
     setVenuesLoading(true);
     setVenuesLoadError(false);
-    api<Venue[]>("/venues").then(
+    api<VenueRecord[]>("/venues").then(
       (records) => {
         if (active) setVenues(records);
       },
@@ -86,32 +100,38 @@ export function VenuesPage() {
   }, [eventId, eventRevision]);
 
   const selectedEvent = events.find((e) => e.id === eventId);
+  // Event requirements start the filters once per event, so the user's later edits are kept.
+  if (selectedEvent && selectedEvent.id !== prefilledEventId) {
+    setPrefilledEventId(selectedEvent.id);
+    setCriteria(criteriaFromEvent(selectedEvent));
+  }
   const canBook = hasRole(currentUser, "coordinator");
+  const errors = useMemo(() => validateVenueSearch(criteria), [criteria]);
+  const results = useMemo(
+    () => applyVenueSearch(venues, criteria, searchTime),
+    [venues, criteria, searchTime],
+  );
 
-  const allFacilities = Array.from(new Set(venues.flatMap((v) => v.facilities))).sort();
-  const allAccessibility = Array.from(new Set(venues.flatMap((v) => v.accessibility))).sort();
-
-  const filtered = useMemo(() => {
-    return venues.filter((v) => {
-      if (minCapacity && v.capacity < Number(minCapacity)) return false;
-      if (facility && !v.facilities.includes(facility)) return false;
-      if (accessibility && !v.accessibility.includes(accessibility)) return false;
-      if (locationQuery && !v.location.toLowerCase().includes(locationQuery.toLowerCase())) return false;
-      return true;
-    });
-  }, [venues, minCapacity, facility, accessibility, locationQuery]);
-
-  const isSuitable = (venue: Venue) => {
-    if (!selectedEvent) return false;
-    const capacityOk = venue.capacity >= selectedEvent.venueRequirements.minCapacity;
-    const facilitiesOk = selectedEvent.venueRequirements.facilities.every((f) =>
-      venue.facilities.includes(f)
+  useEffect(() => {
+    const nextExpiry = venues
+      .flatMap((venue) => venue.reservations)
+      .flatMap((reservation) =>
+        reservation.status === "tentative" ? [Date.parse(reservation.holdExpiresAt)] : [],
+      )
+      .filter((expiry) => expiry > searchTime)
+      .sort((left, right) => left - right)[0];
+    if (nextExpiry === undefined) return;
+    const timer = window.setTimeout(
+      () => setSearchTime(Date.now()),
+      Math.min(nextExpiry - searchTime, 2_147_000_000),
     );
-    const accessibilityOk = selectedEvent.venueRequirements.accessibility.every((a) =>
-      venue.accessibility.includes(a)
-    );
-    return capacityOk && facilitiesOk && accessibilityOk;
-  };
+    return () => window.clearTimeout(timer);
+  }, [venues, searchTime]);
+
+  const updateCriteria = (patch: Partial<VenueSearchCriteria>) =>
+    setCriteria((current) => ({ ...current, ...patch }));
+
+  const resultCount = `${results.length} ${results.length === 1 ? "venue matches" : "venues match"} your criteria.`;
 
   return (
     <div>
@@ -119,8 +139,8 @@ export function VenuesPage() {
         title="Venue Catalogue"
         description={
           selectedEvent
-            ? `Feature 7, 8 — Searching venues suitable for "${selectedEvent.name}". Suitable matches are highlighted.`
-            : "Feature 7 — Search and filter venues by capacity, facilities, accessibility, and location."
+            ? `Feature 7, 8 — Searching venues suitable for "${selectedEvent.name}".`
+            : "Feature 7 — Search and filter venues by name or location, capacity, layout, facilities, accessibility, and availability."
         }
         actions={selectedEvent ? (
           <Link to={`/events/${encodeURIComponent(selectedEvent.id)}`}>
@@ -151,42 +171,74 @@ export function VenuesPage() {
         <Card className="mb-4 border-primary-200 dark:border-primary-800 bg-primary-50 dark:bg-primary-900/30">
           <CardBody className="text-sm text-primary-900 dark:text-primary-200">
             Checking suitability for <strong>{selectedEvent.name}</strong> — needs capacity ≥{" "}
-            {selectedEvent.venueRequirements.minCapacity}
+            {selectedEvent.expectedAttendance}
+            {selectedEvent.venueRequirements.layout &&
+              `, layout: ${selectedEvent.venueRequirements.layout}`}
             {selectedEvent.venueRequirements.facilities.length > 0 &&
               `, facilities: ${selectedEvent.venueRequirements.facilities.join(", ")}`}
             {selectedEvent.venueRequirements.accessibility.length > 0 &&
               `, accessibility: ${selectedEvent.venueRequirements.accessibility.join(", ")}`}
-            .
+            , {formatVenueRange(selectedEvent.startDateTime, selectedEvent.endDateTime)}.
           </CardBody>
         </Card>
       )}
 
-      <div className="mb-6 grid grid-cols-1 gap-x-4 sm:grid-cols-4">
-        <TextInput
-          label="Location contains"
-          value={locationQuery}
-          onChange={(e) => setLocationQuery(e.target.value)}
-          placeholder="e.g. West Wing"
+      <div className="mb-6">
+        <div className="grid grid-cols-1 gap-x-4 sm:grid-cols-2 lg:grid-cols-4">
+          <TextInput
+            label="Name or location"
+            value={criteria.query}
+            onChange={(e) => updateCriteria({ query: e.target.value })}
+            placeholder="e.g. Orchid or West Wing"
+          />
+          <TextInput
+            label="Minimum capacity"
+            type="text"
+            inputMode="numeric"
+            autoComplete="off"
+            value={criteria.minCapacity}
+            onChange={(e) => updateCriteria({ minCapacity: e.target.value })}
+            error={errors.minCapacity}
+          />
+          <Select
+            label="Room layout"
+            value={criteria.layout}
+            onChange={(e) => updateCriteria({ layout: e.target.value })}
+            options={[
+              { value: "", label: "Any layout" },
+              ...ROOM_LAYOUT_OPTIONS.map((layout) => ({ value: layout, label: layout })),
+            ]}
+          />
+          <TextInput
+            label="Start date and time"
+            type="datetime-local"
+            value={criteria.start}
+            onChange={(e) => updateCriteria({ start: e.target.value })}
+            error={errors.start}
+          />
+          <TextInput
+            label="End date and time"
+            type="datetime-local"
+            value={criteria.end}
+            onChange={(e) => updateCriteria({ end: e.target.value })}
+            error={errors.end}
+          />
+        </div>
+        <CheckboxGroup
+          label="Facilities"
+          options={[...FACILITY_OPTIONS]}
+          values={criteria.facilities}
+          onChange={(facilities) => updateCriteria({ facilities })}
         />
-        <TextInput
-          label="Minimum capacity"
-          type="number"
-          min={0}
-          value={minCapacity}
-          onChange={(e) => setMinCapacity(e.target.value)}
+        <CheckboxGroup
+          label="Accessibility features"
+          options={[...ACCESSIBILITY_OPTIONS]}
+          values={criteria.accessibility}
+          onChange={(accessibility) => updateCriteria({ accessibility })}
         />
-        <Select
-          label="Facility"
-          value={facility}
-          onChange={(e) => setFacility(e.target.value)}
-          options={allFacilities.map((f) => ({ value: f, label: f }))}
-        />
-        <Select
-          label="Accessibility"
-          value={accessibility}
-          onChange={(e) => setAccessibility(e.target.value)}
-          options={allAccessibility.map((a) => ({ value: a, label: a }))}
-        />
+        <Button variant="secondary" onClick={() => setCriteria(EMPTY_VENUE_SEARCH)}>
+          Clear all filters
+        </Button>
       </div>
 
       {venuesLoading ? (
@@ -201,25 +253,32 @@ export function VenuesPage() {
             Try again
           </Button>
         </div>
-      ) : filtered.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          No venues match these filters.
-        </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((v) => (
-            <VenueCard
-              key={v.id}
-              venue={v}
-              highlightSuitable={isSuitable(v)}
-              eventId={eventId || undefined}
-              onCheckAvailability={canBook && selectedEvent ? () => {
-                const query = new URLSearchParams({ eventId: selectedEvent.id });
-                navigate(`/venue-records/${encodeURIComponent(v.id)}?${query.toString()}`);
-              } : undefined}
-            />
-          ))}
-        </div>
+        <>
+          <p role="status" className="mb-3 text-sm text-gray-600 dark:text-gray-400">{resultCount}</p>
+          {results.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+              <p>No venues match these filters.</p>
+              <p className="mt-1">Try adjusting or clearing some of your filters to see more venues.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {results.map((v) => (
+                <VenueCard
+                  key={v.id}
+                  venue={v}
+                  eventId={eventId || undefined}
+                  onCheckAvailability={canBook ? () => {
+                    const query = selectedEvent
+                      ? `?${new URLSearchParams({ eventId: selectedEvent.id }).toString()}`
+                      : "";
+                    navigate(`/venue-records/${encodeURIComponent(v.id)}${query}`);
+                  } : undefined}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
