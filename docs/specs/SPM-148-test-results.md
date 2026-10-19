@@ -32,7 +32,7 @@ Lock order: the event row is now `FOR UPDATE` (was `FOR SHARE`) after the venue 
 |---|---|---|---|---|---|
 | 01-A | | `test/events-planning-transition.e2e-spec.ts` :: PLAN-STATUS-01-A; `VenueRecordDetailPage.planning.test.tsx` :: 01-A | BE integration, FE | Pass | MSG-PL-01 wording ASSUMED |
 | 01-B | 5 statuses | e2e :: PLAN-STATUS-01-B (it.each) | BE | Pass | Confirmed 201 no change; Submitted/Rejected/Completed/Cancelled 409. Unit table in `event-status.spec.ts`. Cancelled uses MSG-PL-02 (no SPM-136 guard on this branch) |
-| 01-C | conflict | e2e :: 01-C | BE | Pass | |
+| 01-C | conflict | e2e :: 01-C | BE | Pass | Removes the directly seeded blocker row before retrying, avoiding status/kind constraints that differ across database migration levels. |
 | 01-C | capacity / suitability | | | Not Automated | Endpoint has no capacity or suitability check |
 | 01-D | 4 roles + 401 | e2e :: 01-D | BE | Pass | Existing 404/403 text |
 | 01-E | multi-venue | | | Not Automated | One venue per request |
@@ -76,7 +76,7 @@ All e2e rows: oracle SPEC (prompt 2.6 table) except: 01-D messages and 404/403 (
 | RED evidence | implementation stashed, new e2e file run | | 30 of 36 failed against the original source (the 6 that passed cover behaviour that already existed) |
 | Timezones | `TZ=UTC`, `Asia/Singapore`, `America/Los_Angeles` | | e2e file 36/36 and `StatusHistory.test.tsx` 3/3 each |
 | Concurrency | 02-E, 20 consecutive runs | | 20 of 20 pass |
-| Transition regression after SPM-54 alignment | `DATABASE_URL=<local-test-database-url> npm run test:e2e -- test/events-planning-transition.e2e-spec.ts` | | 40/40 pass |
+| Transition regression after SPM-54 alignment and fixture cleanup correction | `DATABASE_URL=<local-test-database-url> npm run test:e2e -- test/events-planning-transition.e2e-spec.ts` | | 40/40 pass |
 | Lint / build | `npm run lint`, `tsc -p tsconfig.build.json`, frontend `tsc -b` | | No errors; remaining lint warnings were already present |
 
 Database used: a postgres container built from `database/postgresql` at the current init scripts. The pre-built `spm-local-postgres` image on this machine was stale (no `venue_bookings`) and gave false failures, so it was not used. Coverage was not measured.

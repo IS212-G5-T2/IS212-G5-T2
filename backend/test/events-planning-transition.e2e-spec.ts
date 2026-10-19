@@ -314,9 +314,9 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await bookingCount(eventId)).toBe(0);
       expect(await planningRows(eventId)).toEqual([]);
 
-      // Act: free the event's scheduled interval, then retry. Submitted slot
-      // fields do not override the event's persisted schedule.
-      await pool.query("UPDATE venue_bookings SET status = 'cancelled' WHERE event_id = $1", [other]);
+      // Act: remove the fixture blocker, then retry. Submitted slot fields do
+      // not override the event's persisted schedule.
+      await pool.query('DELETE FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [other, venueId]);
       const valid = await book(coordinator, venueId, { eventId, ...slot(3) });
 
       // Assert: now it transitions with one history row.

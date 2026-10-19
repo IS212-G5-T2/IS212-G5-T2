@@ -19,7 +19,7 @@ Where user is the user's github username.
 
 ## 2026-10-19
 
-- swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; refreshed the SPM-148 results notes. Targeted transition E2E passed: 40/40 tests.
+- swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
 
 ## 2026-10-14
 
