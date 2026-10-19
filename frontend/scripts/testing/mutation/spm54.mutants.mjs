@@ -24,6 +24,9 @@ export const SUITES = {
   eventVenuePanel: {
     args: ['run', 'src/features/events/pages/detail/planning/PlanningInformationPanel.test.tsx'],
   },
+  statusLabels: {
+    args: ['run', 'src/features/events/components/StatusLabels.test.tsx'],
+  },
 };
 
 const PAGE = 'src/features/bookings/pages/requests/BookingsPage.tsx';
@@ -210,5 +213,32 @@ export const MUTANTS = [
       },
     ],
     edits: [['(booking) => booking.status.toLowerCase() !== "cancelled"', '() => true']],
+  },
+  {
+    id: 'SPM54-FE-CANCELLED-DETAIL-LABEL',
+    name: 'cancelled venue detail remains green when request status is approved',
+    file: 'src/features/events/components/StatusLabels.tsx',
+    suites: ['statusLabels'],
+    kills: [{ file: 'src/features/events/components/StatusLabels.test.tsx', title: 'VEN-BKG-08-A SPM-54 labels a Cancelled booking as unavailable when request status is approved' }],
+    edits: [['if (booking.status === "Cancelled") return { label: "Unavailable", tone: "red" };', 'if (booking.status === "Unavailable") return { label: "Unavailable", tone: "red" };']],
+  },
+  {
+    id: 'SPM54-FE-CANCELLED-CARD-LABEL',
+    name: 'cancelled venue is omitted from event card unavailable labels',
+    file: 'src/features/events/components/StatusLabels.tsx',
+    suites: ['statusLabels'],
+    kills: [{ file: 'src/features/events/components/StatusLabels.test.tsx', title: 'VEN-BKG-09-A SPM-54 labels a cancelled event venue as unavailable on the card' }],
+    edits: [[
+      '    case "released":\n    case "cancelled":\n      labels.push({ label: "Venue Unavailable", tone: "red" });',
+      '    case "released":\n      labels.push({ label: "Venue Unavailable", tone: "red" });',
+    ]],
+  },
+  {
+    id: 'SPM54-FE-APPROVED-CARD-LABEL',
+    name: 'approved venue without equipment is not shown as reserved on the event card',
+    file: 'src/features/events/components/StatusLabels.tsx',
+    suites: ['statusLabels'],
+    kills: [{ file: 'src/features/events/components/StatusLabels.test.tsx', title: 'VEN-BKG-08-A SPM-54 labels an approved venue as reserved when no equipment is needed' }],
+    edits: [['const venueReserved = event.venueRequestStatus === "approved";', 'const venueReserved = false;']],
   },
 ];

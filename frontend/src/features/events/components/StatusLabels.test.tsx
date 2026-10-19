@@ -1,7 +1,7 @@
 // Story: SPM-94 planning arrangements. Labels are coloured by significance:
 // awaiting or requested is amber, approved is green, rejected or cancelled is red.
 import { describe, expect, it } from "vitest";
-import { cardArrangementLabels, equipmentLabel, safetyLabel, venueLabel } from "@/features/events/components/StatusLabels";
+import { arrangementsReserved, cardArrangementLabels, equipmentLabel, safetyCheckReady, safetyLabel, venueLabel } from "@/features/events/components/StatusLabels";
 
 describe("planning state labels by significance", () => {
   // Kills: a pending venue request shown as approved (green) instead of requested (amber).
@@ -29,6 +29,32 @@ describe("planning state labels by significance", () => {
     ["not_requested", "Not Requested", "gray"],
   ] as const)("safety %s is %s", (status, label, tone) => {
     expect(safetyLabel(status)).toEqual({ label, tone });
+  });
+
+  /** Equipment cancellation and unknown statuses retain their red and gray labels. */
+  it("labels cancelled equipment unavailable and unknown equipment with a neutral label", () => {
+    expect(equipmentLabel("Cancelled")).toEqual({ label: "Unavailable", tone: "red" });
+    expect(equipmentLabel("Other")).toEqual({ label: "Other", tone: "gray" });
+  });
+});
+
+describe("shared arrangement readiness helpers", () => {
+  /** All equipment must be reserved and the event must be planning with an approved venue. */
+  it("marks arrangements reserved only when all required conditions hold", () => {
+    expect(arrangementsReserved({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toBe(true);
+    expect(arrangementsReserved({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: [] })).toBe(false);
+    expect(arrangementsReserved({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Reserved"] })).toBe(false);
+    expect(arrangementsReserved({ status: "approved", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toBe(false);
+    expect(arrangementsReserved({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Requested"] })).toBe(false);
+  });
+
+  /** A planning event with an approved venue is ready when each equipment item is reserved, including none needed. */
+  it("allows safety checks only when the venue and all equipment prerequisites are ready", () => {
+    expect(safetyCheckReady({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: [] })).toBe(true);
+    expect(safetyCheckReady({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toBe(true);
+    expect(safetyCheckReady({ status: "planning", venueRequestStatus: "approved", equipmentStatuses: ["Requested"] })).toBe(false);
+    expect(safetyCheckReady({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Reserved"] })).toBe(false);
+    expect(safetyCheckReady({ status: "approved", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toBe(false);
   });
 });
 
@@ -66,6 +92,29 @@ describe("card labels name the resource and its state", () => {
     expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "rejected", equipmentStatuses: ["Unavailable", "Cancelled"] })).toEqual([
       { label: "Venue Unavailable", tone: "red" },
       { label: "Equipment Unavailable", tone: "red" },
+    ]);
+  });
+
+  /** VEN-BKG-08-A: a cancelled booking is unavailable even if its request retains approved status. */
+  it("VEN-BKG-08-A SPM-54 labels a Cancelled booking as unavailable when request status is approved", () => {
+    expect(venueLabel({ status: "Cancelled", requestStatus: "approved" })).toEqual({
+      label: "Unavailable",
+      tone: "red",
+    });
+  });
+
+  /** VEN-BKG-08-A: an approved venue without equipment is still shown as reserved on the event card. */
+  it("VEN-BKG-08-A SPM-54 labels an approved venue as reserved when no equipment is needed", () => {
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "approved" })).toEqual([
+      { label: "Venue Reserved", tone: "green" },
+    ]);
+  });
+
+  /** VEN-BKG-09-A: an event card reports its cancelled venue as unavailable, not reserved. */
+  it("VEN-BKG-09-A SPM-54 labels a cancelled event venue as unavailable on the card", () => {
+    expect(cardArrangementLabels({ status: "planning", venueRequestStatus: "cancelled", equipmentStatuses: ["Reserved"] })).toEqual([
+      { label: "Equipment Reserved", tone: "green" },
+      { label: "Venue Unavailable", tone: "red" },
     ]);
   });
 });

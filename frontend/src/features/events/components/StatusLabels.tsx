@@ -22,10 +22,11 @@ export function StateLabel({ label, tone }: StateLabelInfo) {
 
 /** Venue request: the request decides the label, because a pending hold is shown as Booked in the planning view. */
 export function venueLabel(booking: Pick<PlanningVenueBooking, "status" | "requestStatus">): StateLabelInfo {
+  if (booking.status === "Cancelled") return { label: "Unavailable", tone: "red" };
   if (booking.requestStatus === "pending") return { label: "Requested", tone: "amber" };
   if (booking.requestStatus === "approved") return { label: "Approved", tone: "green" };
   // Rejected or released venues are unavailable: red venue states use "Unavailable" only.
-  if (booking.requestStatus === "rejected" || booking.requestStatus === "released" || booking.status === "Cancelled") return { label: "Unavailable", tone: "red" };
+  if (booking.requestStatus === "rejected" || booking.requestStatus === "released") return { label: "Unavailable", tone: "red" };
   if (booking.status === "Unavailable") return { label: "Unavailable", tone: "red" };
   return { label: booking.status, tone: "gray" };
 }
@@ -101,6 +102,7 @@ export function cardArrangementLabels(
       break;
     case "rejected":
     case "released":
+    case "cancelled":
       labels.push({ label: "Venue Unavailable", tone: "red" });
       break;
   }

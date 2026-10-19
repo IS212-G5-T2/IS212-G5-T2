@@ -90,6 +90,10 @@
       {
         "glob": "frontend/src/components/layout/navConfig.test.ts",
         "titleMatch": "SPM54-ROUTE-RETIRE-01"
+      },
+      {
+        "glob": "frontend/src/features/events/components/StatusLabels.test.tsx",
+        "titleMatch": "VEN-BKG-(08-A|09-A)"
       }
     ]
   },
@@ -112,7 +116,8 @@
       "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
       "frontend/src/features/events/pages/detail/planning/activeVenueRequests.ts",
       "frontend/src/app/App.tsx",
-      "frontend/src/components/layout/navConfig.ts"
+      "frontend/src/components/layout/navConfig.ts",
+      "frontend/src/features/events/components/StatusLabels.tsx"
     ]
   },
   "suites": [
