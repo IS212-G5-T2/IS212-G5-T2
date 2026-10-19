@@ -34,6 +34,7 @@ describe.skipIf(!databaseUrl)(
         '008_venue_owner_user_id.sql',
         '009_venue_availability.sql',
         '010_remove_venue_operating_schedule.sql',
+        '019_spm54_venue_booking_lifecycle.sql',
       ])
         await pool.query(
           await readFile(
@@ -117,7 +118,12 @@ describe.skipIf(!databaseUrl)(
       return id;
     }
 
-    async function createAssignedEvent(coordinatorId: string, name: string) {
+    async function createAssignedEvent(
+      coordinatorId: string,
+      name: string,
+      start = '2030-01-12T06:00:00.000Z',
+      end = '2030-01-12T07:00:00.000Z',
+    ) {
       const id = randomUUID();
       await pool.query(
         `INSERT INTO events
@@ -129,8 +135,8 @@ describe.skipIf(!databaseUrl)(
         [
           id,
           name,
-          new Date('2030-01-12T04:00:00.000Z'),
-          new Date('2030-01-12T05:00:00.000Z'),
+          new Date(start),
+          new Date(end),
           coordinatorId,
         ],
       );
@@ -196,8 +202,26 @@ describe.skipIf(!databaseUrl)(
       expect(candidateRows.rows).toEqual([]);
     }
 
-    /** VEN-AVL-06-A: assigned coordinator requests are persisted by the real HTTP/API path. */
-    it('creates a pending request for an assigned coordinator event', async () => {
+    /** Waits for every competing HTTP transaction to reach and block on its expected PostgreSQL row lock. */
+    async function waitForLockWaiters(queryFragment: string, expected: number) {
+      const deadline = Date.now() + 5_000;
+      let count = 0;
+      while (Date.now() < deadline) {
+        const result = await pool.query<{ count: number }>(
+          `SELECT count(*)::int AS count FROM pg_stat_activity
+            WHERE datname = current_database() AND state = 'active'
+              AND wait_event_type = 'Lock' AND query LIKE $1`,
+          [`%${queryFragment}%`],
+        );
+        count = result.rows[0].count;
+        if (count >= expected) return count;
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      }
+      return count;
+    }
+
+    /** VEN-BKG-03-A, VEN-BKG-04-A / VEN-BKG-08-A: the trimmed request is confirmed and appears as a persisted Pending row in My Bookings with its venue and event. */
+    it('VEN-BKG-04-A SPM-54 creates a pending request with a reference in My Bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -213,6 +237,7 @@ describe.skipIf(!databaseUrl)(
           eventId,
           start: '2030-01-12T06:00:00.000Z',
           end: '2030-01-12T07:00:00.000Z',
+          specialRequest: '  Please provide microphones.  ',
         })
         .expect(201);
 
@@ -227,6 +252,512 @@ describe.skipIf(!databaseUrl)(
         [venueId, eventId],
       );
       expect(persisted.rows).toEqual([{ status: 'pending' }]);
+      const mine = await request(app.getHttpServer())
+        .get('/api/venues/bookings/mine')
+        .set('Cookie', coordinator.cookie)
+        .expect(200);
+      expect(mine.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: expect.any(String),
+            eventId,
+            eventName: 'SPM-51 clear request',
+            venueId,
+            venueName: expect.any(String),
+            status: 'pending',
+            specialRequest: 'Please provide microphones.',
+          }),
+        ]),
+      );
+    });
+
+    /** VEN-BKG-03-SEC-1: server uses persisted event times even if the client sends different times. */
+    it('VEN-BKG-03-SEC-1 SPM-54 persists assigned event times despite client tampering', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id, {
+        setupTimeMinutes: 0,
+        turnaroundTimeMinutes: 0,
+      });
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'Assigned time is authoritative',
+        '2030-01-12T08:00:00.000Z',
+        '2030-01-12T09:00:00.000Z',
+      );
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId,
+          start: '2030-01-13T12:00:00.000Z',
+          end: '2030-01-13T13:00:00.000Z',
+        })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        eventId,
+        venueId,
+        start: '2030-01-12T08:00:00.000Z',
+        end: '2030-01-12T09:00:00.000Z',
+      });
+      const persisted = await pool.query<{ start_at: Date; end_at: Date }>(
+        'SELECT start_at, end_at FROM venue_bookings WHERE id = $1',
+        [response.body.id],
+      );
+      expect(persisted.rows[0].start_at.toISOString()).toBe(
+        '2030-01-12T08:00:00.000Z',
+      );
+      expect(persisted.rows[0].end_at.toISOString()).toBe(
+        '2030-01-12T09:00:00.000Z',
+      );
+    });
+
+    /** VEN-BKG-02-BND-1: a confirmed event whose raw times are disjoint is refused when the candidate's setup buffer overlaps by one minute; exact adjacency remains available. */
+    it('VEN-BKG-02-BND-1 SPM-54 rejects a one-minute setup overlap but accepts exact buffer adjacency', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id, {
+        setupTimeMinutes: 30,
+        turnaroundTimeMinutes: 0,
+      });
+      const existingEvent = await createAssignedEvent(
+        coordinator.id,
+        'Approved setup-buffer event',
+        '2030-01-12T06:00:00.000Z',
+        '2030-01-12T07:00:00.000Z',
+      );
+      await addBooking(venueId, existingEvent, {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+        status: 'approved',
+      });
+
+      const overlappingEvent = await createAssignedEvent(
+        coordinator.id,
+        'One-minute setup overlap',
+        '2030-01-12T07:29:00.000Z',
+        '2030-01-12T08:29:00.000Z',
+      );
+      await expectConflictWithoutRequest(
+        venueId,
+        coordinator.cookie,
+        overlappingEvent,
+        '2030-01-12T07:29:00.000Z',
+        '2030-01-12T08:29:00.000Z',
+        'Approved setup-buffer event',
+      );
+
+      const adjacentEvent = await createAssignedEvent(
+        coordinator.id,
+        'Exactly adjacent setup buffer',
+        '2030-01-12T07:30:00.000Z',
+        '2030-01-12T08:30:00.000Z',
+      );
+      const adjacent = await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId: adjacentEvent,
+          start: '2030-01-12T07:30:00.000Z',
+          end: '2030-01-12T08:30:00.000Z',
+        })
+        .expect(201);
+      const persisted = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE id = $1',
+        [adjacent.body.id],
+      );
+      expect(persisted.rows).toEqual([{ status: 'pending' }]);
+    });
+
+    /** VEN-BKG-02-BND-2: a confirmed event whose raw times are disjoint is refused when its prior booking's turnaround buffer overlaps by one minute. */
+    it('VEN-BKG-02-BND-2 SPM-54 rejects a one-minute turnaround overlap in PostgreSQL', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id, {
+        setupTimeMinutes: 0,
+        turnaroundTimeMinutes: 30,
+      });
+      const existingEvent = await createAssignedEvent(
+        coordinator.id,
+        'Approved turnaround-buffer event',
+        '2030-01-12T06:00:00.000Z',
+        '2030-01-12T07:00:00.000Z',
+      );
+      await addBooking(venueId, existingEvent, {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+        status: 'approved',
+      });
+      const candidate = await createAssignedEvent(
+        coordinator.id,
+        'One-minute turnaround overlap',
+        '2030-01-12T07:29:00.000Z',
+        '2030-01-12T08:29:00.000Z',
+      );
+
+      await expectConflictWithoutRequest(
+        venueId,
+        coordinator.cookie,
+        candidate,
+        '2030-01-12T07:29:00.000Z',
+        '2030-01-12T08:29:00.000Z',
+        'Approved turnaround-buffer event',
+      );
+    });
+
+    /** VEN-BKG-02-C: distinct assigned events race for a fresh venue; the serialized pending-request conflict permits only one request. */
+    it('VEN-BKG-02-C SPM-54 serializes different-event conflict checks on the venue row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const candidates = await Promise.all([
+        createAssignedEvent(
+          coordinator.id,
+          'Concurrent event request one',
+          '2030-01-12T06:00:00.000Z',
+          '2030-01-12T07:00:00.000Z',
+        ),
+        createAssignedEvent(
+          coordinator.id,
+          'Concurrent event request two',
+          '2030-01-12T06:00:00.000Z',
+          '2030-01-12T07:00:00.000Z',
+        ),
+      ]);
+      const lockClient = await pool.connect();
+      await lockClient.query('BEGIN');
+      await lockClient.query(
+        'SELECT id FROM venues WHERE id = $1::uuid FOR UPDATE',
+        [venueId],
+      );
+      // Reads remain available, but writes pause after conflict evaluation. If the venue lock is absent,
+      // this barrier lets both distinct-event requests reach their inserts before either can commit.
+      await lockClient.query('LOCK TABLE venue_bookings IN SHARE MODE');
+      const submit = (eventId: string) =>
+        request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send({
+            eventId,
+            start: '2030-01-12T06:00:00.000Z',
+            end: '2030-01-12T07:00:00.000Z',
+          });
+      const submissions = Promise.all(candidates.map(submit));
+      let waiting = 0;
+      let insertsWaiting = 0;
+      try {
+        waiting = await waitForLockWaiters(
+          'FROM venues v WHERE v.id = $1::uuid FOR UPDATE',
+          2,
+        );
+        if (waiting < 2)
+          insertsWaiting = await waitForLockWaiters(
+            'INSERT INTO venue_bookings',
+            2,
+          );
+      } finally {
+        await lockClient.query('COMMIT');
+        lockClient.release();
+      }
+      const responses = await submissions;
+      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+      const active = await pool.query<{ event_id: string; status: string }>(
+        `SELECT event_id, status FROM venue_bookings
+          WHERE venue_id = $1 AND status IN ('pending', 'approved')`,
+        [venueId],
+      );
+      expect(active.rows).toHaveLength(1);
+      expect(candidates).toContain(active.rows[0].event_id);
+      expect(active.rows[0].status).toBe('pending');
+      const requests = await pool.query<{ event_id: string }>(
+        `SELECT event_id FROM venue_booking_requests WHERE venue_id = $1`,
+        [venueId],
+      );
+      expect(requests.rows).toEqual([{ event_id: active.rows[0].event_id }]);
+      expect(waiting).toBe(2);
+      expect(insertsWaiting).toBe(0);
+    });
+
+    /** SPM-54 AC7: parallel duplicate submissions create one active event/venue request; retained cancelled/rejected rows permit retry. */
+    it('VEN-BKG-07-A SPM-54 serializes duplicates and allows retries after final history statuses', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'SPM-54 duplicate event',
+      );
+      const requestPayload = {
+        eventId,
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+      };
+      const submit = () =>
+        request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send(requestPayload);
+
+      const parallel = await Promise.all([submit(), submit()]);
+      expect(parallel.map((response) => response.status).sort()).toEqual([
+        201, 409,
+      ]);
+      expect(
+        parallel.find((response) => response.status === 409)?.body.code,
+      ).toBe('ACTIVE_VENUE_REQUEST_EXISTS');
+      let rows = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 ORDER BY created_at, id',
+        [venueId, eventId],
+      );
+      expect(rows.rows).toEqual([{ status: 'pending' }]);
+
+      const created = parallel.find((response) => response.status === 201)!;
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${created.body.id}/cancel`)
+        .set('Cookie', coordinator.cookie)
+        .send({ confirmed: false })
+        .expect(409);
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${created.body.id}/cancel`)
+        .set('Cookie', coordinator.cookie)
+        .send({ confirmed: true })
+        .expect(201);
+
+      // Add a rejected retained attempt directly; neither final status blocks a fresh API request.
+      await addBooking(venueId, eventId, {
+        ...requestPayload,
+        status: 'rejected',
+      });
+      const retry = await submit().expect(201);
+      expect(retry.body.status).toBe('pending');
+      rows = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 ORDER BY created_at, id',
+        [venueId, eventId],
+      );
+      expect(rows.rows.map((row) => row.status).sort()).toEqual([
+        'cancelled',
+        'pending',
+        'rejected',
+      ]);
+    });
+
+    /** VEN-BKG-05-A/B, 06-A/B, 07-A/B: replacing an affected booking adds an independent venue row, leaves the original unchanged, and a failed third request leaves both saved rows intact. */
+    it('VEN-BKG-05-A VEN-BKG-05-B VEN-BKG-06-A VEN-BKG-07-A VEN-BKG-07-B SPM-54 supports replacement while preserving independent booking history', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const originalVenue = await createVenue(owner.id);
+      const replacementVenue = await createVenue(owner.id);
+      const blockedVenue = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'SPM-54 replacement event',
+      );
+      const start = '2030-01-12T06:00:00.000Z';
+      const end = '2030-01-12T07:00:00.000Z';
+
+      const original = await request(app.getHttpServer())
+        .post(`/api/venues/${originalVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId,
+          start,
+          end,
+          specialRequest: '  Please provide microphones.  ',
+        })
+        .expect(201);
+      await addBlockout(
+        originalVenue,
+        '2030-01-12T05:30:00.000Z',
+        '2030-01-12T07:30:00.000Z',
+        'Maintenance',
+      );
+      const replacement = await request(app.getHttpServer())
+        .post(`/api/venues/${replacementVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({ eventId, start, end })
+        .expect(201);
+      await addBlockout(
+        blockedVenue,
+        '2030-01-12T05:30:00.000Z',
+        '2030-01-12T07:30:00.000Z',
+        'Maintenance',
+      );
+      await expectConflictWithoutRequest(
+        blockedVenue,
+        coordinator.cookie,
+        eventId,
+        start,
+        end,
+        'Maintenance',
+      );
+
+      const persisted = await pool.query<{
+        id: string;
+        venue_id: string;
+        status: string;
+      }>(
+        'SELECT id, venue_id, status FROM venue_bookings WHERE event_id = $1 ORDER BY venue_id',
+        [eventId],
+      );
+      expect(persisted.rows).toHaveLength(2);
+      expect(persisted.rows).toEqual(
+        expect.arrayContaining([
+          { id: original.body.id, venue_id: originalVenue, status: 'pending' },
+          {
+            id: replacement.body.id,
+            venue_id: replacementVenue,
+            status: 'pending',
+          },
+        ]),
+      );
+      const requestDetails = await pool.query<{
+        special_request: string | null;
+      }>(
+        'SELECT special_request FROM venue_booking_requests WHERE event_id = $1 AND venue_id = $2',
+        [eventId, originalVenue],
+      );
+      expect(requestDetails.rows).toEqual([
+        { special_request: 'Please provide microphones.' },
+      ]);
+    });
+
+    /** VEN-BKG-09-A/SEC-1, VEN-BKG-10-A/B: one booking cancels independently, unowned cancellation is refused, and final cancellation requires explicit confirmation. */
+    it('VEN-BKG-09-A VEN-BKG-09-SEC-1 VEN-BKG-10-A VEN-BKG-10-B VEN-BKG-10-SEC-1 SPM-54 cancels independently and requires explicit final-booking confirmation', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const otherCoordinator = await createUser('COORDINATOR');
+      const firstVenue = await createVenue(owner.id);
+      const secondVenue = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'SPM-54 cancellation event',
+      );
+      const start = '2030-01-12T06:00:00.000Z';
+      const end = '2030-01-12T07:00:00.000Z';
+      const first = await request(app.getHttpServer())
+        .post(`/api/venues/${firstVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({ eventId, start, end })
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post(`/api/venues/${secondVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({ eventId, start, end })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${first.body.id}/cancel`)
+        .set('Cookie', otherCoordinator.cookie)
+        .send({ confirmed: true })
+        .expect(404);
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${first.body.id}/cancel`)
+        .set('Cookie', coordinator.cookie)
+        .send({ confirmed: false })
+        .expect(201);
+      const lastAttempt = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${second.body.id}/cancel`)
+        .set('Cookie', coordinator.cookie)
+        .send({ confirmed: false })
+        .expect(409);
+      expect(lastAttempt.body).toMatchObject({
+        code: 'LAST_ACTIVE_VENUE_BOOKING',
+        requiresConfirmation: true,
+      });
+      const unchanged = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE id = $1',
+        [second.body.id],
+      );
+      expect(unchanged.rows).toEqual([{ status: 'pending' }]);
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${second.body.id}/cancel`)
+        .set('Cookie', coordinator.cookie)
+        .send({ confirmed: true })
+        .expect(201);
+      const history = await pool.query<{ id: string; status: string }>(
+        'SELECT id, status FROM venue_bookings WHERE event_id = $1 ORDER BY id',
+        [eventId],
+      );
+      expect(history.rows).toEqual(
+        expect.arrayContaining([
+          { id: first.body.id, status: 'cancelled' },
+          { id: second.body.id, status: 'cancelled' },
+        ]),
+      );
+    });
+
+    /** VEN-BKG-10-A/B: concurrent unconfirmed cancellations serialize on their shared event row, leaving one active booking and refusing the last cancellation. */
+    it('VEN-BKG-10-A VEN-BKG-10-B SPM-54 requires confirmation when concurrent cancellations target the final two bookings', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'Concurrent final cancellation event',
+      );
+      const firstVenue = await createVenue(owner.id);
+      const secondVenue = await createVenue(owner.id);
+      const first = await request(app.getHttpServer())
+        .post(`/api/venues/${firstVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId,
+          start: '2030-01-12T06:00:00.000Z',
+          end: '2030-01-12T07:00:00.000Z',
+        })
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post(`/api/venues/${secondVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId,
+          start: '2030-01-12T06:00:00.000Z',
+          end: '2030-01-12T07:00:00.000Z',
+        })
+        .expect(201);
+
+      const lockClient = await pool.connect();
+      await lockClient.query('BEGIN');
+      await lockClient.query(
+        'SELECT id FROM events WHERE id = $1::uuid FOR UPDATE',
+        [eventId],
+      );
+      const cancel = (bookingId: string) =>
+        request(app.getHttpServer())
+          .post(`/api/venues/bookings/${bookingId}/cancel`)
+          .set('Cookie', coordinator.cookie)
+          .send({ confirmed: false });
+      const cancellations = Promise.all([
+        cancel(first.body.id),
+        cancel(second.body.id),
+      ]);
+      let waiting = 0;
+      try {
+        waiting = await waitForLockWaiters('FOR UPDATE OF b, e', 2);
+      } finally {
+        await lockClient.query('COMMIT');
+        lockClient.release();
+      }
+      const responses = await cancellations;
+      expect(waiting).toBe(2);
+      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+      const lastCancellation = responses.find(({ status }) => status === 409)!;
+      expect(lastCancellation.body).toMatchObject({
+        code: 'LAST_ACTIVE_VENUE_BOOKING',
+        requiresConfirmation: true,
+      });
+      const history = await pool.query<{ id: string; status: string }>(
+        `SELECT id, status FROM venue_bookings WHERE event_id = $1 ORDER BY id`,
+        [eventId],
+      );
+      expect(history.rows.map(({ id }) => id).sort()).toEqual(
+        [first.body.id, second.body.id].sort(),
+      );
+      expect(history.rows.map(({ status }) => status).sort()).toEqual([
+        'cancelled',
+        'pending',
+      ]);
     });
 
     /** SPM-51 local seed regression: the sample catalogue and event set stays assigned to the seeded coordinator. */
@@ -299,8 +830,8 @@ describe.skipIf(!databaseUrl)(
       ).toBe(true);
     });
 
-    /** VEN-AVL-06-B: only the event's assigned coordinator can create its booking request. */
-    it('rejects an unassigned coordinator without persisting a request', async () => {
+    /** VEN-BKG-03-SEC-2: only the event's assigned coordinator can create its booking request. */
+    it('VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request', async () => {
       const owner = await createUser('VENUE_STAFF');
       const assigned = await createUser('COORDINATOR');
       const otherCoordinator = await createUser('COORDINATOR');
@@ -326,8 +857,8 @@ describe.skipIf(!databaseUrl)(
       expect(rows.rows).toEqual([]);
     });
 
-    /** SPM-54 AC5 / SPM-51 AC7: a pending request without Venue Staff hold expiry is not a tentative blocker. Kills: unbounded pending request treated as an active hold (B11). */
-    it('keeps a pending request without expiry out of holds and conflict checks', async () => {
+    /** VEN-BKG-02-B / SPM-54 AC2: a pending request without hold expiry blocks an overlapping different event, while schedule visibility still distinguishes requests from time-bounded holds. */
+    it('VEN-BKG-02-B SPM-54 blocks overlap on an unbounded pending request without showing it as a schedule hold', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
@@ -367,7 +898,15 @@ describe.skipIf(!databaseUrl)(
         .post(`/api/venues/${venueId}/booking-requests`)
         .set('Cookie', coordinator.cookie)
         .send({ eventId: secondEvent, ...period })
-        .expect(201);
+        .expect(409)
+        .expect(({ body }) => {
+          expect(body.message).toContain('Pending request without hold');
+        });
+      const secondRequest = await pool.query(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, secondEvent],
+      );
+      expect(secondRequest.rows).toEqual([]);
     });
 
     /** VEN-AVL-02-C: pending requests are tentative, not confirmed; rejected requests are absent. The schema supports rejected, not cancelled. */
@@ -426,6 +965,8 @@ describe.skipIf(!databaseUrl)(
       const candidateEvent = await createAssignedEvent(
         coordinator.id,
         'SPM-51 blocked request',
+        '2030-01-12T04:00:00.000Z',
+        '2030-01-12T05:00:00.000Z',
       );
       const existingEvent = await createAssignedEvent(
         coordinator.id,
@@ -487,6 +1028,8 @@ describe.skipIf(!databaseUrl)(
       const expiredCandidate = await createAssignedEvent(
         coordinator.id,
         'Expired hold available',
+        '2030-01-12T04:00:00.000Z',
+        '2030-01-12T05:00:00.000Z',
       );
       const exactCandidate = await createAssignedEvent(
         coordinator.id,
@@ -495,6 +1038,8 @@ describe.skipIf(!databaseUrl)(
       const activeCandidate = await createAssignedEvent(
         coordinator.id,
         'Active hold blocked',
+        '2030-01-12T08:00:00.000Z',
+        '2030-01-12T09:00:00.000Z',
       );
       const expiredEvent = await createAssignedEvent(
         coordinator.id,
@@ -575,6 +1120,8 @@ describe.skipIf(!databaseUrl)(
       const candidate = await createAssignedEvent(
         coordinator.id,
         'After buffer conflict',
+        '2030-01-12T05:20:00.000Z',
+        '2030-01-12T06:00:00.000Z',
       );
       const existing = await createAssignedEvent(
         coordinator.id,
@@ -606,6 +1153,8 @@ describe.skipIf(!databaseUrl)(
       const candidate = await createAssignedEvent(
         coordinator.id,
         'Before buffer conflict',
+        '2030-01-12T04:00:00.000Z',
+        '2030-01-12T05:00:00.000Z',
       );
       const existing = await createAssignedEvent(
         coordinator.id,
@@ -634,6 +1183,8 @@ describe.skipIf(!databaseUrl)(
       const candidate = await createAssignedEvent(
         coordinator.id,
         'Maintenance blockout candidate',
+        '2030-01-12T04:00:00.000Z',
+        '2030-01-12T05:00:00.000Z',
       );
       await addBlockout(
         venueId,
@@ -667,10 +1218,14 @@ describe.skipIf(!databaseUrl)(
       const setupCandidate = await createAssignedEvent(
         coordinator.id,
         'Setup blockout candidate',
+        '2030-01-12T04:00:00.000Z',
+        '2030-01-12T05:00:00.000Z',
       );
       const turnaroundCandidate = await createAssignedEvent(
         coordinator.id,
         'Turnaround blockout candidate',
+        '2030-01-12T06:00:00.000Z',
+        '2030-01-12T07:00:00.000Z',
       );
       await addBlockout(
         setupVenueId,

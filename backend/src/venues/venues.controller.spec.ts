@@ -17,6 +17,8 @@ describe('SPM-50 venue route wiring', () => {
     list: vi.fn(),
     get: vi.fn(),
     submitBookingRequest: vi.fn(),
+    listCoordinatorBookings: vi.fn(),
+    cancelCoordinatorBooking: vi.fn(),
     markUnavailable: vi.fn(),
     endUnavailable: vi.fn(),
   };
@@ -67,6 +69,25 @@ describe('SPM-50 venue route wiring', () => {
       venueId,
       body,
     );
+  });
+
+  /** VEN-BKG-08-SEC-1: coordinator booking history is fetched for the authenticated identity. */
+  it('lists coordinator bookings for the authenticated user', () => {
+    service.listCoordinatorBookings.mockReturnValue(['booking']);
+    expect(controller.listCoordinatorBookings(request)).toEqual(['booking']);
+    expect(service.listCoordinatorBookings).toHaveBeenCalledWith(identity);
+  });
+
+  /** VEN-BKG-10-A: only a literal true in the request body confirms last-booking cancellation. */
+  it.each([
+    [{ confirmed: true }, true],
+    [{ confirmed: false }, false],
+    [null, false],
+  ])('passes explicit cancellation confirmation %j', (body, confirmed) => {
+    const bookingId = '00000000-0000-4000-8000-000000000127';
+    service.cancelCoordinatorBooking.mockReturnValue({ kind: 'cancelled' });
+    expect(controller.cancelCoordinatorBooking(request, bookingId, body)).toEqual({ kind: 'cancelled' });
+    expect(service.cancelCoordinatorBooking).toHaveBeenCalledWith(identity, bookingId, confirmed);
   });
 
   /** SPM-122: venue staff unavailability actions forward the verified identity and route IDs. */

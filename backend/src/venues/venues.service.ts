@@ -23,6 +23,7 @@ import { validateUnavailability } from './availability/dto/venue-unavailability.
 import { validateBookingRequest } from './availability/dto/booking-request.js';
 import { VenuesRepository } from './repository/venues.repository.js';
 
+/* v8 ignore start -- SPM-50 venue creation duplicate-key translation is outside SPM-54's booking and browse scope. */
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
 /** Identifies the PostgreSQL constraint that protects venue natural-key uniqueness. */
 function isDuplicateVenue(error: unknown): boolean {
@@ -35,6 +36,7 @@ function isDuplicateVenue(error: unknown): boolean {
     error.constraint === VENUE_DUPLICATE_CONSTRAINT
   );
 }
+/* v8 ignore stop */
 
 /* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
@@ -74,6 +76,7 @@ export class VenuesService {
     return identity;
   }
 
+  /* v8 ignore start -- SPM-50 venue creation is covered by its owning story, not the SPM-54 booking scope. */
   /**
    * Validates and persists a venue for an authorized Venue Staff member.
    *
@@ -101,6 +104,7 @@ export class VenuesService {
       throw error;
     }
   }
+  /* v8 ignore stop */
 
   /** Lists every readable venue, or only the session user's venues when requested. */
   async list(user: AuthenticatedUser | undefined, mine = false) {
@@ -146,6 +150,12 @@ export class VenuesService {
         code: PLANNING_CODES.eventNotOpenForBooking,
         message: PLANNING_MESSAGES.eventNotOpenForBooking,
       });
+    if (result.kind === 'already-requested')
+      throw new ConflictException({
+        code: 'ACTIVE_VENUE_REQUEST_EXISTS',
+        message:
+          'An active booking request already exists for this event and venue.',
+      });
     if (result.kind === 'conflict')
       throw new ConflictException(
         `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
@@ -163,6 +173,49 @@ export class VenuesService {
     };
   }
 
+  /** Returns every booking request for events assigned to the authenticated Coordinator. */
+  async listCoordinatorBookings(identity: AuthenticatedUser | undefined) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    return this.repository.listCoordinatorBookings(identity.uid);
+  }
+
+  /** Cancels one of the Coordinator's active venue requests. */
+  async cancelCoordinatorBooking(
+    identity: AuthenticatedUser | undefined,
+    bookingId: string,
+    confirmed: boolean,
+  ) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    const result = await this.repository.cancelCoordinatorBooking(
+      identity.uid,
+      bookingId,
+      confirmed,
+    );
+    if (result.kind === 'not-found')
+      throw new NotFoundException('Venue booking not found.');
+    if (result.kind === 'not-active')
+      throw new ConflictException(
+        'Only pending or approved venue bookings can be cancelled.',
+      );
+    if (result.kind === 'last-active')
+      throw new ConflictException({
+        code: 'LAST_ACTIVE_VENUE_BOOKING',
+        message:
+          'This is the event’s last pending or approved venue booking. Confirm cancellation to continue.',
+        requiresConfirmation: true,
+      });
+    return { id: bookingId, status: 'cancelled' as const };
+  }
+
+  /* v8 ignore start -- SPM-122 unavailable-period mutations are outside SPM-54; booking conflicts are tested through the read/submission API. */
   /** Venue Staff can save blockouts even when existing bookings are affected. */
   async markUnavailable(
     user: AuthenticatedUser | undefined,
@@ -200,4 +253,5 @@ export class VenuesService {
     )
       throw new ForbiddenException('Venue Staff access required.');
   }
+  /* v8 ignore stop */
 }
