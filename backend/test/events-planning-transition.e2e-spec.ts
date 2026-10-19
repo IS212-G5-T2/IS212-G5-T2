@@ -213,14 +213,14 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       // Act
       const response = await book(coordinator, venueId, { eventId, ...slot(0) });
 
-      // Assert: 201 with the new fields, one booking row, status Planning, via the API read too.
+      // Assert: the request is for the event's fixed scheduled time, one booking row, status Planning, via the API read too.
       expect(response.status).toBe(201);
       expect(response.body).toEqual({
         id: expect.any(String),
         eventId,
         venueId,
-        start: slot(0).start,
-        end: slot(0).end,
+        start: `${EVENT_DAY}T10:00:00.000Z`,
+        end: `${EVENT_DAY}T13:00:00.000Z`,
         status: 'pending',
         eventStatus: 'Planning',
         statusChanged: true,
@@ -274,9 +274,18 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       );
       const eventId = await event('Approved', coordinator);
 
-      const adjacent = await book(coordinator, venueId, { eventId, start: slot(0).end, end: slot(1).end });
+      // The API books the event's scheduled time, so set this event to the interval
+      // immediately after the seeded booking rather than relying on request times.
+      await pool.query(
+        'UPDATE events SET start_date_time = $2, end_date_time = $3 WHERE id = $1',
+        [eventId, slot(0).end, slot(1).end],
+      );
+
+      const adjacent = await book(coordinator, venueId, { eventId, ...slot(0) });
 
       expect(adjacent.status).toBe(201);
+      expect(adjacent.body.start).toBe(slot(0).end);
+      expect(adjacent.body.end).toBe(slot(1).end);
       expect(adjacent.body.statusChanged).toBe(true);
       expect(await status(eventId)).toBe('Planning');
     });
@@ -288,12 +297,12 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
       const other = await event('Approved', await account('COORDINATOR'), undefined, 'Existing Booking');
+      const eventId = await event('Approved', coordinator);
       await pool.query(
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
          VALUES ($1, $2, $3, $4, 'approved')`,
-        [venueId, other, slot(0).start, slot(0).end],
+        [venueId, other, `${EVENT_DAY}T10:00:00.000Z`, `${EVENT_DAY}T13:00:00.000Z`],
       );
-      const eventId = await event('Approved', coordinator);
 
       // Act: conflicting request.
       const conflict = await book(coordinator, venueId, { eventId, ...slot(0) });
@@ -305,7 +314,9 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
       expect(await bookingCount(eventId)).toBe(0);
       expect(await planningRows(eventId)).toEqual([]);
 
-      // Act: a valid request in a free slot.
+      // Act: remove the fixture blocker, then retry. Submitted slot fields do
+      // not override the event's persisted schedule.
+      await pool.query('DELETE FROM venue_bookings WHERE event_id = $1 AND venue_id = $2', [other, venueId]);
       const valid = await book(coordinator, venueId, { eventId, ...slot(3) });
 
       // Assert: now it transitions with one history row.
@@ -476,15 +487,15 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
 
     // Kills: M7.
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
-    it('PLAN-STATUS-03-B: five sequential requests give five bookings and exactly one Approved to Planning row', async () => {
+    it('PLAN-STATUS-03-B: requests for five venues give five bookings and exactly one Approved to Planning row', async () => {
       const coordinator = await account('COORDINATOR');
-      const venueId = await venue();
+      const venueIds = await Promise.all(Array.from({ length: 5 }, () => venue()));
       const eventId = await event('Approved', coordinator);
 
       // Literal oracle: only the first request changes the status.
       const statusChanged: boolean[] = [];
       for (let n = 0; n < 5; n += 1) {
-        const response = await book(coordinator, venueId, { eventId, ...slot(n) });
+        const response = await book(coordinator, venueIds[n], { eventId, ...slot(n) });
         expect(response.status).toBe(201);
         statusChanged.push(response.body.statusChanged);
       }
@@ -512,10 +523,10 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     });
 
     // Kills: M6 no compare-and-set.
-    // Repo adaptation: pending requests without a hold do not block each other, so
-    // identical parallel requests are all saved; the transition still happens once.
+    // SPM-54 AC7: parallel duplicate submissions to one venue serialize; one
+    // active request is created and the remaining attempts are rejected.
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
-    it('PLAN-STATUS-03-D: five parallel identical requests give five bookings and exactly one transition', async () => {
+    it('PLAN-STATUS-03-D: five parallel duplicate requests give one booking and exactly one transition', async () => {
       const coordinator = await account('COORDINATOR');
       const venueId = await venue();
       const eventId = await event('Approved', coordinator);
@@ -524,9 +535,12 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
         Array.from({ length: 5 }, () => book(coordinator, venueId, { eventId, ...slot(0) })),
       );
 
-      expect(responses.map((r) => r.status)).toEqual([201, 201, 201, 201, 201]);
+      expect(responses.map((r) => r.status).sort((a, b) => a - b)).toEqual([201, 409, 409, 409, 409]);
+      expect(responses.filter((r) => r.status === 409).every((r) =>
+        r.body.code === 'ACTIVE_VENUE_REQUEST_EXISTS',
+      )).toBe(true);
       expect(responses.filter((r) => r.body.statusChanged === true)).toHaveLength(1);
-      expect(await bookingCount(eventId)).toBe(5);
+      expect(await bookingCount(eventId)).toBe(1);
       expect(await status(eventId)).toBe('Planning');
       expect(await planningRows(eventId)).toHaveLength(1);
     });

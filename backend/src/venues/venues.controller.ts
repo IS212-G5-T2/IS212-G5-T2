@@ -10,6 +10,31 @@ export class VenuesController {
   /* v8 ignore stop */
   constructor(private readonly venues: VenuesService) {}
 
+  @Get('bookings/mine')
+  listCoordinatorBookings(@Req() request: AuthenticatedRequest) {
+    return this.venues.listCoordinatorBookings(
+      request[CURRENT_USER_REQUEST_KEY],
+    );
+  }
+
+  @Post('bookings/:bookingId/cancel')
+  cancelCoordinatorBooking(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+    @Body() body: unknown,
+  ) {
+    const confirmed = Boolean(
+      body &&
+      typeof body === 'object' &&
+      (body as { confirmed?: unknown }).confirmed === true,
+    );
+    return this.venues.cancelCoordinatorBooking(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+      confirmed,
+    );
+  }
+
   @Get()
   list(@Req() request: AuthenticatedRequest, @Query('mine') mine?: string) {
     return this.venues.list(request[CURRENT_USER_REQUEST_KEY], mine === 'true');

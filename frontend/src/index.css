@@ -187,6 +187,21 @@
 
   .venue-schedule-calendar-scroll > div,
   .venue-schedule-calendar-scroll [class*="timegrid"] {
-    min-width: 620px;
+    min-width: 0;
+  }
+
+  .venue-schedule-calendar .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .venue-schedule-calendar .fc-toolbar-title {
+    font-size: 1rem;
+  }
+
+  .venue-schedule-calendar .fc-toolbar-chunk:last-child {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
   }
 }

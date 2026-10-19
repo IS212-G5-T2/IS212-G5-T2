@@ -193,6 +193,25 @@ describe('SPM-50 venue service', () => {
     expect(list).toHaveBeenNthCalledWith(2, undefined);
   });
 
+  /** SPM54-UI-MODE-01: venue readers may browse without Coordinator booking capability, while missing or denied identities remain blocked. */
+  it('SPM54-UI-MODE-01 allows read-only venue browsing and denies unauthorized reads', async () => {
+    const records = [{ id: venue.id }];
+    list.mockResolvedValue(records);
+
+    await expect(service.list(staff)).resolves.toBe(records);
+    await expect(service.list(undefined)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    hasPermission.mockResolvedValue(false);
+    await expect(service.list(staff)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+
+    expect(list).toHaveBeenCalledOnce();
+    expect(list).toHaveBeenCalledWith(undefined);
+    expect(hasPermission).toHaveBeenCalledWith('VENUE_STAFF', 'Venue', 'read');
+  });
+
   // SPM-124: malformed and missing detail identifiers use the same not-found result.
   it('returns not found for malformed or absent venue IDs', async () => {
     get.mockResolvedValue(undefined);
@@ -208,7 +227,7 @@ describe('SPM-50 venue service', () => {
   });
 
   /** SPM-51 AC1: an authorized coordinator can read a venue before checking its schedule. */
-  it('returns a readable venue record for a well-formed identifier', async () => {
+  it('SPM54-UI-MODE-01 returns a readable venue record for browse-only access', async () => {
     get.mockResolvedValue(venue);
 
     await expect(

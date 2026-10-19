@@ -75,20 +75,6 @@ describe("SPM-30: signing out from the sidebar", () => {
     // Assert: staff-only creation is discoverable and shared venue routes remain one link.
     expect(screen.getByRole("link", { name: "Create Venue" })).toHaveAttribute("href", "/venues/create");
     expect(screen.queryByRole("link", { name: "Venues" })).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "Venue Availability" })).toHaveLength(1);
-  });
-
-  // Parent venue links must not look selected while a more-specific venue page is open.
-  it("marks only Venue Availability active at the venue availability page", () => {
-    // Arrange + Act: render a coordinator's sidebar at the nested availability URL.
-    render(
-      <MemoryRouter initialEntries={["/venues/availability"]}>
-        <Sidebar mobileOpen={false} onCloseMobile={vi.fn()} />
-      </MemoryRouter>,
-    );
-
-    // Assert: the availability item is highlighted and the generic catalogue item is absent.
-    expect(screen.getByRole("link", { name: "Venue Availability" })).toHaveClass("bg-primary-50");
-    expect(screen.queryByRole("link", { name: "Venues" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Availability Calendar|Venue Availability/ })).not.toBeInTheDocument();
   });
 });

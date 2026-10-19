@@ -4,10 +4,15 @@
  * requested. Pure, built on the same readiness rule as Confirm so the page and
  * the confirm gate cannot disagree about "confirmed".
  */
-import { evaluateReadiness, type EquipmentFact, type ReadinessSnapshot, type VenueBookingFact } from './readiness.js';
+import {
+  type EquipmentFact,
+  type ReadinessSnapshot,
+  type VenueBookingFact,
+} from './readiness.js';
 import type { SafetyCheckView } from './safety-check.source.js';
 
-export type RequestStatus = 'not_requested' | 'pending' | 'confirmed' | 'unavailable';
+export type RequestStatus =
+  'not_requested' | 'pending' | 'confirmed' | 'unavailable';
 export type Prerequisite = 'venue' | 'equipment';
 
 export interface ChecklistInput {
@@ -36,7 +41,11 @@ export interface EquipmentRequestItem {
 
 /** Each request has its own status; a section is confirmed only when every request is. */
 export interface PlanningChecklist {
-  venue: { status: RequestStatus; items: VenueRequestItem[]; requestedDate?: string };
+  venue: {
+    status: RequestStatus;
+    items: VenueRequestItem[];
+    requestedDate?: string;
+  };
   equipment: {
     /** False when the event lists no equipment: the coordinator confirms "none" instead. */
     required: boolean;
@@ -66,12 +75,14 @@ const earliest = (times: Array<string | undefined>) =>
 // A rejected booking, or one whose venue is blocked for the window, needs a replacement request.
 function venueRequestStatus(booking: VenueBookingFact): RequestStatus {
   if (booking.status === 'rejected') return 'unavailable';
-  if (booking.status === 'approved') return booking.venueUnavailable ? 'unavailable' : 'confirmed';
+  if (booking.status === 'approved')
+    return booking.venueUnavailable ? 'unavailable' : 'confirmed';
   return 'pending';
 }
 
 function equipmentRequestStatus(line: EquipmentFact): RequestStatus {
-  if (UNAVAILABLE_EQUIPMENT.has(line.status.toLowerCase())) return 'unavailable';
+  if (UNAVAILABLE_EQUIPMENT.has(line.status.toLowerCase()))
+    return 'unavailable';
   return line.status === 'Reserved' ? 'confirmed' : 'pending';
 }
 
@@ -83,10 +94,12 @@ function combined(statuses: RequestStatus[]): RequestStatus {
 }
 
 export function buildChecklist(input: ChecklistInput): PlanningChecklist {
-  const { snapshot, equipmentNeeds, equipmentConfirmedAt, safety, now } = input;
+  const { snapshot, equipmentNeeds, equipmentConfirmedAt, safety } = input;
 
-  // Released bookings (SPM-136) hold nothing for the event; they are left out, like released equipment lines.
-  const bookings = snapshot.venueBookings.filter((b) => b.status !== 'released');
+  // Released bookings and individually cancelled requests no longer appear in the active venue checklist.
+  const bookings = snapshot.venueBookings.filter(
+    (b) => b.status !== 'released' && b.status !== 'cancelled',
+  );
   const venueItems: VenueRequestItem[] = bookings.map((b) => ({
     id: b.id,
     venueName: b.venueName,
@@ -94,7 +107,9 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
     ...(b.requestedAt ? { requestedDate: b.requestedAt } : {}),
   }));
   const venueStatus: RequestStatus =
-    bookings.length === 0 ? 'not_requested' : combined(venueItems.map((item) => item.status));
+    bookings.length === 0
+      ? 'not_requested'
+      : combined(venueItems.map((item) => item.status));
 
   const lines = snapshot.equipment.filter((line) => !INACTIVE.has(line.status));
   const noneConfirmed = lines.length === 0 && equipmentConfirmedAt !== null;
@@ -106,7 +121,9 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
     ...(l.requestedAt ? { requestedDate: l.requestedAt } : {}),
   }));
   const equipmentStatus: RequestStatus =
-    lines.length === 0 ? 'not_requested' : combined(equipmentItems.map((item) => item.status));
+    lines.length === 0
+      ? 'not_requested'
+      : combined(equipmentItems.map((item) => item.status));
   const equipmentConfirmed = equipmentStatus === 'confirmed' || noneConfirmed;
 
   const blocking: Prerequisite[] = [];
@@ -128,11 +145,16 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
       items: equipmentItems,
       ...(equipmentRequestedAt ? { requestedDate: equipmentRequestedAt } : {}),
       confirmedByCoordinator: noneConfirmed,
-      ...(noneConfirmed ? { confirmedDate: equipmentConfirmedAt!.toISOString() } : {}),
+      ...(noneConfirmed
+        ? { confirmedDate: equipmentConfirmedAt!.toISOString() }
+        : {}),
     },
     // A safety check only stands while venue and equipment are confirmed (SAFETY-RESET-01).
     // A "not requested" check keeps its reset reason so the page can say why a re-request is needed.
-    safetyCheck: blocking.length === 0 || safety.status === 'not_requested' ? safety : { status: 'not_requested' },
+    safetyCheck:
+      blocking.length === 0 || safety.status === 'not_requested'
+        ? safety
+        : { status: 'not_requested' },
     canRequestSafetyCheck: blocking.length === 0,
     blocking,
   };

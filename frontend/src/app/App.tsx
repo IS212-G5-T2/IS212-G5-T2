@@ -17,7 +17,6 @@ import { VenuesPage } from "@/features/venues/pages/catalogue/VenuesPage";
 import { VenueDetailPage } from "@/features/venues/pages/detail/VenueDetailPage";
 import { VenueRecordsPage } from "@/features/venues/pages/records/catalogue/VenueRecordsPage";
 import { VenueRecordDetailPage } from "@/features/venues/pages/records/detail/VenueRecordDetailPage";
-import { VenueAvailabilityPage } from "@/features/venues/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/features/bookings/pages/requests/BookingsPage";
 import { EquipmentPage } from "@/features/equipment/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/features/equipment/pages/requests/EquipmentRequestsPage";
@@ -81,7 +80,8 @@ export default function App() {
           <Route path="/venues/:id" element={<VenueDetailPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
-          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
+          {/* Retire the old summary URL without letting /venues/:id misread it as a venue id. */}
+          <Route path="/venues/availability" element={<Navigate to="/venue-records" replace />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/venue-records" element={<VenueRecordsPage />} />
           <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />

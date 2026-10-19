@@ -61,9 +61,7 @@ export type AffectedVenueReservation = VenueReservation & { eventId: string };
 type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
   VenueRecord,
-  | 'operatingInformation'
-  | 'setupTimeMinutes'
-  | 'turnaroundTimeMinutes'
+  'operatingInformation' | 'setupTimeMinutes' | 'turnaroundTimeMinutes'
 > & {
   operating_information: string;
   setup_time_minutes: number;
@@ -167,6 +165,89 @@ export class VenuesRepository {
     return (await this.withSchedules([this.toReadRecord(result.rows[0])]))[0];
   }
 
+  /** Lists the caller's event venue requests, retaining their current lifecycle status. */
+  async listCoordinatorBookings(coordinatorId: string) {
+    const result = await this.database.query<{
+      id: string;
+      event_id: string;
+      event_name: string;
+      venue_id: string;
+      venue_name: string;
+      start_at: Date;
+      end_at: Date;
+      status: string;
+      special_request: string | null;
+      created_at: Date;
+      affected: boolean;
+      booking_reference: string;
+    }>(
+      `SELECT b.id, b.event_id, e.event_name, b.venue_id, v.name AS venue_name,
+              b.start_at, b.end_at, b.status, r.special_request, b.created_at,
+              'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
+              EXISTS (SELECT 1 FROM venue_bookings blockout
+                WHERE blockout.venue_id = b.venue_id AND blockout.status = 'blocked'
+                  AND blockout.start_at < b.end_at AND blockout.end_at > b.start_at) AS affected
+         FROM venue_bookings b
+         JOIN events e ON e.id = b.event_id
+         JOIN venues v ON v.id = b.venue_id
+         LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
+        WHERE e.coordinator_id = $1::text AND b.status <> 'blocked'
+        ORDER BY b.created_at DESC, b.id`,
+      [coordinatorId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      eventName: row.event_name,
+      venueId: row.venue_id,
+      venueName: row.venue_name,
+      start: row.start_at.toISOString(),
+      end: row.end_at.toISOString(),
+      status: row.status,
+      bookingReference: row.booking_reference,
+      specialRequest: row.special_request ?? undefined,
+      affected: row.affected,
+      createdAt: row.created_at.toISOString(),
+    }));
+  }
+
+  /** Cancels one owned request and refuses to remove the event's last active venue booking without explicit confirmation. */
+  async cancelCoordinatorBooking(
+    coordinatorId: string,
+    bookingId: string,
+    confirmed: boolean,
+  ) {
+    return this.database.transaction(async (client) => {
+      const booking = await client.query<{
+        id: string;
+        event_id: string;
+        status: string;
+      }>(
+        `SELECT b.id, b.event_id, b.status FROM venue_bookings b
+          JOIN events e ON e.id = b.event_id
+         WHERE b.id = $1::uuid AND e.coordinator_id = $2::text
+         FOR UPDATE OF b, e`,
+        [bookingId, coordinatorId],
+      );
+      const row = booking.rows[0];
+      if (!row) return { kind: 'not-found' as const };
+      if (row.status !== 'pending' && row.status !== 'approved')
+        return { kind: 'not-active' as const };
+      const remaining = await client.query<{ count: number }>(
+        `SELECT count(*)::int AS count FROM venue_bookings
+          WHERE event_id = $1::uuid AND id <> $2::uuid AND status IN ('pending', 'approved')`,
+        [row.event_id, bookingId],
+      );
+      if (remaining.rows[0].count === 0 && !confirmed)
+        return { kind: 'last-active' as const };
+      await client.query(
+        "UPDATE venue_bookings SET status = 'cancelled' WHERE id = $1::uuid",
+        [bookingId],
+      );
+      return { kind: 'cancelled' as const };
+    });
+  }
+
   /** Atomically rechecks a venue schedule and records an assigned coordinator's request. */
   async submitBookingRequest(
     venueId: string,
@@ -176,6 +257,7 @@ export class VenuesRepository {
     | { kind: 'venue-not-found' }
     | { kind: 'event-not-assigned' }
     | { kind: 'event-not-open'; status: string }
+    | { kind: 'already-requested'; id: string; status: string }
     | { kind: 'conflict'; reason: string }
     | {
         kind: 'created';
@@ -189,10 +271,18 @@ export class VenuesRepository {
     return this.database.transaction(async (client) => {
       const venue = await client.query<{
         id: string;
+        capacity: number;
+        facilities: string[];
+        accessibility: string[];
+        layouts: string[];
         setup_time_minutes: number;
         turnaround_time_minutes: number;
       }>(
-        'SELECT id, setup_time_minutes, turnaround_time_minutes FROM venues WHERE id = $1::uuid FOR UPDATE',
+        `SELECT v.id, v.capacity, v.setup_time_minutes, v.turnaround_time_minutes,
+           COALESCE((SELECT array_agg(f.name ORDER BY f.name) FROM venue_facilities vf JOIN facilities f ON f.id = vf.facility_id WHERE vf.venue_id = v.id), '{}') AS facilities,
+           COALESCE((SELECT array_agg(a.label ORDER BY a.label) FROM venue_accessibility va JOIN accessibility_features a ON a.id = va.accessibility_id WHERE va.venue_id = v.id), '{}') AS accessibility,
+           COALESCE((SELECT array_agg(l.name ORDER BY l.name) FROM venue_layouts vl JOIN room_layouts l ON l.id = vl.layout_id WHERE vl.venue_id = v.id), '{}') AS layouts
+         FROM venues v WHERE v.id = $1::uuid FOR UPDATE`,
         [venueId],
       );
       const venueRow = venue.rows[0];
@@ -201,17 +291,75 @@ export class VenuesRepository {
       // SPM-148 PLAN-STATUS-02-E, 03-D: the event row lock (FOR UPDATE) serialises parallel first requests.
       // The event row lock serialises first requests: the status check, the
       // booking, the compare-and-set and the history row commit as one unit.
-      const event = await client.query<{ id: string; status: string }>(
-        'SELECT id, status FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
+      const event = await client.query<{
+        id: string;
+        status: string;
+        expected_attendance: number;
+        required_facilities: string[];
+        accessibility_needs: string[];
+        preferred_room_layout: string;
+        start_date_time: Date;
+        end_date_time: Date;
+      }>(
+        `SELECT id, status, expected_attendance, required_facilities, accessibility_needs, preferred_room_layout, start_date_time, end_date_time
+           FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE`,
         [input.eventId, coordinatorId],
       );
       const eventRow = event.rows[0];
       if (!eventRow) return { kind: 'event-not-assigned' };
       // SPM-148 PLAN-STATUS-01-B: Submitted, Rejected, Completed and Cancelled answer 409 (event-not-open).
-      if (!(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status))
+      if (
+        !(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status)
+      )
         return { kind: 'event-not-open', status: eventRow.status };
 
-      // SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
+      // VEN-BKG-02-B: repeat the suitability assessment from persisted event and venue facts at the API boundary.
+      const missingFacilities = eventRow.required_facilities.filter(
+        (item) => !venueRow.facilities.includes(item),
+      );
+      const missingAccessibility = eventRow.accessibility_needs.filter(
+        (item) => !venueRow.accessibility.includes(item),
+      );
+      const unsuitable = [
+        ...(venueRow.capacity < eventRow.expected_attendance
+          ? [
+              `capacity ${venueRow.capacity} is below attendance ${eventRow.expected_attendance}`,
+            ]
+          : []),
+        ...(missingFacilities.length
+          ? [`missing facilities: ${missingFacilities.join(', ')}`]
+          : []),
+        ...(missingAccessibility.length
+          ? [`missing accessibility: ${missingAccessibility.join(', ')}`]
+          : []),
+        ...(eventRow.preferred_room_layout &&
+        !venueRow.layouts.includes(eventRow.preferred_room_layout)
+          ? [`layout ${eventRow.preferred_room_layout} is unavailable`]
+          : []),
+      ];
+      if (unsuitable.length)
+        return {
+          kind: 'conflict',
+          reason: `Venue suitability mismatch: ${unsuitable.join('; ')}.`,
+        };
+
+      // SPM-54 AC7: the event row lock serializes retries. Only pending/approved
+      // requests block; cancelled/rejected history remains available for retry.
+      const activeRequest = await client.query<{ id: string; status: string }>(
+        `SELECT id, status FROM venue_bookings
+          WHERE event_id = $1::uuid AND venue_id = $2::uuid
+            AND status IN ('pending', 'approved')
+          ORDER BY created_at DESC, id LIMIT 1`,
+        [input.eventId, venueId],
+      );
+      if (activeRequest.rows[0])
+        return {
+          kind: 'already-requested',
+          id: activeRequest.rows[0].id,
+          status: activeRequest.rows[0].status,
+        };
+
+      // SPM-54 AC2: booking requests remain blockers without hold expiry; standalone Venue Staff holds block only until expiry. SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
            SELECT COALESCE(reason, 'Venue unavailable') AS reason
@@ -225,7 +373,11 @@ export class VenuesRepository {
              LEFT JOIN events e ON e.id = b.event_id
             WHERE b.venue_id = $1::uuid
               AND (b.status = 'approved' OR
-                (b.status = 'pending' AND b.hold_expires_at > $6::timestamptz))
+                (b.status = 'pending' AND
+                  (b.hold_expires_at > $6::timestamptz OR EXISTS (
+                    SELECT 1 FROM venue_booking_requests r
+                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
+                  ))))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -233,8 +385,8 @@ export class VenuesRepository {
          ) conflicts LIMIT 1`,
         [
           venueId,
-          input.start,
-          input.end,
+          eventRow.start_date_time,
+          eventRow.end_date_time,
           venueRow.setup_time_minutes,
           venueRow.turnaround_time_minutes,
           this.clock.now(),
@@ -252,9 +404,15 @@ export class VenuesRepository {
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
          VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending')
          RETURNING id, start_at, end_at`,
-        [venueId, input.eventId, input.start, input.end],
+        [venueId, input.eventId, eventRow.start_date_time, eventRow.end_date_time],
       );
       const row = saved.rows[0];
+      await client.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
+         VALUES ($1::uuid, $2::uuid, $3)
+         ON CONFLICT (event_id, venue_id) DO UPDATE SET special_request = EXCLUDED.special_request`,
+        [input.eventId, venueId, input.specialRequest ?? null],
+      );
       // SPM-148 PLAN-STATUS-01-A, 01-B, 03-A, 03-B: transition in the same transaction as the booking; only a request for an Approved event moves it.
       const statusChanged = await this.moveToPlanning(
         client,
@@ -508,8 +666,7 @@ export class VenuesRepository {
       if (!venue) continue;
       if (
         row.status === 'pending' &&
-        (!row.hold_expires_at ||
-          row.hold_expires_at.getTime() <= now.getTime())
+        (!row.hold_expires_at || row.hold_expires_at.getTime() <= now.getTime())
       )
         continue;
       const reservation = {

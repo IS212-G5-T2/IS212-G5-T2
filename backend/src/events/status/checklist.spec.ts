@@ -41,12 +41,16 @@ describe('buildChecklist', () => {
   });
 
   it('treats a pending booking as pending and an approved one as confirmed', () => {
-    expect(build([booking({ status: 'pending' })], [line()]).venue.status).toBe('pending');
+    expect(build([booking({ status: 'pending' })], [line()]).venue.status).toBe(
+      'pending',
+    );
     expect(build([booking()], [line()]).venue.status).toBe('confirmed');
   });
 
   it('does not confirm an approved booking whose venue became unavailable', () => {
-    expect(build([booking({ venueUnavailable: true })], [line()]).venue.status).not.toBe('confirmed');
+    expect(
+      build([booking({ venueUnavailable: true })], [line()]).venue.status,
+    ).not.toBe('confirmed');
   });
 
   it('allows a safety check once venue and reserved equipment are confirmed', () => {
@@ -61,7 +65,10 @@ describe('buildChecklist', () => {
   // that no longer covers the pending arrangements.
   it('reports the safety check as not requested while equipment is pending, even with an approval passed in', () => {
     const result = buildChecklist({
-      snapshot: { venueBookings: [booking()], equipment: [line({ status: 'Requested' })] },
+      snapshot: {
+        venueBookings: [booking()],
+        equipment: [line({ status: 'Requested' })],
+      },
       equipmentNeeds: 'Projector',
       equipmentConfirmedAt: null,
       safety: { status: 'approved', approverName: 'Safety Officer 1' },
@@ -72,7 +79,10 @@ describe('buildChecklist', () => {
   });
 
   it('keeps equipment pending while any line is not reserved', () => {
-    const result = build([booking()], [line(), line({ id: 'e2', status: 'Requested' })]);
+    const result = build(
+      [booking()],
+      [line(), line({ id: 'e2', status: 'Requested' })],
+    );
     expect(result.equipment.status).toBe('pending');
     expect(result.blocking).toEqual(['equipment']);
   });
@@ -93,7 +103,9 @@ describe('buildChecklist', () => {
   });
 
   it('reports a venue blocked for the window as unavailable', () => {
-    expect(build([booking({ venueUnavailable: true })], [line()]).venue.status).toBe('unavailable');
+    expect(
+      build([booking({ venueUnavailable: true })], [line()]).venue.status,
+    ).toBe('unavailable');
   });
 
   it('reports an unavailable equipment line as unavailable', () => {
@@ -103,28 +115,89 @@ describe('buildChecklist', () => {
   });
 
   it('lists every venue request with its own status and confirms only when all are confirmed', () => {
-    const mixed = build([booking({ id: 'b1', venueName: 'Main Hall' }), booking({ id: 'b2', venueName: 'Breakout Room 1', status: 'pending' })], [line()]);
-    expect(mixed.venue.items.map((item) => [item.venueName, item.status])).toEqual([
+    const mixed = build(
+      [
+        booking({ id: 'b1', venueName: 'Main Hall' }),
+        booking({ id: 'b2', venueName: 'Breakout Room 1', status: 'pending' }),
+      ],
+      [line()],
+    );
+    expect(
+      mixed.venue.items.map((item) => [item.venueName, item.status]),
+    ).toEqual([
       ['Main Hall', 'confirmed'],
       ['Breakout Room 1', 'pending'],
     ]);
     expect(mixed.venue.status).toBe('pending');
     expect(mixed.blocking).toEqual(['venue']);
 
-    const both = build([booking({ id: 'b1' }), booking({ id: 'b2', venueName: 'Breakout Room 1' })], [line()]);
+    const both = build(
+      [
+        booking({ id: 'b1' }),
+        booking({ id: 'b2', venueName: 'Breakout Room 1' }),
+      ],
+      [line()],
+    );
     expect(both.venue.status).toBe('confirmed');
     expect(both.blocking).toEqual([]);
   });
 
+  /** VEN-BKG-09-A: cancelling one venue request hides it from the active checklist and preserves other requests. */
+  it('excludes cancelled venue requests from the active checklist without hiding other venues', () => {
+    const result = build(
+      [
+        booking({
+          id: 'cancelled',
+          venueName: 'Cancelled Hall',
+          status: 'cancelled',
+        }),
+        booking({ id: 'active', venueName: 'Active Hall', status: 'approved' }),
+      ],
+      [line()],
+    );
+
+    expect(result.venue.items.map((item) => item.venueName)).toEqual([
+      'Active Hall',
+    ]);
+    expect(result.venue.status).toBe('confirmed');
+    expect(result.blocking).toEqual([]);
+  });
+
   it('shows unavailable over pending when one venue request is unavailable', () => {
-    const result = build([booking({ id: 'b1', status: 'rejected' }), booking({ id: 'b2', venueName: 'Breakout Room 1', status: 'pending' })], [line()]);
+    const result = build(
+      [
+        booking({ id: 'b1', status: 'rejected' }),
+        booking({ id: 'b2', venueName: 'Breakout Room 1', status: 'pending' }),
+      ],
+      [line()],
+    );
     expect(result.venue.status).toBe('unavailable');
-    expect(result.venue.items.map((item) => item.status)).toEqual(['unavailable', 'pending']);
+    expect(result.venue.items.map((item) => item.status)).toEqual([
+      'unavailable',
+      'pending',
+    ]);
   });
 
   it('lists every equipment request and keeps the section pending until all are reserved', () => {
-    const result = build([booking()], [line({ id: 'e1' }), line({ id: 'e2', name: 'Microphone', quantity: 2, status: 'Requested' })]);
-    expect(result.equipment.items.map((item) => [item.name, item.quantity, item.status])).toEqual([
+    const result = build(
+      [booking()],
+      [
+        line({ id: 'e1' }),
+        line({
+          id: 'e2',
+          name: 'Microphone',
+          quantity: 2,
+          status: 'Requested',
+        }),
+      ],
+    );
+    expect(
+      result.equipment.items.map((item) => [
+        item.name,
+        item.quantity,
+        item.status,
+      ]),
+    ).toEqual([
       ['Projector', 1, 'confirmed'],
       ['Microphone', 2, 'pending'],
     ]);
@@ -146,19 +219,28 @@ describe('buildChecklist', () => {
 
   /** An equipment line with a request date shows it on the line and on the section. */
   it('shows the request date of an equipment line that has one', () => {
-    const result = build([booking()], [line({ requestedAt: '2026-10-09T00:00:00.000Z' })]);
+    const result = build(
+      [booking()],
+      [line({ requestedAt: '2026-10-09T00:00:00.000Z' })],
+    );
 
-    expect(result.equipment.items[0]).toMatchObject({ requestedDate: '2026-10-09T00:00:00.000Z' });
+    expect(result.equipment.items[0]).toMatchObject({
+      requestedDate: '2026-10-09T00:00:00.000Z',
+    });
     expect(result.equipment.requestedDate).toBe('2026-10-09T00:00:00.000Z');
   });
 
   /** A cancelled equipment line is no longer part of the event, so it is not listed as outstanding. */
   it('ignores cancelled equipment lines', () => {
-    expect(build([booking()], [line({ status: 'Cancelled' })]).equipment.status).toBe('not_requested');
+    expect(
+      build([booking()], [line({ status: 'Cancelled' })]).equipment.status,
+    ).toBe('not_requested');
   });
 
   /** A released equipment line is no longer part of the event either, so it is not listed as outstanding. */
   it('ignores released equipment lines', () => {
-    expect(build([booking()], [line({ status: 'Released' })]).equipment.status).toBe('not_requested');
+    expect(
+      build([booking()], [line({ status: 'Released' })]).equipment.status,
+    ).toBe('not_requested');
   });
 });
