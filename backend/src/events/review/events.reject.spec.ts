@@ -39,7 +39,6 @@ it.each([null, 123])(
 
 const db = {
   query: vi.fn(),
-  connect: vi.fn(),
   transaction: vi.fn(),
   release: vi.fn(),
   end: vi.fn(),
@@ -62,16 +61,11 @@ const COORDINATOR_NOTIFICATION_TYPES = [
   'coordinator_change_request',
 ];
 
-// Build a letters-only, >=3-word reason of an exact trimmed length.
+// Build a letters-only, >=3-word reason of exactly n characters (n >= 10) with no
+// leading or trailing whitespace, so its trimmed length is n as well.
 function reasonOfLength(n: number): string {
-  const words: string[] = [];
-  let len = 0;
-  while (len < n) {
-    if (words.length) len += 1; // joining space
-    words.push('ab');
-    len += 2;
-  }
-  return words.join(' ').slice(0, n);
+  const prefix = 'ab cd ef '; // three words, nine characters
+  return prefix + 'g'.repeat(n - prefix.length);
 }
 
 // Wire the transaction client (client.query === db.transaction) to answer the
@@ -164,15 +158,15 @@ describe('EventsService.reject (SPM-83)', () => {
     await expect(service.reject(VALID_UUID, {}, coordinator())).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // EVENT-REJECT-03-C — below minimum length (<10)
+  /** EVENT-REJECT-03-C — below minimum length (<10) */
   it('rejects a too-short reason and accepts exactly 10', async () => {
     await expect(service.reject(VALID_UUID, { reason: 'no fit ok' }, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
     );
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
 
     wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'No fit yet' }));
     await expect(
@@ -180,18 +174,54 @@ describe('EventsService.reject (SPM-83)', () => {
     ).resolves.toMatchObject({ status: 'rejected' });
   });
 
-  // EVENT-REJECT-03-D — above maximum length (>500)
+  /** EVENT-REJECT-03-D — above maximum length (>500) on the trimmed reason */
   it('rejects a too-long reason and accepts exactly 500', async () => {
     await expect(
       service.reject(VALID_UUID, { reason: reasonOfLength(501) }, coordinator()),
     ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
 
     const reason500 = reasonOfLength(500);
     wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: reason500 }));
     await expect(
       service.reject(VALID_UUID, { reason: reason500 }, coordinator()),
     ).resolves.toMatchObject({ status: 'rejected' });
+  });
+
+  /** EVENT-REJECT-03-D — padding is not counted: a trimmed 501 stays rejected even when padded */
+  it('rejects a padded reason whose trimmed length is 501', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: `  ${reasonOfLength(501)}  ` }, coordinator()),
+    ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  /** EVENT-REJECT-03-D — raw length over 500 is accepted when the trimmed reason is exactly 500, and the stored reason is the trimmed value. */
+  it('accepts a raw reason over 500 characters whose trimmed length is 500', async () => {
+    const reason500 = reasonOfLength(500);
+    const raw = `  ${reason500}  `; // raw 504, trimmed 500
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: reason500 }));
+
+    await expect(service.reject(VALID_UUID, { reason: raw }, coordinator())).resolves.toMatchObject({
+      status: 'rejected',
+    });
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(update[1]).toEqual([VALID_UUID, reason500]);
+  });
+
+  /** EVENT-REJECT-03-C — padded reason: trimmed 9 stays rejected, trimmed 10 is accepted and stored trimmed */
+  it('measures length on the trimmed reason for padded input', async () => {
+    await expect(
+      service.reject(VALID_UUID, { reason: '  no fit ok  ' }, coordinator()),
+    ).rejects.toThrow(REASON_REQUIREMENTS_MESSAGE);
+    expect(database.transaction).not.toHaveBeenCalled();
+
+    wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'No fit yet' }));
+    await expect(
+      service.reject(VALID_UUID, { reason: '  No fit yet  ' }, coordinator()),
+    ).resolves.toMatchObject({ status: 'rejected', rejectionReason: 'No fit yet' });
+    const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
+    expect(update[1]).toEqual([VALID_UUID, 'No fit yet']);
   });
 
   // EVENT-REJECT-03-E — fewer than 3 words
@@ -202,7 +232,7 @@ describe('EventsService.reject (SPM-83)', () => {
     await expect(service.reject(VALID_UUID, { reason: 'aaaaaaaaaa' }, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
     );
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
 
     wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'Venue is not available' }));
     await expect(
@@ -218,7 +248,7 @@ describe('EventsService.reject (SPM-83)', () => {
     await expect(service.reject(VALID_UUID, { reason: '!!! ??? ...' }, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
     );
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
 
     wireReject(eventRow(), eventRow({ status: 'Rejected', rejection_reason: 'Venue is not available' }));
     await expect(
@@ -231,7 +261,7 @@ describe('EventsService.reject (SPM-83)', () => {
     await expect(
       service.reject('not-a-uuid', { reason: VALID_REASON }, coordinator()),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
 
     wireReject(null, null); // SELECT … FOR UPDATE returns no row
     await expect(
@@ -266,7 +296,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, undefined),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   /** EVENT-REJECT-04-B: only the coordinator assigned to the request may reject it. */
@@ -276,6 +306,10 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     await expect(
       service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2')),
     ).rejects.toBeInstanceOf(ForbiddenException);
+    // SC-SPM150-02 (decided): the wording is the one the approve path uses.
+    await expect(
+      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2')),
+    ).rejects.toThrow('This request is assigned to another coordinator.');
 
     const sql = txSql();
     expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);

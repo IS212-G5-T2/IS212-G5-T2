@@ -13,10 +13,10 @@ import {
 
 export function readRegistry(registryPath, story) {
   const tables = parseTables(readText(registryPath));
-  const registry = tables.find((table) => table.header.includes('id') && table.header.includes('type'));
+  const registryRows = tables.filter((table) => table.header.includes('id') && table.header.includes('type')).flatMap((table) => table.rows);
   const ignore = tables.find((table) => table.header.includes('family') && /non-test/i.test(table.heading));
   return {
-    rows: (registry?.rows ?? []).filter((row) => row.story === story).map((row) => ({ ...row, id: stripTicks(row.id) })),
+    rows: registryRows.filter((row) => row.story === story).map((row) => ({ ...row, id: stripTicks(row.id) })),
     ignoredFamilies: new Set((ignore?.rows ?? []).map((row) => stripTicks(row.family))),
   };
 }

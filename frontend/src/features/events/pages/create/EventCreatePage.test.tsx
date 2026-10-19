@@ -16,9 +16,9 @@ vi.mock("@/utils/api", async (importOriginal) => ({
 
 const apiMock = vi.mocked(api);
 
+// Fixed base date (local) so fixtures never depend on the wall clock.
 function inputDate(daysFromNow: number) {
-  const date = new Date();
-  date.setDate(date.getDate() + daysFromNow);
+  const date = new Date(2031, 2, 10 + daysFromNow);
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
@@ -26,9 +26,7 @@ function inputDate(daysFromNow: number) {
 }
 
 function eventRecord(): EventRecord {
-  const start = new Date();
-  start.setDate(start.getDate() + 7);
-  start.setHours(18, 0, 0, 0);
+  const start = new Date(2031, 2, 17, 18, 0, 0, 0);
   const end = new Date(start);
   end.setHours(21, 0, 0, 0);
   return {
@@ -51,8 +49,8 @@ function eventRecord(): EventRecord {
     attachments: [],
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+    createdAt: "2031-03-01T00:00:00.000Z",
+    updatedAt: "2031-03-01T00:00:00.000Z",
   };
 }
 
@@ -151,6 +149,33 @@ describe("EventCreatePage", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * EVE-CRE-05-F: a blank description on its own blocks Continue with the
+   * description error, keeps the wizard on Basic Information, and keeps the
+   * name the user already entered.
+   */
+  it("EVE-CRE-05-F blocks a blank description on its own and stays on step 0", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+
+    await user.type(screen.getByRole("textbox", { name: /event name/i }), "Welcome Evening");
+    await user.type(screen.getByRole("textbox", { name: /purpose/i }), "Community building");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByText("Enter a description of your event.")).toBeTruthy();
+    expect(screen.queryByText("Enter an event name.")).toBeNull();
+    const progress = screen.getByRole("list", { name: /request progress/i });
+    expect(progress.querySelector('[aria-current="step"]')?.textContent).toContain(
+      "Basic Information",
+    );
+    expect(screen.queryByLabelText(/start date/i)).toBeNull();
+    expect(screen.getByRole("textbox", { name: /event name/i })).toHaveProperty(
+      "value",
+      "Welcome Evening",
+    );
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
   // SPM-36 Test Cases EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
   it("blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
     const user = userEvent.setup();
@@ -177,7 +202,7 @@ describe("EventCreatePage", () => {
     await enterBasicInformation(user);
 
     fireEvent.change(screen.getByLabelText(/start date/i), {
-      target: { value: inputDate(kind === "past start" ? -1 : 7) },
+      target: { value: kind === "past start" ? "2020-03-09" : inputDate(7) },
     });
     fireEvent.change(screen.getByLabelText(/start time/i), { target: { value: "18:00" } });
     fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: inputDate(7) } });
@@ -314,7 +339,39 @@ describe("SPM-37 drafts in the current event form", () => {
     eventId: null,
     updatedAt: "2026-09-16T00:00:00Z",
   };
+  /**
+   * EVE-DRF-10-A: the 50 MB limit applies to all supporting files together, not only to each file. 30 MiB then
+   * 21 MiB (51 MiB in total) is refused with the total-size message and keeps no second file; 30 MiB then 20 MiB
+   * (exactly 50 MiB) is accepted. Sizes are overridden on the File objects so no real bytes are allocated.
+   */
+  it("EVE-DRF-10-A refuses supporting files whose combined size exceeds 50 MB and accepts exactly 50 MB", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async () => {
+      throw new Error("Unexpected API call");
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    const sized = (name: string, mib: number) => {
+      const file = new File(["x"], name, { type: "text/plain" });
+      Object.defineProperty(file, "size", { value: mib * 1024 * 1024 });
+      return file;
+    };
+
+    await user.upload(screen.getByLabelText(/supporting files/i), sized("first.txt", 30));
+    expect(await screen.findByText("first.txt")).toBeTruthy();
+
+    await user.upload(screen.getByLabelText(/supporting files/i), sized("second.txt", 21));
+    expect(await screen.findByText("Use up to five files, 50 MB total.")).toBeTruthy();
+    expect(screen.queryByText("second.txt")).toBeNull();
+
+    await user.upload(screen.getByLabelText(/supporting files/i), sized("third.txt", 20));
+    expect(await screen.findByText("third.txt")).toBeTruthy();
+    expect(screen.queryByText("Use up to five files, 50 MB total.")).toBeNull();
+  });
+
   // AC1/2/6: saving is separate from submission and accepts incomplete fields.
+  /** EVE-DRF-01-A: a draft saves with incomplete fields and confirms without submitting. */
   it("saves an incomplete request and confirms without submitting", async () => {
     apiMock.mockResolvedValue(draft);
     renderCreate();
@@ -327,6 +384,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(apiMock.mock.calls.some(([path]) => path === "/events")).toBe(false);
   });
   // AC3/4: reopens the saved form and updates the same ID/version.
+  /** EVE-DRF-02-A (update path): a saved draft reopens and a later save updates the same request. */
   it("prefills an existing draft and saves updates to the same request", async () => {
     apiMock.mockResolvedValue(draft);
     renderCreate(`/requests/${draft.id}`);
@@ -345,6 +403,59 @@ describe("SPM-37 drafts in the current event form", () => {
       fields: { name: "Updated name" },
     });
   });
+  /**
+   * EVE-DRF-02-A: reopening a saved draft pre-fills every saved value and resumes on the saved wizard step
+   * (formStep 2, Equipment & Review). The values are the Workshop draft from the Confluence case; the test walks
+   * back through each step and compares every control with the saved value.
+   */
+  it("EVE-DRF-02-A pre-fills every saved value and resumes on the saved wizard step", async () => {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValue({
+      ...draft,
+      fields: {
+        ...emptyFields,
+        name: "Workshop",
+        purpose: "Community building",
+        description: "A workshop for new members.",
+        startDate: inputDate(7),
+        startTime: "18:00",
+        endDate: inputDate(7),
+        endTime: "21:00",
+        expectedAttendance: "25",
+        layout: "Theatre",
+        facilities: ["Projector"],
+        accessibility: ["Hearing loop"],
+        equipmentNeeds: "Microphone",
+        formStep: 2,
+      },
+    });
+    renderCreate(`/requests/${draft.id}`);
+
+    // Resumes on Equipment & Review: the step-two field is prefilled and the step-one schedule is not on screen.
+    expect(((await screen.findByLabelText(/equipment needs/i)) as HTMLTextAreaElement).value).toBe("Microphone");
+    expect(screen.queryByLabelText(/start date/i)).toBeNull();
+
+    // Back to Schedule & Venue Needs: every schedule, attendance, layout and selection control is prefilled.
+    await user.click(screen.getByRole("button", { name: /back/i }));
+    expect((screen.getByLabelText(/start date/i) as HTMLInputElement).value).toBe(inputDate(7));
+    expect((screen.getByLabelText(/start time/i) as HTMLInputElement).value).toBe("18:00");
+    expect((screen.getByLabelText(/end date/i) as HTMLInputElement).value).toBe(inputDate(7));
+    expect((screen.getByLabelText(/end time/i) as HTMLInputElement).value).toBe("21:00");
+    expect((screen.getByLabelText(/expected attendance/i) as HTMLInputElement).value).toBe("25");
+    expect((screen.getByLabelText(/preferred room layout/i) as HTMLSelectElement).value).toBe("Theatre");
+    expect((screen.getByRole("checkbox", { name: "Projector" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("checkbox", { name: "Parking" }) as HTMLInputElement).checked).toBe(false);
+    expect((screen.getByRole("checkbox", { name: "Hearing loop" }) as HTMLInputElement).checked).toBe(true);
+
+    // Back to Basic Information: name, purpose and description are prefilled.
+    await user.click(screen.getByRole("button", { name: /back/i }));
+    expect((screen.getByRole("textbox", { name: /event name/i }) as HTMLInputElement).value).toBe("Workshop");
+    expect((screen.getByRole("textbox", { name: /purpose/i }) as HTMLInputElement).value).toBe("Community building");
+    expect((screen.getByRole("textbox", { name: /description/i }) as HTMLTextAreaElement).value).toBe(
+      "A workshop for new members.",
+    );
+  });
+
   // AC6: failures retain text and retry the exact save operation.
   it("keeps entered values after failure and retries without a duplicate operation", async () => {
     apiMock
@@ -368,6 +479,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(apiMock.mock.calls[1]).toEqual(apiMock.mock.calls[0]);
   });
   // AC8: direct draft URLs cannot expose editable controls after submission.
+  /** EVE-DRF-07-A: the editor is locked when the server reports Submitted. */
   it("blocks the editor when the server returns Submitted", async () => {
     apiMock.mockResolvedValue({ ...draft, status: "Submitted" });
     renderCreate(`/requests/${draft.id}`);
@@ -376,6 +488,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
   // AC3: the list shows the persisted Draft status and links back to the editor.
+  /** EVE-DRF-03: My Drafts lists drafts with status and a reopen link. */
   it("lists drafts in My Drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
     renderCreate("/requests");
@@ -384,6 +497,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.getByText("Draft")).toBeTruthy();
   });
   // Continuity: saving persists the current wizard step alongside the fields.
+  /** EVE-DRF-04-A: saving the current step sends the draft fields to the same request. */
   it("saves the current step with the draft fields", async () => {
     const user = userEvent.setup();
     apiMock.mockResolvedValue(draft);

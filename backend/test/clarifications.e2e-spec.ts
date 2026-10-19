@@ -14,7 +14,6 @@
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
-import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -25,6 +24,8 @@ describe('Clarifications (e2e)', () => {
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
+  // Sequence for fixed fixture ids and emails; the rows are deleted in afterEach, so a fixed value is unique within a run.
+  let fixtureSeq = 0;
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
@@ -403,6 +404,13 @@ describe('Clarifications (e2e)', () => {
       [eventId],
     );
     expect(statusResult.rows[0].status).toBe('Submitted');
+
+    // REQ-CLAR-03: the refused request writes no clarification entry.
+    const commentCount = await pool.query<{ count: string }>(
+      'SELECT count(*) FROM event_comments WHERE event_id = $1',
+      [eventId],
+    );
+    expect(commentCount.rows[0].count).toBe('0');
   });
 
   it('returns 403 when someone unrelated to the event replies', async () => {
@@ -461,7 +469,7 @@ describe('Clarifications (e2e)', () => {
     coordinatorId: string | null;
     status?: string;
   }): Promise<string> {
-    const eventId = randomUUID();
+    const eventId = `c1a00000-0000-4000-8000-${String(++fixtureSeq).padStart(12, '0')}`;
     await pool.query(
       `INSERT INTO events
        (id, organiser_id, organiser_name, organiser_email, event_name, purpose, description,
@@ -480,7 +488,7 @@ describe('Clarifications (e2e)', () => {
     role: string,
     displayName: string,
   ): Promise<{ email: string; cookie: string; uid: string }> {
-    const email = `e2e-${randomUUID()}@example.com`;
+    const email = `e2e-fixture-${String(++fixtureSeq).padStart(4, '0')}@example.com`;
     const password = 'password123';
     const created = await pool.query<{ id: string }>(
       `INSERT INTO users (email, display_name, password_hash)

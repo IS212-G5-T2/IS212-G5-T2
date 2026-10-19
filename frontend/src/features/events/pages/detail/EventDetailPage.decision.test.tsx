@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
@@ -84,6 +84,8 @@ function submitDecision() {
 }
 
 function expectRequirementsBlock() {
+  // SC-SPM150-01 (decided 19 Oct 2026): the block heading is "Please provide a reason that:".
+  expect(screen.getByText("Please provide a reason that:")).toBeTruthy();
   expect(screen.getByText(/between 10 and 500 characters/i)).toBeTruthy();
   expect(screen.getByText(/at least 3 words/i)).toBeTruthy();
   expect(screen.getByText(/real words, not just numbers or symbols/i)).toBeTruthy();
@@ -93,19 +95,23 @@ function rejectRequestFired() {
   return apiMock.mock.calls.some(([p]) => String(p).includes("/reject"));
 }
 
-function approveRequestFired() {
-  return apiMock.mock.calls.some(([p]) => String(p).includes("/approve"));
+// Every API call made for a decision, as [path, init] pairs, so tests can assert the exact
+// request (path, method, body) and how many times it was sent.
+function rejectCalls() {
+  return apiMock.mock.calls.filter(([p]) => String(p).includes("/reject"));
 }
 
+function approveCalls() {
+  return apiMock.mock.calls.filter(([p]) => String(p).includes("/approve"));
+}
+
+const EVENT_ID = "00000000-0000-4000-8000-000000000036";
+
+// Letters and single spaces only, with no leading or trailing whitespace, so the
+// result has exactly n characters and n trimmed characters (n >= 10).
 function reasonOfLength(n: number): string {
-  const words: string[] = [];
-  let len = 0;
-  while (len < n) {
-    if (words.length) len += 1;
-    words.push("ab");
-    len += 2;
-  }
-  return words.join(" ").slice(0, n);
+  const prefix = "ab cd ef "; // three words, nine characters
+  return prefix + "g".repeat(n - prefix.length);
 }
 
 afterEach(cleanup);
@@ -133,7 +139,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
-  // EVENT-REJECT-01-B — happy path (submit)
+  /** EVENT-REJECT-01-B — happy path (submit): one POST to the reject route with the trimmed reason. */
   it("submits a valid rejection and fires the reject request", async () => {
     renderDetail(assignedEvent());
     await openReview();
@@ -141,8 +147,47 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     fillReason("  Clashes with exam period.  ");
     submitDecision();
 
-    expect(rejectRequestFired()).toBe(true);
+    expect(rejectCalls()).toEqual([
+      [
+        `/events/${EVENT_ID}/reject`,
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ reason: "Clashes with exam period." }),
+        }),
+      ],
+    ]);
     expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
+  });
+
+  /**
+   * EVENT-REJECT-01-B — no duplicate request while the rejection is in flight. The store action is
+   * held open (its status change is otherwise immediate), so the page stays in its submitting state.
+   */
+  it("sends the rejection exactly once when Submit Decision is clicked twice while in flight", async () => {
+    const realReject = useAppStore.getState().rejectEvent;
+    let settle: () => void = () => undefined;
+    const heldReject = vi.fn((_id: string, _reason: string) => new Promise<void>((resolve) => { settle = resolve; }));
+    useAppStore.setState({ rejectEvent: heldReject });
+    try {
+      renderDetail(assignedEvent());
+      await openReview();
+      fillReason("Clashes with exam period.");
+
+      submitDecision();
+      const inFlight = screen.getByRole("button", { name: /Submitting/ });
+      expect(inFlight).toHaveProperty("disabled", true);
+      fireEvent.click(inFlight);
+      fireEvent.click(inFlight);
+
+      expect(heldReject).toHaveBeenCalledTimes(1);
+      expect(heldReject).toHaveBeenCalledWith(EVENT_ID, "Clashes with exam period.");
+
+      settle();
+      await waitFor(() => expect(screen.queryByRole("button", { name: /Submitting/ })).toBeNull());
+      expect(heldReject).toHaveBeenCalledTimes(1);
+    } finally {
+      useAppStore.setState({ rejectEvent: realReject });
+    }
   });
 
   // EVENT-REJECT-01-C — empty / whitespace-only
@@ -160,7 +205,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(false);
   });
 
-  // EVENT-REJECT-01-D — below minimum length (<10)
+  /** EVENT-REJECT-01-D — below minimum length (<10), measured on the trimmed reason */
   it("blocks a reason under 10 characters and accepts exactly 10", async () => {
     renderDetail(assignedEvent());
     await openReview();
@@ -175,8 +220,36 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(true);
   });
 
-  // EVENT-REJECT-01-E — above maximum length (>500)
-  it("accepts exactly 500 characters and blocks 501", async () => {
+  /** EVENT-REJECT-01-D — padding does not count: 9 trimmed characters stay blocked */
+  it("blocks a padded reason whose trimmed length is 9", async () => {
+    renderDetail(assignedEvent());
+    await openReview();
+
+    fillReason("  no fit ok  "); // raw 13, trimmed 9
+    submitDecision();
+    expectRequirementsBlock();
+    expect(rejectRequestFired()).toBe(false);
+  });
+
+  /** EVENT-REJECT-01-D — padding does not count: a padded reason of 10 trimmed characters is accepted */
+  it("accepts a padded reason whose trimmed length is 10", async () => {
+    renderDetail(assignedEvent());
+    await openReview();
+
+    fillReason("  No fit yet  "); // raw 14, trimmed 10
+    submitDecision();
+    expect(rejectRequestFired()).toBe(true);
+    expect(rejectCalls()).toEqual([
+      [
+        `/events/${EVENT_ID}/reject`,
+        expect.objectContaining({ body: JSON.stringify({ reason: "No fit yet" }) }),
+      ],
+    ]);
+    expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
+  });
+
+  /** EVENT-REJECT-01-E — above maximum length (>500), measured on the trimmed reason; 500 is sent in full, not truncated */
+  it("accepts exactly 500 trimmed characters and blocks 501", async () => {
     renderDetail(assignedEvent());
     await openReview();
 
@@ -187,7 +260,28 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
     fillReason(reasonOfLength(500));
     submitDecision();
-    expect(rejectRequestFired()).toBe(true);
+    expect(rejectCalls()).toEqual([
+      [
+        `/events/${EVENT_ID}/reject`,
+        expect.objectContaining({ body: JSON.stringify({ reason: reasonOfLength(500) }) }),
+      ],
+    ]);
+  });
+
+  /** EVENT-REJECT-01-E — raw length over 500 is accepted when the trimmed reason is 500, and the full 500-character value is sent */
+  it("accepts a reason whose raw length exceeds 500 but whose trimmed length is 500", async () => {
+    renderDetail(assignedEvent());
+    await openReview();
+
+    fillReason(`  ${reasonOfLength(500)}  `); // raw 504, trimmed 500
+    submitDecision();
+    expect(rejectCalls()).toEqual([
+      [
+        `/events/${EVENT_ID}/reject`,
+        expect.objectContaining({ body: JSON.stringify({ reason: reasonOfLength(500) }) }),
+      ],
+    ]);
+    expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
   });
 
   // EVENT-REJECT-01-F — fewer than 3 words
@@ -236,7 +330,13 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
     fillReason(reason);
     submitDecision();
-    expect(rejectRequestFired()).toBe(true);
+    // The entered value reaches the action unchanged (no fixed or altered reason).
+    expect(rejectCalls()).toEqual([
+      [
+        `/events/${EVENT_ID}/reject`,
+        expect.objectContaining({ body: JSON.stringify({ reason }) }),
+      ],
+    ]);
 
     // Rendered to the organiser as literal text (no markup interpretation).
     cleanup();
@@ -268,6 +368,34 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
+  /** EVENT-REJECT-04-A: the owning organiser never sees the Review Event entrypoint or any decision control. */
+  it("hides the Review Event entrypoint from the owning organiser", async () => {
+    setUser("organiser", "organiser-9");
+    renderDetail(assignedEvent());
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /reject/i })).toBeNull();
+    expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
+  });
+
+  /** EVENT-REJECT-04-A: venue staff and technical support have no reject or approve controls on a submitted request. */
+  it.each(["venue_staff", "tech_support"] as const)(
+    "shows no Review Event entrypoint or decision controls to %s",
+    async (role) => {
+      setUser(role, "venue-staff-1");
+      renderDetail(assignedEvent());
+
+      // Support staff are refused the unapproved submitted request (anchor: the access alert).
+      expect(
+        await screen.findByText(/Venue and technical support staff cannot access unapproved submitted requests/),
+      ).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Review Event" })).toBeNull();
+      expect(screen.queryByRole("radio", { name: /reject|approve/i })).toBeNull();
+      expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
+    },
+  );
+
   // EVENT-REJECT-01-I — a rejected request shows draft → submitted → rejected,
   // without approval-pipeline statuses.
   it("shows a draft → submitted → rejected status timeline for a rejected request", async () => {
@@ -298,7 +426,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
-  // EVENT-APPROVE-01-B — happy path (submit); no reason required
+  /** EVENT-APPROVE-01-B — happy path (submit): one POST to the approve route, with no body and no reason. */
   it("submits an approval and fires the approve request without asking for a reason", async () => {
     renderDetail(assignedEvent());
     await openReviewApprove();
@@ -308,7 +436,34 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
 
     submitDecision();
 
-    expect(approveRequestFired()).toBe(true);
+    expect(approveCalls()).toEqual([[`/events/${EVENT_ID}/approve`, { method: "POST" }]]);
+  });
+
+  /** EVENT-APPROVE-01-B — no duplicate approval while the request is in flight (store action held open). */
+  it("sends the approval exactly once when Submit Decision is clicked twice while in flight", async () => {
+    const realApprove = useAppStore.getState().approveEvent;
+    let settle: () => void = () => undefined;
+    const heldApprove = vi.fn((_id: string) => new Promise<void>((resolve) => { settle = resolve; }));
+    useAppStore.setState({ approveEvent: heldApprove });
+    try {
+      renderDetail(assignedEvent());
+      await openReviewApprove();
+
+      submitDecision();
+      const inFlight = screen.getByRole("button", { name: /Submitting/ });
+      expect(inFlight).toHaveProperty("disabled", true);
+      fireEvent.click(inFlight);
+      fireEvent.click(inFlight);
+
+      expect(heldApprove).toHaveBeenCalledTimes(1);
+      expect(heldApprove).toHaveBeenCalledWith(EVENT_ID);
+
+      settle();
+      await waitFor(() => expect(screen.queryByRole("button", { name: /Submitting/ })).toBeNull());
+      expect(heldApprove).toHaveBeenCalledTimes(1);
+    } finally {
+      useAppStore.setState({ approveEvent: realApprove });
+    }
   });
 
   // EVENT-APPROVE-01-C — authorization (UI): controls only for the assigned coordinator

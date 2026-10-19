@@ -257,4 +257,19 @@ describe("ClarificationThread: a Coordinator's reply", () => {
     expect(screen.getAllByText("Coordinator", { selector: "span" }).length).toBeGreaterThanOrEqual(2);
     expect(screen.queryAllByText("Organiser", { selector: "span" })).toHaveLength(0);
   });
+
+  /** SPM-39 AC2: an organiser's comment is labelled as the organiser, with the organiser avatar. */
+  it("labels an organiser comment as the organiser and shows the organiser avatar", () => {
+    renderThread({ comments: [comment({ authorRole: "organiser", authorName: "Priya Nair" })] });
+    expect(screen.getByText("O")).toBeTruthy();
+    expect(screen.getByText("Organiser", { selector: "span" })).toBeTruthy();
+    expect(screen.getByText("Priya Nair")).toBeTruthy();
+  });
+
+  /** SPM-39 AC2: a coordinator's comment is labelled as the coordinator, with the coordinator avatar. */
+  it("labels a coordinator comment as the coordinator and shows the coordinator avatar", () => {
+    renderThread({ comments: [comment()] });
+    expect(screen.getByText("C")).toBeTruthy();
+    expect(screen.getByText("Coordinator", { selector: "span" })).toBeTruthy();
+  });
 });

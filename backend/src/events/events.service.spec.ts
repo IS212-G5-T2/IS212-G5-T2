@@ -12,7 +12,6 @@ import { EventsService } from './events.service.js';
 
 const db = {
   query: vi.fn(),
-  connect: vi.fn(),
   transaction: vi.fn(),
   release: vi.fn(),
   end: vi.fn(),
@@ -195,7 +194,7 @@ describe('EventsService', () => {
     expect(
       await service.create(organiserUser(), validEventRequest(), client as never, row.id),
     ).toMatchObject({ event: { id: row.id } });
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalledWith('BEGIN');
     expect(db.transaction).not.toHaveBeenCalledWith('COMMIT');
     expect(db.release).not.toHaveBeenCalled();
@@ -214,7 +213,7 @@ describe('EventsService', () => {
       service.create(organiserUser(), { ...validEventRequest(), name: '' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   it('rejects event creation from a caller without the organiser role', async () => {
@@ -222,7 +221,7 @@ describe('EventsService', () => {
       service.create(coordinatorUser(), validEventRequest()),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   // SPM-36 Test Case EVE-CRE-06-A (its attachment assertion below also incidentally covers EVE-CRE-08-A persistence)
@@ -510,6 +509,10 @@ describe('EventsService', () => {
     });
 
     // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
+    /**
+     * EVE-REV-04-C (current behaviour): a non-owning organiser is refused with 403 and no event data.
+     * Spec conflict: the Confluence page still expects 404; SC-SPM94-02 (decided 17 Oct) changed the rule to 403.
+     */
     it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });

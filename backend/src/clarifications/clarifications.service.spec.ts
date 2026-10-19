@@ -10,7 +10,7 @@
  *                               (state only; the on-screen badge is tested in the frontend file)
  * AC numbers in this file refer to the five current SPM-39 ACs. A test with no SPM-39 AC behind it says so.
  */
-import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import type { DatabaseService } from '../database/database.service.js';
 import type { CommentRow, EventForReview } from './repository/clarifications.repository.js';
@@ -150,6 +150,19 @@ describe('ClarificationsService.createClarification', () => {
     await expect(
       service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
+  // SPM-148 AC7: a Confirmed event closes posting; the refusal is a conflict and nothing is written.
+  it('refuses a clarification on a Confirmed event with a conflict and writes no comment', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(
+      eventRow({ status: 'Confirmed' }),
+    );
+
+    await expect(
+      service.createClarification(EVENT_ID, coordinator(), { message: 'Hi' }),
+    ).rejects.toBeInstanceOf(ConflictException);
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 

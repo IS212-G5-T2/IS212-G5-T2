@@ -1,9 +1,20 @@
 import { BadRequestException } from '@nestjs/common';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateEvent } from './event-input.js';
 
+// Fixed clock for every test in this file (validateEvent compares the start with the current time).
+const FIXED_NOW = new Date('2030-01-01T10:00:00Z');
+
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(FIXED_NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 function futureIso(daysFromNow: number, hour: number): string {
-  const date = new Date();
+  const date = new Date(FIXED_NOW);
   date.setDate(date.getDate() + daysFromNow);
   date.setHours(hour, 0, 0, 0);
   return date.toISOString();
@@ -103,7 +114,7 @@ describe('validateEvent', () => {
       for (const delta of [-1, 0, 1]) {
         const request = {
           ...validEventRequest(),
-          startDateTime: new Date(Date.now() + delta).toISOString(),
+          startDateTime: new Date(FIXED_NOW.getTime() + delta).toISOString(),
         };
         if (delta <= 0) expectFieldError(request, 'startDateTime');
         else
@@ -193,13 +204,20 @@ describe('validateEvent', () => {
 
   // SPM-36 Test Case EVE-CRE-05-C
   it('EVE-CRE-05-C rejects a proposed start date/time earlier today', () => {
-    expectFieldError(
-      {
-        ...validEventRequest(),
-        startDateTime: new Date(Date.now() - 60_000).toISOString(),
-      },
-      'startDateTime',
-    );
+    // The rule compares the start with the current time, so the clock is fixed for this check.
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
+    try {
+      expectFieldError(
+        {
+          ...validEventRequest(),
+          startDateTime: new Date(FIXED_NOW.getTime() - 60_000).toISOString(),
+        },
+        'startDateTime',
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // SPM-36 Test Case EVE-CRE-05-D

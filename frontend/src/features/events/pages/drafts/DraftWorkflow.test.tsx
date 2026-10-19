@@ -177,6 +177,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
     },
   );
+  /** EVE-DRF-06-A: a failed save is retried with the same operation before newer edits (Q2-005). */
   it("Q2-005 retries uncertain operation before saving edits made after failure", async () => {
     mocked
       .mockRejectedValueOnce(new Error("offline"))
@@ -199,6 +200,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
+  /** EVE-DRF-06-B: a field validation error allows a corrected save with a new operation (Q2-006). */
   it("Q2-006 field validation error allows corrected payload with a new operation", async () => {
     mocked
       .mockRejectedValueOnce(
@@ -220,6 +222,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(calls[1].operationId).not.toBe(calls[0].operationId);
     expect(screen.queryByText("Too long")).toBeNull();
   });
+  /** EVE-DRF-06-A: a failed save keeps input and pending controls prevent duplicate submission (Q2-007). */
   it("Q2-007 save fallback message retains input and pending controls prevent duplicate submission", async () => {
     const pending = deferred<DraftRecord>();
     mocked.mockReturnValue(pending.promise);
@@ -337,6 +340,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
+  /** EVE-DRF-03: My Drafts lists only drafts; submitted requests are excluded (Q2-015). */
   it("Q2-015 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
     mocked.mockReturnValue(pending.promise);
@@ -359,6 +363,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(screen.queryByText("Submitted")).toBeNull();
   });
   // A response containing only submitted requests must behave like an empty draft list.
+  /** EVE-DRF-03: My Drafts shows the empty state when every request is submitted (Q2-015B). */
   it("Q2-015B shows the draft empty state when every request is submitted", async () => {
     mocked.mockResolvedValue([
       { ...draft(), id: "submitted", status: "Submitted", eventId: id },
@@ -392,6 +397,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     },
   );
+  /** EVE-DRF-10-A: the page enforces the 50 MB limit on a single file (Q2-018). */
   it.each([52428799, 52428800, 52428801])(
     "Q2-018 file size boundary %s bytes",
     async (size) => {
@@ -406,7 +412,12 @@ describe("SPM-37 Q2 functional cases", () => {
       fireEvent.change(input, {
         target: { files: [file] },
       });
-      if (size > 52428800) expect(await screen.findByRole("alert")).toBeTruthy();
+      if (size > 52428800) {
+        // EVE-DRF-10-A: an oversize file shows the documented total-size message.
+        expect((await screen.findByRole("alert")).textContent).toContain(
+          "Use up to five files, 50 MB total.",
+        );
+      }
       else {
         await screen.findByText("size.txt");
         save();

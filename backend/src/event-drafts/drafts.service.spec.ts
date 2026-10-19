@@ -1,5 +1,4 @@
 import 'reflect-metadata';
-import { randomUUID } from 'node:crypto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
@@ -26,7 +25,7 @@ vi.mock('pg', () => ({
   },
 }));
 const id = '00000000-0000-4000-8000-000000000037';
-const operationId = randomUUID();
+const operationId = '00000000-0000-4000-8000-0000000000a1';
 const fields = { name: 'Original', expectedAttendance: '25' };
 const identity: AuthenticatedUser = {
   uid: 'current-user',
@@ -153,6 +152,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     });
     expect(db.query).not.toHaveBeenCalled();
   });
+  /** EVE-DRF-04-A: saving new and existing drafts persists them and releases the connection (Q1-025). */
   it('Q1-025 saves new and existing drafts and releases connections', async () => {
     selected({ ...row(), version: 0 });
     const body = { fields, version: 0, operationId };
@@ -173,6 +173,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('INSERT')),
     ).toBe(false);
   });
+  /** EVE-DRF-04-B: an identical retry returns the stored draft without an update (Q1-026). */
   it('Q1-026 retries identical save without issuing an update', async () => {
     const { validateDraft } = await import('./dto/draft-input.js');
     const body = { fields, version: 0, operationId };
@@ -189,16 +190,36 @@ describe('SPM-37 Q1 service contract and failures', () => {
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('UPDATE')),
     ).toBe(false);
   });
+  /**
+   * EVENT-DRF-05-A / 05-C / 07-A: each refused save returns its documented 409 message, so a stale,
+   * reused-identifier or submitted-draft conflict is distinguishable to the organiser.
+   */
+  /** EVE-DRF-05-A, EVE-DRF-05-C, EVE-DRF-07-A: refused saves roll back and return the documented 409 message (Q1-027). */
   it.each([
-    ['missing', null, 404],
-    ['submitted', { ...row(), status: 'Submitted' }, 409],
-    ['stale', { ...row(), version: 2 }, 409],
-    ['altered retry', { ...row(), last_operation: operationId }, 409],
-  ])('Q1-027 rolls back %s save', async (_label, record, status) => {
+    ['missing', null, 404, 'Request not found.'],
+    [
+      'submitted',
+      { ...row(), status: 'Submitted' },
+      409,
+      'This request was submitted. Use Event Change Requests for further changes.',
+    ],
+    [
+      'stale',
+      { ...row(), version: 2 },
+      409,
+      'This draft changed in another window. Reopen it before saving again.',
+    ],
+    [
+      'altered retry',
+      { ...row(), last_operation: operationId },
+      409,
+      'A save identifier cannot be reused for different values.',
+    ],
+  ])('Q1-027 rolls back %s save', async (_label, record, status, message) => {
     selected(record);
     await expect(
       service.save(identity, id, { fields, version: 1, operationId }),
-    ).rejects.toMatchObject({ status });
+    ).rejects.toMatchObject({ status, message });
     expect(db.transaction).toHaveBeenLastCalledWith('ROLLBACK');
     expect(
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('UPDATE')),

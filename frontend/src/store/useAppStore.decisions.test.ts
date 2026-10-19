@@ -47,9 +47,6 @@ function pendingEvent(overrides: Partial<EventRecord> = {}): EventRecord {
   };
 }
 
-// Statuses that count as "awaiting review" in the coordinator's pending list.
-const PENDING = ["submitted"];
-
 beforeEach(() => {
   vi.clearAllMocks();
   apiMock.mockResolvedValue({});
@@ -91,8 +88,10 @@ describe("rejectEvent (SPM-83)", () => {
     expect(notification.message).toContain("Room capacity too low.");
   });
 
-  // EVENT-REJECT-02-C
-  it("drops the rejected request out of the coordinator's pending list", () => {
+  // EVENT-REJECT-02-C: the pending-list view itself is asserted on EventListPage (EventListPage.test.tsx,
+  // "EVENT-REJECT-02-C"). This store test checks only the state the list reads: the rejected request is
+  // no longer Submitted, and the other pending request is untouched.
+  it("moves only the rejected request out of the Submitted status", () => {
     useAppStore.setState({
       events: [
         pendingEvent({ id: "event-1", status: "submitted" }),
@@ -101,22 +100,11 @@ describe("rejectEvent (SPM-83)", () => {
       notifications: [],
     });
 
-    // Both are pending to begin with.
-    const pendingBefore = useAppStore
-      .getState()
-      .events.filter((e) => PENDING.includes(e.status));
-    expect(pendingBefore.map((e) => e.id)).toEqual(["event-1", "event-2"]);
-
     rejectEvent("event-1", "Duplicate of an existing event.");
 
-    const pendingAfter = useAppStore
-      .getState()
-      .events.filter((e) => PENDING.includes(e.status));
-    expect(pendingAfter.map((e) => e.id)).toEqual(["event-2"]);
-
-    // The rejected event still exists (now terminal) and remains retrievable.
-    const rejected = useAppStore.getState().events.find((e) => e.id === "event-1");
-    expect(rejected).toMatchObject({ status: "rejected" });
+    const events = useAppStore.getState().events;
+    expect(events.find((e) => e.id === "event-1")).toMatchObject({ status: "rejected" });
+    expect(events.find((e) => e.id === "event-2")).toMatchObject({ status: "submitted" });
   });
 });
 
@@ -150,8 +138,9 @@ describe("approveEvent (SPM-40)", () => {
     expect(notification.message).toContain("Welcome Evening");
   });
 
-  // EVENT-APPROVE-02-C
-  it("drops the approved request out of the coordinator's pending list", () => {
+  // EVENT-APPROVE-02-C: the pending-list view itself is asserted on EventListPage (EventListPage.test.tsx,
+  // "EVENT-APPROVE-02-C"). This store test checks only the state the list reads.
+  it("moves only the approved request out of the Submitted status", () => {
     useAppStore.setState({
       events: [
         pendingEvent({ id: "event-1", status: "submitted" }),
@@ -160,15 +149,11 @@ describe("approveEvent (SPM-40)", () => {
       notifications: [],
     });
 
-    const pendingBefore = useAppStore.getState().events.filter((event) => PENDING.includes(event.status));
-    expect(pendingBefore.map((event) => event.id)).toEqual(["event-1", "event-2"]);
-
     approveEvent("event-1");
 
-    const pendingAfter = useAppStore.getState().events.filter((event) => PENDING.includes(event.status));
-    expect(pendingAfter.map((event) => event.id)).toEqual(["event-2"]);
-    const approved = useAppStore.getState().events.find((event) => event.id === "event-1");
-    expect(approved).toMatchObject({ status: "approved" });
+    const events = useAppStore.getState().events;
+    expect(events.find((event) => event.id === "event-1")).toMatchObject({ status: "approved" });
+    expect(events.find((event) => event.id === "event-2")).toMatchObject({ status: "submitted" });
   });
 
   it("restores the submitted request when persistence fails", async () => {

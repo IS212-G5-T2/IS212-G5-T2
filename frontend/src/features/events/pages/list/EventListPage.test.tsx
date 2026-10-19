@@ -886,3 +886,70 @@ describe("SPM-94 ordering: events read from the earliest start date", () => {
     expect(names.map((t) => t.match(/Day \d+/)?.[0])).toEqual(["Day 25", "Day 27", "Day 28", "Day 30"]);
   });
 });
+
+describe("EventListPage: coordinator pending requests after a decision (SPM-40, SPM-83)", () => {
+  const FIRST_ID = "00000000-0000-4000-8000-0000000000a1";
+  const SECOND_ID = "00000000-0000-4000-8000-0000000000a2";
+
+  // Renders the real list page for the coordinator, with two requests Submitted and awaiting a decision.
+  function renderCoordinatorPending() {
+    const first = { ...submittedEvent(), id: FIRST_ID, name: "Pending One" };
+    const second = { ...submittedEvent(), id: SECOND_ID, name: "Pending Two" };
+    apiMock.mockImplementation(((path: string) =>
+      Promise.resolve(path === "/events" ? [first, second] : path === "/requests" ? [] : {})) as typeof api);
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-1",
+        name: "Coordinator One",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      events: [],
+      eventListFilters: { attendee: "upcoming", status: null },
+    });
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  /** EVENT-APPROVE-02-C: an approved request leaves the default Submitted (pending) view and is listed under the Approved filter. */
+  it("EVENT-APPROVE-02-C drops an approved request from the pending view and lists it under Approved", async () => {
+    const user = userEvent.setup();
+    renderCoordinatorPending();
+    expect(await screen.findByText("Pending One")).toBeTruthy();
+    expect(screen.getByText("Pending Two")).toBeTruthy();
+
+    await act(async () => {
+      await useAppStore.getState().approveEvent(FIRST_ID);
+    });
+
+    expect(screen.queryByText("Pending One")).toBeNull();
+    expect(screen.getByText("Pending Two")).toBeTruthy();
+
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "approved");
+    expect(screen.getByText("Pending One")).toBeTruthy();
+    expect(screen.queryByText("Pending Two")).toBeNull();
+  });
+
+  /** EVENT-REJECT-02-C: a rejected request leaves the default Submitted (pending) view and is listed under the Rejected filter. */
+  it("EVENT-REJECT-02-C drops a rejected request from the pending view and lists it under Rejected", async () => {
+    const user = userEvent.setup();
+    renderCoordinatorPending();
+    expect(await screen.findByText("Pending One")).toBeTruthy();
+
+    await act(async () => {
+      await useAppStore.getState().rejectEvent(FIRST_ID, "Duplicate of an existing event.");
+    });
+
+    expect(screen.queryByText("Pending One")).toBeNull();
+    expect(screen.getByText("Pending Two")).toBeTruthy();
+
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
+    expect(screen.getByText("Pending One")).toBeTruthy();
+    expect(screen.queryByText("Pending Two")).toBeNull();
+  });
+});

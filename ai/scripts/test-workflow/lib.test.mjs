@@ -102,3 +102,23 @@ test('worst: BLOCKED beats UNABLE_TO_VERIFY beats PASS', () => {
   assert.equal(worst(['PASS', 'BLOCKED', 'UNABLE_TO_VERIFY']), 'BLOCKED');
   assert.equal(worst(['PASS']), 'PASS');
 });
+
+test('scopedTests keeps a test whose own comment carries the story prefix, even when its title does not', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { scopedTests } = await import('./lib.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'scoped-'));
+  const file = join(dir, 'x.spec.ts');
+  writeFileSync(file, [
+    "describe('other', () => {",
+    "  /** EVE-DRF-01-A: a draft saves with incomplete fields. */",
+    "  it('saves an incomplete request', () => {});",
+    "  // EVE-DRF-02-A line tag above the test",
+    "  it('prefills a request', () => {});",
+    "  it('TRACK-EVENT-STATUS-01-A unrelated', () => {});",
+    '});',
+  ].join('\n'));
+  const titles = scopedTests({ file, titleMatch: 'EVE-DRF' }).map((test) => test.title);
+  assert.deepEqual(titles, ['saves an incomplete request', 'prefills a request']);
+});

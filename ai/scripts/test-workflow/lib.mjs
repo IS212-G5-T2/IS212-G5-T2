@@ -340,7 +340,8 @@ export function scopedTests(entry) {
   const tests = extractTests(readText(entry.file));
   if (!entry.titleMatch) return tests;
   const pattern = new RegExp(entry.titleMatch);
-  return tests.filter((test) => pattern.test(test.title) || pattern.test(test.describes.join(' ')));
+  // A test is in scope when its title, its describe blocks or its own comment (JSDoc or // tags above it) match.
+  return tests.filter((test) => pattern.test(test.title) || pattern.test(test.describes.join(' ')) || pattern.test(test.comment));
 }
 
 export function writeGate(cycleDir, result) {

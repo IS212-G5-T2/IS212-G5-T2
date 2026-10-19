@@ -50,6 +50,7 @@ describe("api", () => {
   });
 
   // Turns a transport failure into a safe message rather than leaking its cause.
+  /** EVE-DRF-06-A: an unreachable server yields a safe error message. */
   it("returns a safe error when the server cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("socket refused")));
 
@@ -59,6 +60,7 @@ describe("api", () => {
   });
 
   // Preserves validation information so forms can associate errors with fields.
+  /** EVE-DRF-06-B: client error messages and field errors are preserved. */
   it("preserves a client error message and field errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       message: "Please correct the form.", errors: { title: "Title is required." },
@@ -70,6 +72,7 @@ describe("api", () => {
   });
 
   // Gives a fallback when an error response has no JSON body or message.
+  /** EVE-DRF-06-B: a non-JSON error response is handled safely. */
   it("handles a non-JSON client error response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Bad request", { status: 400 })));
 
@@ -77,6 +80,7 @@ describe("api", () => {
   });
 
   // Maps attachment-size failures to an actionable message.
+  /** EVE-DRF-10-C: frontend half only; a 413 with an empty body maps to the attachment-size message (backend 413 with CORS is an e2e gap). */
   it("maps a 413 response to the attachment-size message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 413 })));
 
@@ -86,6 +90,7 @@ describe("api", () => {
   });
 
   // Does not expose server failure details to the browser.
+  /** EVE-DRF-06-B: a server failure maps to a generic availability message. */
   it("maps a server failure to a generic availability message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
       message: "database password leaked",

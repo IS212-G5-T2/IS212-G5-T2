@@ -51,3 +51,16 @@ test('G1 flags a registry file that does not use the id, and counts pending appr
   assert.equal(result.counts.pendingApproval, 1);
   assert.equal(result.gaps.length, 1);
 });
+
+test('readRegistry reads registry rows from every table in the file, not only the first', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { readRegistry } = await import('./check-ids.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'registry-'));
+  const file = join(dir, 'registry.md');
+  const header = '| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |\n|---|---|---|---|---|---|---|---|\n';
+  writeFileSync(file, `## Test IDs\n\n${header}| P-01-A | PRIMARY | S | AC1 | m | a.spec.ts | n/a | Active |\n\n## Notes\n\nA paragraph.\n\n${header}| SUP-01 | SUPPORTING | S | AC1 | m | a.spec.ts | pending | Active |\n`);
+  const { rows } = readRegistry(file, 'S');
+  assert.deepEqual(rows.map((row) => row.id), ['P-01-A', 'SUP-01']);
+});

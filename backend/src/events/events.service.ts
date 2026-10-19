@@ -305,9 +305,9 @@ export class EventsService {
     const trimmed = raw.trim();
     const words = trimmed.split(/\s+/).filter(Boolean);
     const hasLetters = /[a-zA-Z]/.test(trimmed);
+    // EVENT-REJECT-01/03: only the trimmed reason is measured (10 to 500 characters).
     if (
       !trimmed ||
-      raw.length > 500 ||
       trimmed.length < 10 ||
       trimmed.length > 500 ||
       words.length < 3 ||

@@ -449,7 +449,7 @@ export function EventDetailPage() {
                 />
                 {rejectionError && (
                   <div role="alert" className="space-y-1 text-sm text-danger-600 dark:text-danger-400">
-                    <p>Rejection reason failed validation:</p>
+                    <p>Please provide a reason that:</p>
                     <ul className="list-disc pl-5">
                       <li>between 10 and 500 characters</li>
                       <li>at least 3 words</li>
@@ -483,8 +483,8 @@ export function EventDetailPage() {
                   const raw = rejectionReason;
                   const trimmed = raw.trim();
                   const words = trimmed ? trimmed.split(/\s+/).filter(Boolean) : [];
+                  // EVENT-REJECT-01: only the trimmed reason is measured (10 to 500 characters).
                   const isValid =
-                    raw.length <= 500 &&
                     trimmed.length >= 10 &&
                     trimmed.length <= 500 &&
                     words.length >= 3 &&

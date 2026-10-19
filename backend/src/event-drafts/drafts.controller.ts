@@ -3,10 +3,8 @@ import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { DraftsService } from './drafts.service.js';
 
-/* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Controller('api/requests')
 export class DraftsController {
-  /* v8 ignore stop */
   constructor(private readonly drafts: DraftsService) {}
   @Get() list(@Req() request: AuthenticatedRequest) {
     return this.drafts.list(request[CURRENT_USER_REQUEST_KEY]);
