@@ -223,7 +223,6 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | CANCEL-EVENT-02-C-INT-2 | SUPPORTING | SPM-136 | AC2 | interaction (Guide 5E) of 02-C with 03-B: the confirmation is read before the status, so a Completed event gives 400, not 409 | backend/src/events/cancel/cancel-event.service.spec.ts | pending (SPM-136 variant; not yet approved by the story owner) | Active |
 | CANCEL-EVENT-03-B-BND-1 | SUPPORTING | SPM-136 | AC3 | boundary (Guide 5E) of 03-B: Draft, one step before Submitted, is not cancellable | backend/src/events/cancel/cancel-rules.spec.ts | pending (SPM-136 variant; not yet approved by the story owner) | Active |
 | CANCEL-EVENT-07-A-INT-3 | SUPPORTING | SPM-136 | AC7 | interaction (Guide 5E) of 07-A with the lock: the pre-lock Planning check refuses before any transaction is opened | backend/src/events/status/status.removal.spec.ts | pending (SPM-136 variant; not yet approved by the story owner) | Active |
-
 | VEN-BKG-01-A | PRIMARY | SPM-54 | AC1 | Confluence matrix 22839839; case page 23265595 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx | n/a (matrix) | Active |
 | VEN-BKG-01-B | PRIMARY | SPM-54 | AC1 | Confluence matrix 22839839; case page 23265595 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx | n/a (matrix) | Active |
 | VEN-BKG-01-C | PRIMARY | SPM-54 | AC1 | Confluence matrix 22839839; case page 23265595 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx | n/a (matrix) | Active |
