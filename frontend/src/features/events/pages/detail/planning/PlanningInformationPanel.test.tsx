@@ -2,7 +2,12 @@ import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { formatDateTime, formatDateTimeRange } from "@/utils/format";
-import type { EventRecord, FlaggedChange, PlanningView, ReplacementRequired } from "@/types";
+import type {
+  EventRecord,
+  FlaggedChange,
+  PlanningView,
+  ReplacementRequired,
+} from "@/types";
 
 /**
  * SPM-97 — the read-only "Planning Information" panel. The page tests cover it
@@ -28,7 +33,12 @@ function eventRecord(): EventRecord {
     startDateTime: START,
     endDateTime: END,
     expectedAttendance: 80,
-    venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering", "AV System"], accessibility: [] },
+    venueRequirements: {
+      minCapacity: 80,
+      layout: "Banquet",
+      facilities: ["Catering", "AV System"],
+      accessibility: [],
+    },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
     createdAt: "2026-09-13T00:00:00.000Z",
@@ -39,8 +49,18 @@ function eventRecord(): EventRecord {
 function view(overrides: Partial<PlanningView> = {}): PlanningView {
   return {
     event: eventRecord(),
-    venueBookings: [{ id: "bk-1", venueName: "Hall A", start: START, end: END, status: "Booked" }],
-    equipmentArrangements: [{ id: "eq-1", name: "Projector", quantity: 2, status: "Reserved" }],
+    venueBookings: [
+      {
+        id: "bk-1",
+        venueName: "Hall A",
+        start: START,
+        end: END,
+        status: "Booked",
+      },
+    ],
+    equipmentArrangements: [
+      { id: "eq-1", name: "Projector", quantity: 2, status: "Reserved" },
+    ],
     pendingChanges: [],
     readOnly: true,
     editableFields: [],
@@ -49,7 +69,11 @@ function view(overrides: Partial<PlanningView> = {}): PlanningView {
   };
 }
 
-const pending = (field: string, proposedValue: unknown, id = `chg-${field}`): FlaggedChange => ({
+const pending = (
+  field: string,
+  proposedValue: unknown,
+  id = `chg-${field}`,
+): FlaggedChange => ({
   id,
   kind: "booking_conflict",
   field,
@@ -59,7 +83,8 @@ const pending = (field: string, proposedValue: unknown, id = `chg-${field}`): Fl
 });
 
 // The definition row that holds a given label, so assertions stay local to one field.
-const row = (label: string) => screen.getByText(label, { selector: "dt" }).parentElement as HTMLElement;
+const row = (label: string) =>
+  screen.getByText(label, { selector: "dt" }).parentElement as HTMLElement;
 
 afterEach(cleanup);
 
@@ -67,7 +92,9 @@ describe("PlanningInformationPanel", () => {
   // EVENT-VIEW-02-A: AC2 — every row of event information is shown in readable form.
   it("EVENT-VIEW-02-A shows the current event information", () => {
     render(<PlanningInformationPanel view={view()} />);
-    expect(row("Date & time")).toHaveTextContent(formatDateTimeRange(START, END));
+    expect(row("Date & time")).toHaveTextContent(
+      formatDateTimeRange(START, END),
+    );
     expect(row("Expected attendance")).toHaveTextContent("80");
     expect(row("Room layout")).toHaveTextContent("Banquet");
     expect(row("Required facilities")).toHaveTextContent("Catering, AV System");
@@ -86,9 +113,53 @@ describe("PlanningInformationPanel", () => {
     expect(item).toHaveTextContent("Reserved");
   });
 
+  /** VEN-BKG-09-A: a cancelled request is retained in history but omitted from the event's active venue list. */
+  it("VEN-BKG-09-A hides a cancelled venue booking while keeping other active venues visible", () => {
+    const cancelled = {
+      id: "bk-cancelled",
+      venueName: "Old Hall",
+      start: START,
+      end: END,
+      status: "Cancelled" as const,
+    };
+    const active = {
+      id: "bk-active",
+      venueName: "Current Hall",
+      start: START,
+      end: END,
+      status: "Booked" as const,
+    };
+    const replacement: ReplacementRequired = {
+      id: "replacement-old",
+      kind: "replacement_venue_required",
+      field: "venue",
+      bookingId: "bk-cancelled",
+      venueName: "Old Hall",
+      status: "Needs Review",
+    };
+    render(
+      <PlanningInformationPanel
+        view={view({
+          venueBookings: [cancelled, active],
+          pendingChanges: [replacement],
+        })}
+      />,
+    );
+
+    const venues = screen.getByRole("heading", {
+      name: "Venues",
+    }).parentElement!;
+    expect(within(venues).getByText("Current Hall")).toBeInTheDocument();
+    expect(within(venues).queryByText("Old Hall")).not.toBeInTheDocument();
+  });
+
   // EVENT-VIEW-02-A: nothing booked yet is stated, not left blank.
   it("EVENT-VIEW-02-A says when no venue or equipment has been arranged", () => {
-    render(<PlanningInformationPanel view={view({ venueBookings: [], equipmentArrangements: [] })} />);
+    render(
+      <PlanningInformationPanel
+        view={view({ venueBookings: [], equipmentArrangements: [] })}
+      />,
+    );
     expect(screen.getByText("No venue booked yet.")).toBeInTheDocument();
     expect(screen.getByText("No equipment arranged yet.")).toBeInTheDocument();
   });
@@ -96,43 +167,71 @@ describe("PlanningInformationPanel", () => {
   // EVENT-UPDATE-06-A: the last-updated time is shown on the panel as well as the form.
   it("EVENT-UPDATE-06-A shows when the information was last updated", () => {
     render(<PlanningInformationPanel view={view()} />);
-    expect(screen.getByText(formatDateTime("2026-10-04T09:00:00.000Z"))).toBeInTheDocument();
+    expect(
+      screen.getByText(formatDateTime("2026-10-04T09:00:00.000Z")),
+    ).toBeInTheDocument();
   });
 
   // EVENT-VIEW-04-A: AC4 — whoever sees the panel, it never offers a way to edit.
-  it.each([true, false])("EVENT-VIEW-04-A renders no controls when readOnly is %s", (readOnly) => {
-    render(
-      <PlanningInformationPanel
-        view={view({ readOnly, pendingChanges: [pending("expectedAttendance", 150)] })}
-      />,
-    );
-    const region = screen.getByRole("region", { name: /planning information/i });
-    expect(within(region).queryAllByRole("button")).toHaveLength(0);
-    for (const role of ["textbox", "spinbutton", "checkbox", "combobox", "link"])
-      expect(within(region).queryAllByRole(role)).toHaveLength(0);
-  });
+  it.each([true, false])(
+    "EVENT-VIEW-04-A renders no controls when readOnly is %s",
+    (readOnly) => {
+      render(
+        <PlanningInformationPanel
+          view={view({
+            readOnly,
+            pendingChanges: [pending("expectedAttendance", 150)],
+          })}
+        />,
+      );
+      const region = screen.getByRole("region", {
+        name: /planning information/i,
+      });
+      expect(within(region).queryAllByRole("button")).toHaveLength(0);
+      for (const role of [
+        "textbox",
+        "spinbutton",
+        "checkbox",
+        "combobox",
+        "link",
+      ])
+        expect(within(region).queryAllByRole(role)).toHaveLength(0);
+    },
+  );
 
   // EVENT-VIEW-04-A: the explanatory sentence tells the organiser who keeps this up to date.
   it("EVENT-VIEW-04-A tells a read-only viewer that the coordinator maintains the information", () => {
     render(<PlanningInformationPanel view={view({ readOnly: true })} />);
-    expect(screen.getByText(/Read-only\. Your coordinator keeps these arrangements up to date/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Read-only\. Your coordinator keeps these arrangements up to date/,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("EVENT-VIEW-04-A describes the panel as the organiser's view when the coordinator sees it", () => {
     render(<PlanningInformationPanel view={view({ readOnly: false })} />);
-    expect(screen.getByText("Current arrangements as seen by the organiser.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Current arrangements as seen by the organiser."),
+    ).toBeInTheDocument();
   });
 });
 
 describe("PlanningInformationPanel: pending changes and replacements", () => {
   // EVENT-VIEW-03-A: AC3 — "Change pending" appears on the affected row only, with the proposed value.
   it("EVENT-VIEW-03-A marks only the row with a pending change and shows the proposed value", () => {
-    render(<PlanningInformationPanel view={view({ pendingChanges: [pending("expectedAttendance", 150)] })} />);
+    render(
+      <PlanningInformationPanel
+        view={view({ pendingChanges: [pending("expectedAttendance", 150)] })}
+      />,
+    );
     const marked = row("Expected attendance");
     expect(within(marked).getByText("Change pending")).toBeInTheDocument();
     expect(marked).toHaveTextContent("Booking conflict");
     expect(marked).toHaveTextContent("Proposed: 150");
-    expect(within(row("Room layout")).queryByText("Change pending")).not.toBeInTheDocument();
+    expect(
+      within(row("Room layout")).queryByText("Change pending"),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByText("Change pending")).toHaveLength(1);
   });
 
@@ -155,8 +254,16 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
 
   // EVENT-VIEW-03-A: a pending list value is shown as readable text.
   it("EVENT-VIEW-03-A shows a proposed list value as text", () => {
-    render(<PlanningInformationPanel view={view({ pendingChanges: [pending("facilities", ["Stage", "Projector"])] })} />);
-    expect(row("Required facilities")).toHaveTextContent("Proposed: Stage, Projector");
+    render(
+      <PlanningInformationPanel
+        view={view({
+          pendingChanges: [pending("facilities", ["Stage", "Projector"])],
+        })}
+      />,
+    );
+    expect(row("Required facilities")).toHaveTextContent(
+      "Proposed: Stage, Projector",
+    );
   });
 
   // EVENT-VIEW-03-B: AC3 — the unavailable venue is marked on its own booking.
@@ -173,8 +280,20 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
       <PlanningInformationPanel
         view={view({
           venueBookings: [
-            { id: "bk-1", venueName: "Hall A", start: START, end: END, status: "Unavailable" },
-            { id: "bk-2", venueName: "Hall B", start: START, end: END, status: "Booked" },
+            {
+              id: "bk-1",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Unavailable",
+            },
+            {
+              id: "bk-2",
+              venueName: "Hall B",
+              start: START,
+              end: END,
+              status: "Booked",
+            },
           ],
           pendingChanges: [replacement],
         })}
@@ -182,9 +301,13 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
     );
     const hallA = screen.getByText("Hall A").closest("li") as HTMLElement;
     const hallB = screen.getByText("Hall B").closest("li") as HTMLElement;
-    expect(within(hallA).getByText("Replacement venue required")).toBeInTheDocument();
+    expect(
+      within(hallA).getByText("Replacement venue required"),
+    ).toBeInTheDocument();
     expect(hallA).toHaveTextContent("Unavailable");
-    expect(within(hallB).queryByText("Replacement venue required")).not.toBeInTheDocument();
+    expect(
+      within(hallB).queryByText("Replacement venue required"),
+    ).not.toBeInTheDocument();
   });
 
   // EVENT-VIEW-03-B: a replacement for a booking that is no longer listed is still shown, by venue name.
@@ -194,7 +317,14 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
         view={view({
           venueBookings: [],
           pendingChanges: [
-            { id: "venue-bk-9", kind: "replacement_venue_required", field: "venue", bookingId: "bk-9", venueName: "Old Hall", status: "Needs Review" },
+            {
+              id: "venue-bk-9",
+              kind: "replacement_venue_required",
+              field: "venue",
+              bookingId: "bk-9",
+              venueName: "Old Hall",
+              status: "Needs Review",
+            },
           ],
         })}
       />,
@@ -207,7 +337,12 @@ describe("PlanningInformationPanel: pending changes and replacements", () => {
 describe("PlanningInformationPanel: refresh problems", () => {
   // EVENT-VIEW-05-C: a failed refresh is shown above the data, which stays visible.
   it("EVENT-VIEW-05-C shows the refresh error and keeps the data", () => {
-    render(<PlanningInformationPanel view={view()} refreshError="Could not refresh planning information: Server down" />);
+    render(
+      <PlanningInformationPanel
+        view={view()}
+        refreshError="Could not refresh planning information: Server down"
+      />,
+    );
     expect(screen.getByRole("alert")).toHaveTextContent("Server down");
     expect(screen.getByText("Hall A")).toBeInTheDocument();
   });
@@ -234,15 +369,25 @@ describe("PlanningInformationPanel: refresh problems", () => {
 describe("planning information shows the safety check to the organiser", () => {
   it.each([
     ["AWAITING_CHECK", "Waiting for the Safety Officer's check."],
-    ["CHANGES_REQUESTED", "The Safety Officer has requested changes; your coordinator will respond."],
+    [
+      "CHANGES_REQUESTED",
+      "The Safety Officer has requested changes; your coordinator will respond.",
+    ],
     ["CLEARED", "The Safety Officer has cleared this event."],
-  ] as const)("TRACK-EVENT-STATUS-03-B PLANNING: %s is described in the planning information", (indicator, sentence) => {
-    render(<PlanningInformationPanel view={view()} safetyIndicator={indicator} />);
-    expect(screen.getByText(sentence)).toBeInTheDocument();
-  });
+  ] as const)(
+    "TRACK-EVENT-STATUS-03-B PLANNING: %s is described in the planning information",
+    (indicator, sentence) => {
+      render(
+        <PlanningInformationPanel view={view()} safetyIndicator={indicator} />,
+      );
+      expect(screen.getByText(sentence)).toBeInTheDocument();
+    },
+  );
 
   it("TRACK-EVENT-STATUS-03-B PLANNING: no safety check requested yet when there is no indicator", () => {
     render(<PlanningInformationPanel view={view()} safetyIndicator={null} />);
-    expect(screen.getByText("No safety check requested yet.")).toBeInTheDocument();
+    expect(
+      screen.getByText("No safety check requested yet."),
+    ).toBeInTheDocument();
   });
 });

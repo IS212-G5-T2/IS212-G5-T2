@@ -18,6 +18,70 @@ const venue = {
   unavailablePeriods: [],
   reservations: [],
 };
+const mobileEvent = {
+  id: "mobile-event",
+  name: "Mobile booking event",
+  purpose: "",
+  description: "",
+  organiserId: "org-1",
+  organiserName: "Organiser",
+  status: "planning",
+  startDateTime: "2030-01-08T06:00:00.000Z",
+  endDateTime: "2030-01-08T08:00:00.000Z",
+  expectedAttendance: 40,
+  venueRequirements: { minCapacity: 20, accessibility: [], facilities: [], layout: "" },
+  equipmentNeeds: "",
+  registrationEnabled: false,
+  createdAt: "2030-01-01T00:00:00.000Z",
+  updatedAt: "2030-01-01T00:00:00.000Z",
+};
+const mobileBooking = {
+  id: "mobile-booking",
+  eventId: mobileEvent.id,
+  eventName: mobileEvent.name,
+  venueId,
+  venueName: venue.name,
+  start: mobileEvent.startDateTime,
+  end: mobileEvent.endDateTime,
+  createdAt: "2030-01-01T00:00:00.000Z",
+  status: "pending",
+  bookingReference: "VB-MOBILE-001",
+  specialRequest: "Step-free access, please.",
+  affected: false,
+};
+const secondMobileBooking = {
+  ...mobileBooking,
+  id: "mobile-booking-2",
+  venueId: "second-mobile-venue",
+  venueName: "Second Mobile Venue",
+  bookingReference: "VB-MOBILE-002",
+  specialRequest: "Keep an aisle clear.",
+  createdAt: "2030-01-02T00:00:00.000Z",
+};
+
+async function mockMobileBookingApis(page: import("@playwright/test").Page) {
+  await page.route("**/api/auth/me", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        uid: "mobile-coordinator",
+        name: "Mobile Coordinator",
+        email: "mobile@example.test",
+        roles: ["COORDINATOR"],
+      }),
+    }),
+  );
+  await page.route(`**/api/venues/${venueId}`, (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(venue) }),
+  );
+  await page.route("**/api/events/mobile-event", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mobileEvent) }),
+  );
+  await page.route("**/api/venues/bookings/mine", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([mobileBooking, secondMobileBooking]) }),
+  );
+}
 
 async function pointInSlot(
   page: import("@playwright/test").Page,
@@ -112,4 +176,92 @@ test("selects a real cross-day time range across any calendar day", async ({
 
   await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
   await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T11:00");
+});
+
+/** SPM-54 mobile UI: keep the selected mode through resizing and adapt the calendar from day to week at 640px. */
+test("keeps List or Calendar choice while adapting the booking schedule at phone and tablet widths", async ({ page }) => {
+  await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
+  await mockMobileBookingApis(page);
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(`/venue-records/${venueId}?eventId=${mobileEvent.id}`);
+    await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
+    await expect(page.getByRole("button", { name: "List" })).toHaveClass(/primary/);
+    await expect(page.getByRole("region", { name: "Venue schedule" })).toBeHidden();
+    await expect(page.getByRole("region", { name: "Existing venue booking request" })).toBeVisible();
+    await page.getByRole("button", { name: "Calendar" }).click();
+    await expect(page.getByRole("columnheader", { name: "January 8, 2030" })).toBeVisible();
+    const previousDay = page.getByRole("button", { name: "Previous Day" });
+    const nextDay = page.getByRole("button", { name: "Next Day" });
+    const today = page.getByRole("button", { name: /Today|This Day/ });
+    await expect(previousDay).toBeVisible();
+    await expect(nextDay).toBeVisible();
+    await expect(today).toBeVisible();
+    await nextDay.click();
+    await expect(page.getByRole("columnheader", { name: "January 9, 2030" })).toBeVisible();
+    await today.click();
+    await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel booking" })).toBeVisible();
+    await page.getByRole("button", { name: "Cancel booking" }).click();
+    const cancelDialog = page.getByRole("alertdialog");
+    await expect(cancelDialog).toBeVisible();
+    await expect(cancelDialog.getByRole("button", { name: "Confirm cancellation" })).toBeVisible();
+    const detailOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(detailOverflow).toBe(false);
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    await expect(page.getByRole("columnheader", { name: "January 6, 2030" })).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "January 12, 2030" })).toBeVisible();
+    await expect(page.getByRole("alertdialog")).toBeVisible();
+    await page.getByRole("button", { name: "Keep booking" }).click();
+    await page.getByRole("button", { name: "List" }).click();
+    await page.setViewportSize({ width, height: 844 });
+    await expect(page.getByRole("region", { name: "Venue schedule" })).toBeHidden();
+  }
+});
+
+/** SPM-54 mobile UI: My Bookings cards and cancellation confirmation remain responsive at phone and tablet widths. */
+test("keeps My Bookings summary and cancellation actions usable at phone widths", async ({ page }) => {
+  await mockMobileBookingApis(page);
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/bookings");
+    await expect(page.getByRole("heading", { name: mobileEvent.name })).toBeVisible();
+    await expect(page.getByText("VB-MOBILE-001")).toBeVisible();
+    await expect(page.getByText("Step-free access, please.")).toBeVisible();
+    await expect(page.getByText("VB-MOBILE-002")).toBeVisible();
+    await expect(page.locator("article")).toHaveCount(2);
+
+    const [firstCard, secondCard] = await Promise.all([
+      page.locator("article").nth(0).boundingBox(),
+      page.locator("article").nth(1).boundingBox(),
+    ]);
+    expect(firstCard).not.toBeNull();
+    expect(secondCard).not.toBeNull();
+    if (!firstCard || !secondCard) throw new Error("Booking cards are not laid out.");
+    if (width < 640) expect(secondCard.y).toBeGreaterThan(firstCard.y);
+    else {
+      expect(Math.abs(secondCard.y - firstCard.y)).toBeLessThan(2);
+      expect(secondCard.x).toBeGreaterThan(firstCard.x);
+    }
+
+    await page.getByRole("button", { name: "Cancel booking" }).first().click();
+    const dialog = page.getByRole("alertdialog");
+    await expect(dialog).toBeVisible();
+    const keep = dialog.getByRole("button", { name: "Keep booking" });
+    const confirm = dialog.getByRole("button", { name: "Confirm cancellation" });
+    await expect(keep).toBeVisible();
+    await expect(confirm).toBeVisible();
+    const [keepBox, confirmBox] = await Promise.all([keep.boundingBox(), confirm.boundingBox()]);
+    expect(keepBox).not.toBeNull();
+    expect(confirmBox).not.toBeNull();
+    if (!keepBox || !confirmBox) throw new Error("Confirmation actions are not laid out.");
+    if (width < 640) {
+      expect(keepBox.width).toBeGreaterThan(200);
+      expect(keepBox.y).toBeGreaterThan(confirmBox.y);
+    }
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow).toBe(false);
+  }
 });

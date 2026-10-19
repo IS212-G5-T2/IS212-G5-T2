@@ -10,15 +10,25 @@
  */
 import { useId, type ReactNode } from "react";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
-import type { FlaggedChange, PendingChange, PlanningView, ReplacementRequired } from "@/types";
+import type {
+  FlaggedChange,
+  PendingChange,
+  PlanningView,
+  ReplacementRequired,
+} from "@/types";
 import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import { formatFieldValue } from "@/utils/planning";
-import { StateLabel, equipmentLabel, venueLabel } from "@/features/events/components/StatusLabels";
+import {
+  StateLabel,
+  equipmentLabel,
+  venueLabel,
+} from "@/features/events/components/StatusLabels";
 
 /** The safety state in plain words; the one safety label stays in the event header. */
 const SAFETY_SENTENCE = {
   AWAITING_CHECK: "Waiting for the Safety Officer's check.",
-  CHANGES_REQUESTED: "The Safety Officer has requested changes; your coordinator will respond.",
+  CHANGES_REQUESTED:
+    "The Safety Officer has requested changes; your coordinator will respond.",
   CLEARED: "The Safety Officer has cleared this event.",
 } as const;
 
@@ -44,10 +54,15 @@ function PendingMarker({ changes }: { changes: FlaggedChange[] }) {
   return (
     <div className="mt-1 space-y-1">
       {changes.map((change) => (
-        <p key={change.id} className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+        <p
+          key={change.id}
+          className="flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400"
+        >
           <span className={PENDING_BADGE}>Change pending</span>
           <span>Booking conflict</span>
-          <span>Proposed: {formatFieldValue(change.field, change.proposedValue)}</span>
+          <span>
+            Proposed: {formatFieldValue(change.field, change.proposedValue)}
+          </span>
         </p>
       ))}
     </div>
@@ -58,7 +73,8 @@ function PendingMarker({ changes }: { changes: FlaggedChange[] }) {
 export function EventInformationList({ view }: { view: PlanningView }) {
   const { event } = view;
   const fieldChanges = view.pendingChanges.filter(isFieldChange);
-  const pendingFor = (...fields: string[]) => fieldChanges.filter((change) => fields.includes(change.field));
+  const pendingFor = (...fields: string[]) =>
+    fieldChanges.filter((change) => fields.includes(change.field));
 
   const rows: Array<{ label: string; value: string; fields: string[] }> = [
     {
@@ -66,8 +82,16 @@ export function EventInformationList({ view }: { view: PlanningView }) {
       value: formatDateTimeRange(event.startDateTime, event.endDateTime),
       fields: ["startDateTime", "endDateTime"],
     },
-    { label: "Expected attendance", value: String(event.expectedAttendance), fields: ["expectedAttendance"] },
-    { label: "Room layout", value: event.venueRequirements.layout || "—", fields: ["layout"] },
+    {
+      label: "Expected attendance",
+      value: String(event.expectedAttendance),
+      fields: ["expectedAttendance"],
+    },
+    {
+      label: "Room layout",
+      value: event.venueRequirements.layout || "—",
+      fields: ["layout"],
+    },
     {
       label: "Required facilities",
       value: formatFieldValue("facilities", event.venueRequirements.facilities),
@@ -75,7 +99,10 @@ export function EventInformationList({ view }: { view: PlanningView }) {
     },
     {
       label: "Accessibility needs",
-      value: formatFieldValue("accessibility", event.venueRequirements.accessibility),
+      value: formatFieldValue(
+        "accessibility",
+        event.venueRequirements.accessibility,
+      ),
       fields: ["accessibility"],
     },
     {
@@ -90,7 +117,9 @@ export function EventInformationList({ view }: { view: PlanningView }) {
       {rows.map((row) => (
         <div key={row.label}>
           <dt className="text-gray-400 dark:text-gray-500">{row.label}</dt>
-          <dd className="font-medium text-gray-800 dark:text-gray-200">{row.value}</dd>
+          <dd className="font-medium text-gray-800 dark:text-gray-200">
+            {row.value}
+          </dd>
           <PendingMarker changes={pendingFor(...row.fields)} />
         </div>
       ))}
@@ -98,19 +127,40 @@ export function EventInformationList({ view }: { view: PlanningView }) {
   );
 }
 
-export function PlanningInformationPanel({ view, refreshError, people, safetyIndicator }: Props) {
+export function PlanningInformationPanel({
+  view,
+  refreshError,
+  people,
+  safetyIndicator,
+}: Props) {
   const headingId = useId();
   const replacements = view.pendingChanges.filter(
-    (change): change is ReplacementRequired => change.kind === "replacement_venue_required",
+    (change): change is ReplacementRequired =>
+      change.kind === "replacement_venue_required",
   );
-  const bookingIds = new Set(view.venueBookings.map((booking) => booking.id));
-  const orphanReplacements = replacements.filter((r) => !bookingIds.has(r.bookingId));
+  const activeVenueBookings = view.venueBookings.filter(
+    (booking) => booking.status.toLowerCase() !== "cancelled",
+  );
+  const bookingIds = new Set(activeVenueBookings.map((booking) => booking.id));
+  const cancelledBookingIds = new Set(
+    view.venueBookings
+      .filter((booking) => booking.status.toLowerCase() === "cancelled")
+      .map((booking) => booking.id),
+  );
+  const orphanReplacements = replacements.filter(
+    (replacement) =>
+      !bookingIds.has(replacement.bookingId) &&
+      !cancelledBookingIds.has(replacement.bookingId),
+  );
 
   return (
     <section aria-labelledby={headingId} className="mb-6">
       <Card>
         <CardHeader>
-          <h2 id={headingId} className="font-semibold text-gray-900 dark:text-gray-100">
+          <h2
+            id={headingId}
+            className="font-semibold text-gray-900 dark:text-gray-100"
+          >
             Planning Information
           </h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -121,58 +171,81 @@ export function PlanningInformationPanel({ view, refreshError, people, safetyInd
         </CardHeader>
         <CardBody className="space-y-6 text-sm">
           {refreshError && (
-            <p role="alert" className="text-xs text-danger-600 dark:text-danger-400">
+            <p
+              role="alert"
+              className="text-xs text-danger-600 dark:text-danger-400"
+            >
               {refreshError}
             </p>
           )}
 
           <div>
-            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Event Information</h3>
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+              Event Information
+            </h3>
             <EventInformationList view={view} />
             {people && (
               <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
-                <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">People</h4>
+                <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+                  People
+                </h4>
                 {people}
               </div>
             )}
           </div>
 
           <div>
-            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Venues</h3>
-            {view.venueBookings.length ? (
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+              Venues
+            </h3>
+            {activeVenueBookings.length ? (
               <ul className="space-y-2">
-                {view.venueBookings.map((booking) => {
-                  const replacement = replacements.find((r) => r.bookingId === booking.id);
+                {activeVenueBookings.map((booking) => {
+                  const replacement = replacements.find(
+                    (r) => r.bookingId === booking.id,
+                  );
                   return (
                     <li
                       key={booking.id}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
                     >
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{booking.venueName}</span>
+                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                        {booking.venueName}
+                      </span>
                       <span className="text-gray-500 dark:text-gray-400">
                         {formatDateTimeRange(booking.start, booking.end)}
                       </span>
                       <span className="flex items-center gap-2">
                         <StateLabel {...venueLabel(booking)} />
-                        {replacement && <span className={PENDING_BADGE}>Replacement venue required</span>}
+                        {replacement && (
+                          <span className={PENDING_BADGE}>
+                            Replacement venue required
+                          </span>
+                        )}
                       </span>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">No venue booked yet.</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                No venue booked yet.
+              </p>
             )}
             {orphanReplacements.map((r) => (
               <p key={r.id} className="mt-2 flex items-center gap-2">
-                <span className={PENDING_BADGE}>Replacement venue required</span>
+                <span className={PENDING_BADGE}>
+                  Replacement venue required
+                </span>
                 <span>{r.venueName}</span>
               </p>
             ))}
           </div>
 
           <div>
-            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Equipment</h3>
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+              Equipment
+            </h3>
             {view.equipmentArrangements.length ? (
               <ul className="space-y-2">
                 {view.equipmentArrangements.map((item) => (
@@ -180,28 +253,43 @@ export function PlanningInformationPanel({ view, refreshError, people, safetyInd
                     key={item.id}
                     className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
                   >
-                    <span className="font-medium text-gray-800 dark:text-gray-200">{item.name}</span>
-                    <span className="text-gray-500 dark:text-gray-400">Qty {item.quantity}</span>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">
+                      {item.name}
+                    </span>
+                    <span className="text-gray-500 dark:text-gray-400">
+                      Qty {item.quantity}
+                    </span>
                     <StateLabel {...equipmentLabel(item.status)} />
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">No equipment arranged yet.</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                No equipment arranged yet.
+              </p>
             )}
           </div>
 
           <div>
-            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Safety Check</h3>
+            <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+              Safety Check
+            </h3>
             {safetyIndicator ? (
-              <p className="text-gray-700 dark:text-gray-300">{SAFETY_SENTENCE[safetyIndicator]}</p>
+              <p className="text-gray-700 dark:text-gray-300">
+                {SAFETY_SENTENCE[safetyIndicator]}
+              </p>
             ) : (
-              <p className="text-gray-500 dark:text-gray-400">No safety check requested yet.</p>
+              <p className="text-gray-500 dark:text-gray-400">
+                No safety check requested yet.
+              </p>
             )}
           </div>
 
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Last updated <time dateTime={view.lastUpdatedAt}>{formatDateTime(view.lastUpdatedAt)}</time>
+            Last updated{" "}
+            <time dateTime={view.lastUpdatedAt}>
+              {formatDateTime(view.lastUpdatedAt)}
+            </time>
           </p>
         </CardBody>
       </Card>

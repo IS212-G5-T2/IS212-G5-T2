@@ -21,6 +21,12 @@ describe("venue staff navigation", () => {
     );
   });
 
+  /** SPM54-ROUTE-RETIRE-01: users reach availability through event-linked Venue Records, not the retired local-store route. */
+  it("SPM54-ROUTE-RETIRE-01 does not expose the retired venue availability route in navigation", () => {
+    expect(navByRole.coordinator.some((item) => item.to === "/venues/availability")).toBe(false);
+    expect(navByRole.venue_staff.some((item) => item.to === "/venues/availability")).toBe(false);
+  });
+
   // SPM-51: Coordinators reach the catalogue from Search Venues rather than a generic sidebar item.
   it("keeps venue catalogue out of coordinator navigation", () => {
     expect(navByRole.coordinator.some((item) => item.label === "Venues" || item.to === "/venues")).toBe(false);
@@ -43,7 +49,7 @@ describe("venue staff navigation", () => {
       ]),
     );
     expect(items.some((item) => item.label === "Venues" || item.to === "/venues")).toBe(false);
-    expect(items.filter((item) => item.to === "/venues/availability")).toHaveLength(1);
+    expect(items.some((item) => item.to === "/venues/availability")).toBe(false);
   });
 });
 

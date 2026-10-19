@@ -76,6 +76,33 @@ describe("App venue creation route", () => {
   });
 });
 
+describe("SPM-54 venue availability workflow routing", () => {
+  /** SPM54-ROUTE-RETIRE-01: the user-confirmed disconnected local-store route is retired; event-linked Venue Records remains discoverable. */
+  it("SPM54-ROUTE-RETIRE-01 redirects the retired venue availability route to Venue Records", () => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "coordinator-1",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+    render(
+      <MemoryRouter initialEntries={["/venues/availability"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Venue Availability" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Venue Availability" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Venue Records" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Venue Catalogue" })).toBeTruthy();
+  });
+});
+
 // Traceability: AC1 (access the equipment inventory list) -> EQUIP-VIEW-01-A..D.
 // EQUIP-VIEW-01-A/B live here because they exercise App.tsx's real route tree;
 // see RouteAccess.test.tsx for the faster, non-authoritative isolated-table check,
