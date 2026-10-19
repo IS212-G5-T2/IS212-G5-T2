@@ -32,7 +32,7 @@ export class EquipmentRequestsRepository {
       );
       const row = event.rows[0];
       if (!row) return { kind: 'event-not-assigned' as const };
-      if (!['Approved', 'Planning', 'Confirmed'].includes(row.status))
+      if (!['Approved', 'Planning'].includes(row.status))
         return { kind: 'event-not-open' as const, status: row.status };
 
       // The event row lock serializes submissions for this event. Check for an
@@ -133,7 +133,8 @@ export class EquipmentRequestsRepository {
       `SELECT id, event_name, start_date_time, end_date_time, expected_attendance, status
          FROM events
         WHERE coordinator_id = $1::text
-          AND status IN ('Approved', 'Planning', 'Confirmed')
+          AND status IN ('Approved', 'Planning')
+          AND NOT EXISTS (SELECT 1 FROM equipment_requests r WHERE r.event_id = events.id)
         ORDER BY start_date_time ASC, event_name ASC`,
       [coordinatorId],
     );
@@ -148,11 +149,13 @@ export class EquipmentRequestsRepository {
   }
 
   async listMine(coordinatorId: string) {
-    return this.readRequests('WHERE r.requested_by = $1::uuid', [coordinatorId]);
+    // Keep the persisted request for audit/release history, but do not surface
+    // requests whose event is no longer eligible for equipment work.
+    return this.readRequests("WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')", [coordinatorId]);
   }
 
   async listQueue() {
-    return this.readRequests("WHERE r.status = 'Pending Review'", []);
+    return this.readRequests("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')", []);
   }
 
   private async readRequests(where: string, params: unknown[]) {

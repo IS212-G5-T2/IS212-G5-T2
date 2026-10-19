@@ -249,7 +249,7 @@ describe("App equipment request editor routes", () => {
     expect(screen.getByRole("textbox", { name: /Equipment name/ })).toHaveValue("Microphone");
   });
 
-  /** EQUIP-REQUEST-10-N: a user without coordinator authorization is kept out of request editors. */
+  /** EQUIP-REQUEST-10-SUP-ACCESS: a user without coordinator authorization is kept out of request editors. */
   it("keeps create and update editor routes restricted to coordinators", async () => {
     useAppStore.setState({
       currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },

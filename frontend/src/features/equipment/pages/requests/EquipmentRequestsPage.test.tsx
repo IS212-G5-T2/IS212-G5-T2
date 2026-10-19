@@ -58,15 +58,23 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.queryByRole('textbox', { name: /Equipment name/ })).not.toBeInTheDocument();
   });
 
-  /** EQUIP-REQUEST-10-BND-1: confirmed requests cannot be opened from the update action. */
-  it('hides Update Event once the event is Confirmed', async () => {
-    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, eventStatus: 'Confirmed' }]);
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: an existing request remains editable after review status changes while its event is still open. */
+  it('shows Update Event when the request is Reserved and its event is still Planning', async () => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, status: 'Reserved' as never, eventStatus: 'Planning' }]);
+    renderPage();
+    expect(await screen.findByText(record.reference)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Update Event' })).toHaveAttribute('href', `/equipment/requests/${record.id}/update`);
+  });
+
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: only open event statuses can be opened from the update action. */
+  it.each(['Confirmed', 'Cancelled', 'Rejected'] as const)('hides Update Event once the event is %s', async (eventStatus) => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, eventStatus }]);
     renderPage();
     expect(await screen.findByText(record.reference)).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Update Event' })).not.toBeInTheDocument();
   });
 
-  /** EQUIP-REQUEST-11-N: the list offers update, never another inline submission form. */
+  /** EQUIP-REQUEST-10-A: an existing request is changed through Update Event, never a second inline submission form. */
   it('provides an update path for an existing request and not a second inline submission form', async () => {
     renderPage();
     expect(await screen.findByRole('link', { name: 'Update Event' })).toBeInTheDocument();
@@ -109,6 +117,18 @@ describe('SPM-57 equipment request list and queue', () => {
     vi.mocked(getMyEquipmentRequests).mockRejectedValue('offline');
     renderPage();
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load equipment requests.');
+  });
+
+  /** EQUIP-REQUEST-06-SUP-READ: a failed list refresh clears the previous content after the view's data source changes. */
+  it('clears previously loaded request cards when a role-specific refresh fails', async () => {
+    const { rerender } = renderPage();
+    expect(await screen.findByText(record.reference)).toBeInTheDocument();
+    vi.mocked(getEquipmentRequestQueue).mockRejectedValue(new Error('Queue failed'));
+    setRole('tech_support');
+    rerender(<MemoryRouter initialEntries={['/equipment/requests']}><EquipmentRequestsPage /></MemoryRouter>);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Queue failed');
+    expect(screen.queryByText(record.reference)).not.toBeInTheDocument();
+    expect(screen.getByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
   /** EQUIP-REQUEST-05-A: submission opens a reference-bearing dialog that closes only on OK. */

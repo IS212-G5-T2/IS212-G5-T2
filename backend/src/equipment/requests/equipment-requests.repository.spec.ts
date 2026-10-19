@@ -36,7 +36,8 @@ describe('SPM-57 equipment request persistence', () => {
       startDateTime: '2030-01-12T04:00:00.000Z', endDateTime: '2030-01-12T05:00:00.000Z', expectedAttendance: 20,
     }]);
     expect(query).toHaveBeenCalledWith(expect.stringContaining('event_name'), [coordinatorId]);
-    expect(query.mock.calls[0][0]).toContain("status IN ('Approved', 'Planning', 'Confirmed')");
+    expect(query.mock.calls[0][0]).toContain("status IN ('Approved', 'Planning')");
+    expect(query.mock.calls[0][0]).toContain('NOT EXISTS (SELECT 1 FROM equipment_requests r WHERE r.event_id = events.id)');
   });
 
   /** EQUIP-REQUEST-09-A: the first request for an Approved event, request items, status transition, and history commit together. */
@@ -70,14 +71,14 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO equipment_requests'))).toBe(false);
   });
 
-  /** EQUIP-REQUEST-10-N: a request owned by someone else is indistinguishable from a missing request and causes no writes. */
+  /** EQUIP-REQUEST-10-SUP-ACCESS: a request owned by someone else is indistinguishable from a missing request and causes no writes. */
   it('does not write when the request is not owned by the caller', async () => {
     query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(repository.update(coordinatorId, requestId, input)).resolves.toEqual({ kind: 'request-not-found' });
     expect(query).toHaveBeenCalledOnce();
   });
 
-  /** EQUIP-REQUEST-10-BND-1: a Confirmed event rejects an update before changing request or reservation rows. */
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a Confirmed event rejects an update before changing request or reservation rows. */
   it('does not write after the linked event is Confirmed', async () => {
     setup('Confirmed');
     await expect(repository.update(coordinatorId, requestId, input)).resolves.toEqual({ kind: 'event-confirmed' });
@@ -91,7 +92,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
-  /** EQUIP-REQUEST-10-BND-1: a Cancelled or Rejected event cannot accept an equipment request update. */
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a Cancelled or Rejected event cannot accept an equipment request update. */
   it.each(['Cancelled', 'Rejected'])('does not write when an event has status %s', async (status) => {
     setup(status);
     await expect(repository.update(coordinatorId, requestId, input)).resolves.toEqual({ kind: 'event-not-open' });
@@ -107,7 +108,7 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('event_status_history'))).toBe(false);
   });
 
-  /** EQUIP-REQUEST-11-N: a second POST for an event with a request is refused; updates use the existing request. */
+  /** EQUIP-REQUEST-10-N: a second POST for an event with a request is refused; updates use the existing request. */
   it('refuses a duplicate event request before inserting request or reservation rows', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM events WHERE')) return { rows: [{ ...event, status: 'Planning' }], rowCount: 1 };
@@ -126,7 +127,7 @@ describe('SPM-57 equipment request persistence', () => {
     query.mockImplementation(async (sql: string) => sql.includes('FROM events WHERE') ? { rows: [], rowCount: 0 } : { rows: [], rowCount: 0 });
     await expect(repository.submit(coordinatorId, input)).resolves.toEqual({ kind: 'event-not-assigned' });
     expect(query).toHaveBeenCalledTimes(1);
-    for (const status of ['Cancelled', 'Rejected']) {
+    for (const status of ['Cancelled', 'Rejected', 'Confirmed']) {
       setup(status);
       await expect(repository.submit(coordinatorId, input)).resolves.toEqual({ kind: 'event-not-open', status });
       expect(query).toHaveBeenCalledTimes(1);
@@ -148,9 +149,9 @@ describe('SPM-57 equipment request persistence', () => {
     const database = { query };
     repository = new EquipmentRequestsRepository(database as unknown as DatabaseService);
     await expect(repository.listMine(coordinatorId)).resolves.toMatchObject([{ status: 'Pending Review', items: [{ equipmentName: 'Conference microphone', equipmentType: 'Audio' }, { equipmentName: 'Display screen', equipmentType: 'Visual' }] }]);
-    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining('WHERE r.requested_by = $1::uuid'), [coordinatorId]);
+    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
     await expect(repository.listQueue()).resolves.toMatchObject([{ reference: 'ER-00000000', requestedBy: coordinatorId }]);
-    expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review'"), []);
+    expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')"), []);
   });
 
   /** EQUIP-REQUEST-07-A: an empty review queue is returned as an empty list. */

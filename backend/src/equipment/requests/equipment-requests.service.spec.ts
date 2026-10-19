@@ -40,14 +40,14 @@ describe('SPM-57 equipment request service', () => {
     expect(update).toHaveBeenCalledWith(coordinator.uid, '00000000-0000-4000-8000-000000000099', body);
   });
 
-  /** EQUIP-REQUEST-10-N: an authenticated non-coordinator cannot invoke request updates. */
+  /** EQUIP-REQUEST-10-SUP-ACCESS: request updates require coordinator authorization. */
   it('requires an authenticated coordinator before repository update access', async () => {
     await expect(service.update(undefined, 'request-1', body)).rejects.toBeInstanceOf(UnauthorizedException);
     await expect(service.update({ uid: 'staff', roles: ['TECH_SUPPORT'] }, 'request-1', body)).rejects.toBeInstanceOf(ForbiddenException);
     expect(update).not.toHaveBeenCalled();
   });
 
-  /** EQUIP-REQUEST-10-N: a request not owned by the coordinator is hidden as not found. */
+  /** EQUIP-REQUEST-10-SUP-ACCESS: a request not owned by the coordinator is hidden as not found. */
   it('hides a request that does not belong to the caller', async () => {
     update.mockResolvedValue({ kind: 'request-not-found' });
     await expect(service.update(coordinator, 'request-1', body)).rejects.toBeInstanceOf(NotFoundException);
@@ -59,7 +59,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.update(coordinator, 'request-1', body)).rejects.toBeInstanceOf(ConflictException);
   });
 
-  /** EQUIP-REQUEST-10-BND-1: closed, non-confirmed event states are also excluded by request eligibility rules. */
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: closed, non-confirmed events are excluded from request updates. */
   it('refuses updates when the event is no longer open', async () => {
     update.mockResolvedValue({ kind: 'event-not-open' });
     await expect(service.update(coordinator, 'request-1', body)).rejects.toBeInstanceOf(ConflictException);
@@ -77,7 +77,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.submit(coordinator, body)).rejects.toBeInstanceOf(ConflictException);
   });
 
-  /** EQUIP-REQUEST-11-N: an already-requested event cannot be submitted again. */
+  /** EQUIP-REQUEST-10-N: an already-requested event cannot be submitted again. */
   it('requires updates to use the existing equipment request', async () => {
     submit.mockResolvedValue({ kind: 'already-submitted' });
     await expect(service.submit(coordinator, body)).rejects.toMatchObject({

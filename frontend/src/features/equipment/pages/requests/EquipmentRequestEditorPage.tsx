@@ -10,7 +10,7 @@ import {
   type EquipmentRequestEvent, type EquipmentRequestRecord,
 } from '../../api/equipment-requests-api';
 
-const openStatuses = ['approved', 'planning', 'confirmed'];
+const openStatuses = ['approved', 'planning'];
 
 export function EquipmentRequestEditorPage() {
   const currentUser = useAppStore((s) => s.currentUser);
@@ -77,9 +77,9 @@ export function EquipmentRequestEditorPage() {
     <p role="alert" className="mb-4">Equipment request not found.</p>
     <Link to="/equipment/requests" className="text-primary-700 underline dark:text-primary-300">Back to My Equipment Requests</Link>
   </div>;
-  if (request?.eventStatus === 'Confirmed') return <div>
+  if (isEditing && request && !['Approved', 'Planning'].includes(request.eventStatus)) return <div>
     <PageHeader title="Update Equipment Request" />
-    <p role="alert" className="mb-4">This event is confirmed. Its equipment request can no longer be updated.</p>
+    <p role="alert" className="mb-4">This event is {request.eventStatus.toLowerCase()}. Its equipment request can no longer be updated.</p>
     <Link to="/equipment/requests" className="text-primary-700 underline dark:text-primary-300">Back to My Equipment Requests</Link>
   </div>;
 

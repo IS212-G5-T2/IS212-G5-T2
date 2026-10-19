@@ -28,7 +28,18 @@ export function EquipmentReservationForm({
     })) ?? [blankItem()]);
     setErrors({});
   }, [initialEventId, request]);
-  const event = events.find((candidate) => candidate.id === eventId);
+  // An existing request is permanently tied to its event.  Do not depend on the
+  // create-only eligible-events feed to rediscover it: that feed can change as
+  // the event progresses, while the request itself remains updateable.
+  const event = request
+    ? {
+      id: request.eventId,
+      name: request.eventName,
+      startDateTime: request.eventStart,
+      endDateTime: request.eventEnd,
+      expectedAttendance: request.expectedAttendance,
+    }
+    : events.find((candidate) => candidate.id === eventId);
   const updateItem = (index: number, patch: Partial<DraftItem>) => setItems((current) => current.map((item, i) => i === index ? { ...item, ...patch } : item));
 
   const submit = async (e: React.FormEvent) => {
@@ -53,8 +64,8 @@ export function EquipmentReservationForm({
 
   return <form onSubmit={submit} noValidate className="space-y-5">
     <h2 className="text-lg font-semibold">{isEditing ? 'Update equipment request' : 'Request equipment'}</h2>
-    <Select id="equipment-request-event" label="Event" required value={eventId} disabled={isEditing} onChange={(e) => setEventId(e.target.value)} error={errors.eventId}
-      options={events.map((item) => ({ value: item.id, label: item.name }))} />
+    {!isEditing && <Select id="equipment-request-event" label="Event" required value={eventId} onChange={(e) => setEventId(e.target.value)} error={errors.eventId}
+      options={events.map((item) => ({ value: item.id, label: item.name }))} />}
     {event && <dl className="grid gap-2 rounded-lg bg-gray-50 p-4 text-sm dark:bg-gray-800 sm:grid-cols-2" aria-label="Selected event details">
       <div><dt className="text-gray-500">Event name</dt><dd>{event.name}</dd></div>
       <div><dt className="text-gray-500">Date</dt><dd>{eventDateFormat.format(new Date(event.startDateTime))}</dd></div>
@@ -74,7 +85,7 @@ export function EquipmentReservationForm({
     </fieldset>)}
     <div className="flex flex-wrap gap-2">
       <Button type="button" variant="secondary" onClick={() => setItems((current) => [...current, blankItem()])}>Add another item</Button>
-      <Button type="submit" disabled={submitting || !events.length}>{submitting ? (isEditing ? 'Updating…' : 'Submitting…') : (isEditing ? 'Update Event' : 'Submit Request')}</Button>
+      <Button type="submit" disabled={submitting || (!isEditing && !events.length) || (isEditing && !event)}>{submitting ? (isEditing ? 'Updating…' : 'Submitting…') : (isEditing ? 'Update Event' : 'Submit Request')}</Button>
     </div>
   </form>;
 }
