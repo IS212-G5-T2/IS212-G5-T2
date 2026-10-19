@@ -565,6 +565,39 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(requests.rows).toEqual([{ id: created.body.id, status: 'Pending Review' }]);
   });
 
+  /** EQUIP-REQUEST-10-SUP-ACCESS: reassignment removes the former coordinator’s list and update access while granting it to the current coordinator. */
+  it('EQUIP-REQUEST-10-SUP-ACCESS follows the current event coordinator after reassignment', async () => {
+    const formerCoordinator = await createUser('COORDINATOR');
+    const currentCoordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const eventId = await createEvent(formerCoordinator.id, 'Planning');
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', formerCoordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Original microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
+    await pool.query('UPDATE events SET coordinator_id = $2, coordinator_name = $3 WHERE id = $1', [eventId, currentCoordinator.id, 'Current Coordinator']);
+
+    const formerList = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', formerCoordinator.cookie).expect(200);
+    expect(formerList.body.some((row: { id: string }) => row.id === created.body.id)).toBe(false);
+    await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', formerCoordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Unauthorized replacement', equipmentType: 'Audio', quantity: 3 }] }).expect(404);
+    let persisted = await pool.query(`SELECT i.equipment_name, i.quantity FROM equipment_request_items i
+      JOIN equipment_requests r ON r.id = i.request_id WHERE r.id = $1`, [created.body.id]);
+    expect(persisted.rows).toEqual([{ equipment_name: 'Original microphone', quantity: 1 }]);
+
+    const currentList = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', currentCoordinator.cookie).expect(200);
+    expect(currentList.body).toHaveLength(1);
+    expect(currentList.body[0]).toMatchObject({ id: created.body.id, requestedBy: formerCoordinator.id, coordinatorName: 'Current Coordinator' });
+    await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`).set('Cookie', currentCoordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Current replacement', equipmentType: 'Audio', quantity: 2 }] }).expect(200);
+    persisted = await pool.query(`SELECT i.equipment_name, i.quantity FROM equipment_request_items i
+      JOIN equipment_requests r ON r.id = i.request_id WHERE r.id = $1`, [created.body.id]);
+    expect(persisted.rows).toEqual([{ equipment_name: 'Current replacement', quantity: 2 }]);
+
+    const queue = await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', support.cookie).expect(200);
+    expect(queue.body.find((row: { id: string }) => row.id === created.body.id)?.items).toEqual([
+      expect.objectContaining({ equipmentName: 'Current replacement', quantity: 2 }),
+    ]);
+  });
+
   /** EQUIP-REQUEST-10-SUP-LIFECYCLE: updates succeed before confirmation and are refused after the event becomes Confirmed. */
   it('EQUIP-REQUEST-10-SUP-LIFECYCLE allows a pre-Confirmed edit and rejects the next edit at Confirmed', async () => {
     const coordinator = await createUser('COORDINATOR');

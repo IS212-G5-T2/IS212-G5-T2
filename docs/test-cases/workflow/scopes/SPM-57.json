@@ -17,7 +17,7 @@
       "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx",
       "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.test.tsx",
       "frontend/src/features/equipment/pages/requests/EquipmentRequestEditorPage.test.tsx",
-      { "glob": "frontend/src/app/App.test.tsx", "titleMatch": "routes coordinators to a dedicated create form page|routes coordinators to a request-specific update form page|keeps create and update editor routes restricted to coordinators" }
+      { "glob": "frontend/src/app/App.test.tsx", "titleMatch": "routes coordinators to a dedicated create form page|routes coordinators to a request-specific update form page|keeps create and update editor routes restricted to coordinators|keeps Technical Support out of coordinator editors after the root redirect" }
     ]
   },
   "sources": {
@@ -25,14 +25,16 @@
       "backend/src/equipment/requests/dto/equipment-request-input.ts",
       "backend/src/equipment/requests/equipment-requests.repository.ts",
       "backend/src/equipment/requests/equipment-requests.service.ts",
-      "backend/src/equipment/requests/equipment-requests.controller.ts"
+      "backend/src/equipment/requests/equipment-requests.controller.ts",
+      "backend/src/app.module.ts"
     ],
     "frontend": [
       "frontend/src/features/equipment/api/equipment-requests-api.ts",
       "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.tsx",
       "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.tsx",
       "frontend/src/features/equipment/pages/requests/EquipmentRequestEditorPage.tsx",
-      "frontend/src/features/equipment/pages/requests/EquipmentRequestConfirmationDialog.tsx"
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestConfirmationDialog.tsx",
+      "frontend/src/app/App.tsx"
     ]
   },
   "suites": [

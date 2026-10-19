@@ -66,7 +66,7 @@ describe('SPM-57 equipment request persistence', () => {
       expect.stringContaining('INSERT INTO equipment_reservations'),
       expect.stringContaining('UPDATE equipment_requests SET updated_at'),
     ]));
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE r.id = $1::uuid AND r.requested_by = $2::uuid'), [requestId, coordinatorId]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE r.id = $1::uuid AND e.coordinator_id = $2::text'), [requestId, coordinatorId]);
     expect(query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO equipment_reservations')).every(([sql]) => sql.includes('equipment_request_item_id'))).toBe(true);
     expect(query.mock.calls.some(([sql]) => sql.includes('INSERT INTO equipment_requests'))).toBe(false);
   });
@@ -76,6 +76,14 @@ describe('SPM-57 equipment request persistence', () => {
     query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(repository.update(coordinatorId, requestId, input)).resolves.toEqual({ kind: 'request-not-found' });
     expect(query).toHaveBeenCalledOnce();
+  });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: coordinator request reads follow current event assignment rather than the historical submitter. */
+  it('scopes My Equipment Requests to the current event coordinator', async () => {
+    query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
+    repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
+    await expect(repository.listMine(coordinatorId)).resolves.toEqual([]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
   });
 
   /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a Confirmed event rejects an update before changing request or reservation rows. */
@@ -149,7 +157,7 @@ describe('SPM-57 equipment request persistence', () => {
     const database = { query };
     repository = new EquipmentRequestsRepository(database as unknown as DatabaseService);
     await expect(repository.listMine(coordinatorId)).resolves.toMatchObject([{ status: 'Pending Review', items: [{ equipmentName: 'Conference microphone', equipmentType: 'Audio' }, { equipmentName: 'Display screen', equipmentType: 'Visual' }] }]);
-    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
+    expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
     await expect(repository.listQueue()).resolves.toMatchObject([{ reference: 'ER-00000000', requestedBy: coordinatorId }]);
     expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')"), []);
   });
