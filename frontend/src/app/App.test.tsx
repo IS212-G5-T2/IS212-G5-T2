@@ -258,4 +258,15 @@ describe("App equipment request editor routes", () => {
     expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
   });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: Technical Support remains on its own home route and never reaches coordinator equipment request editors. */
+  it("keeps Technical Support out of coordinator editors after the root redirect", async () => {
+    useAppStore.setState({
+      currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },
+    });
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Update Equipment Request" })).toBeNull();
+  });
 });

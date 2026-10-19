@@ -95,7 +95,7 @@ export class EquipmentRequestsRepository {
       const existing = await client.query<{ id: string; event_id: string; event_status: string }>(
         `SELECT r.id, r.event_id, e.status AS event_status
            FROM equipment_requests r JOIN events e ON e.id = r.event_id
-          WHERE r.id = $1::uuid AND r.requested_by = $2::uuid
+          WHERE r.id = $1::uuid AND e.coordinator_id = $2::text
           FOR UPDATE OF r, e`,
         [requestId, coordinatorId],
       );
@@ -149,9 +149,10 @@ export class EquipmentRequestsRepository {
   }
 
   async listMine(coordinatorId: string) {
-    // Keep the persisted request for audit/release history, but do not surface
-    // requests whose event is no longer eligible for equipment work.
-    return this.readRequests("WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')", [coordinatorId]);
+    // Assignment is current ownership for coordinator-facing request access;
+    // requested_by remains the historical submitter and must not grant access
+    // after the event has been reassigned.
+    return this.readRequests("WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')", [coordinatorId]);
   }
 
   async listQueue() {

@@ -109,8 +109,11 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.getByRole('textbox', { name: /Equipment name/ })).toHaveValue('Microphone');
     expect(screen.getByRole('combobox', { name: /Equipment type/ })).toHaveValue('Audio');
     expect(screen.getByRole('spinbutton', { name: /Quantity/ })).toHaveValue(1);
-    await user.clear(screen.getByRole('textbox', { name: /Equipment name/ }));
-    await user.type(screen.getByRole('textbox', { name: /Equipment name/ }), 'Wireless microphone');
+    const nameInput = screen.getByRole('textbox', { name: /Equipment name/ });
+    await user.clear(nameInput);
+    await waitFor(() => expect(nameInput).toHaveValue(''));
+    await user.type(nameInput, 'Wireless microphone');
+    await waitFor(() => expect(nameInput).toHaveValue('Wireless microphone'));
     await user.click(screen.getByRole('button', { name: 'Update Event' }));
     await waitFor(() => expect(updateEquipmentRequest).toHaveBeenCalledWith(record.id, {
       eventId: event.id, items: [{ equipmentName: 'Wireless microphone', equipmentType: 'Audio', quantity: 1 }],

@@ -51,7 +51,7 @@ export const MUTANTS = [
   {
     id: 'BE-57-05', name: 'request list includes requests from other coordinators', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['repository'],
     testMappings: [{ suite: 'repository', file: 'src/equipment/requests/equipment-requests.repository.spec.ts', title: 'groups request items for the coordinator list and review queue' }],
-    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", 'return this.readRequests(\'\', []);']],
+    edits: [["return this.readRequests(\"WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", 'return this.readRequests(\'\', []);']],
   },
   {
     id: 'BE-57-06', name: 'request queue includes non-pending requests', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['repository'],
@@ -66,7 +66,7 @@ export const MUTANTS = [
   {
     id: 'BE-57-10', name: 'coordinator list includes rows belonging to another coordinator', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-06-A isolates coordinator request lists' }],
-    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE r.requested_by = $1::uuid OR TRUE\", [coordinatorId]);"]],
+    edits: [["return this.readRequests(\"WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE e.coordinator_id = $1::text OR TRUE\", [coordinatorId]);"]],
   },
   {
     id: 'BE-57-11', name: 'review queue includes non-Pending Review rows', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
@@ -129,7 +129,7 @@ export const MUTANTS = [
   {
     id: 'BE-57-25', name: 'coordinator list includes requests for Cancelled or Rejected events', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-08-SUP-HISTORY hides a retained request after its event becomes' }],
-    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE r.requested_by = $1::uuid\", [coordinatorId]);"]],
+    edits: [["return this.readRequests(\"WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE e.coordinator_id = $1::text\", [coordinatorId]);"]],
   },
   {
     id: 'BE-57-26', name: 'Technical Support queue includes requests for Cancelled or Rejected events', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
@@ -149,7 +149,15 @@ export const MUTANTS = [
   {
     id: 'BE-57-27', name: 'a Reserved request cannot be updated before event confirmation', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'updates a Reserved request before event confirmation' }],
-    edits: [["WHERE r.id = $1::uuid AND r.requested_by = $2::uuid\n          FOR UPDATE OF r, e", "WHERE r.id = $1::uuid AND r.requested_by = $2::uuid AND r.status = 'Pending Review'\n          FOR UPDATE OF r, e"]],
+    edits: [["WHERE r.id = $1::uuid AND e.coordinator_id = $2::text\n          FOR UPDATE OF r, e", "WHERE r.id = $1::uuid AND e.coordinator_id = $2::text AND r.status = 'Pending Review'\n          FOR UPDATE OF r, e"]],
+  },
+  {
+    id: 'BE-57-29', name: 'former coordinator retains list and update access after event reassignment', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-10-SUP-ACCESS follows the current event coordinator after reassignment' }],
+    edits: [
+      ["WHERE r.id = $1::uuid AND e.coordinator_id = $2::text\n          FOR UPDATE OF r, e", "WHERE r.id = $1::uuid AND r.requested_by = $2::uuid\n          FOR UPDATE OF r, e"],
+      ["WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')", "WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')"],
+    ],
   },
   {
     id: 'BE-57-28', name: 'Rejected events accept new equipment requests', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],

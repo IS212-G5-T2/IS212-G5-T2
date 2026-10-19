@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Select, TextInput } from '@/components/ui/FormControls';
 import type { EquipmentRecord } from '@/types';
@@ -21,13 +21,6 @@ export function EquipmentReservationForm({
     equipmentName: item.equipmentName, equipmentType: item.equipmentType, quantity: String(item.quantity),
   })) ?? [blankItem()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  useEffect(() => {
-    setEventId(request?.eventId ?? initialEventId);
-    setItems(request?.items.map((item) => ({
-      equipmentName: item.equipmentName, equipmentType: item.equipmentType, quantity: String(item.quantity),
-    })) ?? [blankItem()]);
-    setErrors({});
-  }, [initialEventId, request]);
   // An existing request is permanently tied to its event.  Do not depend on the
   // create-only eligible-events feed to rediscover it: that feed can change as
   // the event progresses, while the request itself remains updateable.

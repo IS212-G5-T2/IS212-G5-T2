@@ -68,3 +68,7 @@ Where user is the user's github username.
 
 - kishorek888 - implementation - SPM-57 - Request equipment for an event: Added coordinator equipment-request creation, event-context prefill, validation, confirmation reference, Pending Review views, Technical Support queue, lifecycle guards, Approved-to-Planning transition, duplicate prevention, and in-place updates. Confluence procedures and matrix traceability were updated. Cycle 29 independently passed G1–G7: 158/158 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement, branch, function, and line coverage; 45/45 mutants killed. No push, PR, or Jira transition.
 - chaw678 - review correction - SPM-55 - Test Review TR-55-05 and TR-55-08: added VEN-REV-09-A/B (approve and reject roll back and reject when the audit insert fails; mutant VEN-REV-M39 kills both) and VEN-REV-09-C (a user with Venue Staff and Coordinator roles sees the review list and the coordinator bookings; mutant VEN-REV-M42). Backend 74 files and 1680 tests, frontend 119 files and 1672 tests pass; BookingsPage.tsx and venues.repository.ts at 100%. Not committed.
+
+## 2026-10-19
+
+- kishorek888 - implementation correction - SPM-57 - Enforce current coordinator ownership after reassignment: Updated request reads and edits to follow the event's current coordinator; added PostgreSQL HTTP reassignment coverage and mutant BE-57-29; removed a form reset race and made its exact replacement-value assertion deterministic. Expanded SPM-57 coverage scope to include frontend route wiring and backend module wiring.
