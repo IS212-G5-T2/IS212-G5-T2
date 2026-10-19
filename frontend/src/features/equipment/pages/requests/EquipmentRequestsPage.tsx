@@ -6,6 +6,8 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { getEquipmentRequestQueue, getMyEquipmentRequests, type EquipmentRequestRecord } from '../../api/equipment-requests-api';
 import { EquipmentRequestConfirmationDialog } from './EquipmentRequestConfirmationDialog';
 
+const updatableEventStatuses = new Set(['Approved', 'Planning']);
+
 export function EquipmentRequestsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -36,6 +38,7 @@ export function EquipmentRequestsPage() {
     try {
       setRequests(isCoordinator ? await getMyEquipmentRequests() : await getEquipmentRequestQueue());
     } catch (e) {
+      setRequests([]);
       setError(e instanceof Error ? e.message : 'Could not load equipment requests.');
     } finally { setLoading(false); }
   }, [isCoordinator]);
@@ -65,7 +68,7 @@ export function EquipmentRequestsPage() {
             <p className="text-sm text-gray-500">{new Date(record.eventStart).toLocaleString()} · Expected attendance {record.expectedAttendance}</p>
             {record.coordinatorName && <p className="text-sm text-gray-500">Coordinator: {record.coordinatorName}</p>}
           </div><div className="flex items-center gap-2"><span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-800">{record.status}</span>
-            {isCoordinator && record.status === 'Pending Review' && record.eventStatus !== 'Confirmed' && <Link to={`/equipment/requests/${encodeURIComponent(record.id)}/update`}
+            {isCoordinator && updatableEventStatuses.has(record.eventStatus) && <Link to={`/equipment/requests/${encodeURIComponent(record.id)}/update`}
               className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
               Update Event
             </Link>}

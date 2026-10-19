@@ -3,7 +3,6 @@ export const SUITES = {
   repository: { args: ['run', 'src/equipment/requests/equipment-requests.repository.spec.ts'] },
   service: { args: ['run', 'src/equipment/requests/equipment-requests.service.spec.ts'] },
   controller: { args: ['run', 'src/equipment/requests/equipment-requests.controller.spec.ts'] },
-  service: { args: ['run', 'src/equipment/requests/equipment-requests.service.spec.ts'] },
   e2e: { args: ['run', '--config', './vitest.config.e2e.ts', 'test/equipment-requests.e2e-spec.ts'], needsEnv: ['DATABASE_URL'] },
 };
 
@@ -18,8 +17,8 @@ export const MUTANTS = [
   },
   {
     id: 'BE-57-15', name: 'reservation persistence stores type instead of the submitted equipment name', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
-    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-03-A creates a Pending Review request' }],
-    edits: [['[input.eventId, item.equipmentName, item.quantity]', '[input.eventId, item.equipmentType, item.quantity]']],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning' }],
+    edits: [["`INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status, equipment_request_item_id)\n           VALUES ($1::uuid, $2, $3, 'Requested', $4::uuid)`,\n          [input.eventId, item.equipmentName, item.quantity, savedItem.rows[0].id],", "`INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status, equipment_request_item_id)\n           VALUES ($1::uuid, $2, $3, 'Requested', $4::uuid)`,\n          [input.eventId, item.equipmentType, item.quantity, savedItem.rows[0].id],"]],
   },
   {
     id: 'BE-57-01', name: 'request quantity accepts zero', file: 'src/equipment/requests/dto/equipment-request-input.ts', suites: ['dto'],
@@ -46,18 +45,18 @@ export const MUTANTS = [
   },
   {
     id: 'BE-57-04', name: 'cancelled events accept equipment requests', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
-    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'refuses a' }],
-    edits: [["if (!['Approved', 'Planning', 'Confirmed'].includes(row.status))", "if (row.status === 'Rejected')"]],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-08-N refuses a Cancelled event request without side effects' }],
+    edits: [["if (!['Approved', 'Planning'].includes(row.status))", "if (row.status === 'Rejected')"]],
   },
   {
     id: 'BE-57-05', name: 'request list includes requests from other coordinators', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['repository'],
     testMappings: [{ suite: 'repository', file: 'src/equipment/requests/equipment-requests.repository.spec.ts', title: 'groups request items for the coordinator list and review queue' }],
-    edits: [["return this.readRequests('WHERE r.requested_by = $1::uuid', [coordinatorId]);", 'return this.readRequests(\'\', []);']],
+    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", 'return this.readRequests(\'\', []);']],
   },
   {
     id: 'BE-57-06', name: 'request queue includes non-pending requests', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['repository'],
     testMappings: [{ suite: 'repository', file: 'src/equipment/requests/equipment-requests.repository.spec.ts', title: 'groups request items for the coordinator list and review queue' }],
-    edits: [["return this.readRequests(\"WHERE r.status = 'Pending Review'\", []);", "return this.readRequests('', []);"]],
+    edits: [["return this.readRequests(\"WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')\", []);", "return this.readRequests('', []);"]],
   },
   {
     id: 'BE-57-09', name: 'request is created when the Approved-to-Planning compare-and-set fails', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['repository'],
@@ -67,17 +66,17 @@ export const MUTANTS = [
   {
     id: 'BE-57-10', name: 'coordinator list includes rows belonging to another coordinator', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-06-A isolates coordinator request lists' }],
-    edits: [["return this.readRequests('WHERE r.requested_by = $1::uuid', [coordinatorId]);", "return this.readRequests('WHERE r.requested_by = $1::uuid OR TRUE', [coordinatorId]);"]],
+    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE r.requested_by = $1::uuid OR TRUE\", [coordinatorId]);"]],
   },
   {
     id: 'BE-57-11', name: 'review queue includes non-Pending Review rows', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-07-A excludes non-Pending Review requests from the support queue' }],
-    edits: [["return this.readRequests(\"WHERE r.status = 'Pending Review'\", []);", "return this.readRequests(\"WHERE r.status = 'Pending Review' OR TRUE\", []);"]],
+    edits: [["return this.readRequests(\"WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')\", []);", "return this.readRequests(\"WHERE r.status = 'Pending Review' OR TRUE\", []);"]],
   },
   {
     id: 'BE-57-12', name: 'confirmation reference does not identify persisted request', file: 'src/equipment/requests/equipment-requests.service.ts', suites: ['e2e'],
     testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-05-A returns the persisted request id and reference in confirmation and lists' }],
-    edits: [["result.id.replaceAll('-', '').slice(0, 8).toUpperCase()", "'DEADBEEF'"]],
+    edits: [["if (result.kind === 'already-submitted') throw new ConflictException('An equipment request already exists for this event. Update the existing request instead.');\n    return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };", "if (result.kind === 'already-submitted') throw new ConflictException('An equipment request already exists for this event. Update the existing request instead.');\n    return { ...result, requestReference: 'ER-DEADBEEF' };"]],
   },
   {
     id: 'BE-57-13', name: 'coordinator can submit against another coordinator’s eligible event', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
@@ -108,6 +107,36 @@ export const MUTANTS = [
     edits: [['const items = body.items.map((candidate, index): EquipmentRequestItemInput => {', 'const items = body.items.slice(0, 1).map((candidate, index): EquipmentRequestItemInput => {']],
   },
   {
+    id: 'BE-57-21', name: 'Confirmed event can receive a new equipment request', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-01-N refuses a Confirmed event without request, reservation, or history writes' }],
+    edits: [["if (!['Approved', 'Planning'].includes(row.status))", "if (!['Approved', 'Planning', 'Confirmed'].includes(row.status))"]],
+  },
+  {
+    id: 'BE-57-22', name: 'duplicate POST creates a second equipment request', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'refuses a duplicate request while preserving the original request and Approved-to-Planning history' }],
+    edits: [["if (existing.rows[0]) return { kind: 'already-submitted' as const };", "if (false && existing.rows[0]) return { kind: 'already-submitted' as const };"]],
+  },
+  {
+    id: 'BE-57-23', name: 'concurrent submits do not serialize on the event row', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-10-BND-1 serializes concurrent submits to one request and side-effect set' }],
+    edits: [['AND coordinator_id = $2::text FOR UPDATE', 'AND coordinator_id = $2::text']],
+  },
+  {
+    id: 'BE-57-24', name: 'Confirmed event remains in the eligible-events HTTP response', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-01-N returns only open assigned event names from the eligible-events HTTP endpoint' }],
+    edits: [["AND status IN ('Approved', 'Planning')", "AND status IN ('Approved', 'Planning', 'Confirmed')"]],
+  },
+  {
+    id: 'BE-57-25', name: 'coordinator list includes requests for Cancelled or Rejected events', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-08-SUP-HISTORY hides a retained request after its event becomes' }],
+    edits: [["return this.readRequests(\"WHERE r.requested_by = $1::uuid AND e.status NOT IN ('Cancelled', 'Rejected')\", [coordinatorId]);", "return this.readRequests(\"WHERE r.requested_by = $1::uuid\", [coordinatorId]);"]],
+  },
+  {
+    id: 'BE-57-26', name: 'Technical Support queue includes requests for Cancelled or Rejected events', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-08-SUP-HISTORY hides a retained request after its event becomes' }],
+    edits: [["return this.readRequests(\"WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')\", []);", "return this.readRequests(\"WHERE r.status = 'Pending Review'\", []);"]],
+  },
+  {
     id: 'BE-57-07', name: 'request submission drops the authenticated caller identity', file: 'src/equipment/requests/equipment-requests.controller.ts', suites: ['controller'],
     testMappings: [{ suite: 'controller', file: 'src/equipment/requests/equipment-requests.controller.spec.ts', title: 'forwards a request submission to the service' }],
     edits: [['this.requests.submit(request[CURRENT_USER_REQUEST_KEY], body)', 'this.requests.submit(undefined, body)']],
@@ -116,5 +145,15 @@ export const MUTANTS = [
     id: 'BE-57-08', name: 'equipment request accepts an unauthenticated coordinator', file: 'src/equipment/requests/equipment-requests.service.ts', suites: ['service'],
     testMappings: [{ suite: 'service', file: 'src/equipment/requests/equipment-requests.service.spec.ts', title: 'requires a coordinator session before repository access' }],
     edits: [["private coordinator(user: AuthenticatedUser | undefined): AuthenticatedUser {\n    if (!user?.uid) throw new UnauthorizedException('Authentication required.');", "private coordinator(user: AuthenticatedUser | undefined): AuthenticatedUser {\n    if (false) throw new UnauthorizedException('Authentication required.');"]],
+  },
+  {
+    id: 'BE-57-27', name: 'a Reserved request cannot be updated before event confirmation', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'updates a Reserved request before event confirmation' }],
+    edits: [["WHERE r.id = $1::uuid AND r.requested_by = $2::uuid\n          FOR UPDATE OF r, e", "WHERE r.id = $1::uuid AND r.requested_by = $2::uuid AND r.status = 'Pending Review'\n          FOR UPDATE OF r, e"]],
+  },
+  {
+    id: 'BE-57-28', name: 'Rejected events accept new equipment requests', file: 'src/equipment/requests/equipment-requests.repository.ts', suites: ['e2e'],
+    testMappings: [{ suite: 'e2e', file: 'test/equipment-requests.e2e-spec.ts', title: 'EQUIP-REQUEST-08-N refuses a Rejected event request without side effects' }],
+    edits: [["if (!['Approved', 'Planning'].includes(row.status))", "if (!['Approved', 'Planning', 'Rejected'].includes(row.status))"]],
   },
 ];

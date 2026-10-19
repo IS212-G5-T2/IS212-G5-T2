@@ -9,7 +9,7 @@ const event: EventRecord = {
   organiserId: 'organiser-1', organiserName: 'Organiser', coordinatorId: 'coordinator-1',
   status: 'approved', startDateTime: '2030-02-03T10:00:00.000Z', endDateTime: '2030-02-03T12:00:00.000Z',
   expectedAttendance: 120, venueRequirements: { minCapacity: 120, accessibility: [], facilities: [], layout: '' },
-  equipmentNeeds: '', registrationEnabled: false, changeRequests: [], createdAt: '', updatedAt: '',
+  equipmentNeeds: '', registrationEnabled: false, createdAt: '', updatedAt: '',
 };
 
 describe('SPM-57 equipment request form', () => {
@@ -131,6 +131,7 @@ describe('SPM-57 equipment request form', () => {
   });
 
   /** EQUIP-REQUEST-03-N: a blank equipment name is identified and blocks submission. */
+  /** EQUIP-REQUEST-03-N: a required equipment name must be nonblank before form submission. */
   it('requires a nonblank equipment name before submission', async () => {
     const user = userEvent.setup();
     const onSubmit = vi.fn();

@@ -104,8 +104,8 @@ describe('SPM-57 separate equipment request editor routes', () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
     renderEditor(`/equipment/requests/${record.id}/update`);
     expect(await screen.findByRole('heading', { name: 'Update Equipment Request' })).toBeInTheDocument();
-    expect(screen.getByRole('combobox', { name: /Event/ })).toHaveValue(event.id);
-    expect(screen.getByRole('combobox', { name: /Event/ })).toBeDisabled();
+    expect(screen.queryByRole('combobox', { name: /Event/ })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Selected event details')).toHaveTextContent(event.name);
     expect(screen.getByRole('textbox', { name: /Equipment name/ })).toHaveValue('Microphone');
     expect(screen.getByRole('combobox', { name: /Equipment type/ })).toHaveValue('Audio');
     expect(screen.getByRole('spinbutton', { name: /Quantity/ })).toHaveValue(1);
@@ -119,7 +119,21 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(submitEquipmentRequest).not.toHaveBeenCalled();
   });
 
-  /** EQUIP-REQUEST-11-N: a submitted event is excluded from the create picker and can only be updated. */
+  /** EQUIP-REQUEST-10-A: an update remains tied to its request event even if it is no longer in the create-event feed. */
+  it('keeps the original event fixed when the eligible-events feed no longer returns it', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getAssignedEvents).mockResolvedValue([]);
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
+    renderEditor(`/equipment/requests/${record.id}/update`);
+    expect(await screen.findByLabelText('Selected event details')).toHaveTextContent(event.name);
+    expect(screen.queryByRole('combobox', { name: /Event/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Update Event' }));
+    await waitFor(() => expect(updateEquipmentRequest).toHaveBeenCalledWith(record.id, {
+      eventId: record.eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }],
+    }));
+  });
+
+  /** EQUIP-REQUEST-10-N: a submitted event is excluded from the create picker and can only be updated. */
   it('prevents creating another request for an event already in My Equipment Requests', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
     renderEditor('/equipment/requests/create');
@@ -135,6 +149,7 @@ describe('SPM-57 separate equipment request editor routes', () => {
       event,
       { ...event, id: 'cancelled-event', name: 'Cancelled', status: 'cancelled' },
       { ...event, id: 'rejected-event', name: 'Rejected', status: 'rejected' },
+      { ...event, id: 'confirmed-event', name: 'Confirmed', status: 'confirmed' },
     ]);
     renderEditor('/equipment/requests/create');
     const picker = await screen.findByRole('combobox', { name: /Event/ });
@@ -143,14 +158,54 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.getByRole('option', { name: event.name })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Cancelled' })).not.toBeInTheDocument();
     expect(screen.queryByRole('option', { name: 'Rejected' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Confirmed' })).not.toBeInTheDocument();
   });
 
-  /** EQUIP-REQUEST-10-A: if editor data cannot load, the user can return to the request list. */
+  /** EQUIP-REQUEST-01-N: if editor data cannot load, the user can return to the request list. */
   it('provides a fallback message when request form data cannot be loaded', async () => {
     vi.mocked(getAssignedEvents).mockRejectedValue('offline');
     renderEditor('/equipment/requests/create');
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load equipment request details.');
     expect(screen.getByRole('link', { name: 'Back to My Equipment Requests' })).toBeInTheDocument();
+  });
+
+  /** EQUIP-REQUEST-01-SUP-LOAD: API errors preserve their actionable message when the editor event list cannot load. */
+  it('shows the API error message when loading editor data rejects with an Error', async () => {
+    vi.mocked(getAssignedEvents).mockRejectedValue(new Error('Events unavailable'));
+    renderEditor('/equipment/requests/create');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Events unavailable');
+  });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: users without coordinator access cannot load the request form. */
+  it('refuses to render the request form for a non-coordinator', () => {
+    mocks.user.role = 'technical-support';
+    renderEditor('/equipment/requests/create');
+    expect(screen.getByRole('alert')).toHaveTextContent('Coordinator access required.');
+    expect(screen.queryByRole('combobox', { name: /Event/ })).not.toBeInTheDocument();
+  });
+
+  /** EQUIP-REQUEST-01-SUP-LOAD: a late load failure after leaving the editor does not update an unmounted page. */
+  it('ignores a load failure that arrives after the editor is unmounted', async () => {
+    let rejectEvents!: (reason: unknown) => void;
+    vi.mocked(getAssignedEvents).mockImplementation(() => new Promise((_, reject) => { rejectEvents = reject; }));
+    vi.mocked(getMyEquipmentRequests).mockImplementation(() => new Promise(() => {}));
+    const view = renderEditor('/equipment/requests/create');
+    view.unmount();
+    rejectEvents(new Error('Late failure'));
+    await waitFor(() => expect(getAssignedEvents).toHaveBeenCalled());
+  });
+
+  /** EQUIP-REQUEST-01-SUP-LOAD: late successful data is ignored after navigating away from the editor. */
+  it('ignores loaded editor data that arrives after the page is unmounted', async () => {
+    let resolveEvents!: (value: EquipmentRequestEvent[]) => void;
+    let resolveRequests!: (value: EquipmentRequestRecord[]) => void;
+    vi.mocked(getAssignedEvents).mockImplementation(() => new Promise((resolve) => { resolveEvents = resolve; }));
+    vi.mocked(getMyEquipmentRequests).mockImplementation(() => new Promise((resolve) => { resolveRequests = resolve; }));
+    const view = renderEditor('/equipment/requests/create');
+    view.unmount();
+    resolveEvents([event]);
+    resolveRequests([]);
+    await waitFor(() => expect(getMyEquipmentRequests).toHaveBeenCalled());
   });
 
   /** EQUIP-REQUEST-10-A: Cancel from the separate editor returns to My Equipment Requests. */
@@ -162,15 +217,15 @@ describe('SPM-57 separate equipment request editor routes', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/equipment/requests');
   });
 
-  /** EQUIP-REQUEST-10-BND-1: direct navigation cannot expose an editor after confirmation. */
-  it('refuses to render an update form after the event is Confirmed', async () => {
-    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, eventStatus: 'Confirmed' }]);
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: direct navigation cannot expose an editor for a closed event. */
+  it.each(['Confirmed', 'Cancelled', 'Rejected'] as const)('refuses to render an update form after the event is %s', async (eventStatus) => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, eventStatus }]);
     renderEditor(`/equipment/requests/${record.id}/update`);
-    expect(await screen.findByRole('alert')).toHaveTextContent(/event is confirmed/);
+    expect(await screen.findByRole('alert')).toHaveTextContent(new RegExp(`event is ${eventStatus.toLowerCase()}`));
     expect(screen.queryByRole('textbox', { name: /Equipment name/ })).not.toBeInTheDocument();
   });
 
-  /** EQUIP-REQUEST-10-N: an unknown or non-owned request is not exposed for editing. */
+  /** EQUIP-REQUEST-10-SUP-ACCESS: an unknown or non-owned request is not exposed for editing. */
   it('does not render an editor when the request is absent from the coordinator list', async () => {
     renderEditor('/equipment/requests/not-owned/update');
     expect(await screen.findByRole('alert')).toHaveTextContent('Equipment request not found.');

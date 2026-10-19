@@ -62,6 +62,49 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     return id;
   }
 
+  async function waitForSubmissionLockWaiter() {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const waiters = await pool.query<{ count: number }>(
+        `SELECT count(*)::int AS count
+           FROM pg_stat_activity
+          WHERE wait_event_type = 'Lock'
+            AND query ILIKE '%FROM events WHERE id%'
+            AND query ILIKE '%coordinator_id%'
+            AND query ILIKE '%FOR UPDATE%'`,
+      );
+      if (waiters.rows[0].count > 0) return true;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    return false;
+  }
+
+  /** EQUIP-REQUEST-01-N: the real event picker returns the event name for open assigned events and excludes Confirmed events. */
+  it('EQUIP-REQUEST-01-N returns only open assigned event names from the eligible-events HTTP endpoint', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const approvedId = await createEvent(coordinator.id, 'Approved');
+    const planningId = await createEvent(coordinator.id, 'Planning');
+    await createEvent(coordinator.id, 'Confirmed');
+
+    const response = await request(app.getHttpServer()).get('/api/equipment/requests/eligible-events')
+      .set('Cookie', coordinator.cookie).expect(200);
+    expect(response.body).toHaveLength(2);
+    expect(response.body.map((row: { id: string }) => row.id)).toEqual(expect.arrayContaining([approvedId, planningId]));
+    expect(response.body.every((row: { status: string }) => ['approved', 'planning'].includes(row.status))).toBe(true);
+    expect(response.body.every((row: { name: string }) => row.name === 'SPM-57 Showcase')).toBe(true);
+    expect(response.body.some((row: { status: string }) => row.status === 'confirmed')).toBe(false);
+  });
+
+  /** EQUIP-REQUEST-01-N: a Confirmed event cannot receive a new equipment request through HTTP. */
+  it('EQUIP-REQUEST-01-N refuses a Confirmed event without request, reservation, or history writes', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const eventId = await createEvent(coordinator.id, 'Confirmed');
+    await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(409);
+    expect((await pool.query('SELECT id FROM equipment_requests WHERE event_id = $1', [eventId])).rows).toEqual([]);
+    expect((await pool.query('SELECT id FROM equipment_reservations WHERE event_id = $1', [eventId])).rows).toEqual([]);
+    expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
+  });
+
   /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
   it('EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning', async () => {
     const coordinator = await createUser('COORDINATOR');
@@ -270,9 +313,10 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(reservations.rows).toEqual([]);
   });
 
-  /** EQUIP-REQUEST-08-N: Cancelled and Rejected event requests are refused without changing event state or creating request data. */
-  it.each(['Cancelled', 'Rejected'])('refuses a %s event request without side effects', async (status) => {
+  /** EQUIP-REQUEST-08-N: Cancelled and Rejected events cannot receive a new equipment request. */
+  it('EQUIP-REQUEST-08-N refuses a Cancelled event request without side effects', async () => {
     const coordinator = await createUser('COORDINATOR');
+    const status = 'Cancelled';
     const eventId = await createEvent(coordinator.id, status);
     await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie).send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(409);
     const count = await pool.query('SELECT count(*)::int AS n FROM equipment_requests WHERE event_id = $1', [eventId]);
@@ -285,11 +329,45 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(history.rows).toEqual([]);
   });
 
-  /** EQUIP-REQUEST-11-N: a second request cannot be submitted for an event; the request must be updated in place. */
+  /** EQUIP-REQUEST-08-N: a Rejected event cannot receive a new equipment request. */
+  it('EQUIP-REQUEST-08-N refuses a Rejected event request without side effects', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const status = 'Rejected';
+    const eventId = await createEvent(coordinator.id, status);
+    await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(409);
+    expect((await pool.query('SELECT count(*)::int AS n FROM equipment_requests WHERE event_id = $1', [eventId])).rows[0].n).toBe(0);
+    expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows[0].status).toBe(status);
+    expect((await pool.query('SELECT id FROM equipment_reservations WHERE event_id = $1', [eventId])).rows).toEqual([]);
+    expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
+  });
+
+  /** EQUIP-REQUEST-08-SUP-HISTORY: requests for Cancelled or Rejected events disappear from both views while their database history is retained. */
+  it.each(['Cancelled', 'Rejected'])('EQUIP-REQUEST-08-SUP-HISTORY hides a retained request after its event becomes %s', async (status) => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
+
+    await pool.query(`UPDATE events SET status = $2,
+      rejection_reason = CASE WHEN $2 = 'Rejected' THEN 'Request visibility test rejection.' ELSE NULL END
+      WHERE id = $1`, [eventId, status]);
+
+    const mine = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', coordinator.cookie).expect(200);
+    const queue = await request(app.getHttpServer()).get('/api/equipment/requests/review-queue').set('Cookie', support.cookie).expect(200);
+    expect(mine.body.map((row: { id: string }) => row.id)).not.toContain(created.body.id);
+    expect(queue.body.map((row: { id: string }) => row.id)).not.toContain(created.body.id);
+    const retained = await pool.query(`SELECT r.id, r.status, i.equipment_name FROM equipment_requests r
+      JOIN equipment_request_items i ON i.request_id = r.id WHERE r.id = $1`, [created.body.id]);
+    expect(retained.rows).toEqual([{ id: created.body.id, status: 'Pending Review', equipment_name: 'Microphone' }]);
+  });
+
+  /** EQUIP-REQUEST-10-N: direct duplicate submission is refused and leaves the original request, reference, items, reservations, event, and history unchanged. */
   it('refuses a duplicate request while preserving the original request and Approved-to-Planning history', async () => {
     const coordinator = await createUser('COORDINATOR');
     const eventId = await createEvent(coordinator.id, 'Approved');
-    await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+    const original = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
       .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
     const priorHistory = await pool.query("SELECT from_status, to_status FROM event_status_history WHERE event_id = $1", [eventId]);
     expect(priorHistory.rows).toEqual([{ from_status: 'Approved', to_status: 'Planning' }]);
@@ -297,9 +375,19 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       .send({ eventId, items: [{ equipmentName: 'Folding chair', equipmentType: 'Furniture', quantity: 1 }] }).expect(409);
     expect(duplicate.body.message).toMatch(/already exists.*Update the existing request/i);
     const requests = await pool.query('SELECT id FROM equipment_requests WHERE event_id = $1', [eventId]);
-    expect(requests.rows).toEqual([{ id: expect.any(String) }]);
-    const items = await pool.query('SELECT equipment_name FROM equipment_request_items WHERE request_id = $1', [requests.rows[0].id]);
-    expect(items.rows).toEqual([{ equipment_name: 'Microphone' }]);
+    expect(requests.rows).toEqual([{ id: original.body.id }]);
+    const items = await pool.query('SELECT equipment_name, equipment_type, quantity FROM equipment_request_items WHERE request_id = $1 ORDER BY item_order', [original.body.id]);
+    expect(items.rows).toEqual([{ equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 1 }]);
+    const reservations = await pool.query('SELECT equipment_name, quantity, status, equipment_request_item_id FROM equipment_reservations WHERE event_id = $1 ORDER BY equipment_name', [eventId]);
+    expect(reservations.rows).toHaveLength(1);
+    expect(reservations.rows[0]).toMatchObject({ equipment_name: 'Microphone', quantity: 1, status: 'Requested' });
+    const mine = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', coordinator.cookie).expect(200);
+    expect(mine.body).toHaveLength(1);
+    expect(mine.body[0]).toMatchObject({ id: original.body.id, reference: original.body.requestReference });
+    expect(mine.body[0].items).toHaveLength(1);
+    expect((await request(app.getHttpServer()).get('/api/equipment/requests/eligible-events').set('Cookie', coordinator.cookie).expect(200))
+      .body.some((row: { id: string }) => row.id === eventId)).toBe(false);
+    expect((await pool.query('SELECT status FROM events WHERE id = $1', [eventId])).rows).toEqual([{ status: 'Planning' }]);
     const history = await pool.query("SELECT from_status, to_status FROM event_status_history WHERE event_id = $1", [eventId]);
     expect(history.rows).toEqual(priorHistory.rows);
   });
@@ -365,18 +453,39 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(queue.body.every((row: { status: string }) => row.status === 'Pending Review')).toBe(true);
   });
 
-  /** EQUIP-REQUEST-11-N: concurrent first submissions serialize so one creates a request and the other must update it. */
-  it('serializes concurrent submits so only one request is created and records one status transition', async () => {
+  /** EQUIP-REQUEST-10-BND-1: a second simultaneous first submission waits on the event lock, then gets the duplicate conflict with one coherent persisted request. */
+  it('EQUIP-REQUEST-10-BND-1 serializes concurrent submits to one request and side-effect set', async () => {
     const coordinator = await createUser('COORDINATOR');
     const eventId = await createEvent(coordinator.id, 'Approved');
     const send = () => request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
       .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 1 }] });
-    const [first, second] = await Promise.all([send(), send()]);
+
+    const locker = await pool.connect();
+    await locker.query('BEGIN');
+    await locker.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [eventId]);
+    const pending = Promise.all([send(), send()]);
+    let observedSubmissionWait = false;
+    try {
+      observedSubmissionWait = await waitForSubmissionLockWaiter();
+    } finally {
+      await locker.query('COMMIT');
+      locker.release();
+    }
+    const [first, second] = await pending;
+    expect(observedSubmissionWait).toBe(true);
     expect([first.status, second.status].sort()).toEqual([201, 409]);
     const created = first.status === 201 ? first : second;
+    const refused = first.status === 409 ? first : second;
+    expect(refused.body.message).toMatch(/already exists.*Update the existing request/i);
     expect(created.body.event.status).toBe('planning');
     const requests = await pool.query('SELECT id FROM equipment_requests WHERE event_id = $1', [eventId]);
-    expect(requests.rows).toHaveLength(1);
+    expect(requests.rows).toEqual([{ id: created.body.id }]);
+    const persistedItems = await pool.query('SELECT id, equipment_name, equipment_type, quantity FROM equipment_request_items WHERE request_id = $1 ORDER BY item_order', [created.body.id]);
+    expect(persistedItems.rows).toEqual([{ id: expect.any(String), equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 1 }]);
+    const reservations = await pool.query('SELECT equipment_name, quantity, status, equipment_request_item_id FROM equipment_reservations WHERE event_id = $1 ORDER BY equipment_name', [eventId]);
+    expect(reservations.rows).toHaveLength(1);
+    expect(reservations.rows[0]).toMatchObject({ equipment_name: 'Microphone', quantity: 1, status: 'Requested' });
+    expect(reservations.rows[0].equipment_request_item_id).toBe(persistedItems.rows[0].id);
     const history = await pool.query("SELECT from_status, to_status FROM event_status_history WHERE event_id = $1", [eventId]);
     expect(history.rows).toEqual([{ from_status: 'Approved', to_status: 'Planning' }]);
   });
@@ -417,8 +526,29 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(rows.rows).toEqual([{ id: created.body.id, count: 1 }]);
   });
 
-  /** EQUIP-REQUEST-10-N: only the request owner can update; rejected foreign writes leave all request data unchanged. */
-  it('EQUIP-REQUEST-10-N refuses a non-owner update without changing request items or reservations', async () => {
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a reviewed request remains updateable while its event is still Planning. */
+  it('updates a Reserved request before event confirmation', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Original', equipmentType: 'Audio', quantity: 1 }] }).expect(201);
+    await pool.query("UPDATE equipment_requests SET status = 'Reserved' WHERE id = $1", [created.body.id]);
+
+    const updated = await request(app.getHttpServer()).put(`/api/equipment/requests/${created.body.id}`)
+      .set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'Revised microphone', equipmentType: 'Audio', quantity: 3 }] }).expect(200);
+
+    expect(updated.body).toMatchObject({ kind: 'updated', id: created.body.id, requestReference: created.body.requestReference });
+    expect((await pool.query('SELECT status FROM equipment_requests WHERE id = $1', [created.body.id])).rows).toEqual([{ status: 'Reserved' }]);
+    expect((await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1', [created.body.id])).rows)
+      .toEqual([{ equipment_name: 'Revised microphone', quantity: 3 }]);
+    expect((await pool.query("SELECT equipment_name, quantity FROM equipment_reservations WHERE event_id = $1 AND status = 'Requested'", [eventId])).rows)
+      .toEqual([{ equipment_name: 'Revised microphone', quantity: 3 }]);
+    expect((await pool.query('SELECT id FROM equipment_requests WHERE event_id = $1', [eventId])).rows).toEqual([{ id: created.body.id }]);
+  });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: only the request owner can update; rejected foreign writes leave all request data unchanged. */
+  it('EQUIP-REQUEST-10-SUP-ACCESS refuses a non-owner update without changing request items or reservations', async () => {
     const owner = await createUser('COORDINATOR');
     const other = await createUser('COORDINATOR');
     const eventId = await createEvent(owner.id, 'Planning');
@@ -435,8 +565,8 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(requests.rows).toEqual([{ id: created.body.id, status: 'Pending Review' }]);
   });
 
-  /** EQUIP-REQUEST-10-BND-1: updates succeed before confirmation and are refused after the same event becomes Confirmed. */
-  it('EQUIP-REQUEST-10-BND-1 allows a pre-Confirmed edit and rejects the next edit at Confirmed', async () => {
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: updates succeed before confirmation and are refused after the event becomes Confirmed. */
+  it('EQUIP-REQUEST-10-SUP-LIFECYCLE allows a pre-Confirmed edit and rejects the next edit at Confirmed', async () => {
     const coordinator = await createUser('COORDINATOR');
     const eventId = await createEvent(coordinator.id, 'Planning');
     const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
