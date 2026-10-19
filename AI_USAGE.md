@@ -59,3 +59,9 @@ Where user is the user's github username.
 - swr - fix - SPM-54 - Correct cancelled venue labels: Cancelled bookings now take precedence over approved request status in planning labels; existing focused label tests were not run.
 
 - swr - test - SPM-54 - Add cancelled venue label regression coverage: Added VEN-BKG-08-A and VEN-BKG-09-A assertions for approved and cancelled labels, scoped StatusLabels coverage, and mutation checks for those paths. Full cycle 20: G1-G7 passed; 339/339 tests across three timezones; 31/31 mutants killed. Overall AMBER because scoped coverage floors and four tier cells remain below target.
+
+- kishorek888 - implementation - SPM-57 - Request equipment for an event: Added coordinator equipment-request creation, event-context prefill, validation, confirmation reference, Pending Review views, Technical Support queue, lifecycle guards, Approved-to-Planning transition, duplicate prevention, and in-place updates. Confluence procedures and matrix traceability were updated. Cycle 29 independently passed G1–G7: 158/158 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement, branch, function, and line coverage; 45/45 mutants killed. No push, PR, or Jira transition.
+
+## 2026-10-19
+
+- kishorek888 - implementation correction - SPM-57 - Enforce current coordinator ownership after reassignment: Updated request reads and edits to follow the event's current coordinator; added PostgreSQL HTTP reassignment coverage and mutant BE-57-29; removed a form reset race and made its exact replacement-value assertion deterministic. Expanded SPM-57 coverage scope to include frontend route wiring and backend module wiring.

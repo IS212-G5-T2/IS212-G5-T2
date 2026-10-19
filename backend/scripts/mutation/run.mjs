@@ -199,7 +199,7 @@ try {
         }
         writeFileSync(path, source);
         if (emptyMappings.length) {
-          status = 'NO TEST SELECTED';
+          status = 'MISAPPLIED';
           tally.misapplied += 1;
         } else if (by.length) {
           status = 'killed';
@@ -220,7 +220,7 @@ try {
         emptyMappings.length ? emptyMappings.join(' | ') : '',
         skippedMappings.length ? `skipped: ${skippedMappings.join(' | ')}` : '',
       ].filter(Boolean).join(' | ');
-      console.log(`${m.id.padEnd(8)} ${status.padEnd(16)} ${evidence} ${m.name}`);
+      console.log(`${m.id.padEnd(8)} ${status.toLowerCase().padEnd(16)} ${evidence} ${m.name}`);
     }
     console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
     if (tally.survived || tally.misapplied) exitCode = 1;

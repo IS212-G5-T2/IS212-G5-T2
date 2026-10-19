@@ -21,6 +21,12 @@ test('parseLog reads the mutation runner killed by syntax with CRLF output', () 
   assert.deepEqual(parsed.results.get('A1'), { status: 'killed', killers: ['service'] });
 });
 
+test('parseLog normalizes raw runner status casing and records misapplied results', () => {
+  const parsed = parseLog('baseline e2e: green\r\nBE-57-23 SURVIVED      concurrent mutant\r\nBE-57-05 MISAPPLIED   request list edit did not apply\r\n', SUITES);
+  assert.equal(parsed.results.get('BE-57-23').status, 'survived');
+  assert.equal(parsed.results.get('BE-57-05').status, 'misapplied');
+});
+
 test('a clean run reconciles with a score and no findings', () => {
   const out = reconcile('t', defs, parseLog(log(['A1       killed     unit a real mutant', 'E1       equivalent  unreachable']), SUITES));
   assert.deepEqual(out.findings, []);
