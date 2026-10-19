@@ -17,7 +17,7 @@ Sources: the pasted SPM-148 prompt (AC text, rules R1 to R12, resolved-spec tabl
 | Unassigned Coordinator / non-Coordinator get 403 | Existing: unassigned Coordinator 404 "Assigned event not found."; other roles 403 "Coordinator access required." | Existing responses asserted as they are (F3 rule) |
 | D3: every status other than Approved/Planning/Confirmed gets 409 | SPM-51 accepted bookings for Submitted events | Per your decision, Submitted now gets 409 too. SPM-51 fixtures that booked against default-Submitted events were moved to Planning (`venues-booking-requests.e2e-spec.ts`, `venues.repository.spec.ts` mocks) |
 | Organiser can start a clarification thread (07-A) | SPM-39: only the assigned Coordinator starts a thread; Organiser and Coordinator reply | Existing roles asserted. Organiser-started post Not Automated (F16: stop and ask) |
-| Parallel identical requests give 4 conflicts (03-D) | Pending requests without a hold do not block each other | Asserted: five bookings, exactly one `statusChanged`, one history row |
+| Requests for multiple venues and duplicate requests (03-B/03-D) | SPM-54 AC7 rejects another active request for the same event/venue; distinct venues remain independent | 03-B asserts five sequential requests to five venues; 03-D asserts one success and four duplicate conflicts, one booking and one history row |
 | API status casing | `GET /api/events` returns lowercase (`planning`); history and DB keep `Planning` | Asserted as the repo has it |
 
 ## Changes to finished stories (D13)
@@ -40,9 +40,9 @@ Lock order: the event row is now `FOR UPDATE` (was `FOR SHARE`) after the venue 
 | 02-B, 02-C, 02-D | faults after status UPDATE, booking INSERT, history INSERT | e2e :: 02-B/C/D | BE real DB | Pass | Database trigger raises right after the write; retry succeeds. No hold table, no hold assertion |
 | 02-E | parallel | e2e :: 02-E | BE real DB | Pass | Adapted: two venues, same event |
 | 03-A | | e2e :: 03-A; FE :: 03-A | BE, FE | Pass | |
-| 03-B | | e2e :: 03-B | BE | Pass | |
+| 03-B | | e2e :: 03-B | BE | Pass | Five sequential requests use distinct venues to avoid violating SPM-54 AC7. |
 | 03-C | | e2e :: 03-C | BE | Pass | Rejection by direct SQL fixture (no reject path exists) |
-| 03-D | parallel / double click | e2e :: 03-D; FE :: 03-D | BE real DB, FE | Pass | Adapted, see differences table |
+| 03-D | parallel / double click | e2e :: 03-D; FE :: 03-D | BE real DB, FE | Pass | Parallel same-event/same-venue submissions: one 201, four `ACTIVE_VENUE_REQUEST_EXISTS` conflicts, one booking, one transition. |
 | 04-A | | e2e :: 04-A (x2); `StatusHistory.test.tsx` | BE, FE | Pass | Shows "15 Oct 2026 12:00 SGT" |
 | 04-B | | e2e :: 04-B | BE | Pass | PUT and DELETE 405 with `Allow: GET` for Coordinator and Organiser |
 | 04-C | | e2e :: 04-C; `booking-request.spec.ts` | BE, unit | Pass | 400 `UNSUPPORTED_BOOKING_FIELDS` |
@@ -75,7 +75,8 @@ All e2e rows: oracle SPEC (prompt 2.6 table) except: 01-D messages and 404/403 (
 | Frontend | `npx vitest run` (frontend) | 71 of 75 files ran; 4 failed to load (`@fullcalendar/react` declared but not installed). After `npm ci`: 75 files, 1084 pass | 78 files, 1091 pass, 1 todo |
 | RED evidence | implementation stashed, new e2e file run | | 30 of 36 failed against the original source (the 6 that passed cover behaviour that already existed) |
 | Timezones | `TZ=UTC`, `Asia/Singapore`, `America/Los_Angeles` | | e2e file 36/36 and `StatusHistory.test.tsx` 3/3 each |
-| Concurrency | 02-E and 03-D, 20 consecutive runs | | 20 of 20 pass |
+| Concurrency | 02-E, 20 consecutive runs | | 20 of 20 pass |
+| Transition regression after SPM-54 alignment | `DATABASE_URL=<local-test-database-url> npm run test:e2e -- test/events-planning-transition.e2e-spec.ts` | | 40/40 pass |
 | Lint / build | `npm run lint`, `tsc -p tsconfig.build.json`, frontend `tsc -b` | | No errors; remaining lint warnings were already present |
 
 Database used: a postgres container built from `database/postgresql` at the current init scripts. The pre-built `spm-local-postgres` image on this machine was stale (no `venue_bookings`) and gave false failures, so it was not used. Coverage was not measured.
