@@ -107,6 +107,10 @@ function approveCalls() {
 
 const EVENT_ID = "00000000-0000-4000-8000-000000000036";
 
+// The store's own decision actions, restored after tests that replace them.
+const realApprove = useAppStore.getState().approveEvent;
+const realReject = useAppStore.getState().rejectEvent;
+
 // Letters and single spaces only, with no leading or trailing whitespace, so the
 // result has exactly n characters and n trimmed characters (n >= 10).
 function reasonOfLength(n: number): string {
@@ -503,5 +507,66 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     // Contrast: while still submitted, the Approve entrypoint is shown.
     renderDetail(assignedEvent({ status: "submitted" }));
     expect(await screen.findByRole("button", { name: "Review Event" })).toBeTruthy();
+  });
+});
+
+// Failure outcomes of the decision controls. The store action is replaced so the page's own
+// error handling is what runs; the store's rollback is covered in useAppStore.decisions.test.ts.
+describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
+  afterEach(() => {
+    useAppStore.setState({ approveEvent: realApprove, rejectEvent: realReject });
+  });
+
+  /** A failed approval keeps the decision controls open and shows the error message. */
+  it("shows the approval error message and keeps the decision controls open", async () => {
+    useAppStore.setState({
+      approveEvent: vi.fn().mockRejectedValue(new Error("Approval could not be saved.")),
+    });
+    renderDetail(assignedEvent());
+    await openReviewApprove();
+
+    submitDecision();
+
+    expect(await screen.findByText("Approval could not be saved.")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("Approval could not be saved.");
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toHaveProperty("disabled", false);
+  });
+
+  /** A failure that is not an Error object falls back to the generic approval message. */
+  it("shows the generic approval message when the failure is not an Error", async () => {
+    useAppStore.setState({ approveEvent: vi.fn().mockRejectedValue("network down") });
+    renderDetail(assignedEvent());
+    await openReviewApprove();
+
+    submitDecision();
+
+    expect(await screen.findByText("Failed to approve event.")).toBeTruthy();
+  });
+
+  /** A failed rejection keeps the reason on screen and shows the error message. */
+  it("shows the rejection error message when the rejection cannot be saved", async () => {
+    useAppStore.setState({
+      rejectEvent: vi.fn().mockRejectedValue(new Error("Rejection could not be saved.")),
+    });
+    renderDetail(assignedEvent());
+    await openReview();
+    fillReason(reasonOfLength(20));
+
+    submitDecision();
+
+    expect(await screen.findByText("Rejection could not be saved.")).toBeTruthy();
+    expect(screen.getByRole("alert").textContent).toBe("Rejection could not be saved.");
+  });
+
+  /** A rejection failure that is not an Error object falls back to the generic rejection message. */
+  it("shows the generic rejection message when the failure is not an Error", async () => {
+    useAppStore.setState({ rejectEvent: vi.fn().mockRejectedValue("offline") });
+    renderDetail(assignedEvent());
+    await openReview();
+    fillReason(reasonOfLength(20));
+
+    submitDecision();
+
+    expect(await screen.findByText("Failed to reject event.")).toBeTruthy();
   });
 });

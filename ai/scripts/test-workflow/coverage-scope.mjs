@@ -15,7 +15,7 @@ import {
   printGate, readJson, readText, rel, stripTicks, writeGate, writeText,
 } from './lib.mjs';
 
-export const STATUSES = ['COVERED-BY-E2E', 'ADD-TEST', 'UNREACHABLE', 'LOW-VALUE', 'OPEN'];
+export const STATUSES = ['COVERED-BY-E2E', 'ADD-TEST', 'UNREACHABLE', 'LOW-VALUE', 'OPEN', 'EXCLUDED'];
 const key = (loc) => `${loc?.start?.line}:${loc?.start?.column}-${loc?.end?.line}:${loc?.end?.column}`;
 
 /** Folds one run's istanbul-style entry for a file into the merged record. */
@@ -85,7 +85,7 @@ export function expandLines(spec) {
   return lines;
 }
 
-/** Rows of coverage-exclusions.md. Kind `file` (default) removes the file from measurement; `ignore-comment` documents a coverage ignore comment and keeps the file measured. */
+/** Rows of coverage-exclusions.md. Kind `file` (default) removes the file from measurement; `ignore-comment` documents a coverage ignore comment and keeps the file measured; kind `line` names one `file:line` whose uncovered line is excluded (status EXCLUDED in coverage-line-status.md). */
 export function readExclusions() {
   const table = parseTables(readText(`${WORKFLOW_DIR}/coverage-exclusions.md`)).find((t) => t.header.includes('reason'));
   return (table?.rows ?? []).map((row) => ({ glob: stripTicks(row.file), kind: (stripTicks(row.kind ?? '') || 'file').toLowerCase(), reason: (row.reason ?? '').trim() }));
@@ -182,6 +182,7 @@ function main() {
         continue;
       }
       if (!STATUSES.includes(row.status)) findings.push(`${file}:${line} has unknown status "${row.status}"`);
+      else if (row.status === 'EXCLUDED' && !exclusions.some((e) => e.kind === 'line' && e.reason && e.glob === `${file}:${line}`)) findings.push(`${file}:${line} is EXCLUDED but coverage-exclusions.md has no line row with a reason for it`);
       else if (!row.note) findings.push(`${file}:${line} status ${row.status} needs a note`);
       else classify(line, row.status, row.note);
     }

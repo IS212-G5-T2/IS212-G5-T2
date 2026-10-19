@@ -273,4 +273,25 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
     expect(links).toHaveLength(2);
     expect(links[0].getAttribute("href")).toBe("/events/event-1/change-requests");
   });
+
+  /**
+   * A window focus refresh that arrives while a notification load is still in flight does not start a second load;
+   * the held load then fills the list when it resolves.
+   */
+  it("does not start a second notification load while one is still in flight", async () => {
+    setUserRole("organiser");
+    const load = deferred<Notification[]>();
+    apiMock.mockReturnValueOnce(load.promise);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+
+    fireEvent(window, new Event("focus"));
+
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    load.resolve([rejectionNotification()]);
+    expect(await screen.findByText(/Reason: Venue is not available/)).toBeTruthy();
+  });
 });

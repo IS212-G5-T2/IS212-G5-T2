@@ -18,7 +18,7 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       reportsDirectory: './coverage/e2e',
       include: ['src/**/*.ts'],
-      exclude: ['**/*.spec.ts', '**/*.e2e-spec.ts', 'src/main.ts'],
+      exclude: ['**/*.spec.ts', '**/*.e2e-spec.ts'],
     },
   },
 });

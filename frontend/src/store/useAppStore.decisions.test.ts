@@ -165,3 +165,77 @@ describe("approveEvent (SPM-40)", () => {
     expect(useAppStore.getState().notifications).toEqual([]);
   });
 });
+
+// Decision actions must change only the request that was decided, including when the request is
+// missing from the loaded list or when another request is loaded alongside it.
+describe("decision actions and other loaded requests (SPM-40, SPM-83)", () => {
+  /** An approval that the server confirms updates only the approved request. */
+  it("approves one request and leaves the other loaded requests unchanged", async () => {
+    useAppStore.setState({
+      events: [pendingEvent(), pendingEvent({ id: "event-2", name: "Second Event" })],
+      notifications: [],
+    });
+    apiMock.mockResolvedValueOnce(pendingEvent({ status: "approved" }));
+
+    await approveEvent("event-1");
+
+    const events = useAppStore.getState().events;
+    expect(events.find((event) => event.id === "event-1")).toMatchObject({ status: "approved" });
+    expect(events.find((event) => event.id === "event-2")).toMatchObject({
+      name: "Second Event",
+      status: "submitted",
+    });
+  });
+
+  /** A failed approval restores only the approved request and keeps the other loaded requests. */
+  it("restores only the failed approval when another request is loaded", async () => {
+    useAppStore.setState({
+      events: [pendingEvent(), pendingEvent({ id: "event-2", name: "Second Event" })],
+      notifications: [],
+    });
+    apiMock.mockRejectedValueOnce(new Error("Approval failed"));
+
+    await expect(approveEvent("event-1")).rejects.toThrow("Approval failed");
+
+    const events = useAppStore.getState().events;
+    expect(events.find((event) => event.id === "event-1")).toMatchObject({ status: "submitted" });
+    expect(events.find((event) => event.id === "event-2")).toMatchObject({
+      name: "Second Event",
+      status: "submitted",
+    });
+  });
+
+  /** Approving a request that is not in the loaded list does not invent an organiser notification. */
+  it("approves a request missing from the loaded list without adding a notification", async () => {
+    useAppStore.setState({ events: [pendingEvent({ id: "event-2" })], notifications: [] });
+
+    await approveEvent("event-1");
+
+    expect(useAppStore.getState().notifications).toEqual([]);
+    expect(apiMock).toHaveBeenCalledWith("/events/event-1/approve", { method: "POST" });
+  });
+
+  /** A failed approval of a request missing from the loaded list leaves the loaded requests as they were. */
+  it("keeps the loaded requests unchanged when approving a request missing from the list fails", async () => {
+    useAppStore.setState({ events: [pendingEvent({ id: "event-2" })], notifications: [] });
+    apiMock.mockRejectedValueOnce(new Error("Approval failed"));
+
+    await expect(approveEvent("event-1")).rejects.toThrow("Approval failed");
+
+    expect(useAppStore.getState().events).toEqual([pendingEvent({ id: "event-2" })]);
+    expect(useAppStore.getState().notifications).toEqual([]);
+  });
+
+  /** A rejection of a request missing from the loaded list is still sent, without an organiser notification. */
+  it("sends a rejection for a request missing from the loaded list without adding a notification", () => {
+    useAppStore.setState({ events: [pendingEvent({ id: "event-2" })], notifications: [] });
+
+    rejectEvent("event-1", "Budget not approved.");
+
+    expect(useAppStore.getState().notifications).toEqual([]);
+    expect(apiMock).toHaveBeenCalledWith(
+      "/events/event-1/reject",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+});

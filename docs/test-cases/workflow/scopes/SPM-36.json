@@ -19,7 +19,8 @@
       {
         "glob": "backend/src/events/events.service.spec.ts",
         "titleMatch": "EVE-CRE"
-      }
+      },
+      "backend/src/main.spec.ts"
     ],
     "frontend": [
       {
@@ -38,7 +39,8 @@
   },
   "sources": {
     "backend": [
-      "backend/src/events/dto/event-input.ts"
+      "backend/src/events/dto/event-input.ts",
+      "backend/src/main.ts"
     ],
     "frontend": [
       "frontend/src/features/events/pages/create/EventCreatePage.tsx"
