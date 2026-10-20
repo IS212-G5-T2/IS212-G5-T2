@@ -14,7 +14,7 @@ import {
   BLOCKED, PASS, UNABLE, abs, exitCodeFor, isMain, loadScope, parseArgs, printGate, readText, worst, writeGate, writeText,
 } from './lib.mjs';
 
-const RESULT = /^([A-Za-z][A-Za-z0-9-]*)\s+(killed|survived|equivalent|misapplied|skipped)\s+(.*)$/;
+const RESULT = /^([A-Za-z][A-Za-z0-9-]*)\s+(killed|survived|equivalent|misapplied|skipped)\s+(.*)$/i;
 const BASELINE = /^baseline\s+(.*?):\s+(green|NOT GREEN|SKIPPED.*)$/;
 
 export function parseLog(text, suiteNames) {
@@ -39,7 +39,7 @@ export function parseLog(text, suiteNames) {
       killers.push(suite);
       rest = rest.slice(suite.length).replace(/^\s*\|\s*/, '').trimStart();
     }
-    results.set(match[1], { status: match[2], killers });
+    results.set(match[1], { status: match[2].toLowerCase(), killers });
   }
   return { results, baselines };
 }

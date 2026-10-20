@@ -56,6 +56,34 @@ describe('validateBookingRequest', () => {
     expect(validateBookingRequest(valid)).toEqual(valid);
   });
 
+  /** VEN-BKG-03-A and VEN-BKG-03-B: request text is trimmed when present and omitted or blank text remains optional. */
+  it('VEN-BKG-03-A VEN-BKG-03-B SPM-54 accepts a trimmed or blank optional special request', () => {
+    expect(
+      validateBookingRequest({
+        ...valid,
+        specialRequest: '  Microphones, please.  ',
+      }),
+    ).toEqual({
+      ...valid,
+      specialRequest: 'Microphones, please.',
+    });
+    expect(validateBookingRequest({ ...valid, specialRequest: '  ' })).toEqual(
+      valid,
+    );
+    expect(validateBookingRequest({ ...valid, specialRequest: '' })).toEqual(valid);
+    expect(validateBookingRequest(valid)).toEqual(valid);
+  });
+
+  /** SPM-54: non-text and oversized special requests are rejected before they can be stored. */
+  it.each([null, 5, 'x'.repeat(1001)])(
+    'SPM-54 rejects invalid special request %j',
+    (specialRequest) => {
+      expect(() =>
+        validateBookingRequest({ ...valid, specialRequest }),
+      ).toThrow(BadRequestException);
+    },
+  );
+
   // SPM-148 R7 (PLAN-STATUS-04-C, 08-A). Kills: M9/M20 body fields silently accepted.
   it.each([
     { label: 'status', extra: { status: 'Confirmed' } },
@@ -63,7 +91,9 @@ describe('validateBookingRequest', () => {
     { label: 'changedBy', extra: { changedBy: 'COO-02' } },
     { label: 'changedAt', extra: { changedAt: '2020-01-01T00:00:00Z' } },
   ])('PLAN-STATUS-04-C: rejects a request carrying $label', ({ extra }) => {
-    expect(() => validateBookingRequest({ ...valid, ...extra })).toThrow(BadRequestException);
+    expect(() => validateBookingRequest({ ...valid, ...extra })).toThrow(
+      BadRequestException,
+    );
     try {
       validateBookingRequest({ ...valid, ...extra });
     } catch (error) {

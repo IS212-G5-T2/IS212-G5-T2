@@ -11,7 +11,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  BLOCKED, PASS, REPO_ROOT, UNABLE, WORKFLOW_DIR, abs, asList, fileExists, loadScope, parseArgs, parseCsv, readJson, readText, scopeTests,
+  REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, parseArgs, parseCsv, readJson, readText, scopeTests, timezoneStatus,
   writeGate, writeText,
 } from './lib.mjs';
 
@@ -114,19 +114,25 @@ function runSuites() {
   if (dryRun) return;
   const ran = results.filter((r) => r.ran);
   const sum = (key) => ran.reduce((total, r) => total + r[key], 0);
-  const g7Status = results.some((r) => !r.ran) ? UNABLE : sum('failed') > 0 ? BLOCKED : PASS;
+  const g7Status = executionStatus(results);
   writeGate(cycle, {
     gate: 'G7', name: 'Execution', status: g7Status,
     summary: { total: sum('total'), passed: sum('passed'), failed: sum('failed'), skipped: sum('skipped'), durationSeconds: Math.round(sum('durationSeconds') * 10) / 10, runner, suites: results },
-    findings: results.filter((r) => !r.ran).map((r) => `suite ${r.id} NOT RUN: ${r.reason}`).concat(ran.filter((r) => r.failed).map((r) => `suite ${r.id}: ${r.failed} failed`)),
+    findings: results.filter((r) => !r.ran).map((r) => `suite ${r.id} NOT RUN: ${r.reason}`)
+      .concat(ran.flatMap((r) => [
+        ...(r.failed ? [`suite ${r.id}: ${r.failed} failed`] : []),
+        ...(r.skipped ? [`suite ${r.id}: ${r.skipped} skipped`] : []),
+      ])),
     gaps: [],
   });
-  const zoneFailed = Object.values(zoneTotals).some((z) => z.failed > 0);
-  const zoneMissing = Object.values(zoneTotals).some((z) => z.notRun > 0 || z.total === 0);
   writeGate(cycle, {
-    gate: 'G4tz', name: 'Timezone runs', status: zoneFailed ? BLOCKED : zoneMissing ? UNABLE : PASS,
+    gate: 'G4tz', name: 'Timezone runs', status: timezoneStatus(zoneTotals),
     summary: { zones: zoneTotals },
-    findings: Object.entries(zoneTotals).flatMap(([zone, z]) => (z.failed ? [`${zone}: ${z.failed} failed`] : z.notRun || !z.total ? [`${zone}: NOT RUN`] : [])),
+    findings: Object.entries(zoneTotals).flatMap(([zone, z]) => [
+      ...(z.failed ? [`${zone}: ${z.failed} failed`] : []),
+      ...(z.skipped ? [`${zone}: ${z.skipped} skipped`] : []),
+      ...(!z.failed && !z.skipped && (z.notRun || !z.total) ? [`${zone}: NOT RUN`] : []),
+    ]),
     gaps: [],
   });
   log(`G7 Execution: ${g7Status}  (${sum('passed')} passed, ${sum('failed')} failed, ${sum('skipped')} skipped)`);

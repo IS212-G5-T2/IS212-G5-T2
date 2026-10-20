@@ -101,7 +101,6 @@ function renderRoutes(initialEntry: string) {
         <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
           <Route path="/venue-records" element={<p>Venue records</p>} />
           <Route path="/venue-records/:id" element={<p>Venue record detail</p>} />
-          <Route path="/venues/availability" element={<p>Venue availability</p>} />
           <Route path="/bookings" element={<p>Bookings</p>} />
         </Route>
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
@@ -211,7 +210,6 @@ describe("restricted organiser routes", () => {
 
   it.each([
     "/venues",
-    "/venues/availability",
     "/venues/venue-1",
     "/bookings",
     "/equipment",
@@ -413,14 +411,12 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     expect(navByRole.coordinator.map((item) => item.to)).toEqual([
       "/events",
       "/venue-records",
-      "/venues/availability",
       "/bookings",
       "/equipment/requests",
     ]);
     expect(navByRole.venue_staff.map((item) => item.to)).toEqual([
       "/venue-records",
       "/venues/create",
-      "/venues/availability",
       "/bookings",
     ]);
     expect(navByRole.tech_support.map((item) => item.to)).toEqual([
@@ -459,14 +455,12 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     expect(navByRole.coordinator.map((item) => item.to)).toEqual([
       "/events",
       "/venue-records",
-      "/venues/availability",
       "/bookings",
       "/equipment/requests",
     ]);
     expect(navByRole.venue_staff.map((item) => item.to)).toEqual([
       "/venue-records",
       "/venues/create",
-      "/venues/availability",
       "/bookings",
     ]);
     expect(navByRole.tech_support.map((item) => item.to)).toEqual([

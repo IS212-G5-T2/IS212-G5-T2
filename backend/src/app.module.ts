@@ -28,6 +28,9 @@ import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
+import { EquipmentRequestsController } from './equipment/requests/equipment-requests.controller.js';
+import { EquipmentRequestsRepository } from './equipment/requests/equipment-requests.repository.js';
+import { EquipmentRequestsService } from './equipment/requests/equipment-requests.service.js';
 import { CoordinatorAvailabilityController } from './coordinator-availability/coordinator-availability.controller.js';
 import { CoordinatorAvailabilityService } from './coordinator-availability/coordinator-availability.service.js';
 import { VenuesController } from './venues/venues.controller.js';
@@ -52,6 +55,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     DraftsController,
     RegistrationsController,
     EquipmentController,
+    EquipmentRequestsController,
     CoordinatorAvailabilityController,
     LeadAssignmentController,
     StatusController,
@@ -63,6 +67,8 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     RegistrationsService,
     ExportService,
     EquipmentService,
+    EquipmentRequestsRepository,
+    EquipmentRequestsService,
     CoordinatorAvailabilityService,
     LeadAssignmentService,
     EventPlanningService,
@@ -94,6 +100,7 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        EquipmentRequestsController,
         VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,

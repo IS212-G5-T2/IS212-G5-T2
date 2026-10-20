@@ -1,0 +1,49 @@
+{
+  "story": "SPM-57",
+  "title": "Request equipment for an event",
+  "note": "Current Jira SPM-57 AC1-AC10 and SPM-148 AC1/R1 are the requirements. Current Confluence matrix 28868989 lists PRIMARY IDs EQUIP-REQUEST-01..10; AC10 case page 28869156 defines EQUIP-REQUEST-10-A (update in place), EQUIP-REQUEST-10-N (duplicate create refusal), and EQUIP-REQUEST-10-BND-1 (concurrent first submissions). AC10 allows one request per event; later changes use Update Event to replace item details within the same request and retain its reference. AC9 transitions Approved to Planning on the first equipment request and leaves an already-Planning event unchanged. AC3 follows only the current Jira wording and current EQUIP-REQUEST-03 case page 28180646 because the separate change record 28442627 was unavailable; do not use its inaccessible wording as authority. The existing equipment API type list is authoritative for currently supported request types. Jira AC4 defines no business upper quantity limit; positive whole-number quantities up to 2,147,483,647 are supported solely as the PostgreSQL signed 32-bit integer storage/API representability boundary, not as a product cap. SC-004 records the current Jira AC10 and Confluence matrix/case semantics. SC-005 records the user-reported confirmed-event picker regression and the accepted correction that Confirmed events are not eligible for new equipment requests.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "backend-unit": [
+      "backend/src/equipment/requests/dto/equipment-request-input.spec.ts",
+      "backend/src/equipment/requests/equipment-requests.controller.spec.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.spec.ts",
+      "backend/src/equipment/requests/equipment-requests.service.spec.ts"
+    ],
+    "backend-e2e": ["backend/test/equipment-requests.e2e-spec.ts"],
+    "frontend": [
+      "frontend/src/features/equipment/api/equipment-requests-api.test.ts",
+      "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.test.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestEditorPage.test.tsx",
+      { "glob": "frontend/src/app/App.test.tsx", "titleMatch": "routes coordinators to a dedicated create form page|routes coordinators to a request-specific update form page|keeps create and update editor routes restricted to coordinators|keeps Technical Support out of coordinator editors after the root redirect" }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/equipment/requests/dto/equipment-request-input.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.ts",
+      "backend/src/equipment/requests/equipment-requests.service.ts",
+      "backend/src/equipment/requests/equipment-requests.controller.ts",
+      "backend/src/app.module.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/equipment/api/equipment-requests-api.ts",
+      "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestEditorPage.tsx",
+      "frontend/src/features/equipment/pages/requests/EquipmentRequestConfirmationDialog.tsx",
+      "frontend/src/app/App.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL"] },
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    { "id": "backend-equipment-requests", "cwd": "backend", "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm57.mutants.mjs"], "mutantsFile": "backend/scripts/mutation/spm57.mutants.mjs", "export": "MUTANTS", "env": [] },
+    { "id": "frontend-equipment-requests", "cwd": "frontend", "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm57.mutants.mjs"], "mutantsFile": "frontend/scripts/testing/mutation/spm57.mutants.mjs", "export": "MUTANTS", "env": [] }
+  ]
+}

@@ -65,7 +65,7 @@ export class ArrangementsReader {
     const bookings = await db.query<{
       id: string;
       venue_name: string;
-      status: 'pending' | 'approved' | 'rejected' | 'released';
+      status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
       hold_expires_at: Date | null;
       start_at: Date;
       end_at: Date;
@@ -102,13 +102,13 @@ export class ArrangementsReader {
       [eventId],
     );
 
-    const confirmation = await db.query<{ equipment_confirmed_at: Date | null }>(
-      'SELECT equipment_confirmed_at FROM events WHERE id = $1',
-      [eventId],
-    );
+    const confirmation = await db.query<{
+      equipment_confirmed_at: Date | null;
+    }>('SELECT equipment_confirmed_at FROM events WHERE id = $1', [eventId]);
 
     return {
-      equipmentNoneConfirmed: confirmation.rows[0]?.equipment_confirmed_at != null,
+      equipmentNoneConfirmed:
+        confirmation.rows[0]?.equipment_confirmed_at != null,
       venueBookings: bookings.rows.map((row) => ({
         id: row.id,
         venueName: row.venue_name,

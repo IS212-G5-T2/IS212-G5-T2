@@ -17,10 +17,10 @@ import { VenuesPage } from "@/features/venues/pages/catalogue/VenuesPage";
 import { VenueDetailPage } from "@/features/venues/pages/detail/VenueDetailPage";
 import { VenueRecordsPage } from "@/features/venues/pages/records/catalogue/VenueRecordsPage";
 import { VenueRecordDetailPage } from "@/features/venues/pages/records/detail/VenueRecordDetailPage";
-import { VenueAvailabilityPage } from "@/features/venues/pages/VenueAvailabilityPage";
 import { BookingsPage } from "@/features/bookings/pages/requests/BookingsPage";
 import { EquipmentPage } from "@/features/equipment/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/features/equipment/pages/requests/EquipmentRequestsPage";
+import { EquipmentRequestEditorPage } from "@/features/equipment/pages/requests/EquipmentRequestEditorPage";
 import { EquipmentAvailabilityPage } from "@/features/equipment/pages/availability/EquipmentAvailabilityPage";
 import { AuditTrailPage } from "@/features/equipment/pages/audit-trail/AuditTrailPage";
 import { EquipmentCreatePage } from "@/features/equipment/pages/create/EquipmentCreatePage";
@@ -82,7 +82,8 @@ export default function App() {
           <Route path="/venues/:id" element={<VenueDetailPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "venue_staff"]} />}>
-          <Route path="/venues/availability" element={<VenueAvailabilityPage />} />
+          {/* Retire the old summary URL without letting /venues/:id misread it as a venue id. */}
+          <Route path="/venues/availability" element={<Navigate to="/venue-records" replace />} />
           <Route path="/bookings" element={<BookingsPage />} />
           <Route path="/venue-records" element={<VenueRecordsPage />} />
           <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
@@ -100,6 +101,10 @@ export default function App() {
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
           <Route path="/equipment/requests" element={<EquipmentRequestsPage />} />
+        </Route>
+        <Route element={<RequireRole allowedRoles={["coordinator"]} />}>
+          <Route path="/equipment/requests/create" element={<EquipmentRequestEditorPage />} />
+          <Route path="/equipment/requests/:requestId/update" element={<EquipmentRequestEditorPage />} />
         </Route>
 
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>

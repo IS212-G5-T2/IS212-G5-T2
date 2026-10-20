@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, parseArgs, parseCsv, parseTables, testIdOf, toCsv, worst,
+  executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, parseArgs, parseCsv, parseTables, testIdOf, timezoneStatus, toCsv, worst,
 } from './lib.mjs';
 
 test('parseArgs reads flags, values, repeats and positionals', () => {
@@ -101,6 +101,18 @@ test('worst: BLOCKED beats UNABLE_TO_VERIFY beats PASS', () => {
   assert.equal(worst(['PASS', 'UNABLE_TO_VERIFY']), 'UNABLE_TO_VERIFY');
   assert.equal(worst(['PASS', 'BLOCKED', 'UNABLE_TO_VERIFY']), 'BLOCKED');
   assert.equal(worst(['PASS']), 'PASS');
+});
+
+test('executionStatus blocks a suite where setup failed and every test was skipped', () => {
+  assert.equal(executionStatus([{ ran: true, failed: 0, skipped: 22 }]), 'BLOCKED');
+  assert.equal(executionStatus([{ ran: true, failed: 0, skipped: 0 }]), 'PASS');
+  assert.equal(executionStatus([{ ran: false, failed: 0, skipped: 0 }]), 'UNABLE_TO_VERIFY');
+});
+
+test('timezoneStatus blocks skipped tests and distinguishes a zone that did not run', () => {
+  assert.equal(timezoneStatus({ UTC: { total: 22, failed: 0, skipped: 22, notRun: 0 } }), 'BLOCKED');
+  assert.equal(timezoneStatus({ UTC: { total: 22, failed: 0, skipped: 0, notRun: 0 } }), 'PASS');
+  assert.equal(timezoneStatus({ UTC: { total: 0, failed: 0, skipped: 0, notRun: 1 } }), 'UNABLE_TO_VERIFY');
 });
 
 test('scopedTests keeps a test whose own comment carries the story prefix, even when its title does not', async () => {

@@ -35,13 +35,20 @@ const reserved = (id: string, name: string, quantity: number) => ({
   quantity,
   status: 'Reserved',
 });
-const equipment = (id: string, name: string, quantity: number, status: string) => ({
+const equipment = (
+  id: string,
+  name: string,
+  quantity: number,
+  status: string,
+) => ({
   id,
   name,
   quantity,
   status,
 });
-const ready = (overrides: Partial<ReadinessSnapshot> = {}): ReadinessSnapshot => ({
+const ready = (
+  overrides: Partial<ReadinessSnapshot> = {},
+): ReadinessSnapshot => ({
   venueBookings: [approvedVenue('vb-1', 'Main Hall')],
   equipment: [reserved('eq-1', 'Projector', 1)],
   safety: { state: 'Approved' },
@@ -63,8 +70,14 @@ describe('SPM-135 AC1: a fully arranged event is ready', () => {
   it('CONFIRM-EVENT-01-B (rule level): two Approved bookings and two equipment lines, all satisfied, are ready', () => {
     // Arrange: EVT-211 per fixtures (VB-211a Main Hall, VB-211b Breakout Room 2; EQ-211 Projector x2, Microphone x4)
     const snapshot = ready({
-      venueBookings: [approvedVenue('vb-211a', 'Main Hall'), approvedVenue('vb-211b', 'Breakout Room 2')],
-      equipment: [reserved('eq-211a', 'Projector', 2), reserved('eq-211b', 'Microphone', 4)],
+      venueBookings: [
+        approvedVenue('vb-211a', 'Main Hall'),
+        approvedVenue('vb-211b', 'Breakout Room 2'),
+      ],
+      equipment: [
+        reserved('eq-211a', 'Projector', 2),
+        reserved('eq-211b', 'Microphone', 4),
+      ],
     });
 
     // Act
@@ -80,7 +93,10 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
   it('CONFIRM-EVENT-02-C (rule level): one Approved and one Pending booking is not ready and names only Breakout Room 1', () => {
     // Arrange: EVT-206 "Regional Summit" per fixtures
     const snapshot = ready({
-      venueBookings: [approvedVenue('vb-206a', 'Main Hall'), venue('vb-206b', 'Breakout Room 1', 'pending')],
+      venueBookings: [
+        approvedVenue('vb-206a', 'Main Hall'),
+        venue('vb-206b', 'Breakout Room 1', 'pending'),
+      ],
     });
 
     // Act
@@ -100,18 +116,37 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
 
   // CONFIRM-EVENT-02-A subtests A to D: each single outstanding arrangement alone blocks readiness (rule level only).
   it.each([
-    ['venue Pending (EVT-202, subtest A)', ready({ venueBookings: [venue('vb-202', 'Main Hall', 'pending')] }), 'venue'],
-    ['equipment Requested (EVT-203, subtest B)', ready({ equipment: [equipment('eq-203', 'Projector', 1, 'Requested')] }), 'equipment'],
-    ['safety Awaiting Check (EVT-204, subtest C)', ready({ safety: { state: 'Awaiting Check' } }), 'safety'],
-    ['safety Changes Requested (EVT-210, subtest D)', ready({ safety: { state: 'Changes Requested' } }), 'safety'],
-  ])('CONFIRM-EVENT-02-A (rule level): %s is the only outstanding item and blocks readiness', (_label, snapshot, type) => {
-    // Act
-    const result = evaluateReadiness(snapshot, NOW);
+    [
+      'venue Pending (EVT-202, subtest A)',
+      ready({ venueBookings: [venue('vb-202', 'Main Hall', 'pending')] }),
+      'venue',
+    ],
+    [
+      'equipment Requested (EVT-203, subtest B)',
+      ready({ equipment: [equipment('eq-203', 'Projector', 1, 'Requested')] }),
+      'equipment',
+    ],
+    [
+      'safety Awaiting Check (EVT-204, subtest C)',
+      ready({ safety: { state: 'Awaiting Check' } }),
+      'safety',
+    ],
+    [
+      'safety Changes Requested (EVT-210, subtest D)',
+      ready({ safety: { state: 'Changes Requested' } }),
+      'safety',
+    ],
+  ])(
+    'CONFIRM-EVENT-02-A (rule level): %s is the only outstanding item and blocks readiness',
+    (_label, snapshot, type) => {
+      // Act
+      const result = evaluateReadiness(snapshot, NOW);
 
-    // Assert: not ready, exactly one outstanding item, and it is of the expected kind
-    expect(result.ready).toBe(false);
-    expect(result.outstanding.map((item) => item.type)).toEqual([type]);
-  });
+      // Assert: not ready, exactly one outstanding item, and it is of the expected kind
+      expect(result.ready).toBe(false);
+      expect(result.outstanding.map((item) => item.type)).toEqual([type]);
+    },
+  );
 
   // Kills: M16 (satisfied items listed) and reordering of the list (03-A). Truncation is M1 (see 02-C above).
   it('CONFIRM-EVENT-03-A (rule level): EVT-205 lists venue, equipment and safety in that order with the specified states', () => {
@@ -137,10 +172,15 @@ describe('SPM-135 AC2 and AC3: any outstanding arrangement blocks and is listed'
   it('CONFIRM-EVENT-03-C (rule level): texts are "Venue booking approval: Breakout Room 1 (Pending)" and "Safety Officer approval: Changes requested"', () => {
     // Arrange: EVT-206 venue line; EVT-210 safety line (SPEC literals from 03-C)
     const venueItem = evaluateReadiness(
-      ready({ venueBookings: [venue('vb-206b', 'Breakout Room 1', 'pending')] }),
+      ready({
+        venueBookings: [venue('vb-206b', 'Breakout Room 1', 'pending')],
+      }),
       NOW,
     ).outstanding[0];
-    const safetyItem = evaluateReadiness(ready({ safety: { state: 'Changes Requested' } }), NOW).outstanding[0];
+    const safetyItem = evaluateReadiness(
+      ready({ safety: { state: 'Changes Requested' } }),
+      NOW,
+    ).outstanding[0];
 
     // Act
     const venueText = formatOutstanding(venueItem);
@@ -160,52 +200,92 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     {
       name: 'zero venue bookings is outstanding ("none requested")',
       patch: { venueBookings: [] },
-      expected: { type: 'venue', detail: 'None requested', state: 'None requested' },
+      expected: {
+        type: 'venue',
+        detail: 'None requested',
+        state: 'None requested',
+      },
     },
     {
       name: 'a pending booking with a live hold is outstanding',
-      patch: { venueBookings: [venue('vb', 'Main Hall', 'pending', FUTURE_HOLD)] },
+      patch: {
+        venueBookings: [venue('vb', 'Main Hall', 'pending', FUTURE_HOLD)],
+      },
       expected: { type: 'venue', detail: 'Main Hall (Hold)', state: 'Hold' },
     },
     {
       name: 'a pending booking with an expired hold is outstanding',
-      patch: { venueBookings: [venue('vb', 'Main Hall', 'pending', PAST_HOLD)] },
-      expected: { type: 'venue', detail: 'Main Hall (Hold expired)', state: 'Hold expired' },
+      patch: {
+        venueBookings: [venue('vb', 'Main Hall', 'pending', PAST_HOLD)],
+      },
+      expected: {
+        type: 'venue',
+        detail: 'Main Hall (Hold expired)',
+        state: 'Hold expired',
+      },
     },
     {
       name: 'a rejected booking is outstanding',
       patch: { venueBookings: [venue('vb', 'Main Hall', 'rejected')] },
-      expected: { type: 'venue', detail: 'Main Hall (Rejected)', state: 'Rejected' },
+      expected: {
+        type: 'venue',
+        detail: 'Main Hall (Rejected)',
+        state: 'Rejected',
+      },
     },
     {
       name: 'an approved booking flagged venue-unavailable is outstanding',
       patch: { venueBookings: [approvedVenue('vb', 'Main Hall', true)] },
-      expected: { type: 'venue', detail: 'Main Hall (Venue unavailable)', state: 'Venue unavailable' },
+      expected: {
+        type: 'venue',
+        detail: 'Main Hall (Venue unavailable)',
+        state: 'Venue unavailable',
+      },
     },
     {
       name: 'a requested equipment line is outstanding',
       patch: { equipment: [equipment('eq', 'Projector', 1, 'Requested')] },
-      expected: { type: 'equipment', detail: 'Projector x1 (Requested)', state: 'Requested' },
+      expected: {
+        type: 'equipment',
+        detail: 'Projector x1 (Requested)',
+        state: 'Requested',
+      },
     },
     {
       name: 'an unavailable equipment line is outstanding',
       patch: { equipment: [equipment('eq', 'Microphone', 2, 'Unavailable')] },
-      expected: { type: 'equipment', detail: 'Microphone x2 (Unavailable)', state: 'Unavailable' },
+      expected: {
+        type: 'equipment',
+        detail: 'Microphone x2 (Unavailable)',
+        state: 'Unavailable',
+      },
     },
     {
       name: 'no safety record is outstanding',
       patch: { safety: undefined },
-      expected: { type: 'safety', detail: 'Awaiting check', state: 'No record' },
+      expected: {
+        type: 'safety',
+        detail: 'Awaiting check',
+        state: 'No record',
+      },
     },
     {
       name: 'safety Awaiting Check is outstanding',
       patch: { safety: { state: 'Awaiting Check' } },
-      expected: { type: 'safety', detail: 'Awaiting check', state: 'Awaiting Check' },
+      expected: {
+        type: 'safety',
+        detail: 'Awaiting check',
+        state: 'Awaiting Check',
+      },
     },
     {
       name: 'safety Changes Requested is outstanding',
       patch: { safety: { state: 'Changes Requested' } },
-      expected: { type: 'safety', detail: 'Changes requested', state: 'Changes Requested' },
+      expected: {
+        type: 'safety',
+        detail: 'Changes requested',
+        state: 'Changes Requested',
+      },
     },
     {
       name: 'safety Rejected is outstanding',
@@ -223,6 +303,32 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     expect(result.ready).toBe(false);
     expect(result.outstanding).toHaveLength(1);
     expect(result.outstanding[0]).toMatchObject(expected);
+  });
+
+  /** VEN-BKG-09-A: retained cancelled history is inactive and leaves the event with no active venue. */
+  it('SPM-54 treats a cancelled-only venue history as no active booking', () => {
+    const result = evaluateReadiness(
+      ready({
+        venueBookings: [
+          {
+            id: 'cancelled-1',
+            venueName: 'Main Hall',
+            status: 'cancelled',
+            holdExpiresAt: null,
+            venueUnavailable: false,
+          },
+        ],
+      }),
+      NOW,
+    );
+
+    expect(result.ready).toBe(false);
+    expect(result.outstanding).toContainEqual({
+      type: 'venue',
+      label: 'Venue booking approval',
+      detail: 'None requested',
+      state: 'None requested',
+    });
   });
 
   it('released and cancelled equipment lines are not requested and do not block (ASSUMED)', () => {
@@ -254,7 +360,12 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     // Assert
     expect(result.ready).toBe(false);
     expect(result.outstanding).toEqual([
-      { type: 'equipment', label: 'Equipment reservation', detail: 'None requested', state: 'Not requested' },
+      {
+        type: 'equipment',
+        label: 'Equipment reservation',
+        detail: 'None requested',
+        state: 'Not requested',
+      },
     ]);
   });
 
@@ -273,14 +384,21 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
   // Kills: the `<=` in readiness.ts changed to `<` (mutant M-HOLD-EQ in spm135.mutants.mjs).
   it('a hold that expires exactly at the check time is expired (ASSUMED boundary)', () => {
     // Arrange: the only booking is a pending hold whose expiry equals NOW
-    const snapshot = ready({ venueBookings: [venue('vb', 'Main Hall', 'pending', NOW)] });
+    const snapshot = ready({
+      venueBookings: [venue('vb', 'Main Hall', 'pending', NOW)],
+    });
 
     // Act
     const result = evaluateReadiness(snapshot, NOW);
 
     // Assert
     expect(result.outstanding).toEqual([
-      { type: 'venue', label: 'Venue booking approval', detail: 'Main Hall (Hold expired)', state: 'Hold expired' },
+      {
+        type: 'venue',
+        label: 'Venue booking approval',
+        detail: 'Main Hall (Hold expired)',
+        state: 'Hold expired',
+      },
     ]);
   });
 
@@ -288,33 +406,47 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
   it('outstanding venue items are listed by booking id, not by the order the rows arrived', () => {
     // Arrange: the later id is read first
     const snapshot = ready({
-      venueBookings: [venue('vb-2', 'Breakout Room 1', 'pending'), venue('vb-1', 'Main Hall', 'pending')],
+      venueBookings: [
+        venue('vb-2', 'Breakout Room 1', 'pending'),
+        venue('vb-1', 'Main Hall', 'pending'),
+      ],
     });
 
     // Act
     const result = evaluateReadiness(snapshot, NOW);
 
     // Assert
-    expect(result.outstanding.map((item) => item.detail)).toEqual(['Main Hall (Pending)', 'Breakout Room 1 (Pending)']);
+    expect(result.outstanding.map((item) => item.detail)).toEqual([
+      'Main Hall (Pending)',
+      'Breakout Room 1 (Pending)',
+    ]);
   });
 
   // Coverage (ASSUMED tie-break): rows that share an id keep their input order, so the list never reorders by accident.
   it('two bookings that share an id keep their input order in the outstanding list', () => {
     // Arrange: two pending bookings with the same id (the sort tie-break)
     const snapshot = ready({
-      venueBookings: [venue('vb', 'Main Hall', 'pending'), venue('vb', 'Breakout Room 1', 'pending')],
+      venueBookings: [
+        venue('vb', 'Main Hall', 'pending'),
+        venue('vb', 'Breakout Room 1', 'pending'),
+      ],
     });
 
     // Act
     const result = evaluateReadiness(snapshot, NOW);
 
     // Assert
-    expect(result.outstanding.map((item) => item.detail)).toEqual(['Main Hall (Pending)', 'Breakout Room 1 (Pending)']);
+    expect(result.outstanding.map((item) => item.detail)).toEqual([
+      'Main Hall (Pending)',
+      'Breakout Room 1 (Pending)',
+    ]);
   });
 
   it('a hold is not approval even when every other source is satisfied', () => {
     // Arrange: the only booking is a live hold
-    const snapshot = ready({ venueBookings: [venue('vb', 'Main Hall', 'pending', FUTURE_HOLD)] });
+    const snapshot = ready({
+      venueBookings: [venue('vb', 'Main Hall', 'pending', FUTURE_HOLD)],
+    });
 
     // Act
     const result = evaluateReadiness(snapshot, NOW);
@@ -335,6 +467,10 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     const result = evaluateReadiness(snapshot, NOW);
 
     // Assert
-    expect(result.outstanding.map((item) => item.type)).toEqual(['venue', 'equipment', 'safety']);
+    expect(result.outstanding.map((item) => item.type)).toEqual([
+      'venue',
+      'equipment',
+      'safety',
+    ]);
   });
 });

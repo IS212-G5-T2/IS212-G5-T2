@@ -28,6 +28,21 @@ export function worst(statuses) {
   return PASS;
 }
 
+/** A suite with skipped tests did not fully execute and cannot pass G7. */
+export function executionStatus(results) {
+  if (results.some((result) => !result.ran)) return UNABLE;
+  if (results.some((result) => result.failed > 0 || result.skipped > 0)) return BLOCKED;
+  return PASS;
+}
+
+/** Timezone evidence blocks when any test failed or was skipped, and is unavailable when a zone did not run. */
+export function timezoneStatus(zones) {
+  const totals = Object.values(zones);
+  if (totals.some((zone) => zone.failed > 0 || zone.skipped > 0)) return BLOCKED;
+  if (totals.some((zone) => zone.notRun > 0 || zone.total === 0)) return UNABLE;
+  return PASS;
+}
+
 // ---------------------------------------------------------------- arguments
 
 export function parseArgs(argv) {

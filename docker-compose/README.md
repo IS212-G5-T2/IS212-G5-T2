@@ -59,6 +59,8 @@ Local services connect to PostgreSQL through the Compose service name `postgres:
 
 The `.env` file configures PostgreSQL, backend, and frontend defaults, including `DATABASE_URL`, `PORT`, `FRONTEND_ORIGIN`, and `VITE_API_BASE_URL`.
 
+The frontend health check allows up to 10 seconds for an in-container Vite response. This prevents a healthy dev server from being reported as unhealthy on slower local Docker hosts.
+
 Use local-only values in `.env`. Do not commit real credentials.
 
 `VITE_API_BASE_URL` is passed into the frontend container. PostgreSQL and backend settings stay on their respective containers.

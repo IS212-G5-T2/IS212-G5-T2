@@ -7,7 +7,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
-import { Select } from "@/components/ui/FormControls";
+import { CheckboxGroup, Select } from "@/components/ui/FormControls";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { DraftRecord } from "@/features/events/types/draft";
 import { EventCard, type CardRegistrationStatus } from "@/features/events/pages/list/EventCard";
@@ -18,6 +18,11 @@ import {
   matchesAttendeeFilter,
   type AttendeeBrowseFilter,
 } from "@/features/events/lib/EventView";
+import {
+  ORGANISER_STATUS_FILTERS,
+  matchesOrganiserStatusFilters,
+  type OrganiserStatusFilter,
+} from "@/features/events/lib/organiserStatusFilter";
 
 /** The card's registration badge: only the three states an attendee can hold on a listed event. */
 function cardRegistrationStatus(status: RegistrationStatus | undefined): CardRegistrationStatus | undefined {
@@ -114,8 +119,12 @@ export function EventListPage() {
   // SPM-61: attendees filter by their own relationship to each event instead
   // of by raw workflow status.
   const isAttendee = currentUser.role === "attendee";
+  const isOrganiser = currentUser.role === "organiser";
   const attendeeFilter = eventListFilters.attendee as AttendeeBrowseFilter;
   const setAttendeeFilter = (attendee: AttendeeBrowseFilter) => setEventListFilters({ attendee });
+  // SPM-95 AC2, AC7: an organiser's multi-select lives in local state, so leaving the list for an event's details resets it.
+  const [organiserFilters, setOrganiserFilters] = useState<ReadonlySet<OrganiserStatusFilter>>(() => new Set());
+  const selectedOrganiserLabels = ORGANISER_STATUS_FILTERS.filter((o) => organiserFilters.has(o.value)).map((o) => o.label);
 
   const scoped = useMemo(() => {
     if (currentUser.role === "attendee") {
@@ -132,6 +141,9 @@ export function EventListPage() {
     [...list].sort((a, b) => new Date(a.startDateTime).getTime() - new Date(b.startDateTime).getTime());
   const filtered = byStartDate(isAttendee
     ? scoped.filter((e) => matchesAttendeeFilter(e, attendeeFilter, new Date()))
+    // SPM-95 AC1, AC2, AC5: an organiser sees all events until a filter is chosen, then any-of-the-selected filters.
+    : isOrganiser
+      ? scoped.filter((e) => matchesOrganiserStatusFilters(e, organiserFilters))
     : statusFilter
             // SPM-148 PLAN-STATUS-05-A, 05-C: the Planning filter; with no match the list shows 'No events match this filter.'
       ? scoped.filter((e) => e.status === (statusFilter as EventStatus))
@@ -170,23 +182,45 @@ export function EventListPage() {
         }
       />
 
-      <div className="mb-4 max-w-xs">
-        {isAttendee ? (
-          <Select
-            label="Show"
-            value={attendeeFilter}
-            onChange={(e) => setAttendeeFilter(e.target.value as AttendeeBrowseFilter)}
-            options={ATTENDEE_BROWSE_FILTERS}
-          />
-        ) : (
-          <Select
+      {isOrganiser ? (
+        <div>
+          {/* SPM-95 AC2, AC3, AC5: checkboxes show which filters are on; Clear all filters turns them all off. */}
+          <CheckboxGroup
             label="Filter by status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            options={statusOptions.filter((o) => o.value !== "")}
+            options={ORGANISER_STATUS_FILTERS.map((o) => o.label)}
+            values={selectedOrganiserLabels}
+            onChange={(labels) =>
+              setOrganiserFilters(new Set(ORGANISER_STATUS_FILTERS.filter((o) => labels.includes(o.label)).map((o) => o.value)))
+            }
           />
-        )}
-      </div>
+          {selectedOrganiserLabels.length > 0 && (
+            <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
+              <p>Active filters: {selectedOrganiserLabels.join(", ")}</p>
+              <Button size="sm" variant="secondary" onClick={() => setOrganiserFilters(new Set())}>
+                Clear all filters
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="mb-4 max-w-xs">
+          {isAttendee ? (
+            <Select
+              label="Show"
+              value={attendeeFilter}
+              onChange={(e) => setAttendeeFilter(e.target.value as AttendeeBrowseFilter)}
+              options={ATTENDEE_BROWSE_FILTERS}
+            />
+          ) : (
+            <Select
+              label="Filter by status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              options={statusOptions.filter((o) => o.value !== "")}
+            />
+          )}
+        </div>
+      )}
 
       {currentUser.role === "organiser" && drafts.length > 0 && (
         <section aria-label="Draft requests" className="mb-6">
@@ -213,7 +247,8 @@ export function EventListPage() {
 
       {loading ? <p role="status">Loading events…</p> : error ? <div role="alert">{error} <Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button></div> : filtered.length === 0 ? (
         <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          No events match this filter.
+          {/* SPM-95 AC4: the organiser's empty state; other roles keep the SPM-148 wording. */}
+          {isOrganiser ? "No matching events found" : "No events match this filter."}
         </div>
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">

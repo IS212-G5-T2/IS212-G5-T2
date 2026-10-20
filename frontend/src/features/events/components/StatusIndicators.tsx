@@ -1,5 +1,5 @@
 import type { EventRecord } from "@/types";
-import { arrangementsReserved } from "@/features/events/components/StatusLabels";
+import { safetyCheckReady } from "@/features/events/components/StatusLabels";
 
 /** SPM-94 D4: the exact indicator texts. */
 export const SAFETY_INDICATOR_LABELS: Record<NonNullable<EventRecord["safetyIndicator"]>, string> = {
@@ -25,8 +25,7 @@ export function SafetyIndicator({
   event: Pick<EventRecord, "safetyIndicator" | "status" | "venueRequestStatus" | "equipmentStatuses">;
 }) {
   if (!event.safetyIndicator) return null;
-  // Every safety label waits until the venue and all equipment are reserved (planning events).
-  if (!arrangementsReserved(event)) return null;
+  if (!safetyCheckReady(event)) return null;
   return (
     <span
       className={

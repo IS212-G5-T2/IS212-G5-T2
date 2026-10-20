@@ -55,6 +55,8 @@ a fresh database: `001_schema.sql` creates the complete local schema and
 | `venue_images` | Optional one-to-one venue image metadata and data URL (maximum 5 MB). |
 | `accessibility_features` | Controlled accessibility choices for venues. |
 | `venue_accessibility` | Accessibility selections linked to each venue. |
+| `equipment_requests` | Coordinator equipment requests with a Pending Review lifecycle and event/requester foreign keys. |
+| `equipment_request_items` | Ordered required nonblank equipment name, type, and positive integer quantity for each request. |
 
 To check a standalone database after it starts, connect with the local defaults:
 
@@ -170,6 +172,8 @@ not rerun on an existing volume. Migration 010 removes the legacy operating
 days and opening-time columns after the availability migration is installed.
 
 The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `017_spm138_waitlist.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
+
+The local SPM-54 manual suitability fixtures in `020_spm54_suitability_manual_variants.sql` add four single-mismatch venues, a capacity-24 boundary venue, and one accessibility-specific event clone. The script is idempotent. For an existing local database, apply it to the intended database with `psql -v ON_ERROR_STOP=1 -f database/postgresql/init/020_spm54_suitability_manual_variants.sql`; it does not alter the shared EVT-201 row.
 
 SPM-64 change requests add the `event_change_requests` table in `018_spm64_change_requests.sql` (one row per organiser request; at most one `Pending` per event). For an existing volume, apply `backend/migrations/012_spm64_change_requests.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
