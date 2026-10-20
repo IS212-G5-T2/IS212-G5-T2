@@ -11,7 +11,7 @@
  * There is no real-time update; the page shows the state it loads.
  * REQ-CLAR-03 is not in the SPM-39 document. It is kept as an extra case.
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -379,6 +379,20 @@ describe("EventDetailPage clarification thread", () => {
 
     // The answered clarification should have "Answered" status
     expect(screen.getByText("Answered")).toBeInTheDocument();
+
+    // Chronological order: the first entry (18 Sep 09:15 UTC), its reply (10:30) and the open one (11:00) appear in that order.
+    const first = screen.getByText("What is the expected room layout?", { selector: "p.mt-1" });
+    const reply = screen.getByText("Room layout will be Banquet.", { selector: "p.mt-1" });
+    const open = screen.getByText("Please confirm expected attendance.", { selector: "p.mt-1" });
+    expect(first.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(reply.compareDocumentPosition(open) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    // Each entry shows its timestamp. 09:15, 10:30 and 11:00 UTC are on 18 Sep in Singapore, UTC and Los Angeles time.
+    for (const text of ["What is the expected room layout?", "Please confirm expected attendance."]) {
+      const entry = screen.getByText(text, { selector: "p.mt-1" }).closest(".border") as HTMLElement;
+      // The first timestamp in the entry is its own header; a reply inside the entry has its own timestamp after it.
+      expect(within(entry).getAllByText(/Sep 18/)[0]).toBeTruthy();
+    }
   });
 });
 

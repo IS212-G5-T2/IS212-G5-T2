@@ -46,4 +46,19 @@ export const MUTANTS = [{
     "      if (event.coordinator_id !== coordinator.uid)\n        throw new ForbiddenException(\n          'Only the assigned coordinator can reject this request.',\n        );\n      const updated = await client.query(\n        `UPDATE events\n           SET status = 'Rejected',",
     "      const updated = await client.query(\n        `UPDATE events\n           SET status = 'Rejected',",
   ]],
-}];
+},
+  {
+    id: 'BE-83-02',
+    name: 'the reject refusal reverts to the assignment sentence (EVENT-REJECT-04-B, SC-SPM83-01)',
+    file: SERVICE,
+    suites: ['rejection'],
+    edits: [["'Only the assigned coordinator can reject this request.',", "'This request is assigned to another coordinator.',"]],
+  },
+  {
+    id: 'BE-83-03',
+    name: 'a 501-character reason is accepted: the 500-character maximum is dropped (EVENT-REJECT-03-D)',
+    file: SERVICE,
+    suites: ['rejection'],
+    edits: [['      trimmed.length > 500 ||\n', '']],
+  },
+];

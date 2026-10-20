@@ -9,5 +9,12 @@ export const SUITES = {
 export const MUTANTS = [
   { id: 'BE-40-01', name: 'an approved (or any non-Submitted) request can be approved again: the Submitted guard is dropped (EVENT-APPROVE-04-A)',
     file: 'src/events/events.service.ts', suites: ['approve'],
-    edits: [["      if (event.status !== 'Submitted')\n        throw new ConflictException(\n          'Only Submitted requests can be approved.", "      if (false)\n        throw new ConflictException(\n          'Only Submitted requests can be approved."]] },
+    edits: [["      if (event.status !== 'Submitted')\n        throw new ConflictException(\n          'Only Submitted requests can be approved.", "      if (false)\n        throw new ConflictException(\n          'Only Submitted requests can be approved."]] },,
+  {
+    id: 'BE-40-02',
+    name: 'the approve refusal reverts to the assignment sentence (EVENT-APPROVE-03-B, SC-SPM40-01)',
+    file: 'src/events/events.service.ts',
+    suites: ['approve'],
+    edits: [["'Only the assigned coordinator can approve this request.',", "'This request is assigned to another coordinator.',"]],
+  }
 ];

@@ -477,6 +477,71 @@ describe("EventCreatePage", () => {
       expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
     },
   );
+
+  // SPM-36 AC9 (routing): with several rejected fields, the user goes to the earliest step that shows one of them.
+  it("SPM-36 AC9 goes to the basic information step when a name and an attachment are both rejected", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path, init) => {
+      if (init?.method === "POST")
+        throw new ApiError(
+          "Invalid event request.",
+          { name: "Enter an event name.", attachments: "Upload valid files." },
+          undefined,
+          400,
+        );
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    expect(await screen.findByText("Enter an event name.")).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /event name/i })).toBeTruthy();
+    expect(screen.queryByLabelText(/supporting files/i)).toBeNull();
+  });
+
+  // SPM-36 AC9 (banner): the submit banner shows the server's message, not a generic one.
+  it("SPM-36 AC9 shows the server's message in the submit banner", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path, init) => {
+      if (init?.method === "POST")
+        throw new ApiError("Invalid event request.", { attachments: "Upload valid files." }, undefined, 400);
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    const banner = (await screen.findAllByRole("alert")).find(
+      (alert) => alert.textContent === "Invalid event request.",
+    );
+    expect(banner).toBeTruthy();
+    expect(screen.queryByText("Unable to submit. Please try again.")).toBeNull();
+  });
+
+  // SPM-36 AC9 (field): a rejected equipment-needs value is shown next to its input on the review step.
+  it("SPM-36 AC9 shows a rejected equipment-needs message next to its input on the review step", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path, init) => {
+      if (init?.method === "POST")
+        throw new ApiError("Invalid event request.", { equipmentNeeds: "Enter valid text." }, undefined, 400);
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    const field = (await screen.findByRole("textbox", { name: /equipment needs/i })).closest("div");
+    expect(field?.textContent).toContain("Enter valid text.");
+  });
 });
 
 describe("SPM-37 drafts in the current event form", () => {
