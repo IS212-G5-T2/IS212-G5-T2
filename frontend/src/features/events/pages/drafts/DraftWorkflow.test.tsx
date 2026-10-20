@@ -278,11 +278,10 @@ describe("SPM-37 Q2 functional cases", () => {
       open();
       await screen.findByLabelText("Equipment needs");
       click(/Submit For Review/);
-      expect((await screen.findByRole("alert")).textContent).toBe(
-        error instanceof Error
-          ? "Rejected"
-          : "Unable to submit. Please try again.",
-      );
+      // The banner shows the server's message; a rejected field also shows its own alert next to its input.
+      const expected = error instanceof Error ? "Rejected" : "Unable to submit. Please try again.";
+      const alerts = await screen.findAllByRole("alert");
+      expect(alerts.map((alert) => alert.textContent)).toContain(expected);
       expect(screen.getByText("Workshop")).toBeTruthy();
       expect(
         screen.getByRole("button", { name: /Submit For Review/ }),

@@ -69,9 +69,15 @@ function submittedEvent(): EventRecord {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
+  // Freeze only Date so the "upcoming" and "future start" fixtures do not depend on the run date.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-20T10:00:00+08:00"));
   useAppStore.setState({ eventListFilters: { attendee: "upcoming", status: null } });
   vi.clearAllMocks();
   // clearAllMocks keeps queued *Once values; reset them so one test's leftovers can't reach the next.
@@ -403,7 +409,7 @@ describe("EventListPage", () => {
 
     await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
 
-    expect(screen.getByText("Rejected Gala")).toBeTruthy();
+    expect(await screen.findByText("Rejected Gala")).toBeTruthy();
     expect(screen.queryByText("Welcome Evening")).toBeNull();
   });
 

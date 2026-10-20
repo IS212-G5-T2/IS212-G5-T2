@@ -329,11 +329,10 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
       );
       if (error instanceof ApiError && error.errors) {
         setErrors(error.errors);
-        // Return the user to the first step that shows a rejected field (SPM-36 AC9), and list every
-        // reason in the banner, which shows on every step, so no rejection is hidden on review.
+        // Return the user to the first step that shows a rejected field (SPM-36 AC9). Each rejected
+        // field shows its own message next to its input, so the banner keeps the server's message.
         const rejectedSteps = Object.keys(error.errors).map(stepForField);
         if (rejectedSteps.length) setStep(Math.min(...rejectedSteps));
-        setFailure(Object.values(error.errors).join(" "));
       }
     } finally {
       setBusy(false);
@@ -500,6 +499,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     options={[...FACILITY_OPTIONS]}
                     values={form.facilities}
                     onChange={(value) => change("facilities", value)}
+                    error={errors.facilities}
                   />
                   <CheckboxGroup
                     label="Accessibility needs"
@@ -511,6 +511,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     ]}
                     values={form.accessibility}
                     onChange={(value) => change("accessibility", value)}
+                    error={errors.accessibility}
                   />
                   <div className="mb-4">
                     <label
@@ -579,6 +580,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     placeholder="e.g. Two wireless microphones and a portable speaker"
                     value={form.equipmentNeeds}
                     onChange={(e) => change("equipmentNeeds", e.target.value)}
+                    error={errors.equipmentNeeds}
                   />
                   <div className="rounded-lg bg-gray-50 p-4">
                     <h2 className="mb-4 text-sm font-semibold">

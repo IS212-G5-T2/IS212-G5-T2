@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser, UserRole } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
@@ -119,7 +119,14 @@ function savedEventRow() {
 
 let service: EventsService;
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(async () => {
+  // Freeze only Date so the date-dependent fixtures and checks do not depend on the run date.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-20T10:00:00+08:00'));
   vi.resetAllMocks();
   db.transaction.mockResolvedValue({ rows: [] });
   database.transaction.mockImplementation(async (work) => {

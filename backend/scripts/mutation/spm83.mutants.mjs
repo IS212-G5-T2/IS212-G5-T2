@@ -43,7 +43,7 @@ export const MUTANTS = [{
   file: SERVICE,
   suites: ['rejection'],
   edits: [[
-    "      if (event.coordinator_id !== coordinator.uid)\n        throw new ForbiddenException(\n          'This request is assigned to another coordinator.',\n        );\n      const updated = await client.query(\n        `UPDATE events\n           SET status = 'Rejected',",
+    "      if (event.coordinator_id !== coordinator.uid)\n        throw new ForbiddenException(\n          'Only the assigned coordinator can reject this request.',\n        );\n      const updated = await client.query(\n        `UPDATE events\n           SET status = 'Rejected',",
     "      const updated = await client.query(\n        `UPDATE events\n           SET status = 'Rejected',",
   ]],
 }];
