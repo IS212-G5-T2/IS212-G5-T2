@@ -43,6 +43,15 @@ const draft = (overrides = {}): DraftRecord => ({
   eventId: null,
   updatedAt: "2030-01-01T00:00:00Z",
 });
+const facilityOptions = {
+  facilities: [{ label: "Catering", value: "Catering" }],
+  accessibility: [{ label: "Wheelchair access", value: "Wheelchair access" }],
+};
+function mockDraftWithFacilityOptions(record: DraftRecord) {
+  mocked.mockResolvedValueOnce(record);
+  if (record.fields.formStep === 1) mocked.mockResolvedValueOnce(facilityOptions);
+  mocked.mockResolvedValue(record);
+}
 function open(path = `/requests/${id}`) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -94,6 +103,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it("Q2-023 back navigation preserves data and server attachment errors are visible", async () => {
     mocked
       .mockResolvedValueOnce(draft({ formStep: 2 }))
+      .mockResolvedValueOnce(facilityOptions)
       .mockRejectedValueOnce(
         new ApiError("Correct attachments", {
           attachments: "Invalid attachment metadata",
@@ -116,7 +126,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([0, 1, 2])(
     "Q2-001 saves incomplete values from wizard step %s",
     async (formStep) => {
-      mocked.mockResolvedValue(draft({ formStep, purpose: "", startTime: "" }));
+      mockDraftWithFacilityOptions(draft({ formStep, purpose: "", startTime: "" }));
       open();
       await screen.findByRole("heading", { name: "Edit Draft Request" });
       save();
@@ -193,9 +203,10 @@ describe("SPM-37 Q2 functional cases", () => {
     });
     save();
     await screen.findByRole("dialog");
-    expect(mocked.mock.calls[1]).toEqual(mocked.mock.calls[0]);
-    const first = JSON.parse(mocked.mock.calls[0][1]!.body as string),
-      last = JSON.parse(mocked.mock.calls[2][1]!.body as string);
+    const puts = mocked.mock.calls.filter(([, init]) => init?.method === "PUT");
+    expect(puts[1]).toEqual(puts[0]);
+    const first = JSON.parse(puts[0][1]!.body as string),
+      last = JSON.parse(puts[2][1]!.body as string);
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
@@ -289,24 +300,26 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
     "Q2-011 attendance boundary %s on submission",
     async (expectedAttendance) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, expectedAttendance }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, expectedAttendance }));
       open();
       await screen.findByLabelText(/Expected attendance/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       const valid =
         Number(expectedAttendance) >= 1 &&
         Number(expectedAttendance) <= 2147483647;
       if (valid) expect(screen.getByLabelText("Equipment needs")).toBeTruthy();
       else expect(screen.getByText(/positive whole number/)).toBeTruthy();
-      expect(mocked).toHaveBeenCalledTimes(1);
+      expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
   it.each(["09:59", "10:00", "10:01"])(
     "Q2-012 end time %s relative to start 10:00",
     async (endTime) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, endTime }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, endTime }));
       open();
       await screen.findByLabelText(/End time/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       if (endTime === "10:01")
         expect(screen.getByLabelText("Equipment needs")).toBeTruthy();
@@ -329,12 +342,13 @@ describe("SPM-37 Q2 functional cases", () => {
   ])(
     "Q2-014 corrupt persisted schedule %s %s cannot submit",
     async (startDate, endTime) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, startDate, endTime }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, startDate, endTime }));
       open();
       await screen.findByLabelText(/Start date/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       expect(screen.queryByLabelText("Equipment needs")).toBeNull();
-      expect(mocked).toHaveBeenCalledTimes(1);
+      expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
   it("Q2-015 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
@@ -395,7 +409,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([52428799, 52428800, 52428801])(
     "Q2-018 file size boundary %s bytes",
     async (size) => {
-      mocked.mockResolvedValue(draft({ formStep: 1 }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1 }));
       open();
       const input = await screen.findByLabelText("Supporting files");
       // Override size instead of allocating ~50MB of real bytes: the total
@@ -421,7 +435,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each([4, 5, 6])("Q2-019 file count boundary %s", async (count) => {
-    mocked.mockResolvedValue(draft({ formStep: 1 }));
+    mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
     fireEvent.change(input, {
@@ -443,7 +457,7 @@ describe("SPM-37 Q2 functional cases", () => {
     }
   });
   it("Q2-020 cancelled file selection is harmless and read failure allows retry", async () => {
-    mocked.mockResolvedValue(draft({ formStep: 1 }));
+    mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
     fireEvent.change(input, { target: { files: null } });

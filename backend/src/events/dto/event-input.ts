@@ -1,19 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
+import { accessibilityLabels } from '../../venues/helpers/accessibility-options.js';
+import { facilityNames } from '../../venues/helpers/venue-options.js';
 
-export const FACILITIES = [
-  'Catering',
-  'AV System',
-  'Parking',
-  'Stage',
-  'Projector',
-  'Whiteboard',
-];
-export const ACCESSIBILITY = [
-  'Wheelchair ramps',
-  'Accessible restrooms',
-  'Hearing loop',
-  'Elevator access',
-];
+export const FACILITIES = [...facilityNames];
+export const ACCESSIBILITY = [...accessibilityLabels];
 export const LAYOUTS = [
   'Theatre',
   'Classroom',
@@ -89,14 +79,17 @@ export function validateEvent(input: unknown): EventInput {
 
     return value.map((attachment) => {
       const item =
-        attachment && typeof attachment === 'object' && !Array.isArray(attachment)
+        attachment &&
+        typeof attachment === 'object' &&
+        !Array.isArray(attachment)
           ? (attachment as Record<string, unknown>)
           : {};
       const id = typeof item.id === 'string' ? item.id.trim() : '';
       const name = typeof item.name === 'string' ? item.name.trim() : '';
       const type = typeof item.type === 'string' ? item.type.trim() : '';
       const size = item.size;
-      const dataUrl = typeof item.dataUrl === 'string' ? item.dataUrl.trim() : '';
+      const dataUrl =
+        typeof item.dataUrl === 'string' ? item.dataUrl.trim() : '';
 
       if (
         !id ||

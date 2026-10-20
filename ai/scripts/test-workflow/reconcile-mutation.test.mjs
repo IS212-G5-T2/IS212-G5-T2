@@ -16,6 +16,12 @@ test('parseLog reads results, killing suites and baselines', () => {
   assert.deepEqual(parsed.results.get('E1'), { status: 'equivalent', killers: [] });
 });
 
+test('parseLog normalizes uppercase mutation outcomes so SURVIVED blocks reconciliation', () => {
+  const parsed = parseLog('baseline unit: green\nA1       SURVIVED   a real mutant\n', SUITES);
+  assert.deepEqual(parsed.results.get('A1'), { status: 'survived', killers: [] });
+  assert.match(reconcile('t', [defs[0]], parsed).findings.join('\n'), /A1: SURVIVED/);
+});
+
 test('parseLog reads the mutation runner killed by syntax with CRLF output', () => {
   const parsed = parseLog('baseline service: green\r\nA1 killed           killed by: service: SPM118-AC2-04-UNIT proves it works mutation title\r\n', SUITES);
   assert.deepEqual(parsed.results.get('A1'), { status: 'killed', killers: ['service'] });

@@ -2,6 +2,17 @@
 
 One table per story, headed `## <story>`. Every tier cell of every AC is `PRESENT (test ids)`, `N/A (reason)` or `MISSING (reason)`. `PRESENT` ids must be in `test-id-registry.md`. `MISSING` is allowed only with a reason and becomes a gap-list item. The suffix naming (`-BND`, `-INT` and so on) is optional; this matrix is the source of truth for which tier a test serves. See `ai/docs/test-workflow.md` section 4 and gate G2.
 
+## SPM-144
+
+| AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+|---|---|---|---|---|---|---|---|---|---|
+| AC1 | PRESENT (EVE-FAC-01-A) | N/A (load errors are AC5) | N/A (no numeric boundary) | PRESENT (EVE-FAC-01-B) | N/A (venue schema supplies the options) | PRESENT (EVE-FAC-01-B) | N/A (read-only options) | N/A (venue routes are protected by existing authentication middleware) | N/A (read-only options) |
+| AC2 | PRESENT (EVE-FAC-02-A) | N/A (invalid values are AC4) | N/A (no numeric boundary) | PRESENT (EVE-FAC-02-B) | PRESENT (EVE-FAC-02-A, EVE-FAC-02-B, EVE-ACC-02-ALIGN-01) | PRESENT (EVE-FAC-02-B) | N/A (read-only form selection) | N/A (same protected venue route) | N/A (no concurrent write) |
+| AC3 | PRESENT (EVE-FAC-03-A, EVE-FAC-03-B) | N/A (rejection is AC4) | N/A (no facility count limit) | PRESENT (EVE-FAC-03-A) | N/A (schema contract is AC1/2) | PRESENT (EVE-FAC-06-A, EVE-FAC-06-B) | N/A (event creation uses authenticated organiser identity) | N/A (covered by SPM-36 event ownership tests) | N/A (submission idempotency is SPM-36) |
+| AC4 | N/A (unsupported choice is a refusal) | PRESENT (EVE-FAC-04-A, EVE-FAC-04-B) | N/A (no numeric boundary) | PRESENT (EVE-FAC-04-B) | N/A (fixed schema) | PRESENT (EVE-FAC-04-B) | N/A (independent requests) | N/A (no new authorization rule) | N/A (no concurrency rule) |
+| AC5 | N/A (status behaviors are sad/state) | PRESENT (EVE-FAC-05-C, EVE-FAC-05-D) | N/A (empty set is covered as state) | PRESENT (EVE-FAC-05-A, EVE-FAC-05-B, EVE-FAC-05-C, EVE-FAC-05-D) | N/A (no configurable state) | PRESENT (EVE-FAC-05-A, EVE-FAC-05-B, EVE-FAC-05-C, EVE-FAC-05-D) | N/A (read-only) | N/A (no new access rule) | N/A (options are fetched read-only) |
+| AC6 | PRESENT (EVE-FAC-06-A, EVE-FAC-06-B) | PRESENT (EVE-FAC-04-A, EVE-FAC-04-B) | N/A (no numeric boundary) | PRESENT (EVE-FAC-03-A, EVE-FAC-04-B) | N/A (no configuration) | PRESENT (EVE-FAC-06-A, EVE-FAC-06-B) | N/A (isolated service request) | N/A (authorization owned by existing event service) | N/A (no concurrency rule) |
+
 ## SPM-54
 
 | AC   | Happy                       | Sad                                          | Boundary                                           | Interaction                                                 | Configuration                       | State                                | Isolation                                     | Security                                               | Concurrency                                                  |
