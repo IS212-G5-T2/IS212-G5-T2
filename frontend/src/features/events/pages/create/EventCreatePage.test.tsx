@@ -627,7 +627,7 @@ describe("EventCreatePage", () => {
     });
   });
 
-  /** EVE-FAC-05-F: a draft restored at review loads current options before submission and blocks stale saved choices. */
+  /** EVE-FAC-05-F: a draft restored at review cannot submit while current options are in error; retry loads options before stale-value validation. */
   it("EVE-FAC-05-F validates stale selections when a draft resumes at review", async () => {
     const user = userEvent.setup();
     const draft = {
@@ -663,6 +663,9 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
     rejectOptions(new Error("Facilities unavailable"));
     expect(await screen.findByRole("alert")).toHaveTextContent("Facilities unavailable");
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+    expect(screen.getByRole("heading", { name: "Review Your Request" })).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
     await user.click(screen.getByRole("button", { name: "Retry facility and accessibility options" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Loading facility and accessibility options");
     resolveOptions({ facilities: venueFacilityOptions, accessibility: venueAccessibilityOptions });

@@ -31,6 +31,7 @@ Where user is the user's github username.
 
 ## 2026-10-20
 
+- swr - implementation correction - SPM-144 - Assert resumed review submission is blocked on options error: EVE-FAC-05-F now attempts Submit for Review after the current options fetch fails and asserts no event POST occurs before retry; the targeted error-state mutant now permits only review-step submission and is killed by this assertion. Focused frontend suite 29/29; SPM-144 frontend mutants 8/8 killed.
 - swr - fix - fix/SPM-144-facility-schema - Resolve backend E2E fixture failures: Pinned Confirmed-row dates in JOIN-WAITLIST-14-A to remove PostgreSQL wall-clock dependence; updated SPM-65 accessibility fixtures from the retired "Wheelchair ramps" option to the current venue-schema "Wheelchair access" value. Local PostgreSQL E2Es unavailable because `DATABASE_URL` is unset and Docker socket access is denied.
 
 ## 2026-10-14

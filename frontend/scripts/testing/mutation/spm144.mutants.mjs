@@ -59,12 +59,12 @@ export const MUTANTS = [
   },
   {
     id: 'SPM144-FE-ERROR-STATE-GUARD',
-    name: 'failed options request permits progression and submission',
+    name: 'failed options request blocks progression but permits submission at review',
     file: PAGE,
     suites: ['facilities'],
     edits: [[
       'if (step >= 1 && facilityStatus !== "loaded") return;',
-      'if (step >= 1 && facilityStatus === "loading") return;',
+      'if (step >= 1 && facilityStatus !== "loaded" && step < 2) return;',
     ]],
   },
   {
