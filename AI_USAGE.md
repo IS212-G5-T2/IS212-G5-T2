@@ -26,6 +26,7 @@ Where user is the user's github username.
 
 ## 2026-10-20
 
+- swr - fix - fix/SPM-144-facility-schema - Resolve backend E2E fixture failures: Pinned Confirmed-row dates in JOIN-WAITLIST-14-A to remove PostgreSQL wall-clock dependence; updated SPM-65 accessibility fixtures from the retired "Wheelchair ramps" option to the current venue-schema "Wheelchair access" value. Local PostgreSQL E2Es unavailable because `DATABASE_URL` is unset and Docker socket access is denied.
 
 ## 2026-10-14
 

@@ -1620,6 +1620,14 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       const att = [await attendee('01'), await attendee('02'), await attendee('03')];
       const eventId = await seedEvent({ coordinatorId: coordinator.uid, organiserId: organiser.uid });
       for (const [index, who] of att.entries()) await seedRegistered(eventId, who.uid, `0${index + 1}`);
+      // Pin the Confirmed registration dates too: PostgreSQL's DEFAULT now() makes the intended comparison with the
+      // fixed Waitlisted dates change as the calendar moves (the test asserts Queue 02, Queue 03, then promoted ATT-04).
+      for (const [index, who] of att.entries()) {
+        await pool.query(
+          `UPDATE event_registrations SET created_at = $3 WHERE event_id = $1 AND attendee_id = $2`,
+          [eventId, who.uid, `2026-10-${String(15 + index).padStart(2, '0')}T00:00:00.000Z`],
+        );
+      }
       const waiting = [await attendee('04'), await attendee('05'), await attendee('06')];
       for (const who of waiting) await joinAs(eventId, who);
       // The registration dates run in the opposite order to the join order (ATT-04 joined first, has the latest date), so
