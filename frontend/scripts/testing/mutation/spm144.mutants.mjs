@@ -68,6 +68,36 @@ export const MUTANTS = [
     ]],
   },
   {
+    id: 'SPM144-FE-ERROR-REVIEW-SUBMIT',
+    name: 'failed options request permits submission only at review',
+    file: PAGE,
+    suites: ['facilities'],
+    testMappings: [{
+      suite: 'facilities',
+      file: 'src/features/events/pages/create/EventCreatePage.test.tsx',
+      title: 'EVE-FAC-05-F validates stale selections when a draft resumes at review',
+    }],
+    edits: [[
+      'if (step >= 1 && facilityStatus !== "loaded") return;',
+      'if (step >= 1 && facilityStatus !== "loaded" && !(step === 2 && facilityStatus === "error")) return;',
+    ]],
+  },
+  {
+    id: 'SPM144-FE-ERROR-CONTINUE',
+    name: 'failed options request permits Continue only from step one',
+    file: PAGE,
+    suites: ['facilities'],
+    testMappings: [{
+      suite: 'facilities',
+      file: 'src/features/events/pages/create/EventCreatePage.test.tsx',
+      title: 'EVE-FAC-05-E blocks Continue after facility options fail',
+    }],
+    edits: [[
+      'if (step >= 1 && facilityStatus !== "loaded") return;',
+      'if (step >= 1 && facilityStatus !== "loaded" && !(step === 1 && facilityStatus === "error")) return;',
+    ]],
+  },
+  {
     id: 'SPM144-FE-REVIEW-STEP-OPTIONS',
     name: 'draft restored at review skips loading current facility and accessibility options',
     file: PAGE,
