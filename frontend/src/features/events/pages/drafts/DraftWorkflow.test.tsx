@@ -48,9 +48,30 @@ const facilityOptions = {
   accessibility: [{ label: "Wheelchair access", value: "Wheelchair access" }],
 };
 function mockDraftWithFacilityOptions(record: DraftRecord) {
-  mocked.mockResolvedValueOnce(record);
-  if (record.fields.formStep === 1) mocked.mockResolvedValueOnce(facilityOptions);
-  mocked.mockResolvedValue(record);
+  mocked.mockImplementation(async (path, init) => {
+    if (path === "/venues/options") return facilityOptions;
+    if (path === `/requests/${id}` && init?.method === "PUT") {
+      return { ...record, version: record.version + 1 };
+    }
+    if (path === `/requests/${id}`) return record;
+    return undefined;
+  });
+}
+function mockResumedDraftFlow(
+  record: DraftRecord,
+  submit: () => unknown = () => undefined,
+) {
+  const options = deferred<typeof facilityOptions>();
+  mocked.mockImplementation(async (path, init) => {
+    if (path === "/venues/options") return options.promise;
+    if (path === `/requests/${id}` && init?.method === "PUT") {
+      return { ...record, version: record.version + 1 };
+    }
+    if (path === `/requests/${id}/submit`) return submit();
+    if (path === `/requests/${id}`) return record;
+    return undefined;
+  });
+  return { resolveOptions: () => options.resolve(facilityOptions) };
 }
 function open(path = `/requests/${id}`) {
   return render(
@@ -260,17 +281,19 @@ describe("SPM-37 Q2 functional cases", () => {
   it("Q2-009 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
     useAppStore.setState({ events: [event, { id: "other" }] as never });
-    mocked
-      .mockResolvedValueOnce(draft({ formStep: 2 }))
-      .mockResolvedValueOnce({ ...draft(), version: 2 })
-      .mockResolvedValueOnce({ event });
+    const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => ({ event }));
     open();
     await screen.findByLabelText("Equipment needs");
+    await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+    await act(async () => flow.resolveOptions());
     click(/Submit For Review/);
     await screen.findByText("Event submitted");
-    expect(mocked.mock.calls[1][1]?.method).toBe("PUT");
-    expect(mocked.mock.calls[2][0]).toBe(`/requests/${id}/submit`);
-    expect(JSON.parse(mocked.mock.calls[2][1]!.body as string).version).toBe(2);
+    const requestCalls = mocked.mock.calls.filter(
+      ([path]) => path !== "/venues/options",
+    );
+    expect(requestCalls[1][1]?.method).toBe("PUT");
+    expect(requestCalls[2][0]).toBe(`/requests/${id}/submit`);
+    expect(JSON.parse(requestCalls[2][1]!.body as string).version).toBe(2);
     expect(useAppStore.getState().events.map((e) => e.id)).toEqual([
       id,
       "other",
@@ -279,12 +302,13 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([new ApiError("Rejected", { equipmentNeeds: "Invalid" }), "unknown"])(
     "Q2-010 failed submission keeps draft data %j",
     async (error) => {
-      mocked
-        .mockResolvedValueOnce(draft({ formStep: 2 }))
-        .mockResolvedValueOnce({ ...draft(), version: 2 })
-        .mockRejectedValueOnce(error);
+      const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => {
+        throw error;
+      });
       open();
       await screen.findByLabelText("Equipment needs");
+      await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+      await act(async () => flow.resolveOptions());
       click(/Submit For Review/);
       expect((await screen.findByRole("alert")).textContent).toBe(
         error instanceof Error
@@ -327,14 +351,18 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it("Q2-013 missing required basic fields in resumed review returns to step one", async () => {
-    mocked.mockResolvedValue(
+    const flow = mockResumedDraftFlow(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
     );
     open();
     await screen.findByLabelText("Equipment needs");
+    await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+    await act(async () => flow.resolveOptions());
     click(/Submit For Review/);
     expect(screen.getByText("Enter the purpose of your event.")).toBeTruthy();
-    expect(mocked).toHaveBeenCalledTimes(1);
+    expect(
+      mocked.mock.calls.filter(([path]) => path !== "/venues/options"),
+    ).toHaveLength(1);
   });
   it.each([
     ["bad-date", "11:00"],
