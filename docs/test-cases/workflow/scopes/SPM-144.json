@@ -1,0 +1,40 @@
+{
+  "story": "SPM-144",
+  "title": "Event Request Facilities and Accessibility Schema Compatibility",
+  "note": "Updated Jira SPM-144 (2026-10-19) AC1-AC6 defines authoritative backend options, submission, rejection, and loading/error behavior for facilities and accessibility. Current Confluence matrix v3 page 23692099 retains 14 PRIMARY EVE-FAC rows with accessibility variants in each case page; it supersedes the earlier facility-only matrix revision, so there is no current source conflict. Confluence Standup 7 page 23265361 confirms accessibility alignment; EVE-ACC-02-ALIGN-01 is a user-approved SUPPORTING AC2 ID. Examples are synthetic; expected accessibility labels and submitted values derive from backend venue accessibility-options.ts. EVE-FAC-03-B/04-A/06-A/06-B use real HTTP and PostgreSQL tests. Coverage includes the full EventCreatePage and EventsService shared source files; uncovered lines are classified individually in coverage-line-status.md. Unrelated pre-existing draft, attachment, planning, and lifecycle branches remain explicit coverage residuals.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "frontend": [
+      { "glob": "frontend/src/features/events/pages/create/EventCreatePage.test.tsx", "titleMatch": "EVE-FAC-" }
+    ],
+    "backend-unit": [
+      { "glob": "backend/src/venues/venues.controller.spec.ts", "titleMatch": "EVE-(FAC|ACC)-" },
+      { "glob": "backend/src/events/dto/event-input.spec.ts", "titleMatch": "EVE-ACC-02-ALIGN-01" }
+    ],
+    "backend-e2e": [
+      { "glob": "backend/test/events-facilities.e2e-spec.ts", "titleMatch": "EVE-FAC-" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/events/pages/create/EventCreatePage.tsx"
+    ],
+    "backend": [
+      "backend/src/venues/helpers/venue-options.ts",
+      "backend/src/venues/helpers/accessibility-options.ts",
+      "backend/src/venues/venues.controller.ts",
+      "backend/src/events/dto/event-input.ts",
+      "backend/src/events/events.service.ts"
+    ]
+  },
+  "suites": [
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] },
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["TEST_DATABASE_URL"] }
+  ],
+  "mutation": [
+    { "id": "backend-facilities", "cwd": "backend", "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm144.mutants.mjs"], "mutantsFile": "backend/scripts/mutation/spm144.mutants.mjs", "export": "MUTANTS", "env": ["TEST_DATABASE_URL"] },
+    { "id": "frontend-facilities", "cwd": "frontend", "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm144.mutants.mjs"], "mutantsFile": "frontend/scripts/testing/mutation/spm144.mutants.mjs", "export": "MUTANTS", "env": [] }
+  ]
+}

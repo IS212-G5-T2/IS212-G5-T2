@@ -20,6 +20,13 @@ Where user is the user's github username.
 
 ## 2026-10-19
 
+
+- swr - test data - SPM-54 - Seed manual suitability fixtures: Added four local venues with isolated capacity, facility, accessibility, and layout mismatches, a capacity-24 boundary venue for VEN-BKG-01-BND-1, and an accessibility-specific event clone; documented the idempotent seed script. Updated Confluence VEN-BKG-01-BND-1 to use VEN-329 and the filter step. Not applied to a database yet.
+- swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
+- swr - test evidence update - SPM-54 - Confluence case status reconciliation: Cycle 20 has passing assertions for all 33 matrix IDs (G1–G7 PASS, 339/339 tests across three timezones, 31/31 mapped mutants killed); updated all case pages to Pass with per-file evidence. Manual UI procedures were not separately run, and cycle metrics remain AMBER for coverage-floor and tier gaps. A separate localhost UI attempt rendered blank; EVT-201 was restored to Confirmed and existing booking rows were unchanged.
+
+## 2026-10-20
+
 ## 2026-10-14
 
 - tanwz - test - SPM-135 - Test case evaluation gaps (branch chore/Improve-Test-Case-Evaluation-Workflow): Settled the 422 vs 409 question for CONFIRM-EVENT-06 (the Confluence expected result of 422 is the oracle; the "HTTP 409" in the Confluence notes is the already-Confirmed case, recorded in the results doc and not yet corrected in Confluence), documented why the lock-wait race test polls (bounded, asserts the wait), and mapped the internal ID families to the acceptance criteria they support. Added `backend/test/events-checklist-actions.e2e-spec.ts` (10 tests) with mutants CHA1 to CHA7, an e2e coverage config and `npm run test:cov:e2e` so `status.service.ts` is measured (97.43% lines from the real-database suites), and frontend tests for the page refresh, load failure, confirm callback, re-request and feedback untick paths (SPM-135 frontend files now 100% on lines and functions; `PlanningInformationPage.tsx` branches 90.08%). Corrected the mutation evidence: M11 is equivalent (the earlier "killed" claim could not be reproduced), full backend run 89 mutants: 82 killed, 7 equivalent, 0 survived. Checks: frontend 1017 passed, backend unit 1231, backend events e2e 129, full e2e 357 passed and 11 failed in dev's `drafts.e2e-spec.ts` (fails the same on dev). Not verified in a browser; Test Code Review not re-run. Nothing committed.

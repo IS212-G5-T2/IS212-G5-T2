@@ -84,6 +84,8 @@ The service listens on `PORT` when set, otherwise `3000`.
 
 ## Event planning (SPM-97, SPM-49, SPM-85)
 
+The event request form reads supported facility and accessibility labels/values from `GET /api/venues/options`. Event creation validates both selections against the same venue schemas used by venue creation and comparison.
+
 Routes (all behind `AuthenticationMiddleware`; the service checks role, ownership/assignment and event status):
 
 | Route | Who | Purpose |

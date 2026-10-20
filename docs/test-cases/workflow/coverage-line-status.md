@@ -16,6 +16,13 @@ Every uncovered line of an in-scope source file needs a row here (gate G5). Line
 | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx | 28,292,296 | UNREACHABLE | Generic selection handlers are not connected to the SPM-54 page: assigned-event times are fixed, and browse-only mode is read-only. The calendar keeps schedule navigation but does not provide time-range selection in these modes.                                                       |
 | backend/src/venues/venues.service.ts | 177,178,180,181,182,184,185,190,191,193,194,196,197,201,202,207,208,211,226,227,228,229,230,239,240,241,242,243,244,245,250,251,252,253,256,257,263 | LOW-VALUE | Pre-existing SPM-50 creation, SPM-54 booking and browse, and SPM-122 unavailability code. Covered by those stories' own test suites; `/* v8 ignore */` blocks already exempt the decorator and duplicate-key helper. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
 | frontend/src/utils/format.ts | 2,3,4,5,6,7,8,10,38,48,49,50,51,52,53,54,55 | LOW-VALUE | Pre-existing shared formatter helpers unrelated to SPM-55 review behaviour. Covered by the format.ts unit tests in their owning scopes. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 107,108 | LOW-VALUE | Existing draft-load error handling is outside SPM-144; facility and accessibility catalogue success, failure, retry, and stale-value correction are covered by the EVE-FAC flows. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 194,195 | LOW-VALUE | Existing draft-save validation error handling belongs to draft persistence; SPM-144 exercises catalogue restoration and correction in EVE-FAC-02-B and EVE-FAC-05-D. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 234 | LOW-VALUE | Existing malformed schedule-date handling belongs to SPM-36 schedule validation; this story does not change date parsing. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 265,266,277,278,290,296,298,612 | LOW-VALUE | Existing attachment count/size limits, read-failure feedback, removal state update, and remove-button handler belong to SPM-36 attachment behavior; SPM-144 changes no attachment handling. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 685 | LOW-VALUE | The existing wizard back-button path is unrelated to schema loading; EVE-FAC-05-A covers blocked progression while both catalogues load. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 723,734 | LOW-VALUE | Existing draft-saved dialog Tab handling and navigation behavior belongs to SPM-37 draft handling; SPM-144 changes no dialog behavior. |
+| backend/src/events/events.service.ts | 50,51,64,67,68,69,70,72,73,74,95,194,211,230,239,240,245,246,255,256,258,260,262,265,266,267,269,272,273,277,278,280,284,285,288,289,290,291,295,300,304,305,306,307,308,316,321,328,329,330,331,334,335,339,340,341,342,345,346,349,358,368,377,378,379,380,384,385,386,387,390,391,394,402,412,424,425,451,452,456,457,465,483,484,485,489,490,504 | LOW-VALUE | Existing event authorization, reassignment, notification, approve/reject, and read-notification paths belong to their owning stories. SPM-144 adds no behavior to these methods; event-create facility persistence is exercised through the real HTTP/PostgreSQL suite. These shared-file residuals remain explicit coverage gaps. |
 
 ### Orchestrator AMBER dispositions — SPM-55 cycle-12 (2026-10-20)
 
@@ -26,7 +33,7 @@ Every uncovered line of an in-scope source file needs a row here (gate G5). Line
 | 28 SUPPORTING ID approvals pending (VEN-REV-01-A through 09-D) | Accepted pending Confluence access. All 28 IDs are SUPPORTING (none PRIMARY), so G1 passes. They will be upgraded to PRIMARY or confirmed once the Atlassian connector is authorized in claude.ai connector settings. TR-55-07 disposition covers the Confluence verification gap. |
 | TR-55-11 (mirror error-state case — staff fails, coordinator succeeds — not tested) | Deferred. No current code path produces the mirror defect without a new change introducing it. VEN-REV-M44 covers the original regression. Reopen if `BookingsPage.tsx` is edited again. |
 
-### Branch-only residuals from cycle 05
+### Branch-only residuals from cycle 06
 
 These are branch misses whose source lines are otherwise executed, so they do not appear in the uncovered-line table above. They explain the remaining metrics-floor miss without treating it as completed coverage:
 
