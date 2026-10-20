@@ -72,6 +72,31 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
     return { uid, cookie: cookie.split(';', 1)[0] };
   }
 
+  /** EVE-FAC-01-C: the options endpoint is protected and returns the facility and accessibility schema over HTTP. */
+  it('EVE-FAC-01-C serves current options to an authenticated organiser only', async () => {
+    await request(app.getHttpServer())
+      .get('/api/venues/options')
+      .expect(401);
+
+    const response = await request(app.getHttpServer())
+      .get('/api/venues/options')
+      .set('Cookie', organiser.cookie)
+      .expect(200);
+
+    expect(response.body).toEqual({
+      facilities: expect.arrayContaining([
+        { label: 'Catering', value: 'Catering' },
+        { label: 'Wired network', value: 'Wired network' },
+      ]),
+      accessibility: expect.arrayContaining([
+        { label: 'Wheelchair access', value: 'Wheelchair access' },
+        { label: 'Hearing loop', value: 'Hearing loop' },
+      ]),
+    });
+    expect(response.body.facilities).toHaveLength(11);
+    expect(response.body.accessibility).toHaveLength(4);
+  });
+
   function validRequest(submissionKey = randomUUID()) {
   return {
       name: 'Facility compatibility request',

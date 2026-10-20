@@ -10,7 +10,7 @@
     ],
     "backend-unit": [
       { "glob": "backend/src/venues/venues.controller.spec.ts", "titleMatch": "EVE-(FAC|ACC)-" },
-      { "glob": "backend/src/events/dto/event-input.spec.ts", "titleMatch": "EVE-ACC-02-ALIGN-01" }
+      { "glob": "backend/src/events/dto/event-input.spec.ts", "titleMatch": "EVE-(FAC|ACC)-" }
     ],
     "backend-e2e": [
       { "glob": "backend/test/events-facilities.e2e-spec.ts", "titleMatch": "EVE-FAC-" }

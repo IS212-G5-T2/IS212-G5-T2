@@ -170,7 +170,8 @@ describe('validateEvent', () => {
     },
   );
 
-  it('accepts all facility values from the venue schema', () => {
+  /** EVE-FAC-01-A: event validation accepts every current venue-schema facility. */
+  it('EVE-FAC-01-A accepts all facility values from the venue schema', () => {
     const event = validateEvent({
       ...validEventRequest(),
       facilities: [...facilityNames],
@@ -247,7 +248,8 @@ describe('validateEvent', () => {
     },
   );
 
-  it('rejects an unsupported facility value', () => {
+  /** EVE-FAC-04-A: event validation rejects a facility absent from the venue schema. */
+  it('EVE-FAC-04-A rejects an unsupported facility value', () => {
     expectFieldError(
       { ...validEventRequest(), facilities: ['Fireworks'] },
       'facilities',

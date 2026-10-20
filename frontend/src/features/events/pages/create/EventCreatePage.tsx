@@ -120,7 +120,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
   }, [draftId]);
 
   useEffect(() => {
-    if (step !== 1 || facilityStatus !== "idle") return;
+    if (step < 1 || facilityStatus !== "idle") return;
     setFacilityStatus("loading");
     setFacilityError("");
     api<{ facilities: FacilityOption[]; accessibility: AccessibilityOption[] }>("/venues/options")
@@ -300,8 +300,9 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
   }
   async function advance(event: React.FormEvent) {
     event.preventDefault();
-    if (inFlight.current || readingFiles || locked || !validate()) return;
-    if (step === 1 && facilityStatus !== "loaded") return;
+    if (inFlight.current || readingFiles || locked) return;
+    if (step >= 1 && facilityStatus !== "loaded") return;
+    if (!validate()) return;
     if (step < 2) {
       setStep(step + 1);
       return;
@@ -661,6 +662,13 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                       ))}
                     </dl>
                   </div>
+                  {facilityStatus === "loading" && <p role="status" className="mt-4">Loading facility and accessibility options…</p>}
+                  {facilityStatus === "error" && (
+                    <div role="alert" className="mt-4">
+                      <p>{facilityError}</p>
+                      <Button type="button" variant="secondary" onClick={retryFacilityOptions}>Retry facility and accessibility options</Button>
+                    </div>
+                  )}
                   <p className="mt-4 text-sm text-gray-500">
                     Your request will be submitted for review. You can view its
                     details in My Events.

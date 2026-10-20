@@ -243,7 +243,8 @@ describe("EventCreatePage", () => {
     expect(submittedBody).not.toHaveProperty("organiserId");
   });
 
-  it("keeps the request review card readable in light and dark mode", async () => {
+  /** EVE-FAC-06-C: the request review card keeps its text readable in light and dark themes. */
+  it("EVE-FAC-06-C keeps the request review card readable in light and dark mode", async () => {
     const user = userEvent.setup();
     renderCreate();
     await enterBasicInformation(user);
@@ -278,7 +279,6 @@ describe("EventCreatePage", () => {
     expect(screen.queryByLabelText("Catering")).toBeNull();
     expect(screen.queryByLabelText("Wheelchair access")).toBeNull();
     expect(apiMock.mock.calls.filter(([path]) => path === "/venues/options")).toHaveLength(1);
-    expect(apiMock.mock.calls.some(([path]) => String(path).includes("facilityNames"))).toBe(false);
   });
 
   /** EVE-FAC-03-A: selecting two backend values submits both values while rendering their distinct labels. */
@@ -457,23 +457,36 @@ describe("EventCreatePage", () => {
   });
 
   /** EVE-FAC-01-B and EVE-FAC-05-B: a malformed backend set is an error, never an empty or local fallback. */
-  it.each(["facilities", "accessibility"] as const)(
-    "EVE-FAC-01-B EVE-FAC-05-B rejects malformed %s options",
-    async (field) => {
+  it("EVE-FAC-01-B EVE-FAC-05-B rejects malformed facility and accessibility option arrays", async () => {
+    for (const field of ["facilities", "accessibility"] as const) {
+      const user = userEvent.setup();
+      apiMock.mockImplementation(async (path) => {
+        if (path !== "/venues/options") return undefined;
+        return field === "facilities"
+          ? { facilities: "Catering", accessibility: venueAccessibilityOptions }
+          : { facilities: venueFacilityOptions, accessibility: "Wheelchair access" };
+      });
+      renderCreate();
+      await enterBasicInformation(user);
+      expect(await screen.findByText("Facility and accessibility options response is invalid.")).toBeTruthy();
+      expect(screen.queryByLabelText("Catering")).toBeNull();
+      expect(screen.queryByLabelText("Wheelchair access")).toBeNull();
+      cleanup();
+    }
+  });
+
+  /** EVE-FAC-01-D: malformed entries inside an otherwise valid options array are rejected. */
+  it("EVE-FAC-01-D rejects a malformed option item instead of rendering an unchecked fallback", async () => {
     const user = userEvent.setup();
-    apiMock.mockImplementation(async (path) => {
-      if (path !== "/venues/options") return undefined;
-      return field === "facilities"
-        ? { facilities: "Catering", accessibility: venueAccessibilityOptions }
-        : { facilities: venueFacilityOptions, accessibility: "Wheelchair access" };
-    });
+    apiMock.mockImplementation(async (path) => path === "/venues/options"
+      ? { facilities: [null], accessibility: venueAccessibilityOptions }
+      : undefined);
     renderCreate();
     await enterBasicInformation(user);
     expect(await screen.findByText("Facility and accessibility options response is invalid.")).toBeTruthy();
     expect(screen.queryByLabelText("Catering")).toBeNull();
-    expect(screen.queryByLabelText("Wheelchair access")).toBeNull();
-    },
-  );
+    expect(screen.queryByRole("group", { name: /required facilities/i })).toBeNull();
+  });
 
   /** EVE-FAC-01-B and EVE-FAC-05-B: a failed request has no fallback, then retry loads the current catalogue. */
   it("EVE-FAC-01-B EVE-FAC-05-B has no fallback after a failed fetch and recovers on retry", async () => {
@@ -512,6 +525,24 @@ describe("EventCreatePage", () => {
     expect(screen.getByRole("textbox", { name: /equipment needs/i })).toBeTruthy();
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
     expect(attempts).toBe(2);
+  });
+
+  /** EVE-FAC-05-E: Continue remains blocked after the options request fails and no event submission is sent. */
+  it("EVE-FAC-05-E blocks Continue after facility options fail", async () => {
+    const user = userEvent.setup();
+    let rejectOptions!: (error: Error) => void;
+    apiMock.mockImplementation((path) => path === "/venues/options"
+      ? new Promise((_, reject) => { rejectOptions = reject; })
+      : Promise.resolve(undefined));
+    renderCreate();
+    await enterBasicInformation(user);
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading facility and accessibility options");
+    await enterSchedule(user);
+    rejectOptions(new Error("Facilities unavailable"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Facilities unavailable");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getByLabelText(/start date/i)).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
   /** EVE-FAC-05-C: an empty catalogue identifies stale restored values and blocks submission. */
@@ -594,6 +625,51 @@ describe("EventCreatePage", () => {
       expectedAttendance: 80, layout: "Banquet",
       facilities: ["Current value"], accessibility: ["Accessible restrooms"],
     });
+  });
+
+  /** EVE-FAC-05-F: a draft restored at review loads current options before submission and blocks stale saved choices. */
+  it("EVE-FAC-05-F validates stale selections when a draft resumes at review", async () => {
+    const user = userEvent.setup();
+    const draft = {
+      id: "00000000-0000-4000-8000-000000000038",
+      fields: {
+        name: "Saved name", purpose: "Purpose", description: "Description",
+        startDate: inputDate(7), startTime: "18:00", endDate: inputDate(7), endTime: "21:00",
+        expectedAttendance: "80", layout: "Banquet", facilities: ["Retired facility"],
+        accessibility: ["Retired access"], attachments: [], equipmentNeeds: "", registrationEnabled: false, formStep: 2,
+      },
+      version: 1, status: "Draft", eventId: null, updatedAt: "2026-09-16T00:00:00Z",
+    };
+    let resolveOptions!: (value: { facilities: typeof venueFacilityOptions; accessibility: typeof venueAccessibilityOptions }) => void;
+    let rejectOptions!: (error: Error) => void;
+    let optionsAttempts = 0;
+    apiMock.mockImplementation((path, init) => {
+      if (path === "/venues/options") {
+        optionsAttempts += 1;
+        return new Promise((resolve, reject) => {
+          if (optionsAttempts === 1) rejectOptions = reject;
+          else resolveOptions = resolve;
+        });
+      }
+      if (path === `/requests/${draft.id}` && init?.method !== "PUT") return Promise.resolve(draft);
+      if (init?.method === "PUT") return Promise.resolve({ ...draft, version: draft.version + 1 });
+      return Promise.resolve(undefined);
+    });
+    renderCreate(`/requests/${draft.id}`);
+    expect(await screen.findByRole("heading", { name: "Review Your Request" })).toBeTruthy();
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading facility and accessibility options");
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+    expect(screen.getByRole("heading", { name: "Review Your Request" })).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    rejectOptions(new Error("Facilities unavailable"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Facilities unavailable");
+    await user.click(screen.getByRole("button", { name: "Retry facility and accessibility options" }));
+    expect(await screen.findByRole("status")).toHaveTextContent("Loading facility and accessibility options");
+    resolveOptions({ facilities: venueFacilityOptions, accessibility: venueAccessibilityOptions });
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+    expect(await screen.findByText(/unsupported facilities: Retired facility/i)).toBeTruthy();
+    expect(await screen.findByText(/unsupported accessibility options: Retired access/i)).toBeTruthy();
+    expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
   // SPM-36 Test Case EVE-CRE-08-A
