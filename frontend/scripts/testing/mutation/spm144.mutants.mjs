@@ -33,8 +33,8 @@ export const MUTANTS = [
     file: PAGE,
     suites: ['facilities'],
     edits: [[
-      'if (step !== 1 || facilityStatus !== "idle") return;',
-      'if (step !== 1 || facilityStatus === "loaded" || facilityStatus === "loading") return;',
+      'if (step < 1 || facilityStatus !== "idle") return;',
+      'if (step < 1 || facilityStatus === "loaded" || facilityStatus === "loading") return;',
     ]],
   },
   {
@@ -55,6 +55,36 @@ export const MUTANTS = [
     edits: [[
       'if (staleAccessibility.length)',
       'if (false)',
+    ]],
+  },
+  {
+    id: 'SPM144-FE-ERROR-STATE-GUARD',
+    name: 'failed options request permits progression and submission',
+    file: PAGE,
+    suites: ['facilities'],
+    edits: [[
+      'if (step >= 1 && facilityStatus !== "loaded") return;',
+      'if (step >= 1 && facilityStatus === "loading") return;',
+    ]],
+  },
+  {
+    id: 'SPM144-FE-REVIEW-STEP-OPTIONS',
+    name: 'draft restored at review skips loading current facility and accessibility options',
+    file: PAGE,
+    suites: ['facilities'],
+    edits: [[
+      'if (step < 1 || facilityStatus !== "idle") return;',
+      'if (step !== 1 || facilityStatus !== "idle") return;',
+    ]],
+  },
+  {
+    id: 'SPM144-FE-OPTION-ITEM-SHAPE',
+    name: 'malformed backend option items bypass the label/value shape guard',
+    file: PAGE,
+    suites: ['facilities'],
+    edits: [[
+      'option && typeof option.label === "string" && typeof option.value === "string"',
+      'true',
     ]],
   },
 ];

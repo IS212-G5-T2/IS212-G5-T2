@@ -24,8 +24,15 @@ export const MUTANTS = [
     ]],
   },
   {
+    id: 'SPM144-BE-OPTIONS-ROUTE',
+    name: 'the venue options endpoint is mounted at the wrong HTTP path',
+    file: 'src/venues/venues.controller.ts',
+    suites: ['facilitiesE2E'],
+    edits: [["@Get('options')", "@Get('option-list')"]],
+  },
+  {
     id: 'SPM144-BE-ACCESSIBILITY-OPTION-VALUE',
-    name: 'accessibility endpoint submits internal ids instead of venue labels',
+    name: 'the first accessibility option submits its internal id instead of its label',
     file: 'src/venues/venues.controller.ts',
     suites: ['optionsUnit'],
     edits: [[
@@ -45,7 +52,7 @@ export const MUTANTS = [
   },
   {
     id: 'SPM144-BE-FACILITY-REJECTION',
-    name: 'unsupported facility values are accepted by event validation',
+    name: 'unsupported facility selections bypass validation and are silently discarded',
     file: 'src/events/dto/event-input.ts',
     suites: ['facilitiesE2E'],
     edits: [[
@@ -65,7 +72,7 @@ export const MUTANTS = [
   },
   {
     id: 'SPM144-BE-ACCESSIBILITY-REJECTION',
-    name: 'unsupported accessibility values are accepted by event validation',
+    name: 'accessibility validation rejects every submitted choice by using an empty allow-list',
     file: 'src/events/dto/event-input.ts',
     suites: ['facilitiesE2E'],
     edits: [[
