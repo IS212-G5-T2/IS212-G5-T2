@@ -13,6 +13,10 @@ Add entries under one date per day, using this format:
 ```
 Where user is the user's github username.
 
+## 2026-10-20
+
+- swr - implementation - SPM-144 - Fix frontend build fixture: Removed an unused `changeRequests` property from the venue-search `EventRecord` fixture; the property is not part of the shared type.
+
 ## 2026-10-18
 
 - swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.
