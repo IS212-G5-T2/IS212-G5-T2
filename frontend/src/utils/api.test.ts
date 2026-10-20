@@ -89,6 +89,25 @@ describe("api", () => {
     });
   });
 
+  // Frontend half of EVE-DRF-10-C: a non-JSON 413 body (as the body-size limit returns) still maps to
+  // the attachment-size message. The backend half (413 with CORS headers on a real server) is manual only.
+  it("maps a non-JSON 413 body to the attachment-size message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<html><body>Request Entity Too Large</body></html>", {
+          status: 413,
+          headers: { "content-type": "text/html" },
+        }),
+      ),
+    );
+
+    await expect(api("/requests/req-1")).rejects.toMatchObject({
+      message: "The files you attached are too large. Please attach smaller files and try again.",
+      status: 413,
+    });
+  });
+
   // Does not expose server failure details to the browser.
   /** EVE-DRF-06-B: a server failure maps to a generic availability message. */
   it("maps a server failure to a generic availability message", async () => {

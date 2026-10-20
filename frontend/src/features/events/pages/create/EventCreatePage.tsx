@@ -21,6 +21,26 @@ const steps = [
   "Schedule & Venue Needs",
   "Equipment & Review",
 ];
+const basicInformationFields = ["name", "purpose", "description"];
+const scheduleFields = [
+  "startDate",
+  "startTime",
+  "endDate",
+  "endTime",
+  "startDateTime",
+  "endDateTime",
+  "expectedAttendance",
+  "layout",
+  "facilities",
+  "accessibility",
+  "attachments",
+];
+/** The wizard step that shows a server-rejected field. Fields with no step of their own go to review. */
+function stepForField(field: string) {
+  if (basicInformationFields.includes(field)) return 0;
+  if (scheduleFields.includes(field)) return 1;
+  return 2;
+}
 function todayInputValue() {
   const today = new Date();
   const year = today.getFullYear();
@@ -307,7 +327,14 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
           ? error.message
           : "Unable to submit. Please try again.",
       );
-      if (error instanceof ApiError && error.errors) setErrors(error.errors);
+      if (error instanceof ApiError && error.errors) {
+        setErrors(error.errors);
+        // Return the user to the first step that shows a rejected field (SPM-36 AC9), and list every
+        // reason in the banner, which shows on every step, so no rejection is hidden on review.
+        const rejectedSteps = Object.keys(error.errors).map(stepForField);
+        if (rejectedSteps.length) setStep(Math.min(...rejectedSteps));
+        setFailure(Object.values(error.errors).join(" "));
+      }
     } finally {
       setBusy(false);
       inFlight.current = false;

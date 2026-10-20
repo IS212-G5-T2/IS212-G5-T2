@@ -315,6 +315,54 @@ describe("EventListPage", () => {
     );
   });
 
+  // EVENT-APPROVE-02-C (SPM-40 AC4) and EVENT-REJECT-02-C (SPM-83 AC1, AC5): the coordinator's
+  // default Pending Requests list is rendered from the real list, so an approved or rejected
+  // request must be absent from it, while the Submitted request stays.
+  it("EVENT-APPROVE-02-C EVENT-REJECT-02-C hides approved and rejected requests from the default Pending Requests list", async () => {
+    const user = userEvent.setup();
+    const approved: EventRecord = {
+      ...submittedEvent(),
+      id: "00000000-0000-4000-8000-0000000000aa",
+      name: "Approved Gala",
+      status: "approved",
+    };
+    const rejected: EventRecord = {
+      ...submittedEvent(),
+      id: "00000000-0000-4000-8000-0000000000bb",
+      name: "Rejected Gala",
+      status: "rejected",
+      rejectionReason: "Venue unavailable for the requested date.",
+    };
+    apiMock.mockResolvedValue([submittedEvent(), approved, rejected]);
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator-1",
+        name: "Coordinator One",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      events: [],
+    });
+
+    render(
+      <MemoryRouter initialEntries={["/events"]}>
+        <Routes>
+          <Route path="/events" element={<EventListPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Pending Requests" })).toBeTruthy();
+    expect(screen.getByText("Welcome Evening")).toBeTruthy();
+    expect(screen.queryByText("Approved Gala")).toBeNull();
+    expect(screen.queryByText("Rejected Gala")).toBeNull();
+
+    // Approved requests are still reachable through their own filter.
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "approved");
+    expect(screen.getByText("Approved Gala")).toBeTruthy();
+    expect(screen.queryByText("Welcome Evening")).toBeNull();
+  });
+
   // Coordinators can view rejected requests via the "Rejected" status filter.
   it("lets coordinators view rejected requests through the Rejected status filter", async () => {
     const user = userEvent.setup();

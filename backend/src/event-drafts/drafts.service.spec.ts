@@ -332,3 +332,47 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(mock.submit).toHaveBeenCalledWith(identity, id, body);
   });
 });
+
+// Supporting service-level checks for EVE-DRF-09. The two-user HTTP and PostgreSQL cases are in
+// backend/test/drafts.e2e-spec.ts, which is not run in this suite.
+describe('SPM-37 owner isolation, service level (supporting)', () => {
+  it('saves under the verified caller and ignores a client-supplied organiserId', async () => {
+    selected({ ...row(), version: 0 });
+    await service.save(identity, id, {
+      fields,
+      version: 0,
+      operationId,
+      organiserId: 'draft-other',
+    });
+    const insert = db.transaction.mock.calls.find(([sql]) =>
+      String(sql).startsWith('INSERT INTO event_drafts'),
+    );
+    expect(insert?.[1]).toEqual([id, 'current-user', expect.any(String)]);
+    expect(JSON.stringify(db.transaction.mock.calls)).not.toContain('draft-other');
+  });
+
+  it('locks and updates only the verified owner\'s row when saving', async () => {
+    selected({ ...row(), version: 1 });
+    await service.save(identity, id, { fields, version: 1, operationId });
+    const lock = db.transaction.mock.calls.find(([sql]) =>
+      String(sql).includes('FOR UPDATE'),
+    );
+    expect(lock?.[1]).toEqual([id, 'current-user']);
+  });
+
+  it('scopes direct-URL reads and the list to the verified owner', async () => {
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await expect(service.get(identity, id)).rejects.toMatchObject({ status: 404 });
+    expect(db.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('organiser_id=$2'),
+      [id, 'current-user'],
+    );
+
+    db.query.mockResolvedValueOnce({ rows: [] });
+    await service.list(identity);
+    expect(db.query).toHaveBeenLastCalledWith(
+      expect.stringContaining('organiser_id=$1'),
+      ['current-user'],
+    );
+  });
+});

@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventCreatePage } from "@/features/events/pages/create/EventCreatePage";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { MyRequestsPage } from "../drafts/MyRequestsPage";
-import { api } from "@/utils/api";
+import { api, ApiError } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord } from "@/types";
 
@@ -97,9 +97,16 @@ async function enterSchedule(user: ReturnType<typeof userEvent.setup>) {
   await user.selectOptions(screen.getByLabelText(/preferred room layout/i), "Banquet");
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
+  // Freeze only Date, so the date fixtures and "must be in the future" checks do not depend on
+  // when the suite runs. Timers stay real, so user-event keeps working.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-20T10:00:00+08:00"));
   vi.clearAllMocks();
   useAppStore.setState({ events: [] });
 });
@@ -313,6 +320,163 @@ describe("EventCreatePage", () => {
     });
     expect(submittedBody.registrationEnabled).toBe(true);
   });
+
+  // SPM-36 Test Case EVE-CRE-05-F: a blank description on its own keeps the wizard on step 0.
+  it("EVE-CRE-05-F blocks a blank description on its own and stays on the Basic Information step", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+
+    await user.type(screen.getByRole("textbox", { name: /event name/i }), "Welcome Evening");
+    await user.type(screen.getByRole("textbox", { name: /purpose/i }), "Community building");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(screen.getByText("Enter a description of your event.")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /create new event request/i })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /event name/i })).toHaveProperty(
+      "value",
+      "Welcome Evening",
+    );
+    expect(screen.queryByLabelText(/start date/i)).toBeNull();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-37 Test Case EVE-DRF-10-A: at most five supporting files per request.
+  it("EVE-DRF-10-A keeps five supporting files and rejects a sixth", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    const files = Array.from(
+      { length: 6 },
+      (_, index) =>
+        new File([`note ${index + 1}`], `note-${index + 1}.txt`, { type: "text/plain" }),
+    );
+    await user.upload(screen.getByLabelText(/supporting files/i), files.slice(0, 5));
+    expect(await screen.findByText("note-5.txt")).toBeTruthy();
+
+    await user.upload(screen.getByLabelText(/supporting files/i), files[5]);
+    expect(await screen.findByText("Use up to five files.")).toBeTruthy();
+    expect(screen.queryByText("note-6.txt")).toBeNull();
+    expect(screen.getByText("note-1.txt")).toBeTruthy();
+  });
+
+  // SPM-37 Test Case EVE-DRF-10-A: the combined size of all supporting files is capped at 50 MB.
+  it("EVE-DRF-10-A rejects a file that takes the combined size past 50 MB", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    const sized = (name: string, megabytes: number) => {
+      const file = new File(["x"], name, { type: "application/octet-stream" });
+      Object.defineProperty(file, "size", { value: megabytes * 1024 * 1024 });
+      return file;
+    };
+    await user.upload(screen.getByLabelText(/supporting files/i), sized("large-30.bin", 30));
+    expect(await screen.findByText("large-30.bin")).toBeTruthy();
+
+    await user.upload(screen.getByLabelText(/supporting files/i), sized("large-21.bin", 21));
+    expect(await screen.findByText("Use up to five files, 50 MB total.")).toBeTruthy();
+    expect(screen.queryByText("large-21.bin")).toBeNull();
+    expect(screen.getByText("large-30.bin")).toBeTruthy();
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  // SPM-37 Test Case EVE-DRF-10-A: exactly 50 MB combined is accepted.
+  it("EVE-DRF-10-A accepts files that total exactly 50 MB", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    const sized = (name: string) => {
+      const file = new File(["x"], name, { type: "application/octet-stream" });
+      Object.defineProperty(file, "size", { value: 25 * 1024 * 1024 });
+      return file;
+    };
+    await user.upload(screen.getByLabelText(/supporting files/i), [
+      sized("half-a.bin"),
+      sized("half-b.bin"),
+    ]);
+    expect(await screen.findByText("half-a.bin")).toBeTruthy();
+    expect(screen.getByText("half-b.bin")).toBeTruthy();
+    expect(screen.queryByText("Use up to five files, 50 MB total.")).toBeNull();
+  });
+
+  // SPM-36 AC9: a selected file the browser cannot read is reported on the attachment step.
+  it("SPM-36 AC9 shows an error when a selected file cannot be read", async () => {
+    const user = userEvent.setup();
+    renderCreate();
+    await enterBasicInformation(user);
+
+    // Injected read fault: FileReader fires its error event, as a failed disk read would.
+    const readSpy = vi
+      .spyOn(FileReader.prototype, "readAsDataURL")
+      .mockImplementation(function (this: FileReader) {
+        this.onerror?.(new ProgressEvent("error") as ProgressEvent<FileReader>);
+      });
+    try {
+      await user.upload(
+        screen.getByLabelText(/supporting files/i),
+        new File(["notes"], "notes.txt", { type: "text/plain" }),
+      );
+      expect(
+        await screen.findByText("Unable to read the selected file. Please try again."),
+      ).toBeTruthy();
+      expect(screen.queryByText("notes.txt")).toBeNull();
+    } finally {
+      readSpy.mockRestore();
+    }
+  });
+
+  // SPM-36 AC9: a server rejection of an attachment returns the user to the attachment step
+  // and shows the reason, rather than leaving it hidden on the review step.
+  it("SPM-36 AC9 returns to the attachment step and shows the server's attachment error after submit", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path, init) => {
+      if (init?.method === "POST")
+        throw new ApiError("Invalid event request.", { attachments: "Upload valid files." }, undefined, 400);
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.upload(
+      screen.getByLabelText(/supporting files/i),
+      new File(["proposal"], "proposal.txt", { type: "text/plain" }),
+    );
+    expect(await screen.findByText("proposal.txt")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    expect((await screen.findAllByText("Upload valid files.")).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/supporting files/i)).toBeTruthy();
+  });
+
+  // SPM-36 AC9 and AC4: a server rejection of any field returns the user to the step that shows it.
+  it.each([
+    ["name", "Enter an event name.", /event name/i],
+    ["startDateTime", "Start date and time must be in the future.", /start date/i],
+    ["attachments", "Upload valid files.", /supporting files/i],
+  ] as const)(
+    "SPM-36 AC9 returns to the step that shows the rejected %s field",
+    async (field, message, visibleControl) => {
+      const user = userEvent.setup();
+      apiMock.mockImplementation(async (path, init) => {
+        if (init?.method === "POST")
+          throw new ApiError("Invalid event request.", { [field]: message }, undefined, 400);
+        throw new Error(`Unexpected API call: ${String(path)}`);
+      });
+      renderCreate();
+      await enterBasicInformation(user);
+      await enterSchedule(user);
+      await user.click(screen.getByRole("button", { name: /continue/i }));
+
+      await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+      expect((await screen.findAllByText(message)).length).toBeGreaterThan(0);
+      expect(screen.getByLabelText(visibleControl)).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
+    },
+  );
 });
 
 describe("SPM-37 drafts in the current event form", () => {

@@ -344,7 +344,7 @@ export class EventsService {
         );
       if (event.coordinator_id !== coordinator.uid)
         throw new ForbiddenException(
-          'This request is assigned to another coordinator.',
+          'Only the assigned coordinator can reject this request.',
         );
       const updated = await client.query(
         `UPDATE events
@@ -389,7 +389,7 @@ export class EventsService {
         );
       if (event.coordinator_id !== coordinator.uid)
         throw new ForbiddenException(
-          'This request is assigned to another coordinator.',
+          'Only the assigned coordinator can approve this request.',
         );
       const updated = await client.query(
         `UPDATE events

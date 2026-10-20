@@ -303,13 +303,13 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
   it('refuses a coordinator who is not the one assigned to the request', async () => {
     wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
 
-    await expect(
-      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2')),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-    // SC-SPM150-02 (decided): the wording is the one the approve path uses.
-    await expect(
-      service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2')),
-    ).rejects.toThrow('This request is assigned to another coordinator.');
+    const attempt = service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator('coordinator-2'));
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    // Wording from the Confluence case EVENT-REJECT-04-B.
+    await expect(attempt).rejects.toHaveProperty(
+      'message',
+      'Only the assigned coordinator can reject this request.',
+    );
 
     const sql = txSql();
     expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);

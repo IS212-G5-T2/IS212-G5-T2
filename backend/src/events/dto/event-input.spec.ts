@@ -263,15 +263,29 @@ describe('validateEvent', () => {
     ]);
   });
 
-  // SPM-36 Test Case EVE-CRE-08-C
-  it('rejects unsupported attachment payloads', () => {
-    expectFieldError(
-      {
-        ...validEventRequest(),
-        attachments: [{ name: '', type: 'text/plain', size: -1, dataUrl: '' }],
-      },
-      'attachments',
-    );
+  // SPM-36 Test Case EVE-CRE-08-C, AC9: one defect per case, so each check is shown to work on its own.
+  const validAttachment = {
+    id: 'attachment-1',
+    name: 'proposal.txt',
+    type: 'text/plain',
+    size: 12,
+    dataUrl: 'data:text/plain;base64,SGVsbG8=',
+  };
+  it.each([
+    ['a missing id', [{ ...validAttachment, id: undefined }]],
+    ['a blank name', [{ ...validAttachment, name: '   ' }]],
+    ['a name over 255 characters', [{ ...validAttachment, name: 'a'.repeat(256) }]],
+    ['a blank type', [{ ...validAttachment, type: '' }]],
+    ['a type over 100 characters', [{ ...validAttachment, type: 't'.repeat(101) }]],
+    ['a negative size', [{ ...validAttachment, size: -1 }]],
+    ['a fractional size', [{ ...validAttachment, size: 1.5 }]],
+    ['a size sent as text', [{ ...validAttachment, size: '12' }]],
+    ['a missing size', [{ ...validAttachment, size: undefined }]],
+    ['a blank data URL', [{ ...validAttachment, dataUrl: '' }]],
+    ['a link instead of a data URL', [{ ...validAttachment, dataUrl: 'https://example.test/file' }]],
+    ['a sixth file', Array.from({ length: 6 }, (_, index) => ({ ...validAttachment, id: `attachment-${index + 1}` }))],
+  ])('EVE-CRE-08-C rejects %s', (_label, attachments) => {
+    expectFieldError({ ...validEventRequest(), attachments }, 'attachments');
   });
 
   // SPM-36 server-control check for organiser identity and status

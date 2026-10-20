@@ -224,6 +224,22 @@ describe('EventsService', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // SPM-36 AC6 (supporting): the insert leaves status to the database default, which is 'Submitted'
+  // (database/postgresql/init/001_schema.sql). The status is not written by the application.
+  it('does not write status on insert, so Submitted comes from the database default', async () => {
+    db.transaction
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [savedEventRow()] });
+
+    await service.create(organiserUser(), validEventRequest());
+
+    const insert = db.transaction.mock.calls.find(([sql]) =>
+      String(sql).startsWith('INSERT INTO events'),
+    );
+    expect(insert).toBeDefined();
+    expect(String(insert?.[0])).not.toMatch(/\bstatus\b/i);
+  });
+
   // SPM-36 Test Case EVE-CRE-06-A (its attachment assertion below also incidentally covers EVE-CRE-08-A persistence)
   it('saves a valid request under the authenticated organiser with Submitted status', async () => {
     const request = validEventRequest();
@@ -485,9 +501,9 @@ describe('EventsService', () => {
   });
 
   // SPM-38 AC4: a coordinator may view a request only when it is assigned to
-  // them; anyone else (a different coordinator, a non-owning organiser, or an
-  // unauthenticated caller) gets the same NotFoundException as a bad ID, so
-  // existence is never leaked.
+  // them; anyone else (a different coordinator, or an unauthenticated caller)
+  // gets the same NotFoundException as a bad ID, so existence is never leaked.
+  // A non-owning organiser with no other role is refused with 403 (SPM-94 D6).
   describe('SPM-38 AC4: per-coordinator access restriction', () => {
     it('EVE-REV-04-A lets the assigned coordinator view the event', async () => {
       const row = savedEventRow();

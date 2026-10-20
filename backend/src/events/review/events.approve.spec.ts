@@ -130,8 +130,11 @@ describe('EventsService.approve (SPM-40)', () => {
 
     // A coordinator who is not the assigned one is refused inside the transaction.
     wireApprove(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
-    await expect(approve(VALID_UUID, coordinator('coordinator-2'))).rejects.toBeInstanceOf(
-      ForbiddenException,
+    const attempt = approve(VALID_UUID, coordinator('coordinator-2'));
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(attempt).rejects.toHaveProperty(
+      'message',
+      'Only the assigned coordinator can approve this request.',
     );
     const sql = txSql();
     expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);
