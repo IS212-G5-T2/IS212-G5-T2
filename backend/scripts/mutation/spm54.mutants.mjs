@@ -392,8 +392,8 @@ export const MUTANTS = [
     ],
   },
   {
-    id: 'SPM54-BE-MY-BOOKINGS-INCLUSIVE',
-    name: 'buffered blockout bounds are inclusive instead of requiring a strict intersection',
+    id: 'SPM54-BE-MY-BOOKINGS-SETUP-INCLUSIVE',
+    name: 'a blockout ending at the setup-buffer boundary marks the original My Bookings row affected',
     file: REPOSITORY,
     suites: ['bookingE2E'],
     kills: [
@@ -401,7 +401,27 @@ export const MUTANTS = [
         suite: 'bookingE2E',
         file: 'test/venues-booking-requests.e2e-spec.ts',
         title:
-          'VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout exactly adjacent to its buffered window',
+          'VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout ending at its setup-buffer boundary',
+      },
+    ],
+    edits: [
+      [
+        '                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+        '                  AND blockout.end_at >= b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-MY-BOOKINGS-TURNAROUND-INCLUSIVE',
+    name: 'a blockout starting at the turnaround-buffer boundary marks the original My Bookings row affected',
+    file: REPOSITORY,
+    suites: ['bookingE2E'],
+    kills: [
+      {
+        suite: 'bookingE2E',
+        file: 'test/venues-booking-requests.e2e-spec.ts',
+        title:
+          'VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout starting at its turnaround-buffer end',
       },
     ],
     edits: [
@@ -409,9 +429,45 @@ export const MUTANTS = [
         '                  AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)',
         '                  AND blockout.start_at <= b.end_at + make_interval(mins => v.turnaround_time_minutes)',
       ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-AC11-BLOCKOUT-SETUP-INCLUSIVE',
+    name: 'a blockout ending exactly at the setup-buffer boundary makes an approved booking unavailable',
+    file: EVENT_PLANNING_REPOSITORY,
+    suites: ['eventPlanningE2E'],
+    kills: [
+      {
+        suite: 'eventPlanningE2E',
+        file: 'test/events-planning.e2e-spec.ts',
+        title:
+          'VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout ends at the setup-buffer boundary',
+      },
+    ],
+    edits: [
       [
-        '                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
-        '                  AND blockout.end_at >= b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+        'AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)',
+        'AND blockout.end_at >= b.start_at - make_interval(mins => v.setup_time_minutes)',
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-AC11-BLOCKOUT-TURNAROUND-INCLUSIVE',
+    name: 'a blockout starting exactly at the turnaround-buffer boundary makes an approved booking unavailable',
+    file: EVENT_PLANNING_REPOSITORY,
+    suites: ['eventPlanningE2E'],
+    kills: [
+      {
+        suite: 'eventPlanningE2E',
+        file: 'test/events-planning.e2e-spec.ts',
+        title:
+          'VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout starts at the turnaround-buffer boundary',
+      },
+    ],
+    edits: [
+      [
+        'AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)',
+        'AND blockout.start_at <= b.end_at + make_interval(mins => v.turnaround_time_minutes)',
       ],
     ],
   },
