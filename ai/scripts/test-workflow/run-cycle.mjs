@@ -146,7 +146,8 @@ function runMutation() {
       continue;
     }
     const [command, ...args] = entry.command;
-    const outcome = run(command, args, { cwd: entry.cwd });
+    // The measured per-test kills (failing tests under each mutant) are saved for check-records.
+    const outcome = run(command, [...args, '--measure-kills', abs(join(cycle, 'mutation', `${entry.id}.kills.json`))], { cwd: entry.cwd });
     if (!dryRun) writeText(join(cycle, 'mutation', `${entry.id}.log`), `${outcome.stdout}\n${outcome.stderr}`);
   }
   script('reconcile-mutation.mjs');

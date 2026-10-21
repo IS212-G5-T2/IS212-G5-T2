@@ -238,6 +238,7 @@ export const isTestFile = (file) => /\.(spec|test|e2e-spec)\.(ts|tsx)$|\.playwri
 const TEST_CALL = /^(\s*)(it|test)(?:\.(only|skip|todo|fails|concurrent))?\s*\(\s*(['"`])((?:\\.|(?!\4).)*)\4/;
 const EACH_CALL = /^(\s*)(it|test)(?:\.(only|skip))?\.each\s*\(/;
 const EACH_TITLE = /\)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/;
+const EACH_TITLE_BELOW = /^\s*(['"`])((?:\\.|(?!\1).)*)\1/;
 const DESCRIBE_CALL = /^(\s*)describe(?:\.(?:only|skip))?(?:\.skipIf\([^)]*\))?\s*\(\s*(['"`])((?:\\.|(?!\2).)*)\2/;
 
 /**
@@ -268,10 +269,18 @@ export function extractTests(text) {
     } else if (EACH_CALL.test(line)) {
       indent = line.match(/^(\s*)/)[1].length;
       kind = 'each';
+      // The title follows the table's closing `)(`, on that line or the line below it. The search stops at the
+      // next call site, so a table without a title cannot take the title of the test after it.
       for (let j = i; j < Math.min(lines.length, i + 80); j += 1) {
+        if (j > i && (TEST_CALL.test(lines[j]) || EACH_CALL.test(lines[j]) || DESCRIBE_CALL.test(lines[j]))) break;
         const found = lines[j].match(EACH_TITLE);
         if (found) {
           title = found[2];
+          break;
+        }
+        const below = /\)\s*\(\s*$/.test(lines[j]) && lines[j + 1]?.match(EACH_TITLE_BELOW);
+        if (below) {
+          title = below[2];
           break;
         }
       }
@@ -297,7 +306,7 @@ export function extractTests(text) {
       }
     }
     tests.push({
-      title,
+      title: title.replace(/\\(['"`])/g, '$1'),
       line: i + 1,
       kind,
       modifier,

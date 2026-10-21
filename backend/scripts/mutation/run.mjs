@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -25,6 +25,8 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : und
 const { SUITES, MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);
 const only = flag('--only')?.split(',');
 const suiteOnly = flag('--suite');
+// --measure-kills <file>: run every suite of each mutant with the JSON reporter and save the failing tests per mutant.
+const measureOut = flag('--measure-kills') && resolve(flag('--measure-kills'));
 const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
 const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
 
@@ -97,11 +99,12 @@ if (existsSync(sourceInit)) cpSync(sourceInit, scratchInit, { recursive: true })
 
 const escapePattern = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const run = (suite, mapping) =>
+const run = (suite, mapping, extra = []) =>
   spawnSync(process.execPath, [
     join(scratch, 'node_modules/vitest/vitest.mjs'),
     ...SUITES[suite].args,
     ...(mapping ? ['--reporter=verbose', '--testNamePattern', escapePattern(mapping.title)] : []),
+    ...extra,
   ], {
     cwd: scratch,
     env: {
@@ -125,6 +128,16 @@ const executedTests = (result) => {
     false
   );
 };
+// Failing tests of one vitest JSON report, as repository-relative file and title.
+const failingTests = (jsonFile) => {
+  if (!existsSync(jsonFile)) return [];
+  const data = JSON.parse(readFileSync(jsonFile, 'utf8'));
+  return (data.testResults ?? []).flatMap((result) => {
+    const rel = result.name.split('/backend/').at(-1);
+    return (result.assertionResults ?? []).filter((test) => test.status === 'failed').map((test) => ({ file: `backend/${rel}`, title: test.title }));
+  });
+};
+const killsOut = {};
 const skipped = (suite) => SUITES[suite].needsEnv?.find((name) => !process.env[name]);
 
 let exitCode = 0;
@@ -171,7 +184,7 @@ try {
         tally.misapplied += 1;
       } else {
         writeFileSync(path, mutated);
-        const mappings = mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
+        const mappings = measureOut ? undefined : mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
         if (mappings?.length) {
           for (const mapping of mappings) {
             const missing = skipped(mapping.suite);
@@ -190,7 +203,13 @@ try {
         } else {
           const runnable = suitesOf(m).filter((s) => !skipped(s));
           for (const suite of runnable) {
-            if (run(suite).status !== 0) {
+            if (measureOut) {
+              const jsonFile = join(scratch, `vitest-${suite}.json`);
+              const result = run(suite, undefined, ['--reporter=json', `--outputFile=${jsonFile}`]);
+              const failed = failingTests(jsonFile);
+              if (result.status !== 0 || failed.length) by.push(suite);
+              killsOut[m.id] = [...(killsOut[m.id] ?? []), ...failed.map((test) => ({ suite, ...test }))];
+            } else if (run(suite).status !== 0) {
               by.push(suite);
               break;
             }
@@ -223,6 +242,10 @@ try {
       console.log(`${m.id.padEnd(8)} ${status.toLowerCase().padEnd(16)} ${evidence} ${m.name}`);
     }
     console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
+    if (measureOut) {
+      for (const m of selected) killsOut[m.id] ??= [];
+      writeFileSync(measureOut, JSON.stringify(killsOut, null, 2));
+    }
     if (tally.survived || tally.misapplied) exitCode = 1;
   }
 } finally {

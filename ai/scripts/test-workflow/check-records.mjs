@@ -7,8 +7,8 @@
 // Fields that need a reviewer's judgement are never overwritten: tier, tier_status, oracle_class,
 // assumption_ref, explained.   --scaffold rewrites the record file (adds new tests, drops removed ones).
 // Without --scaffold the records are validated against the scope's current tests and the gate result is written.
-import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { dirname, join, posix } from "node:path";
 import {
   BLOCKED, PASS, WORKFLOW_DIR, abs, exitCodeFor, fileExists, isMain, levelOf, loadScope, parseArgs, parseCsv, printGate, readJson,
   readText, rel, scopeTests, scopedTests, testIdOf, toCsv, writeGate, writeText,
@@ -25,7 +25,7 @@ export const keyOf = (row) => `${row.file}::${row.title}`;
 
 /** Regex for the expanded titles an it.each call site produces ("%s", "$name" ...). */
 export function titleRegExp(title) {
-  const escaped = title.replace(/[.+^${}()|[\]\\*?]/g, '\\$&').replace(/%[sdifjoO#%]|\\\$\w+/g, '.*');
+  const escaped = title.replace(/[.+^${}()|[\]\\*?]/g, '\\$&').replace(/%[sdifjoO#%]|\\\$\w+|\\\$\\\{.*?\\\}/g, '.*');
   return new RegExp(`^${escaped}$`);
 }
 
@@ -54,16 +54,29 @@ export function resultOf(row, results) {
   return 'NOT RUN';
 }
 
-async function killsIndex(scope) {
+// Test-level links: a mutant's testMappings name one test that the runner has shown to fail under that mutant.
+async function killsIndex(scope, cycleDir) {
   const links = [];
   const definitions = new Map();
+  const titleLinks = [];
   for (const entry of scope.mutation ?? []) {
     if (!fileExists(entry.mutantsFile)) continue;
     const { module, definitions: defs } = await loadEntry(entry);
     links.push(...suiteLinks(entry, module));
-    for (const mutant of defs) definitions.set(mutant.id, mutant);
+    const measured = join(cycleDir, 'mutation', `${entry.id}.kills.json`);
+    if (existsSync(measured)) {
+      for (const [mutant, items] of Object.entries(JSON.parse(readFileSync(measured, 'utf8')))) {
+        for (const item of items) titleLinks.push({ file: item.file, title: item.title, mutant });
+      }
+    }
+    for (const mutant of defs) {
+      definitions.set(mutant.id, mutant);
+      for (const mapping of mutant.testMappings ?? []) {
+        titleLinks.push({ file: posix.join(entry.cwd, mapping.file), title: mapping.title, mutant: mutant.id });
+      }
+    }
   }
-  return { links, definitions };
+  return { links, definitions, titleLinks };
 }
 
 const killsFor = (file, links) => {
@@ -74,7 +87,7 @@ const killsFor = (file, links) => {
 export async function buildRows(scope, existingRows, ctx) {
   const existing = new Map(existingRows.map((row) => [keyOf(row), row]));
   const registry = new Map(ctx.registryRows.map((row) => [row.id, row]));
-  const { links } = await killsIndex(scope);
+  const { links, titleLinks } = await killsIndex(scope, dirname(ctx.runDir));
   const results = readRunResults(ctx.runDir);
   const deterministic = ctx.determinism?.perFile ?? {};
   const rows = [];
@@ -94,7 +107,8 @@ export async function buildRows(scope, existingRows, ctx) {
         deterministic: entry.file in deterministic ? (deterministic[entry.file] ? 'Yes' : 'No') : previous.deterministic ?? '',
         result: results.size ? resultOf(base, results) : previous.result || 'NOT RUN',
       });
-      const killed = killsFor(entry.file, links);
+      const mapped = [...new Set(titleLinks.filter((link) => link.file === entry.file && titleRegExp(link.title).test(test.title)).map((link) => link.mutant))];
+      const killed = mapped.length ? `mutants:${mapped.join(',')}` : killsFor(entry.file, links);
       if (killed && (!previous.kills || previous.kills.startsWith('mutants:'))) row.kills = killed;
       if (!row.ac && registry.get(testId)) row.ac = registry.get(testId).parent_ac;
       if (row.tier && !row.tier_status) row.tier_status = 'Present';
@@ -162,7 +176,7 @@ async function main() {
   const gatePath = join(flags.cycle, 'gates', 'G4scan.json');
   const determinism = fileExists(gatePath) ? readJson(gatePath) : undefined;
   const ctx = { registryRows, ignoredFamilies, runDir: join(flags.cycle, 'test-run'), determinism, mutantIds: new Set() };
-  const { definitions } = await killsIndex(scope);
+  const { definitions } = await killsIndex(scope, flags.cycle);
   ctx.mutantIds = new Set(definitions.keys());
   const rows = await buildRows(scope, existing, ctx);
 

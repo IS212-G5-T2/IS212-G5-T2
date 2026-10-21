@@ -7,6 +7,8 @@ test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('a single failure: $name').test('a single failure: no venue'));
   assert.ok(titleRegExp('exact title (A)').test('exact title (A)'));
   assert.ok(!titleRegExp('exact title').test('exact title and more'));
+  assert.ok(titleRegExp('Q1-007 ${field} accepts length %s').test('Q1-007 name accepts length 0'));
+  assert.ok(titleRegExp('Q1-008 ${field} rejects length ${limit + 1}').test('Q1-008 name rejects length 201'));
 });
 
 test('resultOf: PASS needs every matched test to pass, FAIL on any failure, NOT RUN when unmatched', () => {

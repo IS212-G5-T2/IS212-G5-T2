@@ -87,6 +87,52 @@ test('extractTests finds call sites, titles, comments and describes', () => {
   assert.equal(tests[3].commentPresent, false);
 });
 
+test('extractTests reads an it.each title on the line below the table, and never borrows the next test title', () => {
+  const tests = extractTests(`
+describe('EVE-CRE-05-E', () => {
+  it.each([
+    ['a', 1],
+  ])(
+    'EVE-CRE-05-E rejects %s',
+    () => {},
+  );
+  it.each([
+    ['b', 2],
+  ])(
+    'EVE-CRE-05-F rejects %s',
+    () => {},
+  );
+  it.each([
+    ['c', 3],
+  ])('EVE-CRE-05-G rejects %s', () => {});
+  it.each([1, 2])(
+    'EVE-CRE-05-H, two rows',
+    () => {},
+  );
+  it('EVE-CRE-05-Z after a title-less table', () => {});
+});
+`);
+  assert.deepEqual(tests.map((t) => t.title), [
+    'EVE-CRE-05-E rejects %s',
+    'EVE-CRE-05-F rejects %s',
+    'EVE-CRE-05-G rejects %s',
+    'EVE-CRE-05-H, two rows',
+    'EVE-CRE-05-Z after a title-less table',
+  ]);
+});
+
+test('extractTests does not take the title of a later test for an it.each without a title', () => {
+  const tests = extractTests(`
+  it.each([
+    ['a', 1],
+  ])(
+    () => {},
+  );
+  it('EVE-CRE-99-A the next test', () => {});
+`);
+  assert.deepEqual(tests.map((t) => t.title), ['EVE-CRE-99-A the next test']);
+});
+
 test('testIdOf: own title, then enclosing describe, ignoring non-test families', () => {
   const tests = extractTests(SAMPLE);
   assert.equal(testIdOf(tests[1]), 'CONFIRM-EVENT-06-A');
