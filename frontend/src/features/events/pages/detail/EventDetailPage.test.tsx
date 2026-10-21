@@ -709,4 +709,24 @@ describe("EventDetailPage", () => {
     const venueTerm = screen.getByText("Venue", { selector: "dt" });
     expect(venueTerm.nextElementSibling).toHaveTextContent("Breakout Room 1 (pending)");
   });
+
+  /** An event with no venue shows the Not yet booked text in the Venue field. */
+  it("CONFIRM-EVENT-SUP-42 shows Not yet booked in the Venue field when the event has no venue", async () => {
+    const event = { ...assignedEvent(), venueName: undefined };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    const venueTerm = screen.getByText("Venue", { selector: "dt" });
+    expect(venueTerm.nextElementSibling).toHaveTextContent("Not yet booked");
+  });
 });

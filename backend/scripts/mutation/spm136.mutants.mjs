@@ -61,6 +61,16 @@ export const SUITES = {
   unitNotifications: {
     args: ['run', 'src/events/cancelled-notifications.spec.ts'],
   },
+  // Release registry and its releasers, by file, so each releaser kill is linked to its spec.
+  unitRelease: {
+    args: ['run', 'src/events/cancel/release.registry.spec.ts'],
+  },
+  unitGuard: {
+    args: ['run', 'src/events/cancelled-guard.spec.ts'],
+  },
+  unitReleasedVenue: {
+    args: ['run', 'src/events/status/released-venue.spec.ts'],
+  },
 };
 
 const CANCEL = 'src/events/cancel/cancel-event.service.ts';
@@ -135,7 +145,7 @@ export const MUTANTS = [
     edits: [["export const CANCELLABLE_STATUSES = ['Submitted', 'Approved', 'Planning', 'Confirmed'] as const;",
       "export const CANCELLABLE_STATUSES = ['Submitted', 'Planning', 'Confirmed'] as const;"]],
     suites: both },
-  { id: 'M13', name: 'compare-and-set made unconditional (03-C)', file: CANCEL,
+  { id: 'M13', name: 'compare-and-set made unconditional (03-C) (equivalent: the cancel path reads the event row FOR UPDATE and checks isCancellable before the UPDATE, so the status cannot change in between)', file: CANCEL,
     edits: [['WHERE id = $1 AND status = ANY($4::text[])', 'WHERE id = $1 AND ($4::text[] IS NOT NULL)']],
     suites: both,
     // Equivalent: the row is locked FOR UPDATE and its status is re-checked before this UPDATE, so the
@@ -213,8 +223,10 @@ export const MUTANTS = [
   { id: 'S12', name: 'only Reserved equipment released (Requested/Unavailable kept)', file: EQ, edits: [["status IN ('Requested', 'Reserved', 'Unavailable')", "status IN ('Reserved')"]], suites: both },
   { id: 'S13', name: 'Requested equipment lines not released', file: EQ, edits: [["status IN ('Requested', 'Reserved', 'Unavailable')", "status IN ('Reserved', 'Unavailable')"]], suites: both },
   { id: 'S14', name: 'registration cancellation_reason not set', file: RE, edits: [["cancellation_reason = 'Event cancelled'", 'cancellation_reason = NULL']], suites: both },
-  { id: 'S15', name: 'EventCancelled missing from coordinator notification types', file: EV, edits: [["'coordinator_unassignment', 'EventCancelled']", "'coordinator_unassignment']"]], suites: both },
-  { id: 'S16', name: 'EventCancelled missing from organiser notification types', file: EV, edits: [["'EventConfirmed', 'EventCancelled']", "'EventConfirmed']"]], suites: both },
+  { id: 'S15', name: "EventCancelled missing from coordinator notification types", file: "src/events/events.service.ts", suites: ['unit', 'e2e'],
+    edits: [["'coordinator_unassignment',\n            'EventCancelled',","'coordinator_unassignment',"]] },
+  { id: 'S16', name: "EventCancelled missing from organiser notification types", file: "src/events/events.service.ts", suites: ['unit', 'e2e'],
+    edits: [["'EventConfirmed',\n            'EventCancelled',","'EventConfirmed',"]] },
   { id: 'S17', name: 'canceller excluded from recipients', file: CA, edits: [['    const message = CANCEL_MESSAGES.cancelled(updated.rows[0].event_name);', '    recipients.delete(user.uid);\n    const message = CANCEL_MESSAGES.cancelled(updated.rows[0].event_name);']], suites: both },
   { id: 'S18', name: 'history from_status hard-coded Confirmed', file: CA, edits: [['[randomUUID(), eventId, event.status, user.uid, now],', "[randomUUID(), eventId, 'Confirmed', user.uid, now],"]], suites: both },
   { id: 'S19', name: 'cancel dispatch after coordinator-only assignedEventOrThrow', file: ST, edits: [["    if (targetStatus === 'Cancelled') return this.cancellation.cancel(identity, eventId, body);\n    const user = this.requireUser(identity);\n    const event = await this.assignedEventOrThrow(user, eventId);\n", "    const user = this.requireUser(identity);\n    const event = await this.assignedEventOrThrow(user, eventId);\n    if (targetStatus === 'Cancelled') return this.cancellation.cancel(identity, eventId, body);\n"]], suites: both },
@@ -228,13 +240,11 @@ export const MUTANTS = [
     edits: [["WHERE b.event_id = events.id AND b.status <> 'released') AS venue_summary", 'WHERE b.event_id = events.id) AS venue_summary']],
     suites: both },
   // RR-136-02: readiness must not report a released booking as an outstanding venue item.
-  { id: 'M23', name: 'readiness reports a released booking as outstanding (RR-136-02)', file: 'src/events/status/readiness.ts',
-    edits: [["  if (booking.status === 'released') return undefined;", "  if (booking.status === 'released' && false) return undefined;"]],
-    suites: both },
+  { id: 'M23', name: "readiness reports a released booking as outstanding (RR-136-02)", file: "src/events/status/readiness.ts", suites: ['unit', 'e2e', 'unitReleasedVenue'],
+    edits: [["booking.status !== 'released' && booking.status !== 'cancelled',","booking.status !== 'cancelled',"]] },
   // RR-136-02: the planning checklist leaves released bookings out.
-  { id: 'M24', name: 'checklist keeps released bookings (RR-136-02)', file: 'src/events/status/checklist.ts',
-    edits: [["const bookings = snapshot.venueBookings.filter((b) => b.status !== 'released');", 'const bookings = snapshot.venueBookings;']],
-    suites: both },
+  { id: 'M24', name: "checklist keeps released bookings (RR-136-02)", file: "src/events/status/checklist.ts", suites: ['unit', 'e2e', 'unitReleasedVenue'],
+    edits: [["(b) => b.status !== 'released' && b.status !== 'cancelled',","(b) => b.status !== 'cancelled',"]] },
   // RR-136-05 / CQ F1: the EventCancelled audience label is derived from the event's organiser, not the coordinator.
   { id: 'M25', name: 'audience derivation joins coordinator_id as the organiser (RR-136-05)', file: 'src/events/events.service.ts',
     edits: [['e.organiser_id AS event_organiser_id', 'e.coordinator_id AS event_organiser_id']],
@@ -353,4 +363,16 @@ export const MUTANTS = [
   { id: 'E1', name: 'equipment release not scoped to the cancelled event: another event reservation is released (05-B)', file: EQ, suites: ['cancelE2e'],
     edits: [["WHERE event_id = $1 AND status IN ('Requested', 'Reserved', 'Unavailable')", "WHERE ($1::uuid IS NOT NULL) AND status IN ('Requested', 'Reserved', 'Unavailable')"]],
     testMappings: [{ suite: 'cancelE2e', file: 'test/events-cancel.e2e-spec.ts', title: 'CANCEL-EVENT-05-B: EQ-308 stays Reserved x1 after EVT-301 is cancelled' }] },
+  { id: 'RR1', name: "the cancellation skips the waiting-list releaser (CANCEL-EVENT-04-C-REG)", file: "src/events/cancel/release.registry.ts", suites: ['unit', 'e2e', 'unitRelease'],
+    edits: [["  waitlistReleaser,\n",""]] },
+  { id: 'REG1', name: "the registration releaser collects Withdrawn rather than Registered attendees as recipients (CANCEL-EVENT-08-A)", file: "src/registrations/release/registration.releaser.ts", suites: ['unit', 'e2e', 'unitRelease'],
+    edits: [["WHERE event_id = $1 AND status = 'Registered' ORDER BY attendee_id","WHERE event_id = $1 AND status = 'Withdrawn' ORDER BY attendee_id"]] },
+  { id: 'REG2', name: "the registration releaser does not cancel Registered rows (CANCEL-EVENT-08-A)", file: "src/registrations/release/registration.releaser.ts", suites: ['unit', 'e2e', 'unitRelease'],
+    edits: [["SET status = 'Cancelled', cancellation_reason = 'Event cancelled', updated_at = $2\n        WHERE event_id = $1 AND status = 'Registered'","SET status = 'Cancelled', cancellation_reason = 'Event cancelled', updated_at = $2\n        WHERE event_id = $1 AND status = 'Withdrawn'"]] },
+  { id: 'EQ1', name: "the equipment releaser leaves Unavailable lines reserved (CANCEL-EVENT-05-A)", file: "src/equipment/release/equipment-reservation.releaser.ts", suites: ['unit', 'e2e', 'unitRelease'],
+    edits: [["AND status IN ('Requested', 'Reserved', 'Unavailable')","AND status IN ('Requested', 'Reserved')"]] },
+  { id: 'VB1', name: "the venue releaser leaves pending holds in place (CANCEL-EVENT-04-A)", file: "src/venues/release/venue-booking.releaser.ts", suites: ['unit', 'e2e', 'unitRelease'],
+    edits: [["AND status IN ('pending', 'approved')","AND status IN ('approved')"]] },
+  { id: 'GD1', name: "the cancelled-event guard never refuses (CANCEL-EVENT-07-A)", file: "src/events/cancelled-guard.ts", suites: ['unit', 'e2e', 'unitGuard'],
+    edits: [["if (status === 'Cancelled')\n","if (status === 'Cancelled' && false)\n"]] },
 ];

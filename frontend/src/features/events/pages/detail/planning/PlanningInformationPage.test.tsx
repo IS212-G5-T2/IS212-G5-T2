@@ -1402,4 +1402,23 @@ describe("PlanningInformationPage", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(expected);
     },
   );
+
+  /** A pending section is not ticked: its card shows no Complete icon even when one of its requests is confirmed. */
+  it("CONFIRM-EVENT-SUP-40 does not tick a pending venue section on its card", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "pending",
+        items: [
+          { id: "b1", venueName: "Main Hall", status: "confirmed", requestedDate: "2026-10-10T00:00:00.000Z" },
+          { id: "b2", venueName: "Breakout Room 1", status: "pending", requestedDate: "2026-10-11T00:00:00.000Z" },
+        ],
+      },
+    });
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+    const card = (await screen.findByText("Venue Request Pending")).closest(".rounded-lg") as HTMLElement;
+    // The header icon is the first image on the card; the confirmed row further down has its own tick.
+    expect(within(card).getAllByRole("img")[0]).not.toHaveAttribute("aria-label", "Complete");
+  });
 });
