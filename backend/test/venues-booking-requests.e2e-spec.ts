@@ -1614,12 +1614,23 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-BKG-06-A: a blockout exactly adjacent to the setup-buffer boundary does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-INCLUSIVE. */
-    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout exactly adjacent to its buffered window', async () => {
+    /** VEN-BKG-06-A: a blockout ending exactly at the setup-buffer boundary does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-SETUP-INCLUSIVE. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout ending at its setup-buffer boundary', async () => {
       await expectBufferedBlockoutInMyBookings(
         {
           start: '2030-01-12T05:25:00.000Z',
           end: '2030-01-12T05:30:00.000Z',
+        },
+        false,
+      );
+    });
+
+    /** VEN-BKG-06-A: a blockout starting exactly at the turnaround-buffer end does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-TURNAROUND-INCLUSIVE. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout starting at its turnaround-buffer end', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T07:20:00.000Z',
+          end: '2030-01-12T07:30:00.000Z',
         },
         false,
       );

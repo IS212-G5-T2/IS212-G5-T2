@@ -307,6 +307,54 @@ describe.skipIf(!database)(
       expect(turnaroundHistory.rows[0].status).toBe('approved');
     });
 
+    /** VEN-BKG-11-VAR-1: a blockout ending exactly at the setup-buffer start leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-SETUP-INCLUSIVE. */
+    it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout ends at the setup-buffer boundary', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [venueId],
+      );
+      await insertBlockout(venueId, at(START, -40), at(START, -30));
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/planning`)
+        .expect(200);
+      expect(response.body.venueBookings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: hallA, status: 'Booked' }),
+        ]),
+      );
+    });
+
+    /** VEN-BKG-11-VAR-1: a blockout starting exactly at the turnaround-buffer end leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-TURNAROUND-INCLUSIVE. */
+    it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout starts at the turnaround-buffer boundary', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [venueId],
+      );
+      await insertBlockout(venueId, at(END, 45), at(END, 55));
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/planning`)
+        .expect(200);
+      expect(response.body.venueBookings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: hallA, status: 'Booked' }),
+        ]),
+      );
+    });
+
     /** SPM-51 AC10: only pending rows with a future hold expiry are Booked; expired and unbounded requests are Cancelled. Kills: B13, B14. */
     it('maps pending venue rows by explicit hold expiry and preserves approved bookings', async () => {
       const venueId = (
