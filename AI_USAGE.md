@@ -14,11 +14,25 @@ Add entries under one date per day, using this format:
 
 Where user is the user's github username.
 
+## 2026-10-20
+
+- swr - implementation - SPM-144 - Fix frontend build fixture: Removed an unused `changeRequests` property from the venue-search `EventRecord` fixture; the property is not part of the shared type.
+
 ## 2026-10-18
 
 - swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.
 
 ## 2026-10-19
+
+
+- swr - test data - SPM-54 - Seed manual suitability fixtures: Added four local venues with isolated capacity, facility, accessibility, and layout mismatches, a capacity-24 boundary venue for VEN-BKG-01-BND-1, and an accessibility-specific event clone; documented the idempotent seed script. Updated Confluence VEN-BKG-01-BND-1 to use VEN-329 and the filter step. Not applied to a database yet.
+- swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
+- swr - test evidence update - SPM-54 - Confluence case status reconciliation: Cycle 20 has passing assertions for all 33 matrix IDs (G1–G7 PASS, 339/339 tests across three timezones, 31/31 mapped mutants killed); updated all case pages to Pass with per-file evidence. Manual UI procedures were not separately run, and cycle metrics remain AMBER for coverage-floor and tier gaps. A separate localhost UI attempt rendered blank; EVT-201 was restored to Confirmed and existing booking rows were unchanged.
+
+## 2026-10-20
+
+- swr - implementation correction - SPM-144 - Assert resumed review submission is blocked on options error: EVE-FAC-05-F attempts Submit for Review after the current options fetch fails and asserts no event POST occurs before retry. The prior broad error-state mutant was killed by the facilities suite but was not mapped to this exact assertion. TCR-12 retained it and added separately targeted step-2 error submission and step-1 error Continue mutants, mapped to EVE-FAC-05-F and EVE-FAC-05-E respectively; both were killed by their mapped tests. Facilities suite 29/29; full SPM-144 frontend mutations 10/10 killed.
+- swr - fix - fix/SPM-144-facility-schema - Resolve backend E2E fixture failures: Pinned Confirmed-row dates in JOIN-WAITLIST-14-A to remove PostgreSQL wall-clock dependence; updated SPM-65 accessibility fixtures from the retired "Wheelchair ramps" option to the current venue-schema "Wheelchair access" value. Local PostgreSQL E2Es unavailable because `DATABASE_URL` is unset and Docker socket access is denied.
 
 ## 2026-10-14
 
@@ -58,3 +72,9 @@ Where user is the user's github username.
 ## 2026-10-19
 
 - kishorek888 - implementation correction - SPM-57 - Enforce current coordinator ownership after reassignment: Updated request reads and edits to follow the event's current coordinator; added PostgreSQL HTTP reassignment coverage and mutant BE-57-29; removed a form reset race and made its exact replacement-value assertion deterministic. Expanded SPM-57 coverage scope to include frontend route wiring and backend module wiring.
+
+## 2026-10-20
+
+- swr - implementation correction - SPM-144 - Address Test Code Review findings: Block option progression/submission until current venue options load, including resumed review drafts; add failure, malformed-item, resumed-draft, and authenticated options-route tests; repair determinism exceptions and test traceability records. Frontend (30/30), backend unit (62/62), PostgreSQL HTTP E2E (4/4), both component builds, G1-G4 passed; targeted frontend and backend route mutants killed (3/3). No commit, push, PR, or Jira transition.
+- swr - implementation correction - SPM-144 - Close cycle-13 traceability and coverage findings: Corrected uncovered source-line references; replaced the multiline malformed-options `it.each` with a single recordable call site; added the option-item shape mutant and linked EVE-FAC-01-D directly to it; renamed the backend facility mutant to describe its discard behavior. Focused frontend suite passed (29 tests); frontend item-shape and isolated-PostgreSQL backend facility mutants killed; G3 and G5 PASS. Coverage remains below all four configured floors and all uncovered lines are classified, for Orchestrator AMBER disposition. No commit, push, PR, Jira, or Confluence update.
+- swr - implementation correction - SPM-144 - Fix resumed-draft CI mocks: Made DraftWorkflow mocks route-aware for venue options, draft persistence, and submission; resumed review cases now wait for current options before asserting submit behavior. DraftWorkflow suite passed (45/45); frontend coverage passed (1,720 passed, 1 skipped, 1 todo; 96.87% statements, 96.01% branches, 95.26% functions, 97.54% lines). No commit, push, PR, Jira, or Confluence update.
