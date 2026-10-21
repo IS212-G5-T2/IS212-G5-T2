@@ -70,7 +70,13 @@ function PendingMarker({ changes }: { changes: FlaggedChange[] }) {
 }
 
 /** The event's own details with any "Change pending" markers; shared by the organiser panel and the coordinator page. */
-export function EventInformationList({ view }: { view: PlanningView }) {
+export function EventInformationList({
+  view,
+  coordinator = false,
+}: {
+  view: PlanningView;
+  coordinator?: boolean;
+}) {
   const { event } = view;
   const fieldChanges = view.pendingChanges.filter(isFieldChange);
   const pendingFor = (...fields: string[]) =>
@@ -112,18 +118,64 @@ export function EventInformationList({ view }: { view: PlanningView }) {
     },
   ];
 
+  const confirmedCapacity = view.venueBookings.reduce(
+    (total, booking) =>
+      total +
+      (booking.status === "Booked" && booking.requestStatus === "approved"
+        ? (booking.capacity ?? 0)
+        : 0),
+    0,
+  );
+  const pendingCapacity = view.venueBookings.reduce(
+    (total, booking) =>
+      total +
+      (booking.requestStatus === "pending" ? (booking.capacity ?? 0) : 0),
+    0,
+  );
+  const displayedCapacity = coordinator
+    ? confirmedCapacity
+    : Math.min(confirmedCapacity, event.expectedAttendance);
+
   return (
-    <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {rows.map((row) => (
-        <div key={row.label}>
-          <dt className="text-gray-400 dark:text-gray-500">{row.label}</dt>
+    <>
+      <dl className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <dt className="text-gray-400 dark:text-gray-500">{row.label}</dt>
+            <dd className="font-medium text-gray-800 dark:text-gray-200">
+              {row.value}
+            </dd>
+            <PendingMarker changes={pendingFor(...row.fields)} />
+          </div>
+        ))}
+      </dl>
+      <dl
+        role="group"
+        aria-label="Venue capacity summary"
+        className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2"
+      >
+        <div>
+          <dt className="text-gray-400 dark:text-gray-500">
+            Confirmed usable capacity
+          </dt>
           <dd className="font-medium text-gray-800 dark:text-gray-200">
-            {row.value}
+            {coordinator
+              ? `${displayedCapacity} actual / ${event.expectedAttendance} expected`
+              : `${displayedCapacity} / ${event.expectedAttendance}`}
           </dd>
-          <PendingMarker changes={pendingFor(...row.fields)} />
         </div>
-      ))}
-    </dl>
+        {pendingCapacity > 0 && (
+          <div>
+            <dt className="text-gray-400 dark:text-gray-500">
+              Pending venue capacity
+            </dt>
+            <dd className="font-medium text-gray-800 dark:text-gray-200">
+              {pendingCapacity}
+            </dd>
+          </div>
+        )}
+      </dl>
+    </>
   );
 }
 

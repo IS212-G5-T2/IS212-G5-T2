@@ -1,6 +1,9 @@
 import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { PlanningInformationPanel } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
+import {
+  EventInformationList,
+  PlanningInformationPanel,
+} from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { formatDateTime, formatDateTimeRange } from "@/utils/format";
 import type {
   EventRecord,
@@ -87,6 +90,236 @@ const row = (label: string) =>
   screen.getByText(label, { selector: "dt" }).parentElement as HTMLElement;
 
 afterEach(cleanup);
+
+describe("SPM-54 AC11: capacity summaries", () => {
+  // VEN-BKG-11-A: organiser capacity is capped at expected attendance and excludes pending/unavailable venues.
+  it("VEN-BKG-11-A caps confirmed usable capacity for the organiser and separates pending capacity", () => {
+    const { rerender } = render(
+      <PlanningInformationPanel
+        view={view({
+          event: { ...eventRecord(), expectedAttendance: 180 },
+          venueBookings: [
+            {
+              id: "a",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 40,
+            },
+            {
+              id: "b",
+              venueName: "Hall B",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "pending",
+              capacity: 100,
+            },
+            {
+              id: "c",
+              venueName: "Hall C",
+              start: START,
+              end: END,
+              status: "Unavailable",
+              requestStatus: "approved",
+              capacity: 120,
+            },
+          ],
+        })}
+      />,
+    );
+    const summary = screen.getByRole("group", {
+      name: "Venue capacity summary",
+    });
+    expect(within(summary).getByText("40 / 180")).toBeInTheDocument();
+    expect(within(summary).getByText("100")).toBeInTheDocument();
+
+    // Optional capacity metadata safely contributes zero to both confirmed and pending totals.
+    rerender(
+      <PlanningInformationPanel
+        view={view({
+          event: { ...eventRecord(), expectedAttendance: 180 },
+          venueBookings: [
+            {
+              id: "a",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+            },
+            {
+              id: "b",
+              venueName: "Hall B",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "pending",
+            },
+          ],
+        })}
+      />,
+    );
+    expect(within(summary).getByText("0 / 180")).toBeInTheDocument();
+    expect(
+      within(summary).queryByText("Pending venue capacity"),
+    ).not.toBeInTheDocument();
+  });
+
+  // VEN-BKG-11-B: coordinator sees aggregate confirmed capacity without the organiser cap.
+  it("VEN-BKG-11-B shows actual confirmed capacity to the coordinator", () => {
+    render(
+      <EventInformationList
+        coordinator
+        view={view({
+          event: { ...eventRecord(), expectedAttendance: 180 },
+          venueBookings: [
+            {
+              id: "a",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 100,
+            },
+            {
+              id: "b",
+              venueName: "Hall B",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 120,
+            },
+          ],
+        })}
+      />,
+    );
+    const summary = screen.getByRole("group", {
+      name: "Venue capacity summary",
+    });
+    expect(
+      within(summary).getByText("220 actual / 180 expected"),
+    ).toBeInTheDocument();
+  });
+
+  // VEN-BKG-11-A: the coordinator sees the same 40/180 usable summary as the organiser.
+  it("VEN-BKG-11-A shows 40 of 180 confirmed usable capacity to the coordinator", () => {
+    render(
+      <EventInformationList
+        coordinator
+        view={view({
+          event: { ...eventRecord(), expectedAttendance: 180 },
+          venueBookings: [
+            {
+              id: "a",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 40,
+            },
+          ],
+        })}
+      />,
+    );
+    const summary = screen.getByRole("group", {
+      name: "Venue capacity summary",
+    });
+    expect(
+      within(summary).getByText("40 actual / 180 expected"),
+    ).toBeInTheDocument();
+  });
+
+  // VEN-BKG-11-BND-1: the organiser total stops at expected attendance when confirmed venues exceed it.
+  it("VEN-BKG-11-BND-1 caps 220 confirmed seats at 180 for the organiser", () => {
+    render(
+      <EventInformationList
+        view={view({
+          event: { ...eventRecord(), expectedAttendance: 180 },
+          venueBookings: [
+            {
+              id: "a",
+              venueName: "Hall A",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 100,
+            },
+            {
+              id: "b",
+              venueName: "Hall B",
+              start: START,
+              end: END,
+              status: "Booked",
+              requestStatus: "approved",
+              capacity: 120,
+            },
+          ],
+        })}
+      />,
+    );
+    const summary = screen.getByRole("group", {
+      name: "Venue capacity summary",
+    });
+    expect(within(summary).getByText("180 / 180")).toBeInTheDocument();
+  });
+
+  // VEN-BKG-11-VAR-1: a venue becoming unavailable immediately removes only its capacity from the live summary.
+  it("VEN-BKG-11-VAR-1 recalculates usable capacity when one confirmed venue becomes unavailable", () => {
+    const initial = view({
+      event: { ...eventRecord(), status: "confirmed", expectedAttendance: 180 },
+      venueBookings: [
+        {
+          id: "a",
+          venueName: "Hall A",
+          start: START,
+          end: END,
+          status: "Booked",
+          requestStatus: "approved",
+          capacity: 100,
+        },
+        {
+          id: "b",
+          venueName: "Hall B",
+          start: START,
+          end: END,
+          status: "Booked",
+          requestStatus: "approved",
+          capacity: 80,
+        },
+      ],
+    });
+    const { rerender } = render(
+      <EventInformationList coordinator view={initial} />,
+    );
+    const summary = screen.getByRole("group", {
+      name: "Venue capacity summary",
+    });
+    expect(
+      within(summary).getByText("180 actual / 180 expected"),
+    ).toBeInTheDocument();
+
+    const unavailable = {
+      ...initial,
+      venueBookings: [
+        initial.venueBookings[0],
+        { ...initial.venueBookings[1], status: "Unavailable" as const },
+      ],
+    };
+    rerender(<EventInformationList coordinator view={unavailable} />);
+    expect(
+      within(summary).getByText("100 actual / 180 expected"),
+    ).toBeInTheDocument();
+    expect(unavailable.event.status).toBe("confirmed");
+    expect(unavailable.venueBookings[0]).toEqual(initial.venueBookings[0]);
+  });
+});
 
 describe("PlanningInformationPanel", () => {
   // EVENT-VIEW-02-A: AC2 — every row of event information is shown in readable form.

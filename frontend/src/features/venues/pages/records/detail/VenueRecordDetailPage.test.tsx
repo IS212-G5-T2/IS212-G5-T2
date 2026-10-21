@@ -190,7 +190,7 @@ function SwitchDetailEvent() {
 
 describe("VenueRecordDetailPage (SPM-124)", () => {
   /** VEN-BKG-01-C: the suitability assessment reports every mismatch together and blocks submission. */
-  it("VEN-BKG-01-C SPM-54 shows all persisted suitability mismatches and disables submission", async () => {
+  it("VEN-BKG-01-C SPM-54 shows persisted suitability warnings without disabling submission", async () => {
     useAppStore.setState({
       currentUser: {
         id: "coordinator",
@@ -224,7 +224,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
     await screen.findByText("This time is available for this venue.");
     const assessment = screen.getByRole("alert", { name: "Venue suitability" });
-    expect(assessment).toHaveTextContent("Capacity 80 is below attendance 90");
+    expect(assessment).not.toHaveTextContent("below attendance");
     expect(assessment).toHaveTextContent("Missing facility: Sound system");
     expect(assessment).toHaveTextContent(
       "Missing accessibility feature: Step-free access",
@@ -233,21 +233,26 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       "Required layout unavailable: Banquet",
     );
     const mismatchRows = within(assessment).getAllByRole("listitem");
-    expect(mismatchRows).toHaveLength(4);
+    expect(mismatchRows).toHaveLength(3);
     for (const row of mismatchRows) {
       expect(row.querySelector('span[aria-hidden="true"]')).toHaveTextContent(
         "⚠",
       );
     }
     expect(
-      screen.queryByRole("button", { name: "Submit booking request" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Submit booking request" }),
+    ).toBeInTheDocument();
   });
 
   /** VEN-BKG-01-A: a venue meeting all event requirements is shown as suitable without a false warning. */
   it("VEN-BKG-01-A SPM-54 marks a venue suitable when every event requirement is met", async () => {
     setCoordinator(["event-1"]);
-    mockVenueApi({ ...venue, availabilityStatus: "available", reservations: [], unavailablePeriods: [] });
+    mockVenueApi({
+      ...venue,
+      availabilityStatus: "available",
+      reservations: [],
+      unavailablePeriods: [],
+    });
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
@@ -259,63 +264,126 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   /** VEN-BKG-01-B: each single requirement mismatch is identified without falsely flagging satisfied requirements. */
-  it.each([
-    {
-      kind: "capacity",
-      attendance: 81,
-      requirements: { facilities: ["Projector"], accessibility: ["Wheelchair access"], layout: "Boardroom" },
-      venueChanges: {},
-      expected: "Capacity 80 is below attendance 81",
-    },
-    {
-      kind: "facility",
-      attendance: 20,
-      requirements: { facilities: ["Projector", "Microphones"], accessibility: ["Wheelchair access"], layout: "Boardroom" },
-      venueChanges: {},
-      expected: "Missing facility: Microphones",
-    },
-    {
-      kind: "accessibility",
-      attendance: 20,
-      requirements: { facilities: ["Projector"], accessibility: ["Wheelchair access", "Step-free access"], layout: "Boardroom" },
-      venueChanges: {},
-      expected: "Missing accessibility feature: Step-free access",
-    },
-    {
-      kind: "layout",
-      attendance: 20,
-      requirements: { facilities: ["Projector"], accessibility: ["Wheelchair access"], layout: "Classroom" },
-      venueChanges: {},
-      expected: "Required layout unavailable: Classroom",
-    },
-  ])("VEN-BKG-01-B SPM-54 identifies only the $kind mismatch", async ({ attendance, requirements, venueChanges, expected }) => {
-    useAppStore.setState({
-      currentUser: { id: "coordinator", name: "Coordinator", email: "coordinator@example.test", role: "coordinator" },
-      events: [{
-        ...coordinatorEvent("event-1"),
-        expectedAttendance: attendance,
-        venueRequirements: { minCapacity: attendance, facilities: requirements.facilities, accessibility: requirements.accessibility, layout: requirements.layout },
-      }],
-    });
-    const user = userEvent.setup();
-    mockVenueApi({ ...venue, ...venueChanges, availabilityStatus: "available", reservations: [], unavailablePeriods: [] });
-    renderPage();
-    await screen.findByRole("heading", { name: "Conference Room" });
-    await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
+  it("VEN-BKG-01-B SPM-54 identifies requirement mismatches by category", async () => {
+    const cases = [
+      {
+        kind: "capacity",
+        attendance: 81,
+        requirements: {
+          facilities: ["Projector"],
+          accessibility: ["Wheelchair access"],
+          layout: "Boardroom",
+        },
+        venueChanges: {},
+        expected: "Capacity 80 is below attendance 81",
+      },
+      {
+        kind: "facility",
+        attendance: 20,
+        requirements: {
+          facilities: ["Projector", "Microphones"],
+          accessibility: ["Wheelchair access"],
+          layout: "Boardroom",
+        },
+        venueChanges: {},
+        expected: "Missing facility: Microphones",
+      },
+      {
+        kind: "accessibility",
+        attendance: 20,
+        requirements: {
+          facilities: ["Projector"],
+          accessibility: ["Wheelchair access", "Step-free access"],
+          layout: "Boardroom",
+        },
+        venueChanges: {},
+        expected: "Missing accessibility feature: Step-free access",
+      },
+      {
+        kind: "layout",
+        attendance: 20,
+        requirements: {
+          facilities: ["Projector"],
+          accessibility: ["Wheelchair access"],
+          layout: "Classroom",
+        },
+        venueChanges: {},
+        expected: "Required layout unavailable: Classroom",
+      },
+    ];
+    for (const {
+      kind,
+      attendance,
+      requirements,
+      venueChanges,
+      expected,
+    } of cases) {
+      useAppStore.setState({
+        currentUser: {
+          id: "coordinator",
+          name: "Coordinator",
+          email: "coordinator@example.test",
+          role: "coordinator",
+        },
+        events: [
+          {
+            ...coordinatorEvent("event-1"),
+            expectedAttendance: attendance,
+            venueRequirements: {
+              minCapacity: attendance,
+              facilities: requirements.facilities,
+              accessibility: requirements.accessibility,
+              layout: requirements.layout,
+            },
+          },
+        ],
+      });
+      const user = userEvent.setup();
+      mockVenueApi({
+        ...venue,
+        ...venueChanges,
+        availabilityStatus: "available",
+        reservations: [],
+        unavailablePeriods: [],
+      });
+      renderPage();
+      await screen.findByRole("heading", { name: "Conference Room" });
+      await user.click(
+        screen.getByRole("button", { name: "Refresh schedule" }),
+      );
 
-    const assessment = await screen.findByLabelText("Venue suitability");
-    expect(assessment).toHaveTextContent(expected);
-    expect(within(assessment).getAllByRole("listitem")).toHaveLength(1);
+      const assessment = await screen.findByLabelText("Venue suitability");
+      if (kind === "capacity") {
+        expect(assessment).toHaveTextContent("Suitable for this event");
+        expect(assessment).not.toHaveTextContent("below attendance");
+      } else {
+        expect(assessment).toHaveTextContent(expected);
+        expect(within(assessment).getAllByRole("listitem")).toHaveLength(1);
+      }
+      cleanup();
+    }
   });
 
   /** VEN-BKG-01-BND-1: capacity equal to the event attendance is suitable, not an insufficient-capacity mismatch. */
   it("VEN-BKG-01-BND-1 SPM-54 accepts capacity exactly equal to attendance", async () => {
     useAppStore.setState({
-      currentUser: { id: "coordinator", name: "Coordinator", email: "coordinator@example.test", role: "coordinator" },
-      events: [{ ...coordinatorEvent("event-1"), expectedAttendance: venue.capacity }],
+      currentUser: {
+        id: "coordinator",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      events: [
+        { ...coordinatorEvent("event-1"), expectedAttendance: venue.capacity },
+      ],
     });
     const user = userEvent.setup();
-    mockVenueApi({ ...venue, availabilityStatus: "available", reservations: [], unavailablePeriods: [] });
+    mockVenueApi({
+      ...venue,
+      availabilityStatus: "available",
+      reservations: [],
+      unavailablePeriods: [],
+    });
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
     await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
@@ -522,12 +590,13 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     });
     const user = userEvent.setup();
     render(
-      <MemoryRouter
-        initialEntries={[`/venue-records/${id}?eventId=event-1`]}
-      >
+      <MemoryRouter initialEntries={[`/venue-records/${id}?eventId=event-1`]}>
         <SwitchDetailEvent />
         <Routes>
-          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+          <Route
+            path="/venue-records/:id"
+            element={<VenueRecordDetailPage />}
+          />
         </Routes>
       </MemoryRouter>,
     );
@@ -576,12 +645,13 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     });
     const user = userEvent.setup();
     render(
-      <MemoryRouter
-        initialEntries={[`/venue-records/${id}?eventId=event-1`]}
-      >
+      <MemoryRouter initialEntries={[`/venue-records/${id}?eventId=event-1`]}>
         <SwitchDetailEvent />
         <Routes>
-          <Route path="/venue-records/:id" element={<VenueRecordDetailPage />} />
+          <Route
+            path="/venue-records/:id"
+            element={<VenueRecordDetailPage />}
+          />
         </Routes>
       </MemoryRouter>,
     );
@@ -638,17 +708,19 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     await user.click(screen.getByRole("button", { name: "Cancel booking" }));
     const dialog = screen.getByRole("alertdialog");
     expect(dialog).toHaveTextContent("Cancel the request for Conference Room?");
-    await user.click(within(dialog).getByRole("button", { name: "Keep booking" }));
+    await user.click(
+      within(dialog).getByRole("button", { name: "Keep booking" }),
+    );
     expect(
       screen.getByRole("region", { name: "Existing venue booking request" }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("alertdialog"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Cancel booking" }));
     const confirmedDialog = screen.getByRole("alertdialog");
     await user.click(
-      within(confirmedDialog).getByRole("button", { name: "Confirm cancellation" }),
+      within(confirmedDialog).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
     );
 
     await waitFor(() =>
@@ -1020,17 +1092,24 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ];
     for (let index = 0; index < orderedContent.length - 1; index += 1) {
       expect(
-        orderedContent[index].compareDocumentPosition(orderedContent[index + 1]) &
-          Node.DOCUMENT_POSITION_FOLLOWING,
+        orderedContent[index].compareDocumentPosition(
+          orderedContent[index + 1],
+        ) & Node.DOCUMENT_POSITION_FOLLOWING,
       ).toBeTruthy();
     }
 
     await user.click(schedule.querySelector(".venue-schedule-selected")!);
 
-    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event starts")).toHaveValue(
+      "2030-01-12T12:00",
+    );
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
-    expect(screen.getByRole("region", { name: "Review booking request" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Refresh schedule" })).toBeEnabled();
+    expect(
+      screen.getByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Refresh schedule" }),
+    ).toBeEnabled();
   });
 
   /** SPM-54: assigned event time fields cannot be edited to create a zero-duration request. */
@@ -1048,7 +1127,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
-    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event starts")).toHaveValue(
+      "2030-01-12T12:00",
+    );
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
     await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(2));
   });
@@ -1120,7 +1201,10 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
-    expect(screen.getByLabelText("Event starts")).toHaveValue("2026-10-05T20:00");
+    await screen.findByLabelText("Event starts");
+    expect(screen.getByLabelText("Event starts")).toHaveValue(
+      "2026-10-05T20:00",
+    );
     expect(screen.getByLabelText("Event ends")).toHaveValue("2026-10-05T21:00");
     await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
 
@@ -1177,13 +1261,18 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       .mockResolvedValueOnce(venue)
       .mockResolvedValueOnce([] as never)
       .mockResolvedValueOnce(venue)
-      .mockResolvedValueOnce({ bookingReference: "VB-00000000" });
+      .mockResolvedValueOnce({
+        bookingReference: "VB-00000000",
+        statusChanged: true,
+      });
 
     renderPage(`/venue-records/${id}?eventId=event-2`);
     await screen.findByRole("heading", { name: "Conference Room" });
     expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
-    expect(screen.getByLabelText("Event starts")).toHaveValue("2030-01-12T12:00");
+    expect(screen.getByLabelText("Event starts")).toHaveValue(
+      "2030-01-12T12:00",
+    );
     expect(screen.getByLabelText("Event ends")).toHaveValue("2030-01-12T13:00");
     await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
     expect(apiMock).toHaveBeenCalledTimes(3);
@@ -1230,6 +1319,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     );
     expect(useAppStore.getState().bookings).toEqual([]);
     expect(screen.getByText(/Reference: VB-00000000/)).toBeInTheDocument();
+    expect(
+      useAppStore.getState().events.find((item) => item.id === "event-2")
+        ?.status,
+    ).toBe("planning");
+    expect(screen.getByText(/now in Planning/i)).toBeInTheDocument();
   });
 
   /**
@@ -1391,9 +1485,15 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
     await user.click(screen.getByRole("button", { name: "Refresh schedule" }));
-    const review = screen.getByRole("region", { name: "Review booking request" });
-    expect(within(review).getByLabelText("Special requests (optional)")).toHaveValue("");
-    await user.click(within(review).getByRole("button", { name: "Submit booking request" }));
+    const review = screen.getByRole("region", {
+      name: "Review booking request",
+    });
+    expect(
+      within(review).getByLabelText("Special requests (optional)"),
+    ).toHaveValue("");
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
 
     expect(apiMock).toHaveBeenLastCalledWith(`/venues/${id}/booking-requests`, {
       method: "POST",
@@ -1403,7 +1503,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
         end: "2030-01-12T05:00:00.000Z",
       }),
     });
-    expect(await screen.findByText(/Reference: VB-00000000/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/Reference: VB-00000000/),
+    ).toBeInTheDocument();
   });
 
   /** SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
@@ -1545,7 +1647,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(list).toHaveTextContent(
       "12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 (SGT)",
     );
-    expect(list).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 12:30 (SGT)");
+    expect(list).toHaveTextContent(
+      "12 Jan 2030, 12:00 – 12 Jan 2030, 12:30 (SGT)",
+    );
     expect(
       (screen.getByLabelText("Event starts") as HTMLInputElement).value,
     ).toBe(startsBeforeToggle);

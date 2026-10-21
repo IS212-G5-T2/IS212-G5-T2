@@ -285,13 +285,12 @@ function VenueStatusCard({
       title={titles[status]}
     >
       <RequestList
-        items={activeVenueRequests(venue.items)
-          .map((item) => ({
-            id: item.id,
-            label: item.venueName,
-            status: item.status,
-            requestedDate: item.requestedDate,
-          }))}
+        items={activeVenueRequests(venue.items).map((item) => ({
+          id: item.id,
+          label: item.venueName,
+          status: item.status,
+          requestedDate: item.requestedDate,
+        }))}
         renderAction={(item) =>
           item.status === "unavailable" && (
             <RemoveRequestButton
@@ -605,7 +604,7 @@ export function PlanningInformationPage({
             >
               {item.key === "event" && (
                 <div className="space-y-3">
-                  <EventInformationList view={view} />
+                  <EventInformationList view={view} coordinator />
                   {people && (
                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
                       <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">

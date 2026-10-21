@@ -11,6 +11,7 @@ Add entries under one date per day, using this format:
 
 - <user or general> - <type> - <Jira ticket or branch name> - <title>: <concise result>
 ```
+
 Where user is the user's github username.
 
 ## 2026-10-18
@@ -18,10 +19,6 @@ Where user is the user's github username.
 - swr - implementation - SPM-50 - Remove operating schedule data: Dropped operating days/start/end fields from the venue API, database, types, and displays; added the upgrade migration and regression coverage.
 
 ## 2026-10-19
-
-- swr - test data - SPM-54 - Seed manual suitability fixtures: Added four local venues with isolated capacity, facility, accessibility, and layout mismatches, a capacity-24 boundary venue for VEN-BKG-01-BND-1, and an accessibility-specific event clone; documented the idempotent seed script. Updated Confluence VEN-BKG-01-BND-1 to use VEN-329 and the filter step. Not applied to a database yet.
-- swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
-- swr - test evidence update - SPM-54 - Confluence case status reconciliation: Cycle 20 has passing assertions for all 33 matrix IDs (G1–G7 PASS, 339/339 tests across three timezones, 31/31 mapped mutants killed); updated all case pages to Pass with per-file evidence. Manual UI procedures were not separately run, and cycle metrics remain AMBER for coverage-floor and tier gaps. A separate localhost UI attempt rendered blank; EVT-201 was restored to Confirmed and existing booking rows were unchanged.
 
 ## 2026-10-14
 
@@ -61,10 +58,6 @@ Where user is the user's github username.
 - taneishakaur - update - SPM-65 / SPM-64 - Coordinator change request notice: the change request notice is no longer repeated under Assignment Updates; Pending Change Requests moved to the top of the coordinator's events page, with a New tag for requests not yet opened (unread SPM-64 AC3 notice; opening the review marks it read). Backend unchanged (the notice is still stored). Tests: REQ-CHANGE-03-A frontend test revised, REVIEW-CHANGE-01-F added; frontend 1522 passed, TZ matrix passed. Confluence REQ-CHANGE-03 and REVIEW-CHANGE-01 pages and the SPM-65 matrix updated. Nothing committed.
 - taneishakaur - fix - SPM-65 - PR #72 review: Approve Change is disabled until the conflict check loads (Retry Conflict Check on failure; Deny unaffected), new REVIEW-CHANGE-03-I tests. Audit log delete limits (ON DELETE CASCADE, no DELETE block) documented in the migration, backend and database READMEs and Confluence 10-D. AC9: agreed that venue staff and technical support are not notified (the coordinator's re-check list meets AC9); Confluence REVIEW-CHANGE-09-A/B expected results revised, now Pass. Patch built on PR commit fdef966. Nothing committed.
 - chaw678 - feat - feature/SPM-95-filter-events-by-status - Filter My Events by Status (Organiser): organiser multi-select CheckboxGroup with OR matching, Awaiting Safety Check virtual filter (safetyCheckReady gate), Clear all, No matching events found, filters reset on remount (local useState); removed redundant AssignmentIndicator from card/detail; 17 test cases FILTER-EVT-01-A through FILTER-EVT-07-A; Confluence matrix 28803536; SPM-95.json scope; 8 mutants M1–M7 killed M8 equivalent; 100% coverage on 4 scoped source files. PR #74 targeting dev.
-
-- swr - fix - SPM-54 - Correct cancelled venue labels: Cancelled bookings now take precedence over approved request status in planning labels; existing focused label tests were not run.
-
-- swr - test - SPM-54 - Add cancelled venue label regression coverage: Added VEN-BKG-08-A and VEN-BKG-09-A assertions for approved and cancelled labels, scoped StatusLabels coverage, and mutation checks for those paths. Full cycle 20: G1-G7 passed; 339/339 tests across three timezones; 31/31 mutants killed. Overall AMBER because scoped coverage floors and four tier cells remain below target.
 
 - kishorek888 - implementation - SPM-57 - Request equipment for an event: Added coordinator equipment-request creation, event-context prefill, validation, confirmation reference, Pending Review views, Technical Support queue, lifecycle guards, Approved-to-Planning transition, duplicate prevention, and in-place updates. Confluence procedures and matrix traceability were updated. Cycle 29 independently passed G1–G7: 158/158 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement, branch, function, and line coverage; 45/45 mutants killed. No push, PR, or Jira transition.
 - chaw678 - review correction - SPM-55 - Test Review TR-55-05 and TR-55-08: added VEN-REV-09-A/B (approve and reject roll back and reject when the audit insert fails; mutant VEN-REV-M39 kills both) and VEN-REV-09-C (a user with Venue Staff and Coordinator roles sees the review list and the coordinator bookings; mutant VEN-REV-M42). Backend 74 files and 1680 tests, frontend 119 files and 1672 tests pass; BookingsPage.tsx and venues.repository.ts at 100%. Not committed.

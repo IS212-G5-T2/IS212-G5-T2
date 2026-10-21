@@ -31,20 +31,52 @@ const assignedEventTime = {
   end_date_time: new Date('2030-01-12T05:00:00.000Z'),
 };
 
-function createScheduleConflictRepository(reason: string | null, now = new Date('2030-01-01T00:00:00.000Z')) {
-  const query = vi.fn()
-    .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: venue.capacity, facilities: venue.facilities, accessibility: venue.accessibility, layouts: venue.layouts, setup_time_minutes: 30, turnaround_time_minutes: 45 }] })
-    .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', ...assignedEventTime }] })
+function createScheduleConflictRepository(
+  reason: string | null,
+  now = new Date('2030-01-01T00:00:00.000Z'),
+) {
+  const query = vi
+    .fn()
+    .mockResolvedValueOnce({
+      rows: [
+        {
+          id: venue.id,
+          capacity: venue.capacity,
+          facilities: venue.facilities,
+          accessibility: venue.accessibility,
+          layouts: venue.layouts,
+          setup_time_minutes: 30,
+          turnaround_time_minutes: 45,
+        },
+      ],
+    })
+    .mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'event-1',
+          status: 'Planning',
+          expected_attendance: 20,
+          required_facilities: [],
+          accessibility_needs: [],
+          preferred_room_layout: '',
+          ...assignedEventTime,
+        },
+      ],
+    })
     .mockResolvedValueOnce({ rows: [] })
     .mockResolvedValueOnce({ rows: reason ? [{ reason }] : [] });
-  const repository = new VenuesRepository({
-    transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
-  } as unknown as DatabaseService, { now: () => now });
+  const repository = new VenuesRepository(
+    {
+      transaction: (work: (client: unknown) => Promise<unknown>) =>
+        work({ query }),
+    } as unknown as DatabaseService,
+    { now: () => now },
+  );
   return { repository, query, now };
 }
 
 describe('VenuesRepository', () => {
-  /** VEN-BKG-02-B: the API enforces persisted facility and accessibility requirements before writing. */
+  /** VEN-BKG-02-B: suitability mismatches are advisory; schedule conflicts remain blockers. */
   it.each([
     {
       requirement: 'facility',
@@ -56,7 +88,7 @@ describe('VenuesRepository', () => {
         required_facilities: ['AV System', 'Microphones'],
         accessibility_needs: [],
       },
-      reason: 'missing facilities: Microphones',
+      reason: 'facility',
     },
     {
       requirement: 'accessibility',
@@ -65,7 +97,7 @@ describe('VenuesRepository', () => {
         required_facilities: [],
         accessibility_needs: ['Wheelchair access'],
       },
-      reason: 'missing accessibility: Wheelchair access',
+      reason: 'accessibility',
     },
     {
       requirement: 'room layout',
@@ -79,10 +111,10 @@ describe('VenuesRepository', () => {
         accessibility_needs: [],
         preferred_room_layout: 'Theatre',
       },
-      reason: 'layout Theatre is unavailable',
+      reason: 'room layout',
     },
   ])(
-    'SPM-54 rejects a persisted facility, accessibility, or room-layout mismatch without creating a request',
+    'VEN-BKG-02-B SPM-54 allows a request with a persisted $requirement mismatch',
     async ({ venueFields, eventFields, reason }) => {
       const query = vi
         .fn()
@@ -113,7 +145,19 @@ describe('VenuesRepository', () => {
               ...eventFields,
             },
           ],
-        });
+        })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [
+            {
+              id: 'booking-1',
+              start_at: assignedEventTime.start_date_time,
+              end_at: assignedEventTime.end_date_time,
+            },
+          ],
+        })
+        .mockResolvedValueOnce({ rows: [] });
       const repository = new VenuesRepository({
         transaction: (work: (client: unknown) => Promise<unknown>) =>
           work({ query }),
@@ -125,16 +169,18 @@ describe('VenuesRepository', () => {
           start: '2030-01-12T04:00:00Z',
           end: '2030-01-12T05:00:00Z',
         }),
-      ).resolves.toEqual({
-        kind: 'conflict',
-        reason: `Venue suitability mismatch: ${reason}.`,
-      });
-      expect(query).toHaveBeenCalledTimes(2);
+      ).resolves.toMatchObject({ kind: 'created', id: 'booking-1' });
+      expect(
+        query.mock.calls.some(([sql]) =>
+          String(sql).includes('INSERT INTO venue_bookings'),
+        ),
+      ).toBe(true);
+      expect(reason).toBeTruthy();
     },
   );
 
-  /** VEN-BKG-02-B: direct API submissions cannot bypass an event's persisted capacity requirement. */
-  it('SPM-54 rejects a request when event attendance exceeds venue capacity before availability checks or writes', async () => {
+  /** VEN-BKG-02-B: a venue below expected attendance remains requestable. */
+  it('VEN-BKG-02-B SPM-54 allows a request when attendance exceeds venue capacity', async () => {
     const query = vi
       .fn()
       .mockResolvedValueOnce({
@@ -162,7 +208,19 @@ describe('VenuesRepository', () => {
             preferred_room_layout: '',
           },
         ],
-      });
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'booking-1',
+            start_at: assignedEventTime.start_date_time,
+            end_at: assignedEventTime.end_date_time,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository({
       transaction: (work: (client: unknown) => Promise<unknown>) =>
         work({ query }),
@@ -176,75 +234,126 @@ describe('VenuesRepository', () => {
         end: '2030-01-12T05:00:00Z',
       },
     );
-    expect(result).toEqual({
-      kind: 'conflict',
-      reason: 'Venue suitability mismatch: capacity 19 is below attendance 20.',
-    });
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ kind: 'created', id: 'booking-1' });
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('INSERT INTO venue_bookings'),
+      ),
+    ).toBe(true);
   });
 
   /** VEN-BKG-02-C: occupied setup/turnaround time blocks an otherwise non-overlapping event request. */
   it('VEN-BKG-02-C SPM-54 blocks a request when setup or turnaround overlaps another booking', async () => {
     const { repository, query } = createScheduleConflictRepository('Workshop');
-    const result = await repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    });
+    const result = await repository.submitBookingRequest(
+      venue.id,
+      ownerUserId,
+      {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      },
+    );
 
     expect(result).toEqual({ kind: 'conflict', reason: 'Workshop' });
-    expect(String(query.mock.calls[3][0])).toContain('make_interval(mins => $4::int)');
-    expect(String(query.mock.calls[3][0])).toContain('make_interval(mins => $5::int)');
-    expect(query.mock.calls[3][1]).toEqual([venue.id, assignedEventTime.start_date_time, assignedEventTime.end_date_time, 30, 45, new Date('2030-01-01T00:00:00.000Z')]);
-    expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO venue_bookings'))).toBe(false);
+    expect(String(query.mock.calls[3][0])).toContain(
+      'make_interval(mins => $4::int)',
+    );
+    expect(String(query.mock.calls[3][0])).toContain(
+      'make_interval(mins => $5::int)',
+    );
+    expect(query.mock.calls[3][1]).toEqual([
+      venue.id,
+      assignedEventTime.start_date_time,
+      assignedEventTime.end_date_time,
+      30,
+      45,
+      new Date('2030-01-01T00:00:00.000Z'),
+    ]);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('INSERT INTO venue_bookings'),
+      ),
+    ).toBe(false);
   });
 
   /** VEN-BKG-02-D: operational unavailability blocks the requested event period and is explained without a write. */
   it('VEN-BKG-02-D SPM-54 reports an operational unavailability blocker', async () => {
-    const { repository, query } = createScheduleConflictRepository('Maintenance');
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    })).resolves.toEqual({ kind: 'conflict', reason: 'Maintenance' });
-    expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO venue_bookings'))).toBe(false);
+    const { repository, query } =
+      createScheduleConflictRepository('Maintenance');
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      }),
+    ).resolves.toEqual({ kind: 'conflict', reason: 'Maintenance' });
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('INSERT INTO venue_bookings'),
+      ),
+    ).toBe(false);
   });
 
   /** VEN-BKG-02-BND-1: a one-minute setup overlap is a conflict, not an adjacent free interval. */
   it('VEN-BKG-02-BND-1 SPM-54 refuses a one-minute overlap at setup start', async () => {
-    const { repository, query } = createScheduleConflictRepository('Setup overlap');
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    })).resolves.toMatchObject({ kind: 'conflict', reason: 'Setup overlap' });
-    expect(String(query.mock.calls[3][0])).toContain('start_at < $3::timestamptz + make_interval');
-    expect(String(query.mock.calls[3][0])).toContain('end_at > $2::timestamptz - make_interval');
+    const { repository, query } =
+      createScheduleConflictRepository('Setup overlap');
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({ kind: 'conflict', reason: 'Setup overlap' });
+    expect(String(query.mock.calls[3][0])).toContain(
+      'start_at < $3::timestamptz + make_interval',
+    );
+    expect(String(query.mock.calls[3][0])).toContain(
+      'end_at > $2::timestamptz - make_interval',
+    );
   });
 
   /** VEN-BKG-02-BND-2: a one-minute overlap at the end of turnaround remains blocked. */
   it('VEN-BKG-02-BND-2 SPM-54 refuses a one-minute overlap at turnaround end', async () => {
-    const { repository, query } = createScheduleConflictRepository('Turnaround overlap');
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    })).resolves.toMatchObject({ kind: 'conflict', reason: 'Turnaround overlap' });
-    expect(String(query.mock.calls[3][0])).toContain('b.end_at + make_interval(mins => $5::int)');
+    const { repository, query } =
+      createScheduleConflictRepository('Turnaround overlap');
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({
+      kind: 'conflict',
+      reason: 'Turnaround overlap',
+    });
+    expect(String(query.mock.calls[3][0])).toContain(
+      'b.end_at + make_interval(mins => $5::int)',
+    );
     expect(query.mock.calls[3][1][4]).toBe(45);
   });
 
   /** VEN-BKG-02-VAR-1: active holds block, while holds expired at the injected clock stop blocking. */
   it('VEN-BKG-02-VAR-1 SPM-54 uses the current time to distinguish active and expired holds', async () => {
-    const { repository, query, now } = createScheduleConflictRepository('Tentative hold');
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    })).resolves.toMatchObject({ kind: 'conflict', reason: 'Tentative hold' });
-    expect(String(query.mock.calls[3][0])).toContain('hold_expires_at > $6::timestamptz');
+    const { repository, query, now } =
+      createScheduleConflictRepository('Tentative hold');
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({ kind: 'conflict', reason: 'Tentative hold' });
+    expect(String(query.mock.calls[3][0])).toContain(
+      'hold_expires_at > $6::timestamptz',
+    );
     expect(query.mock.calls[3][1][5]).toBe(now);
-    expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO venue_bookings'))).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('INSERT INTO venue_bookings'),
+      ),
+    ).toBe(false);
   });
   /** VEN-BKG-08-A: My Bookings records retain separate event/venue identity, lifecycle status, and optional request text. */
   it('SPM-54 lists coordinator venue bookings as independent records', async () => {
@@ -426,15 +535,23 @@ describe('VenuesRepository', () => {
 
   /** VEN-BKG-10-VAR-2: inactive retained booking history does not suppress the final-active-booking warning. */
   it('VEN-BKG-10-VAR-2 SPM-54 warns when all other booking history is inactive', async () => {
-    const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ id: 'booking-1', event_id: 'event-1', status: 'pending' }] })
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [{ id: 'booking-1', event_id: 'event-1', status: 'pending' }],
+      })
       .mockResolvedValueOnce({ rows: [{ count: 0 }] });
     const repository = new VenuesRepository({
-      transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
+      transaction: (work: (client: unknown) => Promise<unknown>) =>
+        work({ query }),
     } as unknown as DatabaseService);
 
-    await expect(repository.cancelCoordinatorBooking(ownerUserId, 'booking-1', false)).resolves.toEqual({ kind: 'last-active' });
-    expect(String(query.mock.calls[1][0])).toContain("status IN ('pending', 'approved')");
+    await expect(
+      repository.cancelCoordinatorBooking(ownerUserId, 'booking-1', false),
+    ).resolves.toEqual({ kind: 'last-active' });
+    expect(String(query.mock.calls[1][0])).toContain(
+      "status IN ('pending', 'approved')",
+    );
     expect(query).toHaveBeenCalledTimes(2);
   });
 
@@ -485,22 +602,65 @@ describe('VenuesRepository', () => {
     expect(query).toHaveBeenCalledTimes(2);
   });
 
-  /** VEN-BKG-07-B: an unsuitable second venue is rejected without writing or mutating the first request. */
-  it('VEN-BKG-07-B SPM-54 rejects an unsuitable second venue without mutating an existing booking', async () => {
-    const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: 19, facilities: [], accessibility: [], layouts: [], setup_time_minutes: 0, turnaround_time_minutes: 0 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', ...assignedEventTime }] });
+  /** VEN-BKG-07-B: a distinct second venue is independently requestable despite suitability warnings. */
+  it('VEN-BKG-07-B SPM-54 permits a second distinct venue with advisory mismatches', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: venue.id,
+            capacity: 19,
+            facilities: [],
+            accessibility: [],
+            layouts: [],
+            setup_time_minutes: 0,
+            turnaround_time_minutes: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'event-1',
+            status: 'Planning',
+            expected_attendance: 20,
+            required_facilities: [],
+            accessibility_needs: [],
+            preferred_room_layout: '',
+            ...assignedEventTime,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'booking-2',
+            start_at: assignedEventTime.start_date_time,
+            end_at: assignedEventTime.end_date_time,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository({
-      transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
+      transaction: (work: (client: unknown) => Promise<unknown>) =>
+        work({ query }),
     } as unknown as DatabaseService);
 
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: '00000000-0000-4000-8000-000000000001',
-      start: '2030-01-12T04:00:00.000Z',
-      end: '2030-01-12T05:00:00.000Z',
-    })).resolves.toEqual({ kind: 'conflict', reason: 'Venue suitability mismatch: capacity 19 is below attendance 20.' });
-    expect(query).toHaveBeenCalledTimes(2);
-    expect(query.mock.calls.every(([sql]) => /^SELECT\b/i.test(String(sql).trim()))).toBe(true);
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: '00000000-0000-4000-8000-000000000001',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({ kind: 'created', id: 'booking-2' });
+    expect(
+      query.mock.calls.some(([sql]) =>
+        String(sql).includes('INSERT INTO venue_bookings'),
+      ),
+    ).toBe(true);
   });
 
   /** VEN-BKG-07-A: one active event/venue pair is independently retained and blocks only its own duplicate. */
@@ -801,22 +961,58 @@ describe('VenuesRepository', () => {
 
   /** VEN-BKG-03-SEC-1: client-tampered start and end values do not change the persisted event's authoritative period. */
   it('VEN-BKG-03-SEC-1 SPM-54 derives the booking period from the assigned event', async () => {
-    const query = vi.fn()
-      .mockResolvedValueOnce({ rows: [{ id: venue.id, capacity: venue.capacity, facilities: venue.facilities, accessibility: venue.accessibility, layouts: venue.layouts, setup_time_minutes: 0, turnaround_time_minutes: 0 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'event-1', status: 'Planning', expected_attendance: 20, required_facilities: [], accessibility_needs: [], preferred_room_layout: '', ...assignedEventTime }] })
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: venue.id,
+            capacity: venue.capacity,
+            facilities: venue.facilities,
+            accessibility: venue.accessibility,
+            layouts: venue.layouts,
+            setup_time_minutes: 0,
+            turnaround_time_minutes: 0,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'event-1',
+            status: 'Planning',
+            expected_attendance: 20,
+            required_facilities: [],
+            accessibility_needs: [],
+            preferred_room_layout: '',
+            ...assignedEventTime,
+          },
+        ],
+      })
       .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ id: 'booking-1', start_at: assignedEventTime.start_date_time, end_at: assignedEventTime.end_date_time }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'booking-1',
+            start_at: assignedEventTime.start_date_time,
+            end_at: assignedEventTime.end_date_time,
+          },
+        ],
+      })
       .mockResolvedValueOnce({ rows: [] });
     const repository = new VenuesRepository({
-      transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
+      transaction: (work: (client: unknown) => Promise<unknown>) =>
+        work({ query }),
     } as unknown as DatabaseService);
 
-    await expect(repository.submitBookingRequest(venue.id, ownerUserId, {
-      eventId: 'event-1',
-      start: '2030-01-13T12:00:00.000Z',
-      end: '2030-01-13T13:00:00.000Z',
-    })).resolves.toMatchObject({
+    await expect(
+      repository.submitBookingRequest(venue.id, ownerUserId, {
+        eventId: 'event-1',
+        start: '2030-01-13T12:00:00.000Z',
+        end: '2030-01-13T13:00:00.000Z',
+      }),
+    ).resolves.toMatchObject({
       kind: 'created',
       start: assignedEventTime.start_date_time.toISOString(),
       end: assignedEventTime.end_date_time.toISOString(),
