@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Request } from 'express';
+import { RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, PATH_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants.js';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum.js';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { VenuesController } from './venues.controller.js';
@@ -19,6 +22,9 @@ describe('SPM-50 venue route wiring', () => {
     submitBookingRequest: vi.fn(),
     listCoordinatorBookings: vi.fn(),
     cancelCoordinatorBooking: vi.fn(),
+    listPendingVenueBookings: vi.fn(),
+    approveVenueBooking: vi.fn(),
+    rejectVenueBooking: vi.fn(),
     markUnavailable: vi.fn(),
     endUnavailable: vi.fn(),
   };
@@ -69,6 +75,59 @@ describe('SPM-50 venue route wiring', () => {
       venueId,
       body,
     );
+  });
+
+  /** VEN-REV-07-A: the review endpoints keep their HTTP methods and paths. */
+  it('SPM-55 maps the review endpoints to their HTTP methods and paths', () => {
+    // Route metadata pins the method and path, so a renamed path or a changed verb fails here.
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.listPendingVenueBookings)).toBe(RequestMethod.GET);
+    expect(Reflect.getMetadata(PATH_METADATA, controller.listPendingVenueBookings)).toBe('bookings/pending');
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.approveVenueBooking)).toBe(RequestMethod.POST);
+    expect(Reflect.getMetadata(PATH_METADATA, controller.approveVenueBooking)).toBe('bookings/:bookingId/approve');
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.rejectVenueBooking)).toBe(RequestMethod.POST);
+    expect(Reflect.getMetadata(PATH_METADATA, controller.rejectVenueBooking)).toBe('bookings/:bookingId/reject');
+
+    // Parameter binding: the booking ID comes from the :bookingId route parameter, and the reject body is the whole body.
+    const routeArgs = (method: keyof VenuesController) =>
+      Reflect.getMetadata(ROUTE_ARGS_METADATA, VenuesController, method) as Record<string, { index: number; data?: string }>;
+    expect(routeArgs('approveVenueBooking')[`${RouteParamtypes.PARAM}:1`]).toMatchObject({ index: 1, data: 'bookingId' });
+    expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.PARAM}:1`]).toMatchObject({ index: 1, data: 'bookingId' });
+    expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.BODY}:2`]).toMatchObject({ index: 2 });
+    expect(routeArgs('rejectVenueBooking')[`${RouteParamtypes.BODY}:2`].data).toBeUndefined();
+
+    // Identity: each review route takes the whole request at index 0, so the verified session user is read from it,
+    // never from a client-supplied body or parameter.
+    const requestKey = `${RouteParamtypes.REQUEST}:0`;
+    expect(routeArgs('listPendingVenueBookings')[requestKey]).toMatchObject({ index: 0, data: undefined });
+    expect(routeArgs('approveVenueBooking')[requestKey]).toMatchObject({ index: 0, data: undefined });
+    expect(routeArgs('rejectVenueBooking')[requestKey]).toMatchObject({ index: 0, data: undefined });
+  });
+
+  /** VEN-REV-01-A: the pending-list route forwards the verified staff identity. */
+  it('SPM-55 forwards the pending list request with the session identity', () => {
+    service.listPendingVenueBookings.mockReturnValue(['pending']);
+
+    expect(controller.listPendingVenueBookings(request)).toEqual(['pending']);
+    expect(service.listPendingVenueBookings).toHaveBeenCalledWith(identity);
+  });
+
+  /** VEN-REV-02-A: the approve route forwards the verified staff identity and the booking ID. */
+  it('SPM-55 forwards the approve request with the session identity and booking ID', () => {
+    const bookingId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
+    service.approveVenueBooking.mockReturnValue({ status: 'approved' });
+
+    expect(controller.approveVenueBooking(request, bookingId)).toEqual({ status: 'approved' });
+    expect(service.approveVenueBooking).toHaveBeenCalledWith(identity, bookingId);
+  });
+
+  /** VEN-REV-03-A: the reject route forwards the verified staff identity, the booking ID and the rejection body. */
+  it('SPM-55 forwards the reject request with the session identity, booking ID and body', () => {
+    const bookingId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
+    const body = { reason: 'Clashes with maintenance' };
+    service.rejectVenueBooking.mockReturnValue({ status: 'rejected' });
+
+    expect(controller.rejectVenueBooking(request, bookingId, body)).toEqual({ status: 'rejected' });
+    expect(service.rejectVenueBooking).toHaveBeenCalledWith(identity, bookingId, body);
   });
 
   /** VEN-BKG-08-SEC-1: coordinator booking history is fetched for the authenticated identity. */

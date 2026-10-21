@@ -58,6 +58,67 @@ export type VenueReservation =
 
 export type AffectedVenueReservation = VenueReservation & { eventId: string };
 
+/** A pending venue request shown to the venue's Venue Staff for review (SPM-55). */
+export interface PendingVenueBooking {
+  id: string;
+  eventId: string;
+  eventName: string;
+  eventStart: string;
+  eventEnd: string;
+  coordinatorName: string;
+  venueName: string;
+  bookingReference: string;
+  specialRequest?: string;
+  start: string;
+  end: string;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+}
+
+/** The booking state after an approve or reject decision (SPM-55). */
+export interface VenueBookingDecision {
+  id: string;
+  eventId: string;
+  venueId: string;
+  status: 'approved' | 'rejected';
+  start: string;
+  end: string;
+  rejectionReason?: string;
+  bookingReference: string;
+}
+
+export type VenueBookingDecisionResult =
+  | { kind: 'not-found' }
+  | { kind: 'already-decided'; status: string }
+  | { kind: 'conflict'; reason: string }
+  | { kind: 'decided'; booking: VenueBookingDecision };
+
+interface BookingLockRow {
+  id: string;
+  event_id: string;
+  venue_id: string;
+  status: string;
+  start_at: Date;
+  end_at: Date;
+  rejection_reason: string | null;
+}
+
+type BookingDecisionRow = BookingLockRow;
+
+/** Maps a decided booking row to the API shape, deriving the reference the same way the coordinator list does. */
+function toDecisionRecord(row: BookingDecisionRow): VenueBookingDecision {
+  return {
+    id: row.id,
+    eventId: row.event_id,
+    venueId: row.venue_id,
+    status: row.status as 'approved' | 'rejected',
+    start: row.start_at.toISOString(),
+    end: row.end_at.toISOString(),
+    rejectionReason: row.rejection_reason ?? undefined,
+    bookingReference: `VB-${row.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+  };
+}
+
 type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
   VenueRecord,
@@ -173,6 +234,7 @@ export class VenuesRepository {
       event_name: string;
       venue_id: string;
       venue_name: string;
+      venue_staff_name: string;
       start_at: Date;
       end_at: Date;
       status: string;
@@ -180,9 +242,12 @@ export class VenuesRepository {
       created_at: Date;
       affected: boolean;
       booking_reference: string;
+      rejection_reason: string | null;
     }>(
       `SELECT b.id, b.event_id, e.event_name, b.venue_id, v.name AS venue_name,
+              u.display_name AS venue_staff_name,
               b.start_at, b.end_at, b.status, r.special_request, b.created_at,
+              b.rejection_reason,
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
               EXISTS (SELECT 1 FROM venue_bookings blockout
                 WHERE blockout.venue_id = b.venue_id AND blockout.status = 'blocked'
@@ -190,6 +255,7 @@ export class VenuesRepository {
          FROM venue_bookings b
          JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
+         JOIN users u ON u.id = v.owner_user_id
          LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
         WHERE e.coordinator_id = $1::text AND b.status <> 'blocked'
         ORDER BY b.created_at DESC, b.id`,
@@ -201,14 +267,201 @@ export class VenuesRepository {
       eventName: row.event_name,
       venueId: row.venue_id,
       venueName: row.venue_name,
+      venueStaffName: row.venue_staff_name,
       start: row.start_at.toISOString(),
       end: row.end_at.toISOString(),
       status: row.status,
       bookingReference: row.booking_reference,
       specialRequest: row.special_request ?? undefined,
       affected: row.affected,
+      rejectionReason: row.rejection_reason ?? undefined,
       createdAt: row.created_at.toISOString(),
     }));
+  }
+
+  /** SPM-55 AC1: lists pending requests for venues the Venue Staff member owns, soonest event first. */
+  async listPendingVenueBookings(
+    staffId: string,
+  ): Promise<PendingVenueBooking[]> {
+    const result = await this.database.query<{
+      id: string;
+      event_id: string;
+      event_name: string;
+      event_start: Date;
+      event_end: Date;
+      coordinator_name: string;
+      venue_name: string;
+      booking_reference: string;
+      special_request: string | null;
+      start_at: Date;
+      end_at: Date;
+      status: 'pending' | 'approved' | 'rejected';
+      rejection_reason: string | null;
+    }>(
+      `SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start,
+              e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name,
+              v.name AS venue_name,
+              'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
+              r.special_request, b.start_at, b.end_at, b.status, b.rejection_reason
+         FROM venue_bookings b
+         JOIN venues v ON v.id = b.venue_id
+         JOIN events e ON e.id = b.event_id
+         JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id
+         LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
+        WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected')
+        ORDER BY e.start_date_time ASC, b.id`,
+      [staffId],
+    );
+    return result.rows.map((row) => ({
+      id: row.id,
+      eventId: row.event_id,
+      eventName: row.event_name,
+      eventStart: row.event_start.toISOString(),
+      eventEnd: row.event_end.toISOString(),
+      coordinatorName: row.coordinator_name,
+      venueName: row.venue_name,
+      bookingReference: row.booking_reference,
+      specialRequest: row.special_request ?? undefined,
+      start: row.start_at.toISOString(),
+      end: row.end_at.toISOString(),
+      status: row.status,
+      rejectionReason: row.rejection_reason ?? undefined,
+    }));
+  }
+
+  /**
+   * SPM-55 AC2: approves a pending request for an owned venue. The venue row lock serialises
+   * decisions, so an approval re-checks approved bookings and blockouts before it commits.
+   */
+  async approveVenueBooking(
+    staffId: string,
+    bookingId: string,
+  ): Promise<VenueBookingDecisionResult> {
+    return this.database.transaction(async (client) => {
+      const locked = await this.lockOwnedBooking(client, staffId, bookingId);
+      if (!locked) return { kind: 'not-found' as const };
+      const { booking, setupMinutes, turnaroundMinutes } = locked;
+      if (booking.status !== 'pending')
+        return { kind: 'already-decided' as const, status: booking.status };
+
+      const conflict = await client.query<{ reason: string }>(
+        `SELECT reason FROM (
+           SELECT COALESCE(reason, 'Venue unavailable') AS reason
+             FROM venue_bookings
+            WHERE venue_id = $1::uuid AND status = 'blocked'
+              AND start_at < $3::timestamptz + make_interval(mins => $5::int)
+              AND end_at > $2::timestamptz - make_interval(mins => $4::int)
+           UNION ALL
+           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason
+             FROM venue_bookings b
+             LEFT JOIN events e ON e.id = b.event_id
+            WHERE b.venue_id = $1::uuid AND b.status = 'approved' AND b.id <> $6::uuid
+              AND b.start_at - make_interval(mins => $4::int)
+                    < $3::timestamptz + make_interval(mins => $5::int)
+              AND b.end_at + make_interval(mins => $5::int)
+                    > $2::timestamptz - make_interval(mins => $4::int)
+         ) conflicts LIMIT 1`,
+        [
+          booking.venue_id,
+          booking.start_at,
+          booking.end_at,
+          setupMinutes,
+          turnaroundMinutes,
+          bookingId,
+        ],
+      );
+      if (conflict.rows[0])
+        return { kind: 'conflict' as const, reason: conflict.rows[0].reason };
+
+      const updated = await client.query<BookingDecisionRow>(
+        `UPDATE venue_bookings SET status = 'approved'
+          WHERE id = $1::uuid
+          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason`,
+        [bookingId],
+      );
+      await client.query(
+        `INSERT INTO booking_review_log (booking_id, actor_user_id, action)
+         VALUES ($1::uuid, $2::uuid, 'approved')`,
+        [bookingId, staffId],
+      );
+      return {
+        kind: 'decided' as const,
+        booking: toDecisionRecord(updated.rows[0]),
+      };
+    });
+  }
+
+  /** SPM-55 AC3, AC5: rejects a pending request for an owned venue and stores the required reason. */
+  async rejectVenueBooking(
+    staffId: string,
+    bookingId: string,
+    reason: string,
+  ): Promise<VenueBookingDecisionResult> {
+    return this.database.transaction(async (client) => {
+      const locked = await this.lockOwnedBooking(client, staffId, bookingId);
+      if (!locked) return { kind: 'not-found' as const };
+      if (locked.booking.status !== 'pending')
+        return {
+          kind: 'already-decided' as const,
+          status: locked.booking.status,
+        };
+
+      const updated = await client.query<BookingDecisionRow>(
+        `UPDATE venue_bookings SET status = 'rejected', rejection_reason = $2
+          WHERE id = $1::uuid
+          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason`,
+        [bookingId, reason],
+      );
+      await client.query(
+        `INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason)
+         VALUES ($1::uuid, $2::uuid, 'rejected', $3)`,
+        [bookingId, staffId, reason],
+      );
+      return {
+        kind: 'decided' as const,
+        booking: toDecisionRecord(updated.rows[0]),
+      };
+    });
+  }
+
+  /**
+   * Locks the venue, then the booking, and returns them only when the booking's venue belongs to the staff member.
+   * Locking the venue first matches submission, so approvals for one venue run one at a time.
+   */
+  private async lockOwnedBooking(
+    client: Queryable,
+    staffId: string,
+    bookingId: string,
+  ) {
+    const owned = await client.query<{ venue_id: string }>(
+      `SELECT b.venue_id FROM venue_bookings b
+         JOIN venues v ON v.id = b.venue_id
+        WHERE b.id = $1::uuid AND v.owner_user_id::text = $2::text`,
+      [bookingId, staffId],
+    );
+    const venueId = owned.rows[0]?.venue_id;
+    if (!venueId) return undefined;
+    const venue = await client.query<{
+      setup_time_minutes: number;
+      turnaround_time_minutes: number;
+    }>(
+      `SELECT setup_time_minutes, turnaround_time_minutes FROM venues
+        WHERE id = $1::uuid FOR UPDATE`,
+      [venueId],
+    );
+    const booking = await client.query<BookingLockRow>(
+      `SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason
+         FROM venue_bookings WHERE id = $1::uuid FOR UPDATE`,
+      [bookingId],
+    );
+    const row = booking.rows[0];
+    const venueRow = venue.rows[0];
+    if (!row || !venueRow) return undefined;
+    return {
+      booking: row,
+      setupMinutes: venueRow.setup_time_minutes,
+      turnaroundMinutes: venueRow.turnaround_time_minutes,
+    };
   }
 
   /** Cancels one owned request and refuses to remove the event's last active venue booking without explicit confirmation. */

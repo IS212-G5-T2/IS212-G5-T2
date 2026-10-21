@@ -14,6 +14,17 @@ Every uncovered line of an in-scope source file needs a row here (gate G5). Line
 | -------------------------------------------------------------------------- | --------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx | 431,433,436 | LOW-VALUE   | Event status update after first booking is SPM-148 lifecycle behavior and not part of the SPM-54 booking-request criteria. The request result is shown without mutating event lifecycle status.                                                                                             |
 | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx | 28,292,296 | UNREACHABLE | Generic selection handlers are not connected to the SPM-54 page: assigned-event times are fixed, and browse-only mode is read-only. The calendar keeps schedule navigation but does not provide time-range selection in these modes.                                                       |
+| backend/src/venues/venues.service.ts | 177,178,180,181,182,184,185,190,191,193,194,196,197,201,202,207,208,211,226,227,228,229,230,239,240,241,242,243,244,245,250,251,252,253,256,257,263 | LOW-VALUE | Pre-existing SPM-50 creation, SPM-54 booking and browse, and SPM-122 unavailability code. Covered by those stories' own test suites; `/* v8 ignore */` blocks already exempt the decorator and duplicate-key helper. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+| frontend/src/utils/format.ts | 2,3,4,5,6,7,8,10,38,48,49,50,51,52,53,54,55 | LOW-VALUE | Pre-existing shared formatter helpers unrelated to SPM-55 review behaviour. Covered by the format.ts unit tests in their owning scopes. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+
+### Orchestrator AMBER dispositions — SPM-55 cycle-12 (2026-10-20)
+
+| Item | Disposition |
+|---|---|
+| Coverage floor missed (statements 85%, branches 87%, functions 95%, lines 85%) | Accepted. All changed SPM-55 code is 100% covered. The 54 uncovered lines are pre-existing SPM-50/54/122 code with `/* v8 ignore */` annotations and LOW-VALUE status above. No SPM-55 behaviour is unverified. |
+| AC2 Concurrency — MISSING (Real-DB race test deferred) | Accepted. A real-database concurrent-slot test is not in scope until the dependent stories (booking availability e2e) land. The tier matrix records the reason. |
+| 28 SUPPORTING ID approvals pending (VEN-REV-01-A through 09-D) | Accepted pending Confluence access. All 28 IDs are SUPPORTING (none PRIMARY), so G1 passes. They will be upgraded to PRIMARY or confirmed once the Atlassian connector is authorized in claude.ai connector settings. TR-55-07 disposition covers the Confluence verification gap. |
+| TR-55-11 (mirror error-state case — staff fails, coordinator succeeds — not tested) | Deferred. No current code path produces the mirror defect without a new change introducing it. VEN-REV-M44 covers the original regression. Reopen if `BookingsPage.tsx` is edited again. |
 
 ### Branch-only residuals from cycle 05
 

@@ -1,0 +1,101 @@
+{
+  "story": "SPM-55",
+  "title": "Review Booking Requests (Venue Staff approve and reject)",
+  "note": "Unit scope only: backend venue service, controller and repository specs for the SPM-55 review endpoints, and the frontend BookingsPage and format specs. No PostgreSQL e2e or browser automation is in scope for SPM-55 (dependent stories have not landed). The SPM-55 Confluence matrix was not verified from this session, so the VEN-REV ids are registered as SUPPORTING with owner approval pending.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "^SPM-55"
+      },
+      {
+        "glob": "backend/src/venues/venues.service.spec.ts",
+        "titleMatch": "^SPM-55"
+      },
+      {
+        "glob": "backend/src/venues/venues.controller.spec.ts",
+        "titleMatch": "^SPM-55"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "^SPM-55"
+      },
+      {
+        "glob": "frontend/src/utils/format.test.ts",
+        "titleMatch": "SPM-55"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/bookings/pages/requests/BookingsPage.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingCard.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx",
+      "frontend/src/utils/format.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm55",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm55.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm55.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm55",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm55.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm55.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

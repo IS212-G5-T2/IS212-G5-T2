@@ -177,6 +177,8 @@ SPM-64 change requests add the `event_change_requests` table in `018_spm64_chang
 
 SPM-65 change request review (`019_spm65_change_request_review.sql`) adds `recheck` (jsonb array) and `safety_check_reset` to `event_change_requests`, the `Closed` status (SPM-65 AC11: a pending request is closed automatically when its event is cancelled; one the organiser withdraws keeps `Withdrawn`), a check that a Denied request has a 10 to 500 character `decision_reason`, and the append-only `event_change_request_audit` table (one entry per request; an `UPDATE` raises). The audit table is not delete-protected: its entries are removed with their event or change request (`ON DELETE CASCADE`), and a direct `DELETE` is not blocked; the application itself never deletes them. For an existing volume, apply `backend/migrations/013_spm65_change_request_review.sql` once; it is idempotent.
 
+SPM-55 venue booking review (`021_spm55_booking_review.sql`) adds `venue_bookings.rejection_reason` (1–1000 characters, allowed only on `rejected` rows; `reason` stays reserved for blocked periods) and the append-only `booking_review_log` table, which records each approve or reject with its actor, action, timestamp, and rejection reason. Fresh volumes receive both from the init file; an existing volume needs this file applied once before the staff review endpoints are used.
+
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and

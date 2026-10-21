@@ -17,6 +17,40 @@ export class VenuesController {
     );
   }
 
+  /** SPM-55 AC1: pending requests for the caller's venues, ordered by event date. */
+  @Get('bookings/pending')
+  listPendingVenueBookings(@Req() request: AuthenticatedRequest) {
+    return this.venues.listPendingVenueBookings(
+      request[CURRENT_USER_REQUEST_KEY],
+    );
+  }
+
+  /** SPM-55 AC2: Venue Staff approve a pending request for their venue. */
+  @Post('bookings/:bookingId/approve')
+  approveVenueBooking(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+  ) {
+    return this.venues.approveVenueBooking(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+    );
+  }
+
+  /** SPM-55 AC3: Venue Staff reject a pending request with a reason. */
+  @Post('bookings/:bookingId/reject')
+  rejectVenueBooking(
+    @Req() request: AuthenticatedRequest,
+    @Param('bookingId') bookingId: string,
+    @Body() body: unknown,
+  ) {
+    return this.venues.rejectVenueBooking(
+      request[CURRENT_USER_REQUEST_KEY],
+      bookingId,
+      body,
+    );
+  }
+
   @Post('bookings/:bookingId/cancel')
   cancelCoordinatorBooking(
     @Req() request: AuthenticatedRequest,
