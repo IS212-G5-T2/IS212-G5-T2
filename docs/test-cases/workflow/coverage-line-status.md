@@ -22,7 +22,7 @@ Every uncovered line of an in-scope source file needs a row here (gate G5). Line
 | Item | Disposition |
 |---|---|
 | Coverage floor missed (statements 85%, branches 87%, functions 95%, lines 85%) | Accepted. All changed SPM-55 code is 100% covered. The 54 uncovered lines are pre-existing SPM-50/54/122 code with `/* v8 ignore */` annotations and LOW-VALUE status above. No SPM-55 behaviour is unverified. |
-| AC2 Concurrency — MISSING (Real-DB race test deferred) | Accepted. A real-database concurrent-slot test is not in scope until the dependent stories (booking availability e2e) land. The tier matrix records the reason. |
+| AC2 Concurrent column — updated to N/A (2026-10-21) | AC2 is a sequential business rule: once approved, the slot is reserved and a conflicting booking cannot also be approved. Two users racing is not part of the AC. The tier matrix entry corrected from MISSING to N/A. |
 | 28 SUPPORTING ID approvals pending (VEN-REV-01-A through 09-D) | Accepted pending Confluence access. All 28 IDs are SUPPORTING (none PRIMARY), so G1 passes. They will be upgraded to PRIMARY or confirmed once the Atlassian connector is authorized in claude.ai connector settings. TR-55-07 disposition covers the Confluence verification gap. |
 | TR-55-11 (mirror error-state case — staff fails, coordinator succeeds — not tested) | Deferred. No current code path produces the mirror defect without a new change introducing it. VEN-REV-M44 covers the original regression. Reopen if `BookingsPage.tsx` is edited again. |
 
