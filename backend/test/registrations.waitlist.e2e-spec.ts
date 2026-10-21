@@ -1621,6 +1621,14 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       const eventId = await seedEvent({ coordinatorId: coordinator.uid, organiserId: organiser.uid });
       for (const [index, who] of att.entries()) await seedRegistered(eventId, who.uid, `0${index + 1}`);
       const waiting = [await attendee('04'), await attendee('05'), await attendee('06')];
+      // Pin the seeded Confirmed rows to fixed early dates. Left at the database default (now), they would sort after the
+      // fixed waitlist dates below once the clock passes them, and the report order would depend on the day the test runs.
+      for (const [index, who] of att.entries()) {
+        await pool.query(
+          `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
+          [eventId, `2026-10-0${index + 1}T00:00:00.000Z`, who.uid],
+        );
+      }
       for (const who of waiting) await joinAs(eventId, who);
       // The registration dates run in the opposite order to the join order (ATT-04 joined first, has the latest date), so
       // only joined_at and waitlist_seq can give the waitlist its order. The dates sit after the seeded Confirmed rows, so
