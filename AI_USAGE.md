@@ -89,3 +89,4 @@ Where user is the user's github username.
 ## 2026-10-21
 
 - swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch vulnerable frontend Vite dependency: Updated Vite from 8.3.0 to 8.3.5 to resolve reported launch-editor advisories. `npm audit --audit-level=high` found 0 vulnerabilities; frontend coverage tests (1,723 passed, 1 skipped, 1 todo), build, and lint passed (12 existing warnings). No commit, push, or PR.
+- swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch backend's transitive Vite audit finding: Updated the lockfile resolution from 8.3.0 to 8.3.5 via Vitest 5.0.0 without changing direct dependencies. Backend `npm audit --audit-level=high` found 0 vulnerabilities; `npm run test:cov` passed (1,693 tests), build passed, lint passed with two existing warnings. Frontend audit, coverage tests, build, and lint also passed. No commit, push, or PR.
