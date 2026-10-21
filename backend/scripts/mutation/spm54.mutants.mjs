@@ -372,6 +372,50 @@ export const MUTANTS = [
     ],
   },
   {
+    id: 'SPM54-BE-MY-BOOKINGS-INTERSECTION',
+    name: 'any blockout at the venue marks the original My Bookings row affected',
+    file: REPOSITORY,
+    suites: ['bookingE2E'],
+    kills: [
+      {
+        suite: 'bookingE2E',
+        file: 'test/venues-booking-requests.e2e-spec.ts',
+        title:
+          'VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout outside its buffered window',
+      },
+    ],
+    edits: [
+      [
+        'AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)\n                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+        'AND blockout.start_at IS NOT NULL) AS affected',
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-MY-BOOKINGS-INCLUSIVE',
+    name: 'buffered blockout bounds are inclusive instead of requiring a strict intersection',
+    file: REPOSITORY,
+    suites: ['bookingE2E'],
+    kills: [
+      {
+        suite: 'bookingE2E',
+        file: 'test/venues-booking-requests.e2e-spec.ts',
+        title:
+          'VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout exactly adjacent to its buffered window',
+      },
+    ],
+    edits: [
+      [
+        '                  AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)',
+        '                  AND blockout.start_at <= b.end_at + make_interval(mins => v.turnaround_time_minutes)',
+      ],
+      [
+        '                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+        '                  AND blockout.end_at >= b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected',
+      ],
+    ],
+  },
+  {
     id: 'SPM54-BE-SCHEDULE-CONFLICT',
     name: 'a conflicting venue period is ignored and a request is written anyway',
     file: REPOSITORY,
