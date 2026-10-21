@@ -24,6 +24,10 @@
       {
         "glob": "frontend/src/features/events/pages/detail/EventDetailPage.test.tsx",
         "titleMatch": "EVE-REV"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
+        "titleMatch": "EVE-REV"
       }
     ],
     "backend-e2e": [

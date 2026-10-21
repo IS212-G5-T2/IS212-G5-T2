@@ -60,14 +60,14 @@ function expectFieldError(input: unknown, field: string) {
 
 describe('validateEvent', () => {
   it.each([null, [], 'invalid'])(
-    'Q1-044 malformed submitted envelope %j is rejected',
+    'EVE-CRE-SUP-13 malformed submitted envelope %j is rejected',
     (input) => expect(() => validateEvent(input)).toThrow(BadRequestException),
   );
   it.each([123, 'x'.repeat(201)])(
-    'Q1-045 submission rejects invalid name %j',
+    'EVE-CRE-SUP-14 submission rejects invalid name %j',
     (name) => expectFieldError({ ...validEventRequest(), name }, 'name'),
   );
-  it('Q1-046 omitted choices default to empty arrays', () => {
+  it('EVE-CRE-SUP-01 omitted choices default to empty arrays', () => {
     const request = {
       ...validEventRequest(),
       facilities: undefined,
@@ -79,12 +79,12 @@ describe('validateEvent', () => {
     });
   });
   it.each(['invalid', Array(6).fill({})])(
-    'Q1-047 invalid submitted attachment collection %j',
+    'EVE-CRE-SUP-02 invalid submitted attachment collection %j',
     (attachments) =>
       expectFieldError({ ...validEventRequest(), attachments }, 'attachments'),
   );
   it.each([null, [], 'file', { id: 1, name: 1, type: 1, dataUrl: 1 }])(
-    'Q1-048 invalid submitted attachment shape %j',
+    'EVE-CRE-SUP-03 invalid submitted attachment shape %j',
     (attachment) =>
       expectFieldError(
         { ...validEventRequest(), attachments: [attachment] },
@@ -92,7 +92,7 @@ describe('validateEvent', () => {
       ),
   );
   it.each(['wrong-id', '', '00000000-0000-1000-8000-000000000036'])(
-    'Q1-049 rejects invalid submission UUID %s',
+    'EVE-CRE-SUP-04 rejects invalid submission UUID %s',
     (submissionKey) =>
       expectFieldError(
         { ...validEventRequest(), submissionKey },
@@ -100,14 +100,14 @@ describe('validateEvent', () => {
       ),
   );
   it.each([1, 2, 2147483646, 2147483647])(
-    'Q1-050 valid attendance boundary %s',
+    'EVE-CRE-SUP-05 valid attendance boundary %s',
     (expectedAttendance) =>
       expect(
         validateEvent({ ...validEventRequest(), expectedAttendance })
           .expectedAttendance,
       ).toBe(expectedAttendance),
   );
-  it('Q1-051 start time just before, at and after now', () => {
+  it('EVE-CRE-SUP-06 start time just before, at and after now', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T10:00:00Z'));
     try {
@@ -139,29 +139,20 @@ describe('validateEvent', () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, EVE-CRE-04-D
-  it.each([
-    ['EVE-CRE-04-A missing event name blocks submission', 'name'],
-    ['EVE-CRE-04-A missing purpose blocks submission', 'purpose'],
-    ['EVE-CRE-04-A missing description blocks submission', 'description'],
-    [
-      'EVE-CRE-04-B missing proposed start date and time blocks submission',
-      'startDateTime',
-    ],
-    [
-      'EVE-CRE-04-B missing proposed end date and time blocks submission',
-      'endDateTime',
-    ],
-    [
-      'EVE-CRE-04-C missing expected attendance blocks submission',
-      'expectedAttendance',
-    ],
-    ['EVE-CRE-04-D missing preferred room layout blocks submission', 'layout'],
-  ])('%s', (_caseName, field) => {
+  // One test per mandatory field, so each title carries its own case ID.
+  const omitField = (field: string) => {
     const request = validEventRequest() as Record<string, unknown>;
     delete request[field];
 
     expectFieldError(request, field);
-  });
+  };
+  it('EVE-CRE-04-A missing event name blocks submission', () => omitField('name'));
+  it('EVE-CRE-04-A missing purpose blocks submission', () => omitField('purpose'));
+  it('EVE-CRE-04-A missing description blocks submission', () => omitField('description'));
+  it('EVE-CRE-04-B missing proposed start date and time blocks submission', () => omitField('startDateTime'));
+  it('EVE-CRE-04-B missing proposed end date and time blocks submission', () => omitField('endDateTime'));
+  it('EVE-CRE-04-C missing expected attendance blocks submission', () => omitField('expectedAttendance'));
+  it('EVE-CRE-04-D missing preferred room layout blocks submission', () => omitField('layout'));
 
   // SPM-36 Test Case EVE-CRE-05-A
   it('EVE-CRE-05-A rejects a whitespace-only event name', () => {
@@ -247,7 +238,7 @@ describe('validateEvent', () => {
   );
 
   // SPM-36 Test Cases EVE-CRE-08-A and EVE-CRE-08-B
-  it('accepts optional supporting files and defaults to none when omitted', () => {
+  it('EVE-CRE-08-B accepts optional supporting files and defaults to none when omitted', () => {
     const withoutFiles = validEventRequest() as Record<string, unknown>;
     delete withoutFiles.attachments;
 
@@ -289,7 +280,7 @@ describe('validateEvent', () => {
   });
 
   // SPM-36 server-control check for organiser identity and status
-  it('ignores client-supplied organiser identity and status', () => {
+  it('EVE-CRE-SUP-07 ignores client-supplied organiser identity and status', () => {
     const result = validateEvent({
       ...validEventRequest(),
       organiserId: 'someone-else',
@@ -300,7 +291,7 @@ describe('validateEvent', () => {
     expect(result).not.toHaveProperty('status');
   });
 
-  it('accepts valid registrationEnabled boolean flag', () => {
+  it('EVE-CRE-SUP-08 accepts valid registrationEnabled boolean flag', () => {
     expect(
       validateEvent({ ...validEventRequest(), registrationEnabled: true }),
     ).toMatchObject({ registrationEnabled: true });
@@ -312,7 +303,7 @@ describe('validateEvent', () => {
     ).toMatchObject({ registrationEnabled: false });
   });
 
-  it('rejects non-boolean registrationEnabled values', () => {
+  it('EVE-CRE-SUP-09 rejects non-boolean registrationEnabled values', () => {
     expectFieldError(
       { ...validEventRequest(), registrationEnabled: 'true' },
       'registrationEnabled',

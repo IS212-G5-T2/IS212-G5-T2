@@ -78,7 +78,7 @@ afterEach(() => {
 });
 
 describe("SPM-37 Q2 functional cases", () => {
-  it("Q2-022 rapid save clicks issue only one request", async () => {
+  it("EVE-DRF-SUP-26 rapid save clicks issue only one request", async () => {
     const pending = deferred<DraftRecord>();
     mocked.mockReturnValue(pending.promise);
     open("/events/create");
@@ -91,7 +91,7 @@ describe("SPM-37 Q2 functional cases", () => {
     await act(async () => pending.resolve(draft()));
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
-  it("Q2-023 back navigation preserves data and server attachment errors are visible", async () => {
+  it("EVE-DRF-SUP-27 back navigation preserves data and server attachment errors are visible", async () => {
     mocked
       .mockResolvedValueOnce(draft({ formStep: 2 }))
       .mockRejectedValueOnce(
@@ -114,7 +114,7 @@ describe("SPM-37 Q2 functional cases", () => {
     );
   });
   it.each([0, 1, 2])(
-    "Q2-001 saves incomplete values from wizard step %s",
+    "EVE-DRF-SUP-28 saves incomplete values from wizard step %s",
     async (formStep) => {
       mocked.mockResolvedValue(draft({ formStep, purpose: "", startTime: "" }));
       open();
@@ -134,7 +134,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each([undefined, -1, 3, 1.5])(
-    "Q2-002 legacy or invalid saved step %j falls back to basic fields",
+    "EVE-DRF-SUP-29 legacy or invalid saved step %j falls back to basic fields",
     async (formStep) => {
       mocked.mockResolvedValue(draft({ formStep }));
       open();
@@ -145,7 +145,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each([new Error("Not found"), "unknown failure"])(
-    "Q2-003 failed draft retrieval hides editing %j",
+    "EVE-DRF-SUP-30 failed draft retrieval hides editing %j",
     async (error) => {
       mocked.mockRejectedValue(error);
       open();
@@ -162,7 +162,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each(["resolve", "reject"])(
-    "Q2-004 ignores late load %s after leaving the editor",
+    "EVE-DRF-SUP-31 ignores late load %s after leaving the editor",
     async (outcome) => {
       const pending = deferred<DraftRecord>();
       mocked.mockReturnValue(pending.promise);
@@ -239,7 +239,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "Unable to save draft",
     );
   });
-  it("Q2-008 confirmation supports keyboard and returns to My Drafts", async () => {
+  it("EVE-DRF-SUP-32 confirmation supports keyboard and returns to My Drafts", async () => {
     mocked.mockResolvedValueOnce(draft()).mockResolvedValueOnce([]);
     open("/events/create");
     save();
@@ -249,7 +249,7 @@ describe("SPM-37 Q2 functional cases", () => {
     click("OK");
     expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
   });
-  it("Q2-009 saved draft submits through requests API and replaces existing event in store", async () => {
+  it("EVE-DRF-SUP-33 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
     useAppStore.setState({ events: [event, { id: "other" }] as never });
     mocked
@@ -269,7 +269,7 @@ describe("SPM-37 Q2 functional cases", () => {
     ]);
   });
   it.each([new ApiError("Rejected", { equipmentNeeds: "Invalid" }), "unknown"])(
-    "Q2-010 failed submission keeps draft data %j",
+    "EVE-DRF-SUP-34 failed submission keeps draft data %j",
     async (error) => {
       mocked
         .mockResolvedValueOnce(draft({ formStep: 2 }))
@@ -289,7 +289,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
-    "Q2-011 attendance boundary %s on submission",
+    "EVE-DRF-SUP-35 attendance boundary %s on submission",
     async (expectedAttendance) => {
       mocked.mockResolvedValue(draft({ formStep: 1, expectedAttendance }));
       open();
@@ -304,7 +304,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each(["09:59", "10:00", "10:01"])(
-    "Q2-012 end time %s relative to start 10:00",
+    "EVE-DRF-SUP-36 end time %s relative to start 10:00",
     async (endTime) => {
       mocked.mockResolvedValue(draft({ formStep: 1, endTime }));
       open();
@@ -315,7 +315,7 @@ describe("SPM-37 Q2 functional cases", () => {
       else expect(screen.getByText("End must be after start.")).toBeTruthy();
     },
   );
-  it("Q2-013 missing required basic fields in resumed review returns to step one", async () => {
+  it("EVE-DRF-SUP-37 missing required basic fields in resumed review returns to step one", async () => {
     mocked.mockResolvedValue(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
     );
@@ -329,7 +329,7 @@ describe("SPM-37 Q2 functional cases", () => {
     ["bad-date", "11:00"],
     ["2030-01-02", "bad-time"],
   ])(
-    "Q2-014 corrupt persisted schedule %s %s cannot submit",
+    "EVE-DRF-SUP-38 corrupt persisted schedule %s %s cannot submit",
     async (startDate, endTime) => {
       mocked.mockResolvedValue(draft({ formStep: 1, startDate, endTime }));
       open();
@@ -372,7 +372,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(screen.queryByRole("link", { name: "Workshop" })).toBeNull();
   });
   it.each([new Error("List unavailable"), "unknown"])(
-    "Q2-016 failed list retry recovers %j",
+    "EVE-DRF-SUP-39 failed list retry recovers %j",
     async (error) => {
       mocked.mockRejectedValueOnce(error).mockResolvedValueOnce([]);
       open("/requests");
@@ -383,7 +383,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each(["resolve", "reject"])(
-    "Q2-017 ignores late list %s after navigation",
+    "EVE-DRF-SUP-40 ignores late list %s after navigation",
     async (outcome) => {
       const pending = deferred<DraftRecord[]>();
       mocked.mockReturnValue(pending.promise);
@@ -430,7 +430,7 @@ describe("SPM-37 Q2 functional cases", () => {
       }
     },
   );
-  it.each([4, 5, 6])("Q2-019 file count boundary %s", async (count) => {
+  it.each([4, 5, 6])("EVE-DRF-SUP-41 file count boundary %s", async (count) => {
     mocked.mockResolvedValue(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
@@ -452,7 +452,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByText("file-0.txt")).toBeNull();
     }
   });
-  it("Q2-020 cancelled file selection is harmless and read failure allows retry", async () => {
+  it("EVE-DRF-SUP-42 cancelled file selection is harmless and read failure allows retry", async () => {
     mocked.mockResolvedValue(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");

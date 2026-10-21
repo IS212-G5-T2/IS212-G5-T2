@@ -8,7 +8,7 @@ afterEach(() => {
 
 describe("api", () => {
   // Sends the browser-managed HTTP-only session and never reintroduces tokens.
-  it("uses browser session credentials without an Authorization header", async () => {
+  it("EVE-DRF-SUP-43 uses browser session credentials without an Authorization header", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
@@ -22,7 +22,7 @@ describe("api", () => {
   });
 
   // Uses the documented local backend origin when no build-time URL is supplied.
-  it("falls back to the default API origin", async () => {
+  it("EVE-DRF-SUP-44 falls back to the default API origin", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
@@ -35,7 +35,7 @@ describe("api", () => {
   });
 
   // Preserves caller headers while adding the JSON content type required by the API.
-  it("adds JSON content type without discarding caller headers", async () => {
+  it("EVE-DRF-SUP-45 adds JSON content type without discarding caller headers", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
@@ -121,7 +121,7 @@ describe("api", () => {
   });
 
   // Covers the error type used by every rejected helper call.
-  it("retains ApiError field errors", () => {
+  it("EVE-DRF-SUP-46 retains ApiError field errors", () => {
     expect(new ApiError("Validation failed", { title: "Required" })).toMatchObject({
       message: "Validation failed", errors: { title: "Required" },
     });
@@ -130,7 +130,7 @@ describe("api", () => {
 
 describe("api error codes (SPM-61)", () => {
   // The server's machine-readable code and status reach the caller so the UI can branch on them.
-  it("exposes code, errors and status on ApiError", async () => {
+  it("EVE-DRF-SUP-47 exposes code, errors and status on ApiError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ code: "registration_closed", message: "Registration has closed for this event." }), { status: 422 }),
     ));

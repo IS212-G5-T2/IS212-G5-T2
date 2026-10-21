@@ -277,7 +277,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.queryByText("Answered")).not.toBeInTheDocument();
   });
 
-  it("both organiser and coordinator can resolve a clarification, which hides the reply button and marks it Answered", async () => {
+  it("REQ-CLAR-SUP-54 both organiser and coordinator can resolve a clarification, which hides the reply button and marks it Answered", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
     const openClarification = comment();
@@ -452,7 +452,7 @@ describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
 // the thread is missing rather than seeing an empty thread.
 describe("EventDetailPage comments load failure (SPM-39)", () => {
   /** When loading comments fails, the failure message is shown in an alert. */
-  it("shows the comments load failure message in an alert", async () => {
+  it("REQ-CLAR-SUP-55 shows the comments load failure message in an alert", async () => {
     apiMock.mockImplementation((path: string) => {
       if (path === "/events/event-1/comments") return Promise.reject(new Error("Comments are unavailable."));
       return Promise.resolve(baseEvent());
@@ -469,7 +469,7 @@ describe("EventDetailPage comments load failure (SPM-39)", () => {
   });
 
   /** A comments failure that is not an Error object falls back to the generic message. */
-  it("shows the generic comments message when the failure is not an Error", async () => {
+  it("REQ-CLAR-SUP-56 shows the generic comments message when the failure is not an Error", async () => {
     apiMock.mockImplementation((path: string) => {
       if (path === "/events/event-1/comments") return Promise.reject("offline");
       return Promise.resolve(baseEvent());

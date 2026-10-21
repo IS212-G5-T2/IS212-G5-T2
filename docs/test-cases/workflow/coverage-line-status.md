@@ -28,6 +28,7 @@ Each row below is one file and line set. Sprint 1 rows name their story first; o
 | frontend/src/features/events/pages/detail/EventDetailPage.tsx | 105, 158, 174, 230, 231, 324 | OPEN | Out of scope for Sprint 1. Last written by a commit without a Sprint 1 key. |
 | frontend/src/features/events/pages/detail/EventDetailPage.tsx | 328 | OPEN | Out of scope for Sprint 1. Last written by SPM-135. |
 | frontend/src/features/events/pages/detail/EventDetailPage.tsx | 544, 559, 621, 622, 623 | OPEN | Out of scope for Sprint 1. Last written by SPM-138. |
+| frontend/src/features/events/pages/detail/EventDetailPage.tsx | 543, 558, 562, 590, 604, 620, 713, 752 | OPEN | Out of scope for SPM-38 (review). Measured in the SPM-38 run on 2026-10-21: registration report, planning change and register-button UI owned by other features. Needs a story-owner decision on which story covers them. |
 | frontend/src/store/useAppStore.ts | 410, 411 | OPEN | Out of scope for Sprint 1. Last written by SPM-30 (restrict attendee operations). |
 | frontend/src/store/useAppStore.ts | 131, 159, 169, 173, 268, 273, 274, 276-279, 281, 287, 293, 295, 296, 299, 304-306, 308, 311-313, 319, 323, 330, 331, 337, 338, 346-348, 350, 353, 354, 358, 417, 501-503, 507-509, 511 | OPEN | Out of scope for Sprint 1. Last written by commits without a Sprint 1 key (store code from the earlier feature branches). |
 | backend/src/events/status/status.service.ts | 168, 210, 394 | OPEN | Out of scope for Sprint 1. Last written by SPM-135. |

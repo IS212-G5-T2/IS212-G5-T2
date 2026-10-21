@@ -184,7 +184,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
-  it("blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
+  it("EVE-CRE-04-B EVE-CRE-04-C EVE-CRE-04-D blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
     const user = userEvent.setup();
     renderCreate();
     await enterBasicInformation(user);
@@ -203,7 +203,7 @@ describe("EventCreatePage", () => {
     ["EVE-CRE-05-B", "attendance", "1.5", "21:00", /positive whole number/i],
     ["EVE-CRE-05-C", "past start", "80", "21:00", /must be in the future/i],
     ["EVE-CRE-05-D", "end before start", "80", "17:00", /end must be after start/i],
-  ])("%s rejects %s and keeps the schedule step open", async (_id, kind, attendance, endTime, error) => {
+  ])("EVE-CRE-SUP-12 %s rejects %s and keeps the schedule step open", async (_id, kind, attendance, endTime, error) => {
     const user = userEvent.setup();
     renderCreate();
     await enterBasicInformation(user);
@@ -224,7 +224,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A
-  it("submits a valid request and shows the submission confirmation", async () => {
+  it("EVE-CRE-07-A submits a valid request and shows the submission confirmation", async () => {
     const user = userEvent.setup();
     const saved = eventRecord();
     apiMock.mockImplementation(async (_path, init) => {
@@ -477,6 +477,25 @@ describe("EventCreatePage", () => {
       expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
     },
   );
+
+  // SPM-36 AC9: a rejection with no field errors keeps the server message and leaves the user on the review step.
+  it("EVE-CRE-SUP-15 a submission rejected with no field errors shows the server message and stays on the review step", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path, init) => {
+      if (init?.method === "POST")
+        throw new ApiError("Invalid event request.", {}, undefined, 400);
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    expect((await screen.findAllByText("Invalid event request.")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /submit for review/i })).toBeTruthy();
+  });
 
   // SPM-36 AC9 (routing): with several rejected fields, the user goes to the earliest step that shows one of them.
   it("SPM-36 AC9 goes to the basic information step when a name and an attachment are both rejected", async () => {

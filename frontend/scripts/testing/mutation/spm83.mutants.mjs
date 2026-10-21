@@ -4,7 +4,7 @@
 // FE-83-01 is the notifications toggle. RF1 to RF4 come from the SPM-150 cycle-01 test review (review/mutation).
 export const SUITES = {
   notifications: { args: ['run', 'src/components/notifications/RejectionNotifications.test.tsx'] },
-  decision: { args: ['run', 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx'] },
+  decision: { args: ['run', 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx', 'src/store/useAppStore.decisions.test.ts', 'src/features/events/pages/list/EventListPage.test.tsx'] },
 };
 
 const NOTIFICATIONS = 'src/components/notifications/RejectionNotifications.tsx';

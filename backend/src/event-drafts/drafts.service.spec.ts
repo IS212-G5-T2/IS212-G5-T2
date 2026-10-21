@@ -90,7 +90,7 @@ const submit = () =>
   });
 
 describe('SPM-37 Q1 service contract and failures', () => {
-  it('Q1-023 lists, retrieves and serializes saved records', async () => {
+  it('EVE-DRF-SUP-01 lists, retrieves and serializes saved records', async () => {
     db.query.mockResolvedValue({ rows: [row()] });
     expect(await service.list(identity)).toEqual([
       expect.objectContaining({
@@ -109,7 +109,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       status: 404,
     });
   });
-  it('Q1-024 rejects malformed IDs before database access', async () => {
+  it('EVE-DRF-SUP-02 rejects malformed IDs before database access', async () => {
     await expect(service.get(identity, 'bad')).rejects.toMatchObject({
       status: 404,
     });
@@ -123,7 +123,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.connect).not.toHaveBeenCalled();
   });
   // Drafts are organiser-only, matching AGENTS.md's events-boundary policy.
-  it('rejects all draft operations without an authenticated identity', async () => {
+  it('EVE-DRF-SUP-03 rejects all draft operations without an authenticated identity', async () => {
     await expect(service.list(undefined)).rejects.toMatchObject({
       status: 401,
     });
@@ -139,7 +139,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
-  it('rejects draft operations from a caller without the organiser role', async () => {
+  it('EVE-DRF-SUP-04 rejects draft operations from a caller without the organiser role', async () => {
     const coordinator: AuthenticatedUser = {
       uid: 'coord-9',
       roles: ['COORDINATOR'],
@@ -215,7 +215,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       409,
       'A save identifier cannot be reused for different values.',
     ],
-  ])('Q1-027 rolls back %s save', async (_label, record, status, message) => {
+  ])('EVE-DRF-SUP-05 rolls back %s save', async (_label, record, status, message) => {
     selected(record);
     await expect(
       service.save(identity, id, { fields, version: 1, operationId }),
@@ -234,7 +234,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     { version: 1.5 },
     { version: '1' },
     { version: Number.MAX_SAFE_INTEGER + 1 },
-  ])('Q1-028 rejects submit version %j before connection', async (body) => {
+  ])('EVE-DRF-SUP-06 rejects submit version %j before connection', async (body) => {
     await expect(service.submit(identity, id, body)).rejects.toMatchObject({
       status: 400,
     });
@@ -243,7 +243,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
   it.each([
     ['missing', null, 404],
     ['stale', { ...row(), version: 2 }, 409],
-  ])('Q1-029 rolls back %s submission', async (_label, record, status) => {
+  ])('EVE-DRF-SUP-07 rolls back %s submission', async (_label, record, status) => {
     selected(record);
     await expect(submit()).rejects.toMatchObject({ status });
     expect(events.create).not.toHaveBeenCalled();
@@ -251,7 +251,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.release).toHaveBeenCalledOnce();
   });
   it.each(['', '25'])(
-    'Q1-030 submits saved snapshot, attendance %j, using the same transaction',
+    'EVE-DRF-SUP-08 submits saved snapshot, attendance %j, using the same transaction',
     async (attendance) => {
       selected({
         ...row(),
@@ -275,7 +275,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       expect(db.transaction).toHaveBeenLastCalledWith('COMMIT');
     },
   );
-  it('Q1-031 returns original event on repeated submission', async () => {
+  it('EVE-DRF-SUP-09 returns original event on repeated submission', async () => {
     selected({ ...row(), status: 'Submitted', event_id: id });
     events.get.mockResolvedValue({ id });
     expect(await submit()).toMatchObject({ event: { id } });
@@ -283,7 +283,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(events.create).not.toHaveBeenCalled();
   });
   it.each(['save', 'submit'] as const)(
-    'Q1-032 releases connection and rolls back database failure on %s',
+    'EVE-DRF-SUP-10 releases connection and rolls back database failure on %s',
     async (action) => {
       db.transaction
         .mockResolvedValueOnce({ rows: [] })
@@ -298,7 +298,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       expect(db.transaction).not.toHaveBeenCalledWith('COMMIT');
     },
   );
-  it('Q1-033 rolls back when event creation fails', async () => {
+  it('EVE-DRF-SUP-11 rolls back when event creation fails', async () => {
     selected(row());
     events.create.mockRejectedValue(new Error('event creation failed'));
     await expect(submit()).rejects.toThrow('event creation failed');
@@ -308,7 +308,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     ).toBe(false);
     expect(db.release).toHaveBeenCalledOnce();
   });
-  it('Q1-034 controller forwards exact contracts to service', async () => {
+  it('EVE-DRF-SUP-12 controller forwards exact contracts to service', async () => {
     const mock = {
       list: vi.fn().mockResolvedValue([]),
       get: vi.fn().mockResolvedValue(row()),
@@ -336,7 +336,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
 // Supporting service-level checks for EVE-DRF-09. The two-user HTTP and PostgreSQL cases are in
 // backend/test/drafts.e2e-spec.ts, which is not run in this suite.
 describe('SPM-37 owner isolation, service level (supporting)', () => {
-  it('saves under the verified caller and ignores a client-supplied organiserId', async () => {
+  it('EVE-DRF-SUP-13 saves under the verified caller and ignores a client-supplied organiserId', async () => {
     selected({ ...row(), version: 0 });
     await service.save(identity, id, {
       fields,
@@ -351,7 +351,7 @@ describe('SPM-37 owner isolation, service level (supporting)', () => {
     expect(JSON.stringify(db.transaction.mock.calls)).not.toContain('draft-other');
   });
 
-  it('locks and updates only the verified owner\'s row when saving', async () => {
+  it('EVE-DRF-SUP-14 locks and updates only the verified owner\'s row when saving', async () => {
     selected({ ...row(), version: 1 });
     await service.save(identity, id, { fields, version: 1, operationId });
     const lock = db.transaction.mock.calls.find(([sql]) =>
@@ -360,7 +360,7 @@ describe('SPM-37 owner isolation, service level (supporting)', () => {
     expect(lock?.[1]).toEqual([id, 'current-user']);
   });
 
-  it('scopes direct-URL reads and the list to the verified owner', async () => {
+  it('EVE-DRF-SUP-15 scopes direct-URL reads and the list to the verified owner', async () => {
     db.query.mockResolvedValueOnce({ rows: [] });
     await expect(service.get(identity, id)).rejects.toMatchObject({ status: 404 });
     expect(db.query).toHaveBeenLastCalledWith(

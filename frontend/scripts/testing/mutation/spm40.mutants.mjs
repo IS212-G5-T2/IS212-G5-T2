@@ -3,7 +3,7 @@
 // Each mutant names the behaviour it breaks. The runner mutates a scratch copy only.
 
 export const SUITES = {
-  approve: { args: ['run', 'src/store/useAppStore.decisions.test.ts', 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx'] },
+  approve: { args: ['run', 'src/store/useAppStore.decisions.test.ts', 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx', 'src/features/events/pages/list/EventListPage.test.tsx', 'src/components/notifications/RejectionNotifications.test.tsx'] },
 };
 
 const STORE = 'src/store/useAppStore.ts';

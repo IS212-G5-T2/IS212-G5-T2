@@ -183,7 +183,7 @@ describe('EventsService.approve — immutability (EVENT-APPROVE-04-B)', () => {
 });
 
 describe('EventsService approval notifications (SPM-40 AC4)', () => {
-  it('returns the organiser approval confirmation with its event link', async () => {
+  it('EVENT-APPROVE-SUP-01 returns the organiser approval confirmation with its event link', async () => {
     db.query.mockResolvedValue({
       rows: [
         {

@@ -78,7 +78,7 @@ describe('Events coordinator assignment (e2e)', () => {
     return eventId;
   }
 
-  it('omits attachment dataUrl from the events list but keeps it on the detail', async () => {
+  it('EVE-REV-SUP-01 omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const attachment = {
       id: 'att-1',

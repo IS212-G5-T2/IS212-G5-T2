@@ -24,31 +24,31 @@ describe('validateMessage', () => {
     ).toThrow(BadRequestException);
   });
 
-  it('rejects a missing message field', () => {
+  it('REQ-CLAR-SUP-33 rejects a missing message field', () => {
     expect(() => validateMessage({}, 'Message cannot be blank.')).toThrow(
       BadRequestException,
     );
   });
 
-  it('rejects a non-string message', () => {
+  it('REQ-CLAR-SUP-34 rejects a non-string message', () => {
     expect(() => validateMessage({ message: 42 }, 'Message cannot be blank.')).toThrow(
       BadRequestException,
     );
   });
 
-  it('rejects a message over the length limit', () => {
+  it('REQ-CLAR-SUP-35 rejects a message over the length limit', () => {
     expect(() =>
       validateMessage({ message: 'a'.repeat(2001) }, 'Message cannot be blank.'),
     ).toThrow(BadRequestException);
   });
 
-  it('trims and accepts a valid message', () => {
+  it('REQ-CLAR-SUP-36 trims and accepts a valid message', () => {
     expect(validateMessage({ message: '  Please confirm the layout.  ' }, 'x')).toBe(
       'Please confirm the layout.',
     );
   });
 
-  it('surfaces the caller-supplied error text', () => {
+  it('REQ-CLAR-SUP-37 surfaces the caller-supplied error text', () => {
     try {
       validateMessage({ message: '' }, 'Reply message cannot be blank.');
       expect.fail('expected validateMessage to throw');

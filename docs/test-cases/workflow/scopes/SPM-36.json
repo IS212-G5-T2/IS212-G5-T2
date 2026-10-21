@@ -20,7 +20,10 @@
         "glob": "backend/src/events/events.service.spec.ts",
         "titleMatch": "EVE-CRE"
       },
-      "backend/src/main.spec.ts"
+      {
+        "glob": "backend/src/main.spec.ts",
+        "titleMatch": "EVE-CRE"
+      }
     ],
     "frontend": [
       {
@@ -34,13 +37,18 @@
       {
         "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
         "titleMatch": "EVE-CRE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/drafts/DraftWorkflow.test.tsx",
+        "titleMatch": "EVE-CRE"
       }
     ]
   },
   "sources": {
     "backend": [
       "backend/src/events/dto/event-input.ts",
-      "backend/src/main.ts"
+      "backend/src/main.ts",
+      "backend/src/config/configure-app.ts"
     ],
     "frontend": [
       "frontend/src/features/events/pages/create/EventCreatePage.tsx"

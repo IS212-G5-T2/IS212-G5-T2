@@ -215,7 +215,7 @@ describe('EventsService', () => {
     expect(db.release).not.toHaveBeenCalled();
   });
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
-  it('rejects invalid requests before opening a database transaction', async () => {
+  it('EVE-CRE-SUP-10 rejects invalid requests before opening a database transaction', async () => {
     await expect(
       service.create(organiserUser(), { ...validEventRequest(), name: '' }),
     ).rejects.toBeInstanceOf(BadRequestException);
@@ -248,7 +248,7 @@ describe('EventsService', () => {
   });
 
   // SPM-36 Test Case EVE-CRE-06-A (its attachment assertion below also incidentally covers EVE-CRE-08-A persistence)
-  it('saves a valid request under the authenticated organiser with Submitted status', async () => {
+  it('EVE-CRE-06-A saves a valid request under the authenticated organiser with Submitted status', async () => {
     const request = validEventRequest();
     const row = savedEventRow();
     db.transaction

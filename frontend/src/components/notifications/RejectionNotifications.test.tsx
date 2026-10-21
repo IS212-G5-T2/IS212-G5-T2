@@ -61,7 +61,7 @@ beforeEach(() => {
 });
 
 describe("RejectionNotifications (SPM-83 AC6)", () => {
-  it("shows the organiser the rejection with its reason and a link to the request", async () => {
+  it("EVENT-REJECT-SUP-01 shows the organiser the rejection with its reason and a link to the request", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([rejectionNotification()]);
 
@@ -82,7 +82,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     ).toBe("/events/event-1");
   });
 
-  it("lets the organiser mark a rejection notification as read", async () => {
+  it("EVENT-REJECT-SUP-02 lets the organiser mark a rejection notification as read", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([rejectionNotification()]);
 
@@ -211,7 +211,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(screen.getByText(/Reason: Venue is not available/)).toBeInTheDocument();
   });
 
-  it("renders nothing for a non-organiser", () => {
+  it("EVENT-REJECT-SUP-03 renders nothing for a non-organiser", () => {
     setUserRole("coordinator");
 
     const { container } = render(
@@ -226,7 +226,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
 });
 
 describe("RejectionNotifications (SPM-40 AC4)", () => {
-  it("shows the organiser that the approved event can proceed", async () => {
+  it("EVENT-APPROVE-SUP-02 shows the organiser that the approved event can proceed", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([approvalNotification()]);
 
@@ -278,7 +278,7 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
    * A window focus refresh that arrives while a notification load is still in flight does not start a second load;
    * the held load then fills the list when it resolves.
    */
-  it("does not start a second notification load while one is still in flight", async () => {
+  it("EVENT-APPROVE-SUP-03 does not start a second notification load while one is still in flight", async () => {
     setUserRole("organiser");
     const load = deferred<Notification[]>();
     apiMock.mockReturnValueOnce(load.promise);

@@ -29,6 +29,10 @@
       {
         "glob": "frontend/src/store/useAppStore.decisions.test.ts",
         "titleMatch": "EVENT-APPROVE"
+      },
+      {
+        "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+        "titleMatch": "EVENT-APPROVE"
       }
     ]
   },

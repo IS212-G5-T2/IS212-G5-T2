@@ -31,19 +31,19 @@ const attachment = {
 
 describe('SPM-37 Q1 boundary and partition cases', () => {
   it.each([null, undefined, [], 'draft', 0, true])(
-    'Q1-001 rejects malformed envelope %j',
+    'EVE-DRF-SUP-16 rejects malformed envelope %j',
     (body) => rejects(body),
   );
   it.each([null, undefined, [], 'fields', 1])(
-    'Q1-002 rejects malformed fields %j',
+    'EVE-DRF-SUP-17 rejects malformed fields %j',
     (fields) => rejects({ ...payload(), fields }),
   );
   it.each([-1, 0.5, '0', null, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity])(
-    'Q1-003 rejects invalid version %j',
+    'EVE-DRF-SUP-18 rejects invalid version %j',
     (version) => rejects({ ...payload(), version }),
   );
   it.each([0, 1, Number.MAX_SAFE_INTEGER])(
-    'Q1-004 accepts nonnegative safe version %s',
+    'EVE-DRF-SUP-19 accepts nonnegative safe version %s',
     (version) =>
       expect(validateDraft({ ...payload(), version }).version).toBe(version),
   );
@@ -53,7 +53,7 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
     '',
     'not-uuid',
     '00000000-0000-1000-8000-000000000037',
-  ])('Q1-005 rejects invalid operation ID %j', (operationId) =>
+  ])('EVE-DRF-SUP-20 rejects invalid operation ID %j', (operationId) =>
     rejects({ ...payload(), operationId }),
   );
   /** EVE-DRF-01-B: draft values (empty, whitespace, zero, incomplete) persist unchanged (Q1-006). */

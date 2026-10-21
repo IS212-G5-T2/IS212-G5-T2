@@ -66,7 +66,7 @@ describe("ClarificationThread: sending a clarification (SPM-39 AC2)", () => {
   });
 
   // Kills: a server error message replaced by the generic text.
-  it("shows the server's message when the clarification is rejected with an ApiError", async () => {
+  it("REQ-CLAR-SUP-41 shows the server's message when the clarification is rejected with an ApiError", async () => {
     const user = userEvent.setup({ delay: null });
     const rejected = vi.fn().mockRejectedValue(new ApiError("This event is not open for clarifications."));
     renderThread({ onSubmitClarification: rejected });
@@ -79,7 +79,7 @@ describe("ClarificationThread: sending a clarification (SPM-39 AC2)", () => {
   });
 
   // Kills: an unexpected failure shown as the server's text, or no fallback text at all.
-  it("shows the fallback text when the clarification fails with a non-API error", async () => {
+  it("REQ-CLAR-SUP-42 shows the fallback text when the clarification fails with a non-API error", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({ onSubmitClarification: vi.fn().mockRejectedValue(new Error("network down")) });
 
@@ -92,7 +92,7 @@ describe("ClarificationThread: sending a clarification (SPM-39 AC2)", () => {
 
 describe("ClarificationThread: replying (SPM-39 AC2, AC5)", () => {
   // Kills: a blank reply sent, or the reply error text changed.
-  it("a blank reply shows the reply error and sends nothing", async () => {
+  it("REQ-CLAR-SUP-43 a blank reply shows the reply error and sends nothing", async () => {
     const user = userEvent.setup({ delay: null });
     const { onSubmitReply } = renderThread({ comments: [comment()], canReply: true });
 
@@ -104,7 +104,7 @@ describe("ClarificationThread: replying (SPM-39 AC2, AC5)", () => {
   });
 
   // Kills: a reply failure with an API message not shown, or the fallback missing.
-  it("shows the server's message for a rejected reply, and the fallback for any other failure", async () => {
+  it("REQ-CLAR-SUP-44 shows the server's message for a rejected reply, and the fallback for any other failure", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
       comments: [comment()],
@@ -119,7 +119,7 @@ describe("ClarificationThread: replying (SPM-39 AC2, AC5)", () => {
     expect(await screen.findByText("This clarification is already resolved.")).toBeInTheDocument();
   });
 
-  it("shows the reply fallback text when a reply fails with a non-API error", async () => {
+  it("REQ-CLAR-SUP-45 shows the reply fallback text when a reply fails with a non-API error", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
       comments: [comment()],
@@ -137,7 +137,7 @@ describe("ClarificationThread: replying (SPM-39 AC2, AC5)", () => {
 
 describe("ClarificationThread: resolving (SPM-39 AC5)", () => {
   // Kills: the resolve error not shown, or the button stuck in "Resolving…" after a failure.
-  it("shows the server's message when resolving fails with an ApiError, and the button recovers", async () => {
+  it("REQ-CLAR-SUP-46 shows the server's message when resolving fails with an ApiError, and the button recovers", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
       comments: [comment()],
@@ -153,7 +153,7 @@ describe("ClarificationThread: resolving (SPM-39 AC5)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeEnabled());
   });
 
-  it("shows the resolve fallback text when resolving fails with a non-API error", async () => {
+  it("REQ-CLAR-SUP-47 shows the resolve fallback text when resolving fails with a non-API error", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
       comments: [comment()],
@@ -177,7 +177,7 @@ describe("ClarificationThread: filtering and labels (SPM-39 AC4, AC5)", () => {
   });
 
   // Kills: the Pending filter showing resolved clarifications, or All hiding them.
-  it("the Pending filter hides resolved clarifications and All shows them again", async () => {
+  it("REQ-CLAR-SUP-48 the Pending filter hides resolved clarifications and All shows them again", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({ comments: [open, closed] });
 
@@ -192,7 +192,7 @@ describe("ClarificationThread: filtering and labels (SPM-39 AC4, AC5)", () => {
   });
 
   // Kills: the empty message for the Pending filter missing, or the wrong empty message shown.
-  it("shows the pending empty message when nothing is pending, and the general one when there are no clarifications", async () => {
+  it("REQ-CLAR-SUP-49 shows the pending empty message when nothing is pending, and the general one when there are no clarifications", async () => {
     const user = userEvent.setup({ delay: null });
     const { unmount } = render(
       <ClarificationThread
@@ -214,14 +214,14 @@ describe("ClarificationThread: filtering and labels (SPM-39 AC4, AC5)", () => {
   });
 
   // Kills: the role label swapped, so a Coordinator's question reads as the Organiser's.
-  it("labels each clarification with its author's role", () => {
+  it("REQ-CLAR-SUP-50 labels each clarification with its author's role", () => {
     renderThread({ comments: [open] });
     expect(screen.getByText(/^Coordinator •/)).toBeInTheDocument();
     expect(screen.queryByText(/^Organiser •/)).not.toBeInTheDocument();
   });
 
   // Kills: the thread rendered for a user with no permission and no comments.
-  it("renders nothing for a user who cannot ask or reply and there is no thread", () => {
+  it("REQ-CLAR-SUP-51 renders nothing for a user who cannot ask or reply and there is no thread", () => {
     const { container } = render(
       <ClarificationThread
         comments={[]}
@@ -259,7 +259,7 @@ describe("ClarificationThread: a Coordinator's reply", () => {
   });
 
   /** SPM-39 AC2: an organiser's comment is labelled as the organiser, with the organiser avatar. */
-  it("labels an organiser comment as the organiser and shows the organiser avatar", () => {
+  it("REQ-CLAR-SUP-52 labels an organiser comment as the organiser and shows the organiser avatar", () => {
     renderThread({ comments: [comment({ authorRole: "organiser", authorName: "Priya Nair" })] });
     expect(screen.getByText("O")).toBeTruthy();
     expect(screen.getByText("Organiser", { selector: "span" })).toBeTruthy();
@@ -267,7 +267,7 @@ describe("ClarificationThread: a Coordinator's reply", () => {
   });
 
   /** SPM-39 AC2: a coordinator's comment is labelled as the coordinator, with the coordinator avatar. */
-  it("labels a coordinator comment as the coordinator and shows the coordinator avatar", () => {
+  it("REQ-CLAR-SUP-53 labels a coordinator comment as the coordinator and shows the coordinator avatar", () => {
     renderThread({ comments: [comment()] });
     expect(screen.getByText("C")).toBeTruthy();
     expect(screen.getByText("Coordinator", { selector: "span" })).toBeTruthy();

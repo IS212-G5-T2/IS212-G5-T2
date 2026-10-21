@@ -18,7 +18,10 @@
       "backend/src/events/review/events.reject.spec.ts"
     ],
     "frontend": [
-      "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+      {
+        "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+        "titleMatch": "SPM-83|EVENT-REJECT"
+      },
       {
         "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
         "titleMatch": "EVENT-REJECT"

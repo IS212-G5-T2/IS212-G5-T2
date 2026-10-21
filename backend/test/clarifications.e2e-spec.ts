@@ -413,7 +413,7 @@ describe('Clarifications (e2e)', () => {
     expect(commentCount.rows[0].count).toBe('0');
   });
 
-  it('returns 403 when someone unrelated to the event replies', async () => {
+  it('REQ-CLAR-SUP-38 returns 403 when someone unrelated to the event replies', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const outsider = await createDatabaseUser('ORGANISER', 'Someone Else');
@@ -434,7 +434,7 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
-  it('returns 403 when someone unrelated to the event resolves a clarification', async () => {
+  it('REQ-CLAR-SUP-39 returns 403 when someone unrelated to the event resolves a clarification', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const outsiderCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
@@ -454,7 +454,7 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
-  it('returns 401 when authentication is missing', async () => {
+  it('REQ-CLAR-SUP-40 returns 401 when authentication is missing', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: null });
 

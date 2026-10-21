@@ -56,7 +56,7 @@
       "config": "./vitest.config.e2e.ts",
       "coverage": "backend",
       "env": [
-        "DATABASE_URL"
+        "TEST_DATABASE_URL"
       ]
     },
     {

@@ -31,7 +31,7 @@ describe('application bootstrap (main.ts)', () => {
   });
 
   /** The app is created without Nest's default body parser, configured, and listens on the default port. */
-  it('creates the app without the default body parser, configures it, and listens on port 3000', async () => {
+  it('EVE-CRE-SUP-11 creates the app without the default body parser, configures it, and listens on port 3000', async () => {
     delete process.env.PORT;
 
     await import('./main.js');

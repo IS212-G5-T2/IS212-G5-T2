@@ -129,7 +129,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(true);
   });
   /** EVE-DRF-04-A, EVE-DRF-04-B, EVE-DRF-05-A, EVE-DRF-05-B, EVE-DRF-05-C · AC4/6: retries are idempotent and later saves update the same draft row. */
-  it('retries idempotently and rejects stale concurrent updates', async () => {
+  it('EVE-DRF-SUP-21 retries idempotently and rejects stale concurrent updates', async () => {
     const id = newId(),
       operation = nextOperationId();
     await save(id, { name: 'First' }, 0, operation).expect(200);
@@ -160,7 +160,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(1);
   });
   /** AC6: rejected input leaves the previous successful draft untouched. */
-  it('retains the saved values after validation failure', async () => {
+  it('EVE-DRF-SUP-22 retains the saved values after validation failure', async () => {
     const id = newId();
     await save(id, { name: 'Safe value' }).expect(200);
     await save(id, { name: 123 }, 1).expect(400);
@@ -170,7 +170,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe('Safe value');
   });
   /** EVE-DRF-07-A, EVE-DRF-07-B · AC8: submission is idempotent and permanently closes draft editing. */
-  it('submits once and blocks later draft saves', async () => {
+  it('EVE-DRF-SUP-23 submits once and blocks later draft saves', async () => {
     const id = newId();
     const startDateTime = FIXED_START;
     const endDateTime = FIXED_END;
@@ -218,7 +218,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(0);
   });
   /** Q1-038: malformed and missing draft IDs return 404 without insertion. */
-  it('Q1-038 malformed and missing IDs return 404 without insertion', async () => {
+  it('EVE-DRF-SUP-24 malformed and missing IDs return 404 without insertion', async () => {
     for (const id of ['bad-id', newId()]) {
       await organiser.get(`/api/requests/${id}`).expect(404);
       await save(id, {}, 1).expect(404);
@@ -229,7 +229,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     }
   });
   /** Q1-039: a stale submit preserves the latest draft and creates no event. */
-  it('Q1-039 stale submit preserves latest saved data and creates no event', async () => {
+  it('EVE-DRF-SUP-25 stale submit preserves latest saved data and creates no event', async () => {
     const id = newId();
     await save(id, { name: 'First' }).expect(200);
     await save(id, { name: 'Latest' }, 1).expect(200);
