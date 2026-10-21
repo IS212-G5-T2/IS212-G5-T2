@@ -20,7 +20,7 @@
     "frontend": [
       {
         "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
-        "titleMatch": "SPM-83|EVENT-REJECT"
+        "titleMatch": "SPM-83|EVENT-REJECT|REVIEW-CHANGE-05-D"
       },
       {
         "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
