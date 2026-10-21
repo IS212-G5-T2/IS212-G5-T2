@@ -175,10 +175,10 @@ describe.skipIf(!databaseUrl)(
       );
     }
 
-    async function expectBufferedBlockoutInMyBookings(blockout: {
-      start: string;
-      end: string;
-    }) {
+    async function expectBufferedBlockoutInMyBookings(
+      blockout: { start: string; end: string },
+      affected = true,
+    ) {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const originalVenue = await createVenue(owner.id, {
@@ -216,17 +216,21 @@ describe.skipIf(!databaseUrl)(
         .set('Cookie', owner.cookie)
         .send({ ...blockout, reason: 'Maintenance' })
         .expect(201);
-      expect(blockoutResponse.body.affectedBookings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            id: originalId,
-            eventId,
-            eventName,
-            status: 'booked',
-            affectedByUnavailablePeriod: true,
-          }),
-        ]),
-      );
+      const originalAffectedBooking = expect.objectContaining({
+        id: originalId,
+        eventId,
+        eventName,
+        status: 'booked',
+        affectedByUnavailablePeriod: true,
+      });
+      if (affected)
+        expect(blockoutResponse.body.affectedBookings).toEqual(
+          expect.arrayContaining([originalAffectedBooking]),
+        );
+      else
+        expect(blockoutResponse.body.affectedBookings).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: originalId })]),
+        );
 
       const myBookings = await request(app.getHttpServer())
         .get('/api/venues/bookings/mine')
@@ -241,7 +245,7 @@ describe.skipIf(!databaseUrl)(
             eventName,
             venueId: originalVenue,
             status: 'approved',
-            affected: true,
+            affected,
           }),
           expect.objectContaining({
             id: replacement.body.id,
@@ -1597,6 +1601,28 @@ describe.skipIf(!databaseUrl)(
         start: '2030-01-12T07:05:00.000Z',
         end: '2030-01-12T07:15:00.000Z',
       });
+    });
+
+    /** VEN-BKG-06-A: a blockout outside the buffered window does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-INTERSECTION. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout outside its buffered window', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T07:21:00.000Z',
+          end: '2030-01-12T07:30:00.000Z',
+        },
+        false,
+      );
+    });
+
+    /** VEN-BKG-06-A: a blockout exactly adjacent to the setup-buffer boundary does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-INCLUSIVE. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout exactly adjacent to its buffered window', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T05:25:00.000Z',
+          end: '2030-01-12T05:30:00.000Z',
+        },
+        false,
+      );
     });
   },
 );
