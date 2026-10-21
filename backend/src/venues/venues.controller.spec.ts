@@ -24,6 +24,30 @@ describe('SPM-50 venue route wiring', () => {
   };
   const controller = new VenuesController(service as unknown as VenuesService);
 
+  /** EVE-FAC-02-A and EVE-ACC-02-ALIGN-01: options expose current facility and accessibility schema labels/values. */
+  it('EVE-FAC-02-A EVE-ACC-02-ALIGN-01 returns facility and accessibility options from venue schemas', () => {
+    const response = controller.options();
+    expect(response.facilities).toEqual([
+      { label: 'Catering', value: 'Catering' },
+      { label: 'AV System', value: 'AV System' },
+      { label: 'Parking', value: 'Parking' },
+      { label: 'Stage', value: 'Stage' },
+      { label: 'Projector', value: 'Projector' },
+      { label: 'Whiteboard', value: 'Whiteboard' },
+      { label: 'Wi-Fi', value: 'Wi-Fi' },
+      { label: 'Wired network', value: 'Wired network' },
+      { label: 'Video conferencing', value: 'Video conferencing' },
+      { label: 'Lectern', value: 'Lectern' },
+      { label: 'Power outlets', value: 'Power outlets' },
+    ]);
+    expect(response.accessibility).toEqual([
+      { label: 'Wheelchair access', value: 'Wheelchair access' },
+      { label: 'Accessible restrooms', value: 'Accessible restrooms' },
+      { label: 'Hearing loop', value: 'Hearing loop' },
+      { label: 'Elevator access', value: 'Elevator access' },
+    ]);
+  });
+
   // SPM-50 / VEN-CRE-04-A: creation forwards the body and verified caller.
   it('forwards venue creation and keeps module wiring importable', () => {
     // Arrange a body and service response.
@@ -86,8 +110,14 @@ describe('SPM-50 venue route wiring', () => {
   ])('passes explicit cancellation confirmation %j', (body, confirmed) => {
     const bookingId = '00000000-0000-4000-8000-000000000127';
     service.cancelCoordinatorBooking.mockReturnValue({ kind: 'cancelled' });
-    expect(controller.cancelCoordinatorBooking(request, bookingId, body)).toEqual({ kind: 'cancelled' });
-    expect(service.cancelCoordinatorBooking).toHaveBeenCalledWith(identity, bookingId, confirmed);
+    expect(
+      controller.cancelCoordinatorBooking(request, bookingId, body),
+    ).toEqual({ kind: 'cancelled' });
+    expect(service.cancelCoordinatorBooking).toHaveBeenCalledWith(
+      identity,
+      bookingId,
+      confirmed,
+    );
   });
 
   /** SPM-122: venue staff unavailability actions forward the verified identity and route IDs. */

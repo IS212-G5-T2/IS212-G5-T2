@@ -92,6 +92,12 @@ and `GET /api/equipment/requests/review-queue`.
 
 No deployment command is configured for this repository.
 
+The event request form loads facility and accessibility labels and submitted
+values from `GET /api/venues/options`. The form shows loading, empty, and
+retryable error states and blocks progression while the options request is
+unresolved or has failed. Event submission values are validated against the
+same backend venue schemas.
+
 ## Testing
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.
