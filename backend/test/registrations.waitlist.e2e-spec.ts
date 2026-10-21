@@ -1627,15 +1627,15 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       // after a promotion ATT-04 is the last Confirmed row.
       await pool.query(
         `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
-        [eventId, '2026-10-20T00:00:00.000Z', waiting[0].uid],
+        [eventId, '2030-10-20T00:00:00.000Z', waiting[0].uid],
       );
       await pool.query(
         `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
-        [eventId, '2026-10-19T00:00:00.000Z', waiting[1].uid],
+        [eventId, '2030-10-19T00:00:00.000Z', waiting[1].uid],
       );
       await pool.query(
         `UPDATE event_registrations SET created_at = $2 WHERE event_id = $1 AND attendee_id = $3`,
-        [eventId, '2026-10-18T00:00:00.000Z', waiting[2].uid],
+        [eventId, '2030-10-18T00:00:00.000Z', waiting[2].uid],
       );
 
       for (const who of [coordinator, organiser]) {
