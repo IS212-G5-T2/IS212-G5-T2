@@ -589,6 +589,7 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | CONFIRM-EVENT-SUP-40 | SUPPORTING | SPM-135 | AC3 | Derived: a pending venue section shows no complete tick on its card (planning checklist; PP8 kill) | frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx | pending (story owner) | Pending approval |
 | CONFIRM-EVENT-SUP-41 | SUPPORTING | SPM-135 | AC6 | Derived: a cancelled event refuses a Planning target with 422 and nothing changes (status.service line 80) | backend/test/events-confirm.e2e-spec.ts | pending (story owner) | Pending approval |
 | CONFIRM-EVENT-SUP-42 | SUPPORTING | SPM-135 | AC3 | Derived: an event with no venue shows Not yet booked in the Venue field (detail page; VT2 kill) | frontend/src/features/events/pages/detail/EventDetailPage.test.tsx | pending (story owner) | Pending approval |
+| CONFIRM-EVENT-SUP-43 | SUPPORTING | SPM-135 | AC2 | Derived: a confirmation is refused when the event was reassigned after the pre-check (locked re-check; M7b kill) | backend/src/events/status/status.assignment-race.spec.ts | pending (story owner) | Pending approval |
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.

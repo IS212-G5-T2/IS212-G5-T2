@@ -32,7 +32,7 @@ export const SUITES = {
   },
   // Pure rule specs: the readiness function (fail-closed table, hold boundary, ordering) and the planning checklist.
   unit: {
-    args: ['run', 'src/events/status/readiness.spec.ts', 'src/events/status/checklist.spec.ts'],
+    args: ['run', 'src/events/status/readiness.spec.ts', 'src/events/status/checklist.spec.ts', 'src/events/status/status.assignment-race.spec.ts'],
   },
   // Pure FACT_STATE mapping of the stored safety check status (safety-check.source.ts).
   safetyUnit: {
@@ -129,7 +129,7 @@ export const MUTANTS = [
   // ---- status.service.ts: assignment (POST pre-check, POST locked re-check, GET path) ----
   { id: 'M7', name: 'assignment removed in assignedEventOrThrow (shared by POST and GET arrangements-status)', file: SERVICE,
     edits: [[ASSIGNED, 'const isAssigned = true;']], suites: both },
-  { id: 'M7b', name: 'assignment removed at the locked re-check only (the pre-check refuses first; only a reassignment between the two checks reaches this line; survived in the last run)', file: SERVICE,
+  { id: 'M7b', name: 'assignment removed at the locked re-check only (the pre-check refuses first; only a reassignment between the two checks reaches this line)', file: SERVICE,
     edits: [[LOCK_RECHECK, 'if (false)']], suites: both },
   { id: 'M7c', name: 'assignment removed at both sites', file: SERVICE,
     edits: [[ASSIGNED, 'const isAssigned = true;'], [LOCK_RECHECK, 'if (false)']], suites: both },
