@@ -35,8 +35,10 @@ import {
 // distinct stage since coordinator assignment (its only other trigger) is
 // now automatic and never a meaningful "review started" signal.
 
+/* v8 ignore start -- unreachable emitDecoratorMetadata paramtype guard */
 @Injectable()
 export class ClarificationsService {
+  /* v8 ignore stop */
   constructor(
     private readonly database: DatabaseService,
     private readonly repository: ClarificationsRepository,

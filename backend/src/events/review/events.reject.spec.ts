@@ -147,6 +147,15 @@ describe('EventsService.reject (SPM-83)', () => {
     ]);
   });
 
+  // EVENT-REJECT-SUP-04 — defensive mapping: a stored row without a reason is returned without one (record(), line 143).
+  it('EVENT-REJECT-SUP-04 returns no rejection reason when the stored row has none', async () => {
+    wireReject(eventRow({ status: 'Submitted' }), eventRow({ status: 'Rejected', rejection_reason: null }));
+
+    const result = await service.reject(VALID_UUID, { reason: VALID_REASON }, coordinator());
+
+    expect(result.rejectionReason).toBeUndefined();
+  });
+
   // EVENT-REJECT-03-B — empty / whitespace-only
   it('rejects an empty or whitespace-only reason before opening a transaction', async () => {
     await expect(service.reject(VALID_UUID, {}, coordinator())).rejects.toThrow(

@@ -43,6 +43,17 @@ const covered = (slot) => Object.values(slot.runs).some((count) => count > 0);
 const coveredBy = (slot, ids) => ids.some((id) => (slot.runs[id] ?? 0) > 0);
 const pct = (c, t) => (t === 0 ? 100 : Math.round((c / t) * 10000) / 100);
 
+/**
+ * Keeps only the story's owned lines (changed-lines.json, written by story-lines.mjs). A file the story does not own
+ * any line of returns undefined, so it is left out of the story's totals.
+ */
+export function ownedOnly(merged, owned) {
+  if (!owned) return merged;
+  const keep = (slots) => Object.fromEntries(Object.entries(slots).filter(([, slot]) => owned.has(slot.line)));
+  const result = { statements: keep(merged.statements), functions: keep(merged.functions), branches: keep(merged.branches) };
+  return Object.values(result).some((slots) => Object.keys(slots).length) ? result : undefined;
+}
+
 /** Metrics, uncovered lines and e2e-only lines of one merged file. */
 export function summarise(merged, unitRuns, e2eRuns) {
   const stmts = Object.values(merged.statements);
@@ -162,11 +173,16 @@ function main() {
   writeText(join(coverageDir, 'source-files.txt'), `${sourceFiles.join('\n')}\n`);
   writeText(join(coverageDir, 'measured-files.txt'), `${measured.join('\n')}\n`);
 
+  const ownedPath = join(flags.cycle, 'changed-lines.json');
+  const ownedByFile = existsSync(abs(ownedPath)) ? readJson(ownedPath).files : undefined;
   const statuses = readLineStatuses();
   const files = [];
   const lineStatusCounts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
   for (const file of sourceFiles.filter((f) => mergedByFile.has(f) && !excluded(f))) {
-    const summary = summarise(mergedByFile.get(file), unitRuns, e2eRuns);
+    const owned = ownedByFile ? new Set(ownedByFile[file] ?? []) : undefined;
+    const merged = ownedOnly(mergedByFile.get(file), owned);
+    if (!merged) continue;
+    const summary = summarise(merged, unitRuns, e2eRuns);
     const rows = statuses.filter((row) => row.file === file);
     const lineStatus = {};
     const classify = (line, status, note) => {
@@ -204,6 +220,7 @@ function main() {
       runs: present.map((run) => run.id),
       sourceFiles: sourceFiles.length,
       measuredInScope: files.length,
+      scope: ownedByFile ? 'story-owned lines (changed-lines.json)' : 'all lines of the scope files',
       notMeasured: notMeasured.length,
       total,
       floor,
