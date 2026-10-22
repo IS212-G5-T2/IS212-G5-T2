@@ -1030,6 +1030,7 @@ describe('VenuesRepository', () => {
       'event-1',
       assignedEventTime.start_date_time,
       assignedEventTime.end_date_time,
+      null,
     ]);
   });
 
@@ -1956,7 +1957,7 @@ describe('SPM-55 venue booking review repository', () => {
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     // The whole staff-list statement: its FROM/JOIN block, the owner filter with pending/approved/rejected statuses, and the ordering.
     expect(normalizeSql(sql).trim()).toBe(
-      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, r.special_request, b.start_at, b.end_at, b.status, b.rejection_reason FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY e.start_date_time ASC, b.id",
+      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY b.start_at ASC, b.id",
     );
     expect(params).toEqual([staffId]);
   });

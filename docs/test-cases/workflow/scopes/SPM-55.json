@@ -1,7 +1,7 @@
 {
   "story": "SPM-55",
   "title": "Review Booking Requests (Venue Staff approve and reject)",
-  "note": "Unit scope only: backend venue service, controller and repository specs for the SPM-55 review endpoints, and the frontend BookingsPage and format specs. No PostgreSQL e2e or browser automation is in scope for SPM-55 (dependent stories have not landed). The SPM-55 Confluence matrix was not verified from this session, so the VEN-REV ids are registered as SUPPORTING with owner approval pending.",
+  "note": "Primary scope: backend venue service, controller and repository specs for the SPM-55 review endpoints, and the frontend BookingsPage and format specs. Two PostgreSQL HTTP/E2E tests (VEN-REV-10-A, VEN-REV-10-B) cover the approve and reject happy paths end-to-end. Browser automation is not in scope. The SPM-55 Confluence matrix was not verified from this session, so the VEN-REV ids are registered as SUPPORTING with owner approval pending.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -26,6 +26,12 @@
       {
         "glob": "backend/src/venues/venues.controller.spec.ts",
         "titleMatch": "^SPM-55"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/venues-booking-requests.e2e-spec.ts",
+        "titleMatch": "VEN-REV-10"
       }
     ],
     "frontend": [
@@ -59,6 +65,14 @@
       "tests": "backend-unit",
       "config": null,
       "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": null,
+      "coverage": null,
       "env": []
     },
     {

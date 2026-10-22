@@ -246,7 +246,7 @@ export class VenuesRepository {
     }>(
       `SELECT b.id, b.event_id, e.event_name, b.venue_id, v.name AS venue_name,
               u.display_name AS venue_staff_name,
-              b.start_at, b.end_at, b.status, r.special_request, b.created_at,
+              b.start_at, b.end_at, b.status, b.special_request, b.created_at,
               b.rejection_reason,
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
               EXISTS (SELECT 1 FROM venue_bookings blockout
@@ -257,7 +257,6 @@ export class VenuesRepository {
          JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          JOIN users u ON u.id = v.owner_user_id
-         LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
         WHERE e.coordinator_id = $1::text AND b.status <> 'blocked'
         ORDER BY b.created_at DESC, b.id`,
       [coordinatorId],
@@ -303,14 +302,13 @@ export class VenuesRepository {
               e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name,
               v.name AS venue_name,
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
-              r.special_request, b.start_at, b.end_at, b.status, b.rejection_reason
+              b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
          JOIN events e ON e.id = b.event_id
          JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id
-         LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id
         WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected')
-        ORDER BY e.start_date_time ASC, b.id`,
+        ORDER BY b.start_at ASC, b.id`,
       [staffId],
     );
     return result.rows.map((row) => ({
@@ -635,14 +633,15 @@ export class VenuesRepository {
         start_at: Date;
         end_at: Date;
       }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending')
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, special_request)
+         VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending', $5)
          RETURNING id, start_at, end_at`,
         [
           venueId,
           input.eventId,
           eventRow.start_date_time,
           eventRow.end_date_time,
+          input.specialRequest ?? null,
         ],
       );
       const row = saved.rows[0];
