@@ -36,6 +36,7 @@ describe.skipIf(!databaseUrl)(
         '010_remove_venue_operating_schedule.sql',
         '019_spm54_venue_booking_lifecycle.sql',
         '021_spm55_booking_review.sql',
+        '022_spm55_booking_special_request.sql',
       ])
         await pool.query(
           await readFile(
@@ -1720,6 +1721,67 @@ describe.skipIf(!databaseUrl)(
       );
       expect(log.rows[0].action).toBe('rejected');
       expect(log.rows[0].reason).toBe('Clashes with scheduled maintenance');
+    });
+
+    /** VEN-REV-11-A SPM-55: migration 022 backfill assigns the surviving note only to the most-recent booking attempt. */
+    it('VEN-REV-11-A SPM-55 migration backfill does not assign a newer note to an older booking attempt', async () => {
+      const coordinator = await createUser('COORDINATOR');
+      const owner = await createUser('VENUE_STAFF');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-11-A backfill event');
+
+      // Insert two historical booking attempts with NULL special_request (pre-migration state).
+      const olderRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'rejected')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      const olderId = olderRow.rows[0].id;
+
+      // Force a slightly later created_at so the newer row wins DISTINCT ON ordering.
+      const newerRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, created_at)
+         VALUES ($1, $2, '2030-01-14T06:00:00.000Z', '2030-01-14T07:00:00.000Z', 'pending',
+                 now() + interval '1 second')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      const newerId = newerRow.rows[0].id;
+
+      // Seed the shared venue_booking_requests row — only the latest note survives.
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
+         VALUES ($1, $2, 'Need a projector')
+         ON CONFLICT (event_id, venue_id) DO UPDATE SET special_request = EXCLUDED.special_request`,
+        [eventId, venueId],
+      );
+
+      // Re-run the backfill portion of migration 022 against the live test DB.
+      await pool.query(`
+        UPDATE venue_bookings b
+           SET special_request = r.special_request
+          FROM venue_booking_requests r
+          JOIN (
+            SELECT DISTINCT ON (event_id, venue_id) id
+              FROM venue_bookings
+             WHERE event_id IS NOT NULL
+             ORDER BY event_id, venue_id, created_at DESC
+          ) latest ON latest.id = b.id
+         WHERE r.event_id = b.event_id
+           AND r.venue_id = b.venue_id
+           AND b.special_request IS NULL
+           AND r.special_request IS NOT NULL
+      `);
+
+      const rows = await pool.query<{ id: string; special_request: string | null }>(
+        'SELECT id, special_request FROM venue_bookings WHERE id = ANY($1::uuid[])',
+        [[olderId, newerId]],
+      );
+      const byId = Object.fromEntries(rows.rows.map((r) => [r.id, r.special_request]));
+
+      expect(byId[olderId]).toBeNull();
+      expect(byId[newerId]).toBe('Need a projector');
     });
   },
 );
