@@ -464,6 +464,7 @@ describe("EventListPage", () => {
     ]);
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 Test Case EVE-CRE-07-F: when the event list cannot be loaded, the
   // user sees the error with a Retry button; Retry loads the list again.
   it("EVE-CRE-07-F shows a load error with Retry and loads the events again when Retry is clicked", async () => {
@@ -497,6 +498,7 @@ describe("EventListPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 Test Case EVE-CRE-07-G: StrictMode runs the load effect twice, so the
   // first load is superseded. If that stale load succeeds late, it must not
   // replace the list the user is waiting for.
@@ -539,6 +541,7 @@ describe("EventListPage", () => {
     expect(screen.queryByText("Superseded Gala")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 Test Case EVE-CRE-07-H: if a superseded event list load fails late,
   // its error must not be shown while the current load is still in progress.
   it("EVE-CRE-07-H does not show an error from a superseded event list load that fails late", async () => {

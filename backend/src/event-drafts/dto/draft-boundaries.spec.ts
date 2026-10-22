@@ -30,18 +30,22 @@ const attachment = {
 };
 
 describe('SPM-37 Q1 boundary and partition cases', () => {
+  // Parent AC (SUPPORTING): SPM-37 AC6
   it.each([null, undefined, [], 'draft', 0, true])(
     'EVE-DRF-SUP-16 rejects malformed envelope %j',
     (body) => rejects(body),
   );
+  // Parent AC (SUPPORTING): SPM-37 AC6
   it.each([null, undefined, [], 'fields', 1])(
     'EVE-DRF-SUP-17 rejects malformed fields %j',
     (fields) => rejects({ ...payload(), fields }),
   );
+  // Parent AC (SUPPORTING): SPM-37 AC4
   it.each([-1, 0.5, '0', null, Number.MAX_SAFE_INTEGER + 1, NaN, Infinity])(
     'EVE-DRF-SUP-18 rejects invalid version %j',
     (version) => rejects({ ...payload(), version }),
   );
+  // Parent AC (SUPPORTING): SPM-37 AC4
   it.each([0, 1, Number.MAX_SAFE_INTEGER])(
     'EVE-DRF-SUP-19 accepts nonnegative safe version %s',
     (version) =>
@@ -53,6 +57,7 @@ describe('SPM-37 Q1 boundary and partition cases', () => {
     '',
     'not-uuid',
     '00000000-0000-1000-8000-000000000037',
+  // Parent AC (SUPPORTING): SPM-37 AC4
   ])('EVE-DRF-SUP-20 rejects invalid operation ID %j', (operationId) =>
     rejects({ ...payload(), operationId }),
   );

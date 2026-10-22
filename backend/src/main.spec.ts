@@ -30,6 +30,7 @@ describe('application bootstrap (main.ts)', () => {
     else process.env.PORT = savedPort;
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC8
   /** The app is created without Nest's default body parser, configured, and listens on the default port. */
   it('EVE-CRE-SUP-11 creates the app without the default body parser, configures it, and listens on port 3000', async () => {
     delete process.env.PORT;

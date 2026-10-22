@@ -399,6 +399,7 @@ describe("EventDetailPage clarification thread", () => {
 // SPM-148 AC7 (PLAN-STATUS-07-A, 07-D on the frontend). Clarifications stay open in Planning
 // and close at Confirmed; the thread stays readable. Mirrors the backend status lists.
 describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
+  // Parent AC (SUPPORTING): SPM-39 AC1 (cross-story: test cites SPM-148 AC7)
   it("PLAN-STATUS-07-A: the assigned Coordinator can post a clarification while the event is in Planning", async () => {
     const user = userEvent.setup();
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
@@ -427,6 +428,7 @@ describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
     });
   });
 
+  // Parent AC (SUPPORTING): SPM-39 AC4 (cross-story: test cites SPM-148 AC7)
   it("PLAN-STATUS-07-D: once Confirmed there is no composer and no reply button, and the thread is still shown", async () => {
     apiMock.mockImplementation((path: string) => {
       if (path === "/events/event-1/comments") return Promise.resolve([comment()]);

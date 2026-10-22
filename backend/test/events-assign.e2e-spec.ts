@@ -78,6 +78,7 @@ describe('Events coordinator assignment (e2e)', () => {
     return eventId;
   }
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   it('EVE-REV-SUP-01 omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const attachment = {

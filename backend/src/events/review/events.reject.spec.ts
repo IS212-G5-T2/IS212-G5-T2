@@ -16,7 +16,7 @@ import { coordinator, eventRow, organiser, VALID_UUID } from './review.fixtures.
  * SPM-83 — Reject a request. Backend unit tests for the real production endpoint
  * `EventsService.reject(id, body, currentUser)` (the method wired to
  * `EventRejectionsController`) and the rejection-notification endpoints that let
- * the organiser see the reason (AC6). Confluence: EVENT-REJECT-03 (per-condition
+ * the organiser see the reason (owned by SPM-89; closest SPM-83 AC4). Confluence: EVENT-REJECT-03 (per-condition
  * validation), EVENT-REJECT-04 (authorization + state guards), EVENT-REJECT-02-B
  * (organiser notification).
  */
@@ -400,6 +400,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
 });
 
 describe('SPM-123 AC10: rejecting keeps the assigned coordinator', () => {
+  // Parent AC (SUPPORTING): SPM-123 AC10 (to confirm) (story reassigned on 23 Oct 2026)
   // Rejection changes status and reason only; the coordinator stays on the event.
   it('LEAD-ASN-10-B keeps the coordinator when a request is rejected', async () => {
     // Arrange: an assigned, submitted request.
@@ -429,6 +430,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
     created_at: new Date('2026-10-06T00:00:00.000Z'),
   };
 
+  // Parent AC (SUPPORTING): SPM-123 AC9 (to confirm) (story reassigned on 23 Oct 2026)
   // A coordinator sees only their own assignment notifications and can mark them read.
   it('LEAD-ASN-09-C lets a coordinator read and mark read only their own assignment notifications', async () => {
     // Arrange: the coordinator has one assignment notification.
@@ -466,6 +468,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
 });
 
 describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
+  // Parent AC (SUPPORTING): SPM-47 AC8 (story reassigned on 23 Oct 2026)
   // Coordinators see reassignment to and away from them as coordinator notifications.
   it('LEAD-REASN-08-F labels reassignment notifications for the coordinator who receives them', async () => {
     // Arrange: one notification of each reassignment type.
@@ -488,6 +491,7 @@ describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
     ]);
   });
 
+  // Parent AC (SUPPORTING): SPM-47 AC10 (story reassigned on 23 Oct 2026)
   // The Lead reads only notifications about coordinators becoming unavailable, and can mark them read.
   it("LEAD-REASN-10-G lets the Lead read and mark read only their coordinator-unavailable notifications", async () => {
     // Arrange: the Lead has one such notification.

@@ -13,7 +13,7 @@ import { coordinator, eventRow, organiser, VALID_UUID } from './review.fixtures.
 
 /**
  * SPM-40 regression coverage for `EventsService.approve(id, identity)`.
- * Covers EVENT-APPROVE-03, EVENT-APPROVE-04-A/B, and the AC4 organiser
+ * Covers EVENT-APPROVE-03, EVENT-APPROVE-04-A/B, and the organiser notification (owned by SPM-88; closest SPM-40 AC3)
  * notification. The implemented approval contract:
  *
  *   approve(id, identity?)
@@ -92,7 +92,7 @@ afterEach(() => {
 });
 
 describe('EventsService.approve (SPM-40)', () => {
-  // EVENT-APPROVE-03-A — happy path (AC3 + AC4)
+  // EVENT-APPROVE-03-A — happy path (AC3; the notification is SPM-88)
   it('approves a Submitted request: sets Approved and notifies the organiser', async () => {
     wireApprove(eventRow({ status: 'Submitted' }), eventRow({ status: 'Approved' }));
 
@@ -211,6 +211,7 @@ describe('EventsService approval notifications (SPM-40 AC4)', () => {
 });
 
 describe('SPM-123 AC10: approving keeps the assigned coordinator', () => {
+  // Parent AC (SUPPORTING): SPM-40 AC3 (cross-story: test belongs to SPM-123 AC10)
   // Approval changes status only; the coordinator stays on the event.
   it('LEAD-ASN-10-A keeps the coordinator when a request is approved', async () => {
     // Arrange: an assigned, submitted request.

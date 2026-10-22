@@ -220,6 +220,7 @@ describe("EventCreatePage", () => {
     ["EVE-CRE-05-B", "attendance", "1.5", "21:00", /positive whole number/i],
     ["EVE-CRE-05-C", "past start", "80", "21:00", /must be in the future/i],
     ["EVE-CRE-05-D", "end before start", "80", "17:00", /end must be after start/i],
+  // Parent AC (SUPPORTING): SPM-36 AC5
   ])("EVE-CRE-SUP-12 %s rejects %s and keeps the schedule step open", async (_id, kind, attendance, endTime, error) => {
     const user = userEvent.setup();
     renderCreate();
@@ -277,6 +278,37 @@ describe("EventCreatePage", () => {
     });
     expect(submittedBody).not.toHaveProperty("status");
     expect(submittedBody).not.toHaveProperty("organiserId");
+  });
+
+  /** EVE-FAC-06-A: the facility chosen by its label is submitted as its backend value, and the submission confirmation is shown. */
+  it("EVE-FAC-06-A submits the backend value of the selected facility and shows the submission confirmation", async () => {
+    const user = userEvent.setup();
+    const saved = eventRecord();
+    apiMock.mockImplementation(async (path, init) => {
+      if (path === "/venues/options") return {
+        facilities: [{ label: "Catering service", value: "catering" }],
+        accessibility: [{ label: "Wheelchair access", value: "wheelchair" }],
+      };
+      if (init?.method === "POST") return { event: saved, message: "Submitted" };
+      if (path === `/events/${saved.id}`) return saved;
+      throw new Error(`Unexpected API call: ${String(path)}`);
+    });
+    useAppStore.setState({ events: [saved] });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    await user.click(screen.getByLabelText("Catering service"));
+    await user.click(screen.getByLabelText("Wheelchair access"));
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await user.type(screen.getByRole("textbox", { name: /equipment needs/i }), "Two microphones");
+
+    await user.click(screen.getByRole("button", { name: /submit for review/i }));
+
+    await screen.findByText("Your event request was submitted successfully.");
+    const submittedBody = JSON.parse(
+      apiMock.mock.calls.find(([, init]) => init?.method === "POST")![1]!.body as string,
+    );
+    expect(submittedBody).toMatchObject({ facilities: ["catering"], accessibility: ["wheelchair"] });
   });
 
   /** EVE-FAC-06-C: the request review card keeps its text readable in light and dark themes. */
@@ -563,6 +595,22 @@ describe("EventCreatePage", () => {
     expect(attempts).toBe(2);
   });
 
+
+  /** EVE-FAC-05-E: while the options are unavailable, Continue is blocked by the failure and the review step is not reached. */
+  it("EVE-FAC-05-E keeps the schedule step blocked while the options are unavailable", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(async (path) => {
+      if (path === "/venues/options") throw new Error("Facilities unavailable");
+      return undefined;
+    });
+    renderCreate();
+    await enterBasicInformation(user);
+    await enterSchedule(user);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Facilities unavailable");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    expect(screen.getByRole("alert")).toHaveTextContent("Facilities unavailable");
+    expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
+  });
   /** EVE-FAC-05-E: Continue remains blocked after the options request fails and no event submission is sent. */
   it("EVE-FAC-05-E blocks Continue after facility options fail", async () => {
     const user = userEvent.setup();
@@ -931,6 +979,7 @@ describe("EventCreatePage", () => {
     },
   );
 
+  // Parent AC (SUPPORTING): SPM-36 AC5 (corrected from AC9)
   // SPM-36 AC9: a rejection with no field errors keeps the server message and leaves the user on the review step.
   it("EVE-CRE-SUP-15 a submission rejected with no field errors shows the server message and stays on the review step", async () => {
     const user = userEvent.setup();

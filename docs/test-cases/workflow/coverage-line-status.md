@@ -74,7 +74,7 @@ The G5 gate measures each story's whole scope source files with that story's own
 
 ### Branch-only residuals from cycle 09 (SPM-36 scope)
 
-- `frontend/src/features/events/pages/create/EventCreatePage.tsx` branch at line 160 (`error instanceof Error ? error.message : ...` fallback when the facility options request fails with a non-Error value) and branch at line 234 (the facility-option check when options are not loaded). Both are SPM-144 code (Soh Wei Rong, 20 Oct 2026). They are OPEN for the SPM-144 owner: cover them in an SPM-144 test, or record a decision. They are not uncovered lines, so they are not in the table above.
+- `frontend/src/features/events/pages/create/EventCreatePage.tsx` lines 160 and 234: resolved on 23 Oct 2026 in SPM-150. Line 234 (the `facilityStatus === "loaded"` guard in validation) was removed: submit returns before validation unless the options are loaded (line 324), so the guard could never fail. Line 160 (the non-Error fallback) was removed: the API client only rejects with an `Error`.
 
 ### Branch-only residuals from cycle 06
 

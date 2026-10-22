@@ -61,14 +61,17 @@ function expectFieldError(input: unknown, field: string) {
 }
 
 describe('validateEvent', () => {
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it.each([null, [], 'invalid'])(
     'EVE-CRE-SUP-13 malformed submitted envelope %j is rejected',
     (input) => expect(() => validateEvent(input)).toThrow(BadRequestException),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it.each([123, 'x'.repeat(201)])(
     'EVE-CRE-SUP-14 submission rejects invalid name %j',
     (name) => expectFieldError({ ...validEventRequest(), name }, 'name'),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC2
   it('EVE-CRE-SUP-01 omitted choices default to empty arrays', () => {
     const request = {
       ...validEventRequest(),
@@ -80,11 +83,13 @@ describe('validateEvent', () => {
       accessibility: [],
     });
   });
+  // Parent AC (SUPPORTING): SPM-36 AC9
   it.each(['invalid', Array(6).fill({})])(
     'EVE-CRE-SUP-02 invalid submitted attachment collection %j',
     (attachments) =>
       expectFieldError({ ...validEventRequest(), attachments }, 'attachments'),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC9
   it.each([null, [], 'file', { id: 1, name: 1, type: 1, dataUrl: 1 }])(
     'EVE-CRE-SUP-03 invalid submitted attachment shape %j',
     (attachment) =>
@@ -93,6 +98,7 @@ describe('validateEvent', () => {
         'attachments',
       ),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it.each(['wrong-id', '', '00000000-0000-1000-8000-000000000036'])(
     'EVE-CRE-SUP-04 rejects invalid submission UUID %s',
     (submissionKey) =>
@@ -101,6 +107,7 @@ describe('validateEvent', () => {
         'submissionKey',
       ),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it.each([1, 2, 2147483646, 2147483647])(
     'EVE-CRE-SUP-05 valid attendance boundary %s',
     (expectedAttendance) =>
@@ -109,6 +116,7 @@ describe('validateEvent', () => {
           .expectedAttendance,
       ).toBe(expectedAttendance),
   );
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it('EVE-CRE-SUP-06 start time just before, at and after now', () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2030-01-01T10:00:00Z'));
@@ -315,6 +323,7 @@ describe('validateEvent', () => {
     expectFieldError({ ...validEventRequest(), attachments }, 'attachments');
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   // SPM-36 server-control check for organiser identity and status
   it('EVE-CRE-SUP-07 ignores client-supplied organiser identity and status', () => {
     const result = validateEvent({
@@ -327,6 +336,7 @@ describe('validateEvent', () => {
     expect(result).not.toHaveProperty('status');
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   it('EVE-CRE-SUP-08 accepts valid registrationEnabled boolean flag', () => {
     expect(
       validateEvent({ ...validEventRequest(), registrationEnabled: true }),
@@ -339,6 +349,7 @@ describe('validateEvent', () => {
     ).toMatchObject({ registrationEnabled: false });
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC4
   it('EVE-CRE-SUP-09 rejects non-boolean registrationEnabled values', () => {
     expectFieldError(
       { ...validEventRequest(), registrationEnabled: 'true' },

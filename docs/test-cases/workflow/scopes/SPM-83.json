@@ -15,12 +15,12 @@
   },
   "tests": {
     "backend-unit": [
-      "backend/src/events/review/events.reject.spec.ts"
+      { "glob": "backend/src/events/review/events.reject.spec.ts", "titleMatch": "EVENT-REJECT" }
     ],
     "frontend": [
       {
         "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
-        "titleMatch": "SPM-83|EVENT-REJECT|REVIEW-CHANGE-05-D"
+        "titleMatch": "SPM-83|EVENT-REJECT"
       },
       {
         "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",

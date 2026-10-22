@@ -157,7 +157,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
         setFacilityStatus("loaded");
       })
       .catch((error) => {
-        setFacilityError(error instanceof Error ? error.message : "Unable to load facility and accessibility options.");
+        setFacilityError((error as Error).message);
         setFacilityStatus("error");
       });
   }, [step, facilityStatus]);
@@ -231,16 +231,14 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     if (!form.description.trim())
       next.description = "Enter a description of your event.";
     if (step > 0) {
-      if (facilityStatus === "loaded") {
-        const supportedFacilities = new Set(facilityOptions.map(({ value }) => value));
-        const supportedAccessibility = new Set(accessibilityOptions.map(({ value }) => value));
-        const staleFacilities = form.facilities.filter((value) => !supportedFacilities.has(value));
-        const staleAccessibility = form.accessibility.filter((value) => !supportedAccessibility.has(value));
-        if (staleFacilities.length)
-          next.facilities = `Unsupported facilities: ${staleFacilities.join(", ")}. Choose current options before submitting.`;
-        if (staleAccessibility.length)
-          next.accessibility = `Unsupported accessibility options: ${staleAccessibility.join(", ")}. Choose current options before submitting.`;
-      }
+      const supportedFacilities = new Set(facilityOptions.map(({ value }) => value));
+      const supportedAccessibility = new Set(accessibilityOptions.map(({ value }) => value));
+      const staleFacilities = form.facilities.filter((value) => !supportedFacilities.has(value));
+      const staleAccessibility = form.accessibility.filter((value) => !supportedAccessibility.has(value));
+      if (staleFacilities.length)
+        next.facilities = `Unsupported facilities: ${staleFacilities.join(", ")}. Choose current options before submitting.`;
+      if (staleAccessibility.length)
+        next.accessibility = `Unsupported accessibility options: ${staleAccessibility.join(", ")}. Choose current options before submitting.`;
       for (const key of [
         "startDate",
         "startTime",

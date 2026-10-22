@@ -7,6 +7,7 @@ afterEach(() => {
 });
 
 describe("api", () => {
+  // Parent AC (SUPPORTING): SPM-37 AC3 (low confidence: session access)
   // Sends the browser-managed HTTP-only session and never reintroduces tokens.
   it("EVE-DRF-SUP-43 uses browser session credentials without an Authorization header", async () => {
     const fetchMock = vi.fn().mockResolvedValue(

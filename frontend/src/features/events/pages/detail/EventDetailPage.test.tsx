@@ -198,6 +198,7 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-E: when the data URL has no MIME type, the
   // preview uses the attachment's recorded type, not the generic default. A
   // distinctive type makes it obvious if the recorded type is ignored.
@@ -237,6 +238,7 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/x-notes");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-F: when the data URL has no MIME type and the
   // attachment records no type either, the preview uses the generic
   // application/octet-stream type. The upload helper always records a type, so
@@ -277,6 +279,7 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-G: the temporary link made for the preview is
   // released 60 seconds after opening, not sooner and not never.
   it("EVE-REV-03-G releases the preview's temporary link 60 seconds after the attachment opens", async () => {
@@ -316,6 +319,7 @@ describe("EventDetailPage", () => {
     }
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC1
   // SPM-38 Test Case EVE-REV-01-C: StrictMode runs the load effect twice, so
   // the first event load is superseded. If that stale load succeeds late, its
   // event data must not replace what the user is waiting for.
@@ -363,6 +367,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Superseded Event")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC1
   // SPM-38 Test Case EVE-REV-01-D: if a superseded event load fails late, its
   // error must not be shown while the current load is still in progress.
   it("EVE-REV-01-D does not show a load error from a superseded event load that fails late", async () => {
@@ -408,6 +413,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 EVE-CRE-07-C: straight after submitting, the page must not offer "← Back": history -1 is
   // the form that was just submitted. The success banner links on instead.
   it("EVE-CRE-07-C hides the Back button right after a request is submitted", async () => {
@@ -430,6 +436,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Back/ })).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // Opening an event normally (not straight from submitting) keeps "← Back".
   it("EVE-CRE-07-D keeps the Back button when the event is opened normally", async () => {
     // Arrive without the post-submission state.
@@ -451,6 +458,7 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: /Back/ })).toBeTruthy();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // "← Back" returns to whichever page the user came from.
   it("EVE-CRE-07-E takes the user back to the previous page when Back is clicked", async () => {
     // Arrange: history is the events list, then this event's detail page.

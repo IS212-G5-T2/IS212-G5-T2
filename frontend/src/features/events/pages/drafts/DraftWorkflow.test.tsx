@@ -323,6 +323,7 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toHaveProperty("disabled", false);
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
     "EVE-DRF-SUP-35 attendance boundary %s on submission",
     async (expectedAttendance) => {
@@ -339,6 +340,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
   it.each(["09:59", "10:00", "10:01"])(
     "EVE-DRF-SUP-36 end time %s relative to start 10:00",
     async (endTime) => {
@@ -352,6 +354,7 @@ describe("SPM-37 Q2 functional cases", () => {
       else expect(screen.getByText("End must be after start.")).toBeTruthy();
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC5
   it("EVE-DRF-SUP-37 missing required basic fields in resumed review returns to step one", async () => {
     const flow = mockResumedDraftFlow(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
@@ -366,6 +369,7 @@ describe("SPM-37 Q2 functional cases", () => {
       mocked.mock.calls.filter(([path]) => path !== "/venues/options"),
     ).toHaveLength(1);
   });
+  // Parent AC (SUPPORTING): SPM-37 AC5
   it.each([
     ["bad-date", "11:00"],
     ["2030-01-02", "bad-time"],
@@ -438,6 +442,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("alert")).toBeNull();
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC6 (low confidence: file size error)
   /** EVE-DRF-10-A: the page enforces the 50 MB limit on a single file (EVE-DRF-SUP-53). */
   it.each([52428799, 52428800, 52428801])(
     "EVE-DRF-SUP-53 file size boundary %s bytes",
@@ -472,6 +477,7 @@ describe("SPM-37 Q2 functional cases", () => {
       }
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC5 (low confidence: file count, closest draft AC)
   it.each([4, 5, 6])("EVE-DRF-SUP-41 file count boundary %s", async (count) => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
@@ -494,6 +500,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByText("file-0.txt")).toBeNull();
     }
   });
+  // Parent AC (SUPPORTING): SPM-37 AC6
   it("EVE-DRF-SUP-42 cancelled file selection is harmless and read failure allows retry", async () => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();

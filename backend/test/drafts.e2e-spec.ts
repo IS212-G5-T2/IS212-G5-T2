@@ -137,6 +137,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await save(id, { name: 'First' }, 0, operation).expect(200)).body
         .version,
     ).toBe(1);
+    // Parent AC (SUPPORTING): SPM-37 AC4
     // EVENT-DRF-05-C: a reused save identifier with different values is refused with its own message and changes nothing.
     const altered = await save(id, { name: 'Altered retry' }, 0, operation).expect(409);
     expect(altered.body.message).toBe('A save identifier cannot be reused for different values.');
@@ -192,6 +193,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       .expect(201);
     expect(first.body.event.id).toBe(id);
     expect(retry.body.event.id).toBe(id);
+    // Parent AC (SUPPORTING): SPM-37 AC7
     // EVENT-DRF-07-A: a save to a submitted draft is refused with the documented message and leaves the fields unchanged.
     const locked = await save(id, { name: 'Illegal edit' }, 2).expect(409);
     expect(locked.body.message).toBe(
@@ -217,6 +219,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  // Parent AC (SUPPORTING): SPM-37 AC3
   /** Q1-038: malformed and missing draft IDs return 404 without insertion. */
   it('EVE-DRF-SUP-24 malformed and missing IDs return 404 without insertion', async () => {
     for (const id of ['bad-id', newId()]) {
@@ -324,6 +327,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(false);
   });
 
+  // Parent AC (SUPPORTING): SPM-37 AC3 (low confidence: access check, no Jira AC for authentication)
   // ---- EVE-DRF-08 / EVE-DRF-09: authenticated access control (SPM-37 supporting checks) ----
   // Real session login through POST /api/auth/login (no stub tokens). Seeded accounts come from
   // database/postgresql/init/002_seed_data.sql; the password is the seed password.

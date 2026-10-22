@@ -214,6 +214,7 @@ describe('EventsService', () => {
     expect(db.transaction).not.toHaveBeenCalledWith('ROLLBACK');
     expect(db.release).not.toHaveBeenCalled();
   });
+  // Parent AC (SUPPORTING): SPM-36 AC4
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
   it('EVE-CRE-SUP-10 rejects invalid requests before opening a database transaction', async () => {
     await expect(
@@ -307,6 +308,7 @@ describe('EventsService', () => {
     expect(db.release).toHaveBeenCalledTimes(1);
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   // SPM-36 Test Case EVE-CRE-06-BND-1: an organiser with no display name is saved under their email.
   it('EVE-CRE-06-BND-1 saves the organiser under their email when no display name is set', async () => {
     // Arrange: the organiser has an email address but no name.
@@ -331,6 +333,7 @@ describe('EventsService', () => {
     expect(db.transaction.mock.calls[1][1][2]).toBe('organiser@example.test');
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   // SPM-36 Test Case EVE-CRE-06-BND-2: with neither a name nor an email, the organiser is saved as "Organiser" with a blank email.
   it('EVE-CRE-06-BND-2 saves the organiser as "Organiser" with a blank email when neither name nor email is set', async () => {
     // Arrange: the organiser has no name and no email address.
@@ -543,6 +546,16 @@ describe('EventsService', () => {
      * Spec conflict: the Confluence page still expects 404; SC-SPM94-02 (decided 17 Oct) changed the rule to 403.
      */
     it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {
+      const row = savedEventRow();
+      db.query.mockResolvedValue({ rows: [row] });
+
+      await expect(
+        service.get(organiserUser({ uid: 'someone-else' }), row.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // SPM-38 AC4 case EVE-REV-04-C: the Confluence case still says 404; SC-SPM94-02 (decided 17 Oct 2026) made it 403.
+    it('EVE-REV-04-C refuses a non-owning organiser with 403 and returns no event data', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
 

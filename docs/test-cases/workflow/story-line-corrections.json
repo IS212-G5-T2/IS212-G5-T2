@@ -2,8 +2,8 @@
   {
     "story": "SPM-38",
     "file": "backend/src/events/events.service.ts",
-    "lines": "288, 349, 394, 424",
-    "reason": "Entry points and helpers of reject (SPM-83) and approve (SPM-40), and the notification-type helper used by notification listing. Blame still traces these lines to the SPM-38 commit that first wrote them; their current behaviour and tests belong to those stories."
+    "lines": "288-290, 349-353, 394-398, 424-427",
+    "reason": "Entry points and helpers of reject (SPM-83) and approve (SPM-40), and the notification-type helper used by notification listing. Blame still traces these lines to the SPM-38 commit that first wrote them; their current behaviour and tests belong to those stories. The coordinator guard (lines 287-291) is shared by reject (SPM-83) and approve (SPM-40); its refusal is tested in those stories."
   },
   {
     "story": "SPM-83",

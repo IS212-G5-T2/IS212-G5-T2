@@ -246,6 +246,7 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
     );
   });
 
+  // Parent AC (SUPPORTING): SPM-65 AC not in pasted list (to confirm) (story reassigned on 23 Oct 2026)
   /** SPM-65: change request decisions show with their reason and open the Change Requests page. */
   it("REVIEW-CHANGE-05-D shows a change request denial with its reason and an approval as a confirmation", async () => {
     setUserRole("organiser");

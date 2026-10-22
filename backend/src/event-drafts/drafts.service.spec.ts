@@ -109,6 +109,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       status: 404,
     });
   });
+  // Parent AC (SUPPORTING): SPM-37 AC3
   it('EVE-DRF-SUP-02 rejects malformed IDs before database access', async () => {
     await expect(service.get(identity, 'bad')).rejects.toMatchObject({
       status: 404,
@@ -122,6 +123,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
+  // Parent AC (SUPPORTING): SPM-37 AC3
   // Drafts are organiser-only, matching AGENTS.md's events-boundary policy.
   it('EVE-DRF-SUP-03 rejects all draft operations without an authenticated identity', async () => {
     await expect(service.list(undefined)).rejects.toMatchObject({
@@ -139,6 +141,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
     expect(db.query).not.toHaveBeenCalled();
     expect(db.connect).not.toHaveBeenCalled();
   });
+  // Parent AC (SUPPORTING): SPM-37 AC3
   it('EVE-DRF-SUP-04 rejects draft operations from a caller without the organiser role', async () => {
     const coordinator: AuthenticatedUser = {
       uid: 'coord-9',
@@ -173,6 +176,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
       db.transaction.mock.calls.some(([sql]) => sql.startsWith('INSERT')),
     ).toBe(false);
   });
+  // Parent AC (SUPPORTING): SPM-37 AC4
   /** EVE-DRF-04-B: an identical retry returns the stored draft without an update (Q1-026). */
   it('Q1-026 retries identical save without issuing an update', async () => {
     const { validateDraft } = await import('./dto/draft-input.js');
@@ -336,6 +340,7 @@ describe('SPM-37 Q1 service contract and failures', () => {
 // Supporting service-level checks for EVE-DRF-09. The two-user HTTP and PostgreSQL cases are in
 // backend/test/drafts.e2e-spec.ts, which is not run in this suite.
 describe('SPM-37 owner isolation, service level (supporting)', () => {
+  // Parent AC (SUPPORTING): SPM-37 AC1
   it('EVE-DRF-SUP-13 saves under the verified caller and ignores a client-supplied organiserId', async () => {
     selected({ ...row(), version: 0 });
     await service.save(identity, id, {
@@ -351,6 +356,7 @@ describe('SPM-37 owner isolation, service level (supporting)', () => {
     expect(JSON.stringify(db.transaction.mock.calls)).not.toContain('draft-other');
   });
 
+  // Parent AC (SUPPORTING): SPM-37 AC4
   it('EVE-DRF-SUP-14 locks and updates only the verified owner\'s row when saving', async () => {
     selected({ ...row(), version: 1 });
     await service.save(identity, id, { fields, version: 1, operationId });
@@ -360,6 +366,7 @@ describe('SPM-37 owner isolation, service level (supporting)', () => {
     expect(lock?.[1]).toEqual([id, 'current-user']);
   });
 
+  // Parent AC (SUPPORTING): SPM-37 AC3
   it('EVE-DRF-SUP-15 scopes direct-URL reads and the list to the verified owner', async () => {
     db.query.mockResolvedValueOnce({ rows: [] });
     await expect(service.get(identity, id)).rejects.toMatchObject({ status: 404 });

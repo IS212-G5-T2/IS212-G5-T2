@@ -93,9 +93,7 @@ export class EventsService {
     const user = this.requireUser(identity);
     if (!user.roles.includes('ORGANISER'))
       throw new ForbiddenException('Organiser access required.');
-    // SPM-36 organiser name (PO confirmed 22 Oct 2026): display name, else email, else "Organiser". Blank counts as not set.
-    const displayName = [user.name, user.email].find((value) => value?.trim());
-    return { id: user.uid, name: displayName ?? 'Organiser', email: user.email ?? '' };
+    return { id: user.uid, name: [user.name, user.email].find((value) => value?.trim()) ?? 'Organiser', email: user.email ?? '' };
   }
 
   /**

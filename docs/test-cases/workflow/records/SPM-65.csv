@@ -1,0 +1,2 @@
+test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
+REVIEW-CHANGE-05-D,frontend/src/components/notifications/RejectionNotifications.test.tsx,REVIEW-CHANGE-05-D shows a change request denial with its reason and an approval as a confirmation,250,needs review (no matrix row; family REVIEW-CHANGE-05),Interaction,Present,Frontend,SPEC,,mutants:frontend-spm83/notifications(1),Yes,Yes,Yes,PASS
