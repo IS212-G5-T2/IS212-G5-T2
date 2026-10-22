@@ -908,6 +908,7 @@ describe("EventCreatePage", () => {
     ["name", "Enter an event name.", /event name/i],
     ["startDateTime", "Start date and time must be in the future.", /start date/i],
     ["attachments", "Upload valid files.", /supporting files/i],
+    ["facilities", "Choose a valid facility.", /required facilities/i],
   ] as const)(
     "SPM-36 AC9 returns to the step that shows the rejected %s field",
     async (field, message, visibleControl) => {
@@ -925,7 +926,7 @@ describe("EventCreatePage", () => {
       await user.click(screen.getByRole("button", { name: /submit for review/i }));
 
       expect((await screen.findAllByText(message)).length).toBeGreaterThan(0);
-      expect(screen.getByLabelText(visibleControl)).toBeTruthy();
+      expect(screen.queryByLabelText(visibleControl) ?? screen.queryByRole("group", { name: visibleControl })).toBeTruthy();
       expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
     },
   );

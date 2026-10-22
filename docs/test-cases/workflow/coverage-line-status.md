@@ -72,6 +72,10 @@ The G5 gate measures each story's whole scope source files with that story's own
 | frontend/src/features/events/pages/create/EventCreatePage.tsx | 731,742 | LOW-VALUE | Existing draft-saved dialog Tab handling and navigation behavior belongs to SPM-37 draft handling; SPM-144 changes no dialog behavior. |
 | backend/src/events/events.service.ts | 50,51,64,67,68,69,70,72,73,74,95,194,211,230,239,240,245,246,255,256,258,260,262,265,266,267,269,272,273,277,278,280,284,285,288,289,290,291,295,300,304,305,306,307,308,316,321,328,329,330,331,334,335,339,340,341,342,345,346,349,358,368,377,378,379,380,384,385,386,387,390,391,394,402,412,424,425,451,452,456,457,465,483,484,485,489,490,504 | LOW-VALUE | Existing event authorization, reassignment, notification, approve/reject, and read-notification paths belong to their owning stories. SPM-144 adds no behavior to these methods; event-create facility persistence is exercised through the real HTTP/PostgreSQL suite. These shared-file residuals remain explicit coverage gaps. |
 
+### Branch-only residuals from cycle 09 (SPM-36 scope)
+
+- `frontend/src/features/events/pages/create/EventCreatePage.tsx` branch at line 160 (`error instanceof Error ? error.message : ...` fallback when the facility options request fails with a non-Error value) and branch at line 234 (the facility-option check when options are not loaded). Both are SPM-144 code (Soh Wei Rong, 20 Oct 2026). They are OPEN for the SPM-144 owner: cover them in an SPM-144 test, or record a decision. They are not uncovered lines, so they are not in the table above.
+
 ### Branch-only residuals from cycle 06
 
 These are branch misses whose source lines are otherwise executed, so they do not appear in the uncovered-line table above. They explain the remaining metrics-floor miss without treating it as completed coverage:

@@ -42,8 +42,6 @@ const scheduleFields = [
 function stepForField(field: string) {
   if (basicInformationFields.includes(field)) return 0;
   if (scheduleFields.includes(field)) return 1;
-  // Facilities and accessibility are chosen on the schedule-and-requirements step (dev, SPM-144).
-  if (field === "facilities" || field === "accessibility") return 1;
   return 2;
 }
 function todayInputValue() {
