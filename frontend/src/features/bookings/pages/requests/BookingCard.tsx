@@ -25,7 +25,7 @@ export function BookingCard({
           <StatusBadge status={booking.status} />
         </div>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          {formatSingaporeRange(booking.eventStart, booking.eventEnd)}
+          {formatSingaporeRange(booking.start, booking.end)}
         </p>
         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Reference {booking.bookingReference}</p>
         {booking.specialRequest && (

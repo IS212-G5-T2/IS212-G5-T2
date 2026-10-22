@@ -59,8 +59,8 @@ function pendingRequest(overrides: Partial<Record<string, string>> = {}) {
     id: "booking-1",
     eventId: "event-1",
     eventName: "Gala",
-    // The event window (eventStart/eventEnd) is what the pending card and review dialog display; the
-    // booking window (start/end) differs on purpose so a test can tell which pair the UI rendered.
+    // The booking window (start/end) is what the pending card and review dialog display; the
+    // event window (eventStart/eventEnd) differs on purpose so a test can tell which pair the UI rendered.
     eventStart: "2030-01-12T09:00:00.000Z",
     eventEnd: "2030-01-12T10:00:00.000Z",
     coordinatorName: "Coordinator Two",
@@ -191,9 +191,9 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Coordinator: Coordinator Two")).toBeInTheDocument();
     expect(screen.getByText("Reference VB-BOOKING1")).toBeInTheDocument();
     expect(screen.getByText("Special request: Wheelchair access")).toBeInTheDocument();
-    // The card shows the event window in Singapore time, not the booking window (start/end).
-    expect(screen.getByText("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT")).toBeInTheDocument();
-    expect(screen.queryByText("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT")).not.toBeInTheDocument();
+    // The card shows the stored booking slot in Singapore time, not the current event window (eventStart/eventEnd).
+    expect(screen.getByText("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT")).toBeInTheDocument();
+    expect(screen.queryByText("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT")).not.toBeInTheDocument();
   });
 
   /** VEN-REV-01-B: a Venue Staff member with no pending requests sees the empty state. */
@@ -253,9 +253,9 @@ describe("Coordinator venue bookings", () => {
     render(<BookingsPage />);
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
-    // The review dialog shows the event window in Singapore time, not the booking window (start/end).
-    expect(screen.getByRole("dialog")).toHaveTextContent("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT");
-    expect(screen.getByRole("dialog")).not.toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT");
+    // The review dialog shows the stored booking slot in Singapore time, not the current event window (eventStart/eventEnd).
+    expect(screen.getByRole("dialog")).toHaveTextContent("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT");
     await user.click(screen.getByLabelText(/Approve — accept booking/));
     await user.click(screen.getByRole("button", { name: "Submit Decision" }));
 

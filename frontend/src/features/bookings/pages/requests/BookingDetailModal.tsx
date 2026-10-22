@@ -99,9 +99,9 @@ export function BookingDetailModal({
           <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.venueName}</dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-gray-400 dark:text-gray-500">Event date and time</dt>
+          <dt className="text-gray-400 dark:text-gray-500">Requested booking slot</dt>
           <dd className="font-medium text-gray-900 dark:text-gray-100">
-            {formatSingaporeRange(booking.eventStart, booking.eventEnd)}
+            {formatSingaporeRange(booking.start, booking.end)}
           </dd>
         </div>
         <div>
