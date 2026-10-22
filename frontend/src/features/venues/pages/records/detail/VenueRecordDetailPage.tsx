@@ -62,11 +62,6 @@ export function getVenueSuitabilityMismatches(
 ): string[] {
   const needs = event.venueRequirements;
   return [
-    ...(venue.capacity < event.expectedAttendance
-      ? [
-          `Capacity ${venue.capacity} is below attendance ${event.expectedAttendance}.`,
-        ]
-      : []),
     ...needs.facilities
       .filter((item) => !venue.facilities.includes(item))
       .map((item) => `Missing facility: ${item}.`),
@@ -751,63 +746,59 @@ export function VenueRecordDetailPage() {
               ) : (
                 <div>
                   <p role="status">This time is available for this venue.</p>
-                  {selectedRequestEvent &&
-                    !activeEventVenueBooking &&
-                    suitabilityMismatches.length === 0 && (
-                      <section
-                        aria-label="Review booking request"
-                        className="space-y-3 rounded border p-4"
+                  {selectedRequestEvent && !activeEventVenueBooking && (
+                    <section
+                      aria-label="Review booking request"
+                      className="space-y-3 rounded border p-4"
+                    >
+                      <h3 className="font-semibold">
+                        Booking request for {selectedRequestEvent.name}
+                      </h3>
+                      <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt>Venue</dt>
+                          <dd>{venue.name}</dd>
+                        </div>
+                        <div>
+                          <dt>Event</dt>
+                          <dd>{selectedRequestEvent.name}</dd>
+                        </div>
+                        <div>
+                          <dt>Expected attendance</dt>
+                          <dd>{selectedRequestEvent.expectedAttendance}</dd>
+                        </div>
+                        <div>
+                          <dt>Event period</dt>
+                          <dd>{formatVenueRange(start, end)}</dd>
+                        </div>
+                      </dl>
+                      <label
+                        className="block text-sm"
+                        htmlFor="booking-special-request"
                       >
-                        <h3 className="font-semibold">
-                          Booking request for {selectedRequestEvent.name}
-                        </h3>
-                        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                          <div>
-                            <dt>Venue</dt>
-                            <dd>{venue.name}</dd>
-                          </div>
-                          <div>
-                            <dt>Event</dt>
-                            <dd>{selectedRequestEvent.name}</dd>
-                          </div>
-                          <div>
-                            <dt>Expected attendance</dt>
-                            <dd>{selectedRequestEvent.expectedAttendance}</dd>
-                          </div>
-                          <div>
-                            <dt>Event period</dt>
-                            <dd>{formatVenueRange(start, end)}</dd>
-                          </div>
-                        </dl>
-                        <label
-                          className="block text-sm"
-                          htmlFor="booking-special-request"
-                        >
-                          Special requests (optional)
-                        </label>
-                        <textarea
-                          id="booking-special-request"
-                          maxLength={1000}
-                          value={specialRequest}
-                          onChange={(event) =>
-                            setSpecialRequest(event.target.value)
-                          }
-                          className="block w-full rounded-md border p-2"
-                        />
-                        <p className="text-sm">
-                          Submitting records a pending booking request for Venue
-                          Staff to review.
-                        </p>
-                        <Button
-                          disabled={submitting || submitted}
-                          onClick={() => void submitRequest()}
-                        >
-                          {submitting
-                            ? "Submitting…"
-                            : "Submit booking request"}
-                        </Button>
-                      </section>
-                    )}
+                        Special requests (optional)
+                      </label>
+                      <textarea
+                        id="booking-special-request"
+                        maxLength={1000}
+                        value={specialRequest}
+                        onChange={(event) =>
+                          setSpecialRequest(event.target.value)
+                        }
+                        className="block w-full rounded-md border p-2"
+                      />
+                      <p className="text-sm">
+                        Submitting records a pending booking request for Venue
+                        Staff to review.
+                      </p>
+                      <Button
+                        disabled={submitting || submitted}
+                        onClick={() => void submitRequest()}
+                      >
+                        {submitting ? "Submitting…" : "Submit booking request"}
+                      </Button>
+                    </section>
+                  )}
                   {submitted && (
                     <p role="status">
                       Booking request submitted. Reference: {bookingReference}.
@@ -853,8 +844,13 @@ export function VenueRecordDetailPage() {
                   initialDate={
                     calendarDate ||
                     (selectedRequestEvent
-                      ? toSgtDateTimeLocal(selectedRequestEvent.startDateTime).slice(0, 10)
-                      : toSgtDateTimeLocal(new Date().toISOString()).slice(0, 10))
+                      ? toSgtDateTimeLocal(
+                          selectedRequestEvent.startDateTime,
+                        ).slice(0, 10)
+                      : toSgtDateTimeLocal(new Date().toISOString()).slice(
+                          0,
+                          10,
+                        ))
                   }
                   selectedRange={
                     bookingMode && validRange ? { start, end } : undefined

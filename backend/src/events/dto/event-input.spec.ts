@@ -1,6 +1,8 @@
 import { BadRequestException } from '@nestjs/common';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { validateEvent } from './event-input.js';
+import { facilityNames } from '../../venues/helpers/venue-options.js';
+import { accessibilityLabels } from '../../venues/helpers/accessibility-options.js';
 
 // Fixed clock for every test in this file (validateEvent compares the start with the current time).
 const FIXED_NOW = new Date('2030-01-01T10:00:00Z');
@@ -30,7 +32,7 @@ function validEventRequest() {
     expectedAttendance: 80,
     layout: 'Banquet',
     facilities: ['Catering'],
-    accessibility: ['Wheelchair ramps'],
+    accessibility: ['Wheelchair access'],
     attachments: [
       {
         id: 'attachment-1',
@@ -170,6 +172,24 @@ describe('validateEvent', () => {
     },
   );
 
+  /** EVE-FAC-01-A: event validation accepts every current venue-schema facility. */
+  it('EVE-FAC-01-A accepts all facility values from the venue schema', () => {
+    const event = validateEvent({
+      ...validEventRequest(),
+      facilities: [...facilityNames],
+    });
+    expect(event.facilities).toEqual([...facilityNames]);
+  });
+
+  /** EVE-ACC-02-ALIGN-01: event validation accepts the venue-owned accessibility labels. */
+  it('EVE-ACC-02-ALIGN-01 accepts all accessibility values from the venue schema', () => {
+    const event = validateEvent({
+      ...validEventRequest(),
+      accessibility: [...accessibilityLabels],
+    });
+    expect(event.accessibility).toEqual([...accessibilityLabels]);
+  });
+
   // SPM-36 Test Case EVE-CRE-05-C
   it.each(['invalid', '2026-02-30T10:00:00.000Z', '2026-12-12'])(
     'EVE-CRE-05-C rejects invalid proposed start date/time: %s',
@@ -236,6 +256,22 @@ describe('validateEvent', () => {
       expectFieldError({ ...validEventRequest(), ...override }, field);
     },
   );
+
+  /** EVE-FAC-04-A: event validation rejects a facility absent from the venue schema. */
+  it('EVE-FAC-04-A rejects an unsupported facility value', () => {
+    expectFieldError(
+      { ...validEventRequest(), facilities: ['Fireworks'] },
+      'facilities',
+    );
+  });
+
+  /** EVE-FAC-04-A: event validation rejects accessibility values outside the venue-owned schema. */
+  it('EVE-FAC-04-A rejects unsupported accessibility values', () => {
+    expectFieldError(
+      { ...validEventRequest(), accessibility: ['Wheelchair ramps'] },
+      'accessibility',
+    );
+  });
 
   // SPM-36 Test Cases EVE-CRE-08-A and EVE-CRE-08-B
   it('EVE-CRE-08-B accepts optional supporting files and defaults to none when omitted', () => {

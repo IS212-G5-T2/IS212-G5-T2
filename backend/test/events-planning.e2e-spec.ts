@@ -5,14 +5,21 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
+import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import pg from 'pg';
+import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import type { AuthenticatedUser } from '../src/auth/types/auth.models.js';
+import type { NextFunction, Request, Response } from 'express';
+import {
+  CURRENT_USER_REQUEST_KEY,
+  type AuthenticatedUser,
+} from '../src/auth/types/auth.models.js';
 import { DatabaseService } from '../src/database/database.service.js';
+import { EventPlanningController } from '../src/events/planning/event-planning.controller.js';
 import { TURNAROUND_MINUTES } from '../src/events/planning/helpers/event-impact.js';
 import { EventPlanningRepository } from '../src/events/planning/event-planning.repository.js';
 import { EventPlanningService } from '../src/events/planning/event-planning.service.js';
@@ -43,9 +50,9 @@ describe.skipIf(!database)(
   'SPM-97/49/85 event planning with PostgreSQL',
   () => {
     let db: pg.Pool;
+    let app: INestApplication;
     let service: EventPlanningService;
     let repository: EventPlanningRepository;
-    let databaseService: DatabaseService;
     const eventIds: string[] = [];
     let eventId: string;
     let hallA: string;
@@ -121,6 +128,14 @@ describe.skipIf(!database)(
       return result.rows[0].id;
     }
 
+    async function insertBlockout(venueId: string, start: string, end: string) {
+      await db.query(
+        `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+         VALUES ($1,$2,$3,'blocked','Maintenance')`,
+        [venueId, start, end],
+      );
+    }
+
     beforeAll(async () => {
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
@@ -132,12 +147,19 @@ describe.skipIf(!database)(
         await db.query(await readFile(schemaPath, 'utf8'));
       }
       const module = await Test.createTestingModule({
+        controllers: [EventPlanningController],
         providers: [
           DatabaseService,
           EventPlanningRepository,
           EventPlanningService,
         ],
       }).compile();
+      app = module.createNestApplication();
+      app.use((req: Request, _res: Response, next: NextFunction) => {
+        req[CURRENT_USER_REQUEST_KEY] = organiser;
+        next();
+      });
+      await app.init();
       service = module.get(EventPlanningService);
       repository = module.get(EventPlanningRepository);
       const owner = await db.query<{ id: string }>(
@@ -146,7 +168,6 @@ describe.skipIf(!database)(
         [`venue-staff-${randomUUID()}@example.test`],
       );
       venueOwnerId = owner.rows[0].id;
-      databaseService = module.get(DatabaseService);
     });
 
     beforeEach(async () => {
@@ -184,9 +205,9 @@ describe.skipIf(!database)(
         ]);
         if (venueOwnerId)
           await db.query('DELETE FROM users WHERE id = $1', [venueOwnerId]);
-        await db.end();
       }
-      await databaseService?.onModuleDestroy();
+      await app?.close();
+      await db?.end();
     });
 
     // SPM-97 AC1/AC2/AC4: the organiser sees live bookings and equipment, read-only.
@@ -204,6 +225,134 @@ describe.skipIf(!database)(
           status: 'Reserved',
         }),
       ]);
+    });
+
+    // VEN-BKG-11-VAR-1: the planning HTTP projection applies both venue buffers while preserving event and booking history.
+    it('VEN-BKG-11-VAR-1 projects setup and turnaround blockouts but ignores non-overlapping blockouts through the planning HTTP endpoint', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [venueId],
+      );
+      // The blockout ends before the event starts, but intersects its 30-minute setup window.
+      await insertBlockout(venueId, at(START, -29), at(START, -20));
+
+      const turnaroundVenueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallB],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [turnaroundVenueId],
+      );
+      await insertBlockout(turnaroundVenueId, at(END, 20), at(END, 30));
+
+      const nonOverlappingVenueId = await insertVenue('Hall C', 60);
+      const nonOverlappingBooking = await insertBooking(
+        eventId,
+        nonOverlappingVenueId,
+        START,
+        END,
+      );
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [nonOverlappingVenueId],
+      );
+      await insertBlockout(nonOverlappingVenueId, at(END, 46), at(END, 55));
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/planning`)
+        .expect(200);
+      expect(response.body.venueBookings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: hallA,
+            status: 'Unavailable',
+            requestStatus: 'approved',
+            capacity: 200,
+          }),
+          expect.objectContaining({
+            id: hallB,
+            status: 'Unavailable',
+            requestStatus: 'approved',
+          }),
+          expect.objectContaining({
+            id: nonOverlappingBooking,
+            status: 'Booked',
+            requestStatus: 'approved',
+          }),
+        ]),
+      );
+      const retained = await db.query(
+        `SELECT e.status AS event_status, b.status AS booking_status
+           FROM events e JOIN venue_bookings b ON b.event_id = e.id
+          WHERE e.id = $1 AND b.id = $2`,
+        [eventId, hallA],
+      );
+      expect(retained.rows[0]).toEqual({
+        event_status: 'Planning',
+        booking_status: 'approved',
+      });
+      const turnaroundHistory = await db.query(
+        'SELECT status FROM venue_bookings WHERE id = $1',
+        [hallB],
+      );
+      expect(turnaroundHistory.rows[0].status).toBe('approved');
+    });
+
+    /** VEN-BKG-11-VAR-1: a blockout ending exactly at the setup-buffer start leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-SETUP-INCLUSIVE. */
+    it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout ends at the setup-buffer boundary', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [venueId],
+      );
+      await insertBlockout(venueId, at(START, -40), at(START, -30));
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/planning`)
+        .expect(200);
+      expect(response.body.venueBookings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: hallA, status: 'Booked' }),
+        ]),
+      );
+    });
+
+    /** VEN-BKG-11-VAR-1: a blockout starting exactly at the turnaround-buffer end leaves the confirmed booking Booked. Kills: SPM54-BE-AC11-BLOCKOUT-TURNAROUND-INCLUSIVE. */
+    it('VEN-BKG-11-VAR-1 keeps a booking Booked when a blockout starts at the turnaround-buffer boundary', async () => {
+      const venueId = (
+        await db.query<{ venue_id: string }>(
+          'SELECT venue_id FROM venue_bookings WHERE id = $1',
+          [hallA],
+        )
+      ).rows[0].venue_id;
+      await db.query(
+        'UPDATE venues SET setup_time_minutes = 30, turnaround_time_minutes = 45 WHERE id = $1',
+        [venueId],
+      );
+      await insertBlockout(venueId, at(END, 45), at(END, 55));
+
+      const response = await request(app.getHttpServer())
+        .get(`/api/events/${eventId}/planning`)
+        .expect(200);
+      expect(response.body.venueBookings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: hallA, status: 'Booked' }),
+        ]),
+      );
     });
 
     /** SPM-51 AC10: only pending rows with a future hold expiry are Booked; expired and unbounded requests are Cancelled. Kills: B13, B14. */

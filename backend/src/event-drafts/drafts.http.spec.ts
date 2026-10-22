@@ -1,5 +1,6 @@
 import 'reflect-metadata';
 import type { INestApplication } from '@nestjs/common';
+import type { NextFunction, Request, Response } from 'express';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -78,7 +79,7 @@ describe('SPM-37 draft routes over HTTP, controller to service (supporting)', ()
       ],
     }).compile();
     app = moduleRef.createNestApplication();
-    app.use((req, _res, next) => {
+    app.use((req: Request, _res: Response, next: NextFunction) => {
       const principal = req.headers['x-test-principal'];
       if (typeof principal === 'string' && principals[principal]) {
         (req as unknown as Record<string, unknown>)[CURRENT_USER_REQUEST_KEY] =

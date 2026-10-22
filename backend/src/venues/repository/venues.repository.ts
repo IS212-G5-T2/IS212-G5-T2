@@ -186,7 +186,8 @@ export class VenuesRepository {
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
               EXISTS (SELECT 1 FROM venue_bookings blockout
                 WHERE blockout.venue_id = b.venue_id AND blockout.status = 'blocked'
-                  AND blockout.start_at < b.end_at AND blockout.end_at > b.start_at) AS affected
+                  AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)
+                  AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)) AS affected
          FROM venue_bookings b
          JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
@@ -313,35 +314,8 @@ export class VenuesRepository {
       )
         return { kind: 'event-not-open', status: eventRow.status };
 
-      // VEN-BKG-02-B: repeat the suitability assessment from persisted event and venue facts at the API boundary.
-      const missingFacilities = eventRow.required_facilities.filter(
-        (item) => !venueRow.facilities.includes(item),
-      );
-      const missingAccessibility = eventRow.accessibility_needs.filter(
-        (item) => !venueRow.accessibility.includes(item),
-      );
-      const unsuitable = [
-        ...(venueRow.capacity < eventRow.expected_attendance
-          ? [
-              `capacity ${venueRow.capacity} is below attendance ${eventRow.expected_attendance}`,
-            ]
-          : []),
-        ...(missingFacilities.length
-          ? [`missing facilities: ${missingFacilities.join(', ')}`]
-          : []),
-        ...(missingAccessibility.length
-          ? [`missing accessibility: ${missingAccessibility.join(', ')}`]
-          : []),
-        ...(eventRow.preferred_room_layout &&
-        !venueRow.layouts.includes(eventRow.preferred_room_layout)
-          ? [`layout ${eventRow.preferred_room_layout} is unavailable`]
-          : []),
-      ];
-      if (unsuitable.length)
-        return {
-          kind: 'conflict',
-          reason: `Venue suitability mismatch: ${unsuitable.join('; ')}.`,
-        };
+      // SPM-54 AC1/AC2: suitability and capacity are advisory. Availability,
+      // active requests and event state below remain authoritative blockers.
 
       // SPM-54 AC7: the event row lock serializes retries. Only pending/approved
       // requests block; cancelled/rejected history remains available for retry.
@@ -404,7 +378,12 @@ export class VenuesRepository {
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
          VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz, 'pending')
          RETURNING id, start_at, end_at`,
-        [venueId, input.eventId, eventRow.start_date_time, eventRow.end_date_time],
+        [
+          venueId,
+          input.eventId,
+          eventRow.start_date_time,
+          eventRow.end_date_time,
+        ],
       );
       const row = saved.rows[0];
       await client.query(

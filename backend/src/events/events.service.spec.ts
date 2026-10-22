@@ -69,7 +69,7 @@ function validEventRequest() {
     expectedAttendance: 80,
     layout: 'Banquet',
     facilities: ['Catering'],
-    accessibility: ['Wheelchair ramps'],
+    accessibility: ['Wheelchair access'],
     attachments: [
       {
         id: 'attachment-1',
@@ -170,7 +170,7 @@ describe('EventsService', () => {
       venueRequirements: {
         layout: 'Banquet',
         facilities: ['Catering'],
-        accessibility: ['Wheelchair ramps'],
+        accessibility: ['Wheelchair access'],
       },
       equipmentNeeds: 'Two microphones',
     });
@@ -271,7 +271,7 @@ describe('EventsService', () => {
       venueRequirements: {
         layout: 'Banquet',
         facilities: ['Catering'],
-        accessibility: ['Wheelchair ramps'],
+        accessibility: ['Wheelchair access'],
       },
       attachments: [
         {

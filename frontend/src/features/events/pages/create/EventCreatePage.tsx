@@ -14,7 +14,10 @@ import type { EventAttachment, EventRecord } from "@/types";
 import { useAppStore } from "@/store/useAppStore";
 import type { DraftFields, DraftRecord } from "@/features/events/types/draft";
 import { readFileAsDataUrl } from "@/utils/uploads";
-import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
+import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
+
+type FacilityOption = { label: string; value: string };
+type AccessibilityOption = { label: string; value: string };
 
 const steps = [
   "Basic Information",
@@ -39,6 +42,8 @@ const scheduleFields = [
 function stepForField(field: string) {
   if (basicInformationFields.includes(field)) return 0;
   if (scheduleFields.includes(field)) return 1;
+  // Facilities and accessibility are chosen on the schedule-and-requirements step (dev, SPM-144).
+  if (field === "facilities" || field === "accessibility") return 1;
   return 2;
 }
 function todayInputValue() {
@@ -71,6 +76,10 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     operationId: string;
   } | null>(null);
   const [loading, setLoading] = useState(Boolean(draftId));
+  const [facilityOptions, setFacilityOptions] = useState<FacilityOption[]>([]);
+  const [accessibilityOptions, setAccessibilityOptions] = useState<AccessibilityOption[]>([]);
+  const [facilityStatus, setFacilityStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [facilityError, setFacilityError] = useState("");
   const [loadFailure, setLoadFailure] = useState("");
   const [locked, setLocked] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -131,6 +140,33 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
       active = false;
     };
   }, [draftId]);
+
+  useEffect(() => {
+    if (step < 1 || facilityStatus !== "idle") return;
+    setFacilityStatus("loading");
+    setFacilityError("");
+    api<{ facilities: FacilityOption[]; accessibility: AccessibilityOption[] }>("/venues/options")
+      .then((result) => {
+        const isValidOptions = (options: unknown): options is FacilityOption[] =>
+          Array.isArray(options) && options.every(
+            (option) => option && typeof option.label === "string" && typeof option.value === "string",
+          );
+        if (!isValidOptions(result?.facilities) || !isValidOptions(result?.accessibility)) {
+          throw new Error("Facility and accessibility options response is invalid.");
+        }
+        setFacilityOptions(result.facilities);
+        setAccessibilityOptions(result.accessibility);
+        setFacilityStatus("loaded");
+      })
+      .catch((error) => {
+        setFacilityError(error instanceof Error ? error.message : "Unable to load facility and accessibility options.");
+        setFacilityStatus("error");
+      });
+  }, [step, facilityStatus]);
+
+  function retryFacilityOptions() {
+    setFacilityStatus("idle");
+  }
 
   async function persistDraft() {
     const snapshot = { ...form, formStep: step };
@@ -197,6 +233,16 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     if (!form.description.trim())
       next.description = "Enter a description of your event.";
     if (step > 0) {
+      if (facilityStatus === "loaded") {
+        const supportedFacilities = new Set(facilityOptions.map(({ value }) => value));
+        const supportedAccessibility = new Set(accessibilityOptions.map(({ value }) => value));
+        const staleFacilities = form.facilities.filter((value) => !supportedFacilities.has(value));
+        const staleAccessibility = form.accessibility.filter((value) => !supportedAccessibility.has(value));
+        if (staleFacilities.length)
+          next.facilities = `Unsupported facilities: ${staleFacilities.join(", ")}. Choose current options before submitting.`;
+        if (staleAccessibility.length)
+          next.accessibility = `Unsupported accessibility options: ${staleAccessibility.join(", ")}. Choose current options before submitting.`;
+      }
       for (const key of [
         "startDate",
         "startTime",
@@ -276,7 +322,9 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
   }
   async function advance(event: React.FormEvent) {
     event.preventDefault();
-    if (inFlight.current || readingFiles || locked || !validate()) return;
+    if (inFlight.current || readingFiles || locked) return;
+    if (step >= 1 && facilityStatus !== "loaded") return;
+    if (!validate()) return;
     if (step < 2) {
       setStep(step + 1);
       return;
@@ -494,25 +542,51 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                       label: value,
                     }))}
                   />
-                  <CheckboxGroup
-                    label="Required facilities"
-                    options={[...FACILITY_OPTIONS]}
-                    values={form.facilities}
-                    onChange={(value) => change("facilities", value)}
-                    error={errors.facilities}
-                  />
-                  <CheckboxGroup
-                    label="Accessibility needs"
-                    options={[
-                      "Wheelchair ramps",
-                      "Accessible restrooms",
-                      "Hearing loop",
-                      "Elevator access",
-                    ]}
-                    values={form.accessibility}
-                    onChange={(value) => change("accessibility", value)}
-                    error={errors.accessibility}
-                  />
+                  {facilityStatus === "loading" && <p role="status">Loading facility and accessibility options…</p>}
+                  {facilityStatus === "error" && (
+                    <div role="alert" className="mb-4">
+                      <p>{facilityError}</p>
+                      <Button type="button" variant="secondary" onClick={retryFacilityOptions}>Retry facility and accessibility options</Button>
+                    </div>
+                  )}
+                  {facilityStatus === "loaded" && facilityOptions.length === 0 && (
+                    <p role="status">No facility options are currently available.</p>
+                  )}
+                  {facilityStatus === "loaded" && accessibilityOptions.length === 0 && (
+                    <p role="status">No accessibility options are currently available.</p>
+                  )}
+                  {facilityStatus === "loaded" && facilityOptions.length > 0 && (
+                    <CheckboxGroup
+                      label="Required facilities"
+                      options={facilityOptions.map(({ label }) => label)}
+                      values={facilityOptions
+                        .filter(({ value }) => form.facilities.includes(value))
+                        .map(({ label }) => label)}
+                      onChange={(labels) => change(
+                        "facilities",
+                        facilityOptions
+                          .filter(({ label }) => labels.includes(label))
+                          .map(({ value }) => value),
+                      )}
+                    />
+                  )}
+                  {errors.facilities && <p role="alert" className="mb-4 text-sm text-danger-600">{errors.facilities}</p>}
+                  {facilityStatus === "loaded" && accessibilityOptions.length > 0 && (
+                    <CheckboxGroup
+                      label="Accessibility needs"
+                      options={accessibilityOptions.map(({ label }) => label)}
+                      values={accessibilityOptions
+                        .filter(({ value }) => form.accessibility.includes(value))
+                        .map(({ label }) => label)}
+                      onChange={(labels) => change(
+                        "accessibility",
+                        accessibilityOptions
+                          .filter(({ label }) => labels.includes(label))
+                          .map(({ value }) => value),
+                      )}
+                    />
+                  )}
+                  {errors.accessibility && <p role="alert" className="mb-4 text-sm text-danger-600">{errors.accessibility}</p>}
                   <div className="mb-4">
                     <label
                       htmlFor="supporting-files"
@@ -582,8 +656,8 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     onChange={(e) => change("equipmentNeeds", e.target.value)}
                     error={errors.equipmentNeeds}
                   />
-                  <div className="rounded-lg bg-gray-50 p-4">
-                    <h2 className="mb-4 text-sm font-semibold">
+                  <div className="rounded-lg bg-gray-50 p-4 text-gray-900 dark:bg-gray-800 dark:text-gray-100">
+                    <h2 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">
                       Review Your Request
                     </h2>
                     <dl className="space-y-3 text-sm">
@@ -606,7 +680,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                           key={label}
                           className="grid grid-cols-[100px_1fr] gap-3"
                         >
-                          <dt className="text-gray-500">{label}</dt>
+                          <dt className="text-gray-500 dark:text-gray-400">{label}</dt>
                           <dd className="whitespace-pre-wrap break-words">
                             {value || "None specified"}
                           </dd>
@@ -614,6 +688,13 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                       ))}
                     </dl>
                   </div>
+                  {facilityStatus === "loading" && <p role="status" className="mt-4">Loading facility and accessibility options…</p>}
+                  {facilityStatus === "error" && (
+                    <div role="alert" className="mt-4">
+                      <p>{facilityError}</p>
+                      <Button type="button" variant="secondary" onClick={retryFacilityOptions}>Retry facility and accessibility options</Button>
+                    </div>
+                  )}
                   <p className="mt-4 text-sm text-gray-500">
                     Your request will be submitted for review. You can view its
                     details in My Events.

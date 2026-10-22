@@ -43,6 +43,36 @@ const draft = (overrides = {}): DraftRecord => ({
   eventId: null,
   updatedAt: "2030-01-01T00:00:00Z",
 });
+const facilityOptions = {
+  facilities: [{ label: "Catering", value: "Catering" }],
+  accessibility: [{ label: "Wheelchair access", value: "Wheelchair access" }],
+};
+function mockDraftWithFacilityOptions(record: DraftRecord) {
+  mocked.mockImplementation(async (path, init) => {
+    if (path === "/venues/options") return facilityOptions;
+    if (path === `/requests/${id}` && init?.method === "PUT") {
+      return { ...record, version: record.version + 1 };
+    }
+    if (path === `/requests/${id}`) return record;
+    return undefined;
+  });
+}
+function mockResumedDraftFlow(
+  record: DraftRecord,
+  submit: () => unknown = () => undefined,
+) {
+  const options = deferred<typeof facilityOptions>();
+  mocked.mockImplementation(async (path, init) => {
+    if (path === "/venues/options") return options.promise;
+    if (path === `/requests/${id}` && init?.method === "PUT") {
+      return { ...record, version: record.version + 1 };
+    }
+    if (path === `/requests/${id}/submit`) return submit();
+    if (path === `/requests/${id}`) return record;
+    return undefined;
+  });
+  return { resolveOptions: () => options.resolve(facilityOptions) };
+}
 function open(path = `/requests/${id}`) {
   return render(
     <MemoryRouter initialEntries={[path]}>
@@ -94,6 +124,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it("EVE-DRF-SUP-27 back navigation preserves data and server attachment errors are visible", async () => {
     mocked
       .mockResolvedValueOnce(draft({ formStep: 2 }))
+      .mockResolvedValueOnce(facilityOptions)
       .mockRejectedValueOnce(
         new ApiError("Correct attachments", {
           attachments: "Invalid attachment metadata",
@@ -116,7 +147,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([0, 1, 2])(
     "EVE-DRF-SUP-28 saves incomplete values from wizard step %s",
     async (formStep) => {
-      mocked.mockResolvedValue(draft({ formStep, purpose: "", startTime: "" }));
+      mockDraftWithFacilityOptions(draft({ formStep, purpose: "", startTime: "" }));
       open();
       await screen.findByRole("heading", { name: "Edit Draft Request" });
       save();
@@ -194,9 +225,10 @@ describe("SPM-37 Q2 functional cases", () => {
     });
     save();
     await screen.findByRole("dialog");
-    expect(mocked.mock.calls[1]).toEqual(mocked.mock.calls[0]);
-    const first = JSON.parse(mocked.mock.calls[0][1]!.body as string),
-      last = JSON.parse(mocked.mock.calls[2][1]!.body as string);
+    const puts = mocked.mock.calls.filter(([, init]) => init?.method === "PUT");
+    expect(puts[1]).toEqual(puts[0]);
+    const first = JSON.parse(puts[0][1]!.body as string),
+      last = JSON.parse(puts[2][1]!.body as string);
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
@@ -252,17 +284,19 @@ describe("SPM-37 Q2 functional cases", () => {
   it("EVE-DRF-SUP-33 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
     useAppStore.setState({ events: [event, { id: "other" }] as never });
-    mocked
-      .mockResolvedValueOnce(draft({ formStep: 2 }))
-      .mockResolvedValueOnce({ ...draft(), version: 2 })
-      .mockResolvedValueOnce({ event });
+    const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => ({ event }));
     open();
     await screen.findByLabelText("Equipment needs");
+    await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+    await act(async () => flow.resolveOptions());
     click(/Submit For Review/);
     await screen.findByText("Event submitted");
-    expect(mocked.mock.calls[1][1]?.method).toBe("PUT");
-    expect(mocked.mock.calls[2][0]).toBe(`/requests/${id}/submit`);
-    expect(JSON.parse(mocked.mock.calls[2][1]!.body as string).version).toBe(2);
+    const requestCalls = mocked.mock.calls.filter(
+      ([path]) => path !== "/venues/options",
+    );
+    expect(requestCalls[1][1]?.method).toBe("PUT");
+    expect(requestCalls[2][0]).toBe(`/requests/${id}/submit`);
+    expect(JSON.parse(requestCalls[2][1]!.body as string).version).toBe(2);
     expect(useAppStore.getState().events.map((e) => e.id)).toEqual([
       id,
       "other",
@@ -271,12 +305,13 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([new ApiError("Rejected", { equipmentNeeds: "Invalid" }), "unknown"])(
     "EVE-DRF-SUP-34 failed submission keeps draft data %j",
     async (error) => {
-      mocked
-        .mockResolvedValueOnce(draft({ formStep: 2 }))
-        .mockResolvedValueOnce({ ...draft(), version: 2 })
-        .mockRejectedValueOnce(error);
+      const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => {
+        throw error;
+      });
       open();
       await screen.findByLabelText("Equipment needs");
+      await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+      await act(async () => flow.resolveOptions());
       click(/Submit For Review/);
       // The banner shows the server's message; a rejected field also shows its own alert next to its input.
       const expected = error instanceof Error ? "Rejected" : "Unable to submit. Please try again.";
@@ -291,24 +326,26 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
     "EVE-DRF-SUP-35 attendance boundary %s on submission",
     async (expectedAttendance) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, expectedAttendance }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, expectedAttendance }));
       open();
       await screen.findByLabelText(/Expected attendance/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       const valid =
         Number(expectedAttendance) >= 1 &&
         Number(expectedAttendance) <= 2147483647;
       if (valid) expect(screen.getByLabelText("Equipment needs")).toBeTruthy();
       else expect(screen.getByText(/positive whole number/)).toBeTruthy();
-      expect(mocked).toHaveBeenCalledTimes(1);
+      expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
   it.each(["09:59", "10:00", "10:01"])(
     "EVE-DRF-SUP-36 end time %s relative to start 10:00",
     async (endTime) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, endTime }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, endTime }));
       open();
       await screen.findByLabelText(/End time/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       if (endTime === "10:01")
         expect(screen.getByLabelText("Equipment needs")).toBeTruthy();
@@ -316,14 +353,18 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it("EVE-DRF-SUP-37 missing required basic fields in resumed review returns to step one", async () => {
-    mocked.mockResolvedValue(
+    const flow = mockResumedDraftFlow(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
     );
     open();
     await screen.findByLabelText("Equipment needs");
+    await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
+    await act(async () => flow.resolveOptions());
     click(/Submit For Review/);
     expect(screen.getByText("Enter the purpose of your event.")).toBeTruthy();
-    expect(mocked).toHaveBeenCalledTimes(1);
+    expect(
+      mocked.mock.calls.filter(([path]) => path !== "/venues/options"),
+    ).toHaveLength(1);
   });
   it.each([
     ["bad-date", "11:00"],
@@ -331,12 +372,13 @@ describe("SPM-37 Q2 functional cases", () => {
   ])(
     "EVE-DRF-SUP-38 corrupt persisted schedule %s %s cannot submit",
     async (startDate, endTime) => {
-      mocked.mockResolvedValue(draft({ formStep: 1, startDate, endTime }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1, startDate, endTime }));
       open();
       await screen.findByLabelText(/Start date/);
+      await screen.findByLabelText("Catering");
       click(/Continue/);
       expect(screen.queryByLabelText("Equipment needs")).toBeNull();
-      expect(mocked).toHaveBeenCalledTimes(1);
+      expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
   /** EVE-DRF-03: My Drafts lists only drafts; submitted requests are excluded (Q2-015). */
@@ -400,7 +442,7 @@ describe("SPM-37 Q2 functional cases", () => {
   it.each([52428799, 52428800, 52428801])(
     "Q2-018 file size boundary %s bytes",
     async (size) => {
-      mocked.mockResolvedValue(draft({ formStep: 1 }));
+      mockDraftWithFacilityOptions(draft({ formStep: 1 }));
       open();
       const input = await screen.findByLabelText("Supporting files");
       // Override size instead of allocating ~50MB of real bytes: the total
@@ -431,7 +473,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   it.each([4, 5, 6])("EVE-DRF-SUP-41 file count boundary %s", async (count) => {
-    mocked.mockResolvedValue(draft({ formStep: 1 }));
+    mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
     fireEvent.change(input, {
@@ -453,7 +495,7 @@ describe("SPM-37 Q2 functional cases", () => {
     }
   });
   it("EVE-DRF-SUP-42 cancelled file selection is harmless and read failure allows retry", async () => {
-    mocked.mockResolvedValue(draft({ formStep: 1 }));
+    mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
     fireEvent.change(input, { target: { files: null } });

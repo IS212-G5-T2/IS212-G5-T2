@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -7,7 +14,12 @@ import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
 import { PLANNING_REFRESH_MS } from "@/utils/planning";
 import { formatDateTime } from "@/utils/format";
-import type { ChangeHistoryEntry, EventRecord, FlaggedChange, PlanningView } from "@/types";
+import type {
+  ChangeHistoryEntry,
+  EventRecord,
+  FlaggedChange,
+  PlanningView,
+} from "@/types";
 
 /**
  * SPM-97 (organiser), SPM-49 and SPM-85 (coordinator) on EventDetailPage.
@@ -41,7 +53,12 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
     startDateTime: "2026-11-10T10:00:00.000Z",
     endDateTime: "2026-11-10T13:00:00.000Z",
     expectedAttendance: 80,
-    venueRequirements: { minCapacity: 80, layout: "Banquet", facilities: ["Catering"], accessibility: ["Wheelchair ramps"] },
+    venueRequirements: {
+      minCapacity: 80,
+      layout: "Banquet",
+      facilities: ["Catering"],
+      accessibility: ["Wheelchair ramps"],
+    },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
     createdAt: "2026-09-13T00:00:00.000Z",
@@ -54,9 +71,17 @@ function planningView(overrides: Partial<PlanningView> = {}): PlanningView {
   return {
     event: eventRecord(),
     venueBookings: [
-      { id: "bk-1", venueName: "Hall A", start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z", status: "Booked" },
+      {
+        id: "bk-1",
+        venueName: "Hall A",
+        start: "2026-11-10T10:00:00.000Z",
+        end: "2026-11-10T13:00:00.000Z",
+        status: "Booked",
+      },
     ],
-    equipmentArrangements: [{ id: "eq-1", name: "Projector", quantity: 2, status: "Reserved" }],
+    equipmentArrangements: [
+      { id: "eq-1", name: "Projector", quantity: 2, status: "Reserved" },
+    ],
     pendingChanges: [],
     readOnly: true,
     editableFields: [],
@@ -77,7 +102,8 @@ function renderPage() {
   );
 }
 
-const planningRegion = () => screen.findByRole("region", { name: /planning information/i });
+const planningRegion = () =>
+  screen.findByRole("region", { name: /planning information/i });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -88,7 +114,12 @@ beforeEach(() => {
     return currentView.event;
   }) as typeof api);
   useAppStore.setState({
-    currentUser: { id: "organiser-1", name: "Demo Organiser", email: "organiser@example.test", role: "organiser" },
+    currentUser: {
+      id: "organiser-1",
+      name: "Demo Organiser",
+      email: "organiser@example.test",
+      role: "organiser",
+    },
     events: [],
   });
 });
@@ -110,8 +141,12 @@ describe("EventDetailPage planning information (organiser)", () => {
     currentView = planningView({ event: eventRecord({ status: "submitted" }) });
     renderPage();
     await screen.findByText("Event Details");
-    expect(screen.queryByRole("region", { name: /planning information/i })).not.toBeInTheDocument();
-    expect(apiMock.mock.calls.some(([path]) => String(path).endsWith("/planning"))).toBe(false);
+    expect(
+      screen.queryByRole("region", { name: /planning information/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      apiMock.mock.calls.some(([path]) => String(path).endsWith("/planning")),
+    ).toBe(false);
   });
 
   // EVENT-VIEW-02-A: the organiser sees the current venue, equipment and booking status.
@@ -124,11 +159,85 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(within(region).getByText(/Reserved/)).toBeInTheDocument();
   });
 
+  // VEN-BKG-11-VAR-1: Event Details consumes the planning endpoint's updated venue projection after a real blockout is recorded.
+  it("VEN-BKG-11-VAR-1 refreshes usable capacity from the planning projection when a confirmed venue becomes unavailable", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const confirmed = planningView({
+      event: eventRecord({ expectedAttendance: 180 }),
+      venueBookings: [
+        {
+          id: "bk-1",
+          venueId: "venue-1",
+          venueName: "Hall A",
+          start: "2026-11-10T10:00:00.000Z",
+          end: "2026-11-10T13:00:00.000Z",
+          status: "Booked",
+          requestStatus: "approved",
+          capacity: 100,
+        },
+        {
+          id: "bk-2",
+          venueId: "venue-2",
+          venueName: "Hall B",
+          start: "2026-11-10T10:00:00.000Z",
+          end: "2026-11-10T13:00:00.000Z",
+          status: "Booked",
+          requestStatus: "approved",
+          capacity: 80,
+        },
+      ],
+    });
+    currentView = confirmed;
+    renderPage();
+    const region = await planningRegion();
+    expect(within(region).getByText("180 / 180")).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}/planning`);
+
+    // This is the response shape returned by GET /events/:id/planning after the
+    // backend projection observes a venue_bookings.status='blocked' row.
+    currentView = {
+      ...confirmed,
+      venueBookings: [
+        confirmed.venueBookings[0],
+        {
+          ...confirmed.venueBookings[1],
+          status: "Unavailable",
+        },
+      ],
+    };
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+    });
+
+    expect(await within(region).findByText("100 / 180")).toBeInTheDocument();
+    expect(
+      apiMock.mock.calls.filter(
+        ([path]) => String(path) === `/events/${EVENT_ID}/planning`,
+      ).length,
+    ).toBeGreaterThan(1);
+    expect(currentView.event.status).toBe("planning");
+    expect(currentView.venueBookings[1]).toEqual(
+      expect.objectContaining({
+        id: "bk-2",
+        requestStatus: "approved",
+        status: "Unavailable",
+      }),
+    );
+  });
+
   // EVENT-VIEW-03-A: a field with a change pending because of a booking conflict is marked.
   it("EVENT-VIEW-03-A marks a conflict-driven pending change on the affected field", async () => {
     currentView = planningView({
       pendingChanges: [
-        { id: "chg-1", kind: "booking_conflict", field: "expectedAttendance", currentValue: 80, proposedValue: 150, status: "Needs Review", impacts: [] },
+        {
+          id: "chg-1",
+          kind: "booking_conflict",
+          field: "expectedAttendance",
+          currentValue: 80,
+          proposedValue: 150,
+          status: "Needs Review",
+          impacts: [],
+        },
       ],
     });
     renderPage();
@@ -140,14 +249,31 @@ describe("EventDetailPage planning information (organiser)", () => {
   // EVENT-VIEW-03-B: an unavailable booked venue is shown as needing a replacement.
   it("EVENT-VIEW-03-B shows that a replacement venue is required", async () => {
     currentView = planningView({
-      venueBookings: [{ id: "bk-1", venueName: "Hall A", start: "2026-11-10T10:00:00.000Z", end: "2026-11-10T13:00:00.000Z", status: "Unavailable" }],
+      venueBookings: [
+        {
+          id: "bk-1",
+          venueName: "Hall A",
+          start: "2026-11-10T10:00:00.000Z",
+          end: "2026-11-10T13:00:00.000Z",
+          status: "Unavailable",
+        },
+      ],
       pendingChanges: [
-        { id: "venue-bk-1", kind: "replacement_venue_required", field: "venue", bookingId: "bk-1", venueName: "Hall A", status: "Needs Review" },
+        {
+          id: "venue-bk-1",
+          kind: "replacement_venue_required",
+          field: "venue",
+          bookingId: "bk-1",
+          venueName: "Hall A",
+          status: "Needs Review",
+        },
       ],
     });
     renderPage();
     const region = await planningRegion();
-    expect(within(region).getByText(/replacement venue required/i)).toBeInTheDocument();
+    expect(
+      within(region).getByText(/replacement venue required/i),
+    ).toBeInTheDocument();
   });
 
   // EVENT-VIEW-04-A: the organiser's panel has no way to edit anything.
@@ -156,12 +282,16 @@ describe("EventDetailPage planning information (organiser)", () => {
     const region = await planningRegion();
     const editButtons = within(region)
       .queryAllByRole("button")
-      .filter((button) => /edit|update|save|confirm|reject/i.test(button.textContent ?? ""));
+      .filter((button) =>
+        /edit|update|save|confirm|reject/i.test(button.textContent ?? ""),
+      );
     expect(editButtons).toHaveLength(0);
     for (const role of ["textbox", "spinbutton", "checkbox", "combobox"]) {
       expect(within(region).queryAllByRole(role)).toHaveLength(0);
     }
-    expect(screen.queryByRole("link", { name: /^edit$/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /^edit$/i }),
+    ).not.toBeInTheDocument();
   });
 
   // EVENT-VIEW-05-A: after the coordinator resolves a change the page updates by itself.
@@ -169,7 +299,15 @@ describe("EventDetailPage planning information (organiser)", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     currentView = planningView({
       pendingChanges: [
-        { id: "chg-1", kind: "booking_conflict", field: "expectedAttendance", currentValue: 80, proposedValue: 150, status: "Needs Review", impacts: [] },
+        {
+          id: "chg-1",
+          kind: "booking_conflict",
+          field: "expectedAttendance",
+          currentValue: 80,
+          proposedValue: 150,
+          status: "Needs Review",
+          impacts: [],
+        },
       ],
     });
     renderPage();
@@ -177,15 +315,31 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(within(region).getByText(/change pending/i)).toBeInTheDocument();
 
     // The coordinator confirms the change on the server; the organiser does nothing.
-    currentView = planningView({ event: eventRecord({ expectedAttendance: 150 }), pendingChanges: [] });
+    currentView = planningView({
+      event: eventRecord({ expectedAttendance: 150 }),
+      pendingChanges: [],
+    });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
     });
 
     await waitFor(() => {
-      const refreshed = screen.getByRole("region", { name: /planning information/i });
-      expect(within(refreshed).getByText(/150/)).toBeInTheDocument();
-      expect(within(refreshed).queryByText(/change pending/i)).not.toBeInTheDocument();
+      const refreshed = screen.getByRole("region", {
+        name: /planning information/i,
+      });
+      const expectedAttendance = within(refreshed).getByText(
+        "Expected attendance",
+        { selector: "dt" },
+      );
+      expect(
+        within(expectedAttendance.parentElement as HTMLElement).getByText(
+          "150",
+          { exact: true },
+        ),
+      ).toBeInTheDocument();
+      expect(
+        within(refreshed).queryByText(/change pending/i),
+      ).not.toBeInTheDocument();
     });
   });
 });
@@ -212,7 +366,9 @@ const PENDING_CHANGE: FlaggedChange = {
       bookingId: "bk-1",
       venueName: "Hall A",
       impacted: true,
-      conflicts: [{ kind: "capacity", detail: "Attendance 150 exceeds capacity 100" }],
+      conflicts: [
+        { kind: "capacity", detail: "Attendance 150 exceeds capacity 100" },
+      ],
     },
     { bookingId: "bk-2", venueName: "Hall B", impacted: false, conflicts: [] },
   ],
@@ -233,18 +389,31 @@ const HISTORY: ChangeHistoryEntry[] = [
 ];
 
 // Fields whose change needs review once a booking exists; the rest apply directly.
-const REVIEW_FIELDS = ["startDateTime", "endDateTime", "expectedAttendance", "layout", "facilities", "equipmentNeeds"];
+const REVIEW_FIELDS = [
+  "startDateTime",
+  "endDateTime",
+  "expectedAttendance",
+  "layout",
+  "facilities",
+  "equipmentNeeds",
+];
 const EDITABLE_FIELDS = [
-  ...["name", "purpose", "description", "accessibility"].map((field) => ({ field, mode: "direct" as const })),
+  ...["name", "purpose", "description", "accessibility"].map((field) => ({
+    field,
+    mode: "direct" as const,
+  })),
   ...REVIEW_FIELDS.map((field) => ({ field, mode: "needs_review" as const })),
 ];
 
 let history: ChangeHistoryEntry[];
 
-const planningCalls = () => apiMock.mock.calls.filter(([path]) => String(path).endsWith("/planning"));
+const planningCalls = () =>
+  apiMock.mock.calls.filter(([path]) => String(path).endsWith("/planning"));
 const callsTo = (suffix: string, method?: string) =>
   apiMock.mock.calls.filter(
-    ([path, init]) => String(path).endsWith(suffix) && (method ? (init as RequestInit | undefined)?.method === method : true),
+    ([path, init]) =>
+      String(path).endsWith(suffix) &&
+      (method ? (init as RequestInit | undefined)?.method === method : true),
   );
 
 function asCoordinator(view: Partial<PlanningView> = {}) {
@@ -258,10 +427,16 @@ function asCoordinator(view: Partial<PlanningView> = {}) {
   });
   apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
     if (path.endsWith("/planning") && init?.method === "PATCH")
-      return { event: currentView.event, applied: [], flagged: [], updatedAt: currentView.lastUpdatedAt };
+      return {
+        event: currentView.event,
+        applied: [],
+        flagged: [],
+        updatedAt: currentView.lastUpdatedAt,
+      };
     if (path.endsWith("/planning")) return currentView;
     if (path.endsWith("/planning/history")) return history;
-    if (path.includes("/planning/changes/")) return { event: currentView.event, closed: true };
+    if (path.includes("/planning/changes/"))
+      return { event: currentView.event, closed: true };
     if (path.includes("/comments")) return [];
     return currentView.event;
   }) as typeof api);
@@ -273,14 +448,28 @@ describe("EventDetailPage planning information (coordinator)", () => {
     asCoordinator();
     renderPage();
 
-    const form = await screen.findByRole("form", { name: /update event information/i });
+    const form = await screen.findByRole("form", {
+      name: /update event information/i,
+    });
     expect(within(form).getByLabelText(/expected attendance/i)).toHaveValue(80);
-    expect(within(form).getAllByText("Changes need review")).toHaveLength(REVIEW_FIELDS.length);
+    expect(within(form).getAllByText("Changes need review")).toHaveLength(
+      REVIEW_FIELDS.length,
+    );
 
-    const card = await screen.findByRole("article", { name: /expected attendance/i });
-    expect(within(card).getByText("Proposed value").nextElementSibling).toHaveTextContent("150");
-    expect(within(card).getByRole("group", { name: /hall a/i })).toHaveTextContent(/exceeds capacity/i);
-    expect(within(screen.getByRole("list", { name: /change history/i })).getAllByRole("listitem")).toHaveLength(1);
+    const card = await screen.findByRole("article", {
+      name: /expected attendance/i,
+    });
+    expect(
+      within(card).getByText("Proposed value").nextElementSibling,
+    ).toHaveTextContent("150");
+    expect(
+      within(card).getByRole("group", { name: /hall a/i }),
+    ).toHaveTextContent(/exceeds capacity/i);
+    expect(
+      within(
+        screen.getByRole("list", { name: /change history/i }),
+      ).getAllByRole("listitem"),
+    ).toHaveLength(1);
     expect(callsTo("/planning/history")).toHaveLength(1);
   });
 
@@ -289,20 +478,32 @@ describe("EventDetailPage planning information (coordinator)", () => {
     asCoordinator();
     const user = userEvent.setup();
     renderPage();
-    const form = await screen.findByRole("form", { name: /update event information/i });
+    const form = await screen.findByRole("form", {
+      name: /update event information/i,
+    });
     const before = planningCalls().length;
 
     // Attendance has a change awaiting review in this fixture, so it is locked;
     // edit a field that is free to change.
     await user.type(within(form).getByLabelText(/event name/i), " 2");
-    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+    await user.click(
+      within(form).getByRole("button", { name: /save changes/i }),
+    );
 
     await waitFor(() => expect(callsTo("/planning", "PATCH")).toHaveLength(1));
-    expect(callsTo("/planning", "PATCH")[0][0]).toBe(`/events/${EVENT_ID}/planning`);
-    expect(JSON.parse(String((callsTo("/planning", "PATCH")[0][1] as RequestInit).body))).toEqual({
+    expect(callsTo("/planning", "PATCH")[0][0]).toBe(
+      `/events/${EVENT_ID}/planning`,
+    );
+    expect(
+      JSON.parse(
+        String((callsTo("/planning", "PATCH")[0][1] as RequestInit).body),
+      ),
+    ).toEqual({
       name: "Welcome Evening 2",
     });
-    await waitFor(() => expect(planningCalls().length).toBeGreaterThan(before + 1));
+    await waitFor(() =>
+      expect(planningCalls().length).toBeGreaterThan(before + 1),
+    );
   });
 
   // EVENT-FLAG-03-A / 04-A / 07-A: each action posts its decision to the right change, then refreshes.
@@ -311,38 +512,58 @@ describe("EventDetailPage planning information (coordinator)", () => {
     ["Reject Change", "reject", undefined],
     ["Confirm For This Booking", "confirm", "bk-1"],
     ["Reject For This Booking", "reject", "bk-1"],
-  ])("EVENT-FLAG-04-A the %s action posts the decision", async (label, decision, bookingId) => {
-    asCoordinator();
-    const user = userEvent.setup();
-    renderPage();
-    const card = await screen.findByRole("article", { name: /expected attendance/i });
-    const historyBefore = callsTo("/planning/history").length;
+  ])(
+    "EVENT-FLAG-04-A the %s action posts the decision",
+    async (label, decision, bookingId) => {
+      asCoordinator();
+      const user = userEvent.setup();
+      renderPage();
+      const card = await screen.findByRole("article", {
+        name: /expected attendance/i,
+      });
+      const historyBefore = callsTo("/planning/history").length;
 
-    await user.click(within(card).getByRole("button", { name: label }));
+      await user.click(within(card).getByRole("button", { name: label }));
 
-    await waitFor(() => expect(callsTo("/resolve", "POST")).toHaveLength(1));
-    const [path, init] = callsTo("/resolve", "POST")[0];
-    expect(path).toBe(`/events/${EVENT_ID}/planning/changes/chg-1/resolve`);
-    expect(JSON.parse(String((init as RequestInit).body))).toEqual(bookingId ? { decision, bookingId } : { decision });
-    await waitFor(() => expect(callsTo("/planning/history").length).toBeGreaterThan(historyBefore));
-  });
+      await waitFor(() => expect(callsTo("/resolve", "POST")).toHaveLength(1));
+      const [path, init] = callsTo("/resolve", "POST")[0];
+      expect(path).toBe(`/events/${EVENT_ID}/planning/changes/chg-1/resolve`);
+      expect(JSON.parse(String((init as RequestInit).body))).toEqual(
+        bookingId ? { decision, bookingId } : { decision },
+      );
+      await waitFor(() =>
+        expect(callsTo("/planning/history").length).toBeGreaterThan(
+          historyBefore,
+        ),
+      );
+    },
+  );
 
   // EVENT-FLAG-04-A: a refused decision is reported on the change and the actions stay available.
   it("EVENT-FLAG-04-A shows why a decision was refused and keeps the actions available", async () => {
     asCoordinator();
     const baseline = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
-      if (path.includes("/planning/changes/")) throw new ApiError("This change has already been resolved.");
+      if (path.includes("/planning/changes/"))
+        throw new ApiError("This change has already been resolved.");
       return baseline(path, init);
     }) as typeof api);
     const user = userEvent.setup();
     renderPage();
-    const card = await screen.findByRole("article", { name: /expected attendance/i });
+    const card = await screen.findByRole("article", {
+      name: /expected attendance/i,
+    });
 
-    await user.click(within(card).getByRole("button", { name: "Confirm Change" }));
+    await user.click(
+      within(card).getByRole("button", { name: "Confirm Change" }),
+    );
 
-    expect(await within(card).findByRole("alert")).toHaveTextContent("This change has already been resolved.");
-    expect(within(card).getByRole("button", { name: "Confirm Change" })).toBeEnabled();
+    expect(await within(card).findByRole("alert")).toHaveTextContent(
+      "This change has already been resolved.",
+    );
+    expect(
+      within(card).getByRole("button", { name: "Confirm Change" }),
+    ).toBeEnabled();
   });
 
   // EVENT-UPDATE-01-B: a coordinator who is not assigned to the event never loads planning data.
@@ -351,8 +572,12 @@ describe("EventDetailPage planning information (coordinator)", () => {
     renderPage();
     await screen.findByText("Event Details");
     expect(planningCalls()).toHaveLength(0);
-    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: /planning information/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("form", { name: /update event information/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: /planning information/i }),
+    ).not.toBeInTheDocument();
   });
 
   // EVENT-VIEW-01-B: no other role gets planning information, even for an approved event.
@@ -360,50 +585,92 @@ describe("EventDetailPage planning information (coordinator)", () => {
     "EVENT-VIEW-01-B never loads planning information for the %s role",
     async (role) => {
       asCoordinator({ event: eventRecord({ status: "approved" }) });
-      useAppStore.setState({ currentUser: { ...COORDINATOR_USER, id: `${role}-1`, role } });
+      useAppStore.setState({
+        currentUser: { ...COORDINATOR_USER, id: `${role}-1`, role },
+      });
       renderPage();
       // Every role sees the page title; attendees see AttendeeEventView instead of the Event Details card.
       await screen.findByRole("heading", { name: "Welcome Evening" });
       expect(planningCalls()).toHaveLength(0);
-      expect(screen.queryByRole("region", { name: /planning information/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("region", { name: /planning information/i }),
+      ).not.toBeInTheDocument();
     },
   );
 
   // EVENT-VIEW-01-C: a Confirmed event is shown read-only, with no form, to the organiser and the coordinator.
   it.each([
-    ["organiser", { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" as const }],
+    [
+      "organiser",
+      {
+        id: "organiser-1",
+        name: "Demo Organiser",
+        email: "o@example.test",
+        role: "organiser" as const,
+      },
+    ],
     ["coordinator", COORDINATOR_USER],
-  ])("EVENT-VIEW-01-C shows a Confirmed event to the %s without any edit controls", async (_label, user) => {
-    asCoordinator({ event: eventRecord({ status: "confirmed" }), readOnly: true, editableFields: [], pendingChanges: [] });
-    useAppStore.setState({ currentUser: user });
-    renderPage();
-    const region = await planningRegion();
-    expect(region).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
-    // The only button allowed here is the read-only registrations report (offered once the event is confirmed).
-    const editControls = within(region).queryAllByRole("button").filter((b) => b.textContent !== "View Registrations");
-    expect(editControls).toHaveLength(0);
-  });
+  ])(
+    "EVENT-VIEW-01-C shows a Confirmed event to the %s without any edit controls",
+    async (_label, user) => {
+      asCoordinator({
+        event: eventRecord({ status: "confirmed" }),
+        readOnly: true,
+        editableFields: [],
+        pendingChanges: [],
+      });
+      useAppStore.setState({ currentUser: user });
+      renderPage();
+      const region = await planningRegion();
+      expect(region).toBeInTheDocument();
+      expect(
+        screen.queryByRole("form", { name: /update event information/i }),
+      ).not.toBeInTheDocument();
+      // The only button allowed here is the read-only registrations report (offered once the event is confirmed).
+      const editControls = within(region)
+        .queryAllByRole("button")
+        .filter((b) => b.textContent !== "View Registrations");
+      expect(editControls).toHaveLength(0);
+    },
+  );
 
   it("shows People inside the approved planning Event Information, with no View Registrations button and no separate Event Details card", async () => {
-    asCoordinator({ event: eventRecord({ status: "approved" }), readOnly: false, editableFields: [], pendingChanges: [] });
+    asCoordinator({
+      event: eventRecord({ status: "approved" }),
+      readOnly: false,
+      editableFields: [],
+      pendingChanges: [],
+    });
     useAppStore.setState({ currentUser: COORDINATOR_USER });
     renderPage();
     const region = await planningRegion();
     expect(within(region).getByText("People")).toBeInTheDocument();
     expect(within(region).getByText("Coordinator")).toBeInTheDocument();
-    expect(within(region).queryByRole("button", { name: "View Registrations" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Event Details" })).not.toBeInTheDocument();
+    expect(
+      within(region).queryByRole("button", { name: "View Registrations" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Event Details" }),
+    ).not.toBeInTheDocument();
   });
 
   it("offers View Registrations inside People once the event is confirmed", async () => {
-    asCoordinator({ event: eventRecord({ status: "confirmed" }), readOnly: true, editableFields: [], pendingChanges: [] });
+    asCoordinator({
+      event: eventRecord({ status: "confirmed" }),
+      readOnly: true,
+      editableFields: [],
+      pendingChanges: [],
+    });
     useAppStore.setState({ currentUser: COORDINATOR_USER });
     renderPage();
     const region = await planningRegion();
-    expect(within(region).getByRole("button", { name: "View Registrations" })).toBeInTheDocument();
+    expect(
+      within(region).getByRole("button", { name: "View Registrations" }),
+    ).toBeInTheDocument();
     // Confirmed events also show their details only in Planning Information, not in a second Event Details card.
-    expect(screen.queryByRole("heading", { name: "Event Details" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Event Details" }),
+    ).not.toBeInTheDocument();
     expect(screen.getAllByRole("heading", { name: "People" })).toHaveLength(1);
   });
 
@@ -411,12 +678,22 @@ describe("EventDetailPage planning information (coordinator)", () => {
   it("EVENT-VIEW-05-B skips the automatic refresh while the tab is hidden", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     asCoordinator();
-    useAppStore.setState({ currentUser: { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" } });
+    useAppStore.setState({
+      currentUser: {
+        id: "organiser-1",
+        name: "Demo Organiser",
+        email: "o@example.test",
+        role: "organiser",
+      },
+    });
     renderPage();
     await planningRegion();
     const loaded = planningCalls().length;
 
-    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
     try {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS * 2);
@@ -436,7 +713,14 @@ describe("EventDetailPage planning information (coordinator)", () => {
   it("EVENT-VIEW-05-C keeps the last planning data and shows an alert when a refresh fails", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     asCoordinator();
-    useAppStore.setState({ currentUser: { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" } });
+    useAppStore.setState({
+      currentUser: {
+        id: "organiser-1",
+        name: "Demo Organiser",
+        email: "o@example.test",
+        role: "organiser",
+      },
+    });
     renderPage();
     const region = await planningRegion();
     expect(within(region).getByText(/Hall A/)).toBeInTheDocument();
@@ -452,33 +736,57 @@ describe("EventDetailPage planning information (coordinator)", () => {
 
     const refreshed = await planningRegion();
     expect(within(refreshed).getByText(/Hall A/)).toBeInTheDocument();
-    expect(within(refreshed).getByRole("alert")).toHaveTextContent("Could not refresh planning information: Server down");
+    expect(within(refreshed).getByRole("alert")).toHaveTextContent(
+      "Could not refresh planning information: Server down",
+    );
   });
 
   // EVENT-VIEW-05-C: with nothing loaded yet, a failure is shown instead of a blank page.
   it("EVENT-VIEW-05-C shows an alert instead of a blank panel when planning information cannot be loaded", async () => {
     asCoordinator();
-    useAppStore.setState({ currentUser: { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" } });
+    useAppStore.setState({
+      currentUser: {
+        id: "organiser-1",
+        name: "Demo Organiser",
+        email: "o@example.test",
+        role: "organiser",
+      },
+    });
     const baseline = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
       if (path.endsWith("/planning")) throw new ApiError("Server down");
       return baseline(path, init);
     }) as typeof api);
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Could not refresh planning information: Server down");
-    expect(screen.queryByRole("region", { name: /planning information/i })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not refresh planning information: Server down",
+    );
+    expect(
+      screen.queryByRole("region", { name: /planning information/i }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Event Details")).toBeInTheDocument();
   });
 
   // EVENT-VIEW-02-A: a response that is not planning data is ignored rather than crashing the page.
   it("EVENT-VIEW-02-A treats a malformed planning response as an error, not as data", async () => {
     asCoordinator();
-    useAppStore.setState({ currentUser: { id: "organiser-1", name: "Demo Organiser", email: "o@example.test", role: "organiser" } });
+    useAppStore.setState({
+      currentUser: {
+        id: "organiser-1",
+        name: "Demo Organiser",
+        email: "o@example.test",
+        role: "organiser",
+      },
+    });
     const baseline = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) =>
-      path.endsWith("/planning") ? { unexpected: true } : baseline(path, init)) as typeof api);
+      path.endsWith("/planning")
+        ? { unexpected: true }
+        : baseline(path, init)) as typeof api);
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent("Planning information could not be read.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Planning information could not be read.",
+    );
     expect(screen.getByText("Event Details")).toBeInTheDocument();
   });
 
@@ -494,7 +802,9 @@ describe("EventDetailPage planning information (coordinator)", () => {
       return baseline(path, init);
     }) as typeof api);
     renderPage();
-    expect(await screen.findByRole("alert")).toHaveTextContent(/^Could not refresh planning information\.$/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /^Could not refresh planning information\.$/,
+    );
     expect(screen.getByText("Event Details")).toBeInTheDocument();
   });
 
@@ -503,11 +813,16 @@ describe("EventDetailPage planning information (coordinator)", () => {
    * shared event list and leaves every other event in the list unchanged.
    */
   it("EVENT-VIEW-05-E updates only this event in the shared event list", async () => {
-    const other = eventRecord({ id: "00000000-0000-4000-8000-000000000097", name: "Other Event" });
+    const other = eventRecord({
+      id: "00000000-0000-4000-8000-000000000097",
+      name: "Other Event",
+    });
     useAppStore.setState({ events: [other] });
     // The event endpoint still says 80; only the planning view carries 120,
     // so 120 in the store can only come from the planning refresh.
-    currentView = planningView({ event: eventRecord({ expectedAttendance: 120 }) });
+    currentView = planningView({
+      event: eventRecord({ expectedAttendance: 120 }),
+    });
     apiMock.mockImplementation((async (path: string) => {
       if (path.endsWith("/planning")) return currentView;
       if (path.includes("/comments")) return [];
@@ -516,9 +831,14 @@ describe("EventDetailPage planning information (coordinator)", () => {
     renderPage();
     await planningRegion();
     await waitFor(() =>
-      expect(useAppStore.getState().events.find((e) => e.id === EVENT_ID)?.expectedAttendance).toBe(120),
+      expect(
+        useAppStore.getState().events.find((e) => e.id === EVENT_ID)
+          ?.expectedAttendance,
+      ).toBe(120),
     );
-    expect(useAppStore.getState().events.find((e) => e.id === other.id)).toBe(other);
+    expect(useAppStore.getState().events.find((e) => e.id === other.id)).toBe(
+      other,
+    );
   });
 });
 
@@ -539,8 +859,12 @@ describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
     useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
     renderPage();
     // The form and the review panel both render for the dual-role account.
-    expect(await screen.findByRole("form", { name: /update event information/i })).toBeInTheDocument();
-    expect(await screen.findByRole("article", { name: /expected attendance/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("form", { name: /update event information/i }),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByRole("article", { name: /expected attendance/i }),
+    ).toBeInTheDocument();
     // History is coordinator-only, so it is loaded for this account too.
     await waitFor(() => expect(callsTo("/planning/history")).toHaveLength(1));
   });
@@ -549,26 +873,38 @@ describe("EventDetailPage planning: multi-role accounts (SPM-49 AC1)", () => {
   // must be the assigned coordinator, and an organiser who does not own the
   // event does not load planning data either.
   it("EVENT-UPDATE-01-D does not show the form to a dual-role account that is neither assigned nor owner", async () => {
-    asCoordinator({ event: eventRecord({ coordinatorId: "someone-else", organiserId: "someone-else" }) });
+    asCoordinator({
+      event: eventRecord({
+        coordinatorId: "someone-else",
+        organiserId: "someone-else",
+      }),
+    });
     useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
     renderPage();
     await screen.findByText("Event Details");
     expect(planningCalls()).toHaveLength(0);
-    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("form", { name: /update event information/i }),
+    ).not.toBeInTheDocument();
   });
 
   // EVENT-VIEW-01-A: the same dual-role account still gets the read-only view
   // for an event it owns but does not coordinate.
   it("EVENT-VIEW-01-A shows a dual-role owner the read-only view of an event they do not coordinate", async () => {
     asCoordinator({
-      event: eventRecord({ coordinatorId: "someone-else", organiserId: "coordinator-1" }),
+      event: eventRecord({
+        coordinatorId: "someone-else",
+        organiserId: "coordinator-1",
+      }),
       readOnly: true,
       editableFields: [],
     });
     useAppStore.setState({ currentUser: ORGANISER_AND_COORDINATOR });
     renderPage();
     expect(await planningRegion()).toBeInTheDocument();
-    expect(screen.queryByRole("form", { name: /update event information/i })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("form", { name: /update event information/i }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -581,7 +917,17 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     proposedValue: "Theatre",
     status: "Needs Review",
     impacts: [
-      { bookingId: "bk-1", venueName: "Hall A", impacted: true, conflicts: [{ kind: "requirements", detail: "Check that Hall A supports the Theatre layout" }] },
+      {
+        bookingId: "bk-1",
+        venueName: "Hall A",
+        impacted: true,
+        conflicts: [
+          {
+            kind: "requirements",
+            detail: "Check that Hall A supports the Theatre layout",
+          },
+        ],
+      },
     ],
     equipmentImpacts: [],
   };
@@ -592,8 +938,16 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     const route = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
       if (path.endsWith("/planning") && init?.method === "PATCH") {
-        currentView = { ...currentView, pendingChanges: [...currentView.pendingChanges, LAYOUT_CHANGE] };
-        return { event: currentView.event, applied: [], flagged: [LAYOUT_CHANGE], updatedAt: currentView.lastUpdatedAt };
+        currentView = {
+          ...currentView,
+          pendingChanges: [...currentView.pendingChanges, LAYOUT_CHANGE],
+        };
+        return {
+          event: currentView.event,
+          applied: [],
+          flagged: [LAYOUT_CHANGE],
+          updatedAt: currentView.lastUpdatedAt,
+        };
       }
       return route(path, init);
     }) as typeof api);
@@ -607,19 +961,36 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     flagLayoutOnSave();
     const user = userEvent.setup();
     renderPage();
-    const form = await screen.findByRole("form", { name: /update event information/i });
+    const form = await screen.findByRole("form", {
+      name: /update event information/i,
+    });
 
     // Act: propose a layout that needs review.
-    await user.selectOptions(within(form).getByLabelText(/room layout/i), "Theatre");
-    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+    await user.selectOptions(
+      within(form).getByLabelText(/room layout/i),
+      "Theatre",
+    );
+    await user.click(
+      within(form).getByRole("button", { name: /save changes/i }),
+    );
 
     // Assert: the field shows the real current value again and is locked...
-    await waitFor(() => expect(within(form).getByLabelText(/room layout/i)).toHaveValue("Banquet"));
+    await waitFor(() =>
+      expect(within(form).getByLabelText(/room layout/i)).toHaveValue(
+        "Banquet",
+      ),
+    );
     expect(within(form).getByLabelText(/room layout/i)).toBeDisabled();
     // ...the proposal is shown separately, and the outcome is explained.
-    expect(within(form).getByTestId("pending-layout")).toHaveTextContent("proposed: Theatre");
-    expect(within(form).getByRole("status")).toHaveTextContent(/sent for review/i);
-    expect(within(form).getByRole("status")).toHaveTextContent(/current values stay in place/i);
+    expect(within(form).getByTestId("pending-layout")).toHaveTextContent(
+      "proposed: Theatre",
+    );
+    expect(within(form).getByRole("status")).toHaveTextContent(
+      /sent for review/i,
+    );
+    expect(within(form).getByRole("status")).toHaveTextContent(
+      /current values stay in place/i,
+    );
   });
 
   // EVENT-FLAG-01-E: a second save does not resend the proposal that is awaiting review.
@@ -628,16 +999,29 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     flagLayoutOnSave();
     const user = userEvent.setup();
     renderPage();
-    const form = await screen.findByRole("form", { name: /update event information/i });
-    await user.selectOptions(within(form).getByLabelText(/room layout/i), "Theatre");
-    await user.click(within(form).getByRole("button", { name: /save changes/i }));
-    await waitFor(() => expect(within(form).getByLabelText(/room layout/i)).toBeDisabled());
+    const form = await screen.findByRole("form", {
+      name: /update event information/i,
+    });
+    await user.selectOptions(
+      within(form).getByLabelText(/room layout/i),
+      "Theatre",
+    );
+    await user.click(
+      within(form).getByRole("button", { name: /save changes/i }),
+    );
+    await waitFor(() =>
+      expect(within(form).getByLabelText(/room layout/i)).toBeDisabled(),
+    );
 
     // Act: save again without touching anything.
-    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+    await user.click(
+      within(form).getByRole("button", { name: /save changes/i }),
+    );
 
     // Assert: nothing to send, so only the first PATCH ever went out.
-    expect(within(form).getByRole("alert")).toHaveTextContent("No changes to save.");
+    expect(within(form).getByRole("alert")).toHaveTextContent(
+      "No changes to save.",
+    );
     expect(callsTo("/planning", "PATCH")).toHaveLength(1);
   });
 
@@ -648,26 +1032,51 @@ describe("EventDetailPage planning: the form shows authoritative values after a 
     const route = apiMock.getMockImplementation()!;
     apiMock.mockImplementation((async (path: string, init?: RequestInit) => {
       if (path.endsWith("/planning") && init?.method === "PATCH") {
-        const event = eventRecord({ name: "Orientation Night", updatedAt: "2026-10-05T08:00:00.000Z" });
+        const event = eventRecord({
+          name: "Orientation Night",
+          updatedAt: "2026-10-05T08:00:00.000Z",
+        });
         currentView = { ...currentView, event, lastUpdatedAt: event.updatedAt };
-        return { event, applied: ["name"], flagged: [], updatedAt: event.updatedAt };
+        return {
+          event,
+          applied: ["name"],
+          flagged: [],
+          updatedAt: event.updatedAt,
+        };
       }
       return route(path, init);
     }) as typeof api);
     const user = userEvent.setup();
     renderPage();
-    const form = await screen.findByRole("form", { name: /update event information/i });
+    const form = await screen.findByRole("form", {
+      name: /update event information/i,
+    });
 
     await user.clear(within(form).getByLabelText(/event name/i));
-    await user.type(within(form).getByLabelText(/event name/i), "Orientation Night");
-    await user.click(within(form).getByRole("button", { name: /save changes/i }));
+    await user.type(
+      within(form).getByLabelText(/event name/i),
+      "Orientation Night",
+    );
+    await user.click(
+      within(form).getByRole("button", { name: /save changes/i }),
+    );
 
     // The confirmation survives the refresh, and the field holds the saved value.
-    expect(await within(form).findByRole("status")).toHaveTextContent("Changes saved.");
-    await waitFor(() =>
-      expect(within(form).getByText((content) => content.includes(formatDateTime("2026-10-05T08:00:00.000Z")))).toBeInTheDocument(),
+    expect(await within(form).findByRole("status")).toHaveTextContent(
+      "Changes saved.",
     );
-    expect(within(form).getByRole("status")).toHaveTextContent("Changes saved.");
-    expect(within(form).getByLabelText(/event name/i)).toHaveValue("Orientation Night");
+    await waitFor(() =>
+      expect(
+        within(form).getByText((content) =>
+          content.includes(formatDateTime("2026-10-05T08:00:00.000Z")),
+        ),
+      ).toBeInTheDocument(),
+    );
+    expect(within(form).getByRole("status")).toHaveTextContent(
+      "Changes saved.",
+    );
+    expect(within(form).getByLabelText(/event name/i)).toHaveValue(
+      "Orientation Night",
+    );
   });
 });

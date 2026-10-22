@@ -631,7 +631,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ['layout', { layout: 'Theatre' }],
     ['facilities', { facilities: ['Catering', 'Projector'] }],
     ['equipmentNeeds', { equipmentNeeds: 'Two microphones and a lectern.' }],
-    ['accessibility', { accessibility: ['Wheelchair ramps', 'Hearing loop'] }],
+    ['accessibility', { accessibility: ['Wheelchair access', 'Hearing loop'] }],
   ])(
     'REVIEW-CHANGE-08-B resets the safety check when a %s change is approved',
     async (_field, changes) => {
@@ -820,7 +820,7 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
          start_date_time, end_date_time, expected_attendance, preferred_room_layout, required_facilities,
          accessibility_needs, equipment_needs, status, coordinator_id, coordinator_name, submission_key)
        VALUES ($1,$2,'CR Organiser','organiser@example.test',$3,'Purpose','Description',
-               $4,$5,50,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair ramps'],'Two microphones',
+               $4,$5,50,'Banquet',ARRAY['Catering'],ARRAY['Wheelchair access'],'Two microphones',
                $6,$7,'CR Coordinator',$8)`,
       [
         id,

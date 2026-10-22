@@ -11,7 +11,12 @@ Add entries under one date per day, using this format:
 
 - <user or general> - <type> - <Jira ticket or branch name> - <title>: <concise result>
 ```
+
 Where user is the user's github username.
+
+## 2026-10-20
+
+- swr - implementation - SPM-144 - Fix frontend build fixture: Removed an unused `changeRequests` property from the venue-search `EventRecord` fixture; the property is not part of the shared type.
 
 ## 2026-10-18
 
@@ -19,9 +24,15 @@ Where user is the user's github username.
 
 ## 2026-10-19
 
+
 - swr - test data - SPM-54 - Seed manual suitability fixtures: Added four local venues with isolated capacity, facility, accessibility, and layout mismatches, a capacity-24 boundary venue for VEN-BKG-01-BND-1, and an accessibility-specific event clone; documented the idempotent seed script. Updated Confluence VEN-BKG-01-BND-1 to use VEN-329 and the filter step. Not applied to a database yet.
 - swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
 - swr - test evidence update - SPM-54 - Confluence case status reconciliation: Cycle 20 has passing assertions for all 33 matrix IDs (G1–G7 PASS, 339/339 tests across three timezones, 31/31 mapped mutants killed); updated all case pages to Pass with per-file evidence. Manual UI procedures were not separately run, and cycle metrics remain AMBER for coverage-floor and tier gaps. A separate localhost UI attempt rendered blank; EVT-201 was restored to Confirmed and existing booking rows were unchanged.
+
+## 2026-10-20
+
+- swr - implementation correction - SPM-144 - Assert resumed review submission is blocked on options error: EVE-FAC-05-F attempts Submit for Review after the current options fetch fails and asserts no event POST occurs before retry. The prior broad error-state mutant was killed by the facilities suite but was not mapped to this exact assertion. TCR-12 retained it and added separately targeted step-2 error submission and step-1 error Continue mutants, mapped to EVE-FAC-05-F and EVE-FAC-05-E respectively; both were killed by their mapped tests. Facilities suite 29/29; full SPM-144 frontend mutations 10/10 killed.
+- swr - fix - fix/SPM-144-facility-schema - Resolve backend E2E fixture failures: Pinned Confirmed-row dates in JOIN-WAITLIST-14-A to remove PostgreSQL wall-clock dependence; updated SPM-65 accessibility fixtures from the retired "Wheelchair ramps" option to the current venue-schema "Wheelchair access" value. Local PostgreSQL E2Es unavailable because `DATABASE_URL` is unset and Docker socket access is denied.
 
 ## 2026-10-14
 
@@ -65,12 +76,28 @@ Where user is the user's github username.
 - Wei Zhi - implementation - Sprint 1 test review follow-up (SPM-30 to SPM-34 AC2, SPM-40 AC4, SPM-83 AC1) - Venue Staff and Technical Support now land on the Events Dashboard after sign-in (new dashboardPathByRole; SPM-124 denied-route fallbacks unchanged). Added a post-login landing test for all five login roles; replaced store-only pending-list checks with a real-list test (EVENT-APPROVE-02-C, EVENT-REJECT-02-C). Mutation checks: venue-staff landing and the default coordinator filter each fail their test. Not committed; e2e and Playwright not run.
 - chaw678 - feat - feature/SPM-95-filter-events-by-status - Filter My Events by Status (Organiser): organiser multi-select CheckboxGroup with OR matching, Awaiting Safety Check virtual filter (safetyCheckReady gate), Clear all, No matching events found, filters reset on remount (local useState); removed redundant AssignmentIndicator from card/detail; 17 test cases FILTER-EVT-01-A through FILTER-EVT-07-A; Confluence matrix 28803536; SPM-95.json scope; 8 mutants M1–M7 killed M8 equivalent; 100% coverage on 4 scoped source files. PR #74 targeting dev.
 
-- swr - fix - SPM-54 - Correct cancelled venue labels: Cancelled bookings now take precedence over approved request status in planning labels; existing focused label tests were not run.
-
-- swr - test - SPM-54 - Add cancelled venue label regression coverage: Added VEN-BKG-08-A and VEN-BKG-09-A assertions for approved and cancelled labels, scoped StatusLabels coverage, and mutation checks for those paths. Full cycle 20: G1-G7 passed; 339/339 tests across three timezones; 31/31 mutants killed. Overall AMBER because scoped coverage floors and four tier cells remain below target.
-
 - kishorek888 - implementation - SPM-57 - Request equipment for an event: Added coordinator equipment-request creation, event-context prefill, validation, confirmation reference, Pending Review views, Technical Support queue, lifecycle guards, Approved-to-Planning transition, duplicate prevention, and in-place updates. Confluence procedures and matrix traceability were updated. Cycle 29 independently passed G1–G7: 158/158 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement, branch, function, and line coverage; 45/45 mutants killed. No push, PR, or Jira transition.
 
 ## 2026-10-19
 
 - kishorek888 - implementation correction - SPM-57 - Enforce current coordinator ownership after reassignment: Updated request reads and edits to follow the event's current coordinator; added PostgreSQL HTTP reassignment coverage and mutant BE-57-29; removed a form reset race and made its exact replacement-value assertion deterministic. Expanded SPM-57 coverage scope to include frontend route wiring and backend module wiring.
+
+## 2026-10-20
+
+- swr - implementation correction - SPM-144 - Address Test Code Review findings: Block option progression/submission until current venue options load, including resumed review drafts; add failure, malformed-item, resumed-draft, and authenticated options-route tests; repair determinism exceptions and test traceability records. Frontend (30/30), backend unit (62/62), PostgreSQL HTTP E2E (4/4), both component builds, G1-G4 passed; targeted frontend and backend route mutants killed (3/3). No commit, push, PR, or Jira transition.
+- swr - implementation correction - SPM-144 - Close cycle-13 traceability and coverage findings: Corrected uncovered source-line references; replaced the multiline malformed-options `it.each` with a single recordable call site; added the option-item shape mutant and linked EVE-FAC-01-D directly to it; renamed the backend facility mutant to describe its discard behavior. Focused frontend suite passed (29 tests); frontend item-shape and isolated-PostgreSQL backend facility mutants killed; G3 and G5 PASS. Coverage remains below all four configured floors and all uncovered lines are classified, for Orchestrator AMBER disposition. No commit, push, PR, Jira, or Confluence update.
+- swr - implementation correction - SPM-144 - Fix resumed-draft CI mocks: Made DraftWorkflow mocks route-aware for venue options, draft persistence, and submission; resumed review cases now wait for current options before asserting submit behavior. DraftWorkflow suite passed (45/45); frontend coverage passed (1,720 passed, 1 skipped, 1 todo; 96.87% statements, 96.01% branches, 95.26% functions, 97.54% lines). No commit, push, PR, Jira, or Confluence update.
+
+## 2026-10-21
+
+- swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch vulnerable frontend Vite dependency: Updated Vite from 8.3.0 to 8.3.5 to resolve reported launch-editor advisories. `npm audit --audit-level=high` found 0 vulnerabilities; frontend coverage tests (1,723 passed, 1 skipped, 1 todo), build, and lint passed (12 existing warnings). No commit, push, or PR.
+- swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch backend's transitive Vite audit finding: Updated the lockfile resolution from 8.3.0 to 8.3.5 via Vitest 5.0.0 without changing direct dependencies. Backend `npm audit --audit-level=high` found 0 vulnerabilities; `npm run test:cov` passed (1,693 tests), build passed, lint passed with two existing warnings. Frontend audit, coverage tests, build, and lint also passed. No commit, push, or PR.
+
+
+- swr - implementation correction - SPM-54 - Add AC6 buffered blockout negative and boundary coverage: Added outside-window and exact setup-buffer adjacency cases and the corresponding My Bookings intersection/inclusive mutants; marked AC6 Boundary PRESENT and refreshed generated test records. Backend E2E was not executed because DATABASE_URL is unavailable. No behavior change, commit, push, PR, or Jira transition.
+- swr - implementation correction - SPM-54 - Refresh cycle-35 AC6 evidence: Updated current branch-location references and marked both added AC6 E2E records deterministic and PASS from retry evidence (419/419 tests in UTC, Asia/Singapore, and America/Los_Angeles). No manual Confluence cases were marked executed; no behavior change, commit, push, PR, or Jira transition.
+- swr - implementation correction - SPM-54 - Assert event-linked calendar selection is disabled: Captured FullCalendar props in the page test and asserted `selectable` is false and `select` is undefined; clarified that generic selection remains testable in standalone SPM-51 tests outside this SPM-54 coverage scope. No behavior change.
+- swr - implementation correction - SPM-54 - Refresh cycle-36 coverage residuals: Removed stale VenueRecordDetailPage uncovered-line and PlanningInformationPanel branch references, retained current PlanningInformationPage/VenueRecordDetailPage misses, and documented StatusLabels nullish fallback branches 66 and 73. No source or test changes.
+- swr - implementation correction - SPM-54 - Close cycle-tcr-pr79b boundary probes: Added My Bookings turnaround-edge adjacency coverage and split setup/turnaround inclusive mutants; added AC11 planning setup/turnaround adjacency cases and corresponding one-sided mutants; removed duplicated coverage residual table header and VenueScheduleCalendar row. Records updated for new cases. PostgreSQL E2E and mutation execution not run in this implementation pass; no behavior change.
+- swr - implementation correction - SPM-54 - Refresh cycle-37 test records: Marked the My Bookings turnaround adjacency and AC11 setup/turnaround adjacency E2E records PASS from cycle 37 G3 and G6 evidence (all three cases passed; all four one-sided inclusive mutants were killed). No behavior or test changes.
+- swr - implementation correction - SPM-54 - Refresh cycle-38 mutation links: Updated all 14 maintained bookingE2E suite links in the SPM-54 CSV from 14 to 15 mutants, matching the current mutation suite and cycle-38 generated records. No behavior or test changes.
