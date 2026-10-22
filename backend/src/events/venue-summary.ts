@@ -1,7 +1,7 @@
 // The venue an event shows everywhere (list, details, planning). Labels match the planning checklist:
 // an approved booking not blocked for its window is confirmed, a pending request is pending, and a
 // rejected or blocked booking is unavailable. A released booking (SPM-136, cancelled event) holds no venue and is
-// left out (ASSUMED, documented in docs/specs/SPM-136-test-results.md, RR-136-01).
+// left out (PO confirmed 22 Oct 2026, SC-136-013; documented in docs/specs/SPM-136-test-results.md, RR-136-01).
 export const VENUE_SUMMARY_SQL = `(SELECT string_agg(
     CASE
       WHEN b.status = 'approved' AND NOT EXISTS (

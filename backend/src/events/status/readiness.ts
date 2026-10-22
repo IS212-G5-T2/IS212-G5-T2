@@ -59,7 +59,7 @@ export interface ReadinessResult {
   outstanding: OutstandingItem[];
 }
 
-// Equipment lines that no longer hold anything for the event (ASSUMED, D6).
+// Equipment lines that no longer hold anything for the event (PO confirmed 22 Oct 2026, SC-136-012).
 const INACTIVE_EQUIPMENT = new Set(['Cancelled', 'Released']);
 
 const VENUE_LABEL = 'Venue booking approval';
@@ -125,7 +125,7 @@ function safetyItem(
 ): OutstandingItem | undefined {
   if (safety?.state === 'Approved') return undefined;
   if (safety === undefined) {
-    // ASSUMED wording (D7): no record is still awaiting a check.
+    // Wording confirmed by the PO on 22 Oct 2026 (SC-136-011): no record is still awaiting a check.
     return {
       type: 'safety',
       label: SAFETY_LABEL,

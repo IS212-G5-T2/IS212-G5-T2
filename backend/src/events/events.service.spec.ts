@@ -323,6 +323,12 @@ describe('EventsService', () => {
     expect(insertParams[1]).toBe('organiser-1');
     expect(insertParams[2]).toBe('organiser@example.test');
     expect(insertParams[3]).toBe('organiser@example.test');
+
+    // A blank display name (whitespace only) counts as not set, so the email is used.
+    db.transaction.mockClear();
+    db.transaction.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [row] });
+    await service.create(organiserUser({ name: '   ' }), validEventRequest());
+    expect(db.transaction.mock.calls[1][1][2]).toBe('organiser@example.test');
   });
 
   // SPM-36 Test Case EVE-CRE-06-BND-2: with neither a name nor an email, the organiser is saved as "Organiser" with a blank email.
