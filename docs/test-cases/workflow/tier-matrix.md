@@ -29,6 +29,17 @@ One table per story, headed `## <story>`. Every tier cell of every AC is `PRESEN
 | AC10 | PRESENT (VEN-BKG-10-A, VEN-BKG-10-C) | PRESENT (VEN-BKG-10-B)                                              | PRESENT (VEN-BKG-10-A, VEN-BKG-10-C)                           | PRESENT (VEN-BKG-10-A, VEN-BKG-10-B)     | N/A (explicit confirmation boolean contract) | PRESENT (VEN-BKG-10-A, VEN-BKG-10-B, VEN-BKG-10-VAR-1, VEN-BKG-10-VAR-2) | N/A (single event flow)     | PRESENT (VEN-BKG-10-SEC-1)                   | PRESENT (VEN-BKG-10-A, VEN-BKG-10-B)         |
 | AC11 | PRESENT (VEN-BKG-11-A, VEN-BKG-11-B) | N/A (unavailability changes the summary without refusing the event) | PRESENT (VEN-BKG-11-BND-1)                                     | PRESENT (VEN-BKG-11-B, VEN-BKG-11-BND-1) | N/A (role-specific display rule)             | PRESENT (VEN-BKG-11-VAR-1)                                               | PRESENT (VEN-BKG-11-VAR-1)  | N/A (no new access rule)                     | N/A (no concurrent-write behavior specified) |
 
+## SPM-55
+
+| AC  | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+| --- | ----- | --- | -------- | ----------- | ------------- | ----- | --------- | -------- | ----------- |
+| AC1 | PRESENT (VEN-REV-01-A, VEN-REV-09-C) | PRESENT (VEN-REV-01-B, VEN-REV-09-D) | N/A (no numeric limit) | PRESENT (VEN-REV-01-B, VEN-REV-08-A) | N/A (no configuration in criterion) | PRESENT (VEN-REV-01-A) | PRESENT (VEN-REV-01-A) | PRESENT (VEN-REV-01-C) | N/A (read-only list) |
+| AC2 | PRESENT (VEN-REV-02-A) | PRESENT (VEN-REV-02-B, VEN-REV-02-C) | PRESENT (VEN-REV-02-B) | PRESENT (VEN-REV-02-B) | N/A (venue buffers are read, not configured here) | PRESENT (VEN-REV-02-A, VEN-REV-08-B) | PRESENT (VEN-REV-02-C) | PRESENT (VEN-REV-01-C, VEN-REV-02-C) | N/A (AC2 is a sequential business rule — once approved the slot is reserved; two users racing is not part of the AC) |
+| AC3 | PRESENT (VEN-REV-03-A, VEN-REV-08-C) | PRESENT (VEN-REV-03-B) | PRESENT (VEN-REV-03-B) | PRESENT (VEN-REV-03-B) | N/A (fixed 1000-character limit) | PRESENT (VEN-REV-03-A, VEN-REV-08-D) | PRESENT (VEN-REV-03-C) | PRESENT (VEN-REV-01-C) | N/A (decision lock covered under AC2) |
+| AC4 | PRESENT (VEN-REV-04-A) | PRESENT (VEN-REV-04-A) | N/A (no numeric limit) | PRESENT (VEN-REV-04-B) | N/A (no configuration) | PRESENT (VEN-REV-04-B) | N/A (own-booking scope covered by VEN-BKG-08-SEC-1) | N/A (ownership covered by VEN-BKG-08-SEC-1) | N/A (read-only list) |
+| AC5 | PRESENT (VEN-REV-05-A) | PRESENT (VEN-REV-09-A, VEN-REV-09-B) | N/A (no limit; reason length is AC3) | PRESENT (VEN-REV-05-A) | N/A (no configuration) | PRESENT (VEN-REV-05-A) | N/A (one row per decision) | PRESENT (VEN-REV-05-A) | N/A (decision lock covered under AC2) |
+| AC6 | PRESENT (VEN-REV-02-A) | PRESENT (VEN-REV-06-A) | N/A (no numeric limit) | PRESENT (VEN-REV-06-A) | N/A (no configuration) | PRESENT (VEN-REV-06-A, VEN-REV-06-B, VEN-REV-08-E, VEN-REV-08-F, VEN-REV-08-G) | N/A (not-found covered under AC2) | N/A (role check covered under AC1) | N/A (decision lock covered under AC2) |
+
 ## SPM-135
 
 | AC  | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |

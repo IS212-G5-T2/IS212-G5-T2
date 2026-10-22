@@ -2,30 +2,60 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
-import { ConflictAlert } from "./ConflictAlert";
-import { useAppStore } from "@/store/useAppStore";
-import type { Booking } from "@/types";
-import { formatDateRange } from "@/utils/format";
+import type { PendingBookingRequest } from "@/types";
+import { api } from "@/utils/api";
+import { formatSingaporeRange } from "@/utils/format";
 
+/**
+ * Venue Staff decision on one pending request (SPM-55 AC2, AC3). Approve and reject call the
+ * backend directly; the parent updates the booking's status through onDecided after success.
+ */
 export function BookingDetailModal({
   booking,
   onClose,
+  onDecided,
 }: {
-  booking: Booking | null;
+  booking: PendingBookingRequest | null;
   onClose: () => void;
+  onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string }) => void;
 }) {
-  const reviewBooking = useAppStore((s) => s.reviewBooking);
   const [decision, setDecision] = useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
 
   if (!booking) return null;
 
-  const submit = () => {
-    if (!decision) return;
-    reviewBooking(booking.id, decision, decision === "rejected" ? reason : undefined);
-    setDecision("");
-    setReason("");
-    onClose();
+  // The submit button is disabled until a decision (and a rejection reason) is set, so no guard is needed here.
+  const submit = async () => {
+    setSubmitting(true);
+    setError("");
+    try {
+      const path = `/venues/bookings/${encodeURIComponent(booking.id)}`;
+      if (decision === "approved")
+        await api(`${path}/approve`, { method: "POST" });
+      else
+        await api(`${path}/reject`, {
+          method: "POST",
+          body: JSON.stringify({ reason: reason.trim() }),
+        });
+      setDecision("");
+      setReason("");
+      onDecided({
+        id: booking.id,
+        status: decision as "approved" | "rejected",
+        reason: decision === "rejected" ? reason.trim() : undefined,
+      });
+      onClose();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : "Unable to submit this decision.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -35,18 +65,28 @@ export function BookingDetailModal({
       title={`Booking Request — ${booking.eventName}`}
       size="lg"
       footer={
-        <>
+        booking.status === "pending" ? (
+          <>
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button
+              variant={decision === "rejected" ? "danger" : "primary"}
+              disabled={
+                !decision ||
+                submitting ||
+                (decision === "rejected" && !reason.trim())
+              }
+              onClick={() => void submit()}
+            >
+              Submit Decision
+            </Button>
+          </>
+        ) : (
           <Button variant="secondary" onClick={onClose}>
-            Cancel
+            Close
           </Button>
-          <Button
-            variant={decision === "rejected" ? "danger" : "primary"}
-            disabled={!decision || (decision === "rejected" && !reason.trim())}
-            onClick={submit}
-          >
-            Submit Decision
-          </Button>
-        </>
+        )
       }
     >
       <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
@@ -59,20 +99,26 @@ export function BookingDetailModal({
           <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.venueName}</dd>
         </div>
         <div className="sm:col-span-2">
-          <dt className="text-gray-400 dark:text-gray-500">Date / Time</dt>
-          <dd className="font-medium text-gray-900 dark:text-gray-100">{formatDateRange(booking.start, booking.end)}</dd>
+          <dt className="text-gray-400 dark:text-gray-500">Requested booking slot</dt>
+          <dd className="font-medium text-gray-900 dark:text-gray-100">
+            {formatSingaporeRange(booking.start, booking.end)}
+          </dd>
         </div>
         <div>
-          <dt className="text-gray-400 dark:text-gray-500">Requested by</dt>
-          <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.requestedBy}</dd>
+          <dt className="text-gray-400 dark:text-gray-500">Coordinator</dt>
+          <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.coordinatorName}</dd>
         </div>
+        <div>
+          <dt className="text-gray-400 dark:text-gray-500">Booking reference</dt>
+          <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.bookingReference}</dd>
+        </div>
+        {booking.specialRequest && (
+          <div className="sm:col-span-2">
+            <dt className="text-gray-400 dark:text-gray-500">Special request</dt>
+            <dd className="font-medium text-gray-900 dark:text-gray-100">{booking.specialRequest}</dd>
+          </div>
+        )}
       </dl>
-
-      {booking.conflict && (
-        <div className="mt-4">
-          <ConflictAlert conflict={booking.conflict} />
-        </div>
-      )}
 
       {booking.status === "pending" ? (
         <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
@@ -95,12 +141,23 @@ export function BookingDetailModal({
               onChange={(e) => setReason(e.target.value)}
             />
           )}
+          {error && (
+            <p role="alert" className="mt-4 text-sm text-red-700 dark:text-red-300">
+              {error}
+            </p>
+          )}
         </div>
       ) : (
-        <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-          This request was already {booking.status}
-          {booking.rejectionReason ? `: ${booking.rejectionReason}` : "."}
-        </p>
+        <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+            Decision: <span className="capitalize">{booking.status}</span>
+          </p>
+          {booking.status === "rejected" && (
+            <p className="mt-1 text-sm text-red-700 dark:text-red-400">
+              Rejection reason: {booking.rejectionReason ?? "Not provided"}
+            </p>
+          )}
+        </div>
       )}
     </Modal>
   );

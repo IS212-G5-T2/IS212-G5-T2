@@ -264,6 +264,23 @@ export interface Booking {
   createdAt: string;
 }
 
+/** A pending venue booking request shown to Venue Staff for review (SPM-55 AC1). */
+export interface PendingBookingRequest {
+  id: string;
+  eventId: string;
+  eventName: string;
+  eventStart: string;
+  eventEnd: string;
+  coordinatorName: string;
+  venueName: string;
+  bookingReference: string;
+  specialRequest?: string;
+  start: string;
+  end: string;
+  status: BookingStatus;
+  rejectionReason?: string;
+}
+
 export interface EquipmentItem {
   id: string;
   name: string;
