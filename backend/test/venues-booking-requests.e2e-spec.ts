@@ -1761,14 +1761,15 @@ describe.skipIf(!databaseUrl)(
       await pool.query(`
         UPDATE venue_bookings b
            SET special_request = r.special_request
-          FROM venue_booking_requests r
-          JOIN (
-            SELECT DISTINCT ON (event_id, venue_id) id
-              FROM venue_bookings
-             WHERE event_id IS NOT NULL
-             ORDER BY event_id, venue_id, created_at DESC
-          ) latest ON latest.id = b.id
-         WHERE r.event_id = b.event_id
+          FROM venue_booking_requests r,
+               (
+                 SELECT DISTINCT ON (event_id, venue_id) id
+                   FROM venue_bookings
+                  WHERE event_id IS NOT NULL
+                  ORDER BY event_id, venue_id, created_at DESC
+               ) latest
+         WHERE latest.id = b.id
+           AND r.event_id = b.event_id
            AND r.venue_id = b.venue_id
            AND b.special_request IS NULL
            AND r.special_request IS NOT NULL
