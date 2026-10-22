@@ -35,6 +35,7 @@ describe.skipIf(!databaseUrl)(
         '009_venue_availability.sql',
         '010_remove_venue_operating_schedule.sql',
         '019_spm54_venue_booking_lifecycle.sql',
+        '021_spm55_booking_review.sql',
       ])
         await pool.query(
           await readFile(
@@ -1634,6 +1635,91 @@ describe.skipIf(!databaseUrl)(
         },
         false,
       );
+    });
+
+    /** VEN-REV-10-A SPM-55 AC2: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
+    it('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-55 Approve Event');
+
+      const bookingRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)`,
+        [eventId, venueId],
+      );
+      const bookingId = bookingRow.rows[0].id;
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id: bookingId, status: 'approved' });
+
+      const db = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE id = $1',
+        [bookingId],
+      );
+      expect(db.rows[0].status).toBe('approved');
+
+      const log = await pool.query<{ action: string }>(
+        'SELECT action FROM booking_review_log WHERE booking_id = $1',
+        [bookingId],
+      );
+      expect(log.rows[0].action).toBe('approved');
+    });
+
+    /** VEN-REV-10-B SPM-55 AC3: Venue Staff reject a pending request with a reason; the booking moves to rejected, the reason is stored, and an audit row is written. */
+    it('VEN-REV-10-B SPM-55 rejects a pending booking request with a reason and writes an audit log row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-55 Reject Event');
+
+      const bookingRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-13T06:00:00.000Z', '2030-01-13T07:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)`,
+        [eventId, venueId],
+      );
+      const bookingId = bookingRow.rows[0].id;
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/reject`)
+        .set('Cookie', owner.cookie)
+        .send({ reason: 'Clashes with scheduled maintenance' })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        id: bookingId,
+        status: 'rejected',
+        rejectionReason: 'Clashes with scheduled maintenance',
+      });
+
+      const db = await pool.query<{ status: string; rejection_reason: string }>(
+        'SELECT status, rejection_reason FROM venue_bookings WHERE id = $1',
+        [bookingId],
+      );
+      expect(db.rows[0].status).toBe('rejected');
+      expect(db.rows[0].rejection_reason).toBe('Clashes with scheduled maintenance');
+
+      const log = await pool.query<{ action: string; reason: string }>(
+        'SELECT action, reason FROM booking_review_log WHERE booking_id = $1',
+        [bookingId],
+      );
+      expect(log.rows[0].action).toBe('rejected');
+      expect(log.rows[0].reason).toBe('Clashes with scheduled maintenance');
     });
   },
 );

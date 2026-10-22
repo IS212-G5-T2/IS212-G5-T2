@@ -356,7 +356,13 @@ export class VenuesRepository {
            SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason
              FROM venue_bookings b
              LEFT JOIN events e ON e.id = b.event_id
-            WHERE b.venue_id = $1::uuid AND b.status = 'approved' AND b.id <> $6::uuid
+            WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid
+              AND (b.status = 'approved' OR
+                (b.status = 'pending' AND
+                  (b.hold_expires_at > $7::timestamptz OR EXISTS (
+                    SELECT 1 FROM venue_booking_requests r
+                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
+                  ))))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -369,6 +375,7 @@ export class VenuesRepository {
           setupMinutes,
           turnaroundMinutes,
           bookingId,
+          this.clock.now(),
         ],
       );
       if (conflict.rows[0])

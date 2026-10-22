@@ -2012,6 +2012,7 @@ describe('SPM-55 venue booking review repository', () => {
       30,
       45,
       bookingId,
+      expect.any(Date),
     ]);
     // The approval UPDATE targets exactly the one booking id, not a broader set.
     expect(normalizeSql(calls[4][0])).toContain(
@@ -2070,8 +2071,8 @@ describe('SPM-55 venue booking review repository', () => {
     expect(normalized).toContain("start_at < $3::timestamptz + make_interval(mins => $5::int)");
     expect(normalized).toContain("end_at > $2::timestamptz - make_interval(mins => $4::int)");
     // Approved bookings: setup pads the existing booking's start and turnaround its end; both comparisons are strict.
-    // The approved-booking branch is scoped to the venue being decided, with its status and self-exclusion.
-    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.status = 'approved' AND b.id <> $6::uuid");
+    // The approved-booking branch is scoped to the venue being decided, with self-exclusion and active-hold check.
+    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND (b.status = 'approved' OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id ))))");
     expect(normalized).toContain(
       "b.start_at - make_interval(mins => $4::int) < $3::timestamptz + make_interval(mins => $5::int)",
     );
@@ -2080,7 +2081,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(normalized).not.toMatch(/<=|>=/);
     // The booking being approved is excluded from its own conflict check, and setup/turnaround keep their order.
-    expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId]);
+    expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId, expect.any(Date)]);
   });
 
   /** VEN-REV-06-A: a cancelled, approved or rejected request is reported as already decided, with no write. */

@@ -32,7 +32,8 @@ type CoordinatorBooking = Pick<
 export function BookingsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
   const staff = hasRole(currentUser, "venue_staff");
-  const [statusFilter, setStatusFilter] = useState(hasRole(currentUser, "coordinator") ? "" : "pending");
+  const [staffStatusFilter, setStaffStatusFilter] = useState("pending");
+  const [coordinatorStatusFilter, setCoordinatorStatusFilter] = useState("");
   const [selected, setSelected] = useState<PendingBookingRequest | null>(null);
   const [staffBookings, setStaffBookings] = useState<PendingBookingRequest[]>([]);
   const [coordinatorBookings, setCoordinatorBookings] = useState<
@@ -101,12 +102,12 @@ export function BookingsPage() {
   const coordinatorFiltered = useMemo(
     () =>
       coordinatorBookings
-        .filter((booking) => !statusFilter || booking.status === statusFilter)
+        .filter((booking) => !coordinatorStatusFilter || booking.status === coordinatorStatusFilter)
         .sort(
           (a, b) =>
             new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
         ),
-    [coordinatorBookings, statusFilter],
+    [coordinatorBookings, coordinatorStatusFilter],
   );
   const coordinatorGroups = useMemo(() => {
     const groups = new Map<string, CoordinatorBooking[]>();
@@ -122,8 +123,8 @@ export function BookingsPage() {
     }));
   }, [coordinatorFiltered]);
   const staffFiltered = useMemo(
-    () => staffBookings.filter((b) => !statusFilter || b.status === statusFilter),
-    [staffBookings, statusFilter],
+    () => staffBookings.filter((b) => !staffStatusFilter || b.status === staffStatusFilter),
+    [staffBookings, staffStatusFilter],
   );
 
   const emptyState = (
@@ -143,47 +144,54 @@ export function BookingsPage() {
         }
       />
 
-      <div className="mb-4 max-w-xs">
-        <Select
-          label="Status filter"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          options={
-            coordinator
-              ? [
-                  { value: "", label: "All statuses" },
-                  { value: "pending", label: "Pending" },
-                  { value: "approved", label: "Approved" },
-                  { value: "rejected", label: "Rejected" },
-                  { value: "cancelled", label: "Cancelled" },
-                ]
-              : [
-                  { value: "", label: "All statuses" },
-                  { value: "pending", label: "Pending" },
-                  { value: "approved", label: "Approved" },
-                  { value: "rejected", label: "Rejected" },
-                ]
-          }
-        />
-      </div>
-
       {staffError && <p role="alert">{staffError}</p>}
       {coordError && <p role="alert">{coordError}</p>}
       {/* A user with both roles (e.g. Coor_Venue) sees the staff review list and the coordinator bookings. */}
-      {staff &&
-        (staffFiltered.length === 0 ? (
-          emptyState
-        ) : (
-          <div className="grid gap-5">
-            {staffFiltered.map((b) => (
-              <BookingCard key={b.id} booking={b} onReview={setSelected} />
-            ))}
+      {staff && (
+        <>
+          <div className="mb-4 max-w-xs">
+            <Select
+              label="Status filter"
+              value={staffStatusFilter}
+              onChange={(e) => setStaffStatusFilter(e.target.value)}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
+              ]}
+            />
           </div>
-        ))}
-      {coordinator &&
-        (coordinatorFiltered.length === 0 ? (
-          emptyState
-        ) : (
+          {staffFiltered.length === 0 ? (
+            emptyState
+          ) : (
+            <div className="grid gap-5">
+              {staffFiltered.map((b) => (
+                <BookingCard key={b.id} booking={b} onReview={setSelected} />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {coordinator && (
+        <>
+          <div className="mb-4 max-w-xs">
+            <Select
+              label="Status filter"
+              value={coordinatorStatusFilter}
+              onChange={(e) => setCoordinatorStatusFilter(e.target.value)}
+              options={[
+                { value: "", label: "All statuses" },
+                { value: "pending", label: "Pending" },
+                { value: "approved", label: "Approved" },
+                { value: "rejected", label: "Rejected" },
+                { value: "cancelled", label: "Cancelled" },
+              ]}
+            />
+          </div>
+          {coordinatorFiltered.length === 0 ? (
+            emptyState
+          ) : (
         <div className="grid gap-5">
           {coordinatorGroups.map((group) => (
                 <section
@@ -291,7 +299,9 @@ export function BookingsPage() {
                 </section>
               ))}
         </div>
-        ))}
+          )}
+        </>
+      )}
 
       <BookingDetailModal
         key={selected?.id ?? "none"}
