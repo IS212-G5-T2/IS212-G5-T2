@@ -240,8 +240,8 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
-  // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A; SPM-144 Test Case EVE-FAC-06-A (facility selection).
-  it("EVE-CRE-07-A EVE-FAC-06-A submits a valid request with the selected facility and shows the submission confirmation", async () => {
+  // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A.
+  it("EVE-CRE-07-A submits a valid request and shows the submission confirmation", async () => {
     const user = userEvent.setup();
     const saved = eventRecord();
     apiMock.mockImplementation(async (_path, init) => {

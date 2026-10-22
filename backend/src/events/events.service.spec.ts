@@ -539,7 +539,7 @@ describe('EventsService', () => {
 
     // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
     /**
-     * EVE-REV-04-C (current behaviour): a non-owning organiser is refused with 403 and no event data.
+     * SPM-38 AC4 non-owning organiser case (current behaviour): refused with 403 and no event data.
      * Spec conflict: the Confluence page still expects 404; SC-SPM94-02 (decided 17 Oct) changed the rule to 403.
      */
     it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {

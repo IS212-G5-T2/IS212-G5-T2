@@ -15,7 +15,7 @@
   },
   "tests": {
     "backend-unit": [
-      "backend/src/events/dto/event-input.spec.ts",
+      { "glob": "backend/src/events/dto/event-input.spec.ts", "titleMatch": "EVE-CRE" },
       {
         "glob": "backend/src/events/events.service.spec.ts",
         "titleMatch": "EVE-CRE"
