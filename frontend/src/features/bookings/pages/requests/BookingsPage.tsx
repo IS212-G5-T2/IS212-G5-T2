@@ -315,6 +315,13 @@ export function BookingsPage() {
                 : b,
             ),
           );
+          setCoordinatorBookings((prev) =>
+            prev.map((b) =>
+              b.id === outcome.id
+                ? { ...b, status: outcome.status, rejectionReason: outcome.reason }
+                : b,
+            ),
+          );
         }}
       />
       {confirmation && (
