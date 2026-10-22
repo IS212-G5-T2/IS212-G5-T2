@@ -1,12 +1,8 @@
 {
   "story": "SPM-54",
   "title": "Submit a Venue Booking Request",
-  "note": "Implementation scope includes API, event/venue pages, booking management, and unit/e2e suites. PostgreSQL e2e and browser automation require a disposable database and remain environment-gated; Confluence manual procedures remain separately unexecuted.",
-  "tz": [
-    "UTC",
-    "Asia/Singapore",
-    "America/Los_Angeles"
-  ],
+  "note": "Implementation scope includes API, event/venue pages, booking management, and unit/e2e suites. PostgreSQL e2e and browser automation require a disposable database and remain environment-gated; Confluence manual procedures remain separately unexecuted. Reopened AC1 treats capacity and suitability mismatches as advisory; AC11 adds live role-specific capacity summaries to Event Information. backend/src/events/planning/event-planning.repository.spec.ts is executed as supporting coverage for existing SPM-65-owned helper paths measured in the newly scoped repository, including passthrough and conflict/rethrow branches. Its existing EVENT-FLAG test IDs remain outside SPM-54's G1/G3 traceability and records; the coverage-only titleMatch intentionally selects no SPM-65 case IDs.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
   "coverageFloor": {
     "statements": 100,
     "branches": 100,
@@ -46,12 +42,20 @@
       {
         "glob": "backend/src/events/status/arrangements.reader.spec.ts",
         "titleMatch": "VEN-BKG-09-A"
+      },
+      {
+        "glob": "backend/src/events/planning/event-planning.repository.spec.ts",
+        "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS"
       }
     ],
     "backend-e2e": [
       {
         "glob": "backend/test/venues-booking-requests.e2e-spec.ts",
         "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/test/events-planning.e2e-spec.ts",
+        "titleMatch": "VEN-BKG-11-VAR-1"
       }
     ],
     "frontend": [
@@ -69,7 +73,11 @@
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPanel.test.tsx",
-        "titleMatch": "VEN-BKG-09-A"
+        "titleMatch": "VEN-BKG-(09-A|11-)"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.planning.test.tsx",
+        "titleMatch": "VEN-BKG-11-VAR-1"
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
@@ -102,6 +110,7 @@
       "backend/src/venues/availability/dto/booking-request.ts",
       "backend/src/venues/availability/booking-request.ts",
       "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/events/planning/event-planning.repository.ts",
       "backend/src/venues/venues.service.ts",
       "backend/src/venues/venues.controller.ts",
       "backend/src/events/status/readiness.ts",
@@ -135,10 +144,7 @@
       "tests": "backend-e2e",
       "config": "./vitest.config.e2e.ts",
       "coverage": "backend",
-      "env": [
-        "DATABASE_URL",
-        "TEST_DATABASE_URL"
-      ]
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL"]
     },
     {
       "id": "frontend",

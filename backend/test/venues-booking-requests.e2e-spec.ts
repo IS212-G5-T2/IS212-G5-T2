@@ -132,13 +132,7 @@ describe.skipIf(!databaseUrl)(
         coordinator_name, submission_key, status)
        VALUES ($1, 'spm51-test', 'SPM-51 Organiser', 'spm51@example.test', $2,
         'Venue availability integration', $3, $4, 10, $5, 'SPM-51 Coordinator', $1, 'Planning')`,
-        [
-          id,
-          name,
-          new Date(start),
-          new Date(end),
-          coordinatorId,
-        ],
+        [id, name, new Date(start), new Date(end), coordinatorId],
       );
       eventIds.push(id);
       return id;
@@ -179,6 +173,118 @@ describe.skipIf(!databaseUrl)(
          VALUES ($1, $2, $3, 'blocked', $4)`,
         [venueId, new Date(start), new Date(end), reason],
       );
+    }
+
+    async function expectBufferedBlockoutInMyBookings(
+      blockout: { start: string; end: string },
+      affected = true,
+    ) {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const originalVenue = await createVenue(owner.id, {
+        setupTimeMinutes: 30,
+        turnaroundTimeMinutes: 20,
+      });
+      const replacementVenue = await createVenue(owner.id);
+      const eventName = 'SPM-54 buffered affected booking';
+      const eventId = await createAssignedEvent(coordinator.id, eventName);
+      await addBooking(originalVenue, eventId, {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+        status: 'approved',
+      });
+      const original = await pool.query<{ id: string }>(
+        `SELECT id FROM venue_bookings
+         WHERE event_id = $1 AND venue_id = $2 AND status = 'approved'`,
+        [eventId, originalVenue],
+      );
+      const originalId = original.rows[0].id;
+
+      const replacement = await request(app.getHttpServer())
+        .post(`/api/venues/${replacementVenue}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId,
+          start: '2030-01-12T06:00:00.000Z',
+          end: '2030-01-12T07:00:00.000Z',
+          specialRequest: 'Replacement for affected booking',
+        })
+        .expect(201);
+
+      const blockoutResponse = await request(app.getHttpServer())
+        .post(`/api/venues/${originalVenue}/unavailable-periods`)
+        .set('Cookie', owner.cookie)
+        .send({ ...blockout, reason: 'Maintenance' })
+        .expect(201);
+      const originalAffectedBooking = expect.objectContaining({
+        id: originalId,
+        eventId,
+        eventName,
+        status: 'booked',
+        affectedByUnavailablePeriod: true,
+      });
+      if (affected)
+        expect(blockoutResponse.body.affectedBookings).toEqual(
+          expect.arrayContaining([originalAffectedBooking]),
+        );
+      else
+        expect(blockoutResponse.body.affectedBookings).not.toEqual(
+          expect.arrayContaining([expect.objectContaining({ id: originalId })]),
+        );
+
+      const myBookings = await request(app.getHttpServer())
+        .get('/api/venues/bookings/mine')
+        .set('Cookie', coordinator.cookie)
+        .expect(200);
+      expect(myBookings.body).toHaveLength(2);
+      expect(myBookings.body).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: originalId,
+            eventId,
+            eventName,
+            venueId: originalVenue,
+            status: 'approved',
+            affected,
+          }),
+          expect.objectContaining({
+            id: replacement.body.id,
+            eventId,
+            eventName,
+            venueId: replacementVenue,
+            status: 'pending',
+            specialRequest: 'Replacement for affected booking',
+            affected: false,
+          }),
+        ]),
+      );
+
+      const history = await pool.query<{
+        id: string;
+        venue_id: string;
+        status: string;
+      }>(
+        `SELECT id, venue_id, status FROM venue_bookings
+         WHERE event_id = $1 AND status <> 'blocked' ORDER BY venue_id`,
+        [eventId],
+      );
+      expect(history.rows).toEqual(
+        expect.arrayContaining([
+          { id: originalId, venue_id: originalVenue, status: 'approved' },
+          {
+            id: replacement.body.id,
+            venue_id: replacementVenue,
+            status: 'pending',
+          },
+        ]),
+      );
+      const event = await pool.query<{ event_name: string; status: string }>(
+        'SELECT event_name, status FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(event.rows).toEqual([
+        { event_name: eventName, status: 'Planning' },
+      ]);
     }
 
     async function expectConflictWithoutRequest(
@@ -269,6 +375,111 @@ describe.skipIf(!databaseUrl)(
           }),
         ]),
       );
+    });
+
+    /** VEN-BKG-07-B: two distinct low-capacity venues can be requested independently; their aggregate capacity need not meet attendance. */
+    it('VEN-BKG-07-B SPM-54 accepts independent low-capacity venue requests with suitability advisories', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const firstVenue = await createVenue(owner.id);
+      const secondVenue = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'SPM-54 independent capacity request',
+      );
+      await pool.query('UPDATE venues SET capacity = 10 WHERE id = $1', [
+        firstVenue,
+      ]);
+      await pool.query('UPDATE venues SET capacity = 12 WHERE id = $1', [
+        secondVenue,
+      ]);
+      await pool.query(
+        `UPDATE events
+            SET expected_attendance = 24,
+                required_facilities = ARRAY['Stage'],
+                accessibility_needs = ARRAY['wheelchair-access'],
+                preferred_room_layout = 'Banquet'
+          WHERE id = $1`,
+        [eventId],
+      );
+
+      for (const venueId of [firstVenue, secondVenue]) {
+        const response = await request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send({
+            eventId,
+            start: '2030-01-12T06:00:00.000Z',
+            end: '2030-01-12T07:00:00.000Z',
+          })
+          .expect(201);
+        expect(response.body).toMatchObject({
+          eventId,
+          venueId,
+          status: 'pending',
+        });
+      }
+
+      const persisted = await pool.query(
+        `SELECT venue_id, status FROM venue_bookings
+          WHERE event_id = $1 AND venue_id = ANY($2::uuid[])
+          ORDER BY venue_id`,
+        [eventId, [firstVenue, secondVenue]],
+      );
+      expect(persisted.rows).toEqual(
+        [firstVenue, secondVenue]
+          .sort()
+          .map((venue_id) => ({ venue_id, status: 'pending' })),
+      );
+      const event = await pool.query(
+        'SELECT status FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(event.rows).toEqual([{ status: 'Planning' }]);
+    });
+
+    /** VEN-BKG-01-C / VEN-BKG-02-C: suitability mismatches remain advisory, but a real schedule conflict still refuses the request. */
+    it('VEN-BKG-01-C VEN-BKG-02-C SPM-54 rejects a schedule conflict even when suitability is also mismatched', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const existingEvent = await createAssignedEvent(
+        coordinator.id,
+        'Existing confirmed event',
+      );
+      const candidateEvent = await createAssignedEvent(
+        coordinator.id,
+        'Unsuitable conflicting event',
+      );
+      await pool.query(
+        `UPDATE events
+            SET expected_attendance = 250,
+                required_facilities = ARRAY['Stage']
+          WHERE id = $1`,
+        [candidateEvent],
+      );
+      const period = {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+      };
+      await addBooking(venueId, existingEvent, {
+        ...period,
+        status: 'approved',
+      });
+
+      await expectConflictWithoutRequest(
+        venueId,
+        coordinator.cookie,
+        candidateEvent,
+        period.start,
+        period.end,
+        'Existing confirmed event',
+      );
+      const candidate = await pool.query(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, candidateEvent],
+      );
+      expect(candidate.rows).toEqual([]);
     });
 
     /** VEN-BKG-03-SEC-1: server uses persisted event times even if the client sends different times. */
@@ -623,6 +834,46 @@ describe.skipIf(!databaseUrl)(
       ]);
     });
 
+    /** VEN-BKG-05-B: only the coordinator assigned to the event may replace its venue request. */
+    it('VEN-BKG-05-B SPM-54 refuses an unassigned coordinator replacing a venue request', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const assignedCoordinator = await createUser('COORDINATOR');
+      const otherCoordinator = await createUser('COORDINATOR');
+      const originalVenue = await createVenue(owner.id);
+      const replacementVenue = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(
+        assignedCoordinator.id,
+        'Coordinator-owned replacement event',
+      );
+      const period = {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+      };
+      const original = await request(app.getHttpServer())
+        .post(`/api/venues/${originalVenue}/booking-requests`)
+        .set('Cookie', assignedCoordinator.cookie)
+        .send({ eventId, ...period })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`/api/venues/${replacementVenue}/booking-requests`)
+        .set('Cookie', otherCoordinator.cookie)
+        .send({ eventId, ...period })
+        .expect(404);
+
+      const history = await pool.query<{
+        id: string;
+        venue_id: string;
+        status: string;
+      }>(
+        'SELECT id, venue_id, status FROM venue_bookings WHERE event_id = $1 ORDER BY venue_id',
+        [eventId],
+      );
+      expect(history.rows).toEqual([
+        { id: original.body.id, venue_id: originalVenue, status: 'pending' },
+      ]);
+    });
+
     /** VEN-BKG-09-A/SEC-1, VEN-BKG-10-A/B: one booking cancels independently, unowned cancellation is refused, and final cancellation requires explicit confirmation. */
     it('VEN-BKG-09-A VEN-BKG-09-SEC-1 VEN-BKG-10-A VEN-BKG-10-B VEN-BKG-10-SEC-1 SPM-54 cancels independently and requires explicit final-booking confirmation', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -758,6 +1009,84 @@ describe.skipIf(!databaseUrl)(
         'cancelled',
         'pending',
       ]);
+    });
+
+    /** VEN-BKG-09-A: concurrent cancellation attempts on one of two active requests change only the target and retain its sibling. */
+    it('VEN-BKG-09-A SPM-54 serializes cancellation of one booking while preserving another active request', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const eventId = await createAssignedEvent(
+        coordinator.id,
+        'Concurrent single-booking cancellation event',
+      );
+      const venueIdsForEvent = [
+        await createVenue(owner.id),
+        await createVenue(owner.id),
+      ];
+      const period = {
+        start: '2030-01-12T06:00:00.000Z',
+        end: '2030-01-12T07:00:00.000Z',
+      };
+      const requests = await Promise.all(
+        venueIdsForEvent.map((venueId) =>
+          request(app.getHttpServer())
+            .post(`/api/venues/${venueId}/booking-requests`)
+            .set('Cookie', coordinator.cookie)
+            .send({ eventId, ...period })
+            .expect(201),
+        ),
+      );
+      const targetId = requests[0].body.id as string;
+      const lockClient = await pool.connect();
+      await lockClient.query('BEGIN');
+      await lockClient.query(
+        'SELECT id FROM events WHERE id = $1::uuid FOR UPDATE',
+        [eventId],
+      );
+      const cancel = () =>
+        request(app.getHttpServer())
+          .post(`/api/venues/bookings/${targetId}/cancel`)
+          .set('Cookie', coordinator.cookie)
+          .send({ confirmed: false });
+      const cancellations = Promise.all([cancel(), cancel()]);
+      let waiting = 0;
+      try {
+        waiting = await waitForLockWaiters('FOR UPDATE OF b, e', 2);
+      } finally {
+        await lockClient.query('COMMIT');
+        lockClient.release();
+      }
+      const responses = await cancellations;
+      expect(waiting).toBe(2);
+      expect(responses.map(({ status }) => status).sort()).toEqual([201, 409]);
+      const repeatedCancellation = responses.find(
+        ({ status }) => status === 409,
+      )!;
+      expect(repeatedCancellation.body.message).toContain(
+        'Only pending or approved venue bookings can be cancelled.',
+      );
+      const history = await pool.query<{
+        id: string;
+        venue_id: string;
+        status: string;
+      }>(
+        'SELECT id, venue_id, status FROM venue_bookings WHERE event_id = $1 ORDER BY venue_id',
+        [eventId],
+      );
+      expect(history.rows).toEqual(
+        [
+          {
+            id: requests[0].body.id,
+            venue_id: venueIdsForEvent[0],
+            status: 'cancelled',
+          },
+          {
+            id: requests[1].body.id,
+            venue_id: venueIdsForEvent[1],
+            status: 'pending',
+          },
+        ].sort((left, right) => left.venue_id.localeCompare(right.venue_id)),
+      );
     });
 
     /** SPM-51 local seed regression: the sample catalogue and event set stays assigned to the seeded coordinator. */
@@ -1255,6 +1584,55 @@ describe.skipIf(!databaseUrl)(
         '2030-01-12T06:00:00Z',
         '2030-01-12T07:00:00Z',
         'Turnaround maintenance',
+      );
+    });
+
+    /** VEN-BKG-06-A: a setup-buffer-only blockout marks the original booking affected while retaining its event and replacement request. */
+    it('VEN-BKG-06-A SPM-54 marks a setup-buffer-only blockout as affecting the original booking and preserves replacement context', async () => {
+      await expectBufferedBlockoutInMyBookings({
+        start: '2030-01-12T05:45:00.000Z',
+        end: '2030-01-12T05:55:00.000Z',
+      });
+    });
+
+    /** VEN-BKG-06-A: a turnaround-buffer-only blockout marks the original booking affected while retaining its event and replacement request. */
+    it('VEN-BKG-06-A SPM-54 marks a turnaround-buffer-only blockout as affecting the original booking and preserves replacement context', async () => {
+      await expectBufferedBlockoutInMyBookings({
+        start: '2030-01-12T07:05:00.000Z',
+        end: '2030-01-12T07:15:00.000Z',
+      });
+    });
+
+    /** VEN-BKG-06-A: a blockout outside the buffered window does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-INTERSECTION. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout outside its buffered window', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T07:21:00.000Z',
+          end: '2030-01-12T07:30:00.000Z',
+        },
+        false,
+      );
+    });
+
+    /** VEN-BKG-06-A: a blockout ending exactly at the setup-buffer boundary does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-SETUP-INCLUSIVE. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout ending at its setup-buffer boundary', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T05:25:00.000Z',
+          end: '2030-01-12T05:30:00.000Z',
+        },
+        false,
+      );
+    });
+
+    /** VEN-BKG-06-A: a blockout starting exactly at the turnaround-buffer end does not affect the original My Bookings row. Kills: SPM54-BE-MY-BOOKINGS-TURNAROUND-INCLUSIVE. */
+    it('VEN-BKG-06-A SPM-54 leaves the original booking unaffected by a blockout starting at its turnaround-buffer end', async () => {
+      await expectBufferedBlockoutInMyBookings(
+        {
+          start: '2030-01-12T07:20:00.000Z',
+          end: '2030-01-12T07:30:00.000Z',
+        },
+        false,
       );
     });
   },

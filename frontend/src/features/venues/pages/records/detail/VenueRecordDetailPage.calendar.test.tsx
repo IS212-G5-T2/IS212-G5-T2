@@ -22,10 +22,12 @@ import type { VenueRecord } from "../venue-records";
 const mockCalendarApi = vi.hoisted(() => ({
   changeView: vi.fn(),
   gotoDate: vi.fn(),
+  latestProps: null as Record<string, unknown> | null,
 }));
 
 vi.mock("@fullcalendar/react", () => ({
   default: forwardRef<unknown, Record<string, unknown>>((props, ref) => {
+    mockCalendarApi.latestProps = props;
     useImperativeHandle(ref, () => ({
       getApi: () => ({
         changeView: mockCalendarApi.changeView,
@@ -376,6 +378,8 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Conference Room" });
+    expect(mockCalendarApi.latestProps?.selectable).toBe(false);
+    expect(mockCalendarApi.latestProps?.select).toBeUndefined();
     expect(
       screen.getByLabelText("Event starts"),
     ).toHaveValue("2030-01-12T14:00");
