@@ -1886,7 +1886,7 @@ describe('SPM-55 venue booking review repository', () => {
   }
 
   /** VEN-REV-01-A: the staff list covers pending, approved, and rejected bookings for owned venues, soonest first, and maps all fields including status and rejection reason. */
-  it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start', async () => {
+  it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start', async () => {
     const { repository, query } = createReviewRepository({
       rows: [
         {

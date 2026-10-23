@@ -8,6 +8,11 @@ export const SUITES = {
   reviewController: {
     args: ['run', 'src/venues/venues.controller.spec.ts'],
   },
+  // Real PostgreSQL over HTTP (VEN-REV-10 to VEN-REV-12).
+  reviewE2e: {
+    args: ['run', '--config', './vitest.config.e2e.ts', 'test/venues-booking-requests.e2e-spec.ts', '-t', 'VEN-REV-1'],
+    needsEnv: ['DATABASE_URL'],
+  },
 };
 
 const REPOSITORY = 'src/venues/repository/venues.repository.ts';
@@ -74,7 +79,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -351,7 +356,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -397,7 +402,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -412,7 +417,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -427,7 +432,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -504,7 +509,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start`,
     ],
     edits: [
       [
@@ -531,6 +536,28 @@ export const MUTANTS = [
         "      await client.query(\n        `INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason)\n         VALUES ($1::uuid, $2::uuid, 'rejected', $3)`,\n        [bookingId, staffId, reason],\n      );",
         "      try {\n        await client.query(\n          `INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason)\n           VALUES ($1::uuid, $2::uuid, 'rejected', $3)`,\n          [bookingId, staffId, reason],\n        );\n      } catch {\n        // Mutant: the audit failure is ignored.\n      }",
       ],
+    ],
+  },
+  // VEN-REV-M44 and M45 come from the PR #78 review (SPM55-REVIEW-002 and -003).
+  {
+    id: 'VEN-REV-M44',
+    name: 'review list shows and orders requests by the event\'s current schedule instead of the stored booking slot',
+    file: REPOSITORY,
+    suites: ['reviewE2e'],
+    kills: [`backend/test/venues-booking-requests.e2e-spec.ts :: VEN-REV-12-A SPM-55 lists each request by its stored booking slot after the event schedule changes`],
+    edits: [
+      ['b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason', 'b.special_request, e.start_date_time AS start_at, e.end_date_time AS end_at, b.status, b.rejection_reason'],
+      ['        ORDER BY b.start_at ASC, b.id`', '        ORDER BY e.start_date_time ASC, b.id`'],
+    ],
+  },
+  {
+    id: 'VEN-REV-M45',
+    name: 'review list reads the special request shared by event and venue, so a resubmission overwrites an earlier attempt\'s note',
+    file: REPOSITORY,
+    suites: ['reviewE2e'],
+    kills: [`backend/test/venues-booking-requests.e2e-spec.ts :: VEN-REV-12-B SPM-55 keeps the special request of each booking attempt after a reject and resubmit`],
+    edits: [
+      ['b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason', '(SELECT r.special_request FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id) AS special_request, b.start_at, b.end_at, b.status, b.rejection_reason'],
     ],
   },
 ];
