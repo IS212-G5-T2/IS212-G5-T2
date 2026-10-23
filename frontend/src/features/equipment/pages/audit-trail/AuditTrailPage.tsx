@@ -79,7 +79,14 @@ export function AuditTrailPage() {
     },
     {
       header: "Qty",
-      render: (entry) => entry.quantity,
+      render: (entry) => (
+        <div aria-label={`Quantity breakdown: Active ${entry.activeQuantity}, Under Maintenance ${entry.underMaintenanceQuantity}, Retired ${entry.retiredQuantity}`} className="space-y-1">
+          <p>Active: {entry.activeQuantity}</p>
+          <p>Under Maintenance: {entry.underMaintenanceQuantity}</p>
+          <p>Retired: {entry.retiredQuantity}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total: {entry.quantity}</p>
+        </div>
+      ),
     },
     {
       header: "Availability",

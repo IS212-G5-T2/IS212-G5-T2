@@ -23,6 +23,9 @@ function makeEntry(
     equipmentType: "Lighting",
     location: "Tampines",
     maintenanceStatus: "Active",
+    activeQuantity: 10,
+    underMaintenanceQuantity: 30,
+    retiredQuantity: 10,
     quantity: 50,
     isAvailable: false,
     changeType: "Marked unavailable",
@@ -38,7 +41,7 @@ beforeEach(() => {
 });
 
 describe("AuditTrailPage: SPM-119 availability history", () => {
-  /** Confluence EQUIP-UPDATE-06-A; SPM-118 AC6: equipment detail edits appear in the same audit history with every persisted field and technician recorded. Kills: FE-118-05 (relabels an update as a reactivation). */
+  /** EQUIP-UPDATE-06-A / EQUIP-AVAIL-08-B: equipment edits appear in shared history with all three quantity buckets and the derived total. */
   it("EQUIP-UPDATE-06-A displays equipment detail updates in the shared history", async () => {
     getEquipmentAuditTrail.mockResolvedValue([
       makeEntry({
@@ -47,6 +50,9 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
         equipmentType: "Visual",
         location: "Main Hall",
         maintenanceStatus: "Under Maintenance",
+        activeQuantity: 0,
+        underMaintenanceQuantity: 7,
+        retiredQuantity: 0,
         quantity: 7,
         isAvailable: true,
         changeType: "Equipment record updated",
@@ -60,8 +66,12 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(await screen.findByText("Updated projector")).toBeInTheDocument();
     expect(screen.getByText("Visual")).toBeInTheDocument();
     expect(screen.getByText("Main Hall")).toBeInTheDocument();
-    expect(screen.getByText("Under Maintenance")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("Total: 7")).toBeInTheDocument();
+    expect(screen.getByText("Active: 0")).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance: 7")).toBeInTheDocument();
+    expect(screen.getByText("Retired: 0")).toBeInTheDocument();
+    expect(screen.getByText("Total: 7")).toBeInTheDocument();
     expect(screen.getByText("Available")).toBeInTheDocument();
     expect(screen.getByText("Equipment record updated")).toBeInTheDocument();
     expect(
@@ -69,6 +79,29 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("support@example.test")).toBeInTheDocument();
     expect(screen.getByText("History of all equipment changes.")).toBeInTheDocument();
+  });
+
+  // EQUIP-AVAIL-08-B: an edited equipment record retains all quantity buckets in its audit snapshot.
+  it("EQUIP-AVAIL-08-B displays each quantity bucket and the derived total in the audit snapshot", async () => {
+    getEquipmentAuditTrail.mockResolvedValue([
+      makeEntry({
+        id: "audit-ac8-edit",
+        equipmentName: "Lighting",
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+        quantity: 50,
+        changeType: "Equipment record updated",
+      }),
+    ]);
+
+    render(<AuditTrailPage />);
+
+    expect((await screen.findAllByText("Lighting")).length).toBeGreaterThan(0);
+    expect(screen.getByText("Active: 10")).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance: 30")).toBeInTheDocument();
+    expect(screen.getByText("Retired: 10")).toBeInTheDocument();
+    expect(screen.getByText("Total: 50")).toBeInTheDocument();
   });
 
   // EQUIP-UNAVAIL-05-A: the page renders every persisted mark-unavailable snapshot field.
@@ -84,7 +117,7 @@ describe("AuditTrailPage: SPM-119 availability history", () => {
     expect(screen.getByText("Lighting")).toBeInTheDocument();
     expect(screen.getByText("Tampines")).toBeInTheDocument();
     expect(screen.getByText("Active")).toBeInTheDocument();
-    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByText("Total: 50")).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getByText("Marked unavailable")).toBeInTheDocument();
     expect(screen.getByText("Under repair")).toBeInTheDocument();

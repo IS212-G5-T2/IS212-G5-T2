@@ -227,16 +227,29 @@ organiser/submission key to protect retries. Email delivery is deferred.
 
 Technical Support users can create and list equipment through `POST /api/equipment`
 and `GET /api/equipment`; `GET /api/equipment/locations` returns distinct saved
-locations for the create form. Equipment requests require a non-blank name and
-location, predefined type and maintenance status, and a whole-number quantity
-from 1 through `2,147,483,647` (the PostgreSQL `integer` maximum).
+locations for the create form. Create and update accept `activeQuantity`,
+`underMaintenanceQuantity`, and `retiredQuantity` as non-negative whole numbers.
+Their sum must be from 1 through `2,147,483,647` (the PostgreSQL `integer`
+maximum) and is returned as `quantity`. Responses include the three source
+counts. Legacy payloads containing `quantity` and `maintenanceStatus` remain
+accepted only when none of the status-count fields are supplied, and are
+normalized into the matching single status bucket. Requests mixing the legacy
+fields with any status-count field are rejected as ambiguous.
 
-Technical Support can update the same fields through `PUT /api/equipment/:id`.
-The update and its audit snapshot commit in one transaction; unchanged
-submissions return `No changes were made.` and do not add an audit entry.
+Technical Support can update name, type, location, and all three status counts
+through `PUT /api/equipment/:id`. The inventory row and its audit snapshot,
+including the status counts, commit in one transaction; unchanged submissions
+return `No changes were made.` and do not add an audit entry. A single
+`maintenanceStatus` is returned only when all units occupy one status; mixed
+records return it as `null`. The SPM-119 `isAvailable` value remains the manual
+availability flag, so consumers that show whether any stock is usable should
+combine it with `activeQuantity > 0`.
 Existing databases must apply `migrations/011_equipment_record_updates.sql`;
 fresh local databases include the final audit constraint and Equipment update
-permission in the initializer.
+permission in the initializer. Existing databases must also apply
+`migrations/015_spm113_equipment_status_quantities.sql` to add and backfill the
+three status quantities on equipment and audit snapshots. The migration keeps
+old quantities and history in the former status bucket and can be safely rerun.
 
 Run the SPM-118 equipment update fault-injection checks from this directory
 with `node scripts/mutation/run.mjs --mutants spm118.mutants.mjs`.
@@ -245,6 +258,24 @@ Availability is separate from maintenance status. Marking equipment
 unavailable and writing its audit entry happen in one transaction; a failed
 audit insert rolls the availability change back. `GET /api/equipment` excludes
 unavailable records unless `includeUnavailable=true` is requested.
+
+### Event-window equipment availability (SPM-113)
+
+`GET /api/equipment/availability?startDateTime=<ISO>&endDateTime=<ISO>` is a
+Technical Support-only availability checker; it is intentionally separate from
+the inventory route above. The period must be at least one minute and end after
+its start. It accepts an optional exact `equipmentType` catalogue value. Results
+include Active, Under Maintenance, Retired, Reserved and Available quantities,
+plus a reason and the latest overlapping reservation end when applicable.
+Only `Reserved` equipment-request lines consume Active stock. Reservations use
+half-open interval overlap (`eventStart < requestedEnd` and
+`eventEnd > requestedStart`), so an exact boundary touch leaves stock available.
+Apply `migrations/016_spm113_availability_lookup.sql` to existing databases
+after migration 015 for the supporting lookup index.
+Apply `migrations/017_spm113_unique_equipment_names.sql` next: an equipment
+name identifies one inventory record because reservations are requested by
+name. The migration deliberately stops if legacy duplicate names need a human
+data decision.
 
 ## Equipment requests (SPM-57)
 
@@ -258,6 +289,11 @@ number representable by PostgreSQL `integer`. A successful
 request returns its reference and `Pending Review` state. Coordinators read only
 their own requests at `GET /api/equipment/requests`; Technical Support reads the
 Pending Review queue at `GET /api/equipment/requests/review-queue`.
+
+Technical Support approves the stock commitment with
+`PATCH /api/equipment/requests/:requestId/reserve`. This atomically changes a
+Pending Review request and all of its linked placeholder reservations to
+`Reserved`, making it visible to the SPM-113 availability checker.
 
 Cancelled and Rejected events cannot be requested. For an Approved event, the
 first equipment request and `Approved` → `Planning` transition/history are

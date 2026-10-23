@@ -119,7 +119,7 @@ describe("SPM-54 venue availability workflow routing", () => {
 describe("App equipment availability route", () => {
   // EQUIP-VIEW-01-A. Kills: a RequireRole allowedRoles list missing "tech_support",
   // or a wrong path/element wiring for /equipment/availability in App.tsx.
-  it("EQUIP-VIEW-01-A renders the equipment inventory for Technical Support", () => {
+  it("EQUIP-AVAIL-01 renders the equipment availability checker for Technical Support", () => {
     // Arrange a signed-in Technical Support user at the protected route.
     useAppStore.setState({
       authLoading: false,
@@ -139,13 +139,29 @@ describe("App equipment availability route", () => {
       </MemoryRouter>,
     );
 
-    // Assert the real route tree renders the inventory page, not a redirect.
+    // Assert the real route tree renders the event-window checker, not a redirect.
     expect(
       screen.getByRole("heading", { name: "Equipment Availability" }),
     ).toBeTruthy();
   });
 
-  // EQUIP-VIEW-01-B. Kills: App.tsx's RequireRole allowedRoles list for
+  /** EQUIP-AVAIL-01: inventory management remains separately reachable by Technical Support. */
+  it("renders Equipment Inventory at its dedicated route for Technical Support", () => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "tech-support-1", name: "Technical Support", email: "support@example.test", role: "tech_support",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+
+    render(<MemoryRouter initialEntries={["/equipment/inventory"]}><App /></MemoryRouter>);
+
+    expect(screen.getByRole("heading", { name: "Equipment Inventory" })).toBeTruthy();
+  });
+
+  // EQUIP-AVAIL-07. Kills: App.tsx's RequireRole allowedRoles list for
   // /equipment/availability gaining any role beyond "tech_support" (e.g. a copy-paste
   // that adds "coordinator", as found by review mutation testing on this branch).
   // Every non-Technical-Support role is checked, not just one, so a mutation that

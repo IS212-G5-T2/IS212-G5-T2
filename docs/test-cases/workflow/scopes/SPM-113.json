@@ -1,0 +1,61 @@
+{
+  "story": "SPM-113",
+  "title": "View Equipment Availability — AC8 status-quantity implementation scope",
+  "note": "Jira SPM-113 AC8 was added 2026-10-23. This implementation assignment covers AC8 only; Confluence matrix 31654028 also contains AC1-AC7 cases outside this correction scope. A full-story G1/G2 gate must report those gaps rather than treating this partial scope as complete. AC8 case page 32604168 has six PRIMARY IDs. The create-page Playwright spec is supplemental and remains excluded from this Vitest/PostgreSQL cycle because its dedicated browser harness requires TEST_DATABASE_URL and a running app; the AC8-A Confluence mapping is validated by its scoped unit, API, and authenticated HTTP persistence tests.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "backend-unit": [
+      { "glob": "backend/src/equipment/creation/dto/equipment-input.spec.ts", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "backend/src/equipment/equipment.service.spec.ts", "titleMatch": "EQUIP-AVAIL-08-" }
+    ],
+    "backend-e2e": [
+      { "glob": "backend/test/equipment.e2e-spec.ts", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "backend/test/equipment-update.e2e-spec.ts", "titleMatch": "EQUIP-AVAIL-08-" }
+    ],
+    "frontend": [
+      { "glob": "frontend/src/features/equipment/pages/create/EquipmentCreatePage.test.tsx", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "frontend/src/features/equipment/pages/edit/EquipmentEditPage.test.tsx", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "frontend/src/features/equipment/pages/availability/EquipmentAvailabilityPage.test.tsx", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "frontend/src/features/equipment/pages/audit-trail/AuditTrailPage.test.tsx", "titleMatch": "EQUIP-AVAIL-08-" },
+      { "glob": "frontend/src/features/equipment/api/equipment-api.test.ts", "titleMatch": "EQUIP-AVAIL-08-" }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/equipment/creation/dto/equipment-input.ts",
+      "backend/src/equipment/equipment.service.ts",
+      "backend/src/equipment/equipment.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/equipment/api/equipment-api.ts",
+      "frontend/src/features/equipment/pages/create/EquipmentCreatePage.tsx",
+      "frontend/src/features/equipment/pages/edit/EquipmentEditPage.tsx",
+      "frontend/src/features/equipment/pages/availability/EquipmentAvailabilityPage.tsx",
+      "frontend/src/features/equipment/pages/audit-trail/AuditTrailPage.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL"] },
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "backend-app",
+      "cwd": "backend",
+      "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm113.mutants.mjs"],
+      "mutantsFile": "backend/scripts/mutation/spm113.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm113.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm113.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
