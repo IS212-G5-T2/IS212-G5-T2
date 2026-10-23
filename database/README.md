@@ -181,6 +181,8 @@ SPM-65 change request review (`019_spm65_change_request_review.sql`) adds `reche
 
 SPM-55 venue booking review (`021_spm55_booking_review.sql`) adds `venue_bookings.rejection_reason` (1–1000 characters, allowed only on `rejected` rows; `reason` stays reserved for blocked periods) and the append-only `booking_review_log` table, which records each approve or reject with its actor, action, timestamp, and rejection reason. Fresh volumes receive both from the init file; an existing volume needs this file applied once before the staff review endpoints are used.
 
+SPM-48 (`023_spm48_safety_rejected.sql`) adds `rejected` to the allowed `event_safety_checks.status` values so the coordinator queue can show a rejected safety arrangement (SPM-130 AC2 writes it). For an existing volume, apply `backend/migrations/023_spm48_safety_rejected.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
+
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and

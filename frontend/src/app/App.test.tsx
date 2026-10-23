@@ -54,14 +54,16 @@ describe("App venue creation route", () => {
     );
 
     expect(screen.queryByRole("heading", { name: "Create Venue" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Pending Requests" })).toBeTruthy();
+    // SPM-48 AC1: the coordinator's events page now opens on All statuses (decided 23 Oct 2026), headed "All Events".
+    expect(screen.getByRole("heading", { name: "All Events" })).toBeTruthy();
   });
 
   // SPM-50 / AC1 regression: venue creation routing preserves the app's role-aware root destinations.
   it.each([
     ["venue_staff", "Venue Catalogue"],
     ["tech_support", "Equipment Review Queue"],
-    ["coordinator", "Pending Requests"],
+    // SPM-48 AC1: the coordinator lands on every assigned event (All statuses), headed "All Events".
+    ["coordinator", "All Events"],
   ] as const)("redirects %s from the root to %s", (role, destination) => {
     // Arrange a role-specific signed-in user at the root route.
     useAppStore.setState({

@@ -163,6 +163,26 @@ DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- te
 node scripts/mutation/run.mjs --mutants spm136.mutants.mjs   # scratch copy only; needs DATABASE_URL
 ```
 
+## Coordinator queue (SPM-48)
+
+`GET /api/coordinator/queue[?status=planning,submitted]` returns the signed-in coordinator's queue: every event assigned to them (the same records as `GET /api/events` for a coordinator, `coordinator_id` = session uid), each with a `queue` object. Unassigned requests stay in the Lead's queue (SPM-123), drafts live in `event_drafts` and never appear, and an event reassigned away leaves the queue (SPM-47 AC6). Coordinator role only: no session 401, any other role 403 "Coordinator access required.". `status` is optional: one status or a comma-separated list of the seven terms, any case; an unknown value (including `Under Review` and `draft`) is 400 "Unknown status filter: <value>.". Served with `Cache-Control: no-store` (AC4).
+
+`queue` is `{ safety, holds[], unavailableVenues[], actions[], needsAction }`, derived by the pure rules in `src/events/queue/queue-indicators.ts` with the injected clock:
+
+| Field | Rule |
+|---|---|
+| `safety` | `AWAITING_CHECK`, `CHANGES_REQUESTED`, `CLEARED` as SPM-94 (`deriveSafetyIndicator`); `REJECTED` for a rejected arrangement (AC7); `RESET` when the check was reset (for example by an approved change, SPM-65 AC8) and not requested again (AC6). None on Completed, Cancelled or Rejected events. |
+| `holds` | Each pending booking with `hold_expires_at`: `{ venueName, expiresAt, state }`, `ACTIVE` until the expiry instant and `EXPIRED` from it on (AC8). |
+| `unavailableVenues` | Venues of active bookings (approved, or pending with no hold or a live hold) that a Venue Staff unavailable period overlaps, counting the venue's setup time before and turnaround time after the booking (SPM-122 AC7, SPM-54 AC2). The rule is `src/events/venue-unavailable.ts`, shared with the venue summary and Confirm readiness, so all three agree (AC9). The flag clears when the affected booking is cancelled or the period is ended early; booking a replacement alone does not clear it. |
+| `actions` | Why the event needs the coordinator (AC5): `AWAITING_REVIEW` (Submitted), `SAFETY_CHANGES_REQUESTED`, `SAFETY_REJECTED`, `SAFETY_RESET`, `VENUE_UNAVAILABLE`, `HOLD_EXPIRED`. `needsAction` is true when there is at least one. |
+
+Schema: `backend/migrations/023_spm48_safety_rejected.sql` (mirrored as `database/postgresql/init/023_spm48_safety_rejected.sql`) adds `rejected` to `event_safety_checks.status`; it is idempotent. SPM-130 will write rejections; the coordinator re-requests a rejected check through `POST /api/events/:id/safety-check/request`.
+
+```sh
+npx vitest run src/events/queue
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/coordinator-queue.e2e-spec.ts
+```
+
 ## Checks
 
 Run local checks from this directory:
