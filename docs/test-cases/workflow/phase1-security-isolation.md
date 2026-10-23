@@ -183,3 +183,18 @@ Each Test decision links an existing test that checks the property for that cell
 | AC7 | Isolation | N/A (proposed) | The lock on a submitted draft is per request. A cross-owner attempt is refused by the ownership check covered by the AC4 Isolation cell. |
 
 Unlabelled SPM-37 rows (8, 10 and 11) and the SPM-37 AC rows with no test still need the owner's labels before they are decided.
+
+## SPM-37 unlabelled rows 8, 10 and 11 (mapped by Claude 23 Oct 2026; pending owner confirmation, Kirubakaran Kishore)
+
+The owner did not supply labels, so the rows were mapped from the Confluence matrix rows (10551297) and the existing tests. Each row is labelled "Extra (no Jira AC)": the SPM-37 Jira list has no AC for authentication, attachment limits or validation boundaries. The owner may instead move row 10 to SPM-36 AC8 and AC9, and row 11 to SPM-36 AC4 and AC5.
+
+| Row | Covers | Label | Tier | Decision | Test or reason |
+|---|---|---|---|---|---|
+| 8 | Authentication and roles (EVE-DRF-08) | Extra (no Jira AC) | Security | Already PRESENT | EVE-DRF-08-A |
+| 8 | Authentication and roles | Extra (no Jira AC) | Isolation | Test | EVE-DRF-08-B: an attendee is refused on every organiser-only route |
+| 10 | Attachment limits (EVE-DRF-10) | Extra (no Jira AC) | Security | Test | EVE-DRF-10-C: an oversized body is refused with 413 and nothing is written |
+| 10 | Attachment limits | Extra (no Jira AC) | Isolation | N/A (proposed) | Limits apply to each request and carry no owner dimension |
+| 11 | Validation boundaries (EVE-DRF-11) | Extra (no Jira AC) | Security | Test | EVE-DRF-11-B: unknown layout and facility or accessibility choices are refused (allow-list) |
+| 11 | Validation boundaries | Extra (no Jira AC) | Isolation | N/A (proposed) | Validation depends only on the submitted value, not on the owner |
+
+The EVE-DRF-11-B test is recorded at Sad; it is listed at Security here because an allow-list refusal is an input control. Owner to confirm.
