@@ -14,14 +14,7 @@ interface RequestRow {
   id: string; event_id: string; event_name: string; start_date_time: Date;
   end_date_time: Date; expected_attendance: number; event_status: string; status: string;
   requested_by: string; coordinator_name: string | null; created_at: Date;
-  decision_reason: string | null;
   item_id: string; equipment_name: string; equipment_type: string; quantity: number;
-  available_quantity: number;
-}
-interface ReservationRow {
-  id: string; event_id: string; event_name: string; start_date_time: Date;
-  end_date_time: Date; equipment_name: string; equipment_type: string | null;
-  quantity: number; status: string; coordinator_email: string | null;
 }
 
 @Injectable()
@@ -99,8 +92,8 @@ export class EquipmentRequestsRepository {
 
   async update(coordinatorId: string, requestId: string, input: EquipmentRequestInput) {
     return this.database.transaction(async (client) => {
-      const existing = await client.query<{ id: string; event_id: string; event_status: string; request_status: string }>(
-        `SELECT r.id, r.event_id, r.status AS request_status, e.status AS event_status
+      const existing = await client.query<{ id: string; event_id: string; event_status: string }>(
+        `SELECT r.id, r.event_id, e.status AS event_status
            FROM equipment_requests r JOIN events e ON e.id = r.event_id
           WHERE r.id = $1::uuid AND e.coordinator_id = $2::text
           FOR UPDATE OF r, e`,
@@ -125,9 +118,7 @@ export class EquipmentRequestsRepository {
           [row.event_id, item.equipmentName, item.quantity, savedItem.rows[0].id],
         );
       }
-      // SPM-58: a changed request must be re-checked, so it returns to the Technical
-      // Support review queue (any prior Reserved/Cannot Provide decision no longer applies).
-      await client.query("UPDATE equipment_requests SET status = 'Pending Review', updated_at = $2::timestamptz WHERE id = $1::uuid", [requestId, this.clock.now()]);
+      await client.query('UPDATE equipment_requests SET updated_at = $2::timestamptz WHERE id = $1::uuid', [requestId, this.clock.now()]);
       return { kind: 'updated' as const, id: row.id };
     });
   }
@@ -168,166 +159,12 @@ export class EquipmentRequestsRepository {
     return this.readRequests("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')", []);
   }
 
-  /** SPM-58 AC7: Technical Support can see the event that owns each reservation,
-   *  including the email of the coordinator the event is assigned to. */
-  async listReservations() {
-    const result = await this.database.query<ReservationRow>(
-      `SELECT r.id, r.event_id, e.event_name, e.start_date_time, e.end_date_time,
-              r.equipment_name, i.equipment_type, r.quantity, r.status, u.email AS coordinator_email
-         FROM equipment_reservations r
-         JOIN events e ON e.id = r.event_id
-         LEFT JOIN equipment_request_items i ON i.id = r.equipment_request_item_id
-         LEFT JOIN users u ON u.id::text = e.coordinator_id
-        WHERE r.status = 'Reserved'
-        ORDER BY e.start_date_time ASC, e.event_name ASC, r.equipment_name ASC, r.id ASC`,
-    );
-    return result.rows.map((row) => ({
-      id: row.id,
-      eventId: row.event_id,
-      eventName: row.event_name,
-      eventStart: row.start_date_time.toISOString(),
-      eventEnd: row.end_date_time.toISOString(),
-      equipmentName: row.equipment_name,
-      equipmentType: row.equipment_type ?? '—',
-      quantity: row.quantity,
-      status: row.status,
-      coordinatorEmail: row.coordinator_email ?? '—',
-    }));
-  }
-
-  /** Atomically makes the request and every linked placeholder reservation live. */
-  async reserve(requestId: string) {
-    return this.database.transaction(async (client) => {
-      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string; start_date_time: Date; end_date_time: Date }>(
-        `SELECT r.id, r.status, r.event_id, e.status AS event_status, e.start_date_time, e.end_date_time
-           FROM equipment_requests r JOIN events e ON e.id = r.event_id
-          WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
-        [requestId],
-      );
-      const request = found.rows[0];
-      if (!request) return { kind: 'request-not-found' as const };
-      if (request.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
-      if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
-
-      // Lock the matching inventory rows before checking demand.  This means
-      // two approvals for the same named equipment cannot both see the same
-      // Active units and over-reserve them.
-      const requested = await client.query<{ equipment_name: string; requested_quantity: number }>(
-        `SELECT equipment_name, SUM(quantity)::integer AS requested_quantity
-           FROM equipment_request_items
-          WHERE request_id = $1::uuid
-          GROUP BY equipment_name`,
-        [requestId],
-      );
-      const names = requested.rows.map((item) => item.equipment_name);
-      const inventory = await client.query<{ equipment_name: string; active_quantity: number; is_available: boolean }>(
-        `SELECT equipment_name, active_quantity, is_available
-           FROM equipment
-          WHERE equipment_name = ANY($1::text[])
-          FOR UPDATE`,
-        [names],
-      );
-      const reserved = await client.query<{ equipment_name: string; reserved_quantity: number }>(
-        `SELECT r.equipment_name, SUM(r.quantity)::integer AS reserved_quantity
-           FROM equipment_reservations r JOIN events e ON e.id = r.event_id
-          WHERE r.status = 'Reserved'
-            AND r.event_id <> $1::uuid
-            AND e.start_date_time < $3::timestamptz
-            AND e.end_date_time > $2::timestamptz
-            AND r.equipment_name = ANY($4::text[])
-          GROUP BY r.equipment_name`,
-        [request.event_id, request.start_date_time, request.end_date_time, names],
-      );
-      const inventoryByName = new Map(inventory.rows.map((item) => [item.equipment_name, item]));
-      const reservedByName = new Map(reserved.rows.map((item) => [item.equipment_name, item.reserved_quantity]));
-      const unavailable = requested.rows.find((item) => {
-        const record = inventoryByName.get(item.equipment_name);
-        const remaining = record && record.is_available
-          ? record.active_quantity - (reservedByName.get(item.equipment_name) ?? 0)
-          : 0;
-        return remaining < item.requested_quantity;
-      });
-      if (unavailable) return { kind: 'insufficient-active-stock' as const, equipmentName: unavailable.equipment_name };
-
-      const now = this.clock.now();
-      // Requests created before placeholder creation (including imported/seeded
-      // requests) still get one reservation per item. The linked-item guard makes
-      // retries and pre-existing placeholders idempotent.
-      await client.query(
-        `INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status, equipment_request_item_id)
-         SELECT $2::uuid, item.equipment_name, item.quantity, 'Reserved', item.id
-           FROM equipment_request_items item
-          WHERE item.request_id = $1::uuid
-            AND NOT EXISTS (SELECT 1 FROM equipment_reservations linked WHERE linked.equipment_request_item_id = item.id)`,
-        [requestId, request.event_id],
-      );
-      // Refresh existing and newly inserted rows from the request item as the authoritative source.
-      await client.query(
-        `UPDATE equipment_reservations reservation
-            SET event_id = $2::uuid, equipment_name = item.equipment_name, quantity = item.quantity,
-                status = 'Reserved', updated_at = $3::timestamptz
-           FROM equipment_request_items item
-          WHERE item.request_id = $1::uuid AND reservation.equipment_request_item_id = item.id`,
-        [requestId, request.event_id, now],
-      );
-      await client.query(
-        "UPDATE equipment_requests SET status = 'Reserved', updated_at = $2::timestamptz WHERE id = $1::uuid",
-        [requestId, now],
-      );
-      return { kind: 'reserved' as const, id: request.id };
-    });
-  }
-
-  /** SPM-58 AC8/AC9: records why a Pending Review request cannot be fulfilled and
-   *  retires its placeholder reservations. The reason is shown to the coordinator. */
-  async markCannotProvide(requestId: string, reason: string) {
-    return this.database.transaction(async (client) => {
-      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string }>(
-        `SELECT r.id, r.status, r.event_id, e.status AS event_status
-           FROM equipment_requests r JOIN events e ON e.id = r.event_id
-          WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
-        [requestId],
-      );
-      const request = found.rows[0];
-      if (!request) return { kind: 'request-not-found' as const };
-      if (request.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
-      if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
-
-      const now = this.clock.now();
-      await client.query(
-        `UPDATE equipment_requests
-            SET status = 'Cannot Provide', decision_reason = $2, updated_at = $3::timestamptz
-          WHERE id = $1::uuid`,
-        [requestId, reason, now],
-      );
-      // The request will not be fulfilled, so its placeholder reservations are retired.
-      await client.query(
-        `UPDATE equipment_reservations reservation
-            SET status = 'Unavailable', updated_at = $2::timestamptz
-           FROM equipment_request_items item
-          WHERE item.request_id = $1::uuid
-            AND reservation.equipment_request_item_id = item.id
-            AND reservation.status = 'Requested'`,
-        [requestId, now],
-      );
-      return { kind: 'cannot-provided' as const, id: request.id };
-    });
-  }
-
   private async readRequests(where: string, params: unknown[]) {
     const result = await this.database.query<RequestRow>(
       `SELECT r.id, r.event_id, e.event_name, e.start_date_time, e.end_date_time,
               e.expected_attendance, e.status AS event_status, r.status, r.requested_by, e.coordinator_name,
-              r.created_at, r.decision_reason, i.id AS item_id, i.equipment_type, i.quantity,
-              i.equipment_name,
-              GREATEST(COALESCE((SELECT CASE WHEN eq.is_available THEN eq.active_quantity ELSE 0 END
-                  FROM equipment eq WHERE eq.equipment_name = i.equipment_name LIMIT 1), 0)
-                - COALESCE((SELECT SUM(res.quantity) FROM equipment_reservations res
-                  JOIN events other_event ON other_event.id = res.event_id
-                 WHERE res.equipment_name = i.equipment_name AND res.status = 'Reserved'
-                   AND res.event_id IS DISTINCT FROM e.id
-                   AND other_event.start_date_time < e.end_date_time
-                   AND other_event.end_date_time > e.start_date_time), 0), 0)::integer AS available_quantity
+              r.created_at, i.id AS item_id, i.equipment_type, i.quantity,
+              i.equipment_name
          FROM equipment_requests r JOIN events e ON e.id = r.event_id
          JOIN equipment_request_items i ON i.request_id = r.id
          ${where} ORDER BY r.created_at DESC, r.id, i.item_order, i.created_at, i.id`, params,
@@ -336,8 +173,7 @@ export class EquipmentRequestsRepository {
       id: string; reference: string; eventId: string; eventName: string;
       eventStart: string; eventEnd: string; expectedAttendance: number;
       status: string; eventStatus: RequestRow['event_status']; requestedBy: string; coordinatorName: string | null;
-      createdAt: string; decisionReason: string | null;
-      items: { id: string; equipmentName: string; equipmentType: string; quantity: number; availableQuantity: number; sufficient: boolean }[];
+      createdAt: string; items: { id: string; equipmentName: string; equipmentType: string; quantity: number }[];
     }>();
     for (const row of result.rows) {
       let record = records.get(row.id);
@@ -349,12 +185,11 @@ export class EquipmentRequestsRepository {
           expectedAttendance: row.expected_attendance, eventStatus: row.event_status,
           status: row.status,
           requestedBy: row.requested_by, coordinatorName: row.coordinator_name,
-          createdAt: row.created_at.toISOString(), decisionReason: row.decision_reason, items: [],
+          createdAt: row.created_at.toISOString(), items: [],
         };
         records.set(row.id, record);
       }
-      record.items.push({ id: row.item_id, equipmentName: row.equipment_name, equipmentType: row.equipment_type, quantity: row.quantity,
-        availableQuantity: row.available_quantity, sufficient: row.available_quantity >= row.quantity });
+      record.items.push({ id: row.item_id, equipmentName: row.equipment_name, equipmentType: row.equipment_type, quantity: row.quantity });
     }
     return [...records.values()];
   }

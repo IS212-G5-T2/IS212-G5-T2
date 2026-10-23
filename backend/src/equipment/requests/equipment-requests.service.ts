@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { EquipmentRequestsRepository } from './equipment-requests.repository.js';
 import { validateEquipmentRequest } from './dto/equipment-request-input.js';
@@ -40,47 +40,6 @@ export class EquipmentRequestsService {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
     if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
     return this.repository.listQueue();
-  }
-
-  /** SPM-58 AC7: the technical-support reservation view is not browser-local state. */
-  async listReservations(user: AuthenticatedUser | undefined) {
-    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
-    if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
-    return this.repository.listReservations();
-  }
-
-  /** SPM-113: only Technical Support can approve/reserve a pending request. */
-  async reserve(user: AuthenticatedUser | undefined, requestId: string) {
-    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
-    if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
-    const result = await this.repository.reserve(requestId);
-    if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
-    if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be changed after the event is confirmed.');
-    if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be reserved.');
-    if (result.kind === 'insufficient-active-stock') {
-      throw new ConflictException(`Not enough active equipment is available to reserve ${result.equipmentName}.`);
-    }
-    return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
-  }
-
-  /** SPM-58 AC8/AC9: only Technical Support can mark a request Cannot Provide, and a reason is required. */
-  async markCannotProvide(user: AuthenticatedUser | undefined, requestId: string, body: unknown) {
-    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
-    if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
-    const reason = this.cannotProvideReason(body);
-    const result = await this.repository.markCannotProvide(requestId, reason);
-    if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
-    if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be changed after the event is confirmed.');
-    if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be marked Cannot Provide.');
-    return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
-  }
-
-  private cannotProvideReason(body: unknown): string {
-    const value = (body as { reason?: unknown } | null)?.reason;
-    const reason = typeof value === 'string' ? value.trim() : '';
-    if (!reason) throw new BadRequestException('A reason is required to mark a request Cannot Provide.');
-    if (reason.length > 500) throw new BadRequestException('The reason must be 500 characters or fewer.');
-    return reason;
   }
 
   private coordinator(user: AuthenticatedUser | undefined): AuthenticatedUser {
