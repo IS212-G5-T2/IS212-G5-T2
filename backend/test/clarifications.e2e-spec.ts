@@ -454,6 +454,161 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
+  // SPM-39 isolation and security drafts (owner-confirmed 23 Oct 2026). Parent ACs are noted per test.
+  /** SPM-39 AC1, AC3 and AC4 Isolation: a clarification on event A does not appear in event B's thread. */
+  it('REQ-CLAR-SUP-57 keeps a clarification on one event out of another event thread (AC1, AC3, AC4 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Please confirm the room layout for event A.' })
+      .expect(201);
+
+    for (const actor of [organiserB, coordinatorB]) {
+      const thread = await request(app.getHttpServer())
+        .get(`/api/events/${eventB}/comments`)
+        .set('Cookie', actor.cookie)
+        .expect(200);
+      expect(thread.body).toEqual([]);
+    }
+  });
+
+  /** SPM-39 AC1 Isolation: a clarification id from event A cannot be replied to through event B. */
+  it('REQ-CLAR-SUP-58 refuses a reply to an event A clarification sent through event B (AC1 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Please confirm the room layout for event A.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventB}/clarifications/${created.body.id}/reply`)
+      .set('Cookie', organiserB.cookie)
+      .send({ message: 'Replying through the wrong event.' })
+      .expect(404);
+  });
+
+  /** SPM-39 AC4 Security: an unrelated organiser cannot read the comment history of an event. */
+  it('REQ-CLAR-SUP-59 refuses the comment history to an unrelated organiser (AC4 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const outsider = await createDatabaseUser('ORGANISER', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', outsider.cookie)
+      .expect(403);
+  });
+
+  /** SPM-39 AC5 Security: the awaiting-reply state of a thread is not returned to an unrelated user. */
+  it('REQ-CLAR-SUP-60 does not return the awaiting-reply state to an unrelated user (AC5 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const outsider = await createDatabaseUser('COORDINATOR', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .get(`/api/events/${eventId}/comments`)
+      .set('Cookie', outsider.cookie);
+    expect(response.status).toBe(403);
+    expect(JSON.stringify(response.body)).not.toContain('awaitingReply');
+  });
+
+  /** SPM-39 AC5 Isolation: an awaiting clarification on event A does not make event B show an awaiting reply. */
+  it('REQ-CLAR-SUP-61 does not show an awaiting reply on event B for a clarification on event A (AC5 Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorA.cookie)
+      .send({ message: 'Awaiting a reply on event A.' })
+      .expect(201);
+
+    const threadA = await request(app.getHttpServer())
+      .get(`/api/events/${eventA}/comments`)
+      .set('Cookie', organiserA.cookie)
+      .expect(200);
+    expect(threadA.body[0]).toMatchObject({ awaitingReply: true });
+
+    const threadB = await request(app.getHttpServer())
+      .get(`/api/events/${eventB}/comments`)
+      .set('Cookie', organiserB.cookie)
+      .expect(200);
+    expect(threadB.body.some((entry: { awaitingReply?: boolean }) => entry.awaitingReply)).toBe(false);
+  });
+
+  /** SPM-39 Extra (REQ-CLAR-03) Isolation: a coordinator assigned to event B cannot clarify on event A. */
+  it('REQ-CLAR-SUP-62 refuses a clarification on event A by the coordinator assigned to event B (Extra, Isolation)', async () => {
+    const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiserA = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const coordinatorB = await createDatabaseUser('COORDINATOR', 'Ana Ong');
+    const organiserB = await createDatabaseUser('ORGANISER', 'Ben Tan');
+    const eventA = await seedEvent({ organiserId: organiserA.uid, coordinatorId: coordinatorA.uid });
+    const eventB = await seedEvent({ organiserId: organiserB.uid, coordinatorId: coordinatorB.uid });
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventA}/clarifications`)
+      .set('Cookie', coordinatorB.cookie)
+      .send({ message: 'Trying to act on event A from event B.' })
+      .expect(403);
+
+    const counts = await pool.query<{ event_id: string; count: string }>(
+      'SELECT event_id, count(*) FROM event_comments WHERE event_id = ANY($1::uuid[]) GROUP BY event_id',
+      [[eventA, eventB]],
+    );
+    expect(counts.rows).toEqual([]);
+  });
+
+  /** SPM-39 AC4 Security, defect D-1: once an event has no assigned coordinator, another coordinator cannot reply or resolve. */
+  it('REQ-CLAR-SUP-63 refuses a reply and a resolve by a coordinator role on an event with no assigned coordinator (AC4 Security)', async () => {
+    const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
+    const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
+    const otherCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
+    const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: coordinator.uid });
+    const created = await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications`)
+      .set('Cookie', coordinator.cookie)
+      .send({ message: 'Please confirm the layout.' })
+      .expect(201);
+    await pool.query('UPDATE events SET coordinator_id = NULL WHERE id = $1', [eventId]);
+
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${created.body.id}/reply`)
+      .set('Cookie', otherCoordinator.cookie)
+      .send({ message: 'Replying with no assigned coordinator.' })
+      .expect(403);
+    await request(app.getHttpServer())
+      .post(`/api/events/${eventId}/clarifications/${created.body.id}/resolve`)
+      .set('Cookie', otherCoordinator.cookie)
+      .expect(403);
+  });
+
   it('REQ-CLAR-SUP-40 returns 401 when authentication is missing', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: null });

@@ -261,11 +261,10 @@ export class ClarificationsService {
   ): 'organiser' | 'coordinator' {
     const isOrganiser = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
 
-    // Check coordinator: must match the assigned coordinator_id, or have the COORDINATOR role when no coordinator
-    // is assigned yet
+    // Check coordinator: must match the assigned coordinator_id. An unassigned event has no coordinator who may act,
+    // so the COORDINATOR role alone is not enough (defect D-1, 23 Oct 2026).
     const isCoordinator =
-      user.roles.includes('COORDINATOR') &&
-      (event.coordinator_id === user.uid || !event.coordinator_id);
+      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
 
     // If both checks pass, prioritize coordinator (since they initiiate clarifications)
     if (isCoordinator) return 'coordinator';

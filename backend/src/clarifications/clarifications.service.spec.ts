@@ -308,6 +308,22 @@ describe('ClarificationsService.reply', () => {
     expect(repository.insertComment).not.toHaveBeenCalled();
   });
 
+  it('REQ-CLAR-SUP-64 refuses a reply by a coordinator role on an event with no assigned coordinator (defect D-1)', async () => {
+    const { service, repository } = buildService();
+    vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow({ coordinator_id: null }));
+    vi.mocked(repository.findClarificationForUpdate).mockResolvedValue({
+      id: CLARIFICATION_ID,
+      resolved: false,
+    });
+
+    await expect(
+      service.reply(EVENT_ID, CLARIFICATION_ID, coordinator({ uid: 'coordinator-2' }), {
+        message: 'Replying with no assigned coordinator.',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(repository.insertComment).not.toHaveBeenCalled();
+  });
+
   it('REQ-CLAR-SUP-13 rejects a reply targeting a clarification that does not exist on this event', async () => {
     const { service, repository } = buildService();
     vi.mocked(repository.findEventForUpdate).mockResolvedValue(eventRow());
