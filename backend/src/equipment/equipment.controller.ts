@@ -44,6 +44,21 @@ export class EquipmentController {
     return this.equipment.getAuditTrail(request[CURRENT_USER_REQUEST_KEY]);
   }
 
+  /** SPM-113: event-window availability, distinct from the inventory list. */
+  @Get('availability')
+  availability(
+    @Query('startDateTime') startDateTime: string | undefined,
+    @Query('endDateTime') endDateTime: string | undefined,
+    @Query('equipmentType') equipmentType: string | undefined,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.equipment.getAvailability(request[CURRENT_USER_REQUEST_KEY], {
+      startDateTime,
+      endDateTime,
+      equipmentType,
+    });
+  }
+
   @Get()
   list(@Query('includeUnavailable') includeUnavailable: string | undefined, @Req() request: AuthenticatedRequest) {
     return this.equipment.list(request[CURRENT_USER_REQUEST_KEY], {

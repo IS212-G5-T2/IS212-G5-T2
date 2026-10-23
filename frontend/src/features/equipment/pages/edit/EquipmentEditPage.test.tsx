@@ -23,8 +23,10 @@ const record: EquipmentRecord = {
   name: 'Conference projector',
   type: 'Visual',
   location: 'Storage Room A',
-  quantity: 5,
-  maintenanceStatus: 'Active',
+  activeQuantity: 10,
+  underMaintenanceQuantity: 30,
+  retiredQuantity: 10,
+  quantity: 50,
   isAvailable: true,
   createdAt: '2026-10-01T00:00:00.000Z',
   updatedAt: '2026-10-01T00:00:00.000Z',
@@ -47,6 +49,65 @@ describe('EquipmentEditPage (SPM-118)', () => {
     navigate.mockReset();
   });
 
+  /** EQUIP-AVAIL-08-B: edits submit the revised per-status quantities while preserving the same equipment record. */
+  it('EQUIP-AVAIL-08-B reallocates quantity between Active and Under Maintenance', async () => {
+    const user = userEvent.setup();
+    updateEquipment.mockResolvedValue({
+      equipment: { ...record, activeQuantity: 12, underMaintenanceQuantity: 28 },
+      message: 'Equipment record updated.',
+    });
+    renderEditPage();
+    await screen.findByLabelText(/active quantity/i);
+    await user.clear(screen.getByLabelText(/active quantity/i));
+    await user.type(screen.getByLabelText(/active quantity/i), '12');
+    await user.clear(screen.getByLabelText(/under maintenance quantity/i));
+    await user.type(screen.getByLabelText(/under maintenance quantity/i), '28');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+
+    expect(updateEquipment).toHaveBeenCalledWith(record.id, {
+      name: record.name, type: record.type, location: record.location,
+      activeQuantity: 12, underMaintenanceQuantity: 28, retiredQuantity: 10,
+    });
+    expect(await screen.findByRole('dialog', { name: 'Equipment Record Updated' })).toBeInTheDocument();
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: per-status quantities must be non-negative whole numbers and sum within the storage range. */
+  it('EQUIP-AVAIL-08-BND-1 blocks negative, fractional, zero-total, and overflow allocations', async () => {
+    const user = userEvent.setup();
+    renderEditPage();
+    await screen.findByLabelText(/active quantity/i);
+
+    const activeInput = screen.getByLabelText(/active quantity/i);
+    const maintenanceInput = screen.getByLabelText(/under maintenance quantity/i);
+    const retiredInput = screen.getByLabelText(/retired quantity/i);
+    await user.clear(activeInput);
+    await user.type(activeInput, '-1');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText(/active quantity must be a non-negative whole number/i)).toBeInTheDocument();
+
+    await user.clear(activeInput);
+    await user.type(activeInput, '1.5');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText(/active quantity must be a non-negative whole number/i)).toBeInTheDocument();
+
+    await user.clear(activeInput);
+    await user.type(activeInput, '0');
+    await user.clear(maintenanceInput);
+    await user.type(maintenanceInput, '0');
+    await user.clear(retiredInput);
+    await user.type(retiredInput, '0');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText(/at least one equipment item is required/i)).toBeInTheDocument();
+
+    await user.clear(activeInput);
+    await user.type(activeInput, '2147483647');
+    await user.clear(maintenanceInput);
+    await user.type(maintenanceInput, '1');
+    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    expect(await screen.findByText(/total quantity must not exceed 2147483647/i)).toBeInTheDocument();
+    expect(updateEquipment).not.toHaveBeenCalled();
+  });
+
   /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: selecting Edit loads all and only the fields present at equipment creation. Kills: FE-118-06 (exposes retired Description). */
   it('EQUIP-UPDATE-02-A loads the selected record and exposes its five editable fields', async () => {
     renderEditPage();
@@ -56,9 +117,10 @@ describe('EquipmentEditPage (SPM-118)', () => {
     expect(screen.getByLabelText(/equipment name/i)).toHaveValue('Conference projector');
     expect(screen.getByLabelText(/equipment type/i)).toHaveValue('Visual');
     expect(screen.getByLabelText(/location/i)).toHaveValue('Storage Room A');
-    expect(screen.getByLabelText(/quantity available/i)).toHaveValue('5');
-    expect(screen.getByLabelText(/maintenance status/i)).toHaveValue('Active');
-    expect(screen.queryByLabelText(/availability/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/active quantity/i)).toHaveValue('10');
+    expect(screen.getByLabelText(/under maintenance quantity/i)).toHaveValue('30');
+    expect(screen.getByLabelText(/retired quantity/i)).toHaveValue('10');
+        expect(screen.queryByLabelText(/^quantity available$/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/description/i)).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/specifications/i)).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: /description|specifications/i })).not.toBeInTheDocument();
@@ -72,16 +134,15 @@ describe('EquipmentEditPage (SPM-118)', () => {
     await user.clear(screen.getByLabelText(/equipment name/i));
     await user.selectOptions(screen.getByLabelText(/equipment type/i), '');
     await user.clear(screen.getByLabelText(/location/i));
-    await user.clear(screen.getByLabelText(/quantity available/i));
-    await user.selectOptions(screen.getByLabelText(/maintenance status/i), '');
-    await user.click(screen.getByRole('button', { name: /save changes/i }));
+    await user.clear(screen.getByLabelText(/active quantity/i));
+        await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     expect(screen.getByLabelText(/equipment name/i)).toHaveAttribute('aria-describedby', 'equipment-name-error');
     expect(screen.getByText('Equipment name is required.')).toHaveAttribute('id', 'equipment-name-error');
     expect(screen.getByText('Equipment type is required.')).toBeInTheDocument();
     expect(screen.getByText('Location is required.')).toBeInTheDocument();
-    expect(screen.getByText('Quantity is required.')).toBeInTheDocument();
-    expect(screen.getByText('Maintenance status is required.')).toBeInTheDocument();
+    expect(screen.getByText('Active quantity is required.')).toBeInTheDocument();
+
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
@@ -89,13 +150,18 @@ describe('EquipmentEditPage (SPM-118)', () => {
   it('EQUIP-UPDATE-03-C rejects a quantity below the allowed minimum', async () => {
     const user = userEvent.setup();
     renderEditPage();
-    await screen.findByLabelText(/quantity available/i);
-    const input = screen.getByLabelText(/quantity available/i);
+    await screen.findByLabelText(/active quantity/i);
+    const input = screen.getByLabelText(/active quantity/i);
     await user.clear(input);
     await user.type(input, '0');
+    for (const label of [/under maintenance quantity/i, /retired quantity/i]) {
+      const bucket = screen.getByLabelText(label);
+      await user.clear(bucket);
+      await user.type(bucket, '0');
+    }
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
-    expect(await screen.findByText(/quantity must be a whole number between 1 and/i)).toBeInTheDocument();
+    expect(await screen.findByText(/non-negative whole number|at least one equipment item|total quantity must not exceed/i)).toBeInTheDocument();
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
@@ -103,13 +169,13 @@ describe('EquipmentEditPage (SPM-118)', () => {
   it('EQUIP-UPDATE-03-C rejects a fractional quantity', async () => {
     const user = userEvent.setup();
     renderEditPage();
-    await screen.findByLabelText(/quantity available/i);
-    const input = screen.getByLabelText(/quantity available/i);
+    await screen.findByLabelText(/active quantity/i);
+    const input = screen.getByLabelText(/active quantity/i);
     await user.clear(input);
     await user.type(input, '1.5');
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
-    expect(await screen.findByText(/quantity must be a whole number between 1 and/i)).toBeInTheDocument();
+    expect(await screen.findByText(/non-negative whole number|at least one equipment item|total quantity must not exceed/i)).toBeInTheDocument();
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
@@ -117,13 +183,13 @@ describe('EquipmentEditPage (SPM-118)', () => {
   it('EQUIP-UPDATE-03-C rejects a quantity above the allowed maximum', async () => {
     const user = userEvent.setup();
     renderEditPage();
-    await screen.findByLabelText(/quantity available/i);
-    const input = screen.getByLabelText(/quantity available/i);
+    await screen.findByLabelText(/active quantity/i);
+    const input = screen.getByLabelText(/active quantity/i);
     await user.clear(input);
     await user.type(input, '2147483648');
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
-    expect(await screen.findByText(/quantity must be a whole number between 1 and/i)).toBeInTheDocument();
+    expect(await screen.findByText(/non-negative whole number|at least one equipment item|total quantity must not exceed/i)).toBeInTheDocument();
     expect(updateEquipment).not.toHaveBeenCalled();
   });
 
@@ -134,11 +200,16 @@ describe('EquipmentEditPage (SPM-118)', () => {
 
     for (const quantity of [1, 2_147_483_647]) {
       const view = renderEditPage();
-      const input = await screen.findByLabelText(/quantity available/i);
+      const input = await screen.findByLabelText(/active quantity/i);
       await user.clear(input);
       await user.type(input, String(quantity));
+      for (const label of [/under maintenance quantity/i, /retired quantity/i]) {
+        const bucket = screen.getByLabelText(label);
+        await user.clear(bucket);
+        await user.type(bucket, '0');
+      }
       await user.click(screen.getByRole('button', { name: /save changes/i }));
-      expect(updateEquipment).toHaveBeenLastCalledWith(record.id, expect.objectContaining({ quantity }));
+      expect(updateEquipment).toHaveBeenLastCalledWith(record.id, expect.objectContaining({ activeQuantity: quantity, underMaintenanceQuantity: 0, retiredQuantity: 0 }));
       view.unmount();
     }
   });
@@ -146,7 +217,7 @@ describe('EquipmentEditPage (SPM-118)', () => {
   /** Confluence EQUIP-UPDATE-04-A; SPM-118 AC4: a valid save submits the selected record and confirms success. Kills: FE-118-03 (suppresses confirmation). */
   it('EQUIP-UPDATE-04-A saves the edited record and shows the confirmation', async () => {
     const user = userEvent.setup();
-    const updated = { ...record, name: 'Updated projector', location: 'Main Hall', quantity: 7 };
+    const updated = { ...record, name: 'Updated projector', location: 'Main Hall', activeQuantity: 7, quantity: 47 };
     updateEquipment.mockResolvedValue({ equipment: updated, message: 'Equipment record updated.' });
     renderEditPage();
     await screen.findByLabelText(/equipment name/i);
@@ -154,21 +225,22 @@ describe('EquipmentEditPage (SPM-118)', () => {
     await user.type(screen.getByLabelText(/equipment name/i), updated.name);
     await user.clear(screen.getByLabelText(/location/i));
     await user.type(screen.getByLabelText(/location/i), updated.location);
-    await user.clear(screen.getByLabelText(/quantity available/i));
-    await user.type(screen.getByLabelText(/quantity available/i), String(updated.quantity));
+    await user.clear(screen.getByLabelText(/active quantity/i));
+    await user.type(screen.getByLabelText(/active quantity/i), String(updated.activeQuantity));
     await user.click(screen.getByRole('button', { name: /save changes/i }));
 
     expect(updateEquipment).toHaveBeenCalledWith(record.id, {
       name: 'Updated projector',
       type: 'Visual',
       location: 'Main Hall',
-      quantity: 7,
-      maintenanceStatus: 'Active',
+      activeQuantity: 7,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
     });
     expect(await screen.findByRole('dialog', { name: 'Equipment Record Updated' })).toBeInTheDocument();
     expect(screen.getByText('Equipment record updated.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'OK' }));
-    expect(navigate).toHaveBeenCalledWith('/equipment/availability');
+    expect(navigate).toHaveBeenCalledWith('/equipment/inventory');
   });
 
   /** Confluence EQUIP-UPDATE-01-A; SPM-118 AC1: both page navigation controls return to the equipment inventory. Kills: FE-118-14 (Cancel does not navigate). */
@@ -180,8 +252,8 @@ describe('EquipmentEditPage (SPM-118)', () => {
     await user.click(screen.getByRole('button', { name: /back to inventory/i }));
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
-    expect(navigate).toHaveBeenNthCalledWith(1, '/equipment/availability');
-    expect(navigate).toHaveBeenNthCalledWith(2, '/equipment/availability');
+    expect(navigate).toHaveBeenNthCalledWith(1, '/equipment/inventory');
+    expect(navigate).toHaveBeenNthCalledWith(2, '/equipment/inventory');
   });
 
   /** Confluence EQUIP-UPDATE-01-B; SPM-118 AC1: a selected id missing from the inventory is presented as an actionable load failure. Kills: FE-118-12 (hides selected-record load error). */

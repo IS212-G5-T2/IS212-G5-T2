@@ -31,6 +31,60 @@ describe("EquipmentCreatePage", () => {
     navigate.mockReset();
   });
 
+  /** EQUIP-AVAIL-08-A: a new inventory record submits the three quantities independently. */
+  it("EQUIP-AVAIL-08-A creates the record with the 10/30/10 status breakdown", async () => {
+    const user = userEvent.setup();
+    createEquipment.mockResolvedValue({ message: "Equipment Record Created." });
+    render(<EquipmentCreatePage />);
+    await user.type(screen.getByLabelText(/equipment name/i), "Lighting");
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), "Lighting");
+    await user.type(screen.getByLabelText(/active quantity/i), "10");
+    await user.clear(screen.getByLabelText(/under maintenance quantity/i));
+    await user.type(screen.getByLabelText(/under maintenance quantity/i), "30");
+    await user.clear(screen.getByLabelText(/retired quantity/i));
+    await user.type(screen.getByLabelText(/retired quantity/i), "10");
+    await user.type(screen.getByLabelText(/location/i), "Jurong");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+
+    expect(createEquipment).toHaveBeenCalledWith({
+      name: "Lighting", type: "Lighting", activeQuantity: 10,
+      underMaintenanceQuantity: 30, retiredQuantity: 10, location: "Jurong",
+    });
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: all-zero and aggregate-overflow allocations are refused before creation. */
+  it("EQUIP-AVAIL-08-BND-1 refuses all-zero and aggregate-overflow breakdowns", async () => {
+    const user = userEvent.setup();
+    render(<EquipmentCreatePage />);
+    await user.type(screen.getByLabelText(/equipment name/i), "Lighting");
+    await user.selectOptions(screen.getByLabelText(/equipment type/i), "Lighting");
+    await user.type(screen.getByLabelText(/location/i), "Jurong");
+
+    await user.type(screen.getByLabelText(/active quantity/i), "-1");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+    expect(await screen.findByText(/active quantity must be a non-negative whole number/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/active quantity/i));
+    await user.type(screen.getByLabelText(/active quantity/i), "1.5");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+    expect(await screen.findByText(/active quantity must be a non-negative whole number/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/active quantity/i));
+    await user.type(screen.getByLabelText(/active quantity/i), "0");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+
+    expect(await screen.findByText(/at least one equipment item is required/i)).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText(/active quantity/i));
+    await user.type(screen.getByLabelText(/active quantity/i), "2147483647");
+    await user.clear(screen.getByLabelText(/under maintenance quantity/i));
+    await user.type(screen.getByLabelText(/under maintenance quantity/i), "1");
+    await user.click(screen.getByRole("button", { name: /create equipment/i }));
+
+    expect(await screen.findByText(/total quantity must not exceed 2147483647/i)).toBeInTheDocument();
+    expect(createEquipment).not.toHaveBeenCalled();
+  });
+
   // SPM-111 EQUIP-CRE-01-A: Technical Support sees the complete creation form.
   it("EQUIP-CRE-01-A renders name, type, quantity, status, location, and submit controls", () => {
     // Act: open the creation page.
@@ -39,8 +93,7 @@ describe("EquipmentCreatePage", () => {
     // Assert: each required field and the submit action are available.
     expect(screen.getByLabelText(/equipment name/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/equipment type/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/quantity/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/maintenance status/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/active quantity/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/location/i)).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /create equipment/i }),
@@ -48,21 +101,18 @@ describe("EquipmentCreatePage", () => {
   });
 
   // SPM-111 EQUIP-CRE-07-A and EQUIP-CRE-06-A: dropdowns expose exactly the story values.
-  it("EQUIP-CRE-06-A/EQUIP-CRE-07-A offers the predefined type and status lists", () => {
+  it("EQUIP-CRE-06-A/EQUIP-CRE-07-A offers predefined types and all three status quantity fields", () => {
     // Act: render the selectable controls.
     render(<EquipmentCreatePage />);
 
     // Assert: option values exactly match the story's predefined lists.
     const types = screen.getByLabelText(/equipment type/i) as HTMLSelectElement;
-    const statuses = screen.getByLabelText(
-      /maintenance status/i,
-    ) as HTMLSelectElement;
-    expect(
+        expect(
       [...types.options].map((option) => option.value).filter(Boolean),
     ).toEqual(["Audio", "Visual", "Furniture", "Lighting", "Other"]);
-    expect(
-      [...statuses.options].map((option) => option.value).filter(Boolean),
-    ).toEqual(["Active", "Under Maintenance", "Retired"]);
+    expect(screen.getByLabelText(/active quantity/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/under maintenance quantity/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/retired quantity/i)).toBeInTheDocument();
   });
 
   // SPM-111 EQUIP-CRE-02-A: the UI sends all values unchanged on valid submit.
@@ -74,8 +124,9 @@ describe("EquipmentCreatePage", () => {
         id: "equipment-1",
         name: "Conference projector",
         type: "Audio",
-        quantity: 5,
-        maintenanceStatus: "Active",
+        activeQuantity: 5,
+        underMaintenanceQuantity: 0,
+        retiredQuantity: 0,
         location: "Storage Room A",
       },
       message: "Equipment Record Created.",
@@ -88,20 +139,17 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: the API receives all fields without alteration.
     expect(createEquipment).toHaveBeenCalledWith({
       name: "Conference projector",
       type: "Audio",
-      quantity: 5,
-      maintenanceStatus: "Active",
+      activeQuantity: 5,
+        underMaintenanceQuantity: 0,
+        retiredQuantity: 0,
       location: "Storage Room A",
     });
   });
@@ -139,12 +187,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.click(screen.getByLabelText(/location/i));
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.click(screen.getByLabelText(/location/i));
     await user.click(await screen.findByRole("option", { name: "Main Hall" }));
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
@@ -168,12 +212,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(
       screen.getByLabelText(/location/i),
       "  kirubakaran kishore  ",
     );
@@ -198,12 +238,8 @@ describe("EquipmentCreatePage", () => {
       "  Conference projector  ",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: only meaningful name content crosses the client API boundary.
@@ -226,12 +262,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Loading Bay");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Loading Bay");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: re-opening the dropdown now offers the newly created location.
@@ -248,7 +280,6 @@ describe("EquipmentCreatePage", () => {
       {
         type: "Audio",
         quantity: "5",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
       /equipment name is required/i,
@@ -258,7 +289,6 @@ describe("EquipmentCreatePage", () => {
       {
         name: "Conference projector",
         quantity: "5",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
       /equipment type is required/i,
@@ -268,20 +298,19 @@ describe("EquipmentCreatePage", () => {
       {
         name: "Conference projector",
         type: "Audio",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /quantity is required/i,
+      /active quantity is required/i,
     ],
     [
-      "maintenance status",
+      "all-zero breakdown",
       {
         name: "Conference projector",
         type: "Audio",
-        quantity: "5",
+        quantity: "0",
         location: "Storage Room A",
       },
-      /maintenance status is required/i,
+      /at least one equipment item is required/i,
     ],
     [
       "zero quantity",
@@ -289,10 +318,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: "0",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /at least one equipment item is required/i,
     ],
     [
       "negative quantity",
@@ -300,10 +328,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: "-1",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /non-negative whole number/i,
     ],
     [
       "decimal quantity",
@@ -311,10 +338,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: "1.5",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /non-negative whole number/i,
     ],
     [
       "non-numeric quantity",
@@ -322,10 +348,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: "abc",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /non-negative whole number/i,
     ],
     [
       "mixed quantity",
@@ -333,10 +358,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: "5kg",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /non-negative whole number/i,
     ],
     [
       "whitespace quantity",
@@ -344,10 +368,9 @@ describe("EquipmentCreatePage", () => {
         name: "Conference projector",
         type: "Audio",
         quantity: " ",
-        maintenanceStatus: "Active",
         location: "Storage Room A",
       },
-      /whole number between 1 and 2147483647/i,
+      /non-negative whole number/i,
     ],
   ])(
     "EQUIP-CRE-03-A/B blocks %s and shows a field error",
@@ -363,13 +386,8 @@ describe("EquipmentCreatePage", () => {
           values.type,
         );
       if ("quantity" in values)
-        await user.type(screen.getByLabelText(/quantity/i), values.quantity);
-      if ("maintenanceStatus" in values)
-        await user.selectOptions(
-          screen.getByLabelText(/maintenance status/i),
-          values.maintenanceStatus,
-        );
-      if ("location" in values)
+        await user.type(screen.getByLabelText(/active quantity/i), values.quantity);
+            if ("location" in values)
         await user.type(screen.getByLabelText(/location/i), values.location);
 
       // Act: attempt submission.
@@ -392,11 +410,7 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
 
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
@@ -420,10 +434,7 @@ describe("EquipmentCreatePage", () => {
       await screen.findByText("Equipment name is required."),
     ).toBeInTheDocument();
     expect(screen.getByText("Equipment type is required.")).toBeInTheDocument();
-    expect(screen.getByText("Quantity is required.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Maintenance status is required."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Active quantity is required.")).toBeInTheDocument();
     expect(screen.getByText("Location is required.")).toBeInTheDocument();
     expect(createEquipment).not.toHaveBeenCalled();
   });
@@ -438,19 +449,15 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "2147483648");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "2147483648");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit an integer one above the persistence limit.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: validation occurs before the API call.
     expect(
-      await screen.findByText(/between 1 and 2147483647/i),
+      await screen.findByText(/total quantity must not exceed 2147483647/i),
     ).toBeInTheDocument();
     expect(createEquipment).not.toHaveBeenCalled();
   });
@@ -466,19 +473,15 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "2147483647");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "2147483647");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit the largest valid quantity.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: the client does not reject or alter the inclusive boundary value.
     expect(createEquipment).toHaveBeenCalledWith(
-      expect.objectContaining({ quantity: 2147483647 }),
+      expect.objectContaining({ activeQuantity: 2147483647, underMaintenanceQuantity: 0, retiredQuantity: 0 }),
     );
   });
 
@@ -497,12 +500,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: stale required-field messages are removed once validation succeeds.
@@ -529,12 +528,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit once while the request remains outstanding.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
@@ -545,30 +540,31 @@ describe("EquipmentCreatePage", () => {
     resolveCreate?.({ message: "Equipment Record Created." });
   });
 
-  // SPM-111 EQUIP-CRE-03-A: other valid entries remain intact when one field fails.
-  it("EQUIP-CRE-03-A retains entered type and quantity when maintenance status is missing", async () => {
-    // Arrange: fill two valid fields and leave the final required field blank.
+  // SPM-111 EQUIP-CRE-03-A: other valid entries remain intact when a status bucket is missing.
+  it("EQUIP-CRE-03-A retains entered values when Under Maintenance quantity is missing", async () => {
     const user = userEvent.setup();
     render(<EquipmentCreatePage />);
     const type = screen.getByLabelText(/equipment type/i) as HTMLSelectElement;
-    const quantity = screen.getByLabelText(/quantity/i) as HTMLInputElement;
+    const quantity = screen.getByLabelText(/active quantity/i) as HTMLInputElement;
     await user.type(
       screen.getByLabelText(/equipment name/i),
       "Conference projector",
     );
     await user.selectOptions(type, "Audio");
     await user.type(quantity, "5");
+    const maintenanceQuantity = screen.getByLabelText(/under maintenance quantity/i) as HTMLInputElement;
+    await user.clear(maintenanceQuantity);
     await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit the incomplete form.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
 
     // Assert: the field error does not discard the valid values already entered.
-    expect(
-      await screen.findByText(/maintenance status is required/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Under Maintenance quantity is required.")).toBeInTheDocument();
+    expect(createEquipment).not.toHaveBeenCalled();
     expect(type.value).toBe("Audio");
     expect(quantity.value).toBe("5");
+    expect(maintenanceQuantity.value).toBe("");
   });
 
   // SPM-111 EQUIP-CRE-04-A: a completed save opens a confirmation dialog and returns to availability after acknowledgement.
@@ -585,12 +581,8 @@ describe("EquipmentCreatePage", () => {
       screen.getByLabelText(/equipment type/i),
       "Visual",
     );
-    await user.type(screen.getByLabelText(/quantity/i), "10");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "10");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit the form.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
@@ -601,7 +593,7 @@ describe("EquipmentCreatePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Equipment Record Created.")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "OK" }));
-    expect(navigate).toHaveBeenCalledWith("/equipment/availability");
+    expect(navigate).toHaveBeenCalledWith("/equipment/inventory");
   });
 
   /**
@@ -627,9 +619,8 @@ describe("EquipmentCreatePage", () => {
     render(<EquipmentCreatePage />);
     await user.type(screen.getByLabelText(/equipment name/i), "Conference projector");
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Visual");
-    await user.type(screen.getByLabelText(/quantity/i), "10");
-    await user.selectOptions(screen.getByLabelText(/maintenance status/i), "Active");
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "10");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
     expect(await screen.findByRole("dialog", { name: /equipment record created/i })).toBeInTheDocument();
 
@@ -645,7 +636,7 @@ describe("EquipmentCreatePage", () => {
     const user = userEvent.setup();
     createEquipment.mockRejectedValue(
       new ApiError("Invalid equipment record.", {
-        quantity: "Quantity must be a whole number between 1 and 2147483647.",
+        activeQuantity: "Total quantity must not exceed 2147483647.",
       }),
     );
     render(<EquipmentCreatePage />);
@@ -654,12 +645,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit and receive the server-side validation response.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
@@ -667,7 +654,7 @@ describe("EquipmentCreatePage", () => {
     // Assert: server validation is visible to the Technical Support user.
     expect(
       await screen.findByText(
-        /quantity must be a whole number between 1 and 2147483647/i,
+        /total quantity must not exceed 2147483647/i,
       ),
     ).toBeInTheDocument();
   });
@@ -687,12 +674,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit and receive the body-level server validation response.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
@@ -714,12 +697,8 @@ describe("EquipmentCreatePage", () => {
       "Conference projector",
     );
     await user.selectOptions(screen.getByLabelText(/equipment type/i), "Audio");
-    await user.type(screen.getByLabelText(/quantity/i), "5");
-    await user.selectOptions(
-      screen.getByLabelText(/maintenance status/i),
-      "Active",
-    );
-    await user.type(screen.getByLabelText(/location/i), "Storage Room A");
+    await user.type(screen.getByLabelText(/active quantity/i), "5");
+        await user.type(screen.getByLabelText(/location/i), "Storage Room A");
 
     // Act: submit the valid form.
     await user.click(screen.getByRole("button", { name: /create equipment/i }));
