@@ -168,7 +168,10 @@ the new schema: apply each new file in `backend/migrations` once, for SPM-64
 `docker compose exec -T postgres psql -U spm -d spm < ../backend/migrations/012_spm64_change_requests.sql`
 (without it the Change Requests page shows "Could not load your change requests."), and for SPM-65
 `docker compose exec -T postgres psql -U spm -d spm < ../backend/migrations/013_spm65_change_request_review.sql`
-(without it reviewing, the audit log and cancelling an event with a pending request fail).
+(without it reviewing, the audit log and cancelling an event with a pending request fail), and for SPM-48
+`docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < ../backend/migrations/023_spm48_safety_rejected.sql`
+(it allows a `rejected` safety check; it is idempotent). SPM-48's coordinator queue (`GET /api/coordinator/queue`)
+is a new route: until the backend image is rebuilt, a coordinator's Events page shows "Cannot GET /api/coordinator/queue".
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.
