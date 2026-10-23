@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { evaluate } from './check-ids.mjs';
+import { evaluate, idsForScopedTests } from './check-ids.mjs';
 
 const row = (id, type, extra = {}) => ({ id, type, story: 'S', parent_ac: 'AC1', owning_test_file: 'a.spec.ts', status: 'Active', approved: 'yes', ...extra });
 const codeIds = (ids) => new Map(ids.map((id) => [id, new Set(['a.spec.ts'])]));
@@ -50,4 +50,12 @@ test('G1 flags a registry file that does not use the id, and counts pending appr
   assert.match(result.findings.join('\n'), /registry names b\.spec\.ts/);
   assert.equal(result.counts.pendingApproval, 1);
   assert.equal(result.gaps.length, 1);
+});
+
+test('G1 scopes shared-file IDs to each selected test rather than unrelated comments', () => {
+  const tests = [
+    { title: 'EQUIP-AVAIL-08-A creates a record', comment: 'EQUIP-CRE-02 is a historical reference', describes: [] },
+  ];
+  const ids = idsForScopedTests(tests, new Set());
+  assert.deepEqual(ids, ['EQUIP-AVAIL-08-A']);
 });

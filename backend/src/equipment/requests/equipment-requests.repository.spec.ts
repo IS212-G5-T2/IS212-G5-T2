@@ -13,7 +13,7 @@ let repository: EquipmentRequestsRepository;
 function setup(status = 'Approved', updateRows = 1) {
   query = vi.fn(async (sql: string) => {
     if (sql.includes('FROM events WHERE')) return { rows: [{ ...event, status }], rowCount: 1 };
-    if (sql.includes('FROM equipment_requests r JOIN events')) return { rows: [{ id: requestId, event_id: eventId, event_status: status }], rowCount: 1 };
+    if (sql.includes('FROM equipment_requests r JOIN events')) return { rows: [{ id: requestId, event_id: eventId, event_status: status, request_status: 'Pending Review' }], rowCount: 1 };
     if (sql.includes('FROM equipment_requests WHERE event_id')) return { rows: [], rowCount: 0 };
     if (sql.includes('INSERT INTO equipment_requests')) return { rows: [{ id: requestId }], rowCount: 1 };
     if (sql.includes('INSERT INTO equipment_request_items')) return { rows: [{ id: 'item-1' }], rowCount: 1 };
@@ -27,6 +27,56 @@ function setup(status = 'Approved', updateRows = 1) {
 beforeEach(() => setup());
 
 describe('SPM-57 equipment request persistence', () => {
+  /** SPM-113: reserving a pending request updates the request and each linked placeholder in one transaction. */
+  it('marks a pending request and its linked reservations Reserved', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 2 }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', active_quantity: 2, is_available: true }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_reservations r JOIN events e')) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'reserved', id: requestId });
+    expect(query.mock.calls.map(([sql]) => sql)).toEqual(expect.arrayContaining([
+      expect.stringContaining("status = 'Reserved'"),
+      expect.stringContaining('equipment_request_item_id IN'),
+    ]));
+  });
+
+  /** EQUIP-AVAIL-04-BND-1: Under Maintenance units are not convertible into a Reserved request. */
+  it('does not reserve a request when no active stock remains for its event window', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 1 }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', active_quantity: 0, is_available: true }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_reservations r JOIN events e')) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    await expect(repository.reserve(requestId)).resolves.toEqual({
+      kind: 'insufficient-active-stock', equipmentName: 'Conference microphone',
+    });
+    expect(query.mock.calls.some(([sql]) => sql.includes("UPDATE equipment_requests SET status = 'Reserved'"))).toBe(false);
+  });
+
+  it('does not change a non-pending request', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Reserved' }], rowCount: 1 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'not-pending' });
+    expect(query).toHaveBeenCalledOnce();
+  });
+
   /** EQUIP-REQUEST-01-A: the request picker is coordinator-scoped and labels each option from event_name, never venue data. */
   it('lists eligible assigned events by event name', async () => {
     query.mockResolvedValueOnce({ rows: [{ ...event, venue_name: 'Venue that must not be displayed' }], rowCount: 1 });

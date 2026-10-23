@@ -16,12 +16,13 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
   let pool: pg.Pool;
   const eventIds: string[] = [];
   const userIds: string[] = [];
+  const equipmentIds: string[] = [];
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
-    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql'])
+    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '015_spm113_equipment_status_quantities.sql'])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
@@ -32,6 +33,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     await app?.close();
     if (!pool) return;
     if (eventIds.length) await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds]);
+    if (equipmentIds.length) await pool.query('DELETE FROM equipment WHERE id = ANY($1::uuid[])', [equipmentIds]);
     if (userIds.length) await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
     await pool.end();
   });
@@ -61,6 +63,36 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     eventIds.push(id);
     return id;
   }
+
+  /** EQUIP-AVAIL-03-C / EQUIP-AVAIL-01-D: only a Reserved overlapping request consumes Active units; exact-touch does not. */
+  it('returns real event-window availability after Technical Support reserves a request', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const equipmentId = randomUUID();
+    equipmentIds.push(equipmentId);
+    await pool.query(
+      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, 'SPM-113 Window Lights', 'Lighting', 10, 'Active', 10, 0, 0, 'Test Store')`,
+      [equipmentId],
+    );
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const submitted = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'SPM-113 Window Lights', equipmentType: 'Lighting', quantity: 4 }] }).expect(201);
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/reserve`).set('Cookie', support.cookie).expect(200);
+
+    const overlapping = await request(app.getHttpServer())
+      .get('/api/equipment/availability?startDateTime=2030-02-03T10:30:00.000Z&endDateTime=2030-02-03T11:30:00.000Z')
+      .set('Cookie', support.cookie).expect(200);
+    expect(overlapping.body.find((row: { id: string }) => row.id === equipmentId)).toMatchObject({
+      activeQuantity: 10, reservedQuantity: 4, availableQuantity: 6, isAvailable: true,
+    });
+
+    const touching = await request(app.getHttpServer())
+      .get('/api/equipment/availability?startDateTime=2030-02-03T12:00:00.000Z&endDateTime=2030-02-03T12:01:00.000Z')
+      .set('Cookie', support.cookie).expect(200);
+    expect(touching.body.find((row: { id: string }) => row.id === equipmentId)).toMatchObject({ reservedQuantity: 0, availableQuantity: 10 });
+  });
 
   /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
   it('EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning', async () => {

@@ -237,7 +237,6 @@ export const isTestFile = (file) => /\.(spec|test|e2e-spec)\.(ts|tsx)$|\.playwri
 
 const TEST_CALL = /^(\s*)(it|test)(?:\.(only|skip|todo|fails|concurrent))?\s*\(\s*(['"`])((?:\\.|(?!\4).)*)\4/;
 const EACH_CALL = /^(\s*)(it|test)(?:\.(only|skip))?\.each\s*\(/;
-const EACH_TITLE = /\)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/;
 const DESCRIBE_CALL = /^(\s*)describe(?:\.(?:only|skip))?(?:\.skipIf\([^)]*\))?\s*\(\s*(['"`])((?:\\.|(?!\2).)*)\2/;
 
 /**
@@ -268,13 +267,7 @@ export function extractTests(text) {
     } else if (EACH_CALL.test(line)) {
       indent = line.match(/^(\s*)/)[1].length;
       kind = 'each';
-      for (let j = i; j < Math.min(lines.length, i + 80); j += 1) {
-        const found = lines[j].match(EACH_TITLE);
-        if (found) {
-          title = found[2];
-          break;
-        }
-      }
+      title = eachTitle(lines, i);
       if (title === undefined) continue;
       modifier = line.match(EACH_CALL)[3] ?? '';
     } else continue;
@@ -307,6 +300,37 @@ export function extractTests(text) {
     });
   }
   return tests;
+}
+
+/** Read only the title call attached to this it.each(...), not a later test call. */
+function eachTitle(lines, lineIndex) {
+  const source = lines.slice(lineIndex).join('\n');
+  const each = source.indexOf('.each');
+  const open = source.indexOf('(', each + 5);
+  if (each < 0 || open < 0) return undefined;
+
+  let depth = 0;
+  let quote = '';
+  let escaped = false;
+  let close = -1;
+  for (let i = open; i < source.length; i += 1) {
+    const char = source[i];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = '';
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') quote = char;
+    else if (char === '(') depth += 1;
+    else if (char === ')' && --depth === 0) {
+      close = i;
+      break;
+    }
+  }
+  if (close < 0) return undefined;
+  const title = source.slice(close + 1).match(/^\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/);
+  return title?.[2];
 }
 
 /**

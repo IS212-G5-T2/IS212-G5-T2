@@ -126,6 +126,24 @@ backend migrations that correspond to the missing schema change; do not apply
 the schema file as a replacement migration or delete the volume merely to pick
 up initializer refactoring.
 
+## Equipment-availability demo data
+
+`018_spm113_availability_demo.sql` is optional local-only data for trying the
+SPM-113 Availability page before SPM-58's review-and-reserve workflow exists.
+It creates two future Reserved requests and one Pending Review request for the
+Technical Support queue. The reserved fixtures demonstrate real stock
+subtraction: the Stage Lighting check for the first demo event window shows
+10 Active, 4 Reserved and 6 Available; its 3 Under Maintenance and 2 Retired
+units remain unavailable to reservation.
+
+For an existing local Compose database, apply it once from the repository root:
+
+```sh
+docker compose -f docker-compose/docker-compose.yml exec -T postgres \
+  psql -U spm -d spm -v ON_ERROR_STOP=1 -f - \
+  < database/postgresql/init/018_spm113_availability_demo.sql
+```
+
 For existing local volumes, apply only relevant backend migrations; the two
 initializer files are a fresh-database contract and are not upgrade scripts.
 If a disposable local volume is missing a schema feature without a matching
@@ -137,6 +155,15 @@ For SPM-118 on an existing volume, apply
 `psql -v ON_ERROR_STOP=1 -f <path>` against the intended database. This adds
 the equipment-update audit change type and enables the Technical Support
 Equipment update permission; no database reset is needed.
+
+Equipment quantities are stored in `active_quantity`,
+`under_maintenance_quantity`, and `retired_quantity`; `quantity` remains their
+checked total for existing consumers. Fresh databases receive this schema from
+`001_schema.sql`. Existing databases must apply
+`backend/migrations/015_spm113_equipment_status_quantities.sql` once with
+`psql -v ON_ERROR_STOP=1 -f <path>`. It backfills the existing equipment and
+audit rows into the bucket matching their former `maintenance_status`, retains
+their history, and can be rerun safely.
 
 SPM-50 venue creation uses `venues`, controlled accessibility/facility/layout
 lookups and junctions, plus optional `venue_images` on fresh databases.

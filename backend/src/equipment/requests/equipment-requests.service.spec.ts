@@ -12,11 +12,38 @@ const listMine = vi.fn();
 const listQueue = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
-const service = new EquipmentRequestsService({ submit, update, listMine, listQueue, listEligibleEvents } as unknown as EquipmentRequestsRepository);
+const reserve = vi.fn();
+const service = new EquipmentRequestsService({ submit, update, reserve, listMine, listQueue, listEligibleEvents } as unknown as EquipmentRequestsRepository);
 
 beforeEach(() => vi.resetAllMocks());
 
 describe('SPM-57 equipment request service', () => {
+  /** SPM-113: Technical Support can make a pending request consume stock. */
+  it('reserves a pending equipment request for availability calculations', async () => {
+    reserve.mockResolvedValue({ kind: 'reserved', id: '00000000-0000-4000-8000-000000000099' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .resolves.toMatchObject({ kind: 'reserved', requestReference: 'ER-00000000' });
+    expect(reserve).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099');
+  });
+
+  it('refuses coordinators and non-pending request transitions', async () => {
+    await expect(service.reserve(coordinator, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ForbiddenException);
+    reserve.mockResolvedValue({ kind: 'not-pending' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  /** EQUIP-AVAIL-04-BND-1: Technical Support cannot reserve maintenance or already-reserved units. */
+  it('refuses a reservation when its requested units are not active and free', async () => {
+    reserve.mockResolvedValue({ kind: 'insufficient-active-stock', equipmentName: 'Stage lighting' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .rejects.toThrow('Not enough active equipment is available to reserve Stage lighting.');
+  });
+
+  /** SPM-113: a reservation cannot be silently replaced by an editable pending request. */
+  it('refuses updates once Technical Support has reserved the request', async () => {
+    update.mockResolvedValue({ kind: 'request-reserved' });
+    await expect(service.update(coordinator, '00000000-0000-4000-8000-000000000099', body)).rejects.toBeInstanceOf(ConflictException);
+  });
   /** EQUIP-REQUEST-01-A: a coordinator can read only their eligible event picker options. */
   it('returns the coordinator-scoped eligible event picker list', async () => {
     listEligibleEvents.mockResolvedValue([{ id: eventId, name: 'Workshop' }]);

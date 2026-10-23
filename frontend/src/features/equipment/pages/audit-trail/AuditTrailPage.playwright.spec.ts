@@ -22,7 +22,7 @@ test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and r
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
   await expect(page).not.toHaveURL(/\/login$/);
-  await page.goto("/equipment/availability");
+  await page.goto("/equipment/inventory");
   const row = page.getByRole("row").filter({ hasText: equipmentName });
   await expect(row).toBeVisible();
 
@@ -45,7 +45,7 @@ test("EQUIP-UNAVAIL-05-A/B/C displays shared audit history for unavailable and r
   await expect(markedRow).toContainText(email);
 
   // Act: reactivate the same item through the browser flow.
-  await page.goto("/equipment/availability");
+  await page.goto("/equipment/inventory");
   await page.getByLabel("Show unavailable").check();
   const unavailableRow = page.getByRole("row").filter({ hasText: equipmentName });
   await unavailableRow.getByRole("button", { name: "Reactivate" }).click();

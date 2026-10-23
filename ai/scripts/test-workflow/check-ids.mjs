@@ -7,7 +7,7 @@
 //   --scaffold  print registry rows for ids found in code but missing from the registry, then exit 0
 import { join } from 'node:path';
 import {
-  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, exitCodeFor, fileExists, idFamily, idsIn, isMain, loadScope, parseArgs, parseTables,
+  BLOCKED, PASS, UNABLE, WORKFLOW_DIR, exitCodeFor, fileExists, idFamily, idsIn, isMain, loadScope, parseArgs, parseTables, testIdOf,
   printGate, readText, scopeTests, scopedTests, stripTicks, worst, writeGate, writeText,
 } from './lib.mjs';
 
@@ -26,7 +26,7 @@ export function collectCodeIds(scope, ignoredFamilies) {
   const byId = new Map();
   for (const entry of scopeTests(scope)) {
     const text = [];
-    if (entry.titleMatch) for (const test of scopedTests(entry)) text.push(test.title, test.comment, test.describes.join(' '));
+    if (entry.titleMatch) text.push(...idsForScopedTests(scopedTests(entry), ignoredFamilies));
     else text.push(readText(entry.file));
     for (const id of idsIn(text.join('\n'))) {
       if (ignoredFamilies.has(idFamily(id))) continue;
@@ -35,6 +35,10 @@ export function collectCodeIds(scope, ignoredFamilies) {
     }
   }
   return byId;
+}
+
+export function idsForScopedTests(tests, ignoredFamilies = new Set()) {
+  return [...new Set(tests.map((test) => testIdOf(test, ignoredFamilies)).filter(Boolean))];
 }
 
 export function evaluate({ rows, codeIds, matrixIds }) {

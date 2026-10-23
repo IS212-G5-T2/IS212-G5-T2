@@ -23,6 +23,7 @@ export class EquipmentRequestsService {
     const coordinator = this.coordinator(user);
     const result = await this.repository.update(coordinator.uid, requestId, validateEquipmentRequest(body));
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'request-reserved') throw new ConflictException('Reserved equipment requests cannot be updated.');
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be updated after the event is confirmed.');
     if (result.kind === 'event-not-open') throw new ConflictException('This event is not open for equipment requests.');
     return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
@@ -40,6 +41,19 @@ export class EquipmentRequestsService {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
     if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
     return this.repository.listQueue();
+  }
+
+  /** SPM-113: only Technical Support can approve/reserve a pending request. */
+  async reserve(user: AuthenticatedUser | undefined, requestId: string) {
+    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
+    if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
+    const result = await this.repository.reserve(requestId);
+    if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be reserved.');
+    if (result.kind === 'insufficient-active-stock') {
+      throw new ConflictException(`Not enough active equipment is available to reserve ${result.equipmentName}.`);
+    }
+    return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
   }
 
   private coordinator(user: AuthenticatedUser | undefined): AuthenticatedUser {

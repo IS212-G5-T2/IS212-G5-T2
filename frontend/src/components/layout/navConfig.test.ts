@@ -48,6 +48,14 @@ describe("venue staff navigation", () => {
 });
 
 describe("technical support navigation", () => {
+  /** EQUIP-AVAIL-01: Technical Support can discover both the inventory and the event-window checker. */
+  it("links to Equipment Inventory and Equipment Availability separately", () => {
+    expect(navByRole.tech_support).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "Equipment Inventory", to: "/equipment/inventory" }),
+      expect.objectContaining({ label: "Equipment Availability", to: "/equipment/availability" }),
+    ]));
+  });
+
   // EQUIP-VIEW-01-C (AC1). Kills: the nav config entry for tech_support being
   // removed, relabeled, or pointed at the wrong route. This checks the config
   // data only; no test anywhere renders Sidebar to prove it turns this entry

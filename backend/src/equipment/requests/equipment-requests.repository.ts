@@ -92,8 +92,8 @@ export class EquipmentRequestsRepository {
 
   async update(coordinatorId: string, requestId: string, input: EquipmentRequestInput) {
     return this.database.transaction(async (client) => {
-      const existing = await client.query<{ id: string; event_id: string; event_status: string }>(
-        `SELECT r.id, r.event_id, e.status AS event_status
+      const existing = await client.query<{ id: string; event_id: string; event_status: string; request_status: string }>(
+        `SELECT r.id, r.event_id, r.status AS request_status, e.status AS event_status
            FROM equipment_requests r JOIN events e ON e.id = r.event_id
           WHERE r.id = $1::uuid AND r.requested_by = $2::uuid
           FOR UPDATE OF r, e`,
@@ -102,6 +102,7 @@ export class EquipmentRequestsRepository {
       const row = existing.rows[0];
       if (!row) return { kind: 'request-not-found' as const };
       if (row.event_id !== input.eventId) return { kind: 'event-not-open' as const };
+      if (row.request_status !== 'Pending Review') return { kind: 'request-reserved' as const };
       if (row.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (!['Approved', 'Planning'].includes(row.event_status)) return { kind: 'event-not-open' as const };
 
@@ -153,6 +154,72 @@ export class EquipmentRequestsRepository {
 
   async listQueue() {
     return this.readRequests("WHERE r.status = 'Pending Review'", []);
+  }
+
+  /** Atomically makes the request and every linked placeholder reservation live. */
+  async reserve(requestId: string) {
+    return this.database.transaction(async (client) => {
+      const found = await client.query<{ id: string; status: string; event_id: string; start_date_time: Date; end_date_time: Date }>(
+        `SELECT r.id, r.status, r.event_id, e.start_date_time, e.end_date_time
+           FROM equipment_requests r JOIN events e ON e.id = r.event_id
+          WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
+        [requestId],
+      );
+      const request = found.rows[0];
+      if (!request) return { kind: 'request-not-found' as const };
+      if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
+
+      // Lock the matching inventory rows before checking demand.  This means
+      // two approvals for the same named equipment cannot both see the same
+      // Active units and over-reserve them.
+      const requested = await client.query<{ equipment_name: string; requested_quantity: number }>(
+        `SELECT equipment_name, SUM(quantity)::integer AS requested_quantity
+           FROM equipment_request_items
+          WHERE request_id = $1::uuid
+          GROUP BY equipment_name`,
+        [requestId],
+      );
+      const names = requested.rows.map((item) => item.equipment_name);
+      const inventory = await client.query<{ equipment_name: string; active_quantity: number; is_available: boolean }>(
+        `SELECT equipment_name, active_quantity, is_available
+           FROM equipment
+          WHERE equipment_name = ANY($1::text[])
+          FOR UPDATE`,
+        [names],
+      );
+      const reserved = await client.query<{ equipment_name: string; reserved_quantity: number }>(
+        `SELECT r.equipment_name, SUM(r.quantity)::integer AS reserved_quantity
+           FROM equipment_reservations r JOIN events e ON e.id = r.event_id
+          WHERE r.status = 'Reserved'
+            AND r.event_id <> $1::uuid
+            AND e.start_date_time < $3::timestamptz
+            AND e.end_date_time > $2::timestamptz
+            AND r.equipment_name = ANY($4::text[])
+          GROUP BY r.equipment_name`,
+        [request.event_id, request.start_date_time, request.end_date_time, names],
+      );
+      const inventoryByName = new Map(inventory.rows.map((item) => [item.equipment_name, item]));
+      const reservedByName = new Map(reserved.rows.map((item) => [item.equipment_name, item.reserved_quantity]));
+      const unavailable = requested.rows.find((item) => {
+        const record = inventoryByName.get(item.equipment_name);
+        const remaining = record && record.is_available
+          ? record.active_quantity - (reservedByName.get(item.equipment_name) ?? 0)
+          : 0;
+        return remaining < item.requested_quantity;
+      });
+      if (unavailable) return { kind: 'insufficient-active-stock' as const, equipmentName: unavailable.equipment_name };
+
+      await client.query(
+        "UPDATE equipment_requests SET status = 'Reserved', updated_at = $2::timestamptz WHERE id = $1::uuid",
+        [requestId, this.clock.now()],
+      );
+      await client.query(
+        `UPDATE equipment_reservations SET status = 'Reserved', updated_at = $2::timestamptz
+          WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)`,
+        [requestId, this.clock.now()],
+      );
+      return { kind: 'reserved' as const, id: request.id };
+    });
   }
 
   private async readRequests(where: string, params: unknown[]) {

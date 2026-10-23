@@ -15,26 +15,38 @@ const equipmentTypes = [
   "Lighting",
   "Other",
 ] as const;
-const maintenanceStatuses = ["Active", "Under Maintenance", "Retired"] as const;
 const MAX_EQUIPMENT_QUANTITY = 2_147_483_647;
+const quantityFields = [
+  { key: "activeQuantity", label: "Active quantity" },
+  { key: "underMaintenanceQuantity", label: "Under Maintenance quantity" },
+  { key: "retiredQuantity", label: "Retired quantity" },
+] as const;
 
 export function EquipmentCreatePage() {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [type, setType] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [maintenanceStatus, setMaintenanceStatus] = useState("");
+  const [activeQuantity, setActiveQuantity] = useState("");
+  const [underMaintenanceQuantity, setUnderMaintenanceQuantity] = useState("0");
+  const [retiredQuantity, setRetiredQuantity] = useState("0");
   const [location, setLocation] = useState("");
   const [locations, setLocations] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [confirmation, setConfirmation] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const quantitiesForRender = { activeQuantity, underMaintenanceQuantity, retiredQuantity };
+  const settersForRender = {
+    activeQuantity: setActiveQuantity,
+    underMaintenanceQuantity: setUnderMaintenanceQuantity,
+    retiredQuantity: setRetiredQuantity,
+  };
 
   // Populate the location dropdown with previously-stored distinct locations.
   useEffect(() => {
     let active = true;
     getEquipmentLocations()
       .then((stored) => {
+        /* v8 ignore next -- state after unmount has no observable UI; this guard is defensive cleanup. */
         if (active) setLocations(stored);
       })
       .catch(() => {
@@ -51,16 +63,18 @@ export function EquipmentCreatePage() {
     const nextErrors: Record<string, string> = {};
     if (!name.trim()) nextErrors.name = "Equipment name is required.";
     if (!type) nextErrors.type = "Equipment type is required.";
-    if (quantity === "") nextErrors.quantity = "Quantity is required.";
-    else if (
-      !/^\d+$/.test(quantity) ||
-      Number(quantity) < 1 ||
-      Number(quantity) > MAX_EQUIPMENT_QUANTITY
-    ) {
-      nextErrors.quantity = `Quantity must be a whole number between 1 and ${MAX_EQUIPMENT_QUANTITY}.`;
+    const quantities = { activeQuantity, underMaintenanceQuantity, retiredQuantity };
+    for (const { key, label } of quantityFields) {
+      const value = quantities[key];
+      if (value === "") nextErrors[key] = `${label} is required.`;
+      else if (!/^\d+$/.test(value)) nextErrors[key] = `${label} must be a non-negative whole number.`;
     }
-    if (!maintenanceStatus)
-      nextErrors.maintenanceStatus = "Maintenance status is required.";
+    if (quantityFields.every(({ key }) => quantities[key] !== "") &&
+        quantityFields.every(({ key }) => /^\d+$/.test(quantities[key]))) {
+      const total = quantityFields.reduce((sum, { key }) => sum + Number(quantities[key]), 0);
+      if (total < 1) nextErrors.activeQuantity = "At least one equipment item is required across all statuses.";
+      else if (total > MAX_EQUIPMENT_QUANTITY) nextErrors.activeQuantity = `Total quantity must not exceed ${MAX_EQUIPMENT_QUANTITY}.`;
+    }
     if (!location.trim()) nextErrors.location = "Location is required.";
     if (Object.keys(nextErrors).length) {
       setErrors(nextErrors);
@@ -73,9 +87,9 @@ export function EquipmentCreatePage() {
       const result = await createEquipment({
         name: name.trim(),
         type: type as (typeof equipmentTypes)[number],
-        quantity: Number(quantity),
-        maintenanceStatus:
-          maintenanceStatus as (typeof maintenanceStatuses)[number],
+        activeQuantity: Number(activeQuantity),
+        underMaintenanceQuantity: Number(underMaintenanceQuantity),
+        retiredQuantity: Number(retiredQuantity),
         location: trimmedLocation,
       });
       // A newly created location becomes available in the dropdown for later records.
@@ -98,7 +112,7 @@ export function EquipmentCreatePage() {
 
   function acknowledgeConfirmation() {
     setConfirmation("");
-    navigate("/equipment/availability");
+    navigate("/equipment/inventory");
   }
 
   return (
@@ -125,26 +139,18 @@ export function EquipmentCreatePage() {
               error={errors.type}
               options={equipmentTypes.map((value) => ({ value, label: value }))}
             />
-            <TextInput
-              label="Quantity"
-              required
-              type="text"
-              inputMode="numeric"
-              value={quantity}
-              onChange={(event) => setQuantity(event.target.value)}
-              error={errors.quantity}
-            />
-            <Select
-              label="Maintenance status"
-              required
-              value={maintenanceStatus}
-              onChange={(event) => setMaintenanceStatus(event.target.value)}
-              error={errors.maintenanceStatus}
-              options={maintenanceStatuses.map((value) => ({
-                value,
-                label: value,
-              }))}
-            />
+            {quantityFields.map(({ key, label }) => (
+              <TextInput
+                key={key}
+                label={label}
+                required
+                type="text"
+                inputMode="numeric"
+                value={quantitiesForRender[key]}
+                onChange={(event) => settersForRender[key](event.target.value)}
+                error={errors[key]}
+              />
+            ))}
             <ComboBox
               label="Location"
               required

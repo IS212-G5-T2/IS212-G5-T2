@@ -244,17 +244,31 @@ review, success, and error messages appear in separate panels.
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view
-them at `/equipment/availability`. Each inventory row has an Edit action for
-changing its name, type, location, quantity available, and maintenance status
-at `/equipment/:id/edit`; saving confirms the change and records it in the
-shared equipment audit trail. Quantity must be a whole number from 1
-through `2,147,483,647`; the create form prevents values outside that database
-range before it sends the request. The location combobox accepts either a
-saved location or new free text.
+or manage them at `/equipment/inventory`. Each inventory row has an Edit action for
+changing its name, type, location, and status quantities at
+`/equipment/:id/edit`. Create and Edit accept separate non-negative whole
+number quantities for Active, Under Maintenance, and Retired equipment; their
+sum must be from 1 through `2,147,483,647`. The inventory Quantity column
+shows each labelled status count and the derived total. The Available badge is
+Yes only when at least one item is Active and the record has not been manually
+marked unavailable. That manual control remains independent of the status
+breakdown. Saving confirms the change and records it in the shared equipment
+audit trail. The location combobox accepts either a saved location or new free
+text.
 
 The equipment update API and editor checks live beside their feature code.
 Run their fault-injection checks from this directory with
 `node scripts/testing/mutation/run.mjs --mutants spm118.mutants.mjs`.
+
+## Equipment availability (SPM-113)
+
+Technical Support can open `/equipment/availability` to check inventory for a
+specific event start and end date/time. The checker accepts an optional exact
+equipment-type filter and calls the backend's live availability endpoint. Each
+result distinguishes Active, Reserved, Under Maintenance, Retired, and remaining
+Available quantities, and states why a record is unavailable or when a
+reservation ends. Inventory management remains separate at `/equipment/inventory`;
+the checker does not create, edit, or manually disable equipment.
 
 ## Rejecting requests (SPM-83)
 

@@ -91,12 +91,108 @@ describe('Equipment record updates (SPM-118 e2e)', () => {
         location: 'Main Hall',
         maintenanceStatus: 'Under Maintenance',
         quantity: 7,
+        activeQuantity: 0,
+        underMaintenanceQuantity: 7,
+        retiredQuantity: 0,
         isAvailable: true,
         changeType: 'Equipment record updated',
-        reason: 'Updated fields: Equipment name, Equipment type, Location, Maintenance status, Quantity available.',
+        reason: 'Updated fields: Equipment name, Equipment type, Location, Active quantity, Under Maintenance quantity.',
         changedBy: actor.email,
       }),
     ]);
+  });
+
+  /** EQUIP-AVAIL-08-C: editing the three counts persists their derived total and audit snapshot while preserving SPM-119's manual unavailable override. */
+  it('EQUIP-AVAIL-08-C updates status quantities without reactivating manually unavailable equipment', async () => {
+    const actor = await createUser('TECH_SUPPORT');
+    const equipmentId = await createEquipment(actor.cookie);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${equipmentId}/availability`)
+      .set('Cookie', actor.cookie)
+      .send({ isAvailable: false, reason: 'Temporarily unavailable' })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .put(`/api/equipment/${equipmentId}`)
+      .set('Cookie', actor.cookie)
+      .send({
+        name: 'SPM-113 Mixed Equipment',
+        type: 'Lighting',
+        location: 'Equipment Store B',
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+      })
+      .expect(200);
+    const stored = await pool.query(
+      `SELECT quantity, active_quantity, under_maintenance_quantity, retired_quantity, is_available
+       FROM equipment WHERE id = $1`,
+      [equipmentId],
+    );
+    const audit = await pool.query(
+      `SELECT quantity, active_quantity, under_maintenance_quantity, retired_quantity, is_available
+       FROM equipment_audit_trail WHERE equipment_id = $1 AND change_type = 'Equipment record updated'`,
+      [equipmentId],
+    );
+
+    expect(response.body.equipment).toMatchObject({
+      quantity: 50,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      isAvailable: false,
+      maintenanceStatus: null,
+    });
+    expect(stored.rows[0]).toEqual({
+      quantity: 50,
+      active_quantity: 10,
+      under_maintenance_quantity: 30,
+      retired_quantity: 10,
+      is_available: false,
+    });
+    expect(audit.rows[0]).toEqual({
+      quantity: 50,
+      active_quantity: 10,
+      under_maintenance_quantity: 30,
+      retired_quantity: 10,
+      is_available: false,
+    });
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: an aggregate above PostgreSQL's integer limit is refused before inventory or audit writes. */
+  it('EQUIP-AVAIL-08-BND-1 refuses an oversized status breakdown without changing the record', async () => {
+    const actor = await createUser('TECH_SUPPORT');
+    const equipmentId = await createEquipment(actor.cookie);
+    const response = await request(app.getHttpServer())
+      .put(`/api/equipment/${equipmentId}`)
+      .set('Cookie', actor.cookie)
+      .send({
+        name: 'Harini',
+        type: 'Lighting',
+        location: 'Store A',
+        activeQuantity: 2_147_483_647,
+        underMaintenanceQuantity: 1,
+        retiredQuantity: 0,
+      })
+      .expect(400);
+    const stored = await pool.query(
+      `SELECT quantity, active_quantity, under_maintenance_quantity, retired_quantity
+       FROM equipment WHERE id = $1`,
+      [equipmentId],
+    );
+    const audit = await pool.query(
+      `SELECT id FROM equipment_audit_trail WHERE equipment_id = $1`,
+      [equipmentId],
+    );
+
+    expect(response.body.errors.activeQuantity).toContain('must not exceed');
+    expect(stored.rows[0]).toEqual({
+      quantity: 5,
+      active_quantity: 5,
+      under_maintenance_quantity: 0,
+      retired_quantity: 0,
+    });
+    expect(audit.rows).toEqual([]);
   });
 
   /** Confluence EQUIP-UPDATE-05-A; SPM-118 AC5: a saved edit is present in PostgreSQL and returned by the inventory API. Kills: BE-118-14 (name), BE-118-15 (type), BE-118-16 (location), BE-118-17 (maintenance), BE-118-18 (quantity mis-mapped). */

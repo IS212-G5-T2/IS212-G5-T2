@@ -4,6 +4,7 @@ A hit from `ai/scripts/test-workflow/scan-determinism.mjs` (sleeps, timers, poll
 
 | ID | File | Pattern | Max | Class | Reason |
 |---|---|---|---|---|---|
+| DX-08 | backend/test/equipment.e2e-spec.ts | random-id | 2 | isolation-id | One random schema name prevents collisions with concurrent test-database runs; the account email keeps persisted test users unique across repeated runs. Assertions use the created values returned by the database and do not depend on either UUID. |
 | DX-06 | backend/test/equipment-update.e2e-spec.ts | random-id | 1 | isolation-id | The UUID is used only to create a unique test account email, avoiding collisions across repeated runs against the shared disposable test database; assertions do not depend on its value. |
 | DX-07 | backend/test/equipment-requests.e2e-spec.ts | random-id | 3 | isolation-id | UUIDs are used only for unique fixture account emails, event IDs, and the isolated legacy-migration schema in the PostgreSQL test database; assertions use returned IDs and never depend on UUID values. |
 | DX-01 | backend/test/events-*.e2e-spec.ts | random-id | 6 | isolation-id | The value is a unique fixture key (user email, event id, submission key, venue location) or an id that must not exist (the 404 cases). No assertion depends on its value. Fresh ids keep suites independent on the shared PostgreSQL database; fixed ids would collide on re-runs. |

@@ -23,7 +23,8 @@ import { BookingsPage } from "@/features/bookings/pages/requests/BookingsPage";
 import { EquipmentPage } from "@/features/equipment/pages/EquipmentPage";
 import { EquipmentRequestsPage } from "@/features/equipment/pages/requests/EquipmentRequestsPage";
 import { EquipmentRequestEditorPage } from "@/features/equipment/pages/requests/EquipmentRequestEditorPage";
-import { EquipmentAvailabilityPage } from "@/features/equipment/pages/availability/EquipmentAvailabilityPage";
+import { EquipmentInventoryPage } from "@/features/equipment/pages/inventory/EquipmentInventoryPage";
+import { EquipmentAvailabilityCheckPage } from "@/features/equipment/pages/availability-check/EquipmentAvailabilityCheckPage";
 import { AuditTrailPage } from "@/features/equipment/pages/audit-trail/AuditTrailPage";
 import { EquipmentCreatePage } from "@/features/equipment/pages/create/EquipmentCreatePage";
 import { EquipmentEditPage } from "@/features/equipment/pages/edit/EquipmentEditPage";
@@ -93,7 +94,8 @@ export default function App() {
 
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<EquipmentPage />} />
-          <Route path="/equipment/availability" element={<EquipmentAvailabilityPage />} />
+          <Route path="/equipment/inventory" element={<EquipmentInventoryPage />} />
+          <Route path="/equipment/availability" element={<EquipmentAvailabilityCheckPage />} />
           <Route path="/equipment/audit-trail" element={<AuditTrailPage />} />
           <Route path="/equipment/create" element={<EquipmentCreatePage />} />
           <Route path="/equipment/:id/edit" element={<EquipmentEditPage />} />

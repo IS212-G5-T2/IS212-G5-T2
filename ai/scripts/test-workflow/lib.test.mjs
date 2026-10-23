@@ -87,6 +87,23 @@ test('extractTests finds call sites, titles, comments and describes', () => {
   assert.equal(tests[3].commentPresent, false);
 });
 
+test('extractTests records only the title attached to a multiline it.each call site', () => {
+  const tests = extractTests(`describe("suite", () => {
+  it.each([
+    ["activeQuantity", -1],
+    ["retiredQuantity", 1.5],
+  ] as const)("EQUIP-AVAIL-08-BND-1 rejects invalid %s value %j", (field, value) => {
+    expect(field).toBeTruthy();
+  });
+
+  it("EQUIP-AVAIL-08-A persists counts", () => {});
+});`);
+  assert.equal(tests.length, 2);
+  assert.equal(tests[0].kind, 'each');
+  assert.equal(tests[0].title, 'EQUIP-AVAIL-08-BND-1 rejects invalid %s value %j');
+  assert.equal(tests[1].title, 'EQUIP-AVAIL-08-A persists counts');
+});
+
 test('testIdOf: own title, then enclosing describe, ignoring non-test families', () => {
   const tests = extractTests(SAMPLE);
   assert.equal(testIdOf(tests[1]), 'CONFIRM-EVENT-06-A');

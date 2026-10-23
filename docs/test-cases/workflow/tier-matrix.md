@@ -2,6 +2,14 @@
 
 One table per story, headed `## <story>`. Every tier cell of every AC is `PRESENT (test ids)`, `N/A (reason)` or `MISSING (reason)`. `PRESENT` ids must be in `test-id-registry.md`. `MISSING` is allowed only with a reason and becomes a gap-list item. The suffix naming (`-BND`, `-INT` and so on) is optional; this matrix is the source of truth for which tier a test serves. See `ai/docs/test-workflow.md` section 4 and gate G2.
 
+## SPM-113
+
+The current implementation assignment covers the newly added AC8 only. AC1–AC7 have proposed Confluence cases but no implementation evidence in this scope; a full SPM-113 gate must account for them separately.
+
+| AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+|---|---|---|---|---|---|---|---|---|---|---|
+| AC8 | PRESENT (EQUIP-AVAIL-08-A, EQUIP-AVAIL-08-B, EQUIP-AVAIL-08-E) | PRESENT (EQUIP-AVAIL-08-BND-1) | PRESENT (EQUIP-AVAIL-08-BND-1, EQUIP-AVAIL-08-E) | PRESENT (EQUIP-AVAIL-08-C, EQUIP-AVAIL-08-E) | N/A (the three maintenance statuses are fixed, not configurable) | PRESENT (EQUIP-AVAIL-08-B, EQUIP-AVAIL-08-D) | PRESENT (EQUIP-AVAIL-08-BND-1, EQUIP-AVAIL-08-D) | N/A (the existing Technical Support role checks are unchanged by AC8) | N/A (AC8 sets no concurrent-edit outcome) |
+
 ## SPM-135
 
 | AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
