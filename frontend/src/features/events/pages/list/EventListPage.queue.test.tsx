@@ -9,12 +9,19 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { EventListPage } from "@/features/events/pages/list/EventListPage";
 import { api } from "@/utils/api";
 import { fetchMyChangeRequests } from "@/features/events/api/change-requests-api";
+import { login } from "@/lib/auth";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord, QueueIndicators } from "@/types";
 
 vi.mock("@/utils/api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   api: vi.fn(),
+}));
+
+vi.mock("@/lib/auth", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  login: vi.fn(),
+  logout: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/features/events/api/change-requests-api", () => ({
@@ -120,6 +127,29 @@ describe("SPM-48 coordinator dashboard", () => {
     expect(screen.getByRole("heading", { name: "All Events" })).toBeInTheDocument();
     // API result equals UI: one card per queued event.
     expect(screen.getAllByRole("heading", { level: 3 }).map((h) => h.textContent)).toEqual(QUEUE.map((e) => e.name));
+  });
+
+  /**
+   * MONITOR-QUEUE-01-A (review finding, PR #80): a coordinator who signs in after another on the same browser starts on
+   * All statuses and sees every queued event, not the previous coordinator's filter.
+   */
+  it("MONITOR-QUEUE-01-A does not carry one coordinator's status filter into the next session", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "EVT-403" });
+    await user.selectOptions(screen.getByLabelText("Filter by status"), "planning");
+    expect(screen.queryByRole("heading", { name: "EVT-403" })).toBeNull();
+    cleanup();
+
+    await useAppStore.getState().logout();
+    const SECOND = { ...COORDINATOR, id: "coo-2", name: "COO-02 Coordinator", email: "coo2@example.test" };
+    vi.mocked(login).mockResolvedValueOnce(SECOND);
+    await useAppStore.getState().login("coo2@example.test", "secret");
+
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "EVT-403" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Filter by status")).toHaveValue("");
+    expect(screen.getAllByRole("heading", { level: 3 })).toHaveLength(QUEUE.length);
   });
 
   /** MONITOR-QUEUE-02-A: the filter offers All statuses and the seven standard terms, and each narrows the list. */

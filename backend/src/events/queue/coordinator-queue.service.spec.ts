@@ -78,8 +78,8 @@ describe('SPM-48 CoordinatorQueueService', () => {
       { id: 'e2', safety_state: null, safety_reset: false },
     ];
     const bookings = [
-      { event_id: 'e2', venue_name: 'Hall B', status: 'approved', hold_expires_at: null, venue_unavailable: true },
-      { event_id: 'e2', venue_name: 'Hall C', status: 'pending', hold_expires_at: new Date('2026-11-12T04:00:00.000Z'), venue_unavailable: false },
+      { event_id: 'e2', venue_id: 'venue-hall-b', venue_name: 'Hall B', venue_location: 'Level 1', status: 'approved', hold_expires_at: null, venue_unavailable: true },
+      { event_id: 'e2', venue_id: 'venue-hall-c', venue_name: 'Hall C', venue_location: 'Level 1', status: 'pending', hold_expires_at: new Date('2026-11-12T04:00:00.000Z'), venue_unavailable: false },
     ];
     const { service, query } = setup(records, safety, bookings);
     const result = await service.queue(COORDINATOR, 'planning');

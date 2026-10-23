@@ -116,4 +116,18 @@ export const MUTANTS = [
     edits: [['b.start_at - make_interval(mins => v.setup_time_minutes)', 'b.start_at - make_interval(mins => LEAST(v.setup_time_minutes, v.turnaround_time_minutes))'],
             ['b.end_at + make_interval(mins => v.turnaround_time_minutes)', 'b.end_at + make_interval(mins => LEAST(v.setup_time_minutes, v.turnaround_time_minutes))']],
     suites: ['e2e'] },
+  // Q30 to Q32 come from the PR #80 review: venues are told apart by id, and a shared name gets the location.
+  { id: 'Q30', name: 'unavailable venues de-duplicated by name: two venues sharing a name collapse into one (09-A)', file: RULES,
+    edits: [['new Map(affected.map((booking) => [booking.venueId, booking]))', 'new Map(affected.map((booking) => [booking.venueName, booking]))']],
+    suites: both },
+  { id: 'Q31', name: 'location never added: venues sharing a name read the same (08-A, 09-A)', file: RULES,
+    edits: [['return clash ? `${booking.venueName} (${booking.venueLocation})` : booking.venueName;', 'return booking.venueName;']],
+    suites: both },
+  { id: 'Q32', name: 'a venue clashes with its own other bookings: location added without a namesake (09-A)', file: RULES,
+    edits: [['other.venueId !== booking.venueId && other.venueName === booking.venueName', 'other.venueName === booking.venueName && other !== booking']],
+    suites: ['unit'] },
+  // Q33 comes from Test Review 5 (TR-07, probe R16): a namesake that is still available still counts.
+  { id: 'Q33', name: 'name clash checked only among unavailable venues: a lone unavailable twin loses its location (09-A)', file: RULES,
+    edits: [['return [...byVenue.values()].map((booking) => venueLabel(booking, bookings));', 'return [...byVenue.values()].map((booking) => venueLabel(booking, affected));']],
+    suites: ['unit'] },
 ];

@@ -185,12 +185,12 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
     return { id, start, end };
   }
 
-  async function seedVenue(name: string, buffers = { setup: 0, turnaround: 0 }): Promise<string> {
+  async function seedVenue(name: string, buffers = { setup: 0, turnaround: 0 }, location = 'Level 1'): Promise<string> {
     const created = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
                            setup_time_minutes, turnaround_time_minutes)
-       VALUES ($1, $2, 'Level 1', 200, 'Weekdays 08:00 to 22:00', $3, $4) RETURNING id`,
-      [vs1.uid, name, buffers.setup, buffers.turnaround],
+       VALUES ($1, $2, $5, 200, 'Weekdays 08:00 to 22:00', $3, $4) RETURNING id`,
+      [vs1.uid, name, buffers.setup, buffers.turnaround, location],
     );
     createdVenueIds.push(created.rows[0].id);
     return created.rows[0].id;
@@ -691,6 +691,26 @@ describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator
         (readiness.body.outstanding as Array<{ type: string; state: string; name?: string }>)
           .filter((item) => item.state === 'Venue unavailable').length,
       ).toBe(4);
+    });
+
+    /**
+     * MONITOR-QUEUE-09-A (review finding, PR #80): two venues with the same name in different locations are different
+     * venues. Each unavailable one is listed once, named with its location; an available namesake is not flagged.
+     */
+    it('MONITOR-QUEUE-09-A tells apart unavailable venues that share a name', async () => {
+      const east = await seedVenue('SPM48 Twin Hall', undefined, 'East Wing');
+      const west = await seedVenue('SPM48 Twin Hall', undefined, 'West Wing');
+      const north = await seedVenue('SPM48 Twin Hall', undefined, 'North Wing');
+      const event = await seedEvent({ name: 'Twin venues', status: 'Planning', coordinator: coo1 });
+      for (const venue of [east, west, north]) await seedBooking(event, venue, 'approved');
+      await markUnavailable(east, event.start, event.end);
+      await markUnavailable(west, event.start, event.end);
+
+      const row = byName(await queueRows(coo1), 'Twin venues');
+      expect(row?.queue).toMatchObject({
+        unavailableVenues: ['SPM48 Twin Hall (East Wing)', 'SPM48 Twin Hall (West Wing)'],
+        actions: ['VENUE_UNAVAILABLE'],
+      });
     });
 
     /**

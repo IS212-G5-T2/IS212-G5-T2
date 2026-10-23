@@ -12,6 +12,7 @@ export const SUITES = {
       'src/features/events/components/StatusLabels.test.tsx',
       'src/utils/format.test.ts',
       'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx',
+      'src/store/useAppStore.logout.test.ts',
     ],
   },
 };
@@ -23,6 +24,7 @@ const BADGE = 'src/components/ui/StatusBadge.tsx';
 const LABELS = 'src/features/events/components/StatusLabels.tsx';
 const FORMAT = 'src/utils/format.ts';
 const PLANNING = 'src/features/events/pages/detail/planning/PlanningInformationPage.tsx';
+const STORE = 'src/store/useAppStore.ts';
 const s = ['spm48'];
 
 export const MUTANTS = [
@@ -59,4 +61,9 @@ export const MUTANTS = [
   // F15 comes from Code Quality Review 1 (CQ-48-01): the reasons are text screen readers announce.
   { id: 'F15', name: 'needs-action reasons not in the accessible text (05-B)', file: INDICATORS,
     edits: [['      <span className="sr-only">{`: ${reasons}`}</span>\n', '']], suites: s },
+  // F16 and F17 come from the PR #80 review: event list filters never outlive a session.
+  { id: 'F16', name: 'event list filters kept on logout (01-A)', file: STORE,
+    edits: [['        events: [],\n        eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },\n', '        events: [],\n']], suites: s },
+  { id: 'F17', name: 'event list filters kept on a new login (01-A)', file: STORE,
+    edits: [['authLoading: false, eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS } });', 'authLoading: false });']], suites: s },
 ];

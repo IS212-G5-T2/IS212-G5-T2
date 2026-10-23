@@ -3,6 +3,7 @@
 // Test cases: MONITOR-QUEUE-02-B, 05-B, 06-A, 06-B, 07-A, 07-C, 08-A, 08-B, 09-A, 09-B (rule level); MONITOR-QUEUE-01-SUP-FILTER
 import { describe, expect, it } from 'vitest';
 import {
+  venueLabel,
   buildQueueIndicators,
   deriveActions,
   deriveHolds,
@@ -19,8 +20,11 @@ import {
 const H1_EXPIRY = new Date('2026-11-10T04:00:00.000Z');
 const NOW = new Date('2026-11-10T03:00:00.000Z');
 
+/** A booking fact; unless given, the venue id follows the venue name (one venue per name). */
 const booking = (overrides: Partial<QueueBookingFact> = {}): QueueBookingFact => ({
+  venueId: `venue-${overrides.venueName ?? 'Hall A'}`,
   venueName: 'Hall A',
+  venueLocation: 'Level 1',
   status: 'approved',
   holdExpiresAt: null,
   venueUnavailable: false,
@@ -110,6 +114,37 @@ describe('SPM-48 AC9: venue became unavailable', () => {
       NOW,
     );
     expect(venues).toEqual(['Hall A', 'Hall C', 'Hall D', 'Hall E']);
+  });
+
+  /**
+   * MONITOR-QUEUE-09-A (review finding, PR #80): venues are told apart by id. Two venues sharing a name are both listed,
+   * each with its location; two bookings of one venue are listed once; a unique name keeps its plain label.
+   */
+  it('MONITOR-QUEUE-09-A tells apart unavailable venues that share a name', () => {
+    const east = booking({ venueId: 'v-east', venueName: 'Main Hall', venueLocation: 'East Wing', venueUnavailable: true });
+    const west = booking({ venueId: 'v-west', venueName: 'Main Hall', venueLocation: 'West Wing', venueUnavailable: true });
+    const eastAgain = booking({ venueId: 'v-east', venueName: 'Main Hall', venueLocation: 'East Wing', venueUnavailable: true });
+    const studio = booking({ venueId: 'v-studio', venueName: 'Studio', venueUnavailable: true });
+    expect(deriveUnavailableVenues([east, west, eastAgain, studio], NOW)).toEqual([
+      'Main Hall (East Wing)',
+      'Main Hall (West Wing)',
+      'Studio',
+    ]);
+    // A namesake that is still available still counts: the one unavailable twin is named with its location (TR-07).
+    const westAvailable = booking({ venueId: 'v-west', venueName: 'Main Hall', venueLocation: 'West Wing' });
+    expect(deriveUnavailableVenues([east, westAvailable], NOW)).toEqual(['Main Hall (East Wing)']);
+    // The location is added only because another of the event's venues has the same name.
+    expect(venueLabel(east, [east, studio])).toBe('Main Hall');
+    expect(venueLabel(east, [east, eastAgain])).toBe('Main Hall');
+  });
+
+  /** MONITOR-QUEUE-08-A (review finding, PR #80): a hold names its venue the same way, with the location on a name clash. */
+  it('MONITOR-QUEUE-08-A labels a hold with the venue location when two venues share a name', () => {
+    const hold = booking({ venueId: 'v-east', venueName: 'Main Hall', venueLocation: 'East Wing', status: 'pending', holdExpiresAt: H1_EXPIRY });
+    const other = booking({ venueId: 'v-west', venueName: 'Main Hall', venueLocation: 'West Wing' });
+    expect(deriveHolds([hold, other], NOW)).toEqual([
+      { venueName: 'Main Hall (East Wing)', expiresAt: H1_EXPIRY.toISOString(), state: 'ACTIVE' },
+    ]);
   });
 
   /** MONITOR-QUEUE-09-B: an approved replacement does not clear the flag while the affected booking is active. */

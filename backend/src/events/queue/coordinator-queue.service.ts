@@ -30,7 +30,9 @@ interface SafetyRow {
 
 interface BookingRow {
   event_id: string;
+  venue_id: string;
   venue_name: string;
+  venue_location: string;
   status: 'pending' | 'approved';
   hold_expires_at: Date | null;
   venue_unavailable: boolean;
@@ -38,12 +40,12 @@ interface BookingRow {
 
 // The one venue-unavailable rule (venue-unavailable.ts), shared with the venue summary and Confirm readiness,
 // so the queue flag and the card's "(unavailable)" venue agree.
-const QUEUE_BOOKINGS_SQL = `SELECT b.event_id, v.name AS venue_name, b.status, b.hold_expires_at,
+const QUEUE_BOOKINGS_SQL = `SELECT b.event_id, v.id AS venue_id, v.name AS venue_name, v.location AS venue_location, b.status, b.hold_expires_at,
          ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
     FROM venue_bookings b
     JOIN venues v ON v.id = b.venue_id
    WHERE b.event_id = ANY($1::uuid[]) AND b.status IN ('pending', 'approved')
-   ORDER BY b.start_at, v.name, b.id`;
+   ORDER BY b.start_at, v.name, v.location, b.id`;
 
 const QUEUE_SAFETY_SQL = `SELECT e.id, s.status AS safety_state, (r.event_id IS NOT NULL) AS safety_reset
     FROM events e
@@ -82,7 +84,9 @@ export class CoordinatorQueueService {
     for (const row of bookings.rows) {
       const list = bookingsById.get(row.event_id) ?? [];
       list.push({
+        venueId: row.venue_id,
         venueName: row.venue_name,
+        venueLocation: row.venue_location,
         status: row.status,
         holdExpiresAt: row.hold_expires_at,
         venueUnavailable: row.venue_unavailable,

@@ -1,7 +1,7 @@
 {
   "story": "SPM-48",
   "title": "Monitor Workspace Queue & Status (Coordinator)",
-  "note": "Jira SPM-48 (In Progress; AC revised 22 and 23 Oct 2026) is the source for AC1 to AC9. The Confluence matrix 'Monitor Workspace Queue & Status Matrix' (page 23691437) and its MONITOR-QUEUE-01 to -09 case pages are the PRIMARY oracles (23 IDs). MONITOR-QUEUE-01-SUP-FILTER (status filter) is SUPPORTING under AC1/AC2. Decisions of 23 Oct 2026 (new coordinator-only endpoint, All statuses default, RESET indicator for AC6, 'rejected' safety state for AC7, AC9 flag clears when the affected booking stops being active, shared badge colours) are recorded in spec-conflicts.md as SC-SPM48-01 to SC-SPM48-05. The AC9 buffer decision (setup and turnaround time count; one shared rule in backend/src/events/venue-unavailable.ts, measured here) is SC-SPM48-08. Shared test files carry other stories' tests and are narrowed with titleMatch. Coverage is measured on the files SPM-48 owns outright plus StatusBadge.tsx. The shared files it changes (EventCard.tsx, EventListPage.tsx, FormControls.tsx, StatusLabels.tsx, PlanningInformationPage.tsx, format.ts, safety-check.source.ts, app.module.ts) are not measured: their other stories' lines are out of scope. Every SPM-48 line in them is exercised by the story's tests (diff check against coverage-final.json, 23 Oct 2026: no uncovered line in an SPM-48 hunk). EventCard.tsx was removed from the measured set after cycle-impl-02: its attendee and registration branches belong to SPM-61/SPM-138 tests outside this scope; the full frontend `npm run test:cov` (23 Oct 2026) measures it at 100% statements, branches, functions and lines.",
+  "note": "Jira SPM-48 (In Progress; AC revised 22 and 23 Oct 2026) is the source for AC1 to AC9. The Confluence matrix 'Monitor Workspace Queue & Status Matrix' (page 23691437) and its MONITOR-QUEUE-01 to -09 case pages are the PRIMARY oracles (23 IDs). MONITOR-QUEUE-01-SUP-FILTER (status filter) is SUPPORTING under AC1/AC2. Decisions of 23 Oct 2026 (new coordinator-only endpoint, All statuses default, RESET indicator for AC6, 'rejected' safety state for AC7, AC9 flag clears when the affected booking stops being active, shared badge colours) are recorded in spec-conflicts.md as SC-SPM48-01 to SC-SPM48-05. The AC9 buffer decision (setup and turnaround time count; one shared rule in backend/src/events/venue-unavailable.ts, measured here) is SC-SPM48-08. Shared test files carry other stories' tests and are narrowed with titleMatch. Coverage is measured on the files SPM-48 owns outright plus StatusBadge.tsx. The shared files it changes (EventCard.tsx, EventListPage.tsx, FormControls.tsx, StatusLabels.tsx, PlanningInformationPage.tsx, format.ts, safety-check.source.ts, app.module.ts) are not measured: their other stories' lines are out of scope. Every SPM-48 line in them is exercised by the story's tests (diff check against coverage-final.json, 23 Oct 2026: no uncovered line in an SPM-48 hunk). EventCard.tsx was removed from the measured set after cycle-impl-02: its attendee and registration branches belong to SPM-61/SPM-138 tests outside this scope; the full frontend `npm run test:cov` (23 Oct 2026) measures it at 100% statements, branches, functions and lines. PR #80 review (23 Oct 2026): event list filters reset at login and logout (useAppStore.ts, a shared file not measured here; its SPM-48 lines are covered by useAppStore.logout.test.ts and EventListPage.queue.test.tsx, and killed by F16/F17); venues told apart by id with the location added on a name clash (queue-indicators.ts).",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -39,6 +39,10 @@
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "MONITOR-QUEUE"
+      },
+      {
+        "glob": "frontend/src/store/useAppStore.logout.test.ts",
         "titleMatch": "MONITOR-QUEUE"
       }
     ]

@@ -45,7 +45,10 @@ export type QueueAction =
 
 /** One of the event's pending or approved venue bookings, as the queue reads it. */
 export interface QueueBookingFact {
+  /** The venue's id: venues are told apart by id, never by name (two venues can share a name). */
+  venueId: string;
   venueName: string;
+  venueLocation: string;
   status: 'pending' | 'approved';
   holdExpiresAt: Date | null;
   /** A Venue Staff unavailable period overlaps the booking's window (SPM-122). */
@@ -94,11 +97,20 @@ export function holdIsActive(expiresAt: Date, now: Date): boolean {
 }
 
 /** AC8: each tentative hold (a pending booking with an expiry) with its state and expiry. */
+/**
+ * How a venue is named on the card: its name, plus its location when another of the event's venues has the same
+ * name, so venues that share a name stay distinguishable (PR #80 review).
+ */
+export function venueLabel(booking: QueueBookingFact, bookings: QueueBookingFact[]): string {
+  const clash = bookings.some((other) => other.venueId !== booking.venueId && other.venueName === booking.venueName);
+  return clash ? `${booking.venueName} (${booking.venueLocation})` : booking.venueName;
+}
+
 export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[] {
   return bookings
     .filter((booking) => booking.status === 'pending' && booking.holdExpiresAt !== null)
     .map((booking) => ({
-      venueName: booking.venueName,
+      venueName: venueLabel(booking, bookings),
       expiresAt: booking.holdExpiresAt!.toISOString(),
       state: holdIsActive(booking.holdExpiresAt!, now) ? 'ACTIVE' : 'EXPIRED',
     }));
@@ -112,16 +124,17 @@ export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[
  * replacement alone does not clear it (decided 23 Oct 2026, SPM-54 AC6 keeps the affected booking).
  */
 export function deriveUnavailableVenues(bookings: QueueBookingFact[], now: Date): string[] {
-  const names = bookings
+  const affected = bookings
     .filter(
       (booking) =>
         booking.venueUnavailable &&
         (booking.status === 'approved' ||
           booking.holdExpiresAt === null ||
           holdIsActive(booking.holdExpiresAt, now)),
-    )
-    .map((booking) => booking.venueName);
-  return [...new Set(names)];
+    );
+  // One entry per venue, by id: two bookings of the same venue are listed once, two venues with one name twice.
+  const byVenue = new Map(affected.map((booking) => [booking.venueId, booking]));
+  return [...byVenue.values()].map((booking) => venueLabel(booking, bookings));
 }
 
 /** AC5: the reasons an event needs the coordinator's action, in a fixed order. */
