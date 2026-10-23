@@ -106,6 +106,7 @@ function renderRoutes(initialEntry: string) {
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
           <Route path="/equipment" element={<p>Equipment</p>} />
           <Route path="/equipment/create" element={<p>Create equipment</p>} />
+          <Route path="/equipment/inventory" element={<p>Equipment inventory</p>} />
           <Route path="/equipment/availability" element={<p>Equipment availability</p>} />
         </Route>
         <Route element={<RequireRole allowedRoles={["coordinator", "tech_support"]} />}>
@@ -214,6 +215,7 @@ describe("restricted organiser routes", () => {
     "/bookings",
     "/equipment",
     "/equipment/create",
+    "/equipment/inventory",
     "/equipment/requests",
     "/equipment/availability",
   ])("redirects an attendee who directly opens restricted operational route %s", (path) => {
@@ -234,9 +236,9 @@ describe("restricted organiser routes", () => {
   it("EQUIP-VIEW-01-E allows Technical Support to reach the equipment inventory list", () => {
     useAppStore.setState({ currentUser: technicalSupport });
 
-    renderRoutes("/equipment/availability");
+    renderRoutes("/equipment/inventory");
 
-    expect(screen.getByText("Equipment availability")).toBeInTheDocument();
+    expect(screen.getByText("Equipment inventory")).toBeInTheDocument();
   });
 
   // SPM-111 EQUIP-CRE-01-B: only Technical Support reaches the create-record route.
@@ -266,7 +268,7 @@ describe("restricted organiser routes", () => {
     expect(screen.getByText("Equipment requests")).toBeInTheDocument();
     unmountRequests();
 
-    for (const path of ["/equipment", "/equipment/create", "/equipment/availability"]) {
+    for (const path of ["/equipment", "/equipment/create", "/equipment/inventory", "/equipment/availability"]) {
       const { unmount: unmountBlocked } = renderRoutes(path);
       expect(screen.getByText("Events dashboard")).toBeInTheDocument();
       unmountBlocked();

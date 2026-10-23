@@ -6,8 +6,9 @@ const password = process.env.SPM111_TEST_PASSWORD ?? "P@55w0rd";
 const name =
   process.env.SPM111_TEST_NAME ?? `SPM-111 equipment browser ${Date.now()}`;
 
-// SPM-111 EQUIP-CRE-04-A/05-A: a Technical Support user creates an item and sees it in live inventory.
-test("creates an equipment record and displays it in Equipment Availability", async ({
+// SPM-111 EQUIP-CRE-04-A/05-A; SPM-113 EQUIP-AVAIL-08-A: create an item with
+// status-specific quantities and verify the complete breakdown in live inventory.
+test("creates an equipment record and displays it in Equipment Inventory", async ({
   page,
 }) => {
   // Arrange: sign in using the seeded Technical Support account in the browser.
@@ -21,8 +22,9 @@ test("creates an equipment record and displays it in Equipment Availability", as
   await page.goto("/equipment/create");
   await page.getByLabel("Equipment name").fill(name);
   await page.getByLabel("Equipment type").selectOption("Visual");
-  await page.getByLabel("Quantity").fill("7");
-  await page.getByLabel("Maintenance status").selectOption("Active");
+  await page.getByLabel("Active quantity").fill("10");
+  await page.getByLabel("Under Maintenance quantity").fill("30");
+  await page.getByLabel("Retired quantity").fill("10");
   await page.getByLabel("Location").fill("Browser Test Store");
   await page.getByRole("button", { name: "Create Equipment" }).click();
 
@@ -32,8 +34,11 @@ test("creates an equipment record and displays it in Equipment Availability", as
   ).toContainText("Equipment record created.");
   await page.getByRole("button", { name: "OK" }).click();
   await expect(page).toHaveURL(/\/equipment\/availability$/);
-  await expect(page.getByRole("cell", { name })).toBeVisible();
-  await expect(
-    page.getByRole("cell", { name: "Browser Test Store" }),
-  ).toBeVisible();
+  const equipmentRow = page.getByRole("row", { name: new RegExp(name) });
+  await expect(equipmentRow).toBeVisible();
+  await expect(equipmentRow).toContainText("Browser Test Store");
+  await expect(equipmentRow).toContainText("Active: 10");
+  await expect(equipmentRow).toContainText("Under Maintenance: 30");
+  await expect(equipmentRow).toContainText("Retired: 10");
+  await expect(equipmentRow).toContainText("Total: 50");
 });

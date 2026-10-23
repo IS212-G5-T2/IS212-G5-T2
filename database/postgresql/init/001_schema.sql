@@ -49,13 +49,20 @@ CREATE TABLE IF NOT EXISTS equipment (
     equipment_type text NOT NULL CHECK (equipment_type IN ('Audio', 'Visual', 'Furniture', 'Lighting', 'Other')),
     quantity integer NOT NULL CHECK (quantity > 0),
     maintenance_status text NOT NULL CHECK (maintenance_status IN ('Active', 'Under Maintenance', 'Retired')),
+    active_quantity integer NOT NULL DEFAULT 0 CHECK (active_quantity >= 0),
+    under_maintenance_quantity integer NOT NULL DEFAULT 0 CHECK (under_maintenance_quantity >= 0),
+    retired_quantity integer NOT NULL DEFAULT 0 CHECK (retired_quantity >= 0),
     location text NOT NULL CHECK (length(btrim(location)) > 0),
     is_available boolean NOT NULL DEFAULT true,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT equipment_quantity_breakdown_check CHECK (
+        quantity = active_quantity::bigint + under_maintenance_quantity::bigint + retired_quantity::bigint
+    )
 );
 CREATE INDEX IF NOT EXISTS equipment_created_idx ON equipment (created_at DESC);
 CREATE INDEX IF NOT EXISTS equipment_is_available_idx ON equipment (is_available);
+CREATE UNIQUE INDEX IF NOT EXISTS equipment_name_unique_idx ON equipment (equipment_name);
 
 CREATE TABLE IF NOT EXISTS user_roles (
     user_id uuid NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -265,6 +272,9 @@ CREATE TABLE IF NOT EXISTS equipment_reservations (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS equipment_reservations_event_idx ON equipment_reservations (event_id);
+CREATE INDEX IF NOT EXISTS equipment_reservations_reserved_name_event_idx
+    ON equipment_reservations (equipment_name, event_id)
+    WHERE status = 'Reserved';
 
 CREATE TABLE IF NOT EXISTS equipment_requests (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -335,11 +345,17 @@ CREATE TABLE IF NOT EXISTS equipment_audit_trail (
     location text NOT NULL,
     maintenance_status text NOT NULL,
     quantity integer NOT NULL,
+    active_quantity integer NOT NULL DEFAULT 0 CHECK (active_quantity >= 0),
+    under_maintenance_quantity integer NOT NULL DEFAULT 0 CHECK (under_maintenance_quantity >= 0),
+    retired_quantity integer NOT NULL DEFAULT 0 CHECK (retired_quantity >= 0),
     is_available boolean NOT NULL,
     change_type text NOT NULL CHECK (change_type IN ('Marked unavailable', 'Reactivated', 'Equipment record updated')),
     reason text,
     changed_by text NOT NULL,
-    changed_at timestamptz NOT NULL DEFAULT now()
+    changed_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT equipment_audit_quantity_breakdown_check CHECK (
+        quantity = active_quantity::bigint + under_maintenance_quantity::bigint + retired_quantity::bigint
+    )
 );
 CREATE INDEX IF NOT EXISTS equipment_audit_trail_equipment_idx ON equipment_audit_trail (equipment_id);
 CREATE INDEX IF NOT EXISTS equipment_audit_trail_changed_at_idx ON equipment_audit_trail (changed_at DESC);

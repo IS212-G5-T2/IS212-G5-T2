@@ -22,8 +22,9 @@ try {
   // changes and shared audit history are exercised by the browser spec below.
   await db.query(
     `INSERT INTO equipment
-       (equipment_name, equipment_type, quantity, maintenance_status, location, is_available)
-     VALUES ($1, 'Lighting', 50, 'Active', 'Tampines', true)`,
+       (equipment_name, equipment_type, quantity, maintenance_status, active_quantity,
+        under_maintenance_quantity, retired_quantity, location, is_available)
+     VALUES ($1, 'Lighting', 50, 'Active', 50, 0, 0, 'Tampines', true)`,
     [auditTrailEquipmentName],
   );
   // SPM-120 08-A fixture: a published event with capacity 2 that is full, with the

@@ -7,6 +7,7 @@ import {
   updateEquipment,
   updateEquipmentAvailability,
   getEquipmentAuditTrail,
+  getEquipmentAvailability,
 } from "./equipment-api";
 
 vi.mock("@/utils/api", () => ({ api: vi.fn() }));
@@ -15,14 +16,15 @@ const apiMock = vi.mocked(api);
 beforeEach(() => apiMock.mockReset());
 
 describe("equipment API contracts", () => {
-  /** Confluence EQUIP-UPDATE-02-A; SPM-118 AC2: update requests use the selected record id and create-field payload. Kills: FE-118-01 (uses PATCH instead of PUT). */
-  it("EQUIP-UPDATE-02-A submits equipment edits using PUT", () => {
+  /** EQUIP-AVAIL-08-B: update sends the status bucket counts and no caller-supplied total or singular status. */
+  it("EQUIP-AVAIL-08-B submits equipment edits using PUT with status bucket counts", () => {
     const input = {
       name: "Updated projector",
       type: "Visual" as const,
       location: "Main Hall",
-      quantity: 4,
-      maintenanceStatus: "Under Maintenance" as const,
+      activeQuantity: 0,
+      underMaintenanceQuantity: 4,
+      retiredQuantity: 0,
     };
 
     updateEquipment("equipment-118", input);
@@ -34,15 +36,16 @@ describe("equipment API contracts", () => {
   });
 
   /**
-   * EQUIP-CRE-02-A / EQUIP-CRE-02-B: create submits type, quantity, status, and location unchanged.
+    * EQUIP-AVAIL-08-A: create submits all three status bucket counts unchanged.
    * Confluence: https://is212-g5-t2.atlassian.net/wiki/spaces/SP/pages/19922946/EQUIP-CRE-02
    */
-  it("SPM-111 posts the complete equipment creation payload", () => {
+  it("EQUIP-AVAIL-08-A posts the complete equipment creation payload", () => {
     const input = {
       name: "Conference projector",
       type: "Visual" as const,
-      quantity: 10,
-      maintenanceStatus: "Active" as const,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 0,
+      retiredQuantity: 0,
       location: "Storage Room A",
     };
 
@@ -61,6 +64,19 @@ describe("equipment API contracts", () => {
   it("SPM-117 gets equipment locations from the dedicated endpoint", () => {
     getEquipmentLocations();
     expect(apiMock).toHaveBeenCalledWith("/equipment/locations");
+  });
+
+  /** EQUIP-AVAIL-01: a period check sends ISO instants and an exact optional type filter. */
+  it("gets event-window availability with the selected equipment type", () => {
+    getEquipmentAvailability({
+      startDateTime: "2030-02-01T09:00:00.000Z",
+      endDateTime: "2030-02-01T10:00:00.000Z",
+      equipmentType: "Lighting",
+    });
+
+    expect(apiMock).toHaveBeenCalledWith(
+      "/equipment/availability?startDateTime=2030-02-01T09%3A00%3A00.000Z&endDateTime=2030-02-01T10%3A00%3A00.000Z&equipmentType=Lighting",
+    );
   });
 
   /**

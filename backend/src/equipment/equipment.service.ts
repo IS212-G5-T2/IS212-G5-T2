@@ -7,17 +7,24 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
-import { validateEquipmentInput } from './creation/dto/equipment-input.js';
+import {
+  getLegacyMaintenanceStatus,
+  validateEquipmentInput,
+} from './creation/dto/equipment-input.js';
 import {
   validateAvailabilityInput,
   validateEquipmentAvailabilityId,
 } from './availability/dto/equipment-availability-input.js';
+import { validateEquipmentAvailabilityQuery } from './availability/dto/equipment-availability-query.js';
 
 type EquipmentRow = {
   id: string;
   equipment_name: string;
   equipment_type: string;
   quantity: number;
+  active_quantity: number;
+  under_maintenance_quantity: number;
+  retired_quantity: number;
   maintenance_status: string;
   location: string;
   is_available: boolean;
@@ -33,12 +40,32 @@ type AuditTrailRow = {
   location: string;
   maintenance_status: string;
   quantity: number;
+  active_quantity: number;
+  under_maintenance_quantity: number;
+  retired_quantity: number;
   is_available: boolean;
   change_type: string;
   reason: string | null;
   changed_by: string;
   changed_at: Date;
 };
+
+type AvailabilityRow = EquipmentRow & {
+  reserved_quantity: number;
+  reserved_until: Date | null;
+};
+
+function equipmentQuantities(row: EquipmentRow) {
+  return {
+    activeQuantity:
+      row.active_quantity ?? (row.maintenance_status === 'Active' ? row.quantity : 0),
+    underMaintenanceQuantity:
+      row.under_maintenance_quantity ??
+      (row.maintenance_status === 'Under Maintenance' ? row.quantity : 0),
+    retiredQuantity:
+      row.retired_quantity ?? (row.maintenance_status === 'Retired' ? row.quantity : 0),
+  };
+}
 
 function requireTechnicalSupport(
   user: AuthenticatedUser | undefined,
@@ -49,12 +76,21 @@ function requireTechnicalSupport(
 }
 
 function toEquipment(row: EquipmentRow) {
+  const { activeQuantity, underMaintenanceQuantity, retiredQuantity } = equipmentQuantities(row);
+  const nonzeroStatuses = [
+    activeQuantity,
+    underMaintenanceQuantity,
+    retiredQuantity,
+  ].filter((count) => count > 0).length;
   return {
     id: row.id,
     name: row.equipment_name,
     type: row.equipment_type,
     quantity: row.quantity,
-    maintenanceStatus: row.maintenance_status,
+    activeQuantity,
+    underMaintenanceQuantity,
+    retiredQuantity,
+    maintenanceStatus: nonzeroStatuses === 1 ? row.maintenance_status : null,
     location: row.location,
     isAvailable: row.is_available,
     createdAt: row.created_at.toISOString(),
@@ -71,6 +107,9 @@ function toAuditEntry(row: AuditTrailRow) {
     location: row.location,
     maintenanceStatus: row.maintenance_status,
     quantity: row.quantity,
+    ...(row.active_quantity !== undefined && { activeQuantity: row.active_quantity }),
+    ...(row.under_maintenance_quantity !== undefined && { underMaintenanceQuantity: row.under_maintenance_quantity }),
+    ...(row.retired_quantity !== undefined && { retiredQuantity: row.retired_quantity }),
     isAvailable: row.is_available,
     changeType: row.change_type,
     reason: row.reason,
@@ -83,12 +122,15 @@ function changedEquipmentFields(
   before: EquipmentRow,
   input: ReturnType<typeof validateEquipmentInput>,
 ): string[] {
+  const currentQuantities = equipmentQuantities(before);
   return [
     before.equipment_name !== input.name && 'Equipment name',
     before.equipment_type !== input.type && 'Equipment type',
     before.location !== input.location && 'Location',
-    before.maintenance_status !== input.maintenanceStatus && 'Maintenance status',
-    before.quantity !== input.quantity && 'Quantity available',
+    currentQuantities.activeQuantity !== input.activeQuantity && 'Active quantity',
+    currentQuantities.underMaintenanceQuantity !== input.underMaintenanceQuantity &&
+      'Under Maintenance quantity',
+    currentQuantities.retiredQuantity !== input.retiredQuantity && 'Retired quantity',
   ].filter((field): field is string => Boolean(field));
 }
 
@@ -102,14 +144,20 @@ export class EquipmentService {
     requireTechnicalSupport(user);
     const input = validateEquipmentInput(body);
     const result = await this.database.query<EquipmentRow>(
-      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at`,
+      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, equipment_name, equipment_type, quantity, active_quantity,
+                 under_maintenance_quantity, retired_quantity, maintenance_status,
+                 location, is_available, created_at, updated_at`,
       [
         input.name,
         input.type,
         input.quantity,
-        input.maintenanceStatus,
+        getLegacyMaintenanceStatus(input),
+        input.activeQuantity,
+        input.underMaintenanceQuantity,
+        input.retiredQuantity,
         input.location,
       ],
     );
@@ -128,7 +176,9 @@ export class EquipmentService {
       ? ''
       : 'WHERE is_available = true';
     const result = await this.database.query<EquipmentRow>(
-      `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at
+      `SELECT id, equipment_name, equipment_type, quantity, active_quantity,
+              under_maintenance_quantity, retired_quantity, maintenance_status,
+              location, is_available, created_at, updated_at
        FROM equipment ${availabilityClause} ORDER BY created_at DESC`,
     );
     return result.rows.map(toEquipment);
@@ -142,6 +192,62 @@ export class EquipmentService {
     return result.rows.map((row) => row.location);
   }
 
+  /**
+   * SPM-113 AC1–AC7: calculates stock usable during an event window.  Only a
+   * Reserved request consumes stock.  Intervals are half-open, so a request
+   * ending at the selected start (or starting at the selected end) does not
+   * overlap it.
+   */
+  async getAvailability(user: AuthenticatedUser | undefined, query: Record<string, unknown>) {
+    requireTechnicalSupport(user);
+    const input = validateEquipmentAvailabilityQuery(query);
+    const result = await this.database.query<AvailabilityRow>(
+      `SELECT e.id, e.equipment_name, e.equipment_type, e.quantity,
+              e.active_quantity, e.under_maintenance_quantity, e.retired_quantity,
+              e.maintenance_status, e.location, e.is_available, e.created_at, e.updated_at,
+              COALESCE(SUM(r.quantity), 0)::integer AS reserved_quantity,
+              MAX(r.end_date_time) AS reserved_until
+         FROM equipment e
+         LEFT JOIN (
+           SELECT r.equipment_name, r.quantity, ev.end_date_time
+             FROM equipment_reservations r
+             JOIN events ev ON ev.id = r.event_id
+            WHERE r.status = 'Reserved'
+              AND ev.start_date_time < $2::timestamptz
+              AND ev.end_date_time > $1::timestamptz
+         ) r ON r.equipment_name = e.equipment_name
+        WHERE ($3::text IS NULL OR e.equipment_type = $3::text)
+        GROUP BY e.id
+        ORDER BY e.equipment_name ASC`,
+      [input.start, input.end, input.equipmentType ?? null],
+    );
+    return result.rows.map((row) => {
+      const quantities = equipmentQuantities(row);
+      const reservedQuantity = row.reserved_quantity;
+      const availabilityBase = row.is_available ? quantities.activeQuantity : 0;
+      const availableQuantity = Math.max(0, availabilityBase - reservedQuantity);
+      const reasons: string[] = [];
+      if (!row.is_available) reasons.push('Manually unavailable');
+      if (quantities.underMaintenanceQuantity > 0) reasons.push('Under maintenance');
+      if (quantities.retiredQuantity > 0) reasons.push('Retired');
+      if (reservedQuantity > 0) reasons.push('Reserved');
+      return {
+        id: row.id,
+        name: row.equipment_name,
+        type: row.equipment_type,
+        location: row.location,
+        activeQuantity: quantities.activeQuantity,
+        underMaintenanceQuantity: quantities.underMaintenanceQuantity,
+        retiredQuantity: quantities.retiredQuantity,
+        reservedQuantity,
+        availableQuantity,
+        isAvailable: availableQuantity > 0,
+        reason: reasons.length ? reasons.join('; ') : null,
+        reservedUntil: row.reserved_until?.toISOString() ?? null,
+      };
+    });
+  }
+
   /** SPM-118 AC2/AC5/AC6: update one inventory record and its audit snapshot atomically. */
   async update(user: AuthenticatedUser | undefined, equipmentId: string, body: unknown) {
     const actor = requireTechnicalSupport(user);
@@ -149,7 +255,9 @@ export class EquipmentService {
 
     return this.database.transaction(async (client) => {
       const current = await client.query<EquipmentRow>(
-        `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at
+        `SELECT id, equipment_name, equipment_type, quantity, active_quantity,
+                under_maintenance_quantity, retired_quantity, maintenance_status,
+                location, is_available, created_at, updated_at
          FROM equipment WHERE id = $1 FOR UPDATE`,
         [equipmentId],
       );
@@ -167,23 +275,31 @@ export class EquipmentService {
       const updated = await client.query<EquipmentRow>(
         `UPDATE equipment
          SET equipment_name = $2, equipment_type = $3, location = $4,
-             maintenance_status = $5, quantity = $6, updated_at = now()
+             maintenance_status = $5, quantity = $6, active_quantity = $7,
+             under_maintenance_quantity = $8, retired_quantity = $9, updated_at = now()
          WHERE id = $1
-         RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at`,
+         RETURNING id, equipment_name, equipment_type, quantity, active_quantity,
+                   under_maintenance_quantity, retired_quantity, maintenance_status,
+                   location, is_available, created_at, updated_at`,
         [
           equipmentId,
           input.name,
           input.type,
           input.location,
-          input.maintenanceStatus,
+          getLegacyMaintenanceStatus(input),
           input.quantity,
+          input.activeQuantity,
+          input.underMaintenanceQuantity,
+          input.retiredQuantity,
         ],
       );
       const record = updated.rows[0];
       await client.query(
         `INSERT INTO equipment_audit_trail
-           (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'Equipment record updated', $8, $9)`,
+           (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity,
+            active_quantity, under_maintenance_quantity, retired_quantity, is_available,
+            change_type, reason, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'Equipment record updated', $11, $12)`,
         [
           record.id,
           record.equipment_name,
@@ -191,6 +307,9 @@ export class EquipmentService {
           record.location,
           record.maintenance_status,
           record.quantity,
+          record.active_quantity,
+          record.under_maintenance_quantity,
+          record.retired_quantity,
           record.is_available,
           `Updated fields: ${changedFields.join(', ')}.`,
           actor.email,
@@ -222,7 +341,9 @@ export class EquipmentService {
 
     return this.database.transaction(async (client) => {
       const current = await client.query<EquipmentRow>(
-        `SELECT id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at
+        `SELECT id, equipment_name, equipment_type, quantity, active_quantity,
+                under_maintenance_quantity, retired_quantity, maintenance_status,
+                location, is_available, created_at, updated_at
          FROM equipment WHERE id = $1 FOR UPDATE`,
         [equipmentId],
       );
@@ -239,7 +360,9 @@ export class EquipmentService {
       const updated = await client.query<EquipmentRow>(
         `UPDATE equipment SET is_available = $2, updated_at = now()
          WHERE id = $1
-         RETURNING id, equipment_name, equipment_type, quantity, maintenance_status, location, is_available, created_at, updated_at`,
+         RETURNING id, equipment_name, equipment_type, quantity, active_quantity,
+                   under_maintenance_quantity, retired_quantity, maintenance_status,
+                   location, is_available, created_at, updated_at`,
         [equipmentId, input.isAvailable],
       );
 
@@ -248,8 +371,10 @@ export class EquipmentService {
         : 'Marked unavailable';
       await client.query(
         `INSERT INTO equipment_audit_trail
-           (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+           (equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity,
+            active_quantity, under_maintenance_quantity, retired_quantity, is_available,
+            change_type, reason, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
         [
           equipmentId,
           before.equipment_name,
@@ -257,6 +382,9 @@ export class EquipmentService {
           before.location,
           before.maintenance_status,
           before.quantity,
+          before.active_quantity,
+          before.under_maintenance_quantity,
+          before.retired_quantity,
           input.isAvailable,
           changeType,
           input.reason ?? null,
@@ -272,7 +400,9 @@ export class EquipmentService {
   async getAuditTrail(user: AuthenticatedUser | undefined) {
     requireTechnicalSupport(user);
     const result = await this.database.query<AuditTrailRow>(
-      `SELECT id, equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity, is_available, change_type, reason, changed_by, changed_at
+      `SELECT id, equipment_id, equipment_name, equipment_type, location, maintenance_status, quantity,
+              active_quantity, under_maintenance_quantity, retired_quantity, is_available,
+              change_type, reason, changed_by, changed_at
        FROM equipment_audit_trail ORDER BY changed_at DESC`,
     );
     return result.rows.map(toAuditEntry);
