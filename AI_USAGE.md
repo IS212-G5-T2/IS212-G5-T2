@@ -151,3 +151,11 @@ Where user is the user's github username.
 ## 2026-10-28
 
 - swr - implementation correction - SPM-159 - Enforce expiry for approved tentative holds: Added migration/init 025 with a validated conditional CHECK and explicit legacy-row refusal; audited all 12 expiry comparisons and made approved venue conflict/schedule paths fail closed for NULL, preserving pending and ordinary-booking semantics. Backend unit and coverage runs passed (1,858 tests; repository 100% on all four metrics), focused PostgreSQL 16 E2E passed (91), lint/build passed. Full disposable-DB E2E had 770 passes and one equipment-login setup failure; the affected file passed 25/25 on retry. Owned scratch database cleaned up. No commit, push, PR, or Jira transition; no independent review gates claimed.
+## 2026-10-24
+
+- swr - implementation - SPM-56 - Show complete booking conflict windows before approval: Extended the Venue Staff approval conflict response to include every overlapping booking or unavailable period with its full occupied interval (setup and turnaround included for bookings), then render those intervals in the review alert. Based on the latest dev containing merged SPM-54 and SPM-55. Backend tests: 80 files / 1,784 passed; frontend tests: 126 files / 1,793 passed, 1 skipped, 1 todo; focused BookingsPage suite: 40 passed. Backend and frontend builds, changed-file lint, and `git diff --check` passed. Database-backed E2E and review gates not run.
+- swr - local demo data - SPM-56 - Seed booking conflicts for manual review: Added idempotent local fixture 024 and applied it to the running Compose database. It creates a pending Sample Birch Lecture Hall request alongside an approved booking, an active hold, and an unavailable period on 14 Nov 2026; also applied the missing additive SPM-55 review and special-request migrations to this existing local database so its review UI/API schema matches the app.
+
+## 2026-10-29
+
+- swr - rebase conflict resolution - SPM-56 - Restored dev’s complete BookingDetailModal.tsx into the working tree for user review, preserving SPM-159 hold behavior. Verified byte equality with dev and unchanged index; SPM-56 modal conflict-detail additions displaced per dev-first conflict policy. Nothing staged; rebase remains paused.

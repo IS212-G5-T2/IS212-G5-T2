@@ -543,6 +543,51 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
   });
 
+  /** VEN-CONF-02-A, VEN-CONF-06-A/C: a conflict keeps approval open and shows the full occupied windows of every blocker. */
+  it("VEN-CONF-02-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 shows every conflicting occupied interval", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with Lecture Series. Check availability again before approving.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+        [
+          {
+            id: "approved-1", reason: "Lecture Series", kind: "booking",
+            start: "2030-01-12T03:20:00.000Z", end: "2030-01-12T04:00:00.000Z",
+            occupiedStart: "2030-01-12T02:50:00.000Z", occupiedEnd: "2030-01-12T04:45:00.000Z", status: "approved",
+          },
+          {
+            id: "hold-1", reason: "Tentative Event", kind: "booking",
+            start: "2030-01-12T04:45:00.000Z", end: "2030-01-12T05:45:00.000Z",
+            occupiedStart: "2030-01-12T04:15:00.000Z", occupiedEnd: "2030-01-12T06:30:00.000Z", status: "pending",
+            holdExpiresAt: "2030-01-12T03:00:00.000Z",
+          },
+          {
+            id: "closure-1", reason: "Maintenance", kind: "unavailable",
+            start: "2030-01-12T06:00:00.000Z", end: "2030-01-12T07:00:00.000Z",
+            occupiedStart: "2030-01-12T06:00:00.000Z", occupiedEnd: "2030-01-12T07:00:00.000Z",
+          },
+        ],
+      ));
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Lecture Series (confirmed booking): occupied 12 Jan 2030, 10:50 – 12 Jan 2030, 12:45 SGT");
+    expect(alert).toHaveTextContent("Tentative Event (tentative hold): occupied 12 Jan 2030, 12:15 – 12 Jan 2030, 14:30 SGT");
+    expect(alert).toHaveTextContent("Maintenance (unavailable period): occupied 12 Jan 2030, 14:00 – 12 Jan 2030, 15:00 SGT");
+    expect(within(alert).getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
+  });
+
   /** VEN-REV-06-B: a reason typed and rejected for one request, with its error, does not carry into the next request's dialog. */
   it("SPM-55 AC6 starts a fresh dialog with no reason or error for another request", async () => {
     const user = userEvent.setup();

@@ -1,3 +1,5 @@
+import type { VenueBookingConflict } from "@/types";
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -5,6 +7,7 @@ export class ApiError extends Error {
     /** Machine-readable server error code, such as registration_closed. */
     public code?: string,
     public status?: number,
+    public conflicts?: VenueBookingConflict[],
   ) {
     super(message);
   }
@@ -35,7 +38,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       "Unable to reach the server. Check your connection and try again.",
     );
   }
-  let data: { message?: string; errors?: Record<string, string>; code?: string } = {};
+  let data: { message?: string; errors?: Record<string, string>; code?: string; conflicts?: VenueBookingConflict[] } = {};
   try {
     data = await response.json();
   } catch {
@@ -52,6 +55,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       data.errors,
       data.code,
       response.status,
+      data.conflicts,
     );
   return data as T;
 }

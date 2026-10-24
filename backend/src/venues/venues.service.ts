@@ -53,7 +53,7 @@ function validateRejectionReason(body: unknown): string {
   return trimmed;
 }
 
-/** Converts a repository decision outcome into the HTTP result or its SPM-55 error. */
+/** Converts a repository decision outcome into the HTTP result or its SPM-55/SPM-56 error. */
 function decisionOrThrow(
   result: VenueBookingDecisionResult,
 ): VenueBookingDecision {
@@ -68,6 +68,7 @@ function decisionOrThrow(
     throw new ConflictException({
       code: 'BOOKING_SLOT_CONFLICT',
       message: `This slot can no longer be approved because it conflicts with ${result.reason}. Check availability again before approving.`,
+      conflicts: result.conflicts,
     });
   return result.booking;
 }
