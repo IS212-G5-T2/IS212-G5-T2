@@ -1,5 +1,6 @@
 import { api } from "@/utils/api";
 import { fetchMyChangeRequests, fetchNewChangeRequestEventIds } from "@/features/events/api/change-requests-api";
+import { fetchCoordinatorQueue } from "@/features/events/api/coordinator-queue-api";
 import { PendingChangeRequests } from "@/features/events/pages/list/PendingChangeRequests";
 import type { ChangeRequest, EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
@@ -57,15 +58,18 @@ export function EventListPage() {
       .catch(() => { if (active) setDrafts([]); });
     return () => { active = false; };
   }, [currentUser.role, retry]);
+  // SPM-48: a coordinator's dashboard is their queue (assigned events with queue indicators); other roles read /events.
+  // Both are fetched on every visit and never cached, so a refresh or revisit shows the latest status (AC4).
+  const readsQueue = currentUser.role === "coordinator";
   useEffect(() => {
     let active = true;
     setLoading(true); setError("");
-    api<EventRecord[]>("/events")
+    (readsQueue ? fetchCoordinatorQueue() : api<EventRecord[]>("/events"))
       .then(events => { if (active) useAppStore.setState({ events }); })
       .catch(e => { if (active) setError(e.message); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [retry]);
+  }, [retry, readsQueue]);
   // SPM-64 AC5: an organiser's dashboard marks events with a change request awaiting review.
   // SPM-65 AC1: so does a coordinator's, which also lists the pending requests for their
   // assigned events. If that cannot load, the events still show and a notice says so.
@@ -108,13 +112,11 @@ export function EventListPage() {
       active = false;
     };
   }, [tracksChangeRequests, retry]);
-  // Coordinators land on pending Submitted requests. Rejected requests remain
-  // accessible through the explicit Rejected filter rather than mixing into
-  // their decision queue.
+  // SPM-48 AC1: a coordinator lands on every assigned event (All statuses, decided 23 Oct 2026); Submitted and
+  // each other status stay one choice away in the filter.
   const eventListFilters = useAppStore((s) => s.eventListFilters);
   const setEventListFilters = useAppStore((s) => s.setEventListFilters);
-  const statusFilter =
-    eventListFilters.status ?? (currentUser.role === "coordinator" ? "submitted" : "");
+  const statusFilter = eventListFilters.status ?? "";
   const setStatusFilter = (status: string) => setEventListFilters({ status });
   // SPM-61: attendees filter by their own relationship to each event instead
   // of by raw workflow status.
@@ -216,7 +218,9 @@ export function EventListPage() {
               label="Filter by status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              options={statusOptions.filter((o) => o.value !== "")}
+              // SPM-48 AC1: a coordinator can pick All statuses (their default) as well as each status.
+              options={isCoordinator ? statusOptions : statusOptions.filter((o) => o.value !== "")}
+              noPlaceholder={isCoordinator}
             />
           )}
         </div>

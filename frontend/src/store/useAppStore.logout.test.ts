@@ -1,6 +1,6 @@
 // Story: SPM-94 Track My Event Status (Organiser)
 // ACs: AC4 (latest status, no stale data across sessions)
-// Test cases: TRACK-EVENT-STATUS-04-B (C: logout then login clears stores)
+// Test cases: TRACK-EVENT-STATUS-04-B (C: logout then login clears stores); MONITOR-QUEUE-01-A (filters reset per session)
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/auth", () => ({
@@ -10,7 +10,7 @@ vi.mock("@/lib/auth", () => ({
   AuthError: class AuthError extends Error {},
 }));
 
-import { logout } from "@/lib/auth";
+import { login, logout } from "@/lib/auth";
 import { useAppStore } from "@/store/useAppStore";
 import type { EventRecord } from "@/types";
 
@@ -43,5 +43,25 @@ describe("SPM-94 AC4 / 04-B C: logout clears the store even when the request fai
     await expect(useAppStore.getState().logout()).rejects.toThrow("network down");
 
     expect(useAppStore.getState().events).toEqual([]);
+  });
+});
+
+describe("SPM-48 review (PR #80): event list filters never outlive a session", () => {
+  const chosen = { attendee: "past", status: "planning" };
+  const defaults = { attendee: "upcoming", status: null };
+
+  // Kills: filters left in place on logout.
+  it("MONITOR-QUEUE-01-A: logout restores the default event list filters", async () => {
+    useAppStore.setState({ isAuthenticated: true, eventListFilters: chosen });
+    await useAppStore.getState().logout();
+    expect(useAppStore.getState().eventListFilters).toEqual(defaults);
+  });
+
+  // Kills: filters left in place when a new user signs in without a logout (for example after the session expired).
+  it("MONITOR-QUEUE-01-A: a new login starts from the default event list filters", async () => {
+    useAppStore.setState({ isAuthenticated: false, eventListFilters: chosen });
+    vi.mocked(login).mockResolvedValueOnce({ id: "coo-2", name: "COO-02", email: "coo2@example.test", role: "coordinator" } as never);
+    await useAppStore.getState().login("coo2@example.test", "secret");
+    expect(useAppStore.getState().eventListFilters).toEqual(defaults);
   });
 });

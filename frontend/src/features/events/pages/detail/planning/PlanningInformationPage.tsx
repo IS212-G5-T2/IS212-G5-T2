@@ -764,6 +764,21 @@ export function PlanningInformationPage({
                   </Button>
                 </div>
               ))}
+            {/* SPM-48 AC7: a rejected arrangement can be revised and requested again (SPM-131 AC6). */}
+            {safety.status === "rejected" && (
+              <Button
+                onClick={() =>
+                  act(
+                    () => requestSafetyCheck(eventId),
+                    "Could not request the safety check.",
+                  )
+                }
+                disabled={!checklist.canRequestSafetyCheck || pending}
+                aria-busy={pending}
+              >
+                Re-Request Safety Check
+              </Button>
+            )}
             {safety.status === "approved" && (
               <p className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
                 <span className="rounded-full bg-success-100 px-2 py-0.5 text-xs font-medium text-success-800 dark:bg-success-900/30 dark:text-success-300">

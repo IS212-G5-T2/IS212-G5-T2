@@ -349,10 +349,10 @@ describe("EventListPage", () => {
     // The Rejected option is available in the coordinator's status filter.
     expect(await screen.findByRole("option", { name: "Rejected" })).toBeTruthy();
 
-    // Default is the Submitted (Pending Requests) view; switching to Rejected
-    // surfaces the rejected request.
+    // SPM-48 AC1: the default is All statuses, so both requests show; switching to
+    // Rejected leaves only the rejected request.
     expect(screen.getByText("Welcome Evening")).toBeTruthy();
-    expect(screen.queryByText("Rejected Gala")).toBeNull();
+    expect(screen.getByText("Rejected Gala")).toBeTruthy();
 
     await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
 

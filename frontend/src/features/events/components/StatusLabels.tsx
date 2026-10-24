@@ -56,6 +56,9 @@ export function safetyLabel(status: string): StateLabelInfo {
       return { label: "Changes Requested", tone: "amber" };
     case "approved":
       return { label: "Approved", tone: "green" };
+    // SPM-48 AC7: a rejected arrangement (SPM-130 AC2).
+    case "rejected":
+      return { label: "Rejected", tone: "red" };
     default:
       return { label: "Not Requested", tone: "gray" };
   }
