@@ -86,6 +86,7 @@ describe("EventDetailPage clarification thread", () => {
   // "Under Review" was retired as a distinct status (SPM-38 follow-up): a
   // clarification request no longer changes the event's status.
   // SPM-39 REQ-CLAR-01-A (AC1)
+  // Kills: a send that changes the stored event status, or that does not POST the message to the clarifications route.
   it("REQ-CLAR-01-A: Event Coordinator can submit a clarification request without changing the event's status", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -125,6 +126,7 @@ describe("EventDetailPage clarification thread", () => {
   });
 
   // SPM-39 REQ-CLAR-01-B (AC2)
+  // Kills: a blank message posted to the clarifications route instead of blocked with the required-message error.
   it("REQ-CLAR-01-B: Event Coordinator will see an error message if they try to submit a blank clarification message", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -150,6 +152,7 @@ describe("EventDetailPage clarification thread", () => {
   });
 
   // SPM-39 REQ-CLAR-01-C (AC2)
+  // Kills: a whitespace-only message posted because the blank check runs before trimming.
   it("REQ-CLAR-01-C: Event Coordinator will see an error message if they try to submit a whitespace-only clarification message", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -176,6 +179,7 @@ describe("EventDetailPage clarification thread", () => {
   });
 
   // Not in the SPM-39 document. Extra case: cross-coordinator refusal.
+  // Kills: the composer or the comments request shown to a coordinator who is not assigned to the event.
   it("REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator", async () => {
     const event = baseEvent();
     apiMock.mockImplementation((path: string) =>
@@ -197,6 +201,7 @@ describe("EventDetailPage clarification thread", () => {
 
   // SPM-39 REQ-CLAR-02-B (AC5), Organiser view: the Organiser sees the open clarification as Pending, and it
   // stays Pending after their reply because only a resolve clears it.
+  // Kills: the Pending badge removed after a reply, or the Reply button hidden while the clarification is awaiting a reply.
   it("REQ-CLAR-02-B (Organiser view): the pending indicator shows on an open clarification and stays after a reply", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -257,6 +262,7 @@ describe("EventDetailPage clarification thread", () => {
   });
 
   // SPM-39 REQ-CLAR-02-B (AC5), Coordinator view: the Coordinator who raised an open clarification sees the indicator.
+  // Kills: the Pending badge missing for the raising coordinator, the count not reading 'Pending (1)', or Answered shown while open.
   it("REQ-CLAR-02-B (Coordinator view): the Coordinator sees the Pending indicator on an open clarification they raised", async () => {
     const event = baseEvent();
     const openClarification = comment();
@@ -277,6 +283,7 @@ describe("EventDetailPage clarification thread", () => {
     expect(screen.queryByText("Answered")).not.toBeInTheDocument();
   });
 
+  // Kills: resolve not hiding the Reply button, the badge not switching to Answered, or the Resolve button still shown afterwards.
   it("REQ-CLAR-SUP-54 both organiser and coordinator can resolve a clarification, which hides the reply button and marks it Answered", async () => {
     const user = userEvent.setup();
     const event = baseEvent();
@@ -323,6 +330,7 @@ describe("EventDetailPage clarification thread", () => {
   });
 
   // SPM-39 REQ-CLAR-02-A (AC3, AC4)
+  // Kills: the thread rendered out of chronological order, a role badge or timestamp missing, or the Pending count not exactly one.
   it("REQ-CLAR-02-A: Event Coordinator can see the full chronological history of comments and clarifications", async () => {
     const event = baseEvent();
     const answeredClarification = comment({
@@ -400,6 +408,7 @@ describe("EventDetailPage clarification thread", () => {
 // and close at Confirmed; the thread stays readable. Mirrors the backend status lists.
 describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
   // Parent AC (SUPPORTING): SPM-39 AC1 (cross-story: test cites SPM-148 AC7)
+  // Kills: the composer hidden for an event in Planning (status allow-list wrong).
   it("PLAN-STATUS-07-A: the assigned Coordinator can post a clarification while the event is in Planning", async () => {
     const user = userEvent.setup();
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
@@ -429,6 +438,7 @@ describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
   });
 
   // Parent AC (SUPPORTING): SPM-39 AC4 (cross-story: test cites SPM-148 AC7)
+  // Kills: the composer or Reply button shown after Confirmed, or the thread hidden once the event is confirmed.
   it("PLAN-STATUS-07-D: once Confirmed there is no composer and no reply button, and the thread is still shown", async () => {
     apiMock.mockImplementation((path: string) => {
       if (path === "/events/event-1/comments") return Promise.resolve([comment()]);
@@ -453,6 +463,7 @@ describe("SPM-148 AC7: clarifications in Planning and Confirmed", () => {
 // A failed comments load is reported in the page alert, so an organiser or coordinator can see why
 // the thread is missing rather than seeing an empty thread.
 describe("EventDetailPage comments load failure (SPM-39)", () => {
+  // Kills: the comments load error not shown in the alert, or the alert text not the error message.
   /** When loading comments fails, the failure message is shown in an alert. */
   it("REQ-CLAR-SUP-55 shows the comments load failure message in an alert", async () => {
     apiMock.mockImplementation((path: string) => {
@@ -470,6 +481,7 @@ describe("EventDetailPage comments load failure (SPM-39)", () => {
     expect(screen.getByRole("alert").textContent).toBe("Comments are unavailable.");
   });
 
+  // Kills: a non-Error rejection shown as its raw value instead of the generic 'Could not load comments.' text.
   /** A comments failure that is not an Error object falls back to the generic message. */
   it("REQ-CLAR-SUP-56 shows the generic comments message when the failure is not an Error", async () => {
     apiMock.mockImplementation((path: string) => {

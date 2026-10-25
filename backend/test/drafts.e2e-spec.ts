@@ -78,6 +78,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     }
     await app?.close();
   });
+  // Kills: a save that writes a submitted events row, or a status other than Draft, or a version other than 1.
   /** EVE-DRF-01-B · AC1/2: incomplete drafts persist without creating submitted events. */
   it('saves an incomplete Draft without submitting', async () => {
     const id = newId();
@@ -87,6 +88,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  // Kills: a field dropped or altered in the PostgreSQL round trip (attachments, facilities, formStep or equipmentNeeds lost on GET or in the list).
   /** EVE-DRF-02-A · AC3/5: fresh API reads retrieve every field from PostgreSQL, including files. */
   it('lists and reopens all saved values', async () => {
     const id = newId();
@@ -128,8 +130,10 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       ).body.some((row: { id: string }) => row.id === id),
     ).toBe(true);
   });
-  /** EVE-DRF-04-A, EVE-DRF-04-B, EVE-DRF-05-A, EVE-DRF-05-B, EVE-DRF-05-C · AC4/6: retries are idempotent and later saves update the same draft row. */
-  it('EVE-DRF-SUP-21 retries idempotently and rejects stale concurrent updates', async () => {
+  // Parent AC (SUPPORTING): SPM-37 AC4
+  // Kills: a retry that saves again and reports version 2, or a retry treated as a new save rather than the same operation.
+  /** EVE-DRF-04-A, EVE-DRF-04-B · AC4/6: an identical retry with the same save identifier returns the stored draft at version 1. */
+  it('EVE-DRF-SUP-54 identical retry with the same operationId returns version 1', async () => {
     const id = newId(),
       operation = nextOperationId();
     await save(id, { name: 'First' }, 0, operation).expect(200);
@@ -137,13 +141,29 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await save(id, { name: 'First' }, 0, operation).expect(200)).body
         .version,
     ).toBe(1);
-    // Parent AC (SUPPORTING): SPM-37 AC4
-    // EVENT-DRF-05-C: a reused save identifier with different values is refused with its own message and changes nothing.
+  });
+
+  // Parent AC (SUPPORTING): SPM-37 AC4
+  // Kills: a reused operationId accepted with the altered values (name overwritten), or refused with another status or message.
+  /** EVE-DRF-05-C · AC4: a reused save identifier with different values is refused with its own message and changes nothing. */
+  it('EVE-DRF-SUP-55 reuse of an operationId with different values returns 409 with its message and changes nothing', async () => {
+    const id = newId(),
+      operation = nextOperationId();
+    await save(id, { name: 'First' }, 0, operation).expect(200);
     const altered = await save(id, { name: 'Altered retry' }, 0, operation).expect(409);
     expect(altered.body.message).toBe('A save identifier cannot be reused for different values.');
     expect((await organiser.get(`/api/requests/${id}`)).body.fields.name).toBe('First');
+    // Confluence EVE-DRF-05-C steps 5 to 6: the stored draft stays at version 1 and the refused operation adds no row.
+    const stored55 = await db.query('SELECT version FROM event_drafts WHERE id=$1', [id]);
+    expect(stored55.rows).toEqual([{ version: 1 }]);
+  });
 
-    // EVENT-DRF-05-A: a stale version is refused with the documented "changed in another window" message.
+  // Parent AC (SUPPORTING): SPM-37 AC4
+  // Kills: both stale saves accepted, a 409 without the documented message, or the stored fields holding the loser's values.
+  /** EVE-DRF-05-A, EVE-DRF-05-B · AC4/6: two concurrent saves from the same stale version give one 200 and one 409 with the changed-in-another-window message, and the stored row holds the winner's values. */
+  it('EVE-DRF-SUP-56 two concurrent stale saves give one 200 and one 409 and the stored row is the winner\'s', async () => {
+    const id = newId();
+    await save(id, { name: 'First' }).expect(200);
     const responses = await Promise.all([
       save(id, { name: 'Second' }, 1),
       save(id, { name: 'Other tab' }, 1),
@@ -156,10 +176,14 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await organiser.get(`/api/requests/${id}`)).body
         .fields,
     ).toEqual(latest.fields);
+    // Confluence EVE-DRF-05-B step 7: the winning save leaves the stored draft at version 2.
+    const stored56 = await db.query('SELECT version FROM event_drafts WHERE id=$1', [id]);
+    expect(stored56.rows).toEqual([{ version: 2 }]);
     expect(
       (await db.query('SELECT * FROM event_drafts WHERE id=$1', [id])).rowCount,
     ).toBe(1);
   });
+  // Kills: a failed 400 save that overwrites the stored name (validation applied after the write).
   /** AC6: rejected input leaves the previous successful draft untouched. */
   it('EVE-DRF-SUP-22 retains the saved values after validation failure', async () => {
     const id = newId();
@@ -170,6 +194,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .fields.name,
     ).toBe('Safe value');
   });
+  // Kills: a second submit that creates a duplicate event or errors, or a draft that stays editable after submission (no 409 lock).
   /** EVE-DRF-07-A, EVE-DRF-07-B · AC8: submission is idempotent and permanently closes draft editing. */
   it('EVE-DRF-SUP-23 submits once and blocks later draft saves', async () => {
     const id = newId();
@@ -194,7 +219,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(first.body.event.id).toBe(id);
     expect(retry.body.event.id).toBe(id);
     // Parent AC (SUPPORTING): SPM-37 AC7
-    // EVENT-DRF-07-A: a save to a submitted draft is refused with the documented message and leaves the fields unchanged.
+    // EVE-DRF-07-A: a save to a submitted draft is refused with the documented message and leaves the fields unchanged.
     const locked = await save(id, { name: 'Illegal edit' }, 2).expect(409);
     expect(locked.body.message).toBe(
       'This request was submitted. Use Event Change Requests for further changes.',
@@ -206,6 +231,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT * FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(1);
   });
+  // Kills: an invalid submit that inserts an events row before validation fails, or that locks the draft after a 400.
   /** EVE-DRF-07-C · AC2/8: submission requires complete details even though saving does not. */
   it('rolls back an invalid submission and leaves the draft editable', async () => {
     const id = newId();
@@ -220,8 +246,9 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     ).toBe(0);
   });
   // Parent AC (SUPPORTING): SPM-37 AC3
-  /** Q1-038: malformed and missing draft IDs return 404 without insertion. */
-  it('EVE-DRF-SUP-24 malformed and missing IDs return 404 without insertion', async () => {
+  // Kills: a malformed or unknown ID that returns 200 or 500 instead of 404 on GET, PUT or submit.
+  /** Q1-038: malformed and missing draft IDs return 404. */
+  it('EVE-DRF-SUP-24 malformed and missing IDs return 404', async () => {
     for (const id of ['bad-id', newId()]) {
       await organiser.get(`/api/requests/${id}`).expect(404);
       await save(id, {}, 1).expect(404);
@@ -231,6 +258,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .expect(404);
     }
   });
+  // Kills: a stale submit that overwrites the latest draft with the older version or creates an event.
   /** Q1-039: a stale submit preserves the latest draft and creates no event. */
   it('EVE-DRF-SUP-25 stale submit preserves latest saved data and creates no event', async () => {
     const id = newId();
@@ -251,6 +279,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       (await db.query('SELECT id FROM events WHERE id=$1', [id])).rowCount,
     ).toBe(0);
   });
+  // Kills: draft data held only in process memory, so the record is lost or altered after the app restarts.
   /** EVE-DRF-02-B · Q1-040: saved draft data remains accessible after the app restarts. */
   it('Q1-040 data survives a backend restart and a new database connection', async () => {
     const id = newId();
@@ -278,6 +307,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
       fields: { name: 'Restart evidence', formStep: 2 },
     });
   });
+  // Kills: two concurrent submits that create two events, or a draft that stays editable after the concurrent submit.
   /** EVE-DRF-07-B · Q1-041: concurrent submissions create one event and close the draft. */
   it('Q1-041 simultaneous submissions create one event and close the draft', async () => {
     const id = newId();
@@ -311,6 +341,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
         .rows[0].event_name,
     ).toBe('Concurrent submit');
   });
+  // Kills: GET, PUT or the list not filtering by organiser_id, so another owner's draft is read or written.
   /** EVE-DRF-09-A · AC7: an authenticated organiser cannot access another organiser's draft. */
   it('does not expose a row belonging to a different server-side owner', async () => {
     const id = newId();
@@ -409,6 +440,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     },
   ];
 
+  // Kills: one protected route that skips the session guard (200, 400 or 404 instead of 401) or a write that happens before authentication.
   /** EVE-DRF-08-A: with no session and with an invalid session, every protected draft and event route returns HTTP 401 and changes nothing. */
   it('EVE-DRF-08-A returns 401 on all seven protected routes without a session or with an invalid session', async () => {
     const draft = await createDraft(organiser, 'Auth baseline');
@@ -430,6 +462,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect((await organiser.get(`/api/requests/${draft}`).expect(200)).body.fields.name).toBe('Auth baseline');
   });
 
+  // Kills: an organiser-only route missing its role guard (attendee gets 200 or 404 not 403) or the 'Organiser access required.' message changed.
   /** EVE-DRF-08-B: a signed-in attendee (ATTENDEE role only) gets HTTP 403 "Organiser access required." on every draft route and on POST /api/events; attendees can read only the events they are allowed to see; attendee writes have no effect. */
   it('EVE-DRF-08-B refuses an attendee on the organiser-only routes and leaves records unchanged', async () => {
     const attendee = await login('attendee1@connectsphere.test');
@@ -462,6 +495,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect((await organiser.get(`/api/requests/${draft}`).expect(200)).body.fields.name).toBe('Attendee baseline');
   });
 
+  // Kills: a body-supplied organiserId honoured as the owner, or a cross-owner read, save or submit answered with something other than 404.
   /** EVE-DRF-09-B: two organisers are isolated. A forged top-level organiserId is ignored, neither can read, save or submit the other's draft (404), lists are isolated and both drafts are unchanged. */
   it('EVE-DRF-09-B isolates two organisers and ignores a forged owner id', async () => {
     const a = await login('organiser1@connectsphere.test');
@@ -510,6 +544,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect(await eventSnapshot(draftB)).toEqual([]);
   });
 
+  // Kills: submit taking organiserId from the request body, so the event is recorded under the forged owner instead of the caller.
   /** EVE-DRF-09-B steps 9-10: each organiser saves and submits their own draft; the event keeps that organiser as owner, and a body-supplied organiserId is ignored. */
   it('EVE-DRF-09-B steps 9-10: each organiser saves and submits their own draft and the event keeps its owner', async () => {
     const a = await login('organiser1@connectsphere.test');
@@ -557,6 +592,7 @@ describe.skipIf(!database)('SPM-37 draft API and PostgreSQL', () => {
     expect((await snapshot(draftA)).status).toBe('Submitted');
     expect((await snapshot(draftB)).status).toBe('Submitted');
   });
+  // Kills: the JSON body limit removed or raised (81 MiB accepted), or the CORS origin header missing from the 413 response.
   /**
    * EVE-DRF-10-C: a request body over the 80 MB cap is refused with HTTP 413, and the 413 still carries the
    * Access-Control-Allow-Origin header for the configured frontend origin, so the cross-origin page can read it.

@@ -27,6 +27,7 @@ const REASON_REQUIREMENTS_MESSAGE =
   'Please provide a reason that: is between 10 and 500 characters; ' +
   'contains at least 3 words; and includes real words, not just numbers or symbols.';
 
+// Kills: reason validation that accepts null or a number, so the request gets past validation instead of throwing the requirements message.
 /** EVENT-REJECT-03-J: non-string reason values fail server validation before database access. */
 it.each([null, 123])(
   'SPM-83 rejects non-string rejection reason %j',
@@ -115,6 +116,7 @@ afterEach(() => {
 
 describe('EventsService.reject (SPM-83)', () => {
   // EVENT-REJECT-03-A — happy path (AC5 + AC6)
+  // Kills: reject that does not write Rejected, skips FOR UPDATE, writes a reason other than the one supplied to the UPDATE, or sends no organiser notification INSERT.
   it('rejects a Submitted request: sets Rejected, records the reason, notifies the organiser', async () => {
     wireReject(
       eventRow({ status: 'Submitted' }),
@@ -148,6 +150,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-SUP-04 — defensive mapping: a stored row without a reason is returned without one (record(), line 143).
+  // Kills: a stored row without a reason mapped to a non-undefined rejectionReason (null or empty string leaking through).
   it('EVENT-REJECT-SUP-04 returns no rejection reason when the stored row has none', async () => {
     wireReject(eventRow({ status: 'Submitted' }), eventRow({ status: 'Rejected', rejection_reason: null }));
 
@@ -157,6 +160,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-03-B — empty / whitespace-only
+  // Kills: reason validation that accepts a missing, empty or whitespace-only reason, or opens a transaction before validating.
   it('rejects an empty or whitespace-only reason before opening a transaction', async () => {
     await expect(service.reject(VALID_UUID, {}, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
@@ -170,6 +174,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Kills: a minimum-length check that accepts 'no fit ok' (9 characters) or rejects exactly 10 characters (< and <= confused).
   /** EVENT-REJECT-03-C — below minimum length (<10) */
   it('rejects a too-short reason and accepts exactly 10', async () => {
     await expect(service.reject(VALID_UUID, { reason: 'no fit ok' }, coordinator())).rejects.toThrow(
@@ -183,6 +188,7 @@ describe('EventsService.reject (SPM-83)', () => {
     ).resolves.toMatchObject({ status: 'rejected' });
   });
 
+  // Kills: a maximum-length check that accepts 501 characters or rejects exactly 500 (off-by-one).
   /** EVENT-REJECT-03-D — above maximum length (>500) on the trimmed reason */
   it('rejects a too-long reason and accepts exactly 500', async () => {
     await expect(
@@ -197,6 +203,7 @@ describe('EventsService.reject (SPM-83)', () => {
     ).resolves.toMatchObject({ status: 'rejected' });
   });
 
+  // Kills: length measured on the raw reason, so surrounding spaces count toward a trimmed 501-character reason that should be rejected.
   /** EVENT-REJECT-03-D — padding is not counted: a trimmed 501 stays rejected even when padded */
   it('rejects a padded reason whose trimmed length is 501', async () => {
     await expect(
@@ -205,6 +212,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Kills: a maximum-length check on the raw value that rejects a 504-character raw reason with a trimmed length of 500, or stores the untrimmed text.
   /** EVENT-REJECT-03-D — raw length over 500 is accepted when the trimmed reason is exactly 500, and the stored reason is the trimmed value. */
   it('accepts a raw reason over 500 characters whose trimmed length is 500', async () => {
     const reason500 = reasonOfLength(500);
@@ -218,6 +226,7 @@ describe('EventsService.reject (SPM-83)', () => {
     expect(update[1]).toEqual([VALID_UUID, reason500]);
   });
 
+  // Kills: a minimum-length check on the raw value, so padded 'no fit ok' passes, or the stored reason keeps its padding.
   /** EVENT-REJECT-03-C — padded reason: trimmed 9 stays rejected, trimmed 10 is accepted and stored trimmed */
   it('measures length on the trimmed reason for padded input', async () => {
     await expect(
@@ -234,6 +243,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-03-E — fewer than 3 words
+  // Kills: a word-count check accepting two words or one word, or requiring a different number of words than three.
   it('rejects a reason with fewer than 3 words and accepts >=3 words', async () => {
     await expect(service.reject(VALID_UUID, { reason: 'Reason today' }, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
@@ -250,6 +260,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-03-F — no letters (numbers / symbols only)
+  // Kills: a letter check removed, so '123 456 7890' or '!!! ??? ...' is accepted as a reason.
   it('rejects a reason with no letters and accepts one containing letters', async () => {
     await expect(service.reject(VALID_UUID, { reason: '123 456 7890' }, coordinator())).rejects.toThrow(
       REASON_REQUIREMENTS_MESSAGE,
@@ -266,6 +277,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-03-G — id / existence guard
+  // Kills: a malformed id that opens a transaction, or an unknown id that updates the row or succeeds instead of NotFound.
   it('guards the event id: malformed id never opens a transaction, unknown id is not found', async () => {
     await expect(
       service.reject('not-a-uuid', { reason: VALID_REASON }, coordinator()),
@@ -280,6 +292,7 @@ describe('EventsService.reject (SPM-83)', () => {
   });
 
   // EVENT-REJECT-03-H — variation: the current lifecycle has Submitted only.
+  // Kills: a status guard that accepts the retired Under_Review status, or refuses a Submitted request.
   it('rejects a Submitted request and refuses the retired Under_Review status', async () => {
     wireReject(
       eventRow({ status: 'Submitted' }),
@@ -297,6 +310,7 @@ describe('EventsService.reject (SPM-83)', () => {
 });
 
 describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
+  // Kills: reject that admits an organiser or anonymous caller, or opens a transaction before the role check.
   /** EVENT-REJECT-04-B: only a coordinator may reject, before opening a transaction. */
   it('refuses a caller who is not a coordinator, before opening a transaction', async () => {
     await expect(
@@ -308,6 +322,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Kills: reject that lets a non-assigned coordinator update the request, or the wrong ForbiddenException message.
   /** EVENT-REJECT-04-B: only the coordinator assigned to the request may reject it. */
   it('refuses a coordinator who is not the one assigned to the request', async () => {
     wireReject(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
@@ -327,6 +342,7 @@ describe('EventsService.reject — authorization (EVENT-REJECT-04-B)', () => {
 });
 
 describe('EventsService.reject — state guard (EVENT-REJECT-04-C)', () => {
+  // Kills: rejection of any non-reviewable status (UPDATE runs or no ConflictException).
   /** EVENT-REJECT-04-C: requests outside the reviewable state are refused without an update. */
   it.each(['Approved', 'Rejected', 'Cancelled', 'Completed'])(
     'cannot reject a %s request (Conflict, no update)',
@@ -355,6 +371,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     created_at: new Date('2026-09-14T00:00:00.000Z'),
   };
 
+  // Kills: notifications() dropping the rejection type, reason text, audience or read flag, or querying the wrong notification types.
   /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification and reason. */
   it("returns the organiser's rejection notifications including the reason", async () => {
     db.query.mockResolvedValue({ rows: [notificationRow] });
@@ -374,6 +391,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
 
   // Coordinators may now read their own assignment notifications (SPM-123), so
   // the non-organiser here is a venue staff account, who has no notifications.
+  // Kills: notifications() that serves a venue-staff caller, or queries the database before the organiser check.
   /** EVENT-REJECT-03-I step 4: another user cannot retrieve the organiser's notification. */
   it('refuses a non-organiser caller and does not query', async () => {
     await expect(
@@ -382,6 +400,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     expect(db.query).not.toHaveBeenCalled();
   });
 
+  // Kills: readNotification that returns a different success shape, or does not scope the update to the caller.
   /** EVENT-REJECT-03-I step 3: the organiser can mark their rejection notification as read. */
   it('marks a rejection notification as read', async () => {
     db.query.mockResolvedValue({ rows: [{ id: 'notif-1' }] });
@@ -390,6 +409,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     });
   });
 
+  // Kills: readNotification that reports success for an unknown notification id instead of throwing NotFound.
   /** EVENT-REJECT-03-I step 4: an unknown notification returns NotFound. */
   it('returns not found when marking an unknown notification', async () => {
     db.query.mockResolvedValue({ rows: [] });
@@ -402,6 +422,7 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
 describe('SPM-123 AC10: rejecting keeps the assigned coordinator', () => {
   // Parent AC (SUPPORTING): SPM-123 AC10 (to confirm) (story reassigned on 23 Oct 2026)
   // Rejection changes status and reason only; the coordinator stays on the event.
+  // Kills: rejection that writes coordinator_id or coordinator_name in the UPDATE, or a result that drops coordinatorId.
   it('LEAD-ASN-10-B keeps the coordinator when a request is rejected', async () => {
     // Arrange: an assigned, submitted request.
     wireReject(
@@ -432,6 +453,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
 
   // Parent AC (SUPPORTING): SPM-123 AC9 (to confirm) (story reassigned on 23 Oct 2026)
   // A coordinator sees only their own assignment notifications and can mark them read.
+  // Kills: coordinator notifications not scoped to the coordinator uid or the assignment type, or another coordinator's notification marked read.
   it('LEAD-ASN-09-C lets a coordinator read and mark read only their own assignment notifications', async () => {
     // Arrange: the coordinator has one assignment notification.
     db.query.mockResolvedValueOnce({ rows: [assignmentRow] });
@@ -470,6 +492,7 @@ describe('SPM-123 AC9: coordinator assignment notifications', () => {
 describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
   // Parent AC (SUPPORTING): SPM-47 AC8 (story reassigned on 23 Oct 2026)
   // Coordinators see reassignment to and away from them as coordinator notifications.
+  // Kills: reassignment notifications given the wrong audience role, or the query missing one of the three coordinator notification types.
   it('LEAD-REASN-08-F labels reassignment notifications for the coordinator who receives them', async () => {
     // Arrange: one notification of each reassignment type.
     const row = { recipient_id: 'coordinator-1', related_event_id: VALID_UUID, read: false, created_at: new Date('2026-10-07T09:00:00.000Z') };
@@ -493,6 +516,7 @@ describe('SPM-47 AC8 and AC10: notifications for reassignment', () => {
 
   // Parent AC (SUPPORTING): SPM-47 AC10 (story reassigned on 23 Oct 2026)
   // The Lead reads only notifications about coordinators becoming unavailable, and can mark them read.
+  // Kills: the Lead's notification query widened to other types or recipients, or audienceRole not labelled coordinator_lead.
   it("LEAD-REASN-10-G lets the Lead read and mark read only their coordinator-unavailable notifications", async () => {
     // Arrange: the Lead has one such notification.
     const lead: AuthenticatedUser = { uid: 'lead-1', roles: ['COORDINATOR_LEAD'], email: 'lead@example.test', name: 'Coordinator Lead' };

@@ -130,6 +130,7 @@ beforeEach(() => {
 
 describe("EventCreatePage", () => {
   // SPM-36 Test Case EVE-CRE-02-A
+  // Kills: a request field missing its accessible label, or the accessibility-needs and required-facilities groups not rendered.
   it("EVE-CRE-02-A exposes every Event Request field with an accessible label", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -155,6 +156,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-04-A and EVE-CRE-05-A
+  // Kills: a blank or whitespace name accepted, a required-field message missing (position is not checked), or the typed purpose cleared after Continue.
   it("EVE-CRE-04-A EVE-CRE-05-A blocks blank basic fields with field errors and retains valid input", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -173,6 +175,7 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
+  // Kills: a blank description accepted with a name present, or the wizard advancing past Basic Information, or the typed name cleared.
   /**
    * EVE-CRE-05-F: a blank description on its own blocks Continue with the
    * description error, keeps the wizard on Basic Information, and keeps the
@@ -201,6 +204,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
+  // Kills: a missing schedule, attendance or layout accepted, or fewer than four 'This field is required.' messages shown.
   it("EVE-CRE-04-B EVE-CRE-04-C EVE-CRE-04-D blocks missing schedule, attendance, and preferred room layout with field-specific errors", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -216,6 +220,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-05-B, EVE-CRE-05-C, and EVE-CRE-05-D
+  // Kills: a schedule rule removed (attendance 1.5 accepted, a past start accepted, or an end before start accepted) or the typed attendance cleared.
   it.each([
     ["EVE-CRE-05-B", "attendance", "1.5", "21:00", /positive whole number/i],
     ["EVE-CRE-05-C", "past start", "80", "21:00", /must be in the future/i],
@@ -242,6 +247,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Cases EVE-CRE-03-A and EVE-CRE-07-A.
+  // Kills: a submission body carrying status or organiserId, dropping chosen facilities, or no confirmation shown after the POST.
   it("EVE-CRE-07-A submits a valid request and shows the submission confirmation", async () => {
     const user = userEvent.setup();
     const saved = eventRecord();
@@ -280,6 +286,7 @@ describe("EventCreatePage", () => {
     expect(submittedBody).not.toHaveProperty("organiserId");
   });
 
+  // Kills: the facility label sent instead of its backend value (submits 'Catering service' rather than 'catering').
   /** EVE-FAC-06-A: the facility chosen by its label is submitted as its backend value, and the submission confirmation is shown. */
   it("EVE-FAC-06-A submits the backend value of the selected facility and shows the submission confirmation", async () => {
     const user = userEvent.setup();
@@ -311,6 +318,7 @@ describe("EventCreatePage", () => {
     expect(submittedBody).toMatchObject({ facilities: ["catering"], accessibility: ["wheelchair"] });
   });
 
+  // Kills: the review card losing one of its light or dark theme classes (bg-gray-50, dark:bg-gray-800, text-gray-900, dark:text-gray-100).
   /** EVE-FAC-06-C: the request review card keeps its text readable in light and dark themes. */
   it("EVE-FAC-06-C keeps the request review card readable in light and dark mode", async () => {
     const user = userEvent.setup();
@@ -329,6 +337,7 @@ describe("EventCreatePage", () => {
     expect(screen.getByText("Event name").className).toContain("dark:text-gray-400");
   });
 
+  // Kills: options hard-coded to a local catalogue instead of the backend list, or the options endpoint called more than once.
   /** EVE-FAC-01-A and EVE-ACC-02-ALIGN-01: both catalogues, labels, and submitted values come from venue schemas. */
   it("EVE-FAC-01-A fetches facility and accessibility options from the backend", async () => {
     const user = userEvent.setup();
@@ -349,6 +358,7 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.filter(([path]) => path === "/venues/options")).toHaveLength(1);
   });
 
+  // Kills: only one selected facility submitted, or the labels submitted instead of the backend values.
   /** EVE-FAC-03-A: selecting two backend values submits both values while rendering their distinct labels. */
   it("EVE-FAC-03-A submits two backend facility values selected by their labels", async () => {
     const user = userEvent.setup();
@@ -383,6 +393,7 @@ describe("EventCreatePage", () => {
     expect(submittedBody.accessibility).toEqual(["Hearing loop"]);
   });
 
+  // Kills: the facility error not shown after rejection, the selection cleared, or the corrected resubmission dropping the facility.
   /** EVE-FAC-04-B: a server rejection keeps the selected value and renders the facility field error for correction. */
   it("EVE-FAC-04-B retains valid fields after backend facility rejection and permits corrected submission", async () => {
     const user = userEvent.setup();
@@ -420,6 +431,7 @@ describe("EventCreatePage", () => {
     });
   });
 
+  // Kills: the accessibility error not shown on its field, the choice dropped, or the resubmission still carrying the rejected value.
   /** EVE-FAC-04-B: an accessibility rejection returns to that field, preserves the request, and permits correction. */
   it("EVE-FAC-04-B retains valid fields after backend accessibility rejection", async () => {
     const user = userEvent.setup();
@@ -456,6 +468,7 @@ describe("EventCreatePage", () => {
     });
   });
 
+  // Kills: a combined-invalid form submitted before attendance and end time are fixed, or supported facilities lost after correction.
   /** EVE-FAC-04-B: combined invalid event fields remain blocked with supported facility and accessibility choices selected, then submit after correction. */
   it("EVE-FAC-04-B corrects combined invalid fields before submitting supported venue choices", async () => {
     const user = userEvent.setup();
@@ -503,6 +516,7 @@ describe("EventCreatePage", () => {
     });
   });
 
+  // Kills: Continue or submit allowed while options are pending, or no loading status announced.
   /** EVE-FAC-05-A: unresolved options announce loading and prevent progressing or submitting until loaded. */
   it("EVE-FAC-05-A blocks progression and submission while facility options are pending", async () => {
     const user = userEvent.setup();
@@ -524,6 +538,7 @@ describe("EventCreatePage", () => {
     expect(screen.getByLabelText("Wheelchair access")).toBeTruthy();
   });
 
+  // Kills: a non-array option list rendered as an empty or partial list instead of the 'response is invalid' error.
   /** EVE-FAC-01-B and EVE-FAC-05-B: a malformed backend set is an error, never an empty or local fallback. */
   it("EVE-FAC-01-B EVE-FAC-05-B rejects malformed facility and accessibility option arrays", async () => {
     for (const field of ["facilities", "accessibility"] as const) {
@@ -543,6 +558,7 @@ describe("EventCreatePage", () => {
     }
   });
 
+  // Kills: a null option item rendered as an unchecked fallback instead of the invalid-response error.
   /** EVE-FAC-01-D: malformed entries inside an otherwise valid options array are rejected. */
   it("EVE-FAC-01-D rejects a malformed option item instead of rendering an unchecked fallback", async () => {
     const user = userEvent.setup();
@@ -556,6 +572,7 @@ describe("EventCreatePage", () => {
     expect(screen.queryByRole("group", { name: /required facilities/i })).toBeNull();
   });
 
+  // Kills: a failed fetch showing a fallback catalogue, retrying without the Retry action (attempts above 1 before click), or not reloading on Retry.
   /** EVE-FAC-01-B and EVE-FAC-05-B: a failed request has no fallback, then retry loads the current catalogue. */
   it("EVE-FAC-01-B EVE-FAC-05-B has no fallback after a failed fetch and recovers on retry", async () => {
     const user = userEvent.setup();
@@ -596,6 +613,7 @@ describe("EventCreatePage", () => {
   });
 
 
+  // Kills: the review step or submit button reachable while the options are in error.
   /** EVE-FAC-05-E: while the options are unavailable, Continue is blocked by the failure and the review step is not reached. */
   it("EVE-FAC-05-E keeps the schedule step blocked while the options are unavailable", async () => {
     const user = userEvent.setup();
@@ -611,6 +629,7 @@ describe("EventCreatePage", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Facilities unavailable");
     expect(screen.queryByRole("button", { name: /submit for review/i })).toBeNull();
   });
+  // Kills: Continue advancing past the schedule step after the options fail, or a POST sent.
   /** EVE-FAC-05-E: Continue remains blocked after the options request fails and no event submission is sent. */
   it("EVE-FAC-05-E blocks Continue after facility options fail", async () => {
     const user = userEvent.setup();
@@ -629,6 +648,7 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
+  // Kills: an empty catalogue not announced, stale saved choices not reported as unsupported, or submission allowed with them.
   /** EVE-FAC-05-C: an empty catalogue identifies stale restored values and blocks submission. */
   it("EVE-FAC-05-C shows empty states and blocks submission with stale restored choices", async () => {
     const user = userEvent.setup();
@@ -664,6 +684,7 @@ describe("EventCreatePage", () => {
     expect(apiMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
   });
 
+  // Kills: a stale saved facility pre-checked against the new catalogue, a removed value kept, or a POST sent while stale values remain.
   /** EVE-FAC-02-B and EVE-FAC-05-D: reopening a draft reflects the changed catalogue and allows correcting a stale saved choice. */
   it("EVE-FAC-02-B EVE-FAC-05-D refreshes a stale draft selection against the changed catalogue", async () => {
     const user = userEvent.setup();
@@ -711,6 +732,7 @@ describe("EventCreatePage", () => {
     });
   });
 
+  // Kills: a resumed review submitting while options are in error, or stale selections not validated after the retry resolves.
   /** EVE-FAC-05-F: a draft restored at review cannot submit while current options are in error; retry loads options before stale-value validation. */
   it("EVE-FAC-05-F validates stale selections when a draft resumes at review", async () => {
     const user = userEvent.setup();
@@ -760,6 +782,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Case EVE-CRE-08-A
+  // Kills: registrationEnabled not sent as true, or the second upload replacing the first file instead of appending.
   it("keeps registration enabled and appends optional supporting files", async () => {
     const user = userEvent.setup();
     const saved = {
@@ -822,6 +845,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 Test Case EVE-CRE-05-F: a blank description on its own keeps the wizard on step 0.
+  // Kills: a blank description accepted with a name present, or the schedule step shown while the description is blank.
   it("EVE-CRE-05-F blocks a blank description on its own and stays on the Basic Information step", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -841,6 +865,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-37 Test Case EVE-DRF-10-A: at most five supporting files per request.
+  // Kills: a sixth file accepted (five-file limit not enforced), or one of the first five files dropped.
   it("EVE-DRF-10-A keeps five supporting files and rejects a sixth", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -861,6 +886,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-37 Test Case EVE-DRF-10-A: the combined size of all supporting files is capped at 50 MB.
+  // Kills: a file that takes the total over 50 MB accepted, or the refused file still listed.
   it("EVE-DRF-10-A rejects a file that takes the combined size past 50 MB", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -882,6 +908,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-37 Test Case EVE-DRF-10-A: exactly 50 MB combined is accepted.
+  // Kills: a total of exactly 50 MB refused (strict comparison instead of at-or-below).
   it("EVE-DRF-10-A accepts files that total exactly 50 MB", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -902,6 +929,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 AC9: a selected file the browser cannot read is reported on the attachment step.
+  // Kills: a FileReader error ignored (no message shown) or the unreadable file still listed.
   it("SPM-36 AC9 shows an error when a selected file cannot be read", async () => {
     const user = userEvent.setup();
     renderCreate();
@@ -929,6 +957,7 @@ describe("EventCreatePage", () => {
 
   // SPM-36 AC9: a server rejection of an attachment returns the user to the attachment step
   // and shows the reason, rather than leaving it hidden on the review step.
+  // Kills: a server attachment rejection not returning the user to the attachment step, or the server message hidden on the review step.
   it("SPM-36 AC9 returns to the attachment step and shows the server's attachment error after submit", async () => {
     const user = userEvent.setup();
     withVenueOptions(async (path, init) => {
@@ -952,6 +981,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 AC9 and AC4: a server rejection of any field returns the user to the step that shows it.
+  // Kills: a server field error routed to the wrong step (name, start date, attachments or facilities).
   it.each([
     ["name", "Enter an event name.", /event name/i],
     ["startDateTime", "Start date and time must be in the future.", /start date/i],
@@ -981,6 +1011,7 @@ describe("EventCreatePage", () => {
 
   // Parent AC (SUPPORTING): SPM-36 AC5 (corrected from AC9)
   // SPM-36 AC9: a rejection with no field errors keeps the server message and leaves the user on the review step.
+  // Kills: a rejection without field errors leaving the submit button unavailable, or the server message not shown.
   it("EVE-CRE-SUP-15 a submission rejected with no field errors shows the server message and stays on the review step", async () => {
     const user = userEvent.setup();
     withVenueOptions(async (path, init) => {
@@ -1000,6 +1031,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 AC9 (routing): with several rejected fields, the user goes to the earliest step that shows one of them.
+  // Kills: several rejected fields routed to the attachment step instead of the earliest one (name).
   it("SPM-36 AC9 goes to the basic information step when a name and an attachment are both rejected", async () => {
     const user = userEvent.setup();
     withVenueOptions(async (path, init) => {
@@ -1025,6 +1057,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 AC9 (banner): the submit banner shows the server's message, not a generic one.
+  // Kills: the submit banner replaced by the generic 'Unable to submit' text instead of the server message.
   it("SPM-36 AC9 shows the server's message in the submit banner", async () => {
     const user = userEvent.setup();
     withVenueOptions(async (path, init) => {
@@ -1047,6 +1080,7 @@ describe("EventCreatePage", () => {
   });
 
   // SPM-36 AC9 (field): a rejected equipment-needs value is shown next to its input on the review step.
+  // Kills: the equipment-needs server error not shown beside its input on the review step.
   it("SPM-36 AC9 shows a rejected equipment-needs message next to its input on the review step", async () => {
     const user = userEvent.setup();
     withVenueOptions(async (path, init) => {
@@ -1089,6 +1123,7 @@ describe("SPM-37 drafts in the current event form", () => {
     eventId: null,
     updatedAt: "2026-09-16T00:00:00Z",
   };
+  // Kills: the combined size checked per file instead of in total (a 21 MiB file accepted after 30 MiB).
   /**
    * EVE-DRF-10-A: the 50 MB limit applies to all supporting files together, not only to each file. 30 MiB then
    * 21 MiB (51 MiB in total) is refused with the total-size message and keeps no second file; 30 MiB then 20 MiB
@@ -1121,6 +1156,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
 
   // AC1/2/6: saving is separate from submission and accepts incomplete fields.
+  // Kills: Save draft requiring complete fields, sending the request to /events, or no 'Draft Saved' dialog.
   /** EVE-DRF-01-A: a draft saves with incomplete fields and confirms without submitting. */
   it("saves an incomplete request and confirms without submitting", async () => {
     apiMock.mockResolvedValue(draft);
@@ -1134,6 +1170,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(apiMock.mock.calls.some(([path]) => path === "/events")).toBe(false);
   });
   // AC3/4: reopens the saved form and updates the same ID/version.
+  // Kills: a later save sent to a new request instead of /requests/<id>, or the version not sent for the update.
   /** EVE-DRF-02-A (update path): a saved draft reopens and a later save updates the same request. */
   it("prefills an existing draft and saves updates to the same request", async () => {
     apiMock.mockResolvedValue(draft);
@@ -1153,6 +1190,7 @@ describe("SPM-37 drafts in the current event form", () => {
       fields: { name: "Updated name" },
     });
   });
+  // Kills: a saved value dropped on reopen, or the saved wizard step ignored (schedule step shown instead of formStep 2).
   /**
    * EVE-DRF-02-A: reopening a saved draft pre-fills every saved value and resumes on the saved wizard step
    * (formStep 2, Equipment & Review). The values are the Workshop draft from the Confluence case; the test walks
@@ -1207,6 +1245,7 @@ describe("SPM-37 drafts in the current event form", () => {
   });
 
   // AC6: failures retain text and retry the exact save operation.
+  // Kills: a failed save clearing the entered name, or the retry sending a different operation from the failed save.
   it("keeps entered values after failure and retries without a duplicate operation", async () => {
     apiMock
       .mockRejectedValueOnce(new Error("Network unavailable"))
@@ -1229,6 +1268,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(apiMock.mock.calls[1]).toEqual(apiMock.mock.calls[0]);
   });
   // AC8: direct draft URLs cannot expose editable controls after submission.
+  // Kills: the editor shown for a submitted draft (Save draft button or text inputs rendered).
   /** EVE-DRF-07-A: the editor is locked when the server reports Submitted. */
   it("blocks the editor when the server returns Submitted", async () => {
     apiMock.mockResolvedValue({ ...draft, status: "Submitted" });
@@ -1238,6 +1278,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
   // AC3: the list shows the persisted Draft status and links back to the editor.
+  // Kills: My Drafts not showing the Draft status, or the reopen link pointing at the wrong request.
   /** EVE-DRF-03: My Drafts lists drafts with status and a reopen link. */
   it("lists drafts in My Drafts with their status and reopen link", async () => {
     apiMock.mockResolvedValue([draft]);
@@ -1247,6 +1288,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(screen.getByText("Draft")).toBeTruthy();
   });
   // Continuity: saving persists the current wizard step alongside the fields.
+  // Kills: the saved formStep not 1 for the schedule step (step not sent with the fields).
   /** EVE-DRF-04-A: saving the current step sends the draft fields to the same request. */
   it("saves the current step with the draft fields", async () => {
     const user = userEvent.setup();
@@ -1264,6 +1306,7 @@ describe("SPM-37 drafts in the current event form", () => {
     expect(JSON.parse(init!.body as string).fields.formStep).toBe(1);
   });
   // Continuity: reopening a draft resumes the step it was saved on.
+  // Kills: a draft reopening on the Basic Information step instead of the saved formStep.
   it("resumes a draft on the step where it was saved", async () => {
     apiMock.mockImplementation(async (path) => path === "/venues/options"
       ? { facilities: venueFacilityOptions, accessibility: venueAccessibilityOptions }

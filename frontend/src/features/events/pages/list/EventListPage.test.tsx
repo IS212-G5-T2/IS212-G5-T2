@@ -69,9 +69,18 @@ function submittedEvent(): EventRecord {
   };
 }
 
-afterEach(cleanup);
+// Fixed clock for the suite: relative fixtures ("7 days from now") are computed from T0, so they never depend on the run date.
+const T0 = new Date("2026-10-20T10:00:00+08:00");
+
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
+  // Only Date is faked: a fully faked clock stalls userEvent and waitFor in this suite (the run hung), so timers stay real.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(T0);
   useAppStore.setState({ eventListFilters: { attendee: "upcoming", status: null } });
   vi.clearAllMocks();
   // clearAllMocks keeps queued *Once values; reset them so one test's leftovers can't reach the next.
@@ -94,6 +103,7 @@ beforeEach(() => {
 
 describe("EventListPage", () => {
   // SPM-36 Test Case EVE-CRE-01-A
+  // Kills: the create-event link not opening the Event Request form from Event Planning.
   it("EVE-CRE-01-A opens the Event Request form from Event Planning", async () => {
     const user = userEvent.setup();
     render(
@@ -113,6 +123,7 @@ describe("EventListPage", () => {
   });
 
   // SPM-36 Test Case EVE-CRE-07-B
+  // Kills: a submitted event missing from My Events, or its badge reading something other than Submitted.
   it("EVE-CRE-07-B shows a submitted event under My Events", async () => {
     const event = submittedEvent();
     apiMock.mockResolvedValue([event]);
@@ -132,6 +143,7 @@ describe("EventListPage", () => {
     expect(within(screen.getByText("Welcome Evening").closest("a")!).getByText("Submitted", { selector: "span" })).toBeTruthy();
   });
 
+  // Kills: a pending change request marked on the wrong card (both or neither), or the pending fetch not called with 'Pending'.
   /** REQ-CHANGE-05-A: an event with a change request awaiting review is marked on My Events; others are not. */
   it("REQ-CHANGE-05-A marks events with a pending change request on My Events", async () => {
     const pendingEvent = submittedEvent();
@@ -153,6 +165,7 @@ describe("EventListPage", () => {
     expect(pendingRequestsMock).toHaveBeenCalledWith("Pending");
   });
 
+  // Kills: no notice when pending requests fail, Retry not re-fetching them, or the notice left showing after recovery.
   /** REQ-CHANGE-05-F: if pending change requests cannot load, the events still show with a visible notice and Retry. */
   it("REQ-CHANGE-05-F shows a notice with Retry when pending change requests cannot load", async () => {
     const event = submittedEvent();
@@ -180,6 +193,7 @@ describe("EventListPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Kills: the pending section missing the event name, the 'Demo Organiser · Room layout' summary, or the review link target.
   /** REVIEW-CHANGE-01-A (SPM-65 AC1): a coordinator sees their pending change requests and the badge. */
   it("REVIEW-CHANGE-01-A lists the coordinator's pending change requests and marks the event", async () => {
     const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
@@ -204,6 +218,7 @@ describe("EventListPage", () => {
     expect(await screen.findByText("Change requested: Pending")).toBeTruthy();
   });
 
+  // Kills: the pending section placed below Assignment updates, or the New tag missing from unopened requests.
   /** REVIEW-CHANGE-01-F: the pending list is at the top, above Assignment Updates, and tags unopened requests New. */
   it("REVIEW-CHANGE-01-F puts pending change requests first and tags unopened ones New", async () => {
     const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
@@ -234,6 +249,7 @@ describe("EventListPage", () => {
     expect(pendingSection.compareDocumentPosition(updates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  // Kills: the pending list hidden when the New-tag lookup fails, or a notice shown for it.
   it("REVIEW-CHANGE-01-F still lists pending requests when the New tags cannot load", async () => {
     useAppStore.setState({
       currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
@@ -267,6 +283,7 @@ describe("EventListPage", () => {
     await Promise.resolve();
   });
 
+  // Kills: the 'No pending change requests.' empty state missing for a coordinator with nothing pending.
   /** REVIEW-CHANGE-01-D: with nothing pending the coordinator sees the empty state; attendees see neither. */
   it("REVIEW-CHANGE-01-D shows the coordinator's empty state", async () => {
     useAppStore.setState({
@@ -282,6 +299,7 @@ describe("EventListPage", () => {
     expect(await screen.findByText("No pending change requests.")).toBeTruthy();
   });
 
+  // Kills: a pending-request failure arriving after unmount raising an alert.
   /** REQ-CHANGE-05-F: a failure that arrives after leaving My Events shows nothing. */
   it("REQ-CHANGE-05-F ignores a pending change request failure after unmounting", async () => {
     apiMock.mockResolvedValue([submittedEvent()]);
@@ -300,6 +318,7 @@ describe("EventListPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Kills: a pending-request failure without a message not showing the notice.
   /** REQ-CHANGE-05-F: a failure without a message still shows the notice. */
   it("REQ-CHANGE-05-F shows the notice for a failure without a message", async () => {
     apiMock.mockResolvedValue([submittedEvent()]);
@@ -317,6 +336,7 @@ describe("EventListPage", () => {
   });
 
   // Coordinators can view rejected requests via the "Rejected" status filter.
+  // Kills: the Rejected status option missing for coordinators, or rejected events shown in the default Submitted view.
   it("lets coordinators view rejected requests through the Rejected status filter", async () => {
     const user = userEvent.setup();
     const rejected: EventRecord = {
@@ -361,6 +381,7 @@ describe("EventListPage", () => {
   });
 
   // SPM-123 AC9: the coordinator sees new assignments on the events page itself, not just in the standalone panel.
+  // Kills: the Assignment updates panel missing from the events page, or not showing the assignment message.
   it("LEAD-ASN-09-M shows the coordinator's new-assignment panel on the events page", async () => {
     // Arrange: a coordinator whose notifications feed has one unread assignment; the events list is empty.
     apiMock.mockImplementation((path: string) =>
@@ -406,7 +427,7 @@ describe("EventListPage", () => {
   // Kills: BADGE-M1, BADGE-M2, BADGE-M4, F13
   it("gives attendees personal filters and a Registered badge", async () => {
     const user = userEvent.setup();
-    const future = new Date(Date.now() + 7 * 86_400_000);
+    const future = new Date(T0.getTime() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
     const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: futureEnd.toISOString() };
     const events: EventRecord[] = [
@@ -467,6 +488,7 @@ describe("EventListPage", () => {
   // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 Test Case EVE-CRE-07-F: when the event list cannot be loaded, the
   // user sees the error with a Retry button; Retry loads the list again.
+  // Kills: a load error not shown as an alert, Retry not reloading the events, or the store filled on error.
   it("EVE-CRE-07-F shows a load error with Retry and loads the events again when Retry is clicked", async () => {
     const user = userEvent.setup();
     // Arrange: the first load fails and the second load succeeds.
@@ -502,6 +524,7 @@ describe("EventListPage", () => {
   // SPM-36 Test Case EVE-CRE-07-G: StrictMode runs the load effect twice, so the
   // first load is superseded. If that stale load succeeds late, it must not
   // replace the list the user is waiting for.
+  // Kills: a superseded list response reaching the screen or the store after a newer load has been requested.
   it("EVE-CRE-07-G ignores a superseded event list load that succeeds after a newer load", async () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
@@ -544,6 +567,7 @@ describe("EventListPage", () => {
   // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 Test Case EVE-CRE-07-H: if a superseded event list load fails late,
   // its error must not be shown while the current load is still in progress.
+  // Kills: a superseded load's failure shown as an alert while the current load is still pending.
   it("EVE-CRE-07-H does not show an error from a superseded event list load that fails late", async () => {
     // Arrange: two pending loads; the first one is superseded by the second.
     const stale = deferred<EventRecord[]>();
@@ -591,7 +615,7 @@ describe("EventListPage: the chosen filter survives leaving and returning to the
   // Kills: FILTER-M1 (the filter kept in local state and reset when the list unmounts, as on opening an event)
   it("FILTER-KEEP-01-A: an attendee's Registered filter is still selected after the list is shown again", async () => {
     const user = userEvent.setup();
-    const future = new Date(Date.now() + 7 * 86_400_000);
+    const future = new Date(T0.getTime() + 7 * 86_400_000);
     const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: new Date(future.getTime() + 3_600_000).toISOString() };
     apiMock.mockResolvedValue([{ ...base, id: "e-mine", name: "My Registered Event", status: "confirmed", myRegistrationStatus: "registered" }]);
     useAppStore.setState({ currentUser: { id: "attendee-1", name: "Alice", email: "alice@example.com", role: "attendee" } });
@@ -623,7 +647,7 @@ describe("EventListPage: the chosen filter survives leaving and returning to the
 describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry reads Waitlisted (AC3)", () => {
   // Kills: BADGE-M1, BADGE-M4, F12, F15
   it("JOIN-WAITLIST-03-A-FE-LIST: the Waitlisted badge appears in the waiting event's card and not in the others", async () => {
-    const future = new Date(Date.now() + 7 * 86_400_000);
+    const future = new Date(T0.getTime() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
     const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: futureEnd.toISOString() };
     const events: EventRecord[] = [
@@ -657,7 +681,7 @@ describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry rea
 describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as Withdrawn", () => {
   // Kills: BADGE-M1, BADGE-M4, LIST-M5
   it("CARD-BADGE-05-A-STATE: a withdrawn event card reads Withdrawn and no Confirmed", async () => {
-    const future = new Date(Date.now() + 7 * 86_400_000);
+    const future = new Date(T0.getTime() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
     const base = { ...submittedEvent(), registrationEnabled: true, startDateTime: future.toISOString(), endDateTime: futureEnd.toISOString() };
     apiMock.mockResolvedValue([{ ...base, id: "e-gone", name: "My Withdrawn Event", status: "confirmed", myRegistrationStatus: "withdrawn" }]);
@@ -680,6 +704,7 @@ describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as With
 
 // SPM-94 AC1 / R1: the organiser's Draft requests show in My Events; Submitted ones do not come from this list.
 describe("SPM-94 AC1: organiser drafts in My Events", () => {
+  // Kills: the Draft requests section missing, a draft link pointing elsewhere, or a Submitted request listed as a draft.
   it("TRACK-EVENT-STATUS-01-A: lists the organiser's Draft requests and links each to its draft", async () => {
     // Arrange: one Draft and one Submitted request from /requests; the events list is empty.
     apiMock.mockImplementation(((path: string) =>
@@ -710,6 +735,7 @@ describe("SPM-94 AC1: organiser drafts in My Events", () => {
 
 // SPM-94 AC4 / 04-B A and B: each visit (Back, or a new tab) refetches the list and shows the server's latest status.
 describe("SPM-94 AC4: each visit shows the latest status", () => {
+  // Kills: a revisit showing the earlier status (no refetch on remount), or the list request count wrong.
   it("TRACK-EVENT-STATUS-04-B: a remount requests the list again and shows the newer status", async () => {
     // Arrange: the first visit sees Submitted; by the next visit the server holds Approved.
     apiMock.mockImplementation(((path: string) =>
@@ -746,6 +772,7 @@ describe("SPM-94 AC4: each visit shows the latest status", () => {
 
 // SPM-94 drafts section: a superseded drafts request that answers late must not replace the current drafts.
 describe("SPM-94 drafts: a superseded drafts load cannot replace the current one", () => {
+  // Kills: a superseded drafts response (Draft A) replacing the current drafts (Draft B).
   it("TRACK-EVENT-STATUS-01-A: a late stale drafts response is ignored after Retry reloads the page", async () => {
     // Arrange: the first events load fails so the page offers Retry; the first drafts request is held open.
     const staleDrafts = deferred<DraftRecord[]>();
@@ -794,6 +821,7 @@ function draftRecord(id: string, name: string): DraftRecord {
 
 // SPM-94 drafts are the organiser's own: other roles never request them, and a failed drafts request leaves the events list intact.
 describe("SPM-94 drafts: role guard and failure path", () => {
+  // Kills: a coordinator requesting /requests, or a Draft requests section rendered for a coordinator.
   it("TRACK-EVENT-STATUS-01-A: a coordinator never requests drafts or sees a Draft requests section", async () => {
     useAppStore.setState({
       currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
@@ -815,6 +843,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
     expect(screen.queryByText("Leaked Draft")).toBeNull();
   });
 
+  // Kills: a failed drafts request hiding the events, or raising an alert for the drafts failure.
   it("TRACK-EVENT-STATUS-01-A: when the drafts request fails, the events still list and no error is shown", async () => {
     apiMock.mockImplementation(((path: string) =>
       path === "/requests" ? Promise.reject(new Error("drafts unavailable")) : Promise.resolve([submittedEvent()])) as typeof api);
@@ -832,6 +861,7 @@ describe("SPM-94 drafts: role guard and failure path", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Kills: a nameless draft rendered blank instead of the 'Untitled draft' label.
   it("TRACK-EVENT-STATUS-01-A: a draft with no name shows the Untitled draft label", async () => {
     apiMock.mockImplementation(((path: string) =>
       path === "/requests" ? Promise.resolve([draftRecord("00000000-0000-4000-8000-000000000604", "")]) : Promise.resolve([])) as typeof api);
@@ -869,6 +899,7 @@ describe("SPM-94 AC2/AC3 on the organiser list page", () => {
 
 // SPM-94 ordering: every view lists events from the earliest start date to the latest, so a grid row reads left (earlier) to right (later).
 describe("SPM-94 ordering: events read from the earliest start date", () => {
+  // Kills: cards shown in server order instead of ascending start date.
   it("TRACK-EVENT-STATUS-01-A ORDER: the cards follow the start date, whatever order the server sends", async () => {
     const base = submittedEvent();
     const at = (day: number, name: string) => {
@@ -921,6 +952,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
       screen.queryByText(name),
     );
 
+  // Kills: the default view hiding some of my events, or a status checkbox pre-checked with no filter chosen.
   /** SPM-95 AC1: with no filter selected, I see all of my events. */
   it("FILTER-EVT-01-B: with no filter selected, every one of my events is listed and no filter is checked", async () => {
     apiMock.mockResolvedValue(sampleEvents());
@@ -934,6 +966,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     }
   });
 
+  // Kills: a multi-status filter combined with AND (only events in both statuses kept), or a non-selected status still shown.
   /** SPM-95 AC2: selecting several statuses shows only my events that match any of them. */
   it("FILTER-EVT-02-C: selecting Submitted and Approved shows events in either status and hides the rest", async () => {
     const user = userEvent.setup();
@@ -949,6 +982,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     expect(screen.queryByText("Safety Pending")).toBeNull();
   });
 
+  // Kills: the 'Active filters' summary wrong, or Clear all filters not restoring the unfiltered list.
   /** SPM-95 AC3: the active filters are visible, and one action clears them all. */
   it("FILTER-EVT-03-A: the active filters are named, and Clear all filters restores the unfiltered list", async () => {
     const user = userEvent.setup();
@@ -969,6 +1003,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     expect(screen.queryByText(/Active filters/)).toBeNull();
   });
 
+  // Kills: the 'No matching events found' message missing when the selected filter matches nothing.
   /** SPM-95 AC4: when no event matches the selected filters, the list says "No matching events found". */
   it("FILTER-EVT-04-A: a filter with no matching event shows the No matching events found message", async () => {
     const user = userEvent.setup();
@@ -982,6 +1017,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     expect(screen.queryByText("Submitted Talk")).toBeNull();
   });
 
+  // Kills: Awaiting Safety Check keeping events without a pending safety indicator, or keeping other statuses.
   /** SPM-95 AC5: Awaiting Safety Check keeps only events whose safety check is awaited. */
   it("FILTER-EVT-05-G: Awaiting Safety Check shows only the event awaiting its safety check", async () => {
     const user = userEvent.setup();
@@ -994,6 +1030,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     expect(shownNames()).toEqual(["Safety Pending"]);
   });
 
+  // Kills: filtering triggering a new events load instead of narrowing the list already returned (event load count not 1).
   /** SPM-95 AC6: filtering narrows the organiser's own list from the server and fetches no other events. */
   it("FILTER-EVT-06-A: filtering narrows the list the server returned for me without loading events again", async () => {
     const user = userEvent.setup();
@@ -1007,6 +1044,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
     expect(eventLoads()).toBe(1);
   });
 
+  // Kills: the status filter kept in the store after the list unmounts, so a revisit is not unfiltered.
   /** SPM-95 AC7: leaving the list for an event's details and returning shows the unfiltered list, and nothing is stored globally. */
   it("FILTER-EVT-07-A: returning to the list after leaving it resets the filters to unfiltered", async () => {
     const user = userEvent.setup();
@@ -1031,6 +1069,7 @@ describe("SPM-95: the organiser's status filter on My Events", () => {
 
 // SPM-95 keeps other roles' status filter as it was; these tests cover the branches the organiser change left on shared code.
 describe("SPM-95: the other roles' status filter and the drafts loader", () => {
+  // Kills: the organiser status filter applied to coordinators, hiding non-submitted events under the All statuses value.
   /** SPM-95 AC1 (other roles): a coordinator whose status filter is the All statuses value sees every event. */
   it("FILTER-EVT-01-C: a coordinator with the All statuses value sees every event, not only Submitted", async () => {
     apiMock.mockResolvedValue([submittedEvent(), { ...submittedEvent(), id: "00000000-0000-4000-8000-0000000009a1", name: "Approved Party", status: "approved" }]);
@@ -1051,6 +1090,7 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
     expect(screen.getByText("Welcome Evening")).toBeTruthy();
   });
 
+  // Kills: a drafts answer that is not a list rendering a Draft requests section.
   /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts answer that is not a list shows no Drafts section and leaves the events. */
   it("TRACK-EVENT-STATUS-01-A: a drafts response that is not a list shows no Drafts section and the events still list", async () => {
     apiMock.mockImplementation(((path: string) =>
@@ -1068,6 +1108,7 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
     expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
   });
 
+  // Kills: a drafts failure arriving after the page is left showing an alert or its message.
   /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts failure that arrives after the page was left is ignored. */
   it("TRACK-EVENT-STATUS-01-A: a drafts failure that arrives after the page was left shows nothing", async () => {
     const drafts = deferred<DraftRecord[]>();
@@ -1123,6 +1164,7 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
     );
   }
 
+  // Kills: an approved request still in the pending view, or not listed under the Approved filter.
   /** EVENT-APPROVE-02-C: an approved request leaves the default Submitted (pending) view and is listed under the Approved filter. */
   it("EVENT-APPROVE-02-C drops an approved request from the pending view and lists it under Approved", async () => {
     const user = userEvent.setup();
@@ -1142,6 +1184,7 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
     expect(screen.queryByText("Pending Two")).toBeNull();
   });
 
+  // Kills: a rejected request still in the pending view, or not listed under the Rejected filter.
   /** EVENT-REJECT-02-C: a rejected request leaves the default Submitted (pending) view and is listed under the Rejected filter. */
   it("EVENT-REJECT-02-C drops a rejected request from the pending view and lists it under Rejected", async () => {
     const user = userEvent.setup();

@@ -58,6 +58,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // SPM-39 REQ-CLAR-01-A (AC1): valid clarification request; status unchanged; organiser notified
+  // Kills: a clarification that changes the event status, is not attributed to the coordinator, is not notified to the organiser, or clears awaitingReply on reply instead of resolve.
   it('REQ-CLAR-01-A: Event Coordinator can send a clarification request without changing status, and Organiser is notified', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -201,6 +202,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // SPM-39 REQ-CLAR-01-B (AC2): blank message rejected, no comment written
+  // Kills: a blank message accepted with 201 instead of 400, or a comment or notification written for it.
   it('REQ-CLAR-01-B: Event Coordinator cannot submit a blank clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -235,6 +237,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // SPM-39 REQ-CLAR-01-C (AC2): whitespace-only message rejected, no comment written
+  // Kills: a whitespace-only message accepted because the trim check is missing, leaving a comment row behind.
   it('REQ-CLAR-01-C: Event Coordinator cannot submit a whitespace-only clarification message', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -263,6 +266,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // SPM-39 REQ-CLAR-02-A (AC3, AC4): history in order with author and timestamp
+  // Kills: a thread returned out of order, a reply with the wrong parentId or author, or entries whose type does not separate clarification from reply.
   it('REQ-CLAR-02-A: Event Coordinator can see full chronological history with attribution and distinguishable types', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -331,6 +335,7 @@ describe('Clarifications (e2e)', () => {
 
   // SPM-39 REQ-CLAR-02-B (AC5): the awaiting-reply state of a clarification, as both parties see it.
   // Design (confirmed with the PO): a reply does NOT clear the state; only an explicit resolve does.
+  // Kills: a reply that clears awaitingReply, or a thread state that differs between the coordinator and organiser views.
   it('REQ-CLAR-02-B: clarification is awaiting reply for both parties until resolved, not cleared by a reply', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -384,6 +389,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // Not in the SPM-39 document. Cross-coordinator refusal; kept as an extra case.
+  // Kills: a clarification from a coordinator not assigned to the event that is stored (no assigned-coordinator check), or refused with the wrong status.
   it('REQ-CLAR-03: Event Coordinator cannot request clarification on an event assigned to another Coordinator', async () => {
     const assignedCoordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const otherCoordinator = await createDatabaseUser('COORDINATOR', 'Someone Else');
@@ -413,6 +419,7 @@ describe('Clarifications (e2e)', () => {
     expect(commentCount.rows[0].count).toBe('0');
   });
 
+  // Kills: a reply by an unrelated organiser that is accepted, or refused with a status other than 403.
   it('REQ-CLAR-SUP-38 returns 403 when someone unrelated to the event replies', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -434,6 +441,7 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
+  // Kills: a resolve by an unrelated coordinator that is not refused with 403 (only the status is checked, not the thread state).
   it('REQ-CLAR-SUP-39 returns 403 when someone unrelated to the event resolves a clarification', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
@@ -455,6 +463,7 @@ describe('Clarifications (e2e)', () => {
   });
 
   // SPM-39 isolation and security drafts (owner-confirmed 23 Oct 2026). Parent ACs are noted per test.
+  // Kills: the comment query not scoped to the event id, so event A's clarification appears in event B's thread.
   /** SPM-39 AC1, AC3 and AC4 Isolation: a clarification on event A does not appear in event B's thread. */
   it('REQ-CLAR-SUP-57 keeps a clarification on one event out of another event thread (AC1, AC3, AC4 Isolation)', async () => {
     const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -478,6 +487,7 @@ describe('Clarifications (e2e)', () => {
     }
   });
 
+  // Kills: a reply that finds the clarification by id alone, so a reply through event B succeeds instead of 404.
   /** SPM-39 AC1 Isolation: a clarification id from event A cannot be replied to through event B. */
   it('REQ-CLAR-SUP-58 refuses a reply to an event A clarification sent through event B (AC1 Isolation)', async () => {
     const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -499,6 +509,7 @@ describe('Clarifications (e2e)', () => {
       .expect(404);
   });
 
+  // Kills: the comment history readable by an unrelated organiser (missing 403 on GET comments).
   /** SPM-39 AC4 Security: an unrelated organiser cannot read the comment history of an event. */
   it('REQ-CLAR-SUP-59 refuses the comment history to an unrelated organiser (AC4 Security)', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -517,6 +528,7 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
+  // Kills: the awaitingReply field leaking into the 403 body returned to an unrelated coordinator.
   /** SPM-39 AC5 Security: the awaiting-reply state of a thread is not returned to an unrelated user. */
   it('REQ-CLAR-SUP-60 does not return the awaiting-reply state to an unrelated user (AC5 Security)', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -536,6 +548,7 @@ describe('Clarifications (e2e)', () => {
     expect(JSON.stringify(response.body)).not.toContain('awaitingReply');
   });
 
+  // Kills: awaitingReply computed across events, so event B shows event A's pending clarification.
   /** SPM-39 AC5 Isolation: an awaiting clarification on event A does not make event B show an awaiting reply. */
   it('REQ-CLAR-SUP-61 does not show an awaiting reply on event B for a clarification on event A (AC5 Isolation)', async () => {
     const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -563,6 +576,7 @@ describe('Clarifications (e2e)', () => {
     expect(threadB.body.some((entry: { awaitingReply?: boolean }) => entry.awaitingReply)).toBe(false);
   });
 
+  // Kills: a clarification posted to event A by the coordinator of event B stored (ownership check on coordinator id missing).
   /** SPM-39 Extra (REQ-CLAR-03) Isolation: a coordinator assigned to event B cannot clarify on event A. */
   it('REQ-CLAR-SUP-62 refuses a clarification on event A by the coordinator assigned to event B (Extra, Isolation)', async () => {
     const coordinatorA = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -585,6 +599,7 @@ describe('Clarifications (e2e)', () => {
     expect(counts.rows).toEqual([]);
   });
 
+  // Kills: reply or resolve allowed to any coordinator when the event has no assigned coordinator (null treated as a match).
   /** SPM-39 AC4 Security, defect D-1: once an event has no assigned coordinator, another coordinator cannot reply or resolve. */
   it('REQ-CLAR-SUP-63 refuses a reply and a resolve by a coordinator role on an event with no assigned coordinator (AC4 Security)', async () => {
     const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -609,6 +624,7 @@ describe('Clarifications (e2e)', () => {
       .expect(403);
   });
 
+  // Kills: an unauthenticated clarification POST that is accepted or processed instead of rejected with 401.
   it('REQ-CLAR-SUP-40 returns 401 when authentication is missing', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
     const eventId = await seedEvent({ organiserId: organiser.uid, coordinatorId: null });

@@ -79,6 +79,7 @@ describe('Events coordinator assignment (e2e)', () => {
   }
 
   // Parent AC (SUPPORTING): SPM-38 AC3
+  // Kills: the events list returning attachment dataUrl, or the detail route dropping dataUrl from the attachment.
   it('EVE-REV-SUP-01 omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const attachment = {
@@ -114,6 +115,7 @@ describe('Events coordinator assignment (e2e)', () => {
   // SPM-38 AC4: a coordinator the event is not assigned to gets the same 404
   // as a non-existent event when reading it through the real HTTP pipeline,
   // and an unauthenticated request is rejected before it ever reaches that check.
+  // Kills: the detail route answering 200 or 403 (not 404) to a coordinator not assigned to the event, or serving an unauthenticated request.
   it('EVE-REV-04-F returns 404 for a coordinator the event is not assigned to', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');

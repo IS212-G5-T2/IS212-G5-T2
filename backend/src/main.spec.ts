@@ -31,6 +31,7 @@ describe('application bootstrap (main.ts)', () => {
   });
 
   // Parent AC (SUPPORTING): SPM-36 AC8
+  // Kills: bootstrap that creates Nest with the default body parser, skips CORS or the 80mb JSON limit, or listens on a port other than 3000.
   /** The app is created without Nest's default body parser, configured, and listens on the default port. */
   it('EVE-CRE-SUP-11 creates the app without the default body parser, configures it, and listens on port 3000', async () => {
     delete process.env.PORT;
@@ -46,6 +47,7 @@ describe('application bootstrap (main.ts)', () => {
     expect(app.listen).toHaveBeenCalledWith(3000);
   });
 
+  // Kills: listen that ignores the PORT environment value and always uses 3000.
   /** When the PORT environment value is set, the app listens on that port instead of the default. */
   it('listens on the port named by the PORT environment value when one is set', async () => {
     process.env.PORT = '4321';

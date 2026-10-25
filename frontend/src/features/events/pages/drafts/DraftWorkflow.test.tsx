@@ -108,6 +108,7 @@ afterEach(() => {
 });
 
 describe("SPM-37 Q2 functional cases", () => {
+  // Kills: two rapid clicks on Save draft sending two requests (no in-flight guard).
   it("EVE-DRF-SUP-26 rapid save clicks issue only one request", async () => {
     const pending = deferred<DraftRecord>();
     mocked.mockReturnValue(pending.promise);
@@ -121,6 +122,7 @@ describe("SPM-37 Q2 functional cases", () => {
     await act(async () => pending.resolve(draft()));
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
+  // Kills: Back dropping the typed expected attendance, or a server attachment error not shown after the next save.
   it("EVE-DRF-SUP-27 back navigation preserves data and server attachment errors are visible", async () => {
     mocked
       .mockResolvedValueOnce(draft({ formStep: 2 }))
@@ -144,6 +146,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "25",
     );
   });
+  // Kills: an incomplete draft rejected on save, formStep missing from the PUT body, or a POST issued for a draft save.
   it.each([0, 1, 2])(
     "EVE-DRF-SUP-28 saves incomplete values from wizard step %s",
     async (formStep) => {
@@ -164,6 +167,7 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe(false);
     },
   );
+  // Kills: an undefined, negative, out-of-range or fractional saved step not falling back to Basic Information, or the saved name not prefilled.
   it.each([undefined, -1, 3, 1.5])(
     "EVE-DRF-SUP-29 legacy or invalid saved step %j falls back to basic fields",
     async (formStep) => {
@@ -175,6 +179,7 @@ describe("SPM-37 Q2 functional cases", () => {
       );
     },
   );
+  // Kills: a failed draft load still rendering editable fields, or the alert text or the Back To My Drafts link changed.
   it.each([new Error("Not found"), "unknown failure"])(
     "EVE-DRF-SUP-30 failed draft retrieval hides editing %j",
     async (error) => {
@@ -192,6 +197,7 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe("/requests");
     },
   );
+  // Kills: a late draft response rendering the form or an alert after the editor was left.
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-31 ignores late load %s after leaving the editor",
     async (outcome) => {
@@ -208,6 +214,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByRole("textbox")).toBeNull();
     },
   );
+  // Kills: the retry after a failed save using a new operation id, or the later edit sent with the original operation id.
   /** EVE-DRF-06-A: a failed save is retried with the same operation before newer edits (EVE-DRF-SUP-48). */
   it("EVE-DRF-SUP-48 retries uncertain operation before saving edits made after failure", async () => {
     mocked
@@ -232,6 +239,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
+  // Kills: the corrected save reusing the rejected operation id, or the old 'Too long' error still shown after correction.
   /** EVE-DRF-06-B: a field validation error allows a corrected save with a new operation (EVE-DRF-SUP-49). */
   it("EVE-DRF-SUP-49 field validation error allows corrected payload with a new operation", async () => {
     mocked
@@ -254,6 +262,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(calls[1].operationId).not.toBe(calls[0].operationId);
     expect(screen.queryByText("Too long")).toBeNull();
   });
+  // Kills: Save draft enabled while a save is pending, a second request on form submit, or the 'Unable to save draft' fallback missing.
   /** EVE-DRF-06-A: a failed save keeps input and pending controls prevent duplicate submission (EVE-DRF-SUP-50). */
   it("EVE-DRF-SUP-50 save fallback message retains input and pending controls prevent duplicate submission", async () => {
     const pending = deferred<DraftRecord>();
@@ -271,6 +280,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "Unable to save draft",
     );
   });
+  // Kills: the confirmation dialog not preventing the default action on Tab, Escape being default-prevented (the test checks only that Escape is not prevented), or OK not returning to My Drafts.
   it("EVE-DRF-SUP-32 confirmation supports keyboard and returns to My Drafts", async () => {
     mocked.mockResolvedValueOnce(draft()).mockResolvedValueOnce([]);
     open("/events/create");
@@ -281,6 +291,7 @@ describe("SPM-37 Q2 functional cases", () => {
     click("OK");
     expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
   });
+  // Kills: submission sending a version other than the saved one, or the store replacing the wrong event (duplicate or dropped entries).
   it("EVE-DRF-SUP-33 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
     useAppStore.setState({ events: [event, { id: "other" }] as never });
@@ -302,6 +313,7 @@ describe("SPM-37 Q2 functional cases", () => {
       "other",
     ]);
   });
+  // Kills: a failed submission clearing the draft or leaving Submit For Review disabled, or the server message not shown.
   it.each([new ApiError("Rejected", { equipmentNeeds: "Invalid" }), "unknown"])(
     "EVE-DRF-SUP-34 failed submission keeps draft data %j",
     async (error) => {
@@ -324,6 +336,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
+  // Kills: expected attendance accepted outside 1 to 2147483647, or rejected inside that range (off-by-one at either end).
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
     "EVE-DRF-SUP-35 attendance boundary %s on submission",
     async (expectedAttendance) => {
@@ -341,6 +354,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
+  // Kills: an end time equal to or before the 10:00 start accepted, or 10:01 rejected.
   it.each(["09:59", "10:00", "10:01"])(
     "EVE-DRF-SUP-36 end time %s relative to start 10:00",
     async (endTime) => {
@@ -355,6 +369,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC5
+  // Kills: a resumed review submitted without its basic fields, or the user not returned to Basic Information.
   it("EVE-DRF-SUP-37 missing required basic fields in resumed review returns to step one", async () => {
     const flow = mockResumedDraftFlow(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
@@ -370,6 +385,7 @@ describe("SPM-37 Q2 functional cases", () => {
     ).toHaveLength(1);
   });
   // Parent AC (SUPPORTING): SPM-37 AC5
+  // Kills: a corrupt persisted start date or end time allowed to proceed to the Equipment step.
   it.each([
     ["bad-date", "11:00"],
     ["2030-01-02", "bad-time"],
@@ -385,6 +401,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
+  // Kills: submitted requests listed under My Drafts, or an untitled draft not linking to its editor.
   /** EVE-DRF-03: My Drafts lists only drafts; submitted requests are excluded (EVE-DRF-SUP-51). */
   it("EVE-DRF-SUP-51 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
@@ -408,6 +425,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(screen.queryByText("Submitted")).toBeNull();
   });
   // A response containing only submitted requests must behave like an empty draft list.
+  // Kills: the empty-state message missing when every request is submitted, or a submitted request still shown.
   /** EVE-DRF-03: My Drafts shows the empty state when every request is submitted (EVE-DRF-SUP-52). */
   it("EVE-DRF-SUP-52 shows the draft empty state when every request is submitted", async () => {
     mocked.mockResolvedValue([
@@ -417,6 +435,7 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Workshop" })).toBeNull();
   });
+  // Kills: Retry not requesting the list again, or the empty state not shown after a successful retry.
   it.each([new Error("List unavailable"), "unknown"])(
     "EVE-DRF-SUP-39 failed list retry recovers %j",
     async (error) => {
@@ -428,6 +447,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
+  // Kills: a late list response (resolved or rejected) raising an alert after the user navigated away.
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-40 ignores late list %s after navigation",
     async (outcome) => {
@@ -443,6 +463,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC6 (low confidence: file size error)
+  // Kills: a 50 MB file (52428800 bytes) rejected, a file one byte over accepted, or the size and type missing from the payload.
   /** EVE-DRF-10-A: the page enforces the 50 MB limit on a single file (EVE-DRF-SUP-53). */
   it.each([52428799, 52428800, 52428801])(
     "EVE-DRF-SUP-53 file size boundary %s bytes",
@@ -478,6 +499,7 @@ describe("SPM-37 Q2 functional cases", () => {
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC5 (low confidence: file count, closest draft AC)
+  // Kills: a sixth file accepted, or a file set of five or fewer rejected, or Remove failing to drop the selected file.
   it.each([4, 5, 6])("EVE-DRF-SUP-41 file count boundary %s", async (count) => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
@@ -501,6 +523,7 @@ describe("SPM-37 Q2 functional cases", () => {
     }
   });
   // Parent AC (SUPPORTING): SPM-37 AC6
+  // Kills: a FileReader error that shows no "Unable to read" alert or leaves Save draft disabled (no retry). Null and empty selections are exercised but their outcome is not asserted.
   it("EVE-DRF-SUP-42 cancelled file selection is harmless and read failure allows retry", async () => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();

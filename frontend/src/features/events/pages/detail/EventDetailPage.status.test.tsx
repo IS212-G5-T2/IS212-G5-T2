@@ -101,6 +101,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
     expect(screen.getAllByText(/^(Awaiting Safety Officer Check|Safety Changes Requested|Safety Check Cleared)$/)).toHaveLength(1);
   });
 
+  // Kills: a null safety indicator rendering a safety label on the planning page.
   it("TRACK-EVENT-STATUS-03-B: a null safety indicator shows no safety text on the planning page", async () => {
     current = eventRecord({ status: "planning", safetyIndicator: null });
     renderPage();
@@ -109,6 +110,7 @@ describe("SPM-94 AC2/AC3 on the organiser's planning page", () => {
   });
 
   // Oracle: indicators are the organiser's view only (planning header is gated by isOwner).
+  // Kills: the safety indicator shown to the assigned coordinator (who is not the owner) on the planning page.
   it("TRACK-EVENT-STATUS-03-B: the assigned coordinator, not the owner, sees no indicators on the page", async () => {
     current = eventRecord({ status: "planning", safetyIndicator: "AWAITING_CHECK", coordinatorId: "COO-01", coordinatorName: "Coordinator One" });
     useAppStore.setState({
@@ -151,6 +153,7 @@ describe("SPM-94 AC1: the planning page marks the exact current step", () => {
   });
 
   // Oracle: a rejected event shows the rejected step in the danger colour, after the submitted step.
+  // Kills: the rejected step shaded as primary instead of danger, or the submitted step not shaded as reached.
   it("TRACK-EVENT-STATUS-01-B: rejected marks the rejected step in the danger colour", async () => {
     current = eventRecord({ status: "rejected", rejectionReason: "Not suitable for this venue" });
     renderPage();

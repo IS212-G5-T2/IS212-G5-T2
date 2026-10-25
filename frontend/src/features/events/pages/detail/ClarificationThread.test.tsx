@@ -119,6 +119,7 @@ describe("ClarificationThread: replying (SPM-39 AC2, AC5)", () => {
     expect(await screen.findByText("This clarification is already resolved.")).toBeInTheDocument();
   });
 
+  // Kills: a non-API reply failure shown as the server text, or no 'Could not send reply.' fallback.
   it("REQ-CLAR-SUP-45 shows the reply fallback text when a reply fails with a non-API error", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
@@ -153,6 +154,7 @@ describe("ClarificationThread: resolving (SPM-39 AC5)", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Resolve" })).toBeEnabled());
   });
 
+  // Kills: a non-API resolve failure shown as the server text or blank, instead of 'Could not resolve clarification.'
   it("REQ-CLAR-SUP-47 shows the resolve fallback text when resolving fails with a non-API error", async () => {
     const user = userEvent.setup({ delay: null });
     renderThread({
@@ -240,6 +242,7 @@ describe("ClarificationThread: filtering and labels (SPM-39 AC4, AC5)", () => {
 describe("ClarificationThread: a Coordinator's reply", () => {
   // REQ-CLAR-02-A (AC4): a reply is labelled with its author's role. Kills: the Coordinator label replaced by
   // Organiser on a reply, or the reply hidden from the thread.
+  // Kills: a Coordinator reply labelled Organiser, or the reply missing from the rendered thread.
   it("labels a reply written by the Coordinator as Coordinator", () => {
     const reply = comment({
       id: "reply-2",
@@ -258,6 +261,7 @@ describe("ClarificationThread: a Coordinator's reply", () => {
     expect(screen.queryAllByText("Organiser", { selector: "span" })).toHaveLength(0);
   });
 
+  // Kills: an organiser comment labelled Coordinator, or the organiser avatar letter or author name missing.
   /** SPM-39 AC2: an organiser's comment is labelled as the organiser, with the organiser avatar. */
   it("REQ-CLAR-SUP-52 labels an organiser comment as the organiser and shows the organiser avatar", () => {
     renderThread({ comments: [comment({ authorRole: "organiser", authorName: "Priya Nair" })] });
@@ -266,6 +270,7 @@ describe("ClarificationThread: a Coordinator's reply", () => {
     expect(screen.getByText("Priya Nair")).toBeTruthy();
   });
 
+  // Kills: a coordinator comment labelled Organiser, or the coordinator avatar 'C' missing.
   /** SPM-39 AC2: a coordinator's comment is labelled as the coordinator, with the coordinator avatar. */
   it("REQ-CLAR-SUP-53 labels a coordinator comment as the coordinator and shows the coordinator avatar", () => {
     renderThread({ comments: [comment()] });

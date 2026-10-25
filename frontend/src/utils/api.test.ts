@@ -9,6 +9,7 @@ afterEach(() => {
 describe("api", () => {
   // Parent AC (SUPPORTING): SPM-37 AC3 (low confidence: session access)
   // Sends the browser-managed HTTP-only session and never reintroduces tokens.
+  // Kills: a request sent with an Authorization header, or without credentials set to include.
   it("EVE-DRF-SUP-43 uses browser session credentials without an Authorization header", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
@@ -23,6 +24,7 @@ describe("api", () => {
   });
 
   // Uses the documented local backend origin when no build-time URL is supplied.
+  // Kills: the request sent to another default origin instead of http://localhost:8080/api.
   it("EVE-DRF-SUP-44 falls back to the default API origin", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
@@ -36,6 +38,7 @@ describe("api", () => {
   });
 
   // Preserves caller headers while adding the JSON content type required by the API.
+  // Kills: the caller's X-Request-Id header dropped when the JSON Content-Type is added, or the Content-Type missing.
   it("EVE-DRF-SUP-45 adds JSON content type without discarding caller headers", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
@@ -51,6 +54,7 @@ describe("api", () => {
   });
 
   // Turns a transport failure into a safe message rather than leaking its cause.
+  // Kills: a transport failure surfacing the raw 'socket refused' text instead of the safe connection message.
   /** EVE-DRF-06-A: an unreachable server yields a safe error message. */
   it("returns a safe error when the server cannot be reached", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("socket refused")));
@@ -61,6 +65,7 @@ describe("api", () => {
   });
 
   // Preserves validation information so forms can associate errors with fields.
+  // Kills: the server message or the field errors dropped from the thrown error for a 422 response.
   /** EVE-DRF-06-B: client error messages and field errors are preserved. */
   it("preserves a client error message and field errors", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -73,6 +78,7 @@ describe("api", () => {
   });
 
   // Gives a fallback when an error response has no JSON body or message.
+  // Kills: a non-JSON 400 body surfaced as its raw text instead of 'Request failed.'
   /** EVE-DRF-06-B: a non-JSON error response is handled safely. */
   it("handles a non-JSON client error response", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Bad request", { status: 400 })));
@@ -81,6 +87,7 @@ describe("api", () => {
   });
 
   // Maps attachment-size failures to an actionable message.
+  // Kills: a 413 with an empty body not mapped to the attachment-size message.
   /** EVE-DRF-10-C: frontend half only; a 413 with an empty body maps to the attachment-size message (backend 413 with CORS is an e2e gap). */
   it("maps a 413 response to the attachment-size message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 413 })));
@@ -92,6 +99,7 @@ describe("api", () => {
 
   // Frontend half of EVE-DRF-10-C: a non-JSON 413 body (as the body-size limit returns) still maps to
   // the attachment-size message. The backend half (413 with CORS headers on a real server) is manual only.
+  // Kills: an HTML 413 body not mapped to the attachment-size message, or the status not kept as 413.
   it("maps a non-JSON 413 body to the attachment-size message", async () => {
     vi.stubGlobal(
       "fetch",
@@ -110,6 +118,7 @@ describe("api", () => {
   });
 
   // Does not expose server failure details to the browser.
+  // Kills: the 503 body's raw message ('database password leaked') shown instead of the generic availability text.
   /** EVE-DRF-06-B: a server failure maps to a generic availability message. */
   it("maps a server failure to a generic availability message", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({
@@ -122,6 +131,7 @@ describe("api", () => {
   });
 
   // Covers the error type used by every rejected helper call.
+  // Kills: ApiError dropping its message or its field errors from the constructor arguments.
   it("EVE-DRF-SUP-46 retains ApiError field errors", () => {
     expect(new ApiError("Validation failed", { title: "Required" })).toMatchObject({
       message: "Validation failed", errors: { title: "Required" },
@@ -131,6 +141,7 @@ describe("api", () => {
 
 describe("api error codes (SPM-61)", () => {
   // The server's machine-readable code and status reach the caller so the UI can branch on them.
+  // Kills: ApiError dropping the server code or status, or taking the message from somewhere other than the body.
   it("EVE-DRF-SUP-47 exposes code, errors and status on ApiError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ code: "registration_closed", message: "Registration has closed for this event." }), { status: 422 }),

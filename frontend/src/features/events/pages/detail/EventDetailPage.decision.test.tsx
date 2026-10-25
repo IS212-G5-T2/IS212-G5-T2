@@ -128,6 +128,7 @@ beforeEach(() => {
 
 describe("EventDetailPage — reject workflow (SPM-83)", () => {
   // EVENT-REJECT-01-A — happy path (entry)
+  // Kills: Review Event hidden from the assigned coordinator, or the reject and approve radios or Submit Decision control missing.
   it("lets the assigned coordinator open reject decision controls from Review Event", async () => {
     renderDetail(assignedEvent());
 
@@ -143,6 +144,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
+  // Kills: the reason not trimmed before the POST, the request sent to another route or with another body, or a message shown on success.
   /** EVENT-REJECT-01-B — happy path (submit): one POST to the reject route with the trimmed reason. */
   it("submits a valid rejection and fires the reject request", async () => {
     renderDetail(assignedEvent());
@@ -163,6 +165,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
   });
 
+  // Kills: a second click while the rejection is in flight sending a duplicate request (no in-flight guard on Submit Decision).
   /**
    * EVENT-REJECT-01-B — no duplicate request while the rejection is in flight. The store action is
    * held open (its status change is otherwise immediate), so the page stays in its submitting state.
@@ -195,6 +198,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // EVENT-REJECT-01-C — empty / whitespace-only
+  // Kills: an empty or whitespace reason sent to the reject route, or the requirements block or aria-invalid missing.
   it("blocks an empty or whitespace-only reason with the requirements block", async () => {
     renderDetail(assignedEvent());
     await openReview();
@@ -209,6 +213,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(false);
   });
 
+  // Kills: a 9-character reason accepted, or a 10-character reason blocked (minimum length off by one).
   /** EVENT-REJECT-01-D — below minimum length (<10), measured on the trimmed reason */
   it("blocks a reason under 10 characters and accepts exactly 10", async () => {
     renderDetail(assignedEvent());
@@ -224,6 +229,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(true);
   });
 
+  // Kills: length measured on the raw value, so padded 'no fit ok' (raw 13 characters) passes the minimum.
   /** EVENT-REJECT-01-D — padding does not count: 9 trimmed characters stay blocked */
   it("blocks a padded reason whose trimmed length is 9", async () => {
     renderDetail(assignedEvent());
@@ -235,6 +241,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(rejectRequestFired()).toBe(false);
   });
 
+  // Kills: a padded 10-character reason blocked, or the body sent without trimming.
   /** EVENT-REJECT-01-D — padding does not count: a padded reason of 10 trimmed characters is accepted */
   it("accepts a padded reason whose trimmed length is 10", async () => {
     renderDetail(assignedEvent());
@@ -252,6 +259,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByText(/between 10 and 500 characters/i)).toBeNull();
   });
 
+  // Kills: a 501-character reason accepted, a 500-character reason blocked, or the sent reason truncated.
   /** EVENT-REJECT-01-E — above maximum length (>500), measured on the trimmed reason; 500 is sent in full, not truncated */
   it("accepts exactly 500 trimmed characters and blocks 501", async () => {
     renderDetail(assignedEvent());
@@ -272,6 +280,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     ]);
   });
 
+  // Kills: the raw length compared with the 500 maximum, blocking a valid reason of raw 504 and trimmed 500 characters.
   /** EVENT-REJECT-01-E — raw length over 500 is accepted when the trimmed reason is 500, and the full 500-character value is sent */
   it("accepts a reason whose raw length exceeds 500 but whose trimmed length is 500", async () => {
     renderDetail(assignedEvent());
@@ -289,6 +298,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // EVENT-REJECT-01-F — fewer than 3 words
+  // Kills: a one- or two-word reason accepted, or a four-word reason blocked (word-count rule wrong).
   it("blocks a reason with fewer than 3 words with the requirements block", async () => {
     renderDetail(assignedEvent());
     await openReview();
@@ -308,6 +318,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // EVENT-REJECT-01-G — no letters (numbers / symbols only)
+  // Kills: a reason of digits and symbols only accepted by the form instead of blocked.
   it("blocks a letter-less reason with the requirements block", async () => {
     renderDetail(assignedEvent());
     await openReview();
@@ -327,6 +338,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // EVENT-REJECT-01-H — special characters preserved & rendered safely
+  // Kills: the reason altered or escaped before dispatch, or rendered as markup rather than literal text on the organiser page.
   it("accepts a special-character reason and renders it safely to the organiser", async () => {
     const reason = 'Room too small & date clashed <not a tag> "quoted" — 🚫';
     renderDetail(assignedEvent());
@@ -350,6 +362,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
   });
 
   // EVENT-REJECT-04-A — authorization (UI): reject controls only for the assigned coordinator
+  // Kills: Review Event shown to an unassigned coordinator, or reject controls shown to the owning organiser.
   it("shows reject controls only to the assigned coordinator", async () => {
     // Unassigned coordinator: no Review Event entrypoint.
     setUser("coordinator", "coordinator-2");
@@ -372,6 +385,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
+  // Kills: the Review Event button or the decision radios shown to the owning organiser.
   /** EVENT-REJECT-04-A: the owning organiser never sees the Review Event entrypoint or any decision control. */
   it("hides the Review Event entrypoint from the owning organiser", async () => {
     setUser("organiser", "organiser-9");
@@ -383,6 +397,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
     expect(screen.queryByRole("radio", { name: /approve/i })).toBeNull();
   });
 
+  // Kills: Review Event or decision controls shown to venue or tech-support staff, or the access notice missing.
   /** EVENT-REJECT-04-A: venue staff and technical support have no reject or approve controls on a submitted request. */
   it.each(["venue_staff", "tech_support"] as const)(
     "shows no Review Event entrypoint or decision controls to %s",
@@ -402,6 +417,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
   // EVENT-REJECT-01-I — a rejected request shows draft → submitted → rejected,
   // without approval-pipeline statuses.
+  // Kills: an approval-pipeline step (approved or under review) shown on a rejected request's timeline, or the draft or submitted step missing.
   it("shows a draft → submitted → rejected status timeline for a rejected request", async () => {
     setUser("organiser", "organiser-9");
     renderDetail(
@@ -420,6 +436,7 @@ describe("EventDetailPage — reject workflow (SPM-83)", () => {
 
 describe("EventDetailPage — approve workflow (SPM-40)", () => {
   // EVENT-APPROVE-01-A — happy path (entry)
+  // Kills: the Approve radio absent from the review controls, or the Reject radio missing.
   it("lets the assigned coordinator open the decision controls with an Approve option", async () => {
     renderDetail(assignedEvent());
 
@@ -430,6 +447,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     expect(screen.getByRole("radio", { name: /reject/i })).toBeTruthy();
   });
 
+  // Kills: a reason field required for approval, or the approve request sent with a body or to the wrong route.
   /** EVENT-APPROVE-01-B — happy path (submit): one POST to the approve route, with no body and no reason. */
   it("submits an approval and fires the approve request without asking for a reason", async () => {
     renderDetail(assignedEvent());
@@ -443,6 +461,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
     expect(approveCalls()).toEqual([[`/events/${EVENT_ID}/approve`, { method: "POST" }]]);
   });
 
+  // Kills: a second click while the approval is in flight sending a duplicate approve request (no in-flight guard).
   /** EVENT-APPROVE-01-B — no duplicate approval while the request is in flight (store action held open). */
   it("sends the approval exactly once when Submit Decision is clicked twice while in flight", async () => {
     const realApprove = useAppStore.getState().approveEvent;
@@ -471,6 +490,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
   });
 
   // EVENT-APPROVE-01-C — authorization (UI): controls only for the assigned coordinator
+  // Kills: the Approve radio shown to an unassigned coordinator or to the owning organiser.
   it("shows the Approve controls only to the assigned coordinator", async () => {
     // Unassigned coordinator: no Review Event entrypoint.
     setUser("coordinator", "coordinator-2");
@@ -494,6 +514,7 @@ describe("EventDetailPage — approve workflow (SPM-40)", () => {
   });
 
   // EVENT-APPROVE-04-C — immutability (UI): no approve/revert controls once approved
+  // Kills: Review Event or the Approve radio still shown for an event whose status is already approved.
   it("hides the approve controls once the event is approved", async () => {
     setUser("coordinator", "coordinator-1");
 
@@ -517,6 +538,7 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
     useAppStore.setState({ approveEvent: realApprove, rejectEvent: realReject });
   });
 
+  // Kills: a failed approval closing the decision controls, the alert text not the error message, or Submit Decision left disabled.
   /** A failed approval keeps the decision controls open and shows the error message. */
   it("shows the approval error message and keeps the decision controls open", async () => {
     useAppStore.setState({
@@ -532,6 +554,7 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
     expect(screen.getByRole("button", { name: "Submit Decision" })).toHaveProperty("disabled", false);
   });
 
+  // Kills: a non-Error rejection shown as raw text instead of 'Failed to approve event.'
   /** A failure that is not an Error object falls back to the generic approval message. */
   it("shows the generic approval message when the failure is not an Error", async () => {
     useAppStore.setState({ approveEvent: vi.fn().mockRejectedValue("network down") });
@@ -543,6 +566,7 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
     expect(await screen.findByText("Failed to approve event.")).toBeTruthy();
   });
 
+  // Kills: a failed rejection dropping its error text, or the alert text not the error message.
   /** A failed rejection keeps the reason on screen and shows the error message. */
   it("shows the rejection error message when the rejection cannot be saved", async () => {
     useAppStore.setState({
@@ -558,6 +582,7 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
     expect(screen.getByRole("alert").textContent).toBe("Rejection could not be saved.");
   });
 
+  // Kills: a non-Error rejection shown as raw text instead of 'Failed to reject event.'
   /** A rejection failure that is not an Error object falls back to the generic rejection message. */
   it("shows the generic rejection message when the failure is not an Error", async () => {
     useAppStore.setState({ rejectEvent: vi.fn().mockRejectedValue("offline") });
