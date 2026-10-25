@@ -337,9 +337,25 @@ export function testIdOf(test, ignoredFamilies = new Set()) {
 
 // ---------------------------------------------------------------- scope and gates
 
+/** Allowed values of the optional scope field `linesFrom`. */
+export const LINES_FROM = ['changed-lines'];
+
+/** Problem with a scope's `linesFrom` field, or undefined when it is absent or allowed. */
+export function linesFromError(scope) {
+  if (scope.linesFrom === undefined || LINES_FROM.includes(scope.linesFrom)) return undefined;
+  return `unknown "linesFrom" ${JSON.stringify(scope.linesFrom)} (allowed: ${LINES_FROM.join(', ')})`;
+}
+
+/** True when the scope measures coverage on the story's changed lines (story-lines.mjs writes them). */
+export function usesChangedLines(scope) {
+  return scope.linesFrom === 'changed-lines';
+}
+
 export function loadScope(scopePath) {
   const scope = readJson(scopePath);
   for (const key of ['story', 'tests']) if (!scope[key]) throw new Error(`scope ${scopePath} is missing "${key}"`);
+  const problem = linesFromError(scope);
+  if (problem) throw new Error(`scope ${scopePath} has ${problem}`);
   return scope;
 }
 

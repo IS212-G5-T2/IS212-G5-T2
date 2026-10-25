@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Runs one test-workflow cycle for a story and saves every output in the cycle folder.
+// A scope with "linesFrom": "changed-lines" runs story-lines.mjs before the coverage step (see ai/docs/test-workflow.md, G5).
 //   node ai/scripts/test-workflow/run-cycle.mjs --scope docs/test-cases/workflow/scopes/SPM-135.json
 //        [--cycle <dir>] [--steps ids,spec,determinism,run,coverage,mutation,records,report] [--skip mutation]
 //        [--tz UTC,Asia/Singapore] [--record] [--dry-run]
@@ -12,7 +13,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, parseArgs, parseCsv, readJson, readText, scopeTests, timezoneStatus,
-  writeGate, writeText,
+  usesChangedLines, writeGate, writeText,
 } from './lib.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
@@ -162,7 +163,12 @@ for (const step of steps) {
   } else if (step === 'spec') script('check-spec.mjs');
   else if (step === 'determinism') script('scan-determinism.mjs');
   else if (step === 'run') runSuites();
-  else if (step === 'coverage') script('coverage-scope.mjs');
+  else if (step === 'coverage') {
+    // A scope with linesFrom "changed-lines" measures only the lines story-lines.mjs derives for the story. If that
+    // step fails, coverage-scope.mjs finds no changed-lines.json and blocks G5 rather than measuring every line.
+    if (usesChangedLines(scope) && script('story-lines.mjs') !== 0) log('story-lines.mjs failed: changed-lines.json was not written');
+    script('coverage-scope.mjs');
+  }
   else if (step === 'mutation') runMutation();
   else if (step === 'records') script('check-records.mjs');
   else if (step === 'report') script('report.mjs', ['--cycle-number', String(cycleNumber), ...(flags.record ? ['--record'] : [])]);

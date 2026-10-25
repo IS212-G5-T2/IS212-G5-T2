@@ -49,7 +49,7 @@ All under `docs/test-cases/workflow/`, one set per repository, keyed by story.
 
 | File | Holds | Written by |
 |---|---|---|
-| `scopes/<story>.json` | The test files (with an optional `titleMatch` for shared files), source files, suites, timezones, coverage floor and mutation runners of the story | Implementation |
+| `scopes/<story>.json` | The test files (with an optional `titleMatch` for shared files), source files, suites, timezones, coverage floor, mutation runners and the optional `linesFrom` of the story (`"changed-lines"` measures G5 only on the lines `story-lines.mjs` derives for the story) | Implementation |
 | `test-id-registry.md` | Every test ID with type, story, parent AC, source, owning files and approval; the non-test token families | Implementation |
 | `spec-conflicts.md` | Spec conflicts with sources, decision, status and confirmation | Implementation |
 | `tier-matrix.md` | One table per story: AC by tier | Implementation |
@@ -116,6 +116,8 @@ Run in order. A failed gate is reported, not skipped. Each script writes `<cycle
 **G4.** Prefer removing the hit. Where that is not possible, `determinism-exceptions.md` needs a reason, a per-file `Max`, and (for a wait on an external signal) a bound and an asserted outcome. A fixed `Date` replaces `new Date()` in fixtures; `randomUUID()` as a unique fixture key against the shared database is a standing exception with a per-file cap. The timezone runs apply to the scope's suites; the scope can be widened to the full suites for a release cycle.
 
 **G5.** Report statement, branch, function and line coverage separately, per file and in total, for the scope's source files. Runs are merged per file, so a line counts as covered if any run executed it; a line that only a real-database run covers is classified `COVERED-BY-E2E` automatically. A coverage ignore comment in a scope source file needs an `ignore-comment` row in `coverage-exclusions.md` with the same reason (rule 5); G5 blocks on one without it. Every other uncovered line needs a row in `coverage-line-status.md` with `ADD-TEST`, `UNREACHABLE`, `LOW-VALUE` or `OPEN` and a note; `OPEN` is allowed but counts as a gap. The floor comes from the scope file (`coverageFloor`), which defaults to the changed-code rule in [`implementation.md`](../agents/implementation.md) (100% of changed testable code); a missed floor is reported, and each shortfall is explained by a line status, not left as a bare percentage. Coverage measures what ran, not how well it was checked.
+
+**Changed lines (`linesFrom: "changed-lines"`).** `story-lines.mjs` derives the story's owned lines from origin attribution: a line is owned when the commit that first introduced its content (its origin, replayed commit by commit with `-w` diffs and rename/copy tracking in `line-origin.mjs`) is one of the story's commits (non-merge commits whose subject names the story). Whitespace-only and formatting-only commits keep the origin of the lines they touch, and are listed in `changed-lines.json` as `formattingOnlyCommits`. A multi-story origin commit does not identify an owner, so such a line is excluded by a row in `story-line-corrections.json` with the reason. G5 then measures only the owned lines, and a line that a story does not own is not counted for it.
 
 **G6.** The repository's mutation runners are the executors (`backend/scripts/mutation/`, `frontend/scripts/testing/mutation/`); this gate reads their saved output. A survivor blocks the gate, as in the Test Code Reviewer playbook.
 

@@ -71,7 +71,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects an unassigned coordinator without persisting a request',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request',
     ],
     edits: [
       [
@@ -116,7 +116,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: keeps a pending request without expiry out of holds and conflict checks',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-BKG-02-B SPM-54 blocks overlap on an unbounded pending request without showing it as a schedule hold',
     ],
     edits: [
       [

@@ -12,10 +12,16 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BLOCKED, PASS, UNABLE, WORKFLOW_DIR, abs, exitCodeFor, expandGlobs, globToRegExp, isMain, isTestFile, loadScope, parseArgs, parseTables,
-  printGate, readJson, readText, rel, stripTicks, writeGate, writeText,
+  printGate, readJson, readText, rel, stripTicks, usesChangedLines, writeGate, writeText,
 } from './lib.mjs';
 
 export const STATUSES = ['COVERED-BY-E2E', 'ADD-TEST', 'UNREACHABLE', 'LOW-VALUE', 'OPEN', 'EXCLUDED'];
+
+/** Finding when the scope measures changed lines but <cycle>/changed-lines.json (story-lines.mjs) is absent; undefined otherwise. */
+export function changedLinesFinding(scope, changedLinesPresent) {
+  if (!usesChangedLines(scope) || changedLinesPresent) return undefined;
+  return 'scope sets linesFrom "changed-lines" but changed-lines.json is missing from the cycle folder (story-lines.mjs did not run); coverage is not measured on the story lines';
+}
 const key = (loc) => `${loc?.start?.line}:${loc?.start?.column}-${loc?.end?.line}:${loc?.end?.column}`;
 
 /** Folds one run's istanbul-style entry for a file into the merged record. */
@@ -175,6 +181,8 @@ function main() {
 
   const ownedPath = join(flags.cycle, 'changed-lines.json');
   const ownedByFile = existsSync(abs(ownedPath)) ? readJson(ownedPath).files : undefined;
+  const linesFinding = changedLinesFinding(scope, !!ownedByFile);
+  if (linesFinding) findings.push(linesFinding);
   const statuses = readLineStatuses();
   const files = [];
   const lineStatusCounts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
@@ -220,6 +228,7 @@ function main() {
       runs: present.map((run) => run.id),
       sourceFiles: sourceFiles.length,
       measuredInScope: files.length,
+      linesFrom: scope.linesFrom ?? null,
       scope: ownedByFile ? 'story-owned lines (changed-lines.json)' : 'all lines of the scope files',
       notMeasured: notMeasured.length,
       total,
