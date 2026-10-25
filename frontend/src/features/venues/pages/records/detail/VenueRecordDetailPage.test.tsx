@@ -1112,7 +1112,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeEnabled();
   });
 
-  /** SPM-54: assigned event time fields cannot be edited to create a zero-duration request. */
+  /** VEN-BKG-SUP-03 SPM-54 AC3: assigned event time fields cannot be edited to create a zero-duration request. */
   it("keeps the assigned event times read-only", async () => {
     setCoordinator(["event-1"]);
     apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce([] as never);
@@ -1508,7 +1508,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
-  /** SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
+  /** VEN-BKG-SUP-04 SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
   it("does not display pending requests without a hold expiry as tentative reservations", async () => {
     setCoordinator();
     const user = userEvent.setup();
