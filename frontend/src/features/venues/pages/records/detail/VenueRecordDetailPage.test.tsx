@@ -1508,7 +1508,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
-  /** VEN-BKG-SUP-04 SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
+  /** VEN-BKG-SUP-04 SPM-54 AC2: a pending request without a Venue Staff hold is absent from the tentative schedule. */
   it("does not display pending requests without a hold expiry as tentative reservations", async () => {
     setCoordinator();
     const user = userEvent.setup();
