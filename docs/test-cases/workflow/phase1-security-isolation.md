@@ -169,8 +169,8 @@ Each Test decision links an existing test that checks the property for that cell
 
 | Matrix row | Tier | Decision | Test id or reason |
 |---|---|---|---|
-| AC1/AC2 | Security | Test | EVE-DRF-SUP-03: every draft operation needs an authenticated identity |
-| AC1/AC2 | Isolation | Test | EVE-DRF-SUP-14: a save changes only the verified owner's row |
+| AC1/AC2 | Security | MISSING | No test at this tier yet (tier matrix, SPM-37 AC1/AC2 Security) |
+| AC1/AC2 | Isolation | MISSING | No test at this tier yet (tier matrix, SPM-37 AC1/AC2 Isolation) |
 | AC3 | Security | Test | EVE-DRF-09-A: another owner cannot open a draft by its id |
 | AC3 | Isolation | Test | EVE-DRF-SUP-15: reads and the list are scoped to the verified owner |
 | AC3/AC5 | Security | Test | EVE-DRF-09-A: values of a reopened draft are not exposed to another owner |
@@ -179,7 +179,7 @@ Each Test decision links an existing test that checks the property for that cell
 | AC4 | Isolation | Test | EVE-DRF-SUP-14: repeated saves update only the caller's draft |
 | AC6 | Security | N/A (proposed) | The save result (confirmation or error) is returned only to the caller about the caller's own draft. Cross-owner effects are covered by the AC3 and AC4 cells. |
 | AC6 | Isolation | N/A (proposed) | Same as AC6 Security: the result concerns only the caller's own draft. |
-| AC7 | Security | Test | EVENT-DRF-07-A: a save to a submitted draft is refused with 409 and changes nothing |
+| AC7 | Security | Test | EVE-DRF-07-A: a save to a submitted draft is refused with 409 and changes nothing |
 | AC7 | Isolation | N/A (proposed) | The lock on a submitted draft is per request. A cross-owner attempt is refused by the ownership check covered by the AC4 Isolation cell. |
 
 Unlabelled SPM-37 rows (8, 10 and 11) and the SPM-37 AC rows with no test still need the owner's labels before they are decided.
