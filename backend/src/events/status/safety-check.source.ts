@@ -9,7 +9,8 @@ import { DatabaseService } from '../../database/database.service.js';
 import type { SafetyOutcomeSource } from './arrangements.reader.js';
 import type { SafetyFact } from './readiness.js';
 
-export type SafetyCheckStatus = 'not_requested' | 'pending' | 'changes_needed' | 'approved';
+// 'rejected' (SPM-48 AC7, SPM-130 AC2): the Safety Officer rejected the arrangement; the coordinator re-requests it.
+export type SafetyCheckStatus = 'not_requested' | 'pending' | 'changes_needed' | 'approved' | 'rejected';
 
 export interface SafetyCheckFeedback {
   id: string;
@@ -45,6 +46,7 @@ const FACT_STATE: Record<SafetyCheckRow['status'], SafetyFact['state']> = {
   pending: 'Awaiting Check',
   changes_needed: 'Changes Requested',
   approved: 'Approved',
+  rejected: 'Rejected',
 };
 
 @Injectable()

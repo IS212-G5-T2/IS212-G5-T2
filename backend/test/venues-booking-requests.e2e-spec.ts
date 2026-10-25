@@ -35,6 +35,8 @@ describe.skipIf(!databaseUrl)(
         '009_venue_availability.sql',
         '010_remove_venue_operating_schedule.sql',
         '019_spm54_venue_booking_lifecycle.sql',
+        '021_spm55_booking_review.sql',
+        '022_spm55_booking_special_request.sql',
       ])
         await pool.query(
           await readFile(
@@ -1634,6 +1636,153 @@ describe.skipIf(!databaseUrl)(
         },
         false,
       );
+    });
+
+    /** VEN-REV-10-A SPM-55 AC2: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
+    it('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-55 Approve Event');
+
+      const bookingRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)`,
+        [eventId, venueId],
+      );
+      const bookingId = bookingRow.rows[0].id;
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/approve`)
+        .set('Cookie', owner.cookie)
+        .expect(201);
+
+      expect(response.body).toMatchObject({ id: bookingId, status: 'approved' });
+
+      const db = await pool.query<{ status: string }>(
+        'SELECT status FROM venue_bookings WHERE id = $1',
+        [bookingId],
+      );
+      expect(db.rows[0].status).toBe('approved');
+
+      const log = await pool.query<{ action: string }>(
+        'SELECT action FROM booking_review_log WHERE booking_id = $1',
+        [bookingId],
+      );
+      expect(log.rows[0].action).toBe('approved');
+    });
+
+    /** VEN-REV-10-B SPM-55 AC3: Venue Staff reject a pending request with a reason; the booking moves to rejected, the reason is stored, and an audit row is written. */
+    it('VEN-REV-10-B SPM-55 rejects a pending booking request with a reason and writes an audit log row', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'SPM-55 Reject Event');
+
+      const bookingRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-13T06:00:00.000Z', '2030-01-13T07:00:00.000Z', 'pending')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)`,
+        [eventId, venueId],
+      );
+      const bookingId = bookingRow.rows[0].id;
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingId}/reject`)
+        .set('Cookie', owner.cookie)
+        .send({ reason: 'Clashes with scheduled maintenance' })
+        .expect(201);
+
+      expect(response.body).toMatchObject({
+        id: bookingId,
+        status: 'rejected',
+        rejectionReason: 'Clashes with scheduled maintenance',
+      });
+
+      const db = await pool.query<{ status: string; rejection_reason: string }>(
+        'SELECT status, rejection_reason FROM venue_bookings WHERE id = $1',
+        [bookingId],
+      );
+      expect(db.rows[0].status).toBe('rejected');
+      expect(db.rows[0].rejection_reason).toBe('Clashes with scheduled maintenance');
+
+      const log = await pool.query<{ action: string; reason: string }>(
+        'SELECT action, reason FROM booking_review_log WHERE booking_id = $1',
+        [bookingId],
+      );
+      expect(log.rows[0].action).toBe('rejected');
+      expect(log.rows[0].reason).toBe('Clashes with scheduled maintenance');
+    });
+
+    /** VEN-REV-11-A SPM-55: migration 022 backfill assigns the surviving note only to the most-recent booking attempt. */
+    it('VEN-REV-11-A SPM-55 migration backfill does not assign a newer note to an older booking attempt', async () => {
+      const coordinator = await createUser('COORDINATOR');
+      const owner = await createUser('VENUE_STAFF');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-11-A backfill event');
+
+      // Insert two historical booking attempts with NULL special_request (pre-migration state).
+      const olderRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'rejected')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      const olderId = olderRow.rows[0].id;
+
+      // Force a slightly later created_at so the newer row wins DISTINCT ON ordering.
+      const newerRow = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, created_at)
+         VALUES ($1, $2, '2030-01-14T06:00:00.000Z', '2030-01-14T07:00:00.000Z', 'pending',
+                 now() + interval '1 second')
+         RETURNING id`,
+        [venueId, eventId],
+      );
+      const newerId = newerRow.rows[0].id;
+
+      // Seed the shared venue_booking_requests row — only the latest note survives.
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
+         VALUES ($1, $2, 'Need a projector')
+         ON CONFLICT (event_id, venue_id) DO UPDATE SET special_request = EXCLUDED.special_request`,
+        [eventId, venueId],
+      );
+
+      // Re-run the backfill portion of migration 022 against the live test DB.
+      await pool.query(`
+        UPDATE venue_bookings b
+           SET special_request = r.special_request
+          FROM venue_booking_requests r,
+               (
+                 SELECT DISTINCT ON (event_id, venue_id) id
+                   FROM venue_bookings
+                  WHERE event_id IS NOT NULL
+                  ORDER BY event_id, venue_id, created_at DESC
+               ) latest
+         WHERE latest.id = b.id
+           AND r.event_id = b.event_id
+           AND r.venue_id = b.venue_id
+           AND b.special_request IS NULL
+           AND r.special_request IS NOT NULL
+      `);
+
+      const rows = await pool.query<{ id: string; special_request: string | null }>(
+        'SELECT id, special_request FROM venue_bookings WHERE id = ANY($1::uuid[])',
+        [[olderId, newerId]],
+      );
+      const byId = Object.fromEntries(rows.rows.map((r) => [r.id, r.special_request]));
+
+      expect(byId[olderId]).toBeNull();
+      expect(byId[newerId]).toBe('Need a projector');
     });
   },
 );

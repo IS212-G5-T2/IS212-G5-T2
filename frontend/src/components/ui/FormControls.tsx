@@ -99,9 +99,11 @@ interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   options: SelectOption[];
   error?: string;
   hint?: string;
+  /** Leave out the empty "Select…" option, for a list whose own options include the empty value (SPM-48 "All statuses"). */
+  noPlaceholder?: boolean;
 }
 
-export function Select({ label, options, error, hint, id, className, ...rest }: SelectProps) {
+export function Select({ label, options, error, hint, id, className, noPlaceholder = false, ...rest }: SelectProps) {
   const fieldId = id ?? label.toLowerCase().replace(/\s+/g, "-");
   return (
     <FieldWrapper label={label} htmlFor={fieldId} required={rest.required} error={error} hint={hint}>
@@ -116,7 +118,7 @@ export function Select({ label, options, error, hint, id, className, ...rest }: 
         {...rest}
         aria-describedby={error ? `${fieldId}-error` : undefined}
       >
-        <option value="">Select…</option>
+        {!noPlaceholder && <option value="">Select…</option>}
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>
             {opt.label}

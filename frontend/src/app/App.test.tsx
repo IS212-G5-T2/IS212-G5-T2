@@ -54,14 +54,17 @@ describe("App venue creation route", () => {
     );
 
     expect(screen.queryByRole("heading", { name: "Create Venue" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Pending Requests" })).toBeTruthy();
+    // SPM-48 AC1: the coordinator's events page now opens on All statuses (decided 23 Oct 2026), headed "All Events".
+    expect(screen.getByRole("heading", { name: "All Events" })).toBeTruthy();
   });
 
   // SPM-50 / AC1 regression: venue creation routing preserves the app's role-aware root destinations.
   it.each([
+    // SPM-124: the root redirect uses dashboardPathByRole, so venue staff and technical support land on the events dashboard.
     ["venue_staff", "All Events"],
     ["tech_support", "All Events"],
-    ["coordinator", "Pending Requests"],
+    // SPM-48 AC1: the coordinator lands on every assigned event (All statuses), headed "All Events".
+    ["coordinator", "All Events"],
   ] as const)("redirects %s from the root to %s", (role, destination) => {
     // Arrange a role-specific signed-in user at the root route.
     useAppStore.setState({
@@ -286,7 +289,8 @@ describe("SPM-30 to SPM-34 AC2: post-login landing on the Events Dashboard", () 
   it.each([
     ["attendee", "attendee-1", "Browse Events"],
     ["organiser", "organiser-1", "My Events"],
-    ["coordinator", "coordinator-1", "Pending Requests"],
+    // SPM-48 AC1: the coordinator opens on All statuses, so the default heading is "All Events" (not Pending Requests).
+    ["coordinator", "coordinator-1", "All Events"],
     ["venue_staff", "venue-staff-1", "All Events"],
     ["tech_support", "tech-support-1", "All Events"],
   ] as const)(

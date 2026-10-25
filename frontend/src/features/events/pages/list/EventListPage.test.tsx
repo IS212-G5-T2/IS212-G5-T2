@@ -369,10 +369,10 @@ describe("EventListPage", () => {
     // The Rejected option is available in the coordinator's status filter.
     expect(await screen.findByRole("option", { name: "Rejected" })).toBeTruthy();
 
-    // Default is the Submitted (Pending Requests) view; switching to Rejected
-    // surfaces the rejected request.
+    // SPM-48 AC1: the default is All statuses, so both requests show; switching to
+    // Rejected leaves only the rejected request.
     expect(screen.getByText("Welcome Evening")).toBeTruthy();
-    expect(screen.queryByText("Rejected Gala")).toBeNull();
+    expect(screen.getByText("Rejected Gala")).toBeTruthy();
 
     await user.selectOptions(screen.getByLabelText("Filter by status"), "rejected");
 
@@ -1140,11 +1140,12 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
   const SECOND_ID = "00000000-0000-4000-8000-0000000000a2";
 
   // Renders the real list page for the coordinator, with two requests Submitted and awaiting a decision.
+  // SPM-48 AC1 made All statuses the coordinator default, so the pending view is selected explicitly with the Submitted filter.
   function renderCoordinatorPending() {
     const first = { ...submittedEvent(), id: FIRST_ID, name: "Pending One" };
     const second = { ...submittedEvent(), id: SECOND_ID, name: "Pending Two" };
     apiMock.mockImplementation(((path: string) =>
-      Promise.resolve(path === "/events" ? [first, second] : path === "/requests" ? [] : {})) as typeof api);
+      Promise.resolve(path === "/coordinator/queue" ? [first, second] : path === "/requests" ? [] : {})) as typeof api);
     useAppStore.setState({
       currentUser: {
         id: "coordinator-1",
@@ -1153,7 +1154,7 @@ describe("EventListPage: coordinator pending requests after a decision (SPM-40, 
         role: "coordinator",
       },
       events: [],
-      eventListFilters: { attendee: "upcoming", status: null },
+      eventListFilters: { attendee: "upcoming", status: "submitted" },
     });
     render(
       <MemoryRouter initialEntries={["/events"]}>

@@ -38,6 +38,13 @@ describe('EventSafetyCheckSource.read (FACT_STATE mapping)', () => {
     await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Approved' });
   });
 
+  /** SPM-48 AC7 (MONITOR-QUEUE-07-C): a rejected arrangement maps to "Rejected", which keeps Confirm blocked. */
+  it('MONITOR-QUEUE-07-C maps a rejected safety check to Rejected', async () => {
+    const { source } = sourceReturning([{ status: 'rejected', requested_at: REQUESTED_AT, approver_name: 'Safety Officer 1' }]);
+
+    await expect(source.read(EVENT_ID)).resolves.toEqual({ state: 'Rejected' });
+  });
+
   /** With no row the source returns undefined, so readiness fails closed as "No record". */
   it('returns undefined when the event has no safety check row', async () => {
     const { source } = sourceReturning([]);

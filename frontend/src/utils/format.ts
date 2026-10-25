@@ -57,3 +57,31 @@ export function timeAgo(value: string): string {
 
 /** Shown in place of a detail that a legacy registration does not have (SPM-61 A-NULL). */
 export const NOT_PROVIDED = "Not provided";
+
+/** Formats an event window in Singapore time for the venue booking screens (SPM-55). */
+export function formatSingaporeRange(start: string, end: string): string {
+  const formatter = new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return `${formatter.format(new Date(start))} – ${formatter.format(new Date(end))} SGT`;
+}
+
+/** One instant in Singapore time, for example "12 Nov 2026, 12:00 SGT" (SPM-48 AC8 hold expiry). */
+export function formatSingaporeDateTime(value: string): string {
+  const formatter = new Intl.DateTimeFormat("en-SG", {
+    timeZone: "Asia/Singapore",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  return `${formatter.format(new Date(value))} SGT`;
+}

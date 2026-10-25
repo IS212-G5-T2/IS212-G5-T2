@@ -3,15 +3,21 @@ import type { BookingStatus, EquipmentRequestStatus, EventStatus, RegistrationSt
 
 type AnyStatus = EventStatus | BookingStatus | EquipmentRequestStatus | RegistrationStatus;
 
-const styles: Record<AnyStatus, string> = {
-  draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+// SPM-48 AC5 (MONITOR-QUEUE-05-A): each of the seven event statuses has its own colour, and its text label
+// always says the status, so statuses stay distinguishable without colour (greyscale, colour blindness).
+export const EVENT_STATUS_STYLES = {
   submitted: "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300",
-  approved: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
-  planning: "bg-primary-100 dark:bg-primary-900/30 text-primary-800 dark:text-primary-300",
+  approved: "bg-sky-100 dark:bg-sky-900/30 text-sky-800 dark:text-sky-300",
+  planning: "bg-violet-100 dark:bg-violet-900/30 text-violet-800 dark:text-violet-300",
   confirmed: "bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300",
   completed: "bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
-  cancelled: "bg-danger-100 dark:bg-danger-900/30 text-danger-800 dark:text-danger-300",
+  cancelled: "bg-gray-700 dark:bg-gray-300 text-white dark:text-gray-900",
   rejected: "bg-danger-100 dark:bg-danger-900/30 text-danger-800 dark:text-danger-300",
+} as const;
+
+const styles: Record<AnyStatus, string> = {
+  draft: "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300",
+  ...EVENT_STATUS_STYLES,
   pending: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",
   requested: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",
   checking: "bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300",

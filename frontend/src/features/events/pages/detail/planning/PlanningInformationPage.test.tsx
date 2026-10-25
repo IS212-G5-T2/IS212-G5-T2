@@ -1065,6 +1065,45 @@ describe("PlanningInformationPage", () => {
     expect(postCalls()[0][0]).toBe(`/events/${EVENT_ID}/safety-check/request`);
   });
 
+  /** MONITOR-QUEUE-07-C (SPM-48 AC7): a rejected arrangement shows Rejected and can be requested again once ready (SPM-131 AC6). */
+  it("MONITOR-QUEUE-07-C labels a rejected safety check and re-requests it", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "confirmed",
+        items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }],
+      },
+      equipment: {
+        required: false,
+        status: "not_requested",
+        items: [],
+        confirmedByCoordinator: true,
+      },
+      safetyCheck: { status: "rejected" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Rejected")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Re-Request Safety Check" }));
+
+    await waitFor(() => expect(postCalls()).toHaveLength(1));
+    expect(postCalls()[0][0]).toBe(`/events/${EVENT_ID}/safety-check/request`);
+  });
+
+  /** MONITOR-QUEUE-07-C: while the venue or equipment is not ready, a rejected check cannot be requested again. */
+  it("MONITOR-QUEUE-07-C disables the re-request until the arrangements are ready", async () => {
+    current = checklist({
+      safetyCheck: { status: "rejected" },
+      canRequestSafetyCheck: false,
+      blocking: ["venue"],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
+  });
+
   /** When the checklist cannot be read, the page shows the failure reason, or a generic message when the failure carries none. */
   it.each([
     ["an Error", new Error("Network down"), "Network down"],

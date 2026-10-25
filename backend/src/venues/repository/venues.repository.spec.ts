@@ -1030,6 +1030,7 @@ describe('VenuesRepository', () => {
       'event-1',
       assignedEventTime.start_date_time,
       assignedEventTime.end_date_time,
+      null,
     ]);
   });
 
@@ -1795,5 +1796,513 @@ describe('SPM-124 venue reads', () => {
       expect(find('UPDATE events SET status')).toBe(-1);
       expect(find('INSERT INTO event_status_history')).toBe(-1);
     });
+  });
+});
+
+describe('SPM-55 venue booking review repository', () => {
+  const staffId = ownerUserId;
+  const bookingId = '6f0d6f3a-2c1e-4b59-9d8a-0c3b7e1f2a44';
+  const pendingRow = {
+    id: bookingId,
+    event_id: 'event-1',
+    venue_id: venue.id,
+    status: 'pending',
+    start_at: new Date('2030-01-12T04:00:00.000Z'),
+    end_at: new Date('2030-01-12T05:00:00.000Z'),
+    rejection_reason: null,
+  };
+  const ownedRow = { rows: [{ venue_id: venue.id }] };
+  const venueLockRow = { rows: [{ id: venue.id, setup_time_minutes: 30, turnaround_time_minutes: 45 }] };
+  const bookingLockRow = { rows: [pendingRow] };
+  const noConflict = { rows: [] };
+  const normalizeSql = (sql: string) => sql.replace(/\s+/g, ' ');
+
+  /** Builds a repository whose queries answer from the given sequence, in the order the transaction issues them. */
+  function createReviewRepository(...responses: Array<{ rows: unknown[] }>) {
+    const query = vi.fn();
+    for (const response of responses) query.mockResolvedValueOnce(response);
+    query.mockResolvedValue({ rows: [] });
+    const database = {
+      query,
+      transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
+    };
+    return { repository: new VenuesRepository(database as unknown as DatabaseService), query };
+  }
+
+  /**
+   * Like createReviewRepository, but the transaction client gets its own query spy, separate from the pool's.
+   * A test can then tell whether a statement ran inside the transaction (clientQuery) or on the pool (poolQuery).
+   */
+  function createSplitReviewRepository(...responses: Array<{ rows: unknown[] }>) {
+    const clientQuery = vi.fn();
+    for (const response of responses) clientQuery.mockResolvedValueOnce(response);
+    clientQuery.mockResolvedValue({ rows: [] });
+    const poolQuery = vi.fn().mockResolvedValue({ rows: [] });
+    const database = {
+      query: poolQuery,
+      transaction: (work: (client: unknown) => Promise<unknown>) => work({ query: clientQuery }),
+    };
+    return {
+      repository: new VenuesRepository(database as unknown as DatabaseService),
+      clientQuery,
+      poolQuery,
+    };
+  }
+
+  /**
+   * Models DatabaseService.transaction: BEGIN, the work, COMMIT on success, and ROLLBACK then rethrow on failure.
+   * A queued Error is thrown by that statement, so a test can make one step of the transaction fail.
+   * BEGIN, COMMIT, and ROLLBACK do not consume queued responses.
+   */
+  function createRollbackReviewRepository(...steps: Array<{ rows: unknown[] } | Error>) {
+    const queue = [...steps];
+    const clientQuery = vi.fn(async (sql: string) => {
+      if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+      const next = queue.shift() ?? { rows: [] };
+      if (next instanceof Error) throw next;
+      return next;
+    });
+    const client = { query: clientQuery };
+    const poolQuery = vi.fn().mockResolvedValue({ rows: [] });
+    const database = {
+      query: poolQuery,
+      transaction: async (work: (tx: unknown) => Promise<unknown>) => {
+        await client.query('BEGIN');
+        try {
+          const result = await work(client);
+          await client.query('COMMIT');
+          return result;
+        } catch (error) {
+          await client.query('ROLLBACK');
+          throw error;
+        }
+      },
+    };
+    return {
+      repository: new VenuesRepository(database as unknown as DatabaseService),
+      clientQuery,
+      poolQuery,
+    };
+  }
+
+  /** VEN-REV-01-A: the staff list covers pending, approved, and rejected bookings for owned venues, soonest first, and maps all fields including status and rejection reason. */
+  it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start', async () => {
+    const { repository, query } = createReviewRepository({
+      rows: [
+        {
+          id: bookingId,
+          event_id: 'event-1',
+          event_name: 'Gala',
+          event_start: new Date('2030-01-12T03:00:00.000Z'),
+          event_end: new Date('2030-01-12T06:00:00.000Z'),
+          coordinator_name: 'Coordinator One',
+          venue_name: 'Orchid Hall Test',
+          booking_reference: 'VB-6F0D6F3A',
+          special_request: 'Microphones',
+          start_at: pendingRow.start_at,
+          end_at: pendingRow.end_at,
+          status: 'pending' as const,
+          rejection_reason: null,
+        },
+        {
+          id: 'booking-2',
+          event_id: 'event-2',
+          event_name: 'Workshop',
+          event_start: new Date('2030-01-13T03:00:00.000Z'),
+          event_end: new Date('2030-01-13T06:00:00.000Z'),
+          coordinator_name: 'Coordinator Two',
+          venue_name: 'Orchid Hall Test',
+          booking_reference: 'VB-BOOKING2',
+          special_request: null,
+          start_at: new Date('2030-01-13T04:00:00.000Z'),
+          end_at: new Date('2030-01-13T05:00:00.000Z'),
+          status: 'rejected' as const,
+          rejection_reason: 'Clashes with maintenance',
+        },
+      ],
+    });
+
+    await expect(repository.listPendingVenueBookings(staffId)).resolves.toEqual([
+      {
+        id: bookingId,
+        eventId: 'event-1',
+        eventName: 'Gala',
+        eventStart: '2030-01-12T03:00:00.000Z',
+        eventEnd: '2030-01-12T06:00:00.000Z',
+        coordinatorName: 'Coordinator One',
+        venueName: 'Orchid Hall Test',
+        bookingReference: 'VB-6F0D6F3A',
+        specialRequest: 'Microphones',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+        status: 'pending',
+        rejectionReason: undefined,
+      },
+      {
+        id: 'booking-2',
+        eventId: 'event-2',
+        eventName: 'Workshop',
+        eventStart: '2030-01-13T03:00:00.000Z',
+        eventEnd: '2030-01-13T06:00:00.000Z',
+        coordinatorName: 'Coordinator Two',
+        venueName: 'Orchid Hall Test',
+        bookingReference: 'VB-BOOKING2',
+        specialRequest: undefined,
+        start: '2030-01-13T04:00:00.000Z',
+        end: '2030-01-13T05:00:00.000Z',
+        status: 'rejected',
+        rejectionReason: 'Clashes with maintenance',
+      },
+    ]);
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]];
+    // The whole staff-list statement: its FROM/JOIN block, the owner filter with pending/approved/rejected statuses, and the ordering.
+    expect(normalizeSql(sql).trim()).toBe(
+      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY b.start_at ASC, b.id",
+    );
+    expect(params).toEqual([staffId]);
+  });
+
+  /** VEN-REV-02-A: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
+  it('SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor', async () => {
+    const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      noConflict,
+      { rows: [{ ...pendingRow, status: 'approved' }] },
+      { rows: [] },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'decided',
+      booking: {
+        id: bookingId,
+        eventId: 'event-1',
+        venueId: venue.id,
+        status: 'approved',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+        rejectionReason: undefined,
+        bookingReference: 'VB-6F0D6F3A',
+      },
+    });
+    // Every statement of the approval runs on the transaction client; the pool spy must see none of them.
+    expect(poolQuery).not.toHaveBeenCalled();
+    const calls = clientQuery.mock.calls as Array<[string, unknown[]]>;
+    expect(calls).toHaveLength(6);
+    // Ownership lookup: the booking id comes first, then the staff id, and the lookup is scoped to the owner.
+    expect(calls[0][0]).toContain('v.owner_user_id::text = $2::text');
+    // The whole ownership lookup, so its JOIN and WHERE clauses cannot change independently.
+    expect(normalizeSql(calls[0][0]).trim()).toBe(
+      'SELECT b.venue_id FROM venue_bookings b JOIN venues v ON v.id = b.venue_id WHERE b.id = $1::uuid AND v.owner_user_id::text = $2::text',
+    );
+    expect(calls[0][1]).toEqual([bookingId, staffId]);
+    // Venue row lock, then booking row lock, both FOR UPDATE on the transaction client.
+    expect(normalizeSql(calls[1][0])).toBe(
+      'SELECT setup_time_minutes, turnaround_time_minutes FROM venues WHERE id = $1::uuid FOR UPDATE',
+    );
+    expect(calls[1][1]).toEqual([venue.id]);
+    expect(normalizeSql(calls[2][0])).toBe(
+      'SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason FROM venue_bookings WHERE id = $1::uuid FOR UPDATE',
+    );
+    expect(calls[2][1]).toEqual([bookingId]);
+    expect(calls[3][1]).toEqual([
+      venue.id,
+      pendingRow.start_at,
+      pendingRow.end_at,
+      30,
+      45,
+      bookingId,
+      expect.any(Date),
+    ]);
+    // The approval UPDATE targets exactly the one booking id, not a broader set.
+    expect(normalizeSql(calls[4][0])).toContain(
+      "UPDATE venue_bookings SET status = 'approved' WHERE id = $1::uuid RETURNING",
+    );
+    expect(calls[4][1]).toEqual([bookingId]);
+    expect(normalizeSql(calls[5][0])).toContain(
+      "INSERT INTO booking_review_log (booking_id, actor_user_id, action) VALUES ($1::uuid, $2::uuid, 'approved')",
+    );
+    expect(calls[5][1]).toEqual([bookingId, staffId]);
+  });
+
+  /** VEN-REV-05-A: an approval writes exactly one audit row that names the approving staff member and the approved action. */
+  it('SPM-55 AC5 records one approval audit row naming the actor', async () => {
+    const { repository, query } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      noConflict,
+      { rows: [{ ...pendingRow, status: 'approved' }] },
+      { rows: [] },
+    );
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    const audits = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO booking_review_log'));
+    expect(audits).toHaveLength(1);
+    expect(normalizeSql(String(audits[0][0]))).toContain(
+      "INSERT INTO booking_review_log (booking_id, actor_user_id, action) VALUES ($1::uuid, $2::uuid, 'approved')",
+    );
+    expect(audits[0][1]).toEqual([bookingId, staffId]);
+  });
+
+  /** VEN-REV-02-B: approval refuses a slot that an approved booking or blockout already holds, and does not change the request. */
+  it('SPM-55 AC2 refuses approval when an approved booking or blockout overlaps the slot', async () => {
+    const { repository, query } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      { rows: [{ reason: 'Lecture Series' }] },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'conflict',
+      reason: 'Lecture Series',
+    });
+    expect(query).toHaveBeenCalledTimes(4);
+    const [sql, params] = query.mock.calls[3] as [string, unknown[]];
+    const normalized = normalizeSql(sql);
+    // Blockouts: setup pads the requested start and turnaround pads its end; both comparisons are strict.
+    expect(normalized).toContain("status = 'blocked'");
+    // The whole blockout WHERE clause: a prepended or dropped predicate changes this exact fragment.
+    expect(normalized).toContain(
+      "FROM venue_bookings WHERE venue_id = $1::uuid AND status = 'blocked' AND start_at < $3::timestamptz + make_interval(mins => $5::int) AND end_at > $2::timestamptz - make_interval(mins => $4::int)",
+    );
+    expect(normalized).toContain("start_at < $3::timestamptz + make_interval(mins => $5::int)");
+    expect(normalized).toContain("end_at > $2::timestamptz - make_interval(mins => $4::int)");
+    // Approved bookings: setup pads the existing booking's start and turnaround its end; both comparisons are strict.
+    // The approved-booking branch is scoped to the venue being decided, with self-exclusion and active-hold check.
+    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND (b.status = 'approved' OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id ))))");
+    expect(normalized).toContain(
+      "b.start_at - make_interval(mins => $4::int) < $3::timestamptz + make_interval(mins => $5::int)",
+    );
+    expect(normalized).toContain(
+      "b.end_at + make_interval(mins => $5::int) > $2::timestamptz - make_interval(mins => $4::int)",
+    );
+    expect(normalized).not.toMatch(/<=|>=/);
+    // The booking being approved is excluded from its own conflict check, and setup/turnaround keep their order.
+    expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId, expect.any(Date)]);
+  });
+
+  /** VEN-REV-06-A: a cancelled, approved or rejected request is reported as already decided, with no write. */
+  it.each(['cancelled', 'approved', 'rejected', 'released'])('SPM-55 AC6 reports a %s request as already decided without writing', async (status) => {
+      const { repository, query } = createReviewRepository(
+        ownedRow,
+        venueLockRow,
+        { rows: [{ ...pendingRow, status }] },
+      );
+
+      await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+        kind: 'already-decided',
+        status,
+      });
+      expect(query).toHaveBeenCalledTimes(3);
+    },
+  );
+
+  /** VEN-REV-02-C: a booking not owned by the caller, or one whose venue or booking row is missing, is not found. */
+  it.each([
+    ['not owned or absent', [{ rows: [] }]],
+    ['venue row absent', [ownedRow, { rows: [] }]],
+    ['booking row absent', [ownedRow, venueLockRow, { rows: [] }]],
+  ])('SPM-55 AC2 reports an owned-booking lookup that is %s as not found', async (_label, responses) => {
+    const { repository, query } = createReviewRepository(...(responses as Array<{ rows: unknown[] }>));
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'not-found',
+    });
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO booking_review_log'))).toBe(false);
+  });
+
+  /** VEN-REV-03-A: rejection stores the reason on the booking and records the rejection with its reason. */
+  it('SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row', async () => {
+    const rejectedRow = { ...pendingRow, status: 'rejected', rejection_reason: 'Clashes with maintenance' };
+    const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      { rows: [rejectedRow] },
+      { rows: [] },
+    );
+
+    await expect(
+      repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance'),
+    ).resolves.toEqual({
+      kind: 'decided',
+      booking: {
+        id: bookingId,
+        eventId: 'event-1',
+        venueId: venue.id,
+        status: 'rejected',
+        start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z',
+        rejectionReason: 'Clashes with maintenance',
+        bookingReference: 'VB-6F0D6F3A',
+      },
+    });
+    // Every statement of the rejection runs on the transaction client; the pool spy must see none of them.
+    expect(poolQuery).not.toHaveBeenCalled();
+    const calls = clientQuery.mock.calls as Array<[string, unknown[]]>;
+    expect(calls).toHaveLength(5);
+    // Ownership lookup: the booking id comes first, then the staff id, and the lookup is scoped to the owner.
+    // The whole ownership lookup, so its JOIN and WHERE clauses cannot change independently.
+    expect(normalizeSql(calls[0][0]).trim()).toBe(
+      'SELECT b.venue_id FROM venue_bookings b JOIN venues v ON v.id = b.venue_id WHERE b.id = $1::uuid AND v.owner_user_id::text = $2::text',
+    );
+    expect(calls[0][1]).toEqual([bookingId, staffId]);
+    // Venue row lock, then booking row lock, both FOR UPDATE on the transaction client.
+    expect(normalizeSql(calls[1][0])).toBe(
+      'SELECT setup_time_minutes, turnaround_time_minutes FROM venues WHERE id = $1::uuid FOR UPDATE',
+    );
+    expect(calls[1][1]).toEqual([venue.id]);
+    expect(normalizeSql(calls[2][0])).toBe(
+      'SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason FROM venue_bookings WHERE id = $1::uuid FOR UPDATE',
+    );
+    expect(calls[2][1]).toEqual([bookingId]);
+    // The rejection UPDATE sets exactly the rejected status and the reason, on exactly the one booking id.
+    expect(normalizeSql(calls[3][0])).toContain(
+      "UPDATE venue_bookings SET status = 'rejected', rejection_reason = $2 WHERE id = $1::uuid RETURNING",
+    );
+    expect(calls[3][1]).toEqual([bookingId, 'Clashes with maintenance']);
+    expect(normalizeSql(calls[4][0])).toContain(
+      "INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason) VALUES ($1::uuid, $2::uuid, 'rejected', $3)",
+    );
+    expect(calls[4][1]).toEqual([bookingId, staffId, 'Clashes with maintenance']);
+  });
+
+  /** VEN-REV-05-A: a rejection writes exactly one audit row that keeps the stored reason and the rejecting staff member. */
+  it('SPM-55 AC5 records one rejection audit row carrying the reason', async () => {
+    const { repository, query } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      { rows: [{ ...pendingRow, status: 'rejected', rejection_reason: 'Clashes with maintenance' }] },
+      { rows: [] },
+    );
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance');
+
+    const audits = query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO booking_review_log'));
+    expect(audits).toHaveLength(1);
+    expect(normalizeSql(String(audits[0][0]))).toContain(
+      "INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason) VALUES ($1::uuid, $2::uuid, 'rejected', $3)",
+    );
+    expect(audits[0][1]).toEqual([bookingId, staffId, 'Clashes with maintenance']);
+  });
+
+  /** VEN-REV-09-A: when the approval audit insert fails, the status UPDATE is rolled back with it and the approval rejects instead of reporting a decision. */
+  it('SPM-55 AC5 rolls back and rejects the approval when the audit insert fails', async () => {
+    const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      noConflict,
+      { rows: [{ ...pendingRow, status: 'approved' }] },
+      new Error('audit insert failed'),
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).rejects.toThrow(
+      'audit insert failed',
+    );
+    // Every statement, including the rollback, runs on the transaction client.
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = clientQuery.mock.calls.map(([sql]) => normalizeSql(String(sql)));
+    // The status UPDATE ran inside the transaction, and the audit insert that followed it failed.
+    const updateAt = sqls.findIndex((sql) => sql.includes("UPDATE venue_bookings SET status = 'approved'"));
+    expect(updateAt).toBeGreaterThan(-1);
+    expect(sqls[updateAt + 1]).toContain('INSERT INTO booking_review_log');
+    // The failed audit insert rolls the transaction back, so the approval is never committed.
+    expect(sqls.slice(updateAt + 2)).toEqual(['ROLLBACK']);
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /** VEN-REV-09-B: when the rejection audit insert fails, the rejection UPDATE is rolled back with it and the rejection rejects instead of reporting a decision. */
+  it('SPM-55 AC5 rolls back and rejects the rejection when the audit insert fails', async () => {
+    const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(
+      ownedRow,
+      venueLockRow,
+      bookingLockRow,
+      { rows: [{ ...pendingRow, status: 'rejected', rejection_reason: 'Clashes with maintenance' }] },
+      new Error('audit insert failed'),
+    );
+
+    await expect(
+      repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance'),
+    ).rejects.toThrow('audit insert failed');
+    // Every statement, including the rollback, runs on the transaction client.
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = clientQuery.mock.calls.map(([sql]) => normalizeSql(String(sql)));
+    // The rejection UPDATE ran inside the transaction, and the audit insert that followed it failed.
+    const updateAt = sqls.findIndex((sql) => sql.includes("UPDATE venue_bookings SET status = 'rejected'"));
+    expect(updateAt).toBeGreaterThan(-1);
+    expect(sqls[updateAt + 1]).toContain('INSERT INTO booking_review_log');
+    // The failed audit insert rolls the transaction back, so the rejection is never committed.
+    expect(sqls.slice(updateAt + 2)).toEqual(['ROLLBACK']);
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /** VEN-REV-06-A: rejecting a request in any terminal state is refused with its status, and runs neither the status UPDATE nor the audit insert. */
+  it.each(['approved', 'rejected', 'cancelled', 'released'])('SPM-55 AC6 refuses to reject a %s request without updating it or writing an audit row', async (status) => {
+      const { repository, query } = createReviewRepository(
+        ownedRow,
+        venueLockRow,
+        { rows: [{ ...pendingRow, status }] },
+      );
+
+      await expect(
+        repository.rejectVenueBooking(staffId, bookingId, 'Clash'),
+      ).resolves.toEqual({ kind: 'already-decided', status });
+      expect(query).toHaveBeenCalledTimes(3);
+      const sqls = query.mock.calls.map(([sql]) => normalizeSql(String(sql)));
+      expect(sqls.some((sql) => sql.includes('UPDATE venue_bookings'))).toBe(false);
+      expect(sqls.some((sql) => sql.includes('INSERT INTO booking_review_log'))).toBe(false);
+    },
+  );
+
+  /** VEN-REV-03-C: rejecting a booking outside the caller's venues is not found. */
+  it('SPM-55 AC3 reports a foreign booking as not found on rejection', async () => {
+    const { repository } = createReviewRepository({ rows: [] });
+
+    await expect(
+      repository.rejectVenueBooking(staffId, bookingId, 'Clash'),
+    ).resolves.toEqual({ kind: 'not-found' });
+  });
+
+  /** VEN-REV-04-A: the coordinator list returns the stored rejection reason and omits it when absent. */
+  it('SPM-55 AC4 returns the rejection reason for coordinator bookings', async () => {
+    const base = {
+      event_id: 'event-1',
+      event_name: 'Gala',
+      venue_id: venue.id,
+      venue_name: 'Orchid Hall Test',
+      venue_staff_name: 'Venue Staff',
+      start_at: pendingRow.start_at,
+      end_at: pendingRow.end_at,
+      special_request: null,
+      created_at: new Date('2030-01-01T00:00:00.000Z'),
+      affected: false,
+      booking_reference: 'VB-6F0D6F3A',
+    };
+    const { repository, query } = createReviewRepository({
+      rows: [
+        { ...base, id: bookingId, status: 'rejected', rejection_reason: 'Clashes with maintenance' },
+        { ...base, id: 'booking-2', status: 'pending', rejection_reason: null },
+      ],
+    });
+
+    const bookings = await repository.listCoordinatorBookings('coord-1');
+    // The coordinator projection must select the stored reason and the managing staff name.
+    const [listSql] = query.mock.calls[0] as [string, unknown[]];
+    expect(normalizeSql(listSql)).toContain('b.rejection_reason');
+    expect(normalizeSql(listSql)).toContain('u.display_name AS venue_staff_name');
+    // The staff name comes from the venue owner, so the users join must key on the owner id.
+    expect(normalizeSql(listSql)).toContain('JOIN users u ON u.id = v.owner_user_id');
+    expect(bookings[0]).toMatchObject({
+      status: 'rejected',
+      venueStaffName: 'Venue Staff',
+      rejectionReason: 'Clashes with maintenance',
+    });
+    expect(bookings[1].rejectionReason).toBeUndefined();
   });
 });

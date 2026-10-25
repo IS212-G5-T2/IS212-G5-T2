@@ -64,6 +64,8 @@ The G5 gate measures each story's whole scope source files with that story's own
 | File                                                                        | Lines      | Status      | Note                                                                                                                                                                                                                                 |
 | --------------------------------------------------------------------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx | 28,292,296 | UNREACHABLE | These paths are unreachable through SPM-54 assigned-event and browse-only page modes: assigned-event times are fixed, and browse-only mode is read-only. The generic helper and selection callback remain testable in standalone `VenueScheduleCalendar.test.tsx` (SPM-51, outside this SPM-54 coverage scope). The SPM-54 page test asserts `selectable: false` and no `select` callback; it does not claim to cover the generic callback. |
+| backend/src/venues/venues.service.ts | 177,178,180,181,182,184,185,190,191,193,194,196,197,201,202,207,208,211,226,227,228,229,230,239,240,241,242,243,244,245,250,251,252,253,256,257,263 | LOW-VALUE | Pre-existing SPM-50 creation, SPM-54 booking and browse, and SPM-122 unavailability code. Covered by those stories' own test suites; `/* v8 ignore */` blocks already exempt the decorator and duplicate-key helper. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+| frontend/src/utils/format.ts | 2,3,4,5,6,7,8,10,38,48,49,50,51,52,53,54,55 | LOW-VALUE | Pre-existing shared formatter helpers unrelated to SPM-55 review behaviour. Covered by the format.ts unit tests in their owning scopes. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
 | frontend/src/features/events/pages/create/EventCreatePage.tsx | 107,108 | LOW-VALUE | Existing draft-load error handling is outside SPM-144; facility and accessibility catalogue success, failure, retry, and stale-value correction are covered by the EVE-FAC flows. |
 | frontend/src/features/events/pages/create/EventCreatePage.tsx | 194,195 | LOW-VALUE | Existing draft-save validation error handling belongs to draft persistence; SPM-144 exercises catalogue restoration and correction in EVE-FAC-02-B and EVE-FAC-05-D. |
 | frontend/src/features/events/pages/create/EventCreatePage.tsx | 234 | LOW-VALUE | Existing malformed schedule-date handling belongs to SPM-36 schedule validation; this story does not change date parsing. |
@@ -75,6 +77,15 @@ The G5 gate measures each story's whole scope source files with that story's own
 ### Branch-only residuals from cycle 09 (SPM-36 scope)
 
 - `frontend/src/features/events/pages/create/EventCreatePage.tsx` lines 160 and 234: resolved on 23 Oct 2026 in SPM-150. Line 234 (the `facilityStatus === "loaded"` guard in validation) was removed: submit returns before validation unless the options are loaded (line 324), so the guard could never fail. Line 160 (the non-Error fallback) was removed: the API client only rejects with an `Error`.
+
+### Orchestrator AMBER dispositions — SPM-55 cycle-12 (2026-10-20)
+
+| Item | Disposition |
+|---|---|
+| Coverage floor missed (statements 85%, branches 87%, functions 95%, lines 85%) | Accepted. All changed SPM-55 code is 100% covered. The 54 uncovered lines are pre-existing SPM-50/54/122 code with `/* v8 ignore */` annotations and LOW-VALUE status above. No SPM-55 behaviour is unverified. |
+| AC2 Concurrent column — updated to N/A (2026-10-21) | AC2 is a sequential business rule: once approved, the slot is reserved and a conflicting booking cannot also be approved. Two users racing is not part of the AC. The tier matrix entry corrected from MISSING to N/A. |
+| 28 SUPPORTING ID approvals pending (VEN-REV-01-A through 09-D) | Accepted pending Confluence access. All 28 IDs are SUPPORTING (none PRIMARY), so G1 passes. They will be upgraded to PRIMARY or confirmed once the Atlassian connector is authorized in claude.ai connector settings. TR-55-07 disposition covers the Confluence verification gap. |
+| TR-55-11 (mirror error-state case — staff fails, coordinator succeeds — not tested) | Deferred. No current code path produces the mirror defect without a new change introducing it. VEN-REV-M44 covers the original regression. Reopen if `BookingsPage.tsx` is edited again. |
 
 ### Branch-only residuals from cycle 06
 

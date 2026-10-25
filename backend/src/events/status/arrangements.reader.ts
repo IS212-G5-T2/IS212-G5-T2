@@ -9,6 +9,7 @@
  */
 import { Inject, Injectable } from '@nestjs/common';
 import type pg from 'pg';
+import { VENUE_UNAVAILABLE_SQL } from '../venue-unavailable.js';
 import type {
   EquipmentFact,
   SafetyFact,
@@ -73,14 +74,7 @@ export class ArrangementsReader {
       venue_unavailable: boolean;
     }>(
       `SELECT b.id, v.name AS venue_name, b.status, b.hold_expires_at, b.start_at, b.end_at, b.created_at,
-              EXISTS (
-                SELECT 1 FROM venue_bookings u
-                 WHERE u.venue_id = b.venue_id
-                   AND u.event_id IS NULL
-                   AND u.status = 'blocked'
-                   AND u.start_at < b.end_at
-                   AND u.end_at > b.start_at
-              ) AS venue_unavailable
+              ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
         WHERE b.event_id = $1

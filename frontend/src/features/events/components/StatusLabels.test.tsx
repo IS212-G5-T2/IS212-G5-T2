@@ -33,6 +33,11 @@ describe("planning state labels by significance", () => {
     expect(safetyLabel(status)).toEqual({ label, tone });
   });
 
+  /** MONITOR-QUEUE-07-C (SPM-48 AC7): a rejected safety arrangement is labelled Rejected in red, not "Not Requested". */
+  it("MONITOR-QUEUE-07-C labels a rejected safety check Rejected (red)", () => {
+    expect(safetyLabel("rejected")).toEqual({ label: "Rejected", tone: "red" });
+  });
+
   // Kills: cancelled equipment labelled Cancelled or gray instead of red Unavailable, or unknown equipment given a red tone.
   /** Equipment cancellation and unknown statuses retain their red and gray labels. */
   it("labels cancelled equipment unavailable and unknown equipment with a neutral label", () => {

@@ -144,6 +144,35 @@ export interface ChangeRequestSubmission {
   reason?: string;
 }
 
+/** SPM-48 AC6, AC7: the safety state on a queue card. RESET: the check was reset and must be requested again. */
+export type QueueSafety = "AWAITING_CHECK" | "CHANGES_REQUESTED" | "REJECTED" | "RESET" | "CLEARED";
+
+/** SPM-48 AC5: why an event needs the coordinator's action. */
+export type QueueAction =
+  | "AWAITING_REVIEW"
+  | "SAFETY_CHANGES_REQUESTED"
+  | "SAFETY_REJECTED"
+  | "SAFETY_RESET"
+  | "VENUE_UNAVAILABLE"
+  | "HOLD_EXPIRED";
+
+/** SPM-48 AC8: a tentative venue hold and whether it is still active. */
+export interface QueueHold {
+  venueName: string;
+  expiresAt: string;
+  state: "ACTIVE" | "EXPIRED";
+}
+
+/** SPM-48: what the coordinator's queue shows on one event (backend src/events/queue/queue-indicators.ts). */
+export interface QueueIndicators {
+  safety: QueueSafety | null;
+  holds: QueueHold[];
+  /** AC9: venues of active bookings that an unavailable period now overlaps. */
+  unavailableVenues: string[];
+  actions: QueueAction[];
+  needsAction: boolean;
+}
+
 export interface EventRecord {
   id: string;
   name: string;
@@ -188,6 +217,8 @@ export interface EventRecord {
   equipmentStatuses?: string[];
   /** SPM-46: who the current coordinator received the event from, and when. */
   reassignedFrom?: { coordinatorName: string; reassignedAt: string };
+  /** SPM-48: the coordinator queue's indicators (GET /coordinator/queue only). */
+  queue?: QueueIndicators;
   venueId?: string;
   venueName?: string;
   attachments?: EventAttachment[];
@@ -262,6 +293,23 @@ export interface Booking {
   conflict?: BookingConflict;
   rejectionReason?: string;
   createdAt: string;
+}
+
+/** A pending venue booking request shown to Venue Staff for review (SPM-55 AC1). */
+export interface PendingBookingRequest {
+  id: string;
+  eventId: string;
+  eventName: string;
+  eventStart: string;
+  eventEnd: string;
+  coordinatorName: string;
+  venueName: string;
+  bookingReference: string;
+  specialRequest?: string;
+  start: string;
+  end: string;
+  status: BookingStatus;
+  rejectionReason?: string;
 }
 
 export interface EquipmentItem {

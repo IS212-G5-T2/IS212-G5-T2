@@ -24,8 +24,9 @@ export interface OutstandingArrangement {
 
 export type RequestStatus =
   "not_requested" | "pending" | "confirmed" | "unavailable" | "cancelled";
+// "rejected" (SPM-48 AC7, SPM-130 AC2): the Safety Officer rejected the arrangement; the coordinator re-requests it.
 export type SafetyCheckStatus =
-  "not_requested" | "pending" | "changes_needed" | "approved";
+  "not_requested" | "pending" | "changes_needed" | "approved" | "rejected";
 
 export interface SafetyCheckFeedback {
   id: string;
