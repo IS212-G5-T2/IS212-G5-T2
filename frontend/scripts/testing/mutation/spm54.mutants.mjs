@@ -400,4 +400,23 @@ export const MUTANTS = [
       ],
     ],
   },
+  {
+    id: "SPM54-FE-COORDINATOR-DECISION-MIRROR",
+    name: "Venue Staff decision is not mirrored onto the coordinator card for the same booking",
+    file: PAGE,
+    suites: ["coordinatorBookings"],
+    kills: [
+      {
+        file: "src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        title:
+          "VEN-BKG-08-A SPM-54 shows a Venue Staff decision on the coordinator card for the same booking",
+      },
+    ],
+    edits: [
+      [
+        "          setCoordinatorBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? { ...b, status: outcome.status, rejectionReason: outcome.reason }\n                : b,\n            ),\n          );\n",
+        "",
+      ],
+    ],
+  },
 ];
