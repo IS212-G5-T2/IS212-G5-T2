@@ -197,7 +197,6 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe("/requests");
     },
   );
-  // Kills: a late draft response rendering the form or an alert after the editor was left.
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-31 ignores late load %s after leaving the editor",
     async (outcome) => {
@@ -205,13 +204,14 @@ describe("SPM-37 Q2 functional cases", () => {
       mocked.mockReturnValue(pending.promise);
       const view = open();
       expect(screen.getByRole("status")).toBeTruthy();
+      expect(mocked).toHaveBeenCalledTimes(1);
       view.unmount();
       await act(async () => {
         if (outcome === "resolve") pending.resolve(draft());
         else pending.reject(new Error("late"));
       });
-      expect(screen.queryByRole("alert")).toBeNull();
-      expect(screen.queryByRole("textbox")).toBeNull();
+      // After unmount the DOM is gone, so only the load mock is observable: the late result must not start another load.
+      expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
   // Kills: the retry after a failed save using a new operation id, or the later edit sent with the original operation id.
@@ -447,19 +447,20 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
-  // Kills: a late list response (resolved or rejected) raising an alert after the user navigated away.
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-40 ignores late list %s after navigation",
     async (outcome) => {
       const pending = deferred<DraftRecord[]>();
       mocked.mockReturnValue(pending.promise);
       const view = open("/requests");
+      expect(mocked).toHaveBeenCalledTimes(1);
       view.unmount();
       await act(async () => {
         if (outcome === "resolve") pending.resolve([]);
         else pending.reject("late");
       });
-      expect(screen.queryByRole("alert")).toBeNull();
+      // After unmount only the list mock is observable: the late result must not start a retry or another list load.
+      expect(mocked).toHaveBeenCalledTimes(1);
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC6 (low confidence: file size error)

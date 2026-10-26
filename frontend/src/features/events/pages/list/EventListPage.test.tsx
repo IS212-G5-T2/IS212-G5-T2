@@ -268,9 +268,10 @@ describe("EventListPage", () => {
     const section = await screen.findByRole("region", { name: "Pending change requests" });
     expect(within(section).queryByText("New")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
-    // A result that arrives after leaving the page changes nothing.
+    // A result that arrives after leaving the page changes nothing: no console error is raised by the late result.
     let resolve!: (ids: Set<string>) => void;
     vi.mocked(fetchNewChangeRequestEventIds).mockImplementationOnce(() => new Promise((r) => (resolve = r)));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
     view.unmount();
     render(
       <MemoryRouter initialEntries={["/events"]}>
@@ -279,8 +280,14 @@ describe("EventListPage", () => {
         </Routes>
       </MemoryRouter>,
     ).unmount();
-    resolve(new Set(["e-1"]));
-    await Promise.resolve();
+    await act(async () => {
+      resolve(new Set(["e-1"]));
+    });
+    try {
+      expect(consoleError).not.toHaveBeenCalled();
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   // Kills: the 'No pending change requests.' empty state missing for a coordinator with nothing pending.
@@ -299,7 +306,6 @@ describe("EventListPage", () => {
     expect(await screen.findByText("No pending change requests.")).toBeTruthy();
   });
 
-  // Kills: a pending-request failure arriving after unmount raising an alert.
   /** REQ-CHANGE-05-F: a failure that arrives after leaving My Events shows nothing. */
   it("REQ-CHANGE-05-F ignores a pending change request failure after unmounting", async () => {
     apiMock.mockResolvedValue([submittedEvent()]);
@@ -312,10 +318,13 @@ describe("EventListPage", () => {
         </Routes>
       </MemoryRouter>,
     );
+    expect(pendingRequestsMock).toHaveBeenCalledTimes(1);
     view.unmount();
-    reject(new Error("late"));
-    await Promise.resolve();
-    expect(screen.queryByRole("alert")).toBeNull();
+    await act(async () => {
+      reject(new Error("late"));
+    });
+    // After unmount the DOM is gone, so only the pending-request mock is observable: the late failure must not refetch.
+    expect(pendingRequestsMock).toHaveBeenCalledTimes(1);
   });
 
   // Kills: a pending-request failure without a message not showing the notice.
@@ -1108,7 +1117,6 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
     expect(screen.queryByRole("region", { name: "Draft requests" })).toBeNull();
   });
 
-  // Kills: a drafts failure arriving after the page is left showing an alert or its message.
   /** TRACK-EVENT-STATUS-01-A (drafts loader): a drafts failure that arrives after the page was left is ignored. */
   it("TRACK-EVENT-STATUS-01-A: a drafts failure that arrives after the page was left shows nothing", async () => {
     const drafts = deferred<DraftRecord[]>();
@@ -1123,6 +1131,8 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
       </MemoryRouter>,
     );
     await screen.findByText("No matching events found");
+    const draftRequests = () => apiMock.mock.calls.filter(([path]) => path === "/requests").length;
+    expect(draftRequests()).toBe(1);
     view.unmount();
 
     await act(async () => {
@@ -1130,8 +1140,8 @@ describe("SPM-95: the other roles' status filter and the drafts loader", () => {
       await drafts.promise.catch(() => undefined);
     });
 
-    expect(screen.queryByText("Drafts unavailable.")).toBeNull();
-    expect(screen.queryByRole("alert")).toBeNull();
+    // After unmount the DOM is gone, so only the request mock is observable: the late failure must not trigger a reload.
+    expect(draftRequests()).toBe(1);
   });
 });
 
