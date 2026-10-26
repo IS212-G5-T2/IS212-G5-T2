@@ -58,11 +58,12 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // Kills: M1 (COO-02 row); M1 and M7 (LEAD-01 row); M1 and M8 (ORG-02 row)
+  // Kills: M1 (COO-02 row); M1 and M7 (LEAD-01 row); M1 and M8 (ORG-02 row); M8 (ORG-01 submitter row)
   it.each([
     ['COO-02, not assigned', otherCoordinator],
     ['LEAD-01, Coordinator Lead', lead],
     ['ORG-02 style user who is not the submitter', { uid: 'org-02', roles: ['ORGANISER'], email: 'o2@example.test', name: 'O2' } as AuthenticatedUser],
+    ['ORG-01, the submitting organiser', organiser],
   ])('CANCEL-EVENT-01-C: %s is refused with 403 before the confirmation is read', async (_label, actor) => {
     // Arrange: a confirmed-but-unauthorised request (confirmed false) proves 403 comes before 400
     const { service, database } = setup(planningRow);
@@ -78,22 +79,19 @@ describe('SPM-136 CancelEventService authorisation and order of checks', () => {
     expect(database.transaction).not.toHaveBeenCalled();
   });
 
-  // Kills: M4, M15
-  it('CANCEL-EVENT-01-C: the submitting organiser passes the authorisation check', async () => {
-    // Arrange: the locked row is a Planning event that the organiser submitted; the compare-and-set succeeds
-    const { service, database, transactionQuery } = setup(planningRow);
-    transactionQuery.mockResolvedValueOnce({ rows: [planningRow], rowCount: 1 });
+  // Kills: M8 (the submitting organiser is allowed to cancel)
+  it('CANCEL-EVENT-01-B: the submitting organiser is refused 403 even on a confirmed request, and no transaction opens', async () => {
+    // Arrange: the locked row is a Planning event that the organiser submitted and the coordinator is assigned to
+    const { service, database } = setup(planningRow);
 
     // Act: the submitting organiser cancels
-    const result = service.cancel(organiser, EVENT, confirmed);
+    const attempt = service.cancel(organiser, EVENT, confirmed);
 
-    // Assert: the request is accepted (no refusal) and returns the cancelled result
-    await expect(result).resolves.toEqual({
-      eventId: EVENT,
-      status: 'Cancelled',
-      message: 'Annual Gala Dinner has been cancelled.',
+    // Assert: refused with the authorisation message; nothing is locked or written
+    await expect(attempt).rejects.toMatchObject({
+      response: { code: 'FORBIDDEN', message: 'You do not have permission to cancel this event.' },
     });
-    expect(database.transaction).toHaveBeenCalledTimes(1);
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   // Kills: M3 (every row); M10 (the string "true" row)
@@ -203,19 +201,18 @@ describe('SPM-136 cancellation transaction (AC3 to AC6, CANCEL-EVENT-03-A, 03-C,
     expect(releaserRecorder.release).toHaveBeenCalledWith(EVENT, client, NOW);
   });
 
-  // Kills: M4, M15, M16, S17, S22
-  it('CANCEL-EVENT-06-A: an event with no assigned coordinator notifies the organiser only', async () => {
+  // Kills: M8 (the submitting organiser may cancel with no coordinator assigned)
+  it('CANCEL-EVENT-01-B: a Submitted event with no assigned coordinator refuses its organiser with 403', async () => {
     // Arrange: a Submitted event with no assigned coordinator, submitted by ORG-01
     const submitted = { ...planningRow, status: 'Submitted', coordinator_id: null };
-    const { database, statements, releaserRecorder } = transactionalSetup({ locked: submitted, recipients: [] });
-    const service = new CancelEventService(database as never, { now: () => NOW }, [releaserRecorder]);
+    const { service, database } = setup(submitted);
 
     // Act: the submitting organiser cancels
-    await service.cancel(organiser, EVENT, confirmed);
+    const attempt = service.cancel(organiser, EVENT, confirmed);
 
-    // Assert: the only notice is for the organiser
-    const notices = statements.filter((s) => /INSERT INTO notifications/.test(s.sql));
-    expect(notices[0].params[0]).toEqual(['org-01']);
+    // Assert: refused 403 and no transaction opens
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
   // Kills: M4, M15
