@@ -16,11 +16,11 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { AppModule } from '../src/app.module.js';
 
 describe('Clarifications (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
@@ -676,7 +676,7 @@ describe('Clarifications (e2e)', () => {
       .post('/api/auth/login')
       .send({ email, password })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

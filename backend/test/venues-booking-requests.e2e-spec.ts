@@ -89,7 +89,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/auth/login')
         .send({ email, password: 'password123' })
         .expect(201);
-      const cookie = login.headers['set-cookie']?.find((value) =>
+      const cookie = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
         value.startsWith('connectsphere_session='),
       );
       if (!cookie)

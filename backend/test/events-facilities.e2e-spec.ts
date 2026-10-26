@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 
@@ -20,7 +20,7 @@ if (!database && process.env.CI)
 type Session = { uid: string; cookie: string };
 
 describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let organiser: Session;
   let createdEventIds: string[];
@@ -65,7 +65,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
       .post('/api/auth/login')
       .send({ email, password: 'password123' })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL-backed organiser session.');
