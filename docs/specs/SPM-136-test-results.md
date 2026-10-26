@@ -21,7 +21,7 @@ Story: SPM-136 (Jira status In Progress when implemented). Acceptance criteria A
 
 | Rule | AC | Test IDs | Layer |
 |---|---|---|---|
-| Assigned coordinator or submitting organiser only | AC1 | 01-A, 01-B, 01-C (A to F) | e2e, unit, FE page |
+| Assigned coordinator only (the submitting organiser is refused; AC1 amended 26 Oct 2026) | AC1 | 01-A, 01-B, 01-C (A to F) | e2e, unit, FE page |
 | Confirmation is required by the server (boolean true) | AC2 | 02-C (5 bodies); 02-A and 02-B in the dialog | e2e, unit, FE dialog |
 | Status becomes Cancelled, stamped by the injected clock | AC3 | 03-A | e2e, unit, FE page |
 | Cancellable set and refusals | AC3 | 03-B (7 rows) | e2e, unit, FE page |
@@ -37,8 +37,8 @@ Story: SPM-136 (Jira status In Progress when implemented). Acceptance criteria A
 | Test ID | AC | Level | Oracle source | Mutant it kills (examples) |
 |---|---|---|---|---|
 | CANCEL-EVENT-01-A | AC1 | e2e | Confluence 01-A: 200, Cancelled, actor COO-01 | M7, M8, M1 |
-| CANCEL-EVENT-01-B | AC1 | e2e | Confluence 01-B: 200, actor ORG-01 | M8, M17 |
-| CANCEL-EVENT-01-C | AC1 | e2e (5 subtests), unit, FE | Confluence 01-C: 403 MSG-CN-05, 401 without token | M1, M7, M8 |
+| CANCEL-EVENT-01-B | AC1 | e2e, unit, FE | Confluence 01-B (replaced 26 Oct 2026): ORG-01 refused 403, nothing changes | M8, F2, F25, F40 |
+| CANCEL-EVENT-01-C | AC1 | e2e (5 subtests), unit, FE | Confluence 01-C: 403 MSG-CN-05 (COO-02, ORG-01, ORG-02, ATT-01, LEAD-01), 401 without token | M1, M7, M8 |
 | CANCEL-EVENT-02-A | AC2 | FE dialog | Confluence 02-A and MSG-CN-01/02 literals | M9 (dialog dismiss sends a request) |
 | CANCEL-EVENT-02-B | AC2 | FE dialog and page | Confluence 02-B: Keep, Escape, outside click, no request | M9 |
 | CANCEL-EVENT-02-C | AC2 | e2e (5 bodies), unit | Confluence 02-C and D5 | M3, M10 |
@@ -65,20 +65,20 @@ Result key: PASS = every step of the Confluence case is covered by a passing tes
 | Test ID | Result | What is tested | Not tested and why |
 |---|---|---|---|
 | 01-A | PASS | e2e: COO-01 cancels EVT-301 (200, Cancelled, history Confirmed to Cancelled by COO-01). FE: Cancel Event on a Planning event for the assigned coordinator. | The dialog-then-click path is covered by FE tests; the e2e call is the POST body from the case. |
-| 01-B | PASS | e2e: ORG-01 cancels (200, history actor ORG-01, COO-01 notified). FE: Cancel Event for the submitting organiser. | None. |
-| 01-C | PASS | e2e: COO-02, ORG-02, ATT-01, LEAD-01 get 403 MSG-CN-05; no token gets 401; nothing changes. FE: no action for COO-02, ORG-02, LEAD-01. | None. |
+| 01-B | PASS | e2e: ORG-01 refused 403 (MSG-CN-05); status stays Confirmed; nothing released or notified. FE: no Cancel Event for the submitting organiser (26 Oct 2026). | None. |
+| 01-C | PASS | e2e: COO-02, ORG-01, ORG-02, ATT-01, LEAD-01 get 403 MSG-CN-05; no token gets 401; nothing changes. FE: no action for COO-02, ORG-01, ORG-02, LEAD-01. | None. |
 | 02-A | PASS (FE) | Dialog text (MSG-CN-01 consequences paragraph and heading), Keep event focused, zero requests while open, one request with `confirmed: true` on confirm, MSG-CN-02 announced, 409 shown as alert. | Status Confirmed while the dialog is open is shown as "no request was made", not read back from the page. |
 | 02-B | PASS (FE) | Keep event, Escape and outside click each close with zero requests; Tab stays inside; a letter key does nothing; page-level Keep event leaves the event Planning. | None. |
 | 02-C | PASS | e2e: omitted, false, `"true"`, 1 and null each give 400 CANCEL_NOT_CONFIRMED and nothing changes. Unit: the same set plus no body. | None. D5 applies: the server enforces confirmation, so the case is not N/A. |
 | 03-A | PASS | e2e: cancelled_by = COO-01 and cancelled_at = T0 exactly (injected clock, not SQL now()); GET shows `cancelled`. FE: banner after confirm. | The coordinator queue and ORG-01's event list screens are not separately tested; only the event read model and the page are. |
 | 03-B | PASS | e2e: Planning, Confirmed, Submitted and Approved cancel (200); Completed, Rejected and Cancelled give 409 MSG-CN-06, with the event, history and notices unchanged. Unit: the cancellable set. | Cancelled again produces no duplicate notice: covered by the unchanged snapshot. |
-| 03-C | PASS | e2e: five parallel requests (COO-01 and ORG-01 mixed) give one 200 and four 409; one history row; one notice per recipient; Projector available 4. Unit: a lost compare-and-set writes nothing. | "Available 4" is derived in the test by SQL (stock minus held quantities) because the repository has no equipment availability function. |
+| 03-C | PASS | e2e: five parallel requests (all from COO-01) give one 200 and four 409; one history row; one notice per recipient; Projector available 4. Unit: a lost compare-and-set writes nothing. | "Available 4" is derived in the test by SQL (stock minus held quantities) because the repository has no equipment availability function. |
 | 04-A | PASS (with limit) | e2e: VB-301a and VB-301b are `released` with released_at T0; GET venue reservations are empty for both venues. | Calendar screens and the buffer maths of the availability view are not tested: no calendar function is called. |
 | 04-B | PARTIAL | e2e: VB-308 stays Approved; Main Hall reservations after cancel list only VB-308. | The request for the old slot (ORG-02 submits a venue booking) is not run: no venue-request submission route was located in this repository. |
 | 04-C | PASS | e2e: a fault in the equipment releaser after the status, notice, venue and registration writes gives 500 with no stack text; every table is unchanged (snapshot includes notifications and history); retry gives full release. | None. |
 | 05-A | PASS | e2e: both lines `Released` with released_at T0; Projector 4 (before 2), Microphone 10 (before 6), derived by SQL. | Equipment availability screen not tested (no such view called). |
 | 05-B | PARTIAL | e2e: EQ-308 stays Reserved x1. | x4 accepted and x5 rejected: BLOCKED, no equipment request route exists in this repository. |
-| 06-A | PARTIAL | e2e: ORG-01, COO-01, ATT-01, ATT-02, ATT-03 each get exactly one unread `EventCancelled` notice naming "Annual Gala Dinner", for both cancellers (two clones). | The attendee bell and `GET /notifications/me` for attendees: BLOCKED, there is no attendee read path (D10/D12). Checked in the database instead. |
+| 06-A | PARTIAL | e2e: ORG-01, COO-01, ATT-01, ATT-02, ATT-03 each get exactly one unread `EventCancelled` notice naming "Annual Gala Dinner", cancelled by COO-01 on two clones (26 Oct 2026: the Organiser can no longer cancel). | The attendee bell and `GET /notifications/me` for attendees: BLOCKED, there is no attendee read path (D10/D12). Checked in the database instead. |
 | 06-B | PASS (waiting notices) | JOIN-WAITLIST-12-A (`registrations.waitlist.e2e-spec.ts`): each waiting entry is Cancelled and gets one EventCancelled notice, in the cancel transaction (correction cycle 5). | The attendee bell read path (06-A) is not part of 06-B. |
 | 06-C | PARTIAL | e2e: ATT-06 (Withdrawn), ATT-07, ORG-02 and COO-02 get no notice; the event has exactly five notices. | The mail catcher assertion: no email transport exists in this repository, so "no email sent" is UNABLE TO VERIFY. |
 | 07-A | PASS | e2e: 11 existing mutation routes on a cancelled event answer 409 EVENT_CANCELLED (MSG-CN-04) and every table is unchanged (route list below). FE: banner shown, Update Event Information and Confirm Event hidden on a cancelled event. | Replacement-venue request route: not located in this repository, not tested. |
@@ -161,7 +161,7 @@ The M-numbers from M1 to M20 and S1 to S24 are listed below. M22 to M27 were add
 | M5 | killed | e2e | only the first venue booking released |
 | M6 | killed | e2e | only the first equipment reservation released |
 | M7 | killed | unit | Coordinator Lead may cancel |
-| M8 | killed | unit | any Organiser may cancel |
+| M8 | killed | unit | any Organiser may cancel (redefined 26 Oct 2026: the Organiser is refused) |
 | M10 | killed | unit | truthy confirmation accepted |
 | M11 | killed | e2e | cancelled_at taken from SQL now() |
 | M12 | killed | unit | cancellable set drifts (Approved removed) |
@@ -169,7 +169,7 @@ The M-numbers from M1 to M20 and S1 to S24 are listed below. M22 to M27 were add
 | M14 | killed | unit | release not scoped to the event |
 | M15 | killed | unit | no transaction |
 | M16 | killed | unit | notices written outside the transaction (re-anchored in cycle 3 to the single `INSERT ... SELECT unnest(...)` statement; the cycle 2 anchor matched the old per-recipient INSERT and would have misapplied) |
-| M17 | killed | e2e | coordinator not notified when the organiser cancels |
+| M17 | killed | unit | coordinator not notified when the coordinator cancels (redefined 26 Oct 2026; was: when the organiser cancels) |
 | M18 | killed | unit | withdrawn attendees notified |
 | M19 | killed | unit | withdrawn rows touched by the release |
 | M20 | killed | e2e | guard removed from clarification reply |
@@ -196,7 +196,7 @@ The M-numbers from M1 to M20 and S1 to S24 are listed below. M22 to M27 were add
 | S21 | killed | unit | Rejected is cancellable |
 | S22 | killed | unit | Submitted not cancellable |
 | S23 | killed | unit | guard compares lower-case status (never fires) |
-| S24 | killed | unit | coordinator not notified (any canceller) |
+| S24 | removed 26 Oct 2026 | n/a | was a duplicate of M17 on the same line, which no longer exists after the coordinator-only rule |
 | M22 | killed | e2e | venue summary counts released bookings (RR-136-01) |
 | M23 | killed | unit | readiness reports a released booking as outstanding (RR-136-02) |
 | M24 | killed | unit | checklist keeps released bookings (RR-136-02) |
@@ -515,12 +515,12 @@ Date: 2026-10-16. Scope: the SPM-136 test files, the two SPM-136 mutant definiti
 | CancelEventDialog.test.tsx | CANCEL-EVENT-02-A: a failure that is not an Error shows the fallback text | Strengthened | F37 (fallback text dropped). Killed by the exact title. |
 | CancelEventDialog.test.tsx | CANCEL-EVENT-02-B: a letter key does nothing | Strengthened | F38 (every key dismisses the dialog). Killed by the exact title. |
 | EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-A (page): coordinator sees Cancel Event on a Planning event | Strengthened | F39 (button hidden on Planning). Killed by the exact title. |
-| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-B (page): organiser sees Cancel Event on a Confirmed event | Strengthened | F40 (button hidden from the organiser on Confirmed). Killed by the exact title. |
+| EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-B (page): organiser does not see Cancel Event on a Confirmed event (26 Oct 2026) | Changed | F40 (button offered to the organiser on Confirmed). Killed by the exact title. |
 | EventDetailPage.cancel.test.tsx | CANCEL-EVENT-03-B (page): completed, rejected, cancelled offer no action | Strengthened | F33, F34, F35 (each status added to the cancellable list). Killed by the suite (templated rows). |
 | EventDetailPage.cancel.test.tsx | CANCEL-EVENT-01-C-F (page): COO-02 row (partial) | Strengthened | F26 (assigned-coordinator id check dropped), F1, F2. Killed by the suite. |
 | EventDetailPage.cancel.test.tsx | CANCEL-EVENT-07-A-CLAR (control): live event offers Reply and Resolve | Strengthened | F41 (Reply hidden on a live Planning event). Killed by the exact title. |
 | cancellation.test.ts | CANCEL-EVENT-01-A (FE): assigned coordinator offered | Strengthened | F24 (assigned branch dropped). Killed by the exact title. |
-| cancellation.test.ts | CANCEL-EVENT-01-B (FE): submitting organiser offered | Strengthened | F25 (submitted branch dropped). Killed by the exact title. |
+| cancellation.test.ts | CANCEL-EVENT-01-B (FE): submitting organiser not offered (26 Oct 2026) | Changed | F25 (organiser offer restored). Killed by the exact title. |
 | cancellation.test.ts | CANCEL-EVENT-01-C-F (FE): COO-02 and ATT-01 rows (partial) | Strengthened | F26 (COO-02), F27 (attendee offered). Killed by the suite. |
 | cancellation.test.ts | CANCEL-EVENT-03-B (FE): approved row (partial) and the other cancellable rows | Strengthened | F3 (existing, approved), F29 (submitted), F30 (planning), F31 (confirmed). Killed by the suite. |
 | cancellation.test.ts | CANCEL-EVENT-03-B (FE): completed, rejected, cancelled, draft offer no action | Strengthened | F32 (deny-list: draft offered), F33, F34, F35. Killed by the suite. |
@@ -637,3 +637,31 @@ Frontend mutant set: 41 of 41 accounted for above (39 killed, 2 equivalent).
 ### G. Repository state
 
 `git status --short` before this document's edits: 12 modified files (no untracked files). `git diff --cached` lists 0 files. Nothing was committed, staged, pushed or changed in Jira.
+
+## Correction cycle 6: only the assigned Coordinator can cancel (26 Oct 2026)
+
+**Decision (user, 26 Oct 2026).** Only the Event Coordinator assigned to the event can cancel it. The submitting Organiser is refused with 403 `FORBIDDEN` and is not offered Cancel Event. The Organiser still receives the `EventCancelled` notice. An event with no assigned Coordinator (for example, Submitted before the Lead assigns one) cannot be cancelled by anyone; the user accepted this.
+
+**Changes.**
+
+- `backend/src/events/cancel/cancel-event.service.ts`: the permission rule is coordinator-only. The coordinator recipient is always added (`recipients.add(user.uid)`), because the canceller is the assigned coordinator; the `if (event.coordinator_id)` guard became unreachable and was removed to keep branch coverage at 100%.
+- `frontend/src/features/events/lib/cancellation.ts`: coordinator-only offer.
+- Tests: `cancel-event.service.spec.ts`, `events-cancel.e2e-spec.ts` (01-B now asserts 403; 01-C adds ORG-01; cancels use COO-01), `registrations.waitlist.e2e-spec.ts` (JOIN-WAITLIST-12-D cancels as the coordinator), `cancellation.test.ts`, `EventDetailPage.cancel.test.tsx`.
+- Mutants (`backend/scripts/mutation/spm136.mutants.mjs`, `frontend/scripts/testing/mutation/spm136.mutants.mjs`): M7, M8 and M17 redefined for the new rule; S15, S16, M23 and M24 repointed to the current code (they had stopped matching after the dev merge); S24 removed (duplicate of M17); F2, F24, F25, F27, F32 and F40 redefined; F4 and F5 flagged equivalent with an argument in the name: `PLANNING_STATUSES` excludes `cancelled`, so `planningView` is null for a cancelled event and the `!isCancelled` guard cannot change the render.
+- Commits: `766f897` (permission change and AI_USAGE entry), `061dde1` (waitlist 12-D test).
+
+**Verification (observed).**
+
+- Backend unit suite: 80 files, 1785 tests pass. Frontend unit suite: 126 files, 1794 pass, 1 skipped, 1 todo.
+- `events-cancel.e2e-spec.ts`: 35 of 35 pass against a fresh database built from `database/postgresql/init` (`spm_cycle`, on the `spm-e2e-pg` container). The shared `spm_test` database had drifted from the current migrations and was not used or changed beyond removing two stale `cancelled` venue-booking rows that blocked migration 011.
+- Waitlist, cancelled-guard and cancel e2e suites together: 126 pass, 1 skipped (`JOIN-WAITLIST-11-E`, Blocked).
+- Test-workflow cycle 5 (`ai/runtime/test-cycles/SPM-136/cycle-05`): G1 PASS (21 PRIMARY IDs from the Confluence matrix, page 23691421), G2 PASS, G5 PASS, G6 PASS (backend 83 mutants: 81 killed, 0 survived, 2 equivalent; frontend 41 mutants: 39 killed, 2 equivalent). G3, G4 and G7 are BLOCKED (below).
+- A cold-start timeout in `JOIN-WAITLIST-01-A` (5 s) failed the first backend mutation baseline; the retry was green. It is recorded here, not hidden.
+
+**Still open.**
+
+- **G3 (records):** `docs/test-cases/workflow/records/SPM-136.csv` was regenerated with `--scaffold` (122 records: 53 new, 47 removed). The `tier`, `tier_status`, `oracle_class` and `explained` fields are blank on every row. The committed file had no judgement values either, so none were lost. These are the Test Code Reviewer's judgements and were not filled in here.
+- **G4 and G7 (one skipped test):** `JOIN-WAITLIST-11-E` is a Blocked case in the SPM-138 suite. The runner executes the whole `registrations.waitlist.e2e-spec.ts` file; the scope's `titleMatch` only filters IDs and records. Fixing the runner (pass the title filter to vitest for titleMatch entries) is needed. Not changed here.
+- **G1 approvals:** 50 SUPPORTING IDs (JOIN-WAITLIST, WITHDRAW-EVENT-REG, CANCEL-EVENT) await the story owner's approval.
+- **G2:** SC-003 and SC-004 await owner confirmation; AC5 sad tier is MISSING (the equipment request route is not in this repository).
+- **Confluence:** the matrix and CANCEL-EVENT-01 and -06 pages still describe the old organiser rule. The update is written up in `docs/specs/SPM-136-confluence-test-case-update.md`; the pages have not been edited.
