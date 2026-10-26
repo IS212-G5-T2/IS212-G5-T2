@@ -13,7 +13,7 @@ test("withdrawing from a full event frees the spot, persists across a reload, an
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByText(/Signed in as/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
   await page.goto("/events");
   await page.getByRole("link", { name: new RegExp(eventName) }).first().click();
   await expect(page.getByRole("heading", { name: eventName })).toBeVisible();
@@ -21,15 +21,13 @@ test("withdrawing from a full event frees the spot, persists across a reload, an
 
   // Act: withdraw and confirm in the dialog.
   await page.getByRole("button", { name: "Withdraw", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: `Withdraw from ${eventName}?` });
+  const dialog = page.getByRole("dialog", { name: "Withdraw your registration?" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button", { name: "Confirm Withdrawal" }).click();
+  await dialog.getByRole("button", { name: "Withdraw", exact: true }).click();
 
   // Assert: the confirmation banner, the withdrawn card (badge, timeline with absolute SGT times) and the freed spot.
-  await expect(page.getByRole("status", { name: "Withdrawal confirmation" })).toContainText(
-    `Your withdrawal from ${eventName} has been processed.`,
-  );
-  await expect(page.getByText("Registration withdrawn")).toBeVisible();
+  // The success toast (role status) replaces the old confirmation banner.
+  await expect(page.getByRole("status").filter({ hasText: "Registration withdrawn" })).toBeVisible();
   const timestamp = /\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}/;
   await expect(page.getByRole("listitem").filter({ hasText: "Registered" })).toContainText(timestamp);
   await expect(page.getByRole("listitem").filter({ hasText: "Withdrawn" })).toContainText(timestamp);
