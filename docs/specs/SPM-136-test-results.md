@@ -664,4 +664,4 @@ Frontend mutant set: 41 of 41 accounted for above (39 killed, 2 equivalent).
 - **G4 and G7 (one skipped test):** `JOIN-WAITLIST-11-E` is a Blocked case in the SPM-138 suite. The runner executes the whole `registrations.waitlist.e2e-spec.ts` file; the scope's `titleMatch` only filters IDs and records. Fixing the runner (pass the title filter to vitest for titleMatch entries) is needed. Not changed here.
 - **G1 approvals:** 50 SUPPORTING IDs (JOIN-WAITLIST, WITHDRAW-EVENT-REG, CANCEL-EVENT) await the story owner's approval.
 - **G2:** SC-003 and SC-004 await owner confirmation; AC5 sad tier is MISSING (the equipment request route is not in this repository).
-- **Confluence:** the matrix and CANCEL-EVENT-01 and -06 pages still describe the old organiser rule. The update is written up in `docs/specs/SPM-136-confluence-test-case-update.md`; the pages have not been edited.
+- **Confluence:** the matrix and CANCEL-EVENT-01 and -06 pages still describe the old organiser rule. The update write-up is kept outside the repository (not committed); the pages have not been edited.
