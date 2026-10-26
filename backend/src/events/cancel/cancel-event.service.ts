@@ -87,7 +87,8 @@ export class CancelEventService {
 
     // Recipients are read before any release changes the rows the attendee list comes from.
     const recipients = new Set<string>([event.organiser_id]);
-    if (event.coordinator_id) recipients.add(event.coordinator_id);
+    // The canceller is the assigned coordinator (mayCancel), so the coordinator is always a recipient.
+    recipients.add(user.uid);
     for (const releaser of this.releasers)
       for (const recipient of (await releaser.collectRecipients?.(eventId, client)) ?? []) recipients.add(recipient);
 
