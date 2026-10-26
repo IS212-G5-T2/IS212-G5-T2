@@ -131,10 +131,18 @@ async function dragRange(
 // SPM-51 owner confirmed this cross-day drag requirement is required. This test currently fails because the product
 // passes onSelectRange as undefined for assigned events (VenueRecordDetailPage.tsx around line 858), which conflicts
 // with the SPM54-UI-MODE-01 read-only assigned-event design. Do not weaken this test to pass; fix the product instead.
+// Out of scope for this Sprint 1 branch. The drag-to-create decision for SPM-51 belongs to a later sprint branch.
+// Known failure: kept failing on purpose so it is not hidden. Remove the annotation when the later sprint work lands.
 /** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
-test("selects a real cross-day time range across any calendar day", async ({
-  page,
-}) => {
+test(
+  "selects a real cross-day time range across any calendar day",
+  {
+    annotation: {
+      type: "known-failure",
+      description: "SPM-51 cross-day drag on an assigned event; out of Sprint 1 scope, tracked for a later sprint branch",
+    },
+  },
+  async ({ page }) => {
   await page.clock.install({ time: new Date("2030-01-07T01:00:00.000Z") });
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -196,7 +204,8 @@ test("selects a real cross-day time range across any calendar day", async ({
 
   await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
   await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T11:00");
-});
+  },
+);
 
 /** SPM-54 mobile UI: keep the selected mode through resizing and adapt the calendar from day to week at 640px. */
 test("keeps List or Calendar choice while adapting the booking schedule at phone and tablet widths", async ({ page }) => {
