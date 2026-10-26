@@ -142,6 +142,7 @@ describe('buildChecklist', () => {
     expect(both.blocking).toEqual([]);
   });
 
+  // Kills: SPM54-BE-CHECKLIST-CANCELLED (individually cancelled venue requests reappear in the active event venue checklist).
   /** VEN-BKG-09-A: cancelling one venue request hides it from the active checklist and preserves other requests. */
   it('excludes cancelled venue requests from the active checklist without hiding other venues', () => {
     const result = build(
