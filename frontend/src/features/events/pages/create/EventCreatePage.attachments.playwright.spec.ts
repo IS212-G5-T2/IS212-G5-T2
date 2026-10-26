@@ -33,6 +33,17 @@ async function mockApi(page: Page, submitEvent?: (route: Route) => Promise<void>
         }),
       });
     }
+    if (request.method() === "GET" && request.url().endsWith("/api/venues/options")) {
+      return route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        contentType: "application/json",
+        body: JSON.stringify({
+          facilities: [{ label: "Projector", value: "Projector" }],
+          accessibility: [{ label: "Hearing loop", value: "Hearing loop" }],
+        }),
+      });
+    }
     if (request.method() === "POST" && request.url().endsWith("/api/events") && submitEvent) {
       return submitEvent(route);
     }
