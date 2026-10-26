@@ -122,9 +122,10 @@ async function dragRange(
   await page.mouse.up();
 }
 
-// SPM-51 cross-day drag requirement needs product owner confirmation. This check asserts the current SPM-54 behaviour:
-// on an assigned event the page passes no range-selection callback, so the event times stay read-only and unchanged.
-/** SPM-54 UI-MODE-01: assigned event times are read-only, and a real calendar drag across days leaves the start and end unchanged. */
+// SPM-51 owner confirmed this cross-day drag requirement is required. This test currently fails because the product
+// passes onSelectRange as undefined for assigned events (VenueRecordDetailPage.tsx around line 858), which conflicts
+// with the SPM54-UI-MODE-01 read-only assigned-event design. Do not weaken this test to pass; fix the product instead.
+/** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
 test("selects a real cross-day time range across any calendar day", async ({
   page,
 }) => {
@@ -148,48 +149,36 @@ test("selects a real cross-day time range across any calendar day", async ({
       body: JSON.stringify(venue),
     }),
   );
-  await page.route("**/api/events/mobile-event", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mobileEvent) }),
-  );
-  await page.route("**/api/venues/bookings/mine", (route) =>
-    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
-  );
 
-  // Range selection and the Event starts/ends fields exist only when a request event is open (eventId).
-  await page.goto(`/venue-records/${venueId}?eventId=${mobileEvent.id}`);
+  await page.goto(`/venue-records/${venueId}`);
   await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
 
-  // Assigned event times are fixed (read-only inputs) and the calendar has no range selection on this page.
-  const eventStart = page.getByLabel("Event starts");
-  const eventEnd = page.getByLabel("Event ends");
-  await expect(eventStart).toHaveAttribute("readonly");
-  await expect(eventEnd).toHaveAttribute("readonly");
-  await expect(eventStart).toHaveValue("2030-01-08T14:00");
-  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
-
-  // Early-morning time on Wednesday, the same slots the previous version of this check dragged across.
+  // Early-morning time is clear because this fixture has no booking or closure at that time.
   const wednesdayTwo = await pointInSlot(page, "2030-01-09", "02:00");
   const wednesdayThree = await pointInSlot(page, "2030-01-09", "03:00");
   await dragRange(page, wednesdayTwo, wednesdayThree);
 
-  await expect(eventStart).toHaveValue("2030-01-08T14:00");
-  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
+  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-09T02:00");
+  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T04:00");
+  await expect(page.getByRole("status")).toContainText("available for this venue");
 
-  // Cross-day drag from Monday evening to Tuesday morning: the start and end must not move.
+  // Clear the selected range before trying a second, separate interval.
+  await page.locator('[title="Click to clear the selected event time"]').click();
+
   const mondayFive = await pointInSlot(page, "2030-01-07", "17:00");
   const tuesdayTen = await pointInSlot(page, "2030-01-08", "10:00");
   await dragRange(page, mondayFive, tuesdayTen);
 
-  await expect(eventStart).toHaveValue("2030-01-08T14:00");
-  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
+  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
+  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-08T11:00");
+  await expect(page.getByRole("status")).toContainText("available for this venue");
 
-  // Cross-day drag from Monday evening to Wednesday morning: still unchanged.
   const wednesdayTen = await pointInSlot(page, "2030-01-09", "10:00");
   await dragRange(page, mondayFive, wednesdayTen);
 
-  await expect(eventStart).toHaveValue("2030-01-08T14:00");
-  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
+  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
+  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T11:00");
 });
 
 /** SPM-54 mobile UI: keep the selected mode through resizing and adapt the calendar from day to week at 640px. */
