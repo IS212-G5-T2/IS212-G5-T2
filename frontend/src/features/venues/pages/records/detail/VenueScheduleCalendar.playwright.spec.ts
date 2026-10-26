@@ -146,8 +146,15 @@ test("selects a real cross-day time range across any calendar day", async ({
       body: JSON.stringify(venue),
     }),
   );
+  await page.route("**/api/events/mobile-event", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(mobileEvent) }),
+  );
+  await page.route("**/api/venues/bookings/mine", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+  );
 
-  await page.goto(`/venue-records/${venueId}`);
+  // Range selection and the Event starts/ends fields exist only when a request event is open (eventId).
+  await page.goto(`/venue-records/${venueId}?eventId=${mobileEvent.id}`);
   await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
 
@@ -227,7 +234,8 @@ test("keeps My Bookings summary and cancellation actions usable at phone widths"
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/bookings");
-    await expect(page.getByRole("heading", { name: mobileEvent.name })).toBeVisible();
+    // The event name is a level-2 group heading; each booking card also repeats it as a level-3 heading.
+    await expect(page.getByRole("heading", { name: mobileEvent.name, level: 2 })).toBeVisible();
     await expect(page.getByText("VB-MOBILE-001")).toBeVisible();
     await expect(page.getByText("Step-free access, please.")).toBeVisible();
     await expect(page.getByText("VB-MOBILE-002")).toBeVisible();

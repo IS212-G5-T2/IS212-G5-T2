@@ -60,7 +60,7 @@ test("creates an unavailable period through the browser and displays it after re
   expect(saved.status()).toBe(201);
   const savedBody = await saved.json();
   expect(savedBody.period).toMatchObject({ start: localTimes.startIso, end: localTimes.endIso, reason: "Browser maintenance" });
-  await expect(page.getByText("Browser maintenance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem").getByText("Browser maintenance", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Affected bookings" })).toContainText("No existing bookings are affected.");
 
   // Assert a fresh page read still displays the same server record, not just transient React state.
@@ -72,5 +72,5 @@ test("creates an unavailable period through the browser and displays it after re
   expect(detail.unavailablePeriods).toEqual([
     expect.objectContaining({ id: savedBody.period.id, start: localTimes.startIso, end: localTimes.endIso, reason: "Browser maintenance" }),
   ]);
-  await expect(page.getByText("Browser maintenance", { exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem").getByText("Browser maintenance", { exact: true })).toBeVisible();
 });
