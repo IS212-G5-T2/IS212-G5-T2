@@ -166,7 +166,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.listCoordinatorBookings).toHaveBeenCalledWith(identity);
   });
 
-  // Kills: cancellation confirmation that treats null or a truthy non-true value as confirmed, or maps false to true.
+  // Kills: cancellation confirmation that treats a null body as confirmed, or maps an explicit false to true.
   /** VEN-BKG-10-A: only a literal true in the request body confirms last-booking cancellation. */
   it.each([
     [{ confirmed: true }, true],
