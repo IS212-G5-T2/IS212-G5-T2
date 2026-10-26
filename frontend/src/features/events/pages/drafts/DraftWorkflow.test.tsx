@@ -197,6 +197,7 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe("/requests");
     },
   );
+  /** EVE-DRF-SUP-31: a late draft load result that arrives after the editor is left does not start another load. */
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-31 ignores late load %s after leaving the editor",
     async (outcome) => {
@@ -447,6 +448,7 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
+  /** EVE-DRF-SUP-40: a late draft list result that arrives after navigation does not start a retry or another list load. */
   it.each(["resolve", "reject"])(
     "EVE-DRF-SUP-40 ignores late list %s after navigation",
     async (outcome) => {
