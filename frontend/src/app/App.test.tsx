@@ -281,7 +281,7 @@ describe("SPM-30 to SPM-34 AC2: post-login landing on the Events Dashboard", () 
     useAppStore.setState({
       authLoading: false,
       isAuthenticated: true,
-      eventListFilters: {},
+      eventListFilters: {} as { attendee: string; status: string | null },
       restoreAuthSession: vi.fn(),
     });
   });
