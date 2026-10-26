@@ -123,8 +123,6 @@ describe('VenuesRepository', () => {
             {
               id: venue.id,
               capacity: 120,
-              facilities: ['AV System'],
-              accessibility: ['Wheelchair access'],
               layouts: ['Classroom'],
               setup_time_minutes: 0,
               turnaround_time_minutes: 0,
@@ -139,8 +137,6 @@ describe('VenuesRepository', () => {
               status: 'Planning',
               ...assignedEventTime,
               expected_attendance: 20,
-              required_facilities: [],
-              accessibility_needs: [],
               preferred_room_layout: '',
               ...eventFields,
             },
@@ -796,7 +792,7 @@ describe('VenuesRepository', () => {
       expect(String(query.mock.calls[2][0])).toContain(
         "status IN ('pending', 'approved')",
       );
-      expect(query.mock.calls[2][1]).toEqual([
+      expect((query.mock.calls[2] as unknown[])[1]).toEqual([
         '00000000-0000-4000-8000-000000000099',
         venue.id,
       ]);

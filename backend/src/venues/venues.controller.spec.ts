@@ -14,7 +14,7 @@ describe('SPM-50 venue route wiring', () => {
     uid: 'staff-1',
     roles: ['VENUE_STAFF'],
   };
-  const request = { [CURRENT_USER_REQUEST_KEY]: identity } as Request;
+  const request = { [CURRENT_USER_REQUEST_KEY]: identity } as unknown as Request;
   const service = {
     create: vi.fn(),
     list: vi.fn(),
