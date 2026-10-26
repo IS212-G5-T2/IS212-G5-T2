@@ -122,7 +122,9 @@ async function dragRange(
   await page.mouse.up();
 }
 
-/** SPM-51: a real FullCalendar drag updates event times across days regardless of retired operating-day fields. */
+// SPM-51 cross-day drag requirement needs product owner confirmation. This check asserts the current SPM-54 behaviour:
+// on an assigned event the page passes no range-selection callback, so the event times stay read-only and unchanged.
+/** SPM-54 UI-MODE-01: assigned event times are read-only, and a real calendar drag across days leaves the start and end unchanged. */
 test("selects a real cross-day time range across any calendar day", async ({
   page,
 }) => {
@@ -158,31 +160,36 @@ test("selects a real cross-day time range across any calendar day", async ({
   await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
 
-  // Early-morning time is clear because this fixture has no booking or closure at that time.
+  // Assigned event times are fixed (read-only inputs) and the calendar has no range selection on this page.
+  const eventStart = page.getByLabel("Event starts");
+  const eventEnd = page.getByLabel("Event ends");
+  await expect(eventStart).toHaveAttribute("readonly");
+  await expect(eventEnd).toHaveAttribute("readonly");
+  await expect(eventStart).toHaveValue("2030-01-08T14:00");
+  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
+
+  // Early-morning time on Wednesday, the same slots the previous version of this check dragged across.
   const wednesdayTwo = await pointInSlot(page, "2030-01-09", "02:00");
   const wednesdayThree = await pointInSlot(page, "2030-01-09", "03:00");
   await dragRange(page, wednesdayTwo, wednesdayThree);
 
-  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-09T02:00");
-  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T04:00");
-  await expect(page.getByRole("status")).toContainText("available for this venue");
+  await expect(eventStart).toHaveValue("2030-01-08T14:00");
+  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
 
-  // Clear the selected range before trying a second, separate interval.
-  await page.locator('[title="Click to clear the selected event time"]').click();
-
+  // Cross-day drag from Monday evening to Tuesday morning: the start and end must not move.
   const mondayFive = await pointInSlot(page, "2030-01-07", "17:00");
   const tuesdayTen = await pointInSlot(page, "2030-01-08", "10:00");
   await dragRange(page, mondayFive, tuesdayTen);
 
-  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
-  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-08T11:00");
-  await expect(page.getByRole("status")).toContainText("available for this venue");
+  await expect(eventStart).toHaveValue("2030-01-08T14:00");
+  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
 
+  // Cross-day drag from Monday evening to Wednesday morning: still unchanged.
   const wednesdayTen = await pointInSlot(page, "2030-01-09", "10:00");
   await dragRange(page, mondayFive, wednesdayTen);
 
-  await expect(page.getByLabel("Event starts")).toHaveValue("2030-01-07T17:00");
-  await expect(page.getByLabel("Event ends")).toHaveValue("2030-01-09T11:00");
+  await expect(eventStart).toHaveValue("2030-01-08T14:00");
+  await expect(eventEnd).toHaveValue("2030-01-08T16:00");
 });
 
 /** SPM-54 mobile UI: keep the selected mode through resizing and adapt the calendar from day to week at 640px. */
