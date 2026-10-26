@@ -15,7 +15,7 @@ test("creates an equipment record and displays it in Equipment Availability", as
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByText(/Signed in as/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
 
   // Act: complete the real form and create a uniquely named record.
   await page.goto("/equipment/create");
