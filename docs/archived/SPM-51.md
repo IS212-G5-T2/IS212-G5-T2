@@ -38,3 +38,7 @@
 
 - swr - testing - SPM-51 - Mutate dual-role event list scope: Added mapped precedence, coordinator-scope, and attendee-only feed mutants; all three killed by the mapped EventsService tests.
 - swr - testing - SPM-51 - Reject empty mapped mutation selections: Map B13/B14 to the real planning test and fail both mutation runners when a mapped selection executes zero tests.
+
+## 2026-10-18
+
+- user - implementation - SPM-51 - Normalize accessible sample event data: Changed the Accessible hybrid seminar to use canonical accessibility labels, corrected the booking suitability query to read accessibility_features.label, and verified the focused backend repository suite (31 tests passed).

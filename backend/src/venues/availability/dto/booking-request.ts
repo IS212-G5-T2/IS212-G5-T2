@@ -9,9 +9,10 @@ export interface BookingRequestInput {
   eventId: string;
   start: string;
   end: string;
+  specialRequest?: string;
 }
 
-const BOOKING_FIELDS = ['eventId', 'start', 'end'];
+const BOOKING_FIELDS = ['eventId', 'start', 'end', 'specialRequest'];
 
 const ISO_INSTANT =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})$/i;
@@ -40,5 +41,20 @@ export function validateBookingRequest(value: unknown): BookingRequestInput {
     Date.parse(input.start) >= Date.parse(input.end)
   )
     throw new BadRequestException('Enter a valid event start and end time.');
-  return { eventId: input.eventId, start: input.start, end: input.end };
+  if (
+    input.specialRequest !== undefined &&
+    (typeof input.specialRequest !== 'string' ||
+      input.specialRequest.length > 1000)
+  )
+    throw new BadRequestException(
+      'Special requests must be 1,000 characters or fewer.',
+    );
+  return {
+    eventId: input.eventId,
+    start: input.start,
+    end: input.end,
+    ...(typeof input.specialRequest === 'string' && input.specialRequest.trim()
+      ? { specialRequest: input.specialRequest.trim() }
+      : {}),
+  };
 }

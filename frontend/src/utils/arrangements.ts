@@ -22,8 +22,11 @@ export interface OutstandingArrangement {
   state: string;
 }
 
-export type RequestStatus = "not_requested" | "pending" | "confirmed" | "unavailable";
-export type SafetyCheckStatus = "not_requested" | "pending" | "changes_needed" | "approved";
+export type RequestStatus =
+  "not_requested" | "pending" | "confirmed" | "unavailable" | "cancelled";
+// "rejected" (SPM-48 AC7, SPM-130 AC2): the Safety Officer rejected the arrangement; the coordinator re-requests it.
+export type SafetyCheckStatus =
+  "not_requested" | "pending" | "changes_needed" | "approved" | "rejected";
 
 export interface SafetyCheckFeedback {
   id: string;
@@ -49,7 +52,11 @@ export interface EquipmentRequestItem {
 
 /** What the coordinator's planning page shows for venues, equipment and the safety check. */
 export interface PlanningChecklist {
-  venue: { status: RequestStatus; items: VenueRequestItem[]; requestedDate?: string };
+  venue: {
+    status: RequestStatus;
+    items: VenueRequestItem[];
+    requestedDate?: string;
+  };
   equipment: {
     /** False when the event lists no equipment: the coordinator confirms "none" instead. */
     required: boolean;
@@ -83,7 +90,12 @@ export interface ArrangementsStatus {
 export interface ConfirmedArrangements {
   eventId: string;
   status: string;
-  venueBookings: { venueName: string; start: string; end: string; status: string }[];
+  venueBookings: {
+    venueName: string;
+    start: string;
+    end: string;
+    status: string;
+  }[];
   equipment: { name: string; quantity: number; status: string }[];
   safety: { state: string };
 }
@@ -101,17 +113,29 @@ export function outstandingText(item: OutstandingArrangement): string {
 
 function isArrangementsStatus(value: unknown): value is ArrangementsStatus {
   const view = value as ArrangementsStatus | null;
-  return !!view && typeof view.ready === "boolean" && Array.isArray(view.outstanding);
+  return (
+    !!view && typeof view.ready === "boolean" && Array.isArray(view.outstanding)
+  );
 }
 
-function isConfirmedArrangements(value: unknown): value is ConfirmedArrangements {
+function isConfirmedArrangements(
+  value: unknown,
+): value is ConfirmedArrangements {
   const view = value as ConfirmedArrangements | null;
-  return !!view && Array.isArray(view.venueBookings) && Array.isArray(view.equipment) && !!view.safety;
+  return (
+    !!view &&
+    Array.isArray(view.venueBookings) &&
+    Array.isArray(view.equipment) &&
+    !!view.safety
+  );
 }
 
-export async function fetchArrangementsStatus(eventId: string): Promise<ArrangementsStatus> {
+export async function fetchArrangementsStatus(
+  eventId: string,
+): Promise<ArrangementsStatus> {
   const view = await api<unknown>(`/events/${eventId}/arrangements-status`);
-  if (!isArrangementsStatus(view)) throw new Error("Arrangements could not be read.");
+  if (!isArrangementsStatus(view))
+    throw new Error("Arrangements could not be read.");
   return view;
 }
 
@@ -123,15 +147,21 @@ export function confirmEvent(eventId: string) {
 }
 
 export function confirmNoEquipment(eventId: string) {
-  return api<{ eventId: string; equipmentConfirmedAt: string }>(`/events/${eventId}/confirm-no-equipment`, {
-    method: "POST",
-  });
+  return api<{ eventId: string; equipmentConfirmedAt: string }>(
+    `/events/${eventId}/confirm-no-equipment`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function requestSafetyCheck(eventId: string) {
-  return api<{ eventId: string; status: string; requestedDate: string }>(`/events/${eventId}/safety-check/request`, {
-    method: "POST",
-  });
+  return api<{ eventId: string; status: string; requestedDate: string }>(
+    `/events/${eventId}/safety-check/request`,
+    {
+      method: "POST",
+    },
+  );
 }
 
 export function resolveFeedbackItem(eventId: string, feedbackId: string) {
@@ -148,11 +178,17 @@ export function removeVenueRequest(eventId: string, venueRequestId: string) {
   );
 }
 
-export function removeEquipmentRequest(eventId: string, equipmentReservationId: string) {
-  return api<{ eventId: string; equipmentReservationId: string; removed: boolean }>(
-    `/events/${eventId}/equipment-reservations/${equipmentReservationId}`,
-    { method: "DELETE" },
-  );
+export function removeEquipmentRequest(
+  eventId: string,
+  equipmentReservationId: string,
+) {
+  return api<{
+    eventId: string;
+    equipmentReservationId: string;
+    removed: boolean;
+  }>(`/events/${eventId}/equipment-reservations/${equipmentReservationId}`, {
+    method: "DELETE",
+  });
 }
 
 export function unresolveFeedbackItem(eventId: string, feedbackId: string) {
@@ -162,8 +198,11 @@ export function unresolveFeedbackItem(eventId: string, feedbackId: string) {
   );
 }
 
-export async function fetchConfirmedArrangements(eventId: string): Promise<ConfirmedArrangements> {
+export async function fetchConfirmedArrangements(
+  eventId: string,
+): Promise<ConfirmedArrangements> {
   const view = await api<unknown>(`/events/${eventId}/confirmed-arrangements`);
-  if (!isConfirmedArrangements(view)) throw new Error("Confirmed arrangements could not be read.");
+  if (!isConfirmedArrangements(view))
+    throw new Error("Confirmed arrangements could not be read.");
   return view;
 }

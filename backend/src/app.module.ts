@@ -7,6 +7,8 @@ import {
 import { EventsController } from './events/events.controller.js';
 import { EventRejectionsController } from './events/review/event-rejections.controller.js';
 import { EventsService } from './events/events.service.js';
+import { CoordinatorQueueController } from './events/queue/coordinator-queue.controller.js';
+import { CoordinatorQueueService } from './events/queue/coordinator-queue.service.js';
 import { EventPlanningController } from './events/planning/event-planning.controller.js';
 import { EventPlanningRepository } from './events/planning/event-planning.repository.js';
 import { EventPlanningService } from './events/planning/event-planning.service.js';
@@ -28,6 +30,9 @@ import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
 import { EquipmentController } from './equipment/equipment.controller.js';
 import { EquipmentService } from './equipment/equipment.service.js';
+import { EquipmentRequestsController } from './equipment/requests/equipment-requests.controller.js';
+import { EquipmentRequestsRepository } from './equipment/requests/equipment-requests.repository.js';
+import { EquipmentRequestsService } from './equipment/requests/equipment-requests.service.js';
 import { CoordinatorAvailabilityController } from './coordinator-availability/coordinator-availability.controller.js';
 import { CoordinatorAvailabilityService } from './coordinator-availability/coordinator-availability.service.js';
 import { VenuesController } from './venues/venues.controller.js';
@@ -46,12 +51,14 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
   controllers: [
     AppController,
     EventsController,
+    CoordinatorQueueController,
     EventRejectionsController,
     EventPlanningController,
     ChangeRequestsController,
     DraftsController,
     RegistrationsController,
     EquipmentController,
+    EquipmentRequestsController,
     CoordinatorAvailabilityController,
     LeadAssignmentController,
     StatusController,
@@ -59,10 +66,13 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
   providers: [
     AppService,
     EventsService,
+    CoordinatorQueueService,
     DraftsService,
     RegistrationsService,
     ExportService,
     EquipmentService,
+    EquipmentRequestsRepository,
+    EquipmentRequestsService,
     CoordinatorAvailabilityService,
     LeadAssignmentService,
     EventPlanningService,
@@ -86,6 +96,7 @@ export class AppModule implements NestModule {
       .forRoutes(
         { path: 'api/auth/me', method: RequestMethod.GET },
         EventsController,
+        CoordinatorQueueController,
         EventRejectionsController,
         EventPlanningController,
         EventPlanningService,
@@ -94,6 +105,7 @@ export class AppModule implements NestModule {
         DraftsController,
         RegistrationsController,
         EquipmentController,
+        EquipmentRequestsController,
         VenuesController,
         ClarificationsController,
         CoordinatorAvailabilityController,

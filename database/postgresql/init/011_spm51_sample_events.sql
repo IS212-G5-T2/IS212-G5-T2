@@ -24,7 +24,7 @@ FROM (VALUES
         'Small classroom workshop', 'Hands-on learning',
         'Short weekday workshop with a small group.', 14, '09:00'::time,
         14, '10:30'::time, 24, 'Classroom', ARRAY['Projector']::text[],
-        ARRAY[]::text[], 'Projector and whiteboard markers.', false, 'Confirmed',
+        ARRAY[]::text[], 'Projector and whiteboard markers.', false, 'Approved',
         'organiser1@connectsphere.test'
     ),
     (
@@ -33,7 +33,7 @@ FROM (VALUES
         'Medium-length seminar with hybrid presentation equipment.', 21,
         '10:00'::time, 21, '13:00'::time, 80, 'Theatre',
         ARRAY['AV System', 'Wi-Fi']::text[],
-        ARRAY['Wheelchair ramps', 'Accessible restrooms']::text[],
+        ARRAY['Wheelchair access', 'Accessible restrooms']::text[],
         'Two microphones, camera, and presentation screen.', true, 'Approved',
         'organiser2@connectsphere.test'
     ),
@@ -44,7 +44,7 @@ FROM (VALUES
         '08:00'::time, 28, '17:00'::time, 320, 'Exhibition',
         ARRAY['Power outlets', 'Wi-Fi', 'AV System']::text[],
         ARRAY['Step-free access', 'Accessible restrooms']::text[],
-        'Display tables, extension cables, and two screens.', true, 'Confirmed',
+        'Display tables, extension cables, and two screens.', true, 'Approved',
         'organiser3@connectsphere.test'
     ),
     (
@@ -54,7 +54,7 @@ FROM (VALUES
         '18:30'::time, 35, '22:00'::time, 145, 'Cocktail',
         ARRAY['Catering', 'AV System']::text[],
         ARRAY['Quiet room', 'Accessible restrooms']::text[],
-        'Wireless microphone and portable speaker.', true, 'Confirmed',
+        'Wireless microphone and portable speaker.', true, 'Approved',
         'organiser1@connectsphere.test'
     ),
     (
@@ -124,3 +124,12 @@ FROM (VALUES
 JOIN users organiser ON organiser.email = sample.organiser_email
 JOIN users coordinator ON coordinator.email = 'coordinator2@connectsphere.test'
 ON CONFLICT (id) DO NOTHING;
+
+-- Keep the SPM-51 accessibility sample on canonical feature labels. This event
+-- (80 attendees, Theatre, AV System + Wi-Fi) matches Orchid Hall (120), Birch
+-- Lecture Hall (180), and Meadow Conference Centre (320); all provide both
+-- required accessibility labels and have no sample availability blocks/bookings.
+UPDATE events
+SET accessibility_needs = ARRAY['Wheelchair access', 'Accessible restrooms']::text[]
+WHERE id = '00000000-0000-4000-8000-000000000202'::uuid
+  AND event_name = 'Accessible hybrid seminar';

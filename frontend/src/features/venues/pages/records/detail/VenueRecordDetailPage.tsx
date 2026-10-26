@@ -19,6 +19,19 @@ import {
 import { sgtLocalDateTimeToDate } from "@/utils/sgtDate";
 import { VenueScheduleCalendar } from "./VenueScheduleCalendar";
 
+type CoordinatorVenueBooking = {
+  id: string;
+  eventId: string;
+  eventName: string;
+  venueId: string;
+  venueName: string;
+  start: string;
+  end: string;
+  status: string;
+  specialRequest?: string;
+  bookingReference: string;
+};
+
 function toSgtDateTimeLocal(value: string): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Singapore",
@@ -29,7 +42,8 @@ function toSgtDateTimeLocal(value: string): string {
     minute: "2-digit",
     hourCycle: "h23",
   }).formatToParts(new Date(value));
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  const part = (type: string) =>
+    parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
 }
 
@@ -39,6 +53,25 @@ export function getVenueDetailErrorMessage(
   venue: VenueRecord | undefined,
 ): string {
   return error || (!venue ? "Venue not found." : "");
+}
+
+/** Returns only failed suitability checks; equality at capacity is suitable. */
+export function getVenueSuitabilityMismatches(
+  venue: VenueRecord,
+  event: EventRecord,
+): string[] {
+  const needs = event.venueRequirements;
+  return [
+    ...needs.facilities
+      .filter((item) => !venue.facilities.includes(item))
+      .map((item) => `Missing facility: ${item}.`),
+    ...needs.accessibility
+      .filter((item) => !venue.accessibility.includes(item))
+      .map((item) => `Missing accessibility feature: ${item}.`),
+    ...(needs.layout && !venue.layouts.includes(needs.layout)
+      ? [`Required layout unavailable: ${needs.layout}.`]
+      : []),
+  ];
 }
 
 export function VenueRecordDetailPage() {
@@ -52,34 +85,67 @@ export function VenueRecordDetailPage() {
   const displayedVenueId = useRef<string | undefined>(undefined);
   const user = useAppStore((state) => state.currentUser);
   const events = useAppStore((state) => state.events);
+  const canCoordinate = Boolean(user && hasRole(user, "coordinator"));
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
-  const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [view, setView] = useState<"calendar" | "list">(() =>
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 639px)").matches
+      ? "list"
+      : "calendar",
+  );
   const [calendarDate, setCalendarDate] = useState("");
   const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
-  const [reviewingRequest, setReviewingRequest] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [requestedEventRevision, setRequestedEventRevision] = useState(0);
   const [requestedEventLoading, setRequestedEventLoading] = useState(false);
   const [requestedEventError, setRequestedEventError] = useState("");
-  const [selectedEventId, setSelectedEventId] = useState(requestedEventId);
   const prefilledEventId = useRef("");
-  const selectedRequestEvent = events.find(
-    (event) => event.id === (selectedEventId || requestedEventId),
-  ) ?? (requestedEventId ? undefined : events[0]);
+  const selectedRequestEvent = requestedEventId
+    ? events.find((event) => event.id === requestedEventId)
+    : undefined;
+  const bookingMode = Boolean(
+    canCoordinate &&
+    requestedEventId &&
+    selectedRequestEvent &&
+    !requestedEventLoading &&
+    !requestedEventError,
+  );
   const [requestError, setRequestError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [bookingReference, setBookingReference] = useState("");
+  const [specialRequest, setSpecialRequest] = useState("");
+  const [eventVenueBooking, setEventVenueBooking] =
+    useState<CoordinatorVenueBooking>();
+  const [bookingSummaryLoading, setBookingSummaryLoading] = useState(false);
+  const [bookingSummaryError, setBookingSummaryError] = useState("");
+  const [cancelPrompt, setCancelPrompt] = useState(false);
+  const [cancelNeedsLastWarning, setCancelNeedsLastWarning] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const activeEventVenueBooking =
+    eventVenueBooking &&
+    (eventVenueBooking.status === "pending" ||
+      eventVenueBooking.status === "approved")
+      ? eventVenueBooking
+      : undefined;
   const [movedToPlanning, setMovedToPlanning] = useState("");
   const [checking, setChecking] = useState(false);
   const validRange =
     Number.isFinite(parseRequestTime(start)) &&
     Number.isFinite(parseRequestTime(end)) &&
     parseRequestTime(start) < parseRequestTime(end);
+  const suitabilityMismatches =
+    bookingMode && validRange && venue && selectedRequestEvent
+      ? getVenueSuitabilityMismatches(venue, selectedRequestEvent)
+      : [];
   const activeReservations = useMemo(
-    () => (venue?.reservations ?? []).filter(
-      (reservation) => reservation.status === "booked" || Date.parse(reservation.holdExpiresAt) > availabilityNow,
-    ),
+    () =>
+      (venue?.reservations ?? []).filter(
+        (reservation) =>
+          reservation.status === "booked" ||
+          Date.parse(reservation.holdExpiresAt) > availabilityNow,
+      ),
     [venue, availabilityNow],
   );
   const scheduleVenue = useMemo(
@@ -87,7 +153,8 @@ export function VenueRecordDetailPage() {
     [venue, activeReservations],
   );
   const conflicts = useMemo(
-    () => (scheduleVenue ? checkVenueAvailability(scheduleVenue, start, end) : []),
+    () =>
+      scheduleVenue ? checkVenueAvailability(scheduleVenue, start, end) : [],
     [scheduleVenue, start, end],
   );
   const scheduleItems = useMemo(() => {
@@ -107,19 +174,22 @@ export function VenueRecordDetailPage() {
         detail: `${item.eventName}${item.holdExpiresAt ? ` · hold expires ${formatVenueInstant(item.holdExpiresAt)}` : ""}`,
       })),
     ];
-    if (validRange) items.push({
-      title: "Selected event time",
-      start: sgtLocalDateTimeToDate(start).toISOString(),
-      end: sgtLocalDateTimeToDate(end).toISOString(),
-      detail: "Requested event time · check availability to confirm.",
-    });
+    if (validRange)
+      items.push({
+        title: "Selected event time",
+        start: sgtLocalDateTimeToDate(start).toISOString(),
+        end: sgtLocalDateTimeToDate(end).toISOString(),
+        detail: "Requested event time · check availability to confirm.",
+      });
     if (validRange)
       items.push(
-        ...getFreeVenueIntervals(scheduleVenue!, start, end).map((interval) => ({
-          title: "Available slot",
-          ...interval,
-          detail: "Available",
-        })),
+        ...getFreeVenueIntervals(scheduleVenue!, start, end).map(
+          (interval) => ({
+            title: "Available slot",
+            ...interval,
+            detail: "Available",
+          }),
+        ),
       );
     return items.sort(
       (left, right) => Date.parse(left.start) - Date.parse(right.start),
@@ -128,8 +198,90 @@ export function VenueRecordDetailPage() {
   const detailError = getVenueDetailErrorMessage(error, venue);
 
   useEffect(() => {
+    if (!canCoordinate || !requestedEventId || !venue?.id || !bookingMode) {
+      setEventVenueBooking(undefined);
+      setBookingSummaryLoading(false);
+      setBookingSummaryError("");
+      return;
+    }
+    let active = true;
+    setBookingSummaryLoading(true);
+    setBookingSummaryError("");
+    api<CoordinatorVenueBooking[]>("/venues/bookings/mine")
+      .then(
+        (rows) => {
+          if (active) {
+            setEventVenueBooking(
+              Array.isArray(rows)
+                ? rows.find(
+                    (row) =>
+                      row.eventId === requestedEventId &&
+                      row.venueId === venue.id &&
+                      (row.status === "pending" || row.status === "approved"),
+                  )
+                : undefined,
+            );
+            if (!Array.isArray(rows))
+              setBookingSummaryError(
+                "Unable to verify an existing request for this event and venue. Retry before submitting.",
+              );
+          }
+        },
+        () => {
+          if (active)
+            setBookingSummaryError(
+              "Unable to verify an existing request for this event and venue. Retry before submitting.",
+            );
+        },
+      )
+      .finally(() => {
+        if (active) setBookingSummaryLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision]);
+
+  async function cancelEventVenueBooking(confirmed = false) {
+    if (!eventVenueBooking) return;
+    setCancelling(true);
+    setRequestError("");
+    try {
+      await api(
+        `/venues/bookings/${encodeURIComponent(eventVenueBooking.id)}/cancel`,
+        {
+          method: "POST",
+          body: JSON.stringify({ confirmed }),
+        },
+      );
+      setEventVenueBooking({ ...eventVenueBooking, status: "cancelled" });
+      setCancelPrompt(false);
+      setCancelNeedsLastWarning(false);
+      setRevision((value) => value + 1);
+    } catch (failure) {
+      if (
+        failure instanceof ApiError &&
+        failure.code === "LAST_ACTIVE_VENUE_BOOKING"
+      )
+        setCancelNeedsLastWarning(true);
+      else
+        setRequestError(
+          failure instanceof Error
+            ? failure.message
+            : "Unable to cancel this booking.",
+        );
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  useEffect(() => {
     const nextExpiry = (venue?.reservations ?? [])
-      .flatMap((reservation) => reservation.status === "tentative" ? [Date.parse(reservation.holdExpiresAt)] : [])
+      .flatMap((reservation) =>
+        reservation.status === "tentative"
+          ? [Date.parse(reservation.holdExpiresAt)]
+          : [],
+      )
       .filter((expiry) => expiry > availabilityNow)
       .sort((left, right) => left - right)[0];
     if (!nextExpiry) return;
@@ -141,14 +293,20 @@ export function VenueRecordDetailPage() {
   }, [venue, availabilityNow]);
 
   useEffect(() => {
-    if (!requestedEventId) {
+    if (!requestedEventId || !canCoordinate) {
       setRequestedEventLoading(false);
       setRequestedEventError("");
+      setStart("");
+      setEnd("");
+      setSubmitted(false);
       return;
     }
 
-    setSelectedEventId(requestedEventId);
-    if (useAppStore.getState().events.some((event) => event.id === requestedEventId)) {
+    if (
+      useAppStore
+        .getState()
+        .events.some((event) => event.id === requestedEventId)
+    ) {
       setRequestedEventLoading(false);
       setRequestedEventError("");
       return;
@@ -157,43 +315,51 @@ export function VenueRecordDetailPage() {
     let active = true;
     setRequestedEventLoading(true);
     setRequestedEventError("");
-    api<EventRecord>(`/events/${encodeURIComponent(requestedEventId)}`).then(
-      (event) => {
-        if (active) {
-          useAppStore.setState((state) => ({
-            events: [event, ...state.events.filter((item) => item.id !== event.id)],
-          }));
-        }
-      },
-      (failure: unknown) => {
-        if (active) {
-          setRequestedEventError(
-            failure instanceof ApiError && failure.status === 404
-              ? "The selected event could not be found. Choose another event or return to the catalogue."
-              : "Unable to load the selected event. Try again to restore its time and attendance.",
-          );
-        }
-      },
-    ).finally(() => {
-      if (active) setRequestedEventLoading(false);
-    });
+    api<EventRecord>(`/events/${encodeURIComponent(requestedEventId)}`)
+      .then(
+        (event) => {
+          if (active) {
+            useAppStore.setState((state) => ({
+              events: [
+                event,
+                ...state.events.filter((item) => item.id !== event.id),
+              ],
+            }));
+          }
+        },
+        (failure: unknown) => {
+          if (active) {
+            setRequestedEventError(
+              failure instanceof ApiError && failure.status === 404
+                ? "This event is not available to your Coordinator account."
+                : "Unable to load this event for your Coordinator account. Retry to continue.",
+            );
+          }
+        },
+      )
+      .finally(() => {
+        if (active) setRequestedEventLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, [requestedEventId, requestedEventRevision]);
+  }, [requestedEventId, requestedEventRevision, canCoordinate]);
 
   useEffect(() => {
-    if (!requestedEventId || prefilledEventId.current === requestedEventId) return;
+    if (
+      !canCoordinate ||
+      !requestedEventId ||
+      prefilledEventId.current === requestedEventId
+    )
+      return;
     const event = events.find((item) => item.id === requestedEventId);
     if (!event) return;
     prefilledEventId.current = event.id;
-    setSelectedEventId(event.id);
     setStart(toSgtDateTimeLocal(event.startDateTime));
     setEnd(toSgtDateTimeLocal(event.endDateTime));
     setCalendarDate(toSgtDateTimeLocal(event.startDateTime).slice(0, 10));
-    setReviewingRequest(false);
     setSubmitted(false);
-  }, [requestedEventId, events]);
+  }, [canCoordinate, requestedEventId, events]);
 
   async function refreshAvailability() {
     // The coordinator-only form renders this action only for a loaded venue and valid range.
@@ -205,10 +371,8 @@ export function VenueRecordDetailPage() {
         `/venues/${encodeURIComponent(selectedVenueId)}`,
       );
       setVenue(fresh);
-      setReviewingRequest(false);
       setSubmitted(false);
     } catch (failure) {
-      setReviewingRequest(false);
       setRequestError(
         failure instanceof ApiError
           ? failure.message
@@ -228,21 +392,34 @@ export function VenueRecordDetailPage() {
     setRequestError("");
     try {
       const result = await api<{
+        id: string;
         bookingReference: string;
         eventStatus?: string;
         statusChanged?: boolean;
-      }>(
-        `/venues/${encodeURIComponent(selectedVenue.id)}/booking-requests`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            eventId,
-            start: sgtLocalDateTimeToDate(start).toISOString(),
-            end: sgtLocalDateTimeToDate(end).toISOString(),
-          }),
-        },
-      );
+      }>(`/venues/${encodeURIComponent(selectedVenue.id)}/booking-requests`, {
+        method: "POST",
+        body: JSON.stringify({
+          eventId,
+          start: sgtLocalDateTimeToDate(start).toISOString(),
+          end: sgtLocalDateTimeToDate(end).toISOString(),
+          ...(specialRequest.trim()
+            ? { specialRequest: specialRequest.trim() }
+            : {}),
+        }),
+      });
       setBookingReference(result.bookingReference);
+      setEventVenueBooking({
+        id: result.id,
+        eventId,
+        eventName: selectedRequestEvent!.name,
+        venueId: selectedVenue.id,
+        venueName: selectedVenue.name,
+        start: sgtLocalDateTimeToDate(start).toISOString(),
+        end: sgtLocalDateTimeToDate(end).toISOString(),
+        status: "pending",
+        specialRequest: specialRequest.trim() || undefined,
+        bookingReference: result.bookingReference,
+      });
       // SPM-148 AC1: the first request moved the event to Planning; reflect it without a reload.
       // SPM-148 PLAN-STATUS-01-A, 03-A: MSG-PL-01 and the store update only when the server reports the transition.
       if (result.statusChanged) {
@@ -258,7 +435,6 @@ export function VenueRecordDetailPage() {
       setSubmitted(true);
     } catch (failure) {
       setSubmitted(false);
-      setReviewingRequest(false);
       setRequestError(
         failure instanceof ApiError
           ? failure.message
@@ -339,160 +515,216 @@ export function VenueRecordDetailPage() {
             }
           >
             <Button variant="secondary">
-              {requestedEventId ? "Back to Search Venues" : "Back To Venue Records"}
+              {requestedEventId
+                ? "Back to Search Venues"
+                : "Back To Venue Records"}
             </Button>
           </Link>
         }
       />
-      {hasRole(user, "coordinator") && (
+      {user && (
         <Card className="mb-4">
           <CardHeader>
-            <h2 className="font-semibold">Venue availability</h2>
+            <h2 className="font-semibold">Venue schedule</h2>
           </CardHeader>
           <CardBody className="space-y-4">
             {requestedEventId && requestedEventLoading && (
               <p role="status">Loading the selected event…</p>
             )}
-            {requestedEventId && requestedEventError && (
+            {requestedEventId && canCoordinate && requestedEventError && (
               <div role="alert" className="flex items-center gap-3">
                 <p>{requestedEventError}</p>
                 <Button
                   variant="secondary"
-                  onClick={() => setRequestedEventRevision((revision) => revision + 1)}
+                  onClick={() =>
+                    setRequestedEventRevision((revision) => revision + 1)
+                  }
                 >
                   Retry event
                 </Button>
               </div>
             )}
-            <p className="text-sm">
-              Enter the event start and end time. Availability includes{" "}
-              {venue.setupTimeMinutes} minutes for setup and{" "}
-              {venue.turnaroundTimeMinutes} minutes for turnaround. Schedule
-              booking rows show event times; available gaps exclude those setup
-              and turnaround periods.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="text-sm">
-                Event starts
-                <input
-                  aria-label="Event starts"
-                  type="datetime-local"
-                  value={start}
-                  onChange={(event) => {
-                    setStart(event.target.value);
-                    if (event.target.value) setCalendarDate(event.target.value.slice(0, 10));
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
-                />
-              </label>
-              <label className="text-sm">
-                Event ends
-                <input
-                  aria-label="Event ends"
-                  type="datetime-local"
-                  value={end}
-                  onChange={(event) => {
-                    setEnd(event.target.value);
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
-                />
-              </label>
-            </div>
-            <div
-              className="flex flex-wrap gap-2"
-              role="group"
-              aria-label="Availability view"
-            >
-              <Button
-                variant={view === "calendar" ? "primary" : "secondary"}
-                onClick={() => setView("calendar")}
-              >
-                Calendar
-              </Button>
-              <Button
-                variant={view === "list" ? "primary" : "secondary"}
-                onClick={() => setView("list")}
-              >
-                List
-              </Button>
-            </div>
-            {activeReservations.length === 0 && venue.unavailablePeriods.length === 0 && (
-              <p className="mb-3 text-sm">No bookings, active holds or unavailable periods.</p>
-            )}
-            <div hidden={view !== "calendar"}>
-              <div role="region" aria-label="Venue schedule">
-                <VenueScheduleCalendar
-                  venue={scheduleVenue!}
-                  initialDate={calendarDate || (scheduleItems[0] ? toSgtDateTimeLocal(scheduleItems[0].start).slice(0, 10) : "")}
-                  selectedRange={validRange ? { start, end } : undefined}
-                  onSelectRange={(rangeStart, rangeEnd) => {
-                    const nextStart = toSgtDateTimeLocal(rangeStart.toISOString());
-                    const nextEnd = toSgtDateTimeLocal(rangeEnd.toISOString());
-                    setStart(nextStart);
-                    setEnd(nextEnd);
-                    setCalendarDate(nextStart.slice(0, 10));
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                  onClearSelection={() => {
-                    setStart("");
-                    setEnd("");
-                    setReviewingRequest(false);
-                    setSubmitted(false);
-                    setRequestError("");
-                  }}
-                />
-              </div>
-            </div>
-            <div hidden={view !== "list"}>
+            {bookingMode && selectedRequestEvent && (
               <>
-              <ul aria-label="Venue schedule" className="space-y-4">
-                {scheduleItems.length ? (
-                  Object.entries(
-                    scheduleItems.reduce<Record<string, typeof scheduleItems>>((groups, item) => {
-                      const date = toSgtDateTimeLocal(item.start).slice(0, 10);
-                      (groups[date] ??= []).push(item);
-                      return groups;
-                    }, {}),
-                  ).map(([date, items]) => (
-                    <li key={date}>
-                      <section aria-label={`Schedule for ${date}`}>
-                        <h3 className="mb-2 font-semibold">{new Intl.DateTimeFormat("en-SG", { timeZone: "Asia/Singapore", dateStyle: "full" }).format(new Date(`${date}T12:00:00+08:00`))}</h3>
-                        <ul className="grid gap-2 sm:grid-cols-2">
-                          {items.map((item, index) => (
-                            <li key={`${item.title}-${item.start}-${index}`} className="rounded-lg border bg-white p-3 text-sm shadow-sm dark:bg-gray-800">
-                            <strong>{item.title}</strong>
-                              <p>{formatVenueRange(item.start, item.end)}</p>
-                            <p>{item.detail}</p>
-                            </li>
-                          ))}
-                        </ul>
-                      </section>
-                    </li>
-                  ))
-                ) : (
-                  <li className="text-sm">No scheduled items for the selected range.</li>
+                <p className="text-sm" aria-label="Booking event context">
+                  Booking for <strong>{selectedRequestEvent.name}</strong>.
+                  Availability includes {venue.setupTimeMinutes} minutes for
+                  setup and {venue.turnaroundTimeMinutes} minutes for
+                  turnaround.
+                </p>
+                {bookingSummaryLoading && (
+                  <p role="status">Checking for an existing booking request…</p>
                 )}
-              </ul>
+                {bookingSummaryError && (
+                  <p role="alert">{bookingSummaryError}</p>
+                )}
+                {activeEventVenueBooking && (
+                  <section
+                    aria-label="Existing venue booking request"
+                    className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">
+                          Existing request for{" "}
+                          {activeEventVenueBooking.eventName}
+                        </h3>
+                        <p className="text-sm text-gray-600 dark:text-gray-300">
+                          Reference {activeEventVenueBooking.bookingReference} ·{" "}
+                          <span className="capitalize">
+                            {activeEventVenueBooking.status}
+                          </span>
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold capitalize text-amber-800 dark:bg-amber-900/50 dark:text-amber-200">
+                        {activeEventVenueBooking.status}
+                      </span>
+                    </div>
+                    <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                      <div>
+                        <dt className="font-medium">Venue</dt>
+                        <dd>{activeEventVenueBooking.venueName}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">
+                          Date and time (Singapore)
+                        </dt>
+                        <dd>
+                          {formatVenueRange(
+                            activeEventVenueBooking.start,
+                            activeEventVenueBooking.end,
+                          )}
+                        </dd>
+                      </div>
+                      {activeEventVenueBooking.specialRequest && (
+                        <div className="sm:col-span-2">
+                          <dt className="font-medium">Special request</dt>
+                          <dd>{activeEventVenueBooking.specialRequest}</dd>
+                        </div>
+                      )}
+                    </dl>
+                    {submitted && (
+                      <p role="status">
+                        Booking request submitted. Reference: {bookingReference}
+                        .
+                      </p>
+                    )}
+                    {submitted && movedToPlanning && (
+                      <p role="status">
+                        Venue booking request submitted. {movedToPlanning} is
+                        now in Planning.
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      className="rounded-md border border-red-300 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500 dark:border-red-800 dark:text-red-300"
+                      onClick={() => {
+                        setCancelNeedsLastWarning(false);
+                        setCancelPrompt(true);
+                      }}
+                    >
+                      Cancel booking
+                    </button>
+                  </section>
+                )}
+                {!bookingSummaryLoading &&
+                  !bookingSummaryError &&
+                  !activeEventVenueBooking && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="text-sm">
+                        Event starts
+                        <input
+                          aria-label="Event starts"
+                          type="datetime-local"
+                          value={start}
+                          readOnly
+                          aria-readonly="true"
+                          className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
+                        />
+                      </label>
+                      <label className="text-sm">
+                        Event ends
+                        <input
+                          aria-label="Event ends"
+                          type="datetime-local"
+                          value={end}
+                          readOnly
+                          aria-readonly="true"
+                          className="mt-1 block w-full rounded-md border border-gray-300 bg-white p-2 dark:bg-gray-800"
+                        />
+                      </label>
+                    </div>
+                  )}
               </>
-            </div>
-            <p className="text-xs text-gray-600 dark:text-gray-300">
-              Availability reflects the displayed schedule. You can refresh the schedule; submitting also checks again on the server.
-            </p>
-            <Button
-              disabled={!validRange || checking}
-              onClick={() => void refreshAvailability()}
-            >
-              {checking ? "Refreshing schedule…" : "Refresh schedule"}
-            </Button>
-            {validRange &&
+            )}
+            {bookingMode && (
+              <div className="flex flex-col gap-3 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Schedule availability may change. Refresh to check the latest
+                  schedule; we also verify again when you submit.
+                </p>
+                <Button
+                  disabled={!validRange || checking}
+                  onClick={() => void refreshAvailability()}
+                >
+                  {checking ? "Refreshing schedule…" : "Refresh schedule"}
+                </Button>
+              </div>
+            )}
+            {bookingMode && validRange && (
+              <div
+                aria-label="Venue suitability"
+                role={suitabilityMismatches.length ? "alert" : "status"}
+                className={`rounded-lg border p-4 ${
+                  suitabilityMismatches.length
+                    ? "border-warning-300 bg-warning-50 dark:border-warning-700 dark:bg-warning-900/20"
+                    : "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20"
+                }`}
+              >
+                <div className="mb-2 flex items-center gap-2">
+                  <span
+                    aria-hidden="true"
+                    className={`text-lg ${
+                      suitabilityMismatches.length
+                        ? "text-warning-600 dark:text-warning-400"
+                        : "text-green-700 dark:text-green-400"
+                    }`}
+                  >
+                    {suitabilityMismatches.length ? "⚠" : "✓"}
+                  </span>
+                  <strong>
+                    {suitabilityMismatches.length
+                      ? "Suitability needs review"
+                      : "Suitable for this event"}
+                  </strong>
+                </div>
+                {suitabilityMismatches.length ? (
+                  <ul className="space-y-1 pl-7 text-sm">
+                    {suitabilityMismatches.map((mismatch) => (
+                      <li key={mismatch}>
+                        <span
+                          aria-hidden="true"
+                          className="mr-2 text-warning-600 dark:text-warning-400"
+                        >
+                          ⚠
+                        </span>
+                        {mismatch}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="pl-7 text-sm text-gray-700 dark:text-gray-200">
+                    Capacity, facilities, accessibility, and room layout match
+                    this event.
+                  </p>
+                )}
+              </div>
+            )}
+            {bookingMode &&
+              !bookingSummaryLoading &&
+              !bookingSummaryError &&
+              !activeEventVenueBooking &&
+              validRange &&
               (conflicts.length ? (
                 <div role="alert">
                   <p>
@@ -514,104 +746,58 @@ export function VenueRecordDetailPage() {
               ) : (
                 <div>
                   <p role="status">This time is available for this venue.</p>
-                  {events.length ? (
-                    reviewingRequest ? (
-                      <section
-                        aria-label="Review booking request"
-                        className="space-y-3 rounded border p-4"
-                      >
-                        <h3 className="font-semibold">Review booking request</h3>
-                        <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                          <div>
-                            <dt>Venue</dt>
-                            <dd>{venue.name}</dd>
-                          </div>
-                          <div>
-                            <dt>Event</dt>
-                            <dd>{selectedRequestEvent?.name}</dd>
-                          </div>
-                          <div>
-                            <dt>Expected attendance</dt>
-                            <dd>{selectedRequestEvent?.expectedAttendance}</dd>
-                          </div>
-                          <div>
-                            <dt>Event period</dt>
-                            <dd>{formatVenueRange(start, end)}</dd>
-                          </div>
-                        </dl>
-                        <p className="text-sm">
-                          Submitting records a pending booking request for Venue Staff to review.
-                        </p>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="secondary"
-                            disabled={submitting || submitted}
-                            onClick={() => setReviewingRequest(false)}
-                          >
-                            Back to availability
-                          </Button>
-                          <Button
-                            disabled={submitting || submitted}
-                            onClick={() => void submitRequest()}
-                          >
-                            {submitting ? "Submitting…" : "Submit booking request"}
-                          </Button>
+                  {selectedRequestEvent && !activeEventVenueBooking && (
+                    <section
+                      aria-label="Review booking request"
+                      className="space-y-3 rounded border p-4"
+                    >
+                      <h3 className="font-semibold">
+                        Booking request for {selectedRequestEvent.name}
+                      </h3>
+                      <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                        <div>
+                          <dt>Venue</dt>
+                          <dd>{venue.name}</dd>
                         </div>
-                      </section>
-                    ) : (
-                      <div className="space-y-2">
-                        <label
-                          htmlFor="availability-event"
-                          className="block text-sm"
-                        >
-                          Event for booking request
-                        </label>
-                        <select
-                          id="availability-event"
-                          aria-label="Event for booking request"
-                          value={selectedRequestEvent?.id ?? ""}
-                          className="mt-1 block w-full rounded-md border p-2"
-                          onChange={(event) => {
-                            const nextEvent = events.find((item) => item.id === event.target.value);
-                            setSelectedEventId(event.target.value);
-                            if (nextEvent) {
-                              const nextStart = toSgtDateTimeLocal(nextEvent.startDateTime);
-                              const nextEnd = toSgtDateTimeLocal(nextEvent.endDateTime);
-                              if (nextStart !== start || nextEnd !== end) {
-                                setStart(nextStart);
-                                setEnd(nextEnd);
-                                setCalendarDate(nextStart.slice(0, 10));
-                                setReviewingRequest(false);
-                                setSubmitted(false);
-                              }
-                            }
-                            setReviewingRequest(false);
-                            setSubmitted(false);
-                          }}
-                        >
-                          {!selectedRequestEvent && <option value="">Choose an event…</option>}
-                          {events.map((event) => (
-                            <option key={event.id} value={event.id}>
-                              {event.name}
-                            </option>
-                          ))}
-                        </select>
-                        <Button
-                          disabled={!selectedRequestEvent}
-                          onClick={() => {
-                            setRequestError("");
-                            setReviewingRequest(true);
-                          }}
-                        >
-                          Continue to booking request
-                        </Button>
-                      </div>
-                    )
-                  ) : (
-                    <p>
-                      Choose an event in the venue catalogue to submit a booking
-                      request.
-                    </p>
+                        <div>
+                          <dt>Event</dt>
+                          <dd>{selectedRequestEvent.name}</dd>
+                        </div>
+                        <div>
+                          <dt>Expected attendance</dt>
+                          <dd>{selectedRequestEvent.expectedAttendance}</dd>
+                        </div>
+                        <div>
+                          <dt>Event period</dt>
+                          <dd>{formatVenueRange(start, end)}</dd>
+                        </div>
+                      </dl>
+                      <label
+                        className="block text-sm"
+                        htmlFor="booking-special-request"
+                      >
+                        Special requests (optional)
+                      </label>
+                      <textarea
+                        id="booking-special-request"
+                        maxLength={1000}
+                        value={specialRequest}
+                        onChange={(event) =>
+                          setSpecialRequest(event.target.value)
+                        }
+                        className="block w-full rounded-md border p-2"
+                      />
+                      <p className="text-sm">
+                        Submitting records a pending booking request for Venue
+                        Staff to review.
+                      </p>
+                      <Button
+                        disabled={submitting || submitted}
+                        onClick={() => void submitRequest()}
+                      >
+                        {submitting ? "Submitting…" : "Submit booking request"}
+                      </Button>
+                    </section>
                   )}
                   {submitted && (
                     <p role="status">
@@ -620,12 +806,151 @@ export function VenueRecordDetailPage() {
                   )}
                   {submitted && movedToPlanning && (
                     <p role="status">
-                      Venue booking request submitted. {movedToPlanning} is now in Planning.
+                      Venue booking request submitted. {movedToPlanning} is now
+                      in Planning.
                     </p>
                   )}
                 </div>
               ))}
             {requestError && <p role="alert">{requestError}</p>}
+            <div
+              className="flex flex-wrap gap-2"
+              role="group"
+              aria-label="Availability view"
+            >
+              <Button
+                variant={view === "calendar" ? "primary" : "secondary"}
+                onClick={() => setView("calendar")}
+              >
+                Calendar
+              </Button>
+              <Button
+                variant={view === "list" ? "primary" : "secondary"}
+                onClick={() => setView("list")}
+              >
+                List
+              </Button>
+            </div>
+            {activeReservations.length === 0 &&
+              venue.unavailablePeriods.length === 0 && (
+                <p className="mb-3 text-sm">
+                  No bookings, active holds or unavailable periods.
+                </p>
+              )}
+            <div hidden={view !== "calendar"}>
+              <div role="region" aria-label="Venue schedule">
+                <VenueScheduleCalendar
+                  venue={scheduleVenue!}
+                  initialDate={
+                    calendarDate ||
+                    (selectedRequestEvent
+                      ? toSgtDateTimeLocal(
+                          selectedRequestEvent.startDateTime,
+                        ).slice(0, 10)
+                      : toSgtDateTimeLocal(new Date().toISOString()).slice(
+                          0,
+                          10,
+                        ))
+                  }
+                  selectedRange={
+                    bookingMode && validRange ? { start, end } : undefined
+                  }
+                  onSelectRange={undefined}
+                  onClearSelection={undefined}
+                />
+              </div>
+            </div>
+            <div hidden={view !== "list"}>
+              <>
+                <ul aria-label="Venue schedule" className="space-y-4">
+                  {scheduleItems.length ? (
+                    Object.entries(
+                      scheduleItems.reduce<
+                        Record<string, typeof scheduleItems>
+                      >((groups, item) => {
+                        const date = toSgtDateTimeLocal(item.start).slice(
+                          0,
+                          10,
+                        );
+                        (groups[date] ??= []).push(item);
+                        return groups;
+                      }, {}),
+                    ).map(([date, items]) => (
+                      <li key={date}>
+                        <section aria-label={`Schedule for ${date}`}>
+                          <h3 className="mb-2 font-semibold">
+                            {new Intl.DateTimeFormat("en-SG", {
+                              timeZone: "Asia/Singapore",
+                              dateStyle: "full",
+                            }).format(new Date(`${date}T12:00:00+08:00`))}
+                          </h3>
+                          <ul className="grid gap-2 sm:grid-cols-2">
+                            {items.map((item, index) => (
+                              <li
+                                key={`${item.title}-${item.start}-${index}`}
+                                className="rounded-lg border bg-white p-3 text-sm shadow-sm dark:bg-gray-800"
+                              >
+                                <strong>{item.title}</strong>
+                                <p>{formatVenueRange(item.start, item.end)}</p>
+                                <p>{item.detail}</p>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-sm">
+                      No scheduled items for the selected range.
+                    </li>
+                  )}
+                </ul>
+              </>
+            </div>
+            {cancelPrompt && eventVenueBooking && (
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-labelledby="venue-booking-cancel-title"
+                className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
+              >
+                <section className="w-full max-w-md rounded-lg bg-white p-4 text-gray-900 shadow-xl dark:bg-gray-800 dark:text-gray-100 sm:p-6 sm:dark:bg-gray-800 sm:dark:text-gray-100">
+                  <h2 id="venue-booking-cancel-title" className="font-semibold">
+                    {cancelNeedsLastWarning
+                      ? "Cancel the last active venue booking?"
+                      : "Cancel this venue booking?"}
+                  </h2>
+                  <p className="mt-2 text-sm">
+                    {cancelNeedsLastWarning
+                      ? "This event will have no pending or approved venue booking. You can search for a replacement afterwards."
+                      : `Cancel the request for ${eventVenueBooking.venueName}? Its history will remain visible as Cancelled.`}
+                  </p>
+                  <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                    <button
+                      type="button"
+                      className="w-full rounded-md border px-3 py-2 sm:w-auto"
+                      disabled={cancelling}
+                      onClick={() => {
+                        setCancelPrompt(false);
+                        setCancelNeedsLastWarning(false);
+                      }}
+                    >
+                      Keep booking
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-md bg-red-700 px-3 py-2 font-medium text-white disabled:opacity-60 sm:w-auto"
+                      disabled={cancelling}
+                      onClick={() =>
+                        void cancelEventVenueBooking(cancelNeedsLastWarning)
+                      }
+                    >
+                      {cancelling ? "Cancelling…" : "Confirm cancellation"}
+                    </button>
+                  </div>
+                </section>
+              </div>
+            )}
           </CardBody>
         </Card>
       )}

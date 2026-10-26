@@ -18,6 +18,9 @@ import type {
 
 let idCounter = 1000;
 let authRevision = 0;
+
+/** The event list's starting filters (upcoming events, All statuses); restored for every new session. */
+const DEFAULT_EVENT_LIST_FILTERS = { attendee: "upcoming", status: null } as const;
 const GET_RETRY_DELAYS_MS = [500, 1000, 2000];
 
 /** GETs are idempotent, so transient failures are retried with exponential backoff (D14). */
@@ -52,7 +55,8 @@ interface AppState {
   events: EventRecord[];
   /**
    * The event list's chosen filters, kept here so they survive leaving the list (opening an event) and coming back.
-   * `status` is null until the user picks one, so the role default (coordinators: Submitted) still applies.
+   * `status` is null until the user picks one, which shows All statuses (SPM-48). Reset at every login and logout, so the
+   * next user on the same browser starts from the defaults.
    */
   eventListFilters: { attendee: string; status: string | null };
   setEventListFilters: (patch: Partial<AppState["eventListFilters"]>) => void;
@@ -108,7 +112,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   authLoading: true,
   events: [],
-  eventListFilters: { attendee: "upcoming", status: null },
+  eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },
   setEventListFilters: (patch) => set((s) => ({ eventListFilters: { ...s.eventListFilters, ...patch } })),
   venues: [],
   createVenue: async (venue) => {
@@ -461,7 +465,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     authRevision += 1;
     try {
       const user = await login(email.trim(), password);
-      set({ currentUser: user, isAuthenticated: true, authLoading: false });
+      // A new session never inherits the previous user's event list filters (SPM-48 review).
+      set({ currentUser: user, isAuthenticated: true, authLoading: false, eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS } });
       return { success: true };
     } catch (error) {
       const message = error instanceof AuthError
@@ -477,7 +482,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       await logout();
     } finally {
       // SPM-94 AC4 / 04-B C: nothing from the previous session survives logout.
-      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER, events: [] });
+      set({
+        isAuthenticated: false,
+        authLoading: false,
+        currentUser: PLACEHOLDER_USER,
+        events: [],
+        eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },
+      });
     }
   },
 

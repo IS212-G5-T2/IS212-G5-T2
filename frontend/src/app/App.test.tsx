@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests } from "@/features/equipment/api/equipment-requests-api";
 import App from "./App";
 import { useAppStore } from "@/store/useAppStore";
+
+vi.mock("@/features/equipment/api/equipment-requests-api", () => ({
+  getAssignedEvents: vi.fn(), getMyEquipmentRequests: vi.fn(),
+  getEquipmentRequestQueue: vi.fn(), submitEquipmentRequest: vi.fn(), updateEquipmentRequest: vi.fn(),
+}));
 
 describe("App venue creation route", () => {
   beforeEach(() => {
@@ -48,14 +54,16 @@ describe("App venue creation route", () => {
     );
 
     expect(screen.queryByRole("heading", { name: "Create Venue" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "Pending Requests" })).toBeTruthy();
+    // SPM-48 AC1: the coordinator's events page now opens on All statuses (decided 23 Oct 2026), headed "All Events".
+    expect(screen.getByRole("heading", { name: "All Events" })).toBeTruthy();
   });
 
   // SPM-50 / AC1 regression: venue creation routing preserves the app's role-aware root destinations.
   it.each([
     ["venue_staff", "Venue Catalogue"],
-    ["tech_support", "Equipment Requests"],
-    ["coordinator", "Pending Requests"],
+    ["tech_support", "Equipment Review Queue"],
+    // SPM-48 AC1: the coordinator lands on every assigned event (All statuses), headed "All Events".
+    ["coordinator", "All Events"],
   ] as const)("redirects %s from the root to %s", (role, destination) => {
     // Arrange a role-specific signed-in user at the root route.
     useAppStore.setState({
@@ -73,6 +81,33 @@ describe("App venue creation route", () => {
     );
     // Assert the existing role redirect remains reachable after route wiring changes.
     expect(screen.getByRole("heading", { name: destination })).toBeTruthy();
+  });
+});
+
+describe("SPM-54 venue availability workflow routing", () => {
+  /** SPM54-ROUTE-RETIRE-01: the user-confirmed disconnected local-store route is retired; event-linked Venue Records remains discoverable. */
+  it("SPM54-ROUTE-RETIRE-01 redirects the retired venue availability route to Venue Records", () => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "coordinator-1",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+    render(
+      <MemoryRouter initialEntries={["/venues/availability"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByRole("heading", { name: "Venue Availability" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Venue Availability" })).toBeNull();
+    expect(screen.getByRole("link", { name: "Venue Records" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Venue Catalogue" })).toBeTruthy();
   });
 });
 
@@ -176,5 +211,64 @@ describe("App equipment availability route", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
+  });
+});
+
+describe("App equipment request editor routes", () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "coordinator-1", name: "Coordinator", email: "coordinator@example.test", role: "coordinator" },
+      restoreAuthSession: vi.fn(),
+    });
+    vi.mocked(getAssignedEvents).mockResolvedValue([]);
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([]);
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([]);
+  });
+
+  /** EQUIP-REQUEST-05-A: after starting a request, the coordinator reaches the dedicated editor. */
+  it("routes coordinators to a dedicated create form page", async () => {
+    render(<MemoryRouter initialEntries={["/equipment/requests/create"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Create Equipment Request" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "My Equipment Requests" })).toBeNull();
+  });
+
+  /** EQUIP-REQUEST-10-A: the request-specific route renders the separate update editor. */
+  it("routes coordinators to a request-specific update form page", async () => {
+    vi.mocked(getMyEquipmentRequests).mockResolvedValue([{
+      id: "request-57", reference: "ER-12345678", eventId: "event-57", eventName: "Showcase",
+      eventStart: "2030-02-03T10:00:00.000Z", eventEnd: "2030-02-03T12:00:00.000Z", expectedAttendance: 120,
+      status: "Pending Review", eventStatus: "Planning", requestedBy: "coordinator-1", coordinatorName: "Coordinator",
+      createdAt: "2030-02-03T10:00:00.000Z", items: [{ id: "item-57", equipmentName: "Microphone", equipmentType: "Audio", quantity: 1 }],
+    }]);
+    vi.mocked(getAssignedEvents).mockResolvedValue([{
+      id: "event-57", name: "Showcase", status: "planning", startDateTime: "2030-02-03T10:00:00.000Z",
+      endDateTime: "2030-02-03T12:00:00.000Z", expectedAttendance: 120,
+    }]);
+    render(<MemoryRouter initialEntries={["/equipment/requests/request-57/update"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Update Equipment Request" })).toBeTruthy();
+    expect(screen.getByRole("textbox", { name: /Equipment name/ })).toHaveValue("Microphone");
+  });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: a user without coordinator authorization is kept out of request editors. */
+  it("keeps create and update editor routes restricted to coordinators", async () => {
+    useAppStore.setState({
+      currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },
+    });
+    render(<MemoryRouter initialEntries={["/equipment/requests/create"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
+  });
+
+  /** EQUIP-REQUEST-10-SUP-ACCESS: Technical Support remains on its own home route and never reaches coordinator equipment request editors. */
+  it("keeps Technical Support out of coordinator editors after the root redirect", async () => {
+    useAppStore.setState({
+      currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },
+    });
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Update Equipment Request" })).toBeNull();
   });
 });

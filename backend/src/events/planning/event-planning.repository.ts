@@ -27,7 +27,10 @@ import {
   type BookingImpact,
   type NeighbourBooking,
 } from './helpers/event-impact.js';
-import type { EventFieldKey, EventUpdatePatch } from './dto/event-update-input.js';
+import type {
+  EventFieldKey,
+  EventUpdatePatch,
+} from './dto/event-update-input.js';
 import { VENUE_SUMMARY_SQL } from '../venue-summary.js';
 
 /** Flat, camel-cased event row used by the planning service. */
@@ -194,7 +197,10 @@ export class EventPlanningRepository {
 
   /** Whether a safety check (any status) exists; applying event details resets it (database trigger). */
   async safetyCheckExists(eventId: string): Promise<boolean> {
-    const result = await this.db().query('SELECT 1 FROM event_safety_checks WHERE event_id = $1', [eventId]);
+    const result = await this.db().query(
+      'SELECT 1 FROM event_safety_checks WHERE event_id = $1',
+      [eventId],
+    );
     return result.rows.length > 0;
   }
 
@@ -227,6 +233,13 @@ export class EventPlanningRepository {
       `SELECT b.id, b.venue_id, v.name AS venue_name, v.capacity AS venue_capacity,
               b.start_at, b.end_at, b.created_at,
               CASE
+                WHEN b.status = 'approved' AND EXISTS (
+                  SELECT 1 FROM venue_bookings blockout
+                   WHERE blockout.venue_id = b.venue_id
+                     AND blockout.status = 'blocked'
+                     AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)
+                     AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)
+                ) THEN 'Unavailable'
                 WHEN b.status = 'approved' THEN 'Booked'
                 WHEN b.status = 'pending' AND b.hold_expires_at > now() THEN 'Booked'
                 WHEN b.status = 'rejected' THEN 'Unavailable'
@@ -341,8 +354,14 @@ export class EventPlanningRepository {
       `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
       values,
     );
-    const venue = await this.db().query(`SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`, [eventId]);
-    return this.eventRow({ ...result.rows[0], venue_summary: venue.rows[0]?.venue_summary });
+    const venue = await this.db().query(
+      `SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`,
+      [eventId],
+    );
+    return this.eventRow({
+      ...result.rows[0],
+      venue_summary: venue.rows[0]?.venue_summary,
+    });
   }
 
   async createFlaggedChange(

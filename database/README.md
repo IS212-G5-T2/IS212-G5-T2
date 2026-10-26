@@ -55,6 +55,8 @@ a fresh database: `001_schema.sql` creates the complete local schema and
 | `venue_images` | Optional one-to-one venue image metadata and data URL (maximum 5 MB). |
 | `accessibility_features` | Controlled accessibility choices for venues. |
 | `venue_accessibility` | Accessibility selections linked to each venue. |
+| `equipment_requests` | Coordinator equipment requests with a Pending Review lifecycle and event/requester foreign keys. |
+| `equipment_request_items` | Ordered required nonblank equipment name, type, and positive integer quantity for each request. |
 
 To check a standalone database after it starts, connect with the local defaults:
 
@@ -171,9 +173,15 @@ days and opening-time columns after the availability migration is installed.
 
 The SPM-138 waitlist adds `Waitlisted` and `Removed` statuses and the ordering columns to `event_registrations` in `017_spm138_waitlist.sql`. For an existing volume, apply `backend/migrations/011_spm138_waitlist.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent and keeps existing rows.
 
+The local SPM-54 manual suitability fixtures in `020_spm54_suitability_manual_variants.sql` add four single-mismatch venues, a capacity-24 boundary venue, and one accessibility-specific event clone. The script is idempotent. For an existing local database, apply it to the intended database with `psql -v ON_ERROR_STOP=1 -f database/postgresql/init/020_spm54_suitability_manual_variants.sql`; it does not alter the shared EVT-201 row.
+
 SPM-64 change requests add the `event_change_requests` table in `018_spm64_change_requests.sql` (one row per organiser request; at most one `Pending` per event). For an existing volume, apply `backend/migrations/012_spm64_change_requests.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
 SPM-65 change request review (`019_spm65_change_request_review.sql`) adds `recheck` (jsonb array) and `safety_check_reset` to `event_change_requests`, the `Closed` status (SPM-65 AC11: a pending request is closed automatically when its event is cancelled; one the organiser withdraws keeps `Withdrawn`), a check that a Denied request has a 10 to 500 character `decision_reason`, and the append-only `event_change_request_audit` table (one entry per request; an `UPDATE` raises). The audit table is not delete-protected: its entries are removed with their event or change request (`ON DELETE CASCADE`), and a direct `DELETE` is not blocked; the application itself never deletes them. For an existing volume, apply `backend/migrations/013_spm65_change_request_review.sql` once; it is idempotent.
+
+SPM-55 venue booking review (`021_spm55_booking_review.sql`) adds `venue_bookings.rejection_reason` (1–1000 characters, allowed only on `rejected` rows; `reason` stays reserved for blocked periods) and the append-only `booking_review_log` table, which records each approve or reject with its actor, action, timestamp, and rejection reason. Fresh volumes receive both from the init file; an existing volume needs this file applied once before the staff review endpoints are used.
+
+SPM-48 (`023_spm48_safety_rejected.sql`) adds `rejected` to the allowed `event_safety_checks.status` values so the coordinator queue can show a rejected safety arrangement (SPM-130 AC2 writes it). For an existing volume, apply `backend/migrations/023_spm48_safety_rejected.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff

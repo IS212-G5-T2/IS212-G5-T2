@@ -1,0 +1,186 @@
+{
+  "story": "SPM-54",
+  "title": "Submit a Venue Booking Request",
+  "note": "Implementation scope includes API, event/venue pages, booking management, and unit/e2e suites. PostgreSQL e2e and browser automation require a disposable database and remain environment-gated; Confluence manual procedures remain separately unexecuted. Reopened AC1 treats capacity and suitability mismatches as advisory; AC11 adds live role-specific capacity summaries to Event Information. backend/src/events/planning/event-planning.repository.spec.ts is executed as supporting coverage for existing SPM-65-owned helper paths measured in the newly scoped repository, including passthrough and conflict/rethrow branches. Its existing EVENT-FLAG test IDs remain outside SPM-54's G1/G3 traceability and records; the coverage-only titleMatch intentionally selects no SPM-65 case IDs.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/availability/dto/booking-request.spec.ts",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/src/venues/availability/booking-request.spec.ts",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/src/venues/venues.service.spec.ts",
+        "titleMatch": "SPM54-UI-MODE-01"
+      },
+      {
+        "glob": "backend/src/venues/venues.controller.spec.ts",
+        "titleMatch": "VEN-BKG-"
+      },
+      {
+        "glob": "backend/src/events/status/checklist.spec.ts",
+        "titleMatch": "VEN-BKG-09-A"
+      },
+      {
+        "glob": "backend/src/events/status/readiness.spec.ts",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/src/events/status/arrangements.reader.spec.ts",
+        "titleMatch": "VEN-BKG-09-A"
+      },
+      {
+        "glob": "backend/src/events/planning/event-planning.repository.spec.ts",
+        "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/venues-booking-requests.e2e-spec.ts",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "backend/test/events-planning.e2e-spec.ts",
+        "titleMatch": "VEN-BKG-11-VAR-1"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.calendar.test.tsx",
+        "titleMatch": "SPM54-UI-MODE-01"
+      },
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPanel.test.tsx",
+        "titleMatch": "VEN-BKG-(09-A|11-)"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.planning.test.tsx",
+        "titleMatch": "VEN-BKG-11-VAR-1"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "SPM-54"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "VEN-BKG-09-A"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/activeVenueRequests.test.ts",
+        "titleMatch": "VEN-BKG-09-A"
+      },
+      {
+        "glob": "frontend/src/app/App.test.tsx",
+        "titleMatch": "SPM54-ROUTE-RETIRE-01"
+      },
+      {
+        "glob": "frontend/src/components/layout/navConfig.test.ts",
+        "titleMatch": "SPM54-ROUTE-RETIRE-01"
+      },
+      {
+        "glob": "frontend/src/features/events/components/StatusLabels.test.tsx",
+        "titleMatch": "VEN-BKG-(08-A|09-A)"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/availability/dto/booking-request.ts",
+      "backend/src/venues/availability/booking-request.ts",
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/events/planning/event-planning.repository.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.controller.ts",
+      "backend/src/events/status/readiness.ts",
+      "backend/src/events/status/checklist.ts",
+      "backend/src/events/status/arrangements.reader.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx",
+      "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx",
+      "frontend/src/features/bookings/pages/requests/BookingsPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPanel.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/activeVenueRequests.ts",
+      "frontend/src/app/App.tsx",
+      "frontend/src/components/layout/navConfig.ts",
+      "frontend/src/features/events/components/StatusLabels.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": ["DATABASE_URL", "TEST_DATABASE_URL"]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm54",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm54.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm54.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm54",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm54.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm54.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

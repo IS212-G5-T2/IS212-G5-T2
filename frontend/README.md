@@ -53,7 +53,7 @@ List view shows the same schedule records as date-grouped cards. Free periods
 are based on bookings, active holds, unavailable periods, and setup/turnaround
 buffers; no venue operating-hours schedule is used.
 Coordinators can switch between the calendar and list schedule views, review booking/hold/blockout conflicts,
-and submit a booking request only when the requested range is clear. The check
+review capacity, facility, accessibility and layout suitability, add optional special requests, and submit a booking request only when suitability and the requested range are clear. My Bookings shows API-backed requests, supports cancelling one request with an explicit last-active-booking confirmation, and links affected/cancelled bookings to venue search for a replacement. The check
 includes the venue's configured setup and turnaround buffers; active holds show
 their expiry time and expired holds are omitted by the API. Submission posts to
 `POST /api/venues/:id/booking-requests`, which rechecks the live schedule and
@@ -67,7 +67,36 @@ from `database/postgresql/init/008_spm124_sample_venues.sql`.
 The Coordinator's existing venue-planning and booking view remains at `/venues`
 and `/venues/:id`, including for accounts that also hold the Venue Staff role.
 
+## Equipment requests (SPM-57)
+
+Coordinators use `/equipment/requests` to review submitted equipment requests.
+The prominent **Create Equipment Request** action opens `/equipment/requests/create`,
+where they can choose an assigned Approved, Planning, or Confirmed event and
+submit one or more items. The create form displays the event name, date, time,
+and expected attendance; item rows include required nonblank equipment name,
+type, and positive whole-number quantity. Equipment names are trimmed before
+submission. An event can have only one equipment request; after submission,
+changes must use the existing request. A successful submission returns to My
+Equipment Requests with an accessible confirmation dialog showing the request
+reference and Pending Review status; the dialog remains open until **OK** is
+clicked.
+Beside a Pending Review request, **Update Event** opens a separate, prefilled
+`/equipment/requests/:requestId/update` page. Saving replaces the request items
+in place and preserves its ID and reference. An update confirmation dialog
+shows that same reference and closes only when **OK** is clicked. Updates are unavailable after the
+event is Confirmed. Technical Support uses `/equipment/requests` for the Pending
+Review queue. The pages use the credentialed API client for
+`POST /api/equipment/requests`, `PUT /api/equipment/requests/:requestId`,
+`GET /api/equipment/requests`, `GET /api/equipment/requests/eligible-events`,
+and `GET /api/equipment/requests/review-queue`.
+
 No deployment command is configured for this repository.
+
+The event request form loads facility and accessibility labels and submitted
+values from `GET /api/venues/options`. The form shows loading, empty, and
+retryable error states and blocks progression while the options request is
+unresolved or has failed. Event submission values are validated against the
+same backend venue schemas.
 
 ## Testing
 
@@ -218,6 +247,7 @@ allowed while its end remains ahead.
 Periods display as separate cards with Active now or Scheduled labels. The form
 places date fields side by side on wider screens and stacks them on small screens;
 review, success, and error messages appear in separate panels.
+
 ## Equipment records
 
 Technical Support can create equipment records at `/equipment/create` and view
@@ -258,6 +288,10 @@ fetch/polling and CSV/PDF export hooks. Exports use the server's full report
 and filename, even when the modal view is filtered. Polling stops when the
 viewer leaves, changes events, or loses access. Release 1 has no waitlist.
 
+## Coordinator queue (SPM-48)
+
+A coordinator's events page is their queue: it reads `GET /api/coordinator/queue` (other roles keep `GET /api/events`) on every visit and on Retry, and opens on **All statuses**; the status filter offers All statuses and each of the seven statuses (Submitted shows the "Pending Requests" heading). Each status badge has its own colour and its text label (`src/components/ui/StatusBadge.tsx`). Queue cards show a **Needs action** marker (its reasons are visually hidden text that screen readers announce, and its hover title), the queue safety state (Awaiting Safety Officer Check, Safety Changes Requested, Safety Arrangement Rejected, Safety Check Reset: Re-request Needed, Safety Check Cleared) in place of the SPM-94 indicator, and venue notes: "Hold active: <venue>, expires <date time> SGT", "Hold expired: …" and "Venue unavailable – alternative arrangements needed: <venue>". A card whose venue became unavailable does not also show "Venue Reserved". The server decides every state; the client only labels it. The status filter resets to All statuses at every login and logout, so the next user on the same browser never inherits it. API client: `src/features/events/api/coordinator-queue-api.ts`; components: `src/features/events/components/QueueIndicators.tsx`; wording: `src/features/events/lib/queueLabels.ts`. The planning page labels a rejected safety check **Rejected** with **Re-Request Safety Check**. Tests: `EventListPage.queue.test.tsx`, `QueueIndicators.test.tsx`, `StatusBadge.test.tsx`.
+
 ## Event change requests (SPM-64)
 
 The owning organiser of a Submitted, Approved, Planning or Confirmed event that has not started sees **Request Change** on the event page. It opens `/events/:id/change-requests`, where the organiser changes any of description, date/time, expected attendance, room layout, facilities, accessibility (special requirements) and equipment, with an optional reason; the event name and organiser are shown read-only. Date inputs are Singapore time. After submitting, the page confirms the request and lists every request with its status (Pending review, Approved, Denied with the coordinator's reason, Withdrawn); a pending request can be withdrawn (if it was decided meanwhile, the page shows the server's message and refreshes the request). Past approval the form says that if the event has a safety check, approving the change will require a new one; each pending request shows that note when the event has a safety check. The event page shows the latest request's status, and My Events marks events with a pending request; if those cannot be loaded, My Events says so with a Retry button instead of silently showing no badges. The assigned coordinator sees the request status on the event page (SPM-65 turns a pending one into the review panel described below), and (SPM-65) the request in the Pending Change Requests section at the top of their events page, tagged **New** until they open its review; the change request notice is no longer repeated under Assignment Updates. The route allows organisers and coordinators and leaves ownership to the server (404 otherwise). API client: `src/features/events/api/change-requests-api.ts`; rules: `src/features/events/lib/changeRequests.ts`; components: `src/features/events/pages/change-requests/`.
@@ -267,4 +301,3 @@ The owning organiser of a Submitted, Approved, Planning or Confirmed event that 
 The coordinator's events page starts with **Pending Change Requests** for their assigned events (above Assignment Updates), oldest first, a request they have not opened yet tagged **New** (from its unread SPM-64 change request notice; opening the review marks it read), (event, organiser, requested details, submitted time, "Review Change Request" linking to the event page), with "No pending change requests." when there are none; event cards carry the "Change requested: Pending" badge for coordinators too. On the event page, above Update Event Information and Changes Awaiting Review, a pending request shows as **Change Requested by Organiser** with the same review actions as the Change Requests page; after a decision the event reloads. The assigned coordinator sees each pending request's changes (value when requested → requested value; list fields as "+ added" / "− removed"; dates in Singapore time) with a read-only **Conflict check** (venue bookings, equipment reservations, registrations, or "No conflicts with existing bookings or registrations."). **Approve Change** stays disabled until the conflict check has loaded (if it fails, **Retry Conflict Check** loads it again; Deny is still available), then asks for confirmation (and says the safety check will be reset when one exists); **Deny Change** needs a reason of 10 to 500 characters. After a decision the page confirms it, says when the safety check was reset, and an approved request lists the **Arrangements to re-check**, each with **Mark As Re-checked** for the coordinator (read-only for the organiser). A pending request is closed automatically when the organiser withdraws it or the event is cancelled (AC11); if that (or another decision) happened while the coordinator had it open, the server's message is shown and the list reloads, so it can no longer be decided. Both the owner and the assigned coordinator see the **Audit Log**. Closed requests (event cancelled) show their reason; withdrawn ones show Withdrawn. The organiser's Request Decisions panel shows approvals and denials (with the reason) linking to the Change Requests page. Components: `ChangeRequestReview.tsx`, `RecheckList.tsx`, `ChangeRequestAuditLog.tsx` and `pages/list/PendingChangeRequests.tsx`.
 
 Planning values and the "Changes Awaiting Review" times are shown in Singapore time with am/pm (`formatSgtDateTime` in `src/utils/sgtDate.ts`); `npm run test:tz` covers these tests in three host time zones.
-

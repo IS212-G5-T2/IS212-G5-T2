@@ -6,7 +6,14 @@
  * icons, the prerequisites and the Request safety check gate follow the same
  * rule the backend enforces.
  */
-import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { Link } from "react-router-dom";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -26,7 +33,11 @@ import {
 import { EventInformationList } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
 import { SafetyCheckChangesNeeded } from "@/features/events/pages/detail/planning/SafetyCheckChangesNeeded";
-import { StateLabel, safetyLabel } from "@/features/events/components/StatusLabels";
+import { activeVenueRequests } from "@/features/events/pages/detail/planning/activeVenueRequests";
+import {
+  StateLabel,
+  safetyLabel,
+} from "@/features/events/components/StatusLabels";
 
 type TabKey = "event" | "venues" | "equipment";
 
@@ -44,19 +55,37 @@ interface Props {
 const ALERT =
   "rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300";
 
-function StatusIcon({ done, unavailable = false }: { done: boolean; unavailable?: boolean }) {
+function StatusIcon({
+  done,
+  unavailable = false,
+}: {
+  done: boolean;
+  unavailable?: boolean;
+}) {
   if (done)
     return (
-      <span role="img" aria-label="Complete" className="text-success-600 dark:text-success-400">
+      <span
+        role="img"
+        aria-label="Complete"
+        className="text-success-600 dark:text-success-400"
+      >
         ✓
       </span>
     );
   return unavailable ? (
-    <span role="img" aria-label="Unavailable" className="text-danger-600 dark:text-danger-400">
+    <span
+      role="img"
+      aria-label="Unavailable"
+      className="text-danger-600 dark:text-danger-400"
+    >
       ⚠
     </span>
   ) : (
-    <span role="img" aria-label="Action needed" className="text-warning-600 dark:text-warning-400">
+    <span
+      role="img"
+      aria-label="Action needed"
+      className="text-warning-600 dark:text-warning-400"
+    >
       ⚠
     </span>
   );
@@ -78,7 +107,9 @@ function StatusCard({
       <div className="flex items-start gap-3">
         <StatusIcon done={done} unavailable={unavailable} />
         <div className="space-y-1">
-          <h3 className="font-medium text-gray-900 dark:text-gray-100">{title}</h3>
+          <h3 className="font-medium text-gray-900 dark:text-gray-100">
+            {title}
+          </h3>
           {children}
         </div>
       </div>
@@ -92,36 +123,66 @@ const date = (iso?: string) => (iso ? formatDateTime(iso) : "");
 const BADGE: Record<RequestStatus, { label: string; className: string }> = {
   confirmed: {
     label: "Confirmed",
-    className: "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300",
+    className:
+      "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300",
   },
   pending: {
     label: "Pending",
-    className: "bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300",
+    className:
+      "bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300",
   },
   unavailable: {
     label: "Unavailable",
-    className: "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300",
+    className:
+      "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300",
   },
-  not_requested: { label: "Not requested", className: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300" },
+  cancelled: {
+    label: "Cancelled",
+    className:
+      "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300",
+  },
+  not_requested: {
+    label: "Not requested",
+    className: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  },
 };
 
 function RequestList({
   items,
   renderAction,
 }: {
-  items: Array<{ id: string; label: string; status: RequestStatus; requestedDate?: string }>;
-  renderAction?: (item: { id: string; label: string; status: RequestStatus }) => ReactNode;
+  items: Array<{
+    id: string;
+    label: string;
+    status: RequestStatus;
+    requestedDate?: string;
+  }>;
+  renderAction?: (item: {
+    id: string;
+    label: string;
+    status: RequestStatus;
+  }) => ReactNode;
 }) {
   return (
     <ul aria-label="Requests" className="mt-2 space-y-1">
       {items.map((item) => (
-        <li key={item.id} className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-          <StatusIcon done={item.status === "confirmed"} unavailable={item.status === "unavailable"} />
+        <li
+          key={item.id}
+          className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200"
+        >
+          <StatusIcon
+            done={item.status === "confirmed"}
+            unavailable={item.status === "unavailable"}
+          />
           <span>{item.label}</span>
-          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE[item.status].className}`}>
+          <span
+            className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE[item.status].className}`}
+          >
             {BADGE[item.status].label}
           </span>
-          {item.requestedDate && <span className={muted}>Requested {date(item.requestedDate)}</span>}
+          {item.requestedDate && (
+            <span className={muted}>Requested {date(item.requestedDate)}</span>
+          )}
           {renderAction?.(item)}
         </li>
       ))}
@@ -129,9 +190,11 @@ function RequestList({
   );
 }
 
-const LINK = "mt-2 inline-block text-sm font-medium text-primary-700 underline dark:text-primary-400";
+const LINK =
+  "mt-2 inline-block text-sm font-medium text-primary-700 underline dark:text-primary-400";
 
-const REMOVE_BUTTON = "rounded-md border px-2 py-0.5 text-xs font-medium disabled:opacity-50";
+const REMOVE_BUTTON =
+  "rounded-md border px-2 py-0.5 text-xs font-medium disabled:opacity-50";
 
 function RemoveRequestButton({
   label,
@@ -171,7 +234,12 @@ function RemoveRequestButton({
       >
         {busy ? "Removing…" : "Confirm Remove"}
       </button>
-      <button type="button" onClick={onCancel} disabled={busy} className={`${REMOVE_BUTTON} border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800`}>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={busy}
+        className={`${REMOVE_BUTTON} border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800`}
+      >
         Cancel
       </button>
     </span>
@@ -211,9 +279,18 @@ function VenueStatusCard({
   };
   const status = venue.status as "confirmed" | "pending" | "unavailable";
   return (
-    <StatusCard done={status === "confirmed"} unavailable={status === "unavailable"} title={titles[status]}>
+    <StatusCard
+      done={status === "confirmed"}
+      unavailable={status === "unavailable"}
+      title={titles[status]}
+    >
       <RequestList
-        items={venue.items.map((item) => ({ id: item.id, label: item.venueName, status: item.status, requestedDate: item.requestedDate }))}
+        items={activeVenueRequests(venue.items).map((item) => ({
+          id: item.id,
+          label: item.venueName,
+          status: item.status,
+          requestedDate: item.requestedDate,
+        }))}
         renderAction={(item) =>
           item.status === "unavailable" && (
             <RemoveRequestButton
@@ -257,7 +334,11 @@ function EquipmentStatusCard({
   onRemove: (equipmentReservationId: string) => void;
 }) {
   const checkboxId = useId();
-  if (equipment.status === "not_requested" && !equipment.required && equipment.confirmedByCoordinator)
+  if (
+    equipment.status === "not_requested" &&
+    !equipment.required &&
+    equipment.confirmedByCoordinator
+  )
     return (
       <StatusCard done title="No Equipment Required">
         <p className={muted}>
@@ -280,8 +361,17 @@ function EquipmentStatusCard({
           Request Equipment
         </Link>
         {!equipment.required && (
-          <label htmlFor={checkboxId} className="mt-3 flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200">
-            <input id={checkboxId} type="checkbox" checked={false} disabled={pending} onChange={onConfirmNone} />
+          <label
+            htmlFor={checkboxId}
+            className="mt-3 flex items-center gap-2 text-sm text-gray-800 dark:text-gray-200"
+          >
+            <input
+              id={checkboxId}
+              type="checkbox"
+              checked={false}
+              disabled={pending}
+              onChange={onConfirmNone}
+            />
             Confirm no equipment needed
           </label>
         )}
@@ -294,7 +384,11 @@ function EquipmentStatusCard({
   };
   const status = equipment.status as "confirmed" | "pending" | "unavailable";
   return (
-    <StatusCard done={status === "confirmed"} unavailable={status === "unavailable"} title={titles[status]}>
+    <StatusCard
+      done={status === "confirmed"}
+      unavailable={status === "unavailable"}
+      title={titles[status]}
+    >
       <RequestList
         items={equipment.items.map((item) => ({
           id: item.id,
@@ -338,7 +432,13 @@ function Prerequisite({ label, done }: { label: string; done: boolean }) {
   );
 }
 
-export function PlanningInformationPage({ view, status, onConfirmed, refreshError, people }: Props) {
+export function PlanningInformationPage({
+  view,
+  status,
+  onConfirmed,
+  refreshError,
+  people,
+}: Props) {
   const tabsId = useId();
   const [tab, setTab] = useState<TabKey>("event");
   const [checklist, setChecklist] = useState<PlanningChecklist | null>(null);
@@ -361,7 +461,11 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
       setLoadError("");
     } catch (error) {
       if (!aliveRef.current) return;
-      setLoadError(error instanceof Error ? error.message : "Could not load the planning checklist.");
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "Could not load the planning checklist.",
+      );
     }
   }, [eventId]);
 
@@ -369,7 +473,11 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
     aliveRef.current = true;
     load();
     const timer = setInterval(() => {
-      if (typeof document === "undefined" || document.visibilityState !== "hidden") load();
+      if (
+        typeof document === "undefined" ||
+        document.visibilityState !== "hidden"
+      )
+        load();
     }, PLANNING_REFRESH_MS);
     return () => {
       aliveRef.current = false;
@@ -386,7 +494,11 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
       await run();
       await load();
     } catch (error) {
-      setActionError(error instanceof ApiError || error instanceof Error ? error.message : failure);
+      setActionError(
+        error instanceof ApiError || error instanceof Error
+          ? error.message
+          : failure,
+      );
     } finally {
       if (aliveRef.current) setPending(false);
     }
@@ -394,15 +506,26 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
 
   const venueDone = checklist?.venue.status === "confirmed";
   const equipmentDone =
-    checklist?.equipment.status === "confirmed" || (!!checklist && checklist.equipment.confirmedByCoordinator);
+    checklist?.equipment.status === "confirmed" ||
+    (!!checklist && checklist.equipment.confirmedByCoordinator);
   const safety = checklist?.safetyCheck;
 
-  const tabs: Array<{ key: TabKey; label: string; done: boolean; unavailable: boolean }> = [
+  const tabs: Array<{
+    key: TabKey;
+    label: string;
+    done: boolean;
+    unavailable: boolean;
+  }> = [
     { key: "event", label: "Event Info", done: true, unavailable: false },
     // Each section is a tick only when every remaining request is confirmed; otherwise a yellow
     // caution (an unavailable request is cleared with "Remove From List").
     { key: "venues", label: "Venues", done: !!venueDone, unavailable: false },
-    { key: "equipment", label: "Equipment", done: !!equipmentDone, unavailable: checklist?.equipment.status === "unavailable" },
+    {
+      key: "equipment",
+      label: "Equipment",
+      done: !!equipmentDone,
+      unavailable: checklist?.equipment.status === "unavailable",
+    },
   ];
 
   // SPM-135: always offered while planning, greyed out with its reasons until every prerequisite is met.
@@ -412,15 +535,24 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
     <section aria-label="Planning information" className="mb-6 space-y-6">
       <Card>
         <CardHeader>
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Planning Information</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+            Planning Information
+          </h2>
         </CardHeader>
         <CardBody className="space-y-4">
           {refreshError && (
-            <p role="alert" className="text-xs text-danger-600 dark:text-danger-400">
+            <p
+              role="alert"
+              className="text-xs text-danger-600 dark:text-danger-400"
+            >
               {refreshError}
             </p>
           )}
-          <div role="tablist" aria-label="Planning sections" className="flex gap-1 border-b border-gray-200 dark:border-gray-700">
+          <div
+            role="tablist"
+            aria-label="Planning sections"
+            className="flex gap-1 border-b border-gray-200 dark:border-gray-700"
+          >
             {tabs.map((item) => (
               <button
                 key={item.key}
@@ -453,7 +585,10 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
             </p>
           )}
           {notice && (
-            <p role="status" className="text-sm text-success-700 dark:text-success-300">
+            <p
+              role="status"
+              className="text-sm text-success-700 dark:text-success-300"
+            >
               {notice}
             </p>
           )}
@@ -469,20 +604,26 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
             >
               {item.key === "event" && (
                 <div className="space-y-3">
-                  <EventInformationList view={view} />
+                  <EventInformationList view={view} coordinator />
                   {people && (
                     <div className="border-t border-gray-200 pt-3 dark:border-gray-700">
-                      <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">People</h4>
+                      <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+                        People
+                      </h4>
                       {people}
                     </div>
                   )}
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Last updated <time dateTime={view.lastUpdatedAt}>{formatDateTime(view.lastUpdatedAt)}</time>
+                    Last updated{" "}
+                    <time dateTime={view.lastUpdatedAt}>
+                      {formatDateTime(view.lastUpdatedAt)}
+                    </time>
                   </p>
                 </div>
               )}
               {item.key === "venues" &&
-                (checklist ? <VenueStatusCard
+                (checklist ? (
+                  <VenueStatusCard
                     venue={checklist.venue}
                     eventId={eventId}
                     busy={pending}
@@ -496,20 +637,31 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
                         setNotice("Venue removed from list");
                       }, "Could not remove the venue.")
                     }
-                  /> : <p className={muted}>Loading…</p>)}
+                  />
+                ) : (
+                  <p className={muted}>Loading…</p>
+                ))}
               {item.key === "equipment" &&
                 (checklist ? (
                   <EquipmentStatusCard
                     equipment={checklist.equipment}
                     pending={pending}
-                    onConfirmNone={() => act(() => confirmNoEquipment(eventId), "Could not confirm no equipment.")}
+                    onConfirmNone={() =>
+                      act(
+                        () => confirmNoEquipment(eventId),
+                        "Could not confirm no equipment.",
+                      )
+                    }
                     confirmingId={confirmingId}
                     onAskRemove={setConfirmingId}
                     onCancelRemove={() => setConfirmingId(null)}
                     onRemove={(equipmentReservationId) =>
                       act(async () => {
                         setConfirmingId(null);
-                        await removeEquipmentRequest(eventId, equipmentReservationId);
+                        await removeEquipmentRequest(
+                          eventId,
+                          equipmentReservationId,
+                        );
                         setNotice("Equipment removed from list");
                       }, "Could not remove the equipment.")
                     }
@@ -525,11 +677,16 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
       {planning && checklist && safety && (
         <Card id="safety-check">
           <CardHeader>
-            <h2 className="font-semibold text-gray-900 dark:text-gray-100">Operational Safety Check</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-gray-100">
+              Operational Safety Check
+            </h2>
           </CardHeader>
           <CardBody className="space-y-4">
             <ul aria-label="Safety check prerequisites" className="space-y-1">
-              <Prerequisite label="Venues" done={checklist.venue.status === "confirmed"} />
+              <Prerequisite
+                label="Venues"
+                done={checklist.venue.status === "confirmed"}
+              />
               <Prerequisite label="Equipment" done={!!equipmentDone} />
             </ul>
 
@@ -540,19 +697,31 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
                     role="status"
                     className="rounded-lg border border-warning-300 bg-warning-50 px-3 py-2 text-sm text-warning-900 dark:border-warning-700 dark:bg-warning-900/20 dark:text-warning-200"
                   >
-                    <span className="font-medium">Re-request needed.</span> {safety.resetReason}
-                    {safety.resetDate && <> on {date(safety.resetDate)}</>}, so the earlier safety check no longer applies.
+                    <span className="font-medium">Re-request needed.</span>{" "}
+                    {safety.resetReason}
+                    {safety.resetDate && <> on {date(safety.resetDate)}</>}, so
+                    the earlier safety check no longer applies.
                   </p>
                 )}
                 <Button
-                  onClick={() => act(() => requestSafetyCheck(eventId), "Could not request the safety check.")}
+                  onClick={() =>
+                    act(
+                      () => requestSafetyCheck(eventId),
+                      "Could not request the safety check.",
+                    )
+                  }
                   disabled={!checklist.canRequestSafetyCheck || pending}
                   aria-busy={pending}
                 >
-                  {safety.resetReason ? "Re-Request For Safety Check" : "Request For Safety Check"}
+                  {safety.resetReason
+                    ? "Re-Request For Safety Check"
+                    : "Request For Safety Check"}
                 </Button>
                 {!checklist.canRequestSafetyCheck && (
-                  <p className={muted}>Pending {checklist.blocking.join(" and ")} confirmation to proceed</p>
+                  <p className={muted}>
+                    Pending {checklist.blocking.join(" and ")} confirmation to
+                    proceed
+                  </p>
                 )}
               </div>
             )}
@@ -564,8 +733,8 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
                 Requested {date(safety.requestedDate)}
               </p>
             )}
-            {safety.status === "changes_needed" && (
-              Array.isArray(safety.feedback) && safety.feedback.length > 0 ? (
+            {safety.status === "changes_needed" &&
+              (Array.isArray(safety.feedback) && safety.feedback.length > 0 ? (
                 <SafetyCheckChangesNeeded
                   eventId={eventId}
                   feedback={safety.feedback}
@@ -582,14 +751,33 @@ export function PlanningInformationPage({ view, status, onConfirmed, refreshErro
                     </span>
                   </p>
                   <Button
-                    onClick={() => act(() => requestSafetyCheck(eventId), "Could not request the safety check.")}
+                    onClick={() =>
+                      act(
+                        () => requestSafetyCheck(eventId),
+                        "Could not request the safety check.",
+                      )
+                    }
                     disabled={!checklist.canRequestSafetyCheck || pending}
                     aria-busy={pending}
                   >
                     Re-Request Safety Check
                   </Button>
                 </div>
-              )
+              ))}
+            {/* SPM-48 AC7: a rejected arrangement can be revised and requested again (SPM-131 AC6). */}
+            {safety.status === "rejected" && (
+              <Button
+                onClick={() =>
+                  act(
+                    () => requestSafetyCheck(eventId),
+                    "Could not request the safety check.",
+                  )
+                }
+                disabled={!checklist.canRequestSafetyCheck || pending}
+                aria-busy={pending}
+              >
+                Re-Request Safety Check
+              </Button>
             )}
             {safety.status === "approved" && (
               <p className="flex flex-wrap items-center gap-2 text-sm text-gray-800 dark:text-gray-200">

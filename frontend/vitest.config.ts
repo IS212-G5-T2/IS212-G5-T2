@@ -13,7 +13,7 @@ export default mergeConfig(
       exclude: ["**/*.playwright.spec.ts"],
       coverage: {
         provider: "v8",
-        reporter: ["text", "json-summary", "html"],
+        reporter: ["text", "json-summary", "json", "html"],
         reportsDirectory: "./coverage",
         exclude: ["src/**/*.test.{ts,tsx}", "src/test/**"],
       },

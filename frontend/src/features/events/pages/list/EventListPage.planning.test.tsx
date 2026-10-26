@@ -1,7 +1,7 @@
 // Story: SPM-148 Event Status Changes from Approved to Planning
 // ACs: AC5
 // Test cases: PLAN-STATUS-05-A (FE)
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
@@ -164,6 +164,7 @@ describe("SPM-148 AC5: Planning events appear under the Planning filter", () => 
     );
 
     expect(await screen.findByText("Innovation Showcase")).toBeInTheDocument();
-    expect(screen.getByText("Planning", { selector: "span" })).toBeInTheDocument();
+    // The status filter's "Planning" checkbox is also a span, so the badge is read from the card itself.
+    expect(within(screen.getByText("Innovation Showcase").closest("a")!).getByText("Planning", { selector: "span" })).toBeInTheDocument();
   });
 });

@@ -3,8 +3,9 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { EventRecord } from "@/types";
 import { formatDateRange } from "@/utils/format";
-import { AssignmentIndicator, SafetyIndicator } from "@/features/events/components/StatusIndicators";
-import { StateLabel, cardArrangementLabels } from "@/features/events/components/StatusLabels";
+import { SafetyIndicator } from "@/features/events/components/StatusIndicators";
+import { StateLabel, cardArrangementLabels, type StateLabelInfo } from "@/features/events/components/StatusLabels";
+import { NeedsActionMarker, QueueSafetyLabel, QueueVenueNotes } from "@/features/events/components/QueueIndicators";
 
 /** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
 export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
@@ -20,6 +21,18 @@ interface EventCardProps {
   registrationStatus?: CardRegistrationStatus;
   /** SPM-64 AC5: the organiser has a change request awaiting the coordinator's review. */
   changeRequestPending?: boolean;
+}
+
+/**
+ * The SPM-94 arrangement labels, except that a queue card whose venue became unavailable (SPM-48 AC9) does not also
+ * claim the venue is reserved: "Venue Reserved" is dropped and the combined label keeps only "Equipment Reserved".
+ */
+function arrangementLabels(event: EventRecord): StateLabelInfo[] {
+  const labels = cardArrangementLabels(event);
+  if (!event.queue?.unavailableVenues.length) return labels;
+  return labels
+    .filter((l) => l.label !== "Venue Reserved")
+    .map((l) => (l.label === "Equipment & Venue Reserved" ? { ...l, label: "Equipment Reserved" } : l));
 }
 
 export function EventCard({ event, attendeeView = false, registrationStatus, changeRequestPending = false }: EventCardProps) {
@@ -41,11 +54,13 @@ export function EventCard({ event, attendeeView = false, registrationStatus, cha
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
               {showEventBadge && <StatusBadge status={event.status} />}
+              {/* SPM-48 AC5: the coordinator queue marks events that need action. */}
+              {event.queue && <NeedsActionMarker queue={event.queue} />}
               {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
-              {/* SPM-94 AC2/AC3: organiser-facing indicators; the attendee card never shows them. */}
-              {!attendeeView && <AssignmentIndicator event={event} />}
-              {!attendeeView && cardArrangementLabels(event).map((l) => <StateLabel key={`${l.tone}-${l.label}`} {...l} />)}
-              {!attendeeView && <SafetyIndicator event={event} />}
+              {/* SPM-94 AC3: organiser-facing indicators; the attendee card never shows them. */}
+              {!attendeeView && arrangementLabels(event).map((l) => <StateLabel key={`${l.tone}-${l.label}`} {...l} />)}
+              {/* SPM-48 AC6, AC7: a queue card shows the queue's safety state instead of the SPM-94 indicator. */}
+              {event.queue ? <QueueSafetyLabel queue={event.queue} /> : !attendeeView && <SafetyIndicator event={event} />}
               {changeRequestPending && (
                 <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
                   Change requested: Pending
@@ -58,6 +73,8 @@ export function EventCard({ event, attendeeView = false, registrationStatus, cha
               )}
             </div>
           </div>
+          {/* SPM-48 AC8, AC9: holds and unavailable venues, each naming the venue. */}
+          {event.queue && <QueueVenueNotes queue={event.queue} />}
           <dl className="mt-3 grid grid-cols-2 gap-2 text-xs text-gray-600 dark:text-gray-400 sm:grid-cols-4">
             <div className="min-w-0">
               <dt className="text-gray-400 dark:text-gray-500">When</dt>

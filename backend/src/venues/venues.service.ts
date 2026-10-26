@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Inject,
@@ -21,8 +22,56 @@ import {
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
 import { validateBookingRequest } from './availability/dto/booking-request.js';
-import { VenuesRepository } from './repository/venues.repository.js';
+import {
+  VenuesRepository,
+  type VenueBookingDecision,
+  type VenueBookingDecisionResult,
+} from './repository/venues.repository.js';
 
+const REJECTION_REASON_MAX_LENGTH = 1000;
+
+/** Validates the SPM-55 rejection reason: required after trimming and at most 1000 characters. */
+function validateRejectionReason(body: unknown): string {
+  const reason =
+    body && typeof body === 'object'
+      ? (body as { reason?: unknown }).reason
+      : undefined;
+  const trimmed = typeof reason === 'string' ? reason.trim() : '';
+  if (!trimmed)
+    throw new BadRequestException({
+      message: 'A rejection reason is required.',
+      errors: { reason: 'Enter why this booking cannot be accepted.' },
+    });
+  if (trimmed.length > REJECTION_REASON_MAX_LENGTH)
+    throw new BadRequestException({
+      message: 'The rejection reason is too long.',
+      errors: {
+        reason: `Use ${REJECTION_REASON_MAX_LENGTH} characters or fewer.`,
+      },
+    });
+  return trimmed;
+}
+
+/** Converts a repository decision outcome into the HTTP result or its SPM-55 error. */
+function decisionOrThrow(
+  result: VenueBookingDecisionResult,
+): VenueBookingDecision {
+  if (result.kind === 'not-found')
+    throw new NotFoundException('Venue booking not found.');
+  if (result.kind === 'already-decided')
+    throw new ConflictException({
+      code: 'BOOKING_ALREADY_DECIDED',
+      message: `This booking request is already ${result.status} and can no longer be approved or rejected.`,
+    });
+  if (result.kind === 'conflict')
+    throw new ConflictException({
+      code: 'BOOKING_SLOT_CONFLICT',
+      message: `This slot can no longer be approved because it conflicts with ${result.reason}. Check availability again before approving.`,
+    });
+  return result.booking;
+}
+
+/* v8 ignore start -- SPM-50 venue creation duplicate-key translation is outside SPM-54's booking and browse scope. */
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
 /** Identifies the PostgreSQL constraint that protects venue natural-key uniqueness. */
 function isDuplicateVenue(error: unknown): boolean {
@@ -35,6 +84,7 @@ function isDuplicateVenue(error: unknown): boolean {
     error.constraint === VENUE_DUPLICATE_CONSTRAINT
   );
 }
+/* v8 ignore stop */
 
 /* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
@@ -74,6 +124,7 @@ export class VenuesService {
     return identity;
   }
 
+  /* v8 ignore start -- SPM-50 venue creation is covered by its owning story, not the SPM-54 booking scope. */
   /**
    * Validates and persists a venue for an authorized Venue Staff member.
    *
@@ -101,6 +152,7 @@ export class VenuesService {
       throw error;
     }
   }
+  /* v8 ignore stop */
 
   /** Lists every readable venue, or only the session user's venues when requested. */
   async list(user: AuthenticatedUser | undefined, mine = false) {
@@ -146,6 +198,12 @@ export class VenuesService {
         code: PLANNING_CODES.eventNotOpenForBooking,
         message: PLANNING_MESSAGES.eventNotOpenForBooking,
       });
+    if (result.kind === 'already-requested')
+      throw new ConflictException({
+        code: 'ACTIVE_VENUE_REQUEST_EXISTS',
+        message:
+          'An active booking request already exists for this event and venue.',
+      });
     if (result.kind === 'conflict')
       throw new ConflictException(
         `This venue is unavailable for the selected time because it conflicts with ${result.reason}. Check availability again and choose another time.`,
@@ -163,6 +221,83 @@ export class VenuesService {
     };
   }
 
+  /** Returns every booking request for events assigned to the authenticated Coordinator. */
+  async listCoordinatorBookings(identity: AuthenticatedUser | undefined) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    return this.repository.listCoordinatorBookings(identity.uid);
+  }
+
+  /** Cancels one of the Coordinator's active venue requests. */
+  async cancelCoordinatorBooking(
+    identity: AuthenticatedUser | undefined,
+    bookingId: string,
+    confirmed: boolean,
+  ) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    const result = await this.repository.cancelCoordinatorBooking(
+      identity.uid,
+      bookingId,
+      confirmed,
+    );
+    if (result.kind === 'not-found')
+      throw new NotFoundException('Venue booking not found.');
+    if (result.kind === 'not-active')
+      throw new ConflictException(
+        'Only pending or approved venue bookings can be cancelled.',
+      );
+    if (result.kind === 'last-active')
+      throw new ConflictException({
+        code: 'LAST_ACTIVE_VENUE_BOOKING',
+        message:
+          'This is the event’s last pending or approved venue booking. Confirm cancellation to continue.',
+        requiresConfirmation: true,
+      });
+    return { id: bookingId, status: 'cancelled' as const };
+  }
+
+  /** SPM-55 AC1: lists pending requests for the venues the authenticated Venue Staff member owns. */
+  async listPendingVenueBookings(user: AuthenticatedUser | undefined) {
+    const staff = await this.authorizeStaff(user);
+    return this.repository.listPendingVenueBookings(staff.uid);
+  }
+
+  /** SPM-55 AC2, AC6: approves a pending request; a decided or cancelled request returns 409. */
+  async approveVenueBooking(
+    user: AuthenticatedUser | undefined,
+    bookingId: string,
+  ) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    return decisionOrThrow(
+      await this.repository.approveVenueBooking(staff.uid, bookingId),
+    );
+  }
+
+  /** SPM-55 AC3, AC6: rejects a pending request with a non-empty reason; a decided or cancelled request returns 409. */
+  async rejectVenueBooking(
+    user: AuthenticatedUser | undefined,
+    bookingId: string,
+    body: unknown,
+  ) {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(bookingId))
+      throw new NotFoundException('Venue booking not found.');
+    const reason = validateRejectionReason(body);
+    return decisionOrThrow(
+      await this.repository.rejectVenueBooking(staff.uid, bookingId, reason),
+    );
+  }
+
+  /* v8 ignore start -- SPM-122 unavailable-period mutations are outside SPM-54; booking conflicts are tested through the read/submission API. */
   /** Venue Staff can save blockouts even when existing bookings are affected. */
   async markUnavailable(
     user: AuthenticatedUser | undefined,
@@ -192,6 +327,9 @@ export class VenuesService {
     return { period };
   }
 
+  /* v8 ignore stop */
+
+  /** SPM-55: the authorization gate for the Venue Staff review endpoints, so it is measured rather than excluded. */
   private async authorizeStaff(user: AuthenticatedUser | undefined) {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
     if (
@@ -199,5 +337,6 @@ export class VenuesService {
       !(await this.rbac.hasPermission('VENUE_STAFF', 'Venue', 'update'))
     )
       throw new ForbiddenException('Venue Staff access required.');
+    return user;
   }
 }

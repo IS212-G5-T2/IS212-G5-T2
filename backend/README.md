@@ -84,6 +84,8 @@ The service listens on `PORT` when set, otherwise `3000`.
 
 ## Event planning (SPM-97, SPM-49, SPM-85)
 
+The event request form reads supported facility and accessibility labels/values from `GET /api/venues/options`. Event creation validates both selections against the same venue schemas used by venue creation and comparison.
+
 Routes (all behind `AuthenticationMiddleware`; the service checks role, ownership/assignment and event status):
 
 | Route | Who | Purpose |
@@ -161,6 +163,26 @@ DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- te
 node scripts/mutation/run.mjs --mutants spm136.mutants.mjs   # scratch copy only; needs DATABASE_URL
 ```
 
+## Coordinator queue (SPM-48)
+
+`GET /api/coordinator/queue[?status=planning,submitted]` returns the signed-in coordinator's queue: every event assigned to them (the same records as `GET /api/events` for a coordinator, `coordinator_id` = session uid), each with a `queue` object. Unassigned requests stay in the Lead's queue (SPM-123), drafts live in `event_drafts` and never appear, and an event reassigned away leaves the queue (SPM-47 AC6). Coordinator role only: no session 401, any other role 403 "Coordinator access required.". `status` is optional: one status or a comma-separated list of the seven terms, any case; an unknown value (including `Under Review` and `draft`) is 400 "Unknown status filter: <value>.". Served with `Cache-Control: no-store` (AC4).
+
+`queue` is `{ safety, holds[], unavailableVenues[], actions[], needsAction }`, derived by the pure rules in `src/events/queue/queue-indicators.ts` with the injected clock:
+
+| Field | Rule |
+|---|---|
+| `safety` | `AWAITING_CHECK`, `CHANGES_REQUESTED`, `CLEARED` as SPM-94 (`deriveSafetyIndicator`); `REJECTED` for a rejected arrangement (AC7); `RESET` when the check was reset (for example by an approved change, SPM-65 AC8) and not requested again (AC6). None on Completed, Cancelled or Rejected events. |
+| `holds` | Each pending booking with `hold_expires_at`: `{ venueName, expiresAt, state }` (`venueName` is the venue's name, plus its location in brackets when another of the event's venues has the same name), `ACTIVE` until the expiry instant and `EXPIRED` from it on (AC8). |
+| `unavailableVenues` | Venues of active bookings (approved, or pending with no hold or a live hold) that a Venue Staff unavailable period overlaps, counting the venue's setup time before and turnaround time after the booking (SPM-122 AC7, SPM-54 AC2). The rule is `src/events/venue-unavailable.ts`, shared with the venue summary and Confirm readiness, so all three agree (AC9). The flag clears when the affected booking is cancelled or the period is ended early; booking a replacement alone does not clear it. Listed once per venue (by id), named like `holds`. |
+| `actions` | Why the event needs the coordinator (AC5): `AWAITING_REVIEW` (Submitted), `SAFETY_CHANGES_REQUESTED`, `SAFETY_REJECTED`, `SAFETY_RESET`, `VENUE_UNAVAILABLE`, `HOLD_EXPIRED`. `needsAction` is true when there is at least one. |
+
+Schema: `backend/migrations/023_spm48_safety_rejected.sql` (mirrored as `database/postgresql/init/023_spm48_safety_rejected.sql`) adds `rejected` to `event_safety_checks.status`; it is idempotent. SPM-130 will write rejections; the coordinator re-requests a rejected check through `POST /api/events/:id/safety-check/request`.
+
+```sh
+npx vitest run src/events/queue
+DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/coordinator-queue.e2e-spec.ts
+```
+
 ## Checks
 
 Run local checks from this directory:
@@ -223,6 +245,31 @@ Availability is separate from maintenance status. Marking equipment
 unavailable and writing its audit entry happen in one transaction; a failed
 audit insert rolls the availability change back. `GET /api/equipment` excludes
 unavailable records unless `includeUnavailable=true` is requested.
+
+## Equipment requests (SPM-57)
+
+An assigned Coordinator submits one or more equipment items with
+`POST /api/equipment/requests` using `{ eventId, items: [{ equipmentName,
+equipmentType, quantity }] }`. Equipment name is required, trimmed, and must be
+nonblank following SPM-111 name semantics and the SPM-57 AC3 change record;
+maintenance status and location are not request fields. Equipment type must
+match the existing equipment catalogue types; quantity is a positive whole
+number representable by PostgreSQL `integer`. A successful
+request returns its reference and `Pending Review` state. Coordinators read only
+their own requests at `GET /api/equipment/requests`; Technical Support reads the
+Pending Review queue at `GET /api/equipment/requests/review-queue`.
+
+Cancelled and Rejected events cannot be requested. For an Approved event, the
+first equipment request and `Approved` → `Planning` transition/history are
+written atomically; later requests in Planning do not repeat the transition.
+Beside a Pending Review request, its owner can choose **Update Event** to open
+the saved event and item values; saving uses
+`PUT /api/equipment/requests/:requestId`, preserves the request ID/reference,
+and is refused once the event is Confirmed. Request items own their corresponding
+planning reservations, so replacing an item updates only that request's rows.
+Fresh databases include these tables in `database/postgresql/init/001_schema.sql`;
+existing databases apply `migrations/012_spm57_equipment_requests.sql` and
+`migrations/014_spm57_request_reservations.sql`.
 
 ## Venue records (SPM-50)
 

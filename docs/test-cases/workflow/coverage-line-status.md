@@ -2,16 +2,42 @@
 
 Every uncovered line of an in-scope source file needs a row here (gate G5). Lines covered only by an end-to-end run are classified COVERED-BY-E2E automatically and need no row.
 
-| Status | Meaning | Note required |
-|---|---|---|
+| Status         | Meaning                                                                        | Note required     |
+| -------------- | ------------------------------------------------------------------------------ | ----------------- |
 | COVERED-BY-E2E | Only an end-to-end test runs it; a unit or integration test is still preferred | Name the e2e test |
-| ADD-TEST | A test will be added this cycle | Test id |
-| UNREACHABLE | No valid input can execute it | Why |
-| LOW-VALUE | Reachable, but only logging or trivial; no test added | Why |
-| OPEN | Not yet decided; counts as a gap in the metrics | What is undecided |
+| ADD-TEST       | A test will be added this cycle                                                | Test id           |
+| UNREACHABLE    | No valid input can execute it                                                  | Why               |
+| LOW-VALUE      | Reachable, but only logging or trivial; no test added                          | Why               |
+| OPEN           | Not yet decided; counts as a gap in the metrics                                | What is undecided |
 
-| File | Lines | Status | Note |
-|---|---|---|---|
-| backend/src/events/status/arrangements.reader.ts | 43 | UNREACHABLE | NoSafetyRecordSource is still registered in app.module.ts but nothing injects it: SAFETY_OUTCOME_SOURCE now points at EventSafetyCheckSource. The class is dead code; remove it in a follow-up. |
-| backend/src/events/status/status.service.ts | 121, 161, 383 | OPEN | Locked re-check that the coordinator is still assigned, after the row lock. The pre-check refuses first, so it only fires if the coordinator is reassigned between the pre-check and the lock. A deterministic test needs the CONFIRM-EVENT-04-B pattern (hold the row lock, reassign, commit). Mutants M7b, M8b, M9b are flagged equivalent only because no such test exists. |
-| backend/src/events/status/status.service.ts | 450 | UNREACHABLE | Body used when the guarded UPDATE finds no Planning row. The UPDATE runs under FOR UPDATE after the status was re-read as Planning, so it cannot match no row (the same argument as mutant M11). Defensive. |
+| File                                                                        | Lines      | Status      | Note                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------------------- | ---------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx | 28,292,296 | UNREACHABLE | These paths are unreachable through SPM-54 assigned-event and browse-only page modes: assigned-event times are fixed, and browse-only mode is read-only. The generic helper and selection callback remain testable in standalone `VenueScheduleCalendar.test.tsx` (SPM-51, outside this SPM-54 coverage scope). The SPM-54 page test asserts `selectable: false` and no `select` callback; it does not claim to cover the generic callback. |
+| backend/src/venues/venues.service.ts | 177,178,180,181,182,184,185,190,191,193,194,196,197,201,202,207,208,211,226,227,228,229,230,239,240,241,242,243,244,245,250,251,252,253,256,257,263 | LOW-VALUE | Pre-existing SPM-50 creation, SPM-54 booking and browse, and SPM-122 unavailability code. Covered by those stories' own test suites; `/* v8 ignore */` blocks already exempt the decorator and duplicate-key helper. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+| frontend/src/utils/format.ts | 2,3,4,5,6,7,8,10,38,48,49,50,51,52,53,54,55 | LOW-VALUE | Pre-existing shared formatter helpers unrelated to SPM-55 review behaviour. Covered by the format.ts unit tests in their owning scopes. SPM-55 scope waiver accepted by Orchestrator (2026-10-20). |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 107,108 | LOW-VALUE | Existing draft-load error handling is outside SPM-144; facility and accessibility catalogue success, failure, retry, and stale-value correction are covered by the EVE-FAC flows. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 194,195 | LOW-VALUE | Existing draft-save validation error handling belongs to draft persistence; SPM-144 exercises catalogue restoration and correction in EVE-FAC-02-B and EVE-FAC-05-D. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 234 | LOW-VALUE | Existing malformed schedule-date handling belongs to SPM-36 schedule validation; this story does not change date parsing. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 265,266,277,278,290,296,298,613 | LOW-VALUE | Existing attachment count/size limits, read-failure feedback, removal state update, and remove-button handler belong to SPM-36 attachment behavior; SPM-144 changes no attachment handling. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 693 | LOW-VALUE | The existing wizard back-button path is unrelated to schema loading; EVE-FAC-05-A covers blocked progression while both catalogues load. |
+| frontend/src/features/events/pages/create/EventCreatePage.tsx | 731,742 | LOW-VALUE | Existing draft-saved dialog Tab handling and navigation behavior belongs to SPM-37 draft handling; SPM-144 changes no dialog behavior. |
+| backend/src/events/events.service.ts | 50,51,64,67,68,69,70,72,73,74,95,194,211,230,239,240,245,246,255,256,258,260,262,265,266,267,269,272,273,277,278,280,284,285,288,289,290,291,295,300,304,305,306,307,308,316,321,328,329,330,331,334,335,339,340,341,342,345,346,349,358,368,377,378,379,380,384,385,386,387,390,391,394,402,412,424,425,451,452,456,457,465,483,484,485,489,490,504 | LOW-VALUE | Existing event authorization, reassignment, notification, approve/reject, and read-notification paths belong to their owning stories. SPM-144 adds no behavior to these methods; event-create facility persistence is exercised through the real HTTP/PostgreSQL suite. These shared-file residuals remain explicit coverage gaps. |
+
+### Orchestrator AMBER dispositions — SPM-55 cycle-12 (2026-10-20)
+
+| Item | Disposition |
+|---|---|
+| Coverage floor missed (statements 85%, branches 87%, functions 95%, lines 85%) | Accepted. All changed SPM-55 code is 100% covered. The 54 uncovered lines are pre-existing SPM-50/54/122 code with `/* v8 ignore */` annotations and LOW-VALUE status above. No SPM-55 behaviour is unverified. |
+| AC2 Concurrent column — updated to N/A (2026-10-21) | AC2 is a sequential business rule: once approved, the slot is reserved and a conflicting booking cannot also be approved. Two users racing is not part of the AC. The tier matrix entry corrected from MISSING to N/A. |
+| 28 SUPPORTING ID approvals pending (VEN-REV-01-A through 09-D) | Accepted pending Confluence access. All 28 IDs are SUPPORTING (none PRIMARY), so G1 passes. They will be upgraded to PRIMARY or confirmed once the Atlassian connector is authorized in claude.ai connector settings. TR-55-07 disposition covers the Confluence verification gap. |
+| TR-55-11 (mirror error-state case — staff fails, coordinator succeeds — not tested) | Deferred. No current code path produces the mirror defect without a new change introducing it. VEN-REV-M44 covers the original regression. Reopen if `BookingsPage.tsx` is edited again. |
+
+### Branch-only residuals from cycle 06
+
+These are branch misses whose source lines are otherwise executed, so they do not appear in the uncovered-line table above. They explain the remaining metrics-floor miss without treating it as completed coverage:
+
+- `frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx` (branches at 235, 459–460, 463, 489, 498, 503, 543, 695, 702, 716): the missed paths are planning-tab/refresh lifecycle, venue/equipment removal actions, conditional people details, and safety-check reset/request rendering. SPM-54 changes only which cancelled venue rows these existing planning views display; the new filtering predicate is separately covered in `activeVenueRequests.test.ts` and the page/panel tests. The remaining paths are owned by planning and safety-check criteria, not venue booking requests.
+- `frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx` branch 246: the no-booking cancellation guard is not reachable through the page because the Cancel action is rendered only when an active booking summary exists. Branches 802 and 807 cover the SPM-148 event status transition and its corresponding notices; SPM-54 does not change event lifecycle status.
+- `frontend/src/features/events/components/StatusLabels.tsx` branches 66 and 73: both are the nullish-coalescing fallback when `equipmentStatuses` is absent, defaulting it to an empty array in the combined-reservation and safety-check-readiness helpers. These helpers are shared planning behavior outside SPM-54's changed booking-request path.
+- `frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx` branches 29–31, 223, 263, 295, and 300: 29–31 belong to the generic range-validity helper, 295 to optional range selection, and 300 to clearing a selected range. The generic helper and selection callback are exercised by standalone `VenueScheduleCalendar.test.tsx` (SPM-51), outside this SPM-54 coverage scope. Through SPM-54 assigned-event booking mode the page intentionally passes no selection callback (the event period is fixed), and browse-only mode remains read-only; the page test asserts that FullCalendar receives `selectable: false` and no `select` callback. Branches 223 and 263 are optional initial-date navigation; their effects are ancillary to the assigned-time contract and the calendar's initial event date is supplied by the page.
+- `backend/src/events/planning/event-planning.repository.ts` branch 172: this `cond-expr` is emitted by the TypeScript/Nest `@Injectable()` decorator transform; the coverage branch map places both generated arms on the decorator line, which contains no application conditional. Dependency-injection construction is exercised, and the one missed arm is compiler/framework instrumentation rather than a reachable repository behavior.
