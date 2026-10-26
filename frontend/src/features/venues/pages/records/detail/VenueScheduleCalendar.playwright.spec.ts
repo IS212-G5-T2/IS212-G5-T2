@@ -35,6 +35,12 @@ const mobileEvent = {
   createdAt: "2030-01-01T00:00:00.000Z",
   updatedAt: "2030-01-01T00:00:00.000Z",
 };
+// Event assigned to the venue record page through ?eventId=, so the page renders the Event starts and Event ends fields.
+const assignedEvent = {
+  ...mobileEvent,
+  id: "spm51-assigned-event",
+  name: "Cross-day assigned event",
+};
 const mobileBooking = {
   id: "mobile-booking",
   eventId: mobileEvent.id,
@@ -149,8 +155,19 @@ test("selects a real cross-day time range across any calendar day", async ({
       body: JSON.stringify(venue),
     }),
   );
+  await page.route(`**/api/events/${assignedEvent.id}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(assignedEvent),
+    }),
+  );
+  // No existing request for this event and venue, so the event time fields stay visible.
+  await page.route("**/api/venues/bookings/mine", (route) =>
+    route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) }),
+  );
 
-  await page.goto(`/venue-records/${venueId}`);
+  await page.goto(`/venue-records/${venueId}?eventId=${assignedEvent.id}`);
   await expect(page.getByRole("heading", { name: venue.name })).toBeVisible();
   await expect(page.getByRole("columnheader", { name: "January 7, 2030" })).toBeVisible();
 
