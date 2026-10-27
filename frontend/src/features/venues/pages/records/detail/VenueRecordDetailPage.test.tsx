@@ -1268,6 +1268,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     renderPage(`/venue-records/${id}?eventId=event-2`);
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     expect(screen.getByLabelText("Event starts")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Event ends")).toHaveAttribute("readonly");
     expect(screen.getByLabelText("Event starts")).toHaveValue(
