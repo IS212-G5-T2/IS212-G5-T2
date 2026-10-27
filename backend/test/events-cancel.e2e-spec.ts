@@ -315,32 +315,34 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     expect(history.rows).toEqual([{ from_status: 'Confirmed', to_status: 'Cancelled', actor_id: coordinator.uid }]);
   });
 
-  /** CANCEL-EVENT-01-B: the submitting Organiser cancels; the Coordinator is notified too (PO decision). */
-  // Kills: M4, M17, S19, S24
-  it('CANCEL-EVENT-01-B: the submitting organiser cancels EVT-301 and the audit row names ORG-01', async () => {
+  /** CANCEL-EVENT-01-B: the submitting Organiser cannot cancel, even on their own Confirmed event. */
+  // Kills: M8 (any Organiser may cancel)
+  it('CANCEL-EVENT-01-B: the submitting organiser is refused 403 on EVT-301 and nothing changes', async () => {
     // Arrange: EVT-301 Confirmed, submitted by ORG-01 and assigned to COO-01
     const { eventId } = await seedGalaEvent();
+    const before = await snapshot(eventId);
 
     // Act
-    await cancel(organiser, eventId).expect(200);
+    const response = await cancel(organiser, eventId).expect(403);
 
-    // Assert: status Cancelled; audit row actor ORG-01; the assigned coordinator COO-01 is notified (see 06-A)
-    expect(await statusOf(eventId)).toBe('Cancelled');
-    const history = await pool.query('SELECT actor_id FROM event_status_history WHERE event_id = $1', [eventId]);
-    expect(history.rows).toEqual([{ actor_id: organiser.uid }]);
-    expect(await cancelledNotifications(eventId, coordinator.uid)).toHaveProperty('rowCount', 1);
+    // Assert: refusal literal, status still Confirmed, nothing released or notified
+    expect(response.body.message).toBe(MSG_FORBIDDEN);
+    expect(await snapshot(eventId)).toEqual(before);
+    expect(await cancelledNotifications(eventId, coordinator.uid)).toHaveProperty('rowCount', 0);
   });
 
   /**
-   * CANCEL-EVENT-01-C: neither the unassigned Coordinator, another Organiser, a registered Attendee,
-   * an anonymous caller nor the Coordinator Lead can cancel. Each refusal changes nothing.
+   * CANCEL-EVENT-01-C: neither the unassigned Coordinator, the submitting Organiser, another Organiser, a registered
+   * Attendee, an anonymous caller nor the Coordinator Lead can cancel. Each refusal changes nothing.
    */
-  describe('CANCEL-EVENT-01-C: only the assigned coordinator or the submitting organiser can cancel', () => {
-    // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, S19 (ATT-01 row); M1, M7, S19 (LEAD-01 row).
+  describe('CANCEL-EVENT-01-C: only the assigned coordinator can cancel', () => {
+    // Kills: M1, S19 (COO-02 row); M1, M8, S19 (ORG-02 row); M1, M8 (ORG-01 submitter row); M1, S19 (ATT-01 row);
+    // M1, M7, S19 (LEAD-01 row).
     // The no-token case was deleted: its 401 comes from the shared AuthenticationMiddleware before any SPM-136 code runs,
     // and the service-level 401 is the unit row CANCEL-EVENT-01-C (no identity), killed by C1.
     it.each([
       ['COO-02, not assigned', () => coordinator2, 403, MSG_FORBIDDEN],
+      ['ORG-01, the submitting organiser', () => organiser, 403, MSG_FORBIDDEN],
       ['ORG-02, a different organiser', () => organiser2, 403, MSG_FORBIDDEN],
       ['ATT-01, a registered attendee', () => attendee1, 403, MSG_FORBIDDEN],
       ['LEAD-01, Coordinator Lead', () => lead, 403, MSG_FORBIDDEN],
@@ -409,16 +411,16 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   describe('CANCEL-EVENT-03-B: cancellable statuses are Submitted, Approved, Planning and Confirmed', () => {
     // Kills: M4 (every row); S18 (Planning, Submitted and Approved rows); S19 and S22 (Submitted row); M12 and S19 (Approved row)
     it.each([
-      ['Planning (EVT-302)', 'Planning', 'coordinator', 200],
-      ['Confirmed (EVT-301)', 'Confirmed', 'coordinator', 200],
-      ['Submitted (no coordinator yet, submitted by ORG-01)', 'Submitted', 'organiser', 200],
-      ['Approved (no coordinator yet, submitted by ORG-01)', 'Approved', 'organiser', 200],
-    ])('cancels %s with HTTP %i', async (_label, status, actor, httpStatus) => {
-      // Arrange: a fixture per status; the coordinator is assigned only where the status has one
-      const eventId = await seedEvent({ status, coordinatorId: actor === 'coordinator' ? coordinator.uid : null });
+      ['Planning (EVT-302)', 'Planning', 200],
+      ['Confirmed (EVT-301)', 'Confirmed', 200],
+      ['Submitted (assigned to COO-01)', 'Submitted', 200],
+      ['Approved (assigned to COO-01)', 'Approved', 200],
+    ])('cancels %s with HTTP %i', async (_label, status, httpStatus) => {
+      // Arrange: a fixture per status, assigned to COO-01 (the only user who may cancel)
+      const eventId = await seedEvent({ status, coordinatorId: coordinator.uid });
 
       // Act
-      await cancel(actor === 'coordinator' ? coordinator : organiser, eventId).expect(httpStatus);
+      await cancel(coordinator, eventId).expect(httpStatus);
 
       // Assert: stored status Cancelled and one history row from the source status
       expect(await statusOf(eventId)).toBe('Cancelled');
@@ -461,12 +463,12 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
     const otherEvent = await seedEvent({ name: 'Product Launch', status: 'Planning' });
     await seedEquipment(otherEvent, 'Projector', 1, 'Reserved');
 
-    // Act: five parallel requests, mixing COO-01 and ORG-01
+    // Act: five parallel requests from COO-01
     const responses = await Promise.all([
       cancel(coordinator, eventId),
-      cancel(organiser, eventId),
       cancel(coordinator, eventId),
-      cancel(organiser, eventId),
+      cancel(coordinator, eventId),
+      cancel(coordinator, eventId),
       cancel(coordinator, eventId),
     ]);
 
@@ -730,19 +732,19 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
 
   /**
    * CANCEL-EVENT-06-A: the organiser, the assigned coordinator and every Registered attendee get exactly one
-   * unread notice, whoever cancels. Two clones of EVT-301 cover both cancelling users.
+   * unread notice. Two clones of EVT-301 are cancelled by COO-01, each with the same three Registered attendees.
    */
   // Kills: M4, M17, S17, S19, S24
-  it('CANCEL-EVENT-06-A: ORG-01, COO-01, ATT-01..03 each get one unread notice whoever cancels', async () => {
+  it('CANCEL-EVENT-06-A: ORG-01, COO-01, ATT-01..03 each get one unread notice on each cancelled clone', async () => {
     // Arrange: two EVT-301 clones, each with the same three Registered attendees
     const clone = await seedGalaEvent();
     const second = await seedGalaEvent();
 
-    // Act: subtest A (COO-01 cancels the first clone), subtest B (ORG-01 cancels the second)
+    // Act: COO-01 cancels both clones
     await cancel(coordinator, clone.eventId).expect(200);
-    await cancel(organiser, second.eventId).expect(200);
+    await cancel(coordinator, second.eventId).expect(200);
 
-    // Assert: each recipient has exactly one unread notice naming the event (B also notifies COO-01)
+    // Assert: each recipient has exactly one unread notice naming the event
     for (const eventId of [clone.eventId, second.eventId]) {
       for (const recipient of [organiser.uid, coordinator.uid, attendee1.uid, attendee2.uid, attendee3.uid]) {
         const rows = await cancelledNotifications(eventId, recipient);
@@ -760,7 +762,7 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   it('CANCEL-EVENT-06-A-API: ORG-01 and COO-01 see one unread EventCancelled notice each on GET /api/notifications', async () => {
     // Arrange
     const { eventId } = await seedGalaEvent();
-    await cancel(organiser, eventId).expect(200);
+    await cancel(coordinator, eventId).expect(200);
 
     // Act
     const forOrganiser = await http().get('/api/notifications').set('Cookie', organiser.cookie).expect(200);

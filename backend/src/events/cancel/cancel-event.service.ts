@@ -87,7 +87,8 @@ export class CancelEventService {
 
     // Recipients are read before any release changes the rows the attendee list comes from.
     const recipients = new Set<string>([event.organiser_id]);
-    if (event.coordinator_id) recipients.add(event.coordinator_id);
+    // The canceller is the assigned coordinator (mayCancel), so the coordinator is always a recipient.
+    recipients.add(user.uid);
     for (const releaser of this.releasers)
       for (const recipient of (await releaser.collectRecipients?.(eventId, client)) ?? []) recipients.add(recipient);
 
@@ -108,11 +109,9 @@ export class CancelEventService {
     return { eventId, status: 'Cancelled', message };
   }
 
-  /** Assigned Coordinator (COORDINATOR role and coordinator_id) or the submitting Organiser (ORGANISER role and organiser_id). */
-  private mayCancel(user: AuthenticatedUser, event: Pick<CancelEventRow, 'organiser_id' | 'coordinator_id'>): boolean {
-    const assigned = user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
-    const submitted = user.roles.includes('ORGANISER') && event.organiser_id === user.uid;
-    return assigned || submitted;
+  /** Only the assigned Coordinator (COORDINATOR role and coordinator_id). The submitting Organiser is not allowed. */
+  private mayCancel(user: AuthenticatedUser, event: Pick<CancelEventRow, 'coordinator_id'>): boolean {
+    return user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;
   }
 
   private async findEvent(eventId: string): Promise<CancelEventRow | undefined> {

@@ -28,19 +28,20 @@ describe("SPM-136 canCancelEvent", () => {
     expect(offered).toBe(true);
   });
 
-  // Kills: F25 (the submitting-organiser branch dropped: only the assigned coordinator is offered)
-  it("CANCEL-EVENT-01-B (FE): the submitting organiser is offered Cancel Event", () => {
+  // Kills: F25 (the submitting organiser is offered Cancel Event)
+  it("CANCEL-EVENT-01-B (FE): the submitting organiser is not offered Cancel Event", () => {
     // Act: the submitting organiser is checked against the event
     const offered = canCancelEvent({ event: base, currentUser: organiser });
 
-    // Assert: the submitting organiser is offered the action
-    expect(offered).toBe(true);
+    // Assert: the submitting organiser is not offered the action
+    expect(offered).toBe(false);
   });
 
   // Kills: F26 (the assigned-coordinator id check dropped: COO-02 is offered), F1 (LEAD-01 row), F2 (ORG-02 row),
-  // F27 (the attendee ATT-01 row: an attendee is offered the action)
+  // F27 (the attendee ATT-01 row: an attendee is offered the action), F25 (the submitting organiser row)
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator", roles: ["coordinator"] }],
+    ["ORG-01, the submitting organiser", organiser],
     ["ORG-02, another organiser", { id: "org-02", role: "organiser", roles: ["organiser"] }],
     ["LEAD-01, Coordinator Lead", { id: "lead-01", role: "coordinator_lead", roles: ["coordinator_lead"] }],
     ["ATT-01, attendee", { id: "att-01", role: "attendee", roles: ["attendee"] }],
