@@ -1,7 +1,42 @@
 test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
-VEN-AVL-01-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,allows selections on any weekday through FullCalendar's selectAllow prop,203,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,,NOT RUN
-VEN-AVL-01-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,"allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow",213,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,,NOT RUN
-VEN-AVL-06-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,connects the FullCalendar select callback to the selected range handler,223,AC6,Happy,Present,Frontend,SPEC,,,Yes,Yes,,NOT RUN
-,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,does not invoke a missing range callback,235,,,,Frontend,UNTRACEABLE,,,Yes,Yes,,NOT RUN
-,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,clears selection from the selected event and ignores booking clicks,242,,,,Frontend,UNTRACEABLE,,,Yes,Yes,,NOT RUN
-,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,shows a full-day time grid with a neutral default scroll position,253,,,,Frontend,UNTRACEABLE,,,Yes,Yes,,NOT RUN
+VEN-AVL-07-SEC-1,backend/src/venues/availability/booking-request.spec.ts,returns a conflict when the fresh schedule check finds a new booking,43,AC7,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-06-A,backend/src/venues/availability/booking-request.spec.ts,returns the recorded request and booking reference after persistence succeeds,79,AC6,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-SEC-1,backend/src/venues/repository/venues.repository.spec.ts,does not record a request when a fresh booking conflict appears after the availability read,803,AC7,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+,backend/src/venues/repository/venues.repository.spec.ts,keeps only pending holds that expire after now,1420,AC10,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+,backend/src/venues/repository/venues.repository.spec.ts,returns each affected booking without changing its stored booking status,1530,AC9,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-02-C,backend/test/venues-booking-requests.e2e-spec.ts,does not expose pending or rejected requests as confirmed venue bookings,1244,AC2,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-SEC-1,backend/test/venues-booking-requests.e2e-spec.ts,rejects a fresh confirmed-booking conflict without persisting a request,1292,AC7,Security,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate after a booking when turnaround occupancy overlaps,1444,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate before a booking when setup occupancy overlaps,1477,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-C,backend/test/venues-booking-requests.e2e-spec.ts,rejects a request inside a Maintenance blockout without persisting it,1510,AC7,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+,backend/test/venues-booking-requests.e2e-spec.ts,rejects setup-only and turnaround-only blockout conflicts without insertion,1538,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/availability.test.ts,keeps the enclosing occupancy end when later intervals are nested and overlapping,29,AC5,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-02-A,frontend/src/features/venues/pages/records/availability.test.ts,returns no gaps for an invalid view range (%s to %s),71,AC2,Interaction,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-A,frontend/src/features/venues/pages/records/availability.test.ts,parses event form values as Singapore time independent of host timezone,80,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-B,frontend/src/features/venues/pages/records/availability.test.ts,formats availability schedule values in SGT,87,AC1,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-08-B,frontend/src/features/venues/pages/records/availability.test.ts,blocks a candidate after an existing booking when their buffers overlap,100,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-A,frontend/src/features/venues/pages/records/availability.test.ts,reports an active API hold and its expiry time,127,AC7,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-08-B,frontend/src/features/venues/pages/records/availability.test.ts,blocks a candidate before an existing booking when their buffers overlap,154,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/availability.test.ts,accepts exact touching ranges when both venue buffers are zero,179,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-08-VAR-1,frontend/src/features/venues/pages/records/availability.test.ts,uses the selected venue's configured setup and turnaround values,204,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/availability.test.ts,blocks a candidate whose setup buffer intersects an unavailable period,234,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-B,frontend/src/features/venues/pages/records/availability.test.ts,reports an unavailable period reason,257,AC7,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,SPM-51: blocks booking submission for a time that conflicts with a confirmed booking,1163,AC7,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-SEC-1-UI,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,SPM-51: shows the fresh server conflict and does not report a submitted request,1333,AC7,,,Frontend,DERIVED,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,shows the same schedule facts in calendar and list views without changing the selected range,1538,,Interaction,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-05-B,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,loads only the newly selected venue's schedule,1669,AC5,Isolation,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-02,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,navigates the real time grid and shows availability in the newly visible week,1718,,,,Frontend,UNTRACEABLE,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,renders and blocks the live hold returned by the server at a fixed check time,1836,AC10,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx,retains and flags an existing booking affected only through its setup buffer,1894,AC9,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,"allows daytime, weekend, overnight, and after-hours selections",67,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-B,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,"rejects zero-length, reversed, and invalid ranges",80,AC1,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-02-B,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,shades clear periods over a full SGT day without an operating-hours label,92,AC2,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-02-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,does not shade a confirmed booking or its setup and turnaround as free,107,AC2,Interaction,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,excludes a closure and an active hold with setup and turnaround from free shading,134,,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,places exact setup and turnaround intervals on their SGT calendar days,168,AC8,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,allows selections on any weekday through FullCalendar's selectAllow prop,203,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-01-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,"allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow",213,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-06-A,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,connects the FullCalendar select callback to the selected range handler,223,AC6,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,does not invoke a missing range callback,235,,,,Frontend,UNTRACEABLE,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,clears selection from the selected event and ignores booking clicks,242,,,,Frontend,UNTRACEABLE,,,Yes,Yes,Yes,PASS
+,frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx,shows a full-day time grid with a neutral default scroll position,253,,,,Frontend,UNTRACEABLE,,,Yes,Yes,Yes,PASS
