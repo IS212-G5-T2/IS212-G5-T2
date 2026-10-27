@@ -27,5 +27,20 @@
     { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
     { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL", "TEST_DATABASE_URL"] },
     { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "frontend-spm51",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm51.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm51.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
   ]
 }
