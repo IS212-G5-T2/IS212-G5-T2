@@ -34,5 +34,13 @@ export const MUTANTS = [
   { id: 'BE-39-06', name: 'a coordinator role may reply or resolve on an event with no assigned coordinator (defect D-1; REQ-CLAR-SUP-63, REQ-CLAR-SUP-64)',
     file: 'src/clarifications/clarifications.service.ts', suites: ['clarifications', 'e2e'],
     testMappings: [{ suite: 'clarifications', file: 'src/clarifications/clarifications.service.spec.ts', title: 'REQ-CLAR-SUP-64 refuses a reply by a coordinator role on an event with no assigned coordinator (defect D-1)' }, { suite: 'e2e', file: 'test/clarifications.e2e-spec.ts', title: 'REQ-CLAR-SUP-63 refuses a reply and a resolve by a coordinator role on an event with no assigned coordinator (AC4 Security)' }],
-    edits: [["const isCoordinator =\n      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;", "const isCoordinator =\n      user.roles.includes('COORDINATOR') && (event.coordinator_id === user.uid || !event.coordinator_id);"]] },
+    edits: [["const isCoordinator =\n      user.roles.includes('COORDINATOR') && event.coordinator_id === user.uid;", "const isCoordinator =\n      user.roles.includes('COORDINATOR') && (event.coordinator_id === user.uid || !event.coordinator_id);"]] },  { id: 'BE-39-07', name: 'the clarification message limit is off by one downwards: 2000 characters is rejected (REQ-CLAR-SUP-35)',
+    file: 'src/clarifications/dto/clarification-input.ts', suites: ['clarifications'],
+    testMappings: [{ suite: 'clarifications', file: 'src/clarifications/dto/clarification-input.spec.ts', title: 'REQ-CLAR-SUP-35 accepts a message of exactly 2000 characters' }],
+    edits: [['const MAX_MESSAGE_LENGTH = 2000;', 'const MAX_MESSAGE_LENGTH = 1999;']] },
+  { id: 'BE-39-08', name: 'the clarification message limit comparison is inclusive: a message of exactly 2000 characters is rejected (REQ-CLAR-SUP-35)',
+    file: 'src/clarifications/dto/clarification-input.ts', suites: ['clarifications'],
+    testMappings: [{ suite: 'clarifications', file: 'src/clarifications/dto/clarification-input.spec.ts', title: 'REQ-CLAR-SUP-35 accepts a message of exactly 2000 characters' }],
+    edits: [['if (message.length > MAX_MESSAGE_LENGTH) {', 'if (message.length >= MAX_MESSAGE_LENGTH) {']] },
 ];
+
