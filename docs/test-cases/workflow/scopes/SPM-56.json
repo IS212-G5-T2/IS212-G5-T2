@@ -1,0 +1,105 @@
+{
+  "story": "SPM-56",
+  "title": "Detect overlapping bookings",
+  "note": "Approval-time conflict checks cover approved ordinary bookings, active SPM-159 tentative holds, and unavailable periods. PostgreSQL approval tests require DATABASE_URL and an isolated disposable database. The Confluence matrix has 26 primary IDs; VEN-CONF-01-BND-1 retains the documented half-open endpoint assumption pending PO confirmation.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/venues/repository/venues.repository.spec.ts",
+        "titleMatch": "VEN-CONF-"
+      },
+      {
+        "glob": "backend/src/venues/venues.service.spec.ts",
+        "titleMatch": "VEN-CONF-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/venues-booking-requests.e2e-spec.ts",
+        "titleMatch": "VEN-CONF-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        "titleMatch": "VEN-CONF-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm56",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm56.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm56.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm56",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm56.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm56.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

@@ -192,16 +192,21 @@ illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and
 does not replace staff-created venues.
 
-`024_spm56_manual_conflict.sql` adds a manual-review fixture for SPM-56 at
+`025_spm56_manual_conflict.sql` adds a manual-review fixture for SPM-56 at
 Sample Birch Lecture Hall: one pending request overlaps an approved booking,
-an active tentative hold, and an unavailable period. Fresh database volumes
-receive it during initialization. Apply it to an existing local Compose
-database from the repository root with:
+an active tentative hold, and an unavailable period. It requires the SPM-159
+schema migration (`024_spm159_tentative_hold_requests.sql`). Fresh volumes run
+the fixture after that migration when it is present; otherwise, the fixture
+prints a skip notice so base database initialization can complete. Apply the
+SPM-159 migration first on an existing local Compose database, then run this
+fixture from the repository root with:
 
 ```sh
-docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/024_spm56_manual_conflict.sql
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < backend/migrations/024_spm159_tentative_hold_requests.sql
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/025_spm56_manual_conflict.sql
 ```
 
 The fixed fixture IDs make rerunning safe. The pending demo request is for
 `Accessible hybrid seminar` on the 21st day after the database's current date,
-from 10:00 to 11:00 Singapore time.
+from 10:00 to 13:00 Singapore time. The linked blocker events are seeded with
+matching event and booking intervals so the staff review shows consistent times.

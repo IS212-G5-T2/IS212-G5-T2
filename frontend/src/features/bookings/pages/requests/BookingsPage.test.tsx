@@ -543,8 +543,8 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
   });
 
-  /** VEN-CONF-02-A, VEN-CONF-06-A/C: a conflict keeps approval open and shows the full occupied windows of every blocker. */
-  it("VEN-CONF-02-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 shows every conflicting occupied interval", async () => {
+  /** VEN-CONF-02-A, VEN-CONF-06-A/B/C/D: a conflict keeps approval open and shows each correct full interval and blocker label. */
+  it("VEN-CONF-02-A VEN-CONF-06-A VEN-CONF-06-B VEN-CONF-06-C VEN-CONF-06-D SPM-56 shows and dismisses each conflicting occupied interval", async () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock
@@ -563,7 +563,7 @@ describe("Coordinator venue bookings", () => {
           {
             id: "hold-1", reason: "Tentative Event", kind: "booking",
             start: "2030-01-12T04:45:00.000Z", end: "2030-01-12T05:45:00.000Z",
-            occupiedStart: "2030-01-12T04:15:00.000Z", occupiedEnd: "2030-01-12T06:30:00.000Z", status: "pending",
+            occupiedStart: "2030-01-12T04:15:00.000Z", occupiedEnd: "2030-01-12T06:30:00.000Z", status: "approved", requestKind: "tentative_hold",
             holdExpiresAt: "2030-01-12T03:00:00.000Z",
           },
           {
@@ -580,12 +580,41 @@ describe("Coordinator venue bookings", () => {
     await user.click(screen.getByRole("button", { name: "Submit Decision" }));
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Lecture Series (confirmed booking): occupied 12 Jan 2030, 10:50 – 12 Jan 2030, 12:45 SGT");
-    expect(alert).toHaveTextContent("Tentative Event (tentative hold): occupied 12 Jan 2030, 12:15 – 12 Jan 2030, 14:30 SGT");
-    expect(alert).toHaveTextContent("Maintenance (unavailable period): occupied 12 Jan 2030, 14:00 – 12 Jan 2030, 15:00 SGT");
+    expect(alert).toHaveTextContent("Confirmed booking: Lecture Series; occupied 12 Jan 2030, 10:50 – 12 Jan 2030, 12:45 SGT");
+    expect(alert).toHaveTextContent("Active tentative hold: Tentative Event; occupied 12 Jan 2030, 12:15 – 12 Jan 2030, 14:30 SGT");
+    expect(alert).toHaveTextContent("Unavailable period: 12 Jan 2030, 14:00 – 12 Jan 2030, 15:00 SGT — Maintenance");
     expect(within(alert).getAllByRole("listitem")).toHaveLength(3);
+    expect(alert).toHaveClass("fixed", "top-4");
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
+    await user.click(within(alert).getByRole("button", { name: "Dismiss conflict alert" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
+  });
+
+  /** VEN-CONF-02-A: the approval alert remains visible if a conflict response has no structured blocker list. */
+  it("VEN-CONF-02-A SPM-56 shows the approval conflict alert when blocker details are unavailable", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with another booking. Check availability again before approving.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+      ));
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("conflicts with another booking");
+    expect(within(alert).queryByRole("listitem")).not.toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
   });
 
   /** VEN-REV-06-B: a reason typed and rejected for one request, with its error, does not carry into the next request's dialog. */

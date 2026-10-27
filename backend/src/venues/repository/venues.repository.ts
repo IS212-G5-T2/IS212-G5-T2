@@ -97,21 +97,8 @@ export interface VenueBookingDecision {
 export type VenueBookingDecisionResult =
   | { kind: 'not-found' }
   | { kind: 'already-decided'; status: string }
-  | { kind: 'conflict'; reason: string; conflicts: VenueBookingConflict[] }
+  | { kind: 'conflict'; reason: string }
   | { kind: 'decided'; booking: VenueBookingDecision };
-
-/** An occupied venue interval that prevents a pending booking from being approved. */
-export interface VenueBookingConflict {
-  id: string;
-  reason: string;
-  kind: 'booking' | 'unavailable';
-  start: string;
-  end: string;
-  occupiedStart: string;
-  occupiedEnd: string;
-  status?: 'approved' | 'pending';
-  holdExpiresAt?: string;
-}
 
 interface BookingLockRow {
   id: string;
@@ -373,8 +360,8 @@ export class VenuesRepository {
   }
 
   /**
-   * SPM-55 AC2 / SPM-56: approves a pending request for an owned venue. The venue row lock
-   * serialises decisions; the approval re-check returns every conflict with its occupied window.
+   * SPM-55 AC2: approves a pending request for an owned venue. The venue row lock serialises
+   * decisions, so an approval re-checks approved bookings and blockouts before it commits.
    */
   async approveVenueBooking(
     staffId: string,
@@ -401,34 +388,15 @@ export class VenuesRepository {
           };
       }
 
-      const conflict = await client.query<{
-        id: string;
-        reason: string;
-        kind: 'booking' | 'unavailable';
-        start_at: Date;
-        end_at: Date;
-        occupied_start: Date;
-        occupied_end: Date;
-        status: 'approved' | 'pending' | null;
-        hold_expires_at: Date | null;
-      }>(
-        `SELECT id, reason, kind, start_at, end_at, occupied_start, occupied_end,
-                status, hold_expires_at
-           FROM (
-           SELECT id, COALESCE(reason, 'Venue unavailable') AS reason,
-                  'unavailable'::text AS kind, start_at, end_at,
-                  start_at AS occupied_start, end_at AS occupied_end,
-                  NULL::text AS status, NULL::timestamptz AS hold_expires_at
+      const conflict = await client.query<{ reason: string }>(
+        `SELECT reason FROM (
+           SELECT COALESCE(reason, 'Venue unavailable') AS reason
              FROM venue_bookings
             WHERE venue_id = $1::uuid AND status = 'blocked'
               AND start_at < $3::timestamptz + make_interval(mins => $5::int)
               AND end_at > $2::timestamptz - make_interval(mins => $4::int)
            UNION ALL
-           SELECT b.id, COALESCE(e.event_name, 'Existing venue booking') AS reason,
-                  'booking'::text AS kind, b.start_at, b.end_at,
-                  b.start_at - make_interval(mins => $4::int) AS occupied_start,
-                  b.end_at + make_interval(mins => $5::int) AS occupied_end,
-                  b.status, b.hold_expires_at
+           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason
              FROM venue_bookings b
              LEFT JOIN events e ON e.id = b.event_id
             WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid
@@ -445,8 +413,7 @@ export class VenuesRepository {
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
                     > $2::timestamptz - make_interval(mins => $4::int)
-         ) conflicts
-          ORDER BY occupied_start, occupied_end, id`,
+         ) conflicts LIMIT 1`,
         [
           booking.venue_id,
           booking.start_at,
@@ -457,24 +424,8 @@ export class VenuesRepository {
           this.clock.now(),
         ],
       );
-      if (conflict.rows.length)
-        return {
-          kind: 'conflict' as const,
-          reason: conflict.rows[0].reason,
-          conflicts: conflict.rows.map((row) => ({
-            id: row.id,
-            reason: row.reason,
-            kind: row.kind,
-            start: row.start_at.toISOString(),
-            end: row.end_at.toISOString(),
-            occupiedStart: row.occupied_start.toISOString(),
-            occupiedEnd: row.occupied_end.toISOString(),
-            ...(row.status ? { status: row.status } : {}),
-            ...(row.hold_expires_at
-              ? { holdExpiresAt: row.hold_expires_at.toISOString() }
-              : {}),
-          })),
-        };
+      if (conflict.rows[0])
+        return { kind: 'conflict' as const, reason: conflict.rows[0].reason };
 
       const updated = await client.query<BookingDecisionRow>(
         `UPDATE venue_bookings

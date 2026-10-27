@@ -327,6 +327,7 @@ export interface VenueBookingConflict {
   occupiedStart: string;
   occupiedEnd: string;
   status?: "approved" | "pending";
+  requestKind?: "booking" | "tentative_hold";
   holdExpiresAt?: string;
 }
 
