@@ -60,6 +60,13 @@ export function ownedOnly(merged, owned) {
   return Object.values(result).some((slots) => Object.keys(slots).length) ? result : undefined;
 }
 
+/** Drops every statement, branch and function whose start line is in `lines` (EXCLUDED lines leave the totals). */
+export function withoutLines(merged, lines) {
+  if (!lines || !lines.size) return merged;
+  const keep = (slots) => Object.fromEntries(Object.entries(slots).filter(([, slot]) => !lines.has(slot.line)));
+  return { statements: keep(merged.statements), functions: keep(merged.functions), branches: keep(merged.branches) };
+}
+
 /** Metrics, uncovered lines and e2e-only lines of one merged file. */
 export function summarise(merged, unitRuns, e2eRuns) {
   const stmts = Object.values(merged.statements);
@@ -190,8 +197,17 @@ function main() {
     const owned = ownedByFile ? new Set(ownedByFile[file] ?? []) : undefined;
     const merged = ownedOnly(mergedByFile.get(file), owned);
     if (!merged) continue;
-    const summary = summarise(merged, unitRuns, e2eRuns);
     const rows = statuses.filter((row) => row.file === file);
+    // EXCLUDED lines (status EXCLUDED with a `line` row in coverage-exclusions.md) leave every total: statements, branches, functions and lines.
+    const excludedLines = new Set();
+    for (const row of rows.filter((r) => r.status === 'EXCLUDED')) {
+      for (const line of row.lines) {
+        if (exclusions.some((e) => e.kind === 'line' && e.reason && e.glob === `${file}:${line}`)) excludedLines.add(line);
+        else findings.push(`${file}:${line} is EXCLUDED but coverage-exclusions.md has no line row with a reason for it`);
+      }
+    }
+    const uncoveredBeforeExclusion = summarise(merged, unitRuns, e2eRuns).uncoveredLines;
+    const summary = summarise(withoutLines(merged, excludedLines), unitRuns, e2eRuns);
     const lineStatus = {};
     const classify = (line, status, note) => {
       lineStatus[line] = status;
@@ -199,6 +215,7 @@ function main() {
       if (status === 'OPEN') gaps.push({ type: 'coverage-open', ref: `${file}:${line}`, reason: note || 'status OPEN' });
     };
     for (const line of summary.e2eOnlyLines) classify(line, 'COVERED-BY-E2E', `covered by ${e2eRuns.join(', ')} only`);
+    for (const line of uncoveredBeforeExclusion) if (excludedLines.has(line)) classify(line, 'EXCLUDED', 'removed from the coverage totals by a line row in coverage-exclusions.md');
     for (const line of summary.uncoveredLines) {
       const row = rows.find((r) => r.lines.has(line));
       if (!row) {
@@ -206,7 +223,6 @@ function main() {
         continue;
       }
       if (!STATUSES.includes(row.status)) findings.push(`${file}:${line} has unknown status "${row.status}"`);
-      else if (row.status === 'EXCLUDED' && !exclusions.some((e) => e.kind === 'line' && e.reason && e.glob === `${file}:${line}`)) findings.push(`${file}:${line} is EXCLUDED but coverage-exclusions.md has no line row with a reason for it`);
       else if (!row.note) findings.push(`${file}:${line} status ${row.status} needs a note`);
       else classify(line, row.status, row.note);
     }
