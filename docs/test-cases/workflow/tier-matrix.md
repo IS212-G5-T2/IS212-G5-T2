@@ -221,6 +221,8 @@ One table per story, headed `## <story>`. Every tier cell of every AC is `PRESEN
 | AC9 | N/A (preservation rule has no unaffected path in the criterion) | PRESENT (VEN-AVL-09-A, VEN-AVL-09-B) | N/A (no numeric limit in the criterion) | PRESENT (VEN-AVL-09-A) | N/A (no configurable parameter in the criterion) | PRESENT (VEN-AVL-09-A, VEN-AVL-09-B) | N/A (single venue booking per case) | N/A (authorisation for unavailability is not stated in AC9) | N/A (no concurrency rule) |
 | AC10 | PRESENT (VEN-AVL-10-A) | PRESENT (VEN-AVL-10-B) | PRESENT (VEN-AVL-10-BND-1) | N/A (expired and active holds are separate State cases) | N/A (no configurable parameter in the criterion) | PRESENT (VEN-AVL-10-A, VEN-AVL-10-B) | N/A (single venue hold) | N/A (no new access rule) | N/A (no concurrency rule) |
 
+Test names for the cells changed by the SPM-150 product-owner decisions (the cell carries IDs only, because G2 splits PRESENT cells on commas): VEN-AVL-03-B is "shows the active tentative hold and its expiry instant in calendar and list views" in VenueRecordDetailPage.test.tsx; VEN-AVL-10-BND-1 is "does not block a range that overlaps a hold at its exact expiry instant" in VenueRecordDetailPage.test.tsx.
+
 ## Notes on unowned IDs (not matrix sections)
 
 - **PLAN-STATUS-\*** tests belong to **SPM-148** (Planning status). Owner evidence: the test headers and comments in `backend/test/events-planning-transition.e2e-spec.ts`, `frontend/src/features/events/pages/detail/EventDetailPage.clarifications.test.tsx` ("SPM-148 AC7 (PLAN-STATUS-07-A, 07-D)") and `docs/specs/SPM-148-test-results.md`. They are not in any SPM-36 to SPM-83 matrix section, so their tier cells are not recorded here.

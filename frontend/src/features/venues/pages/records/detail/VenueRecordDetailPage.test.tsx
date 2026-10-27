@@ -1534,6 +1534,69 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
+  /**
+   * VEN-AVL-03-B: an active tentative hold shows the stored expiry instant, 12 Jan 2030 15:00 SGT, in both the calendar and the list views.
+   * Kills: a view that shows the hold end (14:00 SGT) or no expiry for a live hold instead of the stored expiry.
+   */
+  it("shows the active tentative hold and its expiry instant in calendar and list views", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+    const user = userEvent.setup();
+    const holdSchedule: VenueRecord = {
+      ...venue,
+      unavailablePeriods: [],
+      reservations: [
+        {
+          id: "live-hold",
+          eventName: "Held seminar",
+          start: "2030-01-12T05:00:00Z",
+          end: "2030-01-12T06:00:00Z",
+          status: "tentative",
+          holdExpiresAt: "2030-01-12T07:00:00Z",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    };
+    apiMock
+      .mockResolvedValueOnce(holdSchedule)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce(holdSchedule);
+
+    try {
+      renderPage();
+      await screen.findByRole("heading", { name: "Conference Room" });
+      fireEvent.change(screen.getByLabelText("Event starts"), {
+        target: { value: "2030-01-12T12:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Event ends"), {
+        target: { value: "2030-01-12T18:00" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Refresh schedule" }),
+      );
+
+      const calendar = screen.getByRole("region", { name: "Venue schedule" });
+      expect(calendar).toHaveTextContent("Tentative hold");
+      expect(calendar).toHaveTextContent("Hold expires 12 Jan 2030, 15:00 SGT");
+
+      await user.click(screen.getByRole("button", { name: "List" }));
+      const list = screen.getByRole("list", { name: "Venue schedule" });
+      expect(list).toHaveTextContent("Tentative hold");
+      expect(list).toHaveTextContent("hold expires 12 Jan 2030, 15:00 SGT");
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
+  });
+
   /** VEN-AVL-03-A: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. The hold-expiry display in both views is the second AC3 case. */
   it("shows the same schedule facts in calendar and list views without changing the selected range", async () => {
     useAppStore.setState({
@@ -1887,6 +1950,68 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     } finally {
       cleanup();
       vi.setSystemTime(realNow);
+    }
+  });
+
+  /**
+   * VEN-AVL-10-BND-1: at the exact expiry instant, 12 Jan 2030 09:00 SGT, the hold is inactive and a range that only overlaps it is not blocked.
+   * Kills: a page that keeps a hold active at its expiry instant (a >= comparison), which would list it as a conflict and block the time.
+   */
+  it("does not block a range that overlaps a hold at its exact expiry instant", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-12T01:00:00.000Z"));
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+    const user = userEvent.setup();
+    const boundarySchedule: VenueRecord = {
+      ...venue,
+      unavailablePeriods: [],
+      reservations: [
+        {
+          id: "expiring-hold",
+          eventName: "Expiring Hold",
+          start: "2030-01-12T05:00:00Z",
+          end: "2030-01-12T06:00:00Z",
+          status: "tentative",
+          holdExpiresAt: "2030-01-12T01:00:00.000Z",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    };
+    apiMock
+      .mockResolvedValueOnce(boundarySchedule)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce(boundarySchedule);
+
+    try {
+      renderPage();
+      await screen.findByRole("heading", { name: "Conference Room" });
+      fireEvent.change(screen.getByLabelText("Event starts"), {
+        target: { value: "2030-01-12T13:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Event ends"), {
+        target: { value: "2030-01-12T14:00" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Refresh schedule" }),
+      );
+
+      expect(
+        await screen.findByText("This time is available for this venue."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("region", { name: "Venue schedule" }),
+      ).not.toHaveTextContent("Expiring Hold");
+    } finally {
+      cleanup();
+      vi.useRealTimers();
     }
   });
 
