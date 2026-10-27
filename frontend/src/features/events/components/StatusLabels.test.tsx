@@ -66,6 +66,13 @@ describe("shared arrangement readiness helpers", () => {
     expect(safetyCheckReady({ status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Reserved"] })).toBe(false);
     expect(safetyCheckReady({ status: "approved", venueRequestStatus: "approved", equipmentStatuses: ["Reserved"] })).toBe(false);
   });
+
+  // Kills: an event with no equipment list (the field is optional) throws in the readiness helpers, or is reported as reserved.
+  /** VEN-BKG-08-A: an approved venue on a planning event whose equipment list is absent is not reserved, and its safety check is ready. */
+  it("VEN-BKG-08-A SPM-54 treats an absent equipment list as no equipment for readiness", () => {
+    expect(arrangementsReserved({ status: "planning", venueRequestStatus: "approved" })).toBe(false);
+    expect(safetyCheckReady({ status: "planning", venueRequestStatus: "approved" })).toBe(true);
+  });
 });
 
 describe("card labels name the resource and its state", () => {
