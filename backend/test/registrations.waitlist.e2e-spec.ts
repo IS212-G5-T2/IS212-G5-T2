@@ -1530,14 +1530,17 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
 
     /**
      * JOIN-WAITLIST-12-D-ORG-REFUSED: the submitting organiser who also holds ATTENDEE is refused the waiting list of their
-     * own event (403, no entry written). The cancel answers 200 and the organiser keeps one EventCancelled notice.
+     * own event (403, no entry written). The assigned coordinator cancels (200); the organiser, who may not cancel,
+     * still receives one EventCancelled notice.
      * Kills W8 (the owner check removed).
      */
     it('JOIN-WAITLIST-12-D-ORG-REFUSED: the organiser cannot join the waiting list of their own event', async () => {
       // Arrange: ORG is the submitter and holds ATTENDEE; the event is full with three Registered attendees.
       const org = await namedUser(['ORGANISER', 'ATTENDEE'], 'Organiser Attendee', 11);
+      const coo = await namedUser(['COORDINATOR'], 'Coordinator COO', 3);
       const eventId = await seedFullGala([await attendee('01'), await attendee('02'), await attendee('03')], {
         organiserId: org.uid,
+        coordinatorId: coo.uid,
       });
 
       // Act
@@ -1549,7 +1552,7 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(joinRes.body.message).toBe(MSG_OWN_EVENT);
       expect(await rowOf(eventId, org.uid)).toBeUndefined();
 
-      expect((await cancel(eventId, org)).status).toBe(200);
+      expect((await cancel(eventId, coo)).status).toBe(200);
       const notices = (await notificationsFor(org.uid)).filter((n) => n.type === 'EventCancelled');
       expect(notices).toEqual([
         expect.objectContaining({ message: `${NAME} has been cancelled.`, related_event_id: eventId }),

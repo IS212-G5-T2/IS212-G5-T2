@@ -12,9 +12,8 @@ interface CancelRuleInput {
   currentUser: { id: string; role: string };
 }
 
-/** The assigned coordinator, or the submitting organiser, on a cancellable event. */
+/** The assigned coordinator only, on a cancellable event. The submitting organiser is not offered the action. */
 export function canCancelEvent({ event, currentUser }: CancelRuleInput): boolean {
   const assigned = currentUser.role === "coordinator" && event.coordinatorId === currentUser.id;
-  const submitted = currentUser.role === "organiser" && event.organiserId === currentUser.id;
-  return (assigned || submitted) && (CANCELLABLE_EVENT_STATUSES as readonly string[]).includes(event.status);
+  return assigned && (CANCELLABLE_EVENT_STATUSES as readonly string[]).includes(event.status);
 }

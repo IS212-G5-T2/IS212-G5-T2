@@ -10,7 +10,7 @@ import type { EventComment, EventRecord, PlanningView } from "@/types";
 /*
  * SPM-136 Cancel an Event, page level (EventDetailPage). The HTTP layer is the boundary and is mocked; the
  * page, its role logic, the dialog and the panels are real.
- *   AC1 (CANCEL-EVENT-01-A/B/C F): only the assigned coordinator or submitting organiser sees Cancel Event.
+ *   AC1 (CANCEL-EVENT-01-A/B/C F): only the assigned coordinator sees Cancel Event.
  *   AC3 (03-A): the cancelled event shows Cancelled without a reload.
  *   AC7 (07-A UI): a cancelled event shows a banner and no change controls.
  */
@@ -100,7 +100,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator and the submitting organiser only", () => {
+describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only", () => {
   // Kills: F39 (the page hides Cancel Event on a Planning event)
   it("CANCEL-EVENT-01-A (page): the assigned coordinator sees Cancel Event on a Planning event", async () => {
     // Arrange
@@ -113,21 +113,22 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator and t
     expect(trigger).toBeInTheDocument();
   });
 
-  // Kills: F40 (the page hides Cancel Event from the organiser on a Confirmed event)
-  it("CANCEL-EVENT-01-B (page): the submitting organiser sees Cancel Event on a Confirmed event", async () => {
+  // Kills: F40 (the page offers Cancel Event to the submitting organiser on a Confirmed event)
+  it("CANCEL-EVENT-01-B (page): the submitting organiser does not see Cancel Event on a Confirmed event", async () => {
     // Arrange
     renderAs(ORGANISER, eventRecord({ status: "confirmed" }));
 
-    // Act: wait for the page to render the action
-    const trigger = await screen.findByRole("button", { name: "Cancel Event" });
+    // Act: the page has rendered once the event heading is shown
+    await screen.findByRole("heading", { name: EVENT_NAME });
 
-    // Assert: the action is visible to the submitting organiser
-    expect(trigger).toBeInTheDocument();
+    // Assert: no Cancel Event action for the submitting organiser
+    expect(screen.queryByRole("button", { name: "Cancel Event" })).not.toBeInTheDocument();
   });
 
-  // Kills: F26 (COO-02 row: the assigned-coordinator id check dropped); F1 (LEAD-01 row); F2 (ORG-02 row)
+  // Kills: F26 (COO-02 row: the assigned-coordinator id check dropped); F1 (LEAD-01 row); F2 (ORG-02 row); F40 (ORG-01 row)
   it.each([
     ["COO-02, not assigned", { id: "coo-02", role: "coordinator", roles: ["coordinator"] }],
+    ["ORG-01, the submitting organiser", ORGANISER],
     ["ORG-02, another organiser", { id: "org-02", role: "organiser", roles: ["organiser"] }],
     ["LEAD-01, Coordinator Lead", { id: "lead-01", role: "coordinator_lead", roles: ["coordinator_lead"] }],
   ])("CANCEL-EVENT-01-C-F: %s does not see Cancel Event", async (_label, user) => {
