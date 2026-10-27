@@ -1714,7 +1714,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(schedule).not.toHaveTextContent("Maintenance");
   });
 
-  /** VEN-AVL-02-B / SPM-51 AC5: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
+  /** VEN-AVL-02-B / SPM-51 AC2: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
   it("navigates the real time grid and shows availability in the newly visible week", async () => {
     const originalNow = Date.now();
     vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
