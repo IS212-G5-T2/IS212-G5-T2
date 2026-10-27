@@ -1,0 +1,20 @@
+{
+  "story": "SPM-51",
+  "title": "View Venue Availability (Coordinator)",
+  "note": "Authoritative matrix: Confluence View Venue Availability Matrix (page 24117310), VEN-AVL-01 to VEN-AVL-10. This scope measures the shared VenueScheduleCalendar component so that the three lines owned by SPM-51 (28, 292, 296; coverage-exclusions.md) are counted in SPM-51 test cases. The standalone VenueScheduleCalendar.test.tsx carries SPM-51 comments but no VEN-AVL registry IDs, so the coverage-only scope sees its tests as untraced. The Playwright spec VenueScheduleCalendar.playwright.spec.ts is excluded from the vitest suite (vitest.config excludes *.playwright.spec.ts) and is not counted in this scope's coverage. Registry IDs for SPM-51 are not yet maintained.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "frontend": [
+      { "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx", "titleMatch": "SPM-51" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ]
+}
