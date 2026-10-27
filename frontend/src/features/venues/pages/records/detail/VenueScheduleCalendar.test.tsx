@@ -130,7 +130,7 @@ describe("venue schedule occupancy", () => {
     expect(free.some((entry) => Date.parse(entry.start) < Date.parse("2030-01-07T03:30:00.000Z") && Date.parse(entry.end) > Date.parse("2030-01-07T01:30:00.000Z"))).toBe(false);
   });
 
-  /** VEN-AVL-02-C and VEN-AVL-04-A: unavailable periods and active tentative holds both split green free intervals. */
+  /** VEN-AVL-04-A: unavailable periods and active tentative holds both split green free intervals. A second equal case is the active tentative hold, which is tentative rather than confirmed. */
   it("excludes a closure and an active hold with setup and turnaround from free shading", () => {
     const blockedVenue: VenueRecord = {
       ...venue,
@@ -164,7 +164,7 @@ describe("venue schedule occupancy", () => {
     ]);
   });
 
-  /** VEN-AVL-08-A and VEN-AVL-08-B: setup ends at the event start and turnaround begins at the event end across SGT midnight. */
+  /** VEN-AVL-08-A: setup ends at the event start and turnaround begins at the event end across SGT midnight. The turnaround-start edge of the same buffer rule is the second AC8 case. */
   it("places exact setup and turnaround intervals on their SGT calendar days", () => {
     const crossMidnightVenue: VenueRecord = {
       ...venue,

@@ -1159,7 +1159,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  /** VEN-AVL-07-A / VEN-AVL-08-A: a conflict blocks request submission after the coordinator checks a venue. */
+  /** VEN-AVL-07-A: a conflict blocks request submission after the coordinator checks a venue. The buffer overlap that causes the conflict is also an AC8 case. */
   it("SPM-51: blocks booking submission for a time that conflicts with a confirmed booking", async () => {
     useAppStore.setState({
       currentUser: {
@@ -1534,7 +1534,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** VEN-AVL-02-A, VEN-AVL-02-B, VEN-AVL-02-C, VEN-AVL-05-A, VEN-AVL-05-B, VEN-AVL-03-A and VEN-AVL-03-B: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. */
+  /** VEN-AVL-03-A: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. The hold-expiry display in both views is the second AC3 case. */
   it("shows the same schedule facts in calendar and list views without changing the selected range", async () => {
     useAppStore.setState({
       currentUser: {
@@ -1714,7 +1714,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(schedule).not.toHaveTextContent("Maintenance");
   });
 
-  /** VEN-AVL-02 / SPM-51 AC5: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
+  /** VEN-AVL-02-B / SPM-51 AC5: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
   it("navigates the real time grid and shows availability in the newly visible week", async () => {
     const originalNow = Date.now();
     vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
@@ -1832,7 +1832,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(calendar).not.toHaveTextContent("Turnaround buffer");
   });
 
-  /** VEN-AVL-10-A and VEN-AVL-10-B: the backend-clock-filtered schedule displays and blocks only the active hold. */
+  /** VEN-AVL-10-B: the backend-clock-filtered schedule displays and blocks only the active hold. The only-active-hold assertion also excludes the expired hold, which is the first AC10 case. */
   it("renders and blocks the live hold returned by the server at a fixed check time", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
@@ -1890,7 +1890,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
-  /** VEN-AVL-09-A and VEN-AVL-09-B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. */
+  /** VEN-AVL-09-B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. The retained-and-visible check is the first AC9 case. */
   it("retains and flags an existing booking affected only through its setup buffer", async () => {
     apiMock
       .mockResolvedValueOnce({

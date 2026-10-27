@@ -1440,7 +1440,7 @@ describe.skipIf(!databaseUrl)(
       expect(activeConflict.body.message).toContain('Active hold');
     });
 
-    /** VEN-AVL-08-A and VEN-AVL-08-VAR-1: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
+    /** VEN-AVL-08-A: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
     it('rejects a candidate after a booking when turnaround occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1473,7 +1473,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A, VEN-AVL-08-B and VEN-AVL-08-VAR-1: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
+    /** VEN-AVL-08-B: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
     it('rejects a candidate before a booking when setup occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1534,7 +1534,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A, VEN-AVL-08-B, VEN-AVL-08-BND-1 and VEN-AVL-08-VAR-1: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
+    /** VEN-AVL-08-A: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
     it('rejects setup-only and turnaround-only blockout conflicts without insertion', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
