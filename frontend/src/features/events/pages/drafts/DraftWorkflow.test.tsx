@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import {
   act,
   cleanup,
@@ -73,8 +74,11 @@ function mockResumedDraftFlow(
   });
   return { resolveOptions: () => options.resolve(facilityOptions) };
 }
-function open(path = `/requests/${id}`) {
-  return render(
+// strict: mounts inside StrictMode, which re-runs each mount effect once while
+// the component stays mounted. The second run is a newer request, so the first
+// request's result arriving late is a real stale response.
+function open(path = `/requests/${id}`, strict = false) {
+  const tree = (
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/requests/:id" element={<EventCreatePage />} />
@@ -82,8 +86,9 @@ function open(path = `/requests/${id}`) {
         <Route path="/requests" element={<MyRequestsPage />} />
         <Route path="/events/:id" element={<p>Event submitted</p>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 const click = (name: string | RegExp) =>
   fireEvent.click(screen.getByRole("button", { name }));
@@ -197,22 +202,34 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe("/requests");
     },
   );
-  /** EVE-DRF-SUP-31: a late draft load result that arrives after the editor is left does not start another load. */
+  /** EVE-DRF-SUP-31: a late draft load result from a superseded load never replaces the newer draft on screen. */
   it.each(["resolve", "reject"])(
-    "EVE-DRF-SUP-31 ignores late load %s after leaving the editor",
+    "EVE-DRF-SUP-31 ignores late load %s after a newer load",
     async (outcome) => {
-      const pending = deferred<DraftRecord>();
-      mocked.mockReturnValue(pending.promise);
-      const view = open();
-      expect(screen.getByRole("status")).toBeTruthy();
-      expect(mocked).toHaveBeenCalledTimes(1);
-      view.unmount();
+      const stale = deferred<DraftRecord>();
+      const newer = deferred<DraftRecord>();
+      mocked
+        .mockReturnValueOnce(stale.promise)
+        .mockReturnValueOnce(newer.promise);
+      open(`/requests/${id}`, true);
+      // StrictMode re-runs the mount effect: the first load is now superseded by a second, still mounted, load.
+      expect(mocked).toHaveBeenCalledTimes(2);
+      await act(async () => newer.resolve(draft({ name: "Newer draft" })));
+      expect(screen.getByLabelText(/Event name/)).toHaveProperty(
+        "value",
+        "Newer draft",
+      );
       await act(async () => {
-        if (outcome === "resolve") pending.resolve(draft());
-        else pending.reject(new Error("late"));
+        if (outcome === "resolve") stale.resolve(draft({ name: "Older draft" }));
+        else stale.reject(new Error("late"));
       });
-      // After unmount the DOM is gone, so only the load mock is observable: the late result must not start another load.
-      expect(mocked).toHaveBeenCalledTimes(1);
+      // The superseded result must not overwrite the newer draft or show its error.
+      expect(screen.getByLabelText(/Event name/)).toHaveProperty(
+        "value",
+        "Newer draft",
+      );
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
   // Kills: the retry after a failed save using a new operation id, or the later edit sent with the original operation id.
@@ -448,21 +465,30 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
-  /** EVE-DRF-SUP-40: a late draft list result that arrives after navigation does not start a retry or another list load. */
+  /** EVE-DRF-SUP-40: a late draft list result from a superseded load never replaces the newer list on screen. */
   it.each(["resolve", "reject"])(
-    "EVE-DRF-SUP-40 ignores late list %s after navigation",
+    "EVE-DRF-SUP-40 ignores late list %s after a newer load",
     async (outcome) => {
-      const pending = deferred<DraftRecord[]>();
-      mocked.mockReturnValue(pending.promise);
-      const view = open("/requests");
-      expect(mocked).toHaveBeenCalledTimes(1);
-      view.unmount();
+      const stale = deferred<DraftRecord[]>();
+      const newer = deferred<DraftRecord[]>();
+      mocked
+        .mockReturnValueOnce(stale.promise)
+        .mockReturnValueOnce(newer.promise);
+      open("/requests", true);
+      // StrictMode re-runs the mount effect: the first list load is now superseded by a second, still mounted, load.
+      expect(mocked).toHaveBeenCalledTimes(2);
+      await act(async () => newer.resolve([draft({ name: "Newer draft" })]));
+      expect(screen.getByRole("link", { name: "Newer draft" })).toBeTruthy();
       await act(async () => {
-        if (outcome === "resolve") pending.resolve([]);
-        else pending.reject("late");
+        if (outcome === "resolve")
+          stale.resolve([draft({ name: "Older draft" })]);
+        else stale.reject("late");
       });
-      // After unmount only the list mock is observable: the late result must not start a retry or another list load.
-      expect(mocked).toHaveBeenCalledTimes(1);
+      // The superseded result must not replace the newer list or show its error.
+      expect(screen.getByRole("link", { name: "Newer draft" })).toBeTruthy();
+      expect(screen.queryByRole("link", { name: "Older draft" })).toBeNull();
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
   // Parent AC (SUPPORTING): SPM-37 AC6 (low confidence: file size error)
