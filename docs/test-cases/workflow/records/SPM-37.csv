@@ -42,7 +42,7 @@ EVE-DRF-11-D,backend/src/event-drafts/dto/draft-boundaries.spec.ts,Q1-022 reject
 EVE-DRF-01-B,backend/test/drafts.e2e-spec.ts,saves an incomplete Draft without submitting,83,AC1/AC2,Happy,Present,Integration,SPEC,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
 EVE-DRF-02-A,backend/test/drafts.e2e-spec.ts,lists and reopens all saved values,93,AC3/AC5,Happy,Present,Integration,SPEC,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
 EVE-DRF-SUP-54,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-54 identical retry with the same operationId returns version 1,136,AC4,Concurrency,Present,Integration,DERIVED,,mutants:BE-37-02,Yes,Yes,Yes,PASS
-EVE-DRF-SUP-55,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-55 reuse of an operationId with different values returns 409 with its message and changes nothing,149,AC4,Sad,Present,Integration,DERIVED,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
+EVE-DRF-SUP-55,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-55 reuse of an operationId with different values returns 409 with its message and changes nothing,149,AC4,Sad,Present,Integration,DERIVED,,mutants:BE-37-02,Yes,Yes,Yes,PASS
 EVE-DRF-SUP-56,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-56 two concurrent stale saves give one 200 and one 409 and the stored row is the winner's,164,AC4,Concurrency,Present,Integration,DERIVED,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
 EVE-DRF-SUP-22,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-22 retains the saved values after validation failure,188,AC6,State,Present,Integration,DERIVED,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
 EVE-DRF-SUP-23,backend/test/drafts.e2e-spec.ts,EVE-DRF-SUP-23 submits once and blocks later draft saves,199,AC7,Concurrency,Present,Integration,DERIVED,,mutants:backend-spm37/e2e(1),Yes,Yes,Yes,PASS
