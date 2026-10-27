@@ -1416,7 +1416,7 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
-  /** VEN-AVL-10-A/B/BND-1: expired and exact-expiry pending holds are excluded at the injected current time. */
+  /** VEN-AVL-10-A, VEN-AVL-10-B and VEN-AVL-10-BND-1: expired and exact-expiry pending holds are excluded at the injected current time. */
   it('keeps only pending holds that expire after now', async () => {
     const now = new Date('2030-10-08T00:30:00.000Z');
     readQuery
@@ -1526,7 +1526,7 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
   });
 
-  /** VEN-AVL-09-A/B: blockouts persist while affected confirmed bookings and active holds remain visible. */
+  /** VEN-AVL-09-A and VEN-AVL-09-B: blockouts persist while affected confirmed bookings and active holds remain visible. */
   it('returns each affected booking without changing its stored booking status', async () => {
     const query = vi
       .fn()

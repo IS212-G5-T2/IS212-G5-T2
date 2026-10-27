@@ -25,7 +25,7 @@ const venue: VenueRecord = {
 };
 
 describe("checkVenueAvailability (SPM-51)", () => {
-  /** VEN-AVL-05-A/B: nested and overlapping occupied intervals preserve the outer range and leave no false gap. */
+  /** VEN-AVL-05-A and VEN-AVL-05-B: nested and overlapping occupied intervals preserve the outer range and leave no false gap. */
   it("keeps the enclosing occupancy end when later intervals are nested and overlapping", () => {
     const result = getFreeVenueIntervals(
       {
@@ -175,7 +175,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     ]);
   });
 
-  /** VEN-AVL-08-B/BND-1: with zero buffers, an exact half-open end/start touch is available. */
+  /** VEN-AVL-08-B and VEN-AVL-08-BND-1: with zero buffers, an exact half-open end/start touch is available. */
   it("accepts exact touching ranges when both venue buffers are zero", () => {
     const result = checkVenueAvailability(
       {
@@ -230,7 +230,7 @@ describe("checkVenueAvailability (SPM-51)", () => {
     expect(shortTurnaround).toEqual([]);
   });
 
-  /** VEN-AVL-08-A/BND-1: a blockout intersecting setup makes the requested time unavailable. */
+  /** VEN-AVL-08-A and VEN-AVL-08-BND-1: a blockout intersecting setup makes the requested time unavailable. */
   it("blocks a candidate whose setup buffer intersects an unavailable period", () => {
     const result = checkVenueAvailability(
       {

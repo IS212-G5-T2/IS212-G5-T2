@@ -1534,7 +1534,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** VEN-AVL-02-A/B/C/05-A/B and VEN-AVL-03-A/B: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. */
+  /** VEN-AVL-02-A, VEN-AVL-02-B, VEN-AVL-02-C, VEN-AVL-05-A, VEN-AVL-05-B, VEN-AVL-03-A and VEN-AVL-03-B: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. */
   it("shows the same schedule facts in calendar and list views without changing the selected range", async () => {
     useAppStore.setState({
       currentUser: {
@@ -1832,7 +1832,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(calendar).not.toHaveTextContent("Turnaround buffer");
   });
 
-  /** VEN-AVL-10-A/B: the backend-clock-filtered schedule displays and blocks only the active hold. */
+  /** VEN-AVL-10-A and VEN-AVL-10-B: the backend-clock-filtered schedule displays and blocks only the active hold. */
   it("renders and blocks the live hold returned by the server at a fixed check time", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
@@ -1890,7 +1890,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
-  /** VEN-AVL-09-A/B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. */
+  /** VEN-AVL-09-A and VEN-AVL-09-B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. */
   it("retains and flags an existing booking affected only through its setup buffer", async () => {
     apiMock
       .mockResolvedValueOnce({
