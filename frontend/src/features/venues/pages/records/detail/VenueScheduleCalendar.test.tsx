@@ -63,7 +63,7 @@ function range(start: string, end: string): [Date, Date] {
 }
 
 describe("isValidVenueSelection", () => {
-  /** Positive ranges are valid on any date or time because venues have no operating-hours schedule. */
+  /** VEN-AVL-01-A: positive ranges are valid on any date or time because venues have no operating-hours schedule. */
   it("allows daytime, weekend, overnight, and after-hours selections", () => {
     const [dayStart, dayEnd] = range("2030-01-07T09:00", "2030-01-07T18:00");
     const [weekendStart, weekendEnd] = range("2030-01-12T02:00", "2030-01-12T03:00");
@@ -76,7 +76,7 @@ describe("isValidVenueSelection", () => {
     expect(isValidVenueSelection(afterHoursStart, afterHoursEnd)).toBe(true);
   });
 
-  /** Calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
+  /** VEN-AVL-01-B: calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
   it("rejects zero-length, reversed, and invalid ranges", () => {
     const [zeroLengthStart, zeroLengthEnd] = range("2030-01-07T12:00", "2030-01-07T12:00");
     const [laterStart, earlierEnd] = range("2030-01-07T12:00", "2030-01-07T11:00");
@@ -88,7 +88,7 @@ describe("isValidVenueSelection", () => {
 });
 
 describe("venue schedule occupancy", () => {
-  /** VEN-AVL-02-A/B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
+  /** VEN-AVL-02-B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
   it("shades clear periods over a full SGT day without an operating-hours label", () => {
     const entries = getVenueScheduleEntries(
       venue,
@@ -103,7 +103,7 @@ describe("venue schedule occupancy", () => {
     expect(free[0].extendedProps.detail).not.toMatch(/operating hours|24 hours/i);
   });
 
-  /** VEN-AVL-02-A/B and VEN-AVL-05-A: confirmed event occupancy is excluded from available calendar shading. */
+  /** VEN-AVL-02-A: confirmed event occupancy is excluded from available calendar shading. */
   it("does not shade a confirmed booking or its setup and turnaround as free", () => {
     const bookedVenue: VenueRecord = {
       ...venue,
@@ -130,7 +130,7 @@ describe("venue schedule occupancy", () => {
     expect(free.some((entry) => Date.parse(entry.start) < Date.parse("2030-01-07T03:30:00.000Z") && Date.parse(entry.end) > Date.parse("2030-01-07T01:30:00.000Z"))).toBe(false);
   });
 
-  /** VEN-AVL-02-A/B/C and VEN-AVL-05-A/B: unavailable periods and active tentative holds both split green free intervals. */
+  /** VEN-AVL-02-C and VEN-AVL-04-A: unavailable periods and active tentative holds both split green free intervals. */
   it("excludes a closure and an active hold with setup and turnaround from free shading", () => {
     const blockedVenue: VenueRecord = {
       ...venue,
@@ -164,7 +164,7 @@ describe("venue schedule occupancy", () => {
     ]);
   });
 
-  /** VEN-AVL-08-A/B/VAR-1: setup ends at the event start and turnaround begins at the event end across SGT midnight. */
+  /** VEN-AVL-08-A and VEN-AVL-08-B: setup ends at the event start and turnaround begins at the event end across SGT midnight. */
   it("places exact setup and turnaround intervals on their SGT calendar days", () => {
     const crossMidnightVenue: VenueRecord = {
       ...venue,
@@ -199,7 +199,7 @@ describe("venue schedule occupancy", () => {
 });
 
 describe("VenueScheduleCalendar interactions", () => {
-  /** SPM-51 calendar selection accepts ranges without applying retired operating-hours rules. */
+  /** VEN-AVL-01-A (SPM-51): calendar selection accepts ranges without applying retired operating-hours rules. */
   it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
@@ -209,7 +209,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByText("true")).toBeInTheDocument();
   });
 
-  /** SPM-51 keeps selection independent of days and times previously treated as closed. */
+  /** VEN-AVL-01-A (SPM-51): keeps selection independent of days and times previously treated as closed. */
   it("allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
@@ -219,7 +219,7 @@ describe("VenueScheduleCalendar interactions", () => {
     }
   });
 
-  /** SPM-51 calendar selection forwards a drag range to the page callback. */
+  /** VEN-AVL-06-A (SPM-51): calendar selection forwards a drag range to the page callback that starts the booking request review. */
   it("connects the FullCalendar select callback to the selected range handler", () => {
     const onSelectRange = vi.fn();
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" onSelectRange={onSelectRange} />);
