@@ -739,6 +739,72 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  /**
+   * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the submitted notice stays in the review section.
+   * The expected notice after cancellation is an open product decision (coverage-line-status.md, VenueRecordDetailPage.tsx 803),
+   * so this test pins the current literal behaviour.
+   * Kills: a page that hides the review section, or clears the submitted notice, when the new request is cancelled.
+   */
+  it("VEN-BKG-10-A SPM-54 keeps the submitted notice in the review after the new request is cancelled", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-cancel-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-CANCEL01",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return { ...booking, bookingReference: "VB-CANCEL01" } as never;
+      }
+      if (path === `/venues/bookings/${booking.id}/cancel`) {
+        bookings = [];
+        return { id: booking.id, status: "cancelled" } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = screen.getByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    await screen.findByRole("region", {
+      name: "Existing venue booking request",
+    });
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", {
+          name: "Existing venue booking request",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Booking request submitted\. Reference: VB-CANCEL01/),
+    ).toBeInTheDocument();
+  });
+
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */
   it("VEN-BKG-09-A SPM-54 preserves the event venue summary when cancellation fails", async () => {
     setCoordinator(["event-1"]);

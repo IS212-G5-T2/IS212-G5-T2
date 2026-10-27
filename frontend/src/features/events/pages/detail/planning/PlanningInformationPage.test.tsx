@@ -511,6 +511,68 @@ describe("PlanningInformationPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  /**
+   * VEN-BKG-09-A SPM-54: a venue removal that fails with a non-Error rejection shows the action's own fallback message.
+   * Kills: a page that shows nothing, or the raw rejection value, when a removal fails without a reason.
+   */
+  it("VEN-BKG-09-A SPM-54 shows the venue removal fallback message when the failure carries no reason", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "unavailable",
+        items: [
+          { id: "b2", venueName: "Seminar Room B", status: "unavailable" },
+        ],
+      },
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return Promise.reject("boom");
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({
+          eventId: EVENT_ID,
+          ready: false,
+          outstanding: [],
+          checklist: current,
+        });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Remove Seminar Room B From List",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm Remove" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not remove the venue.",
+    );
+    expect(screen.getByText("Seminar Room B")).toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-09-A SPM-54: a checklist refresh error reported by the parent page is shown as an alert above the checklist.
+   * Kills: a page that drops the parent's refresh error instead of showing it to the coordinator.
+   */
+  it("VEN-BKG-09-A SPM-54 shows the parent's refresh error above the planning checklist", async () => {
+    render(
+      <MemoryRouter>
+        <PlanningInformationPage
+          view={view}
+          status="planning"
+          refreshError="Event details could not be refreshed."
+          onConfirmed={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Event details could not be refreshed.",
+    );
+  });
+
   /** Only unavailable equipment requests offer Remove From List; confirmed and pending ones do not. */
   it("offers Remove From List only on unavailable equipment requests", async () => {
     const user = userEvent.setup();
