@@ -41,6 +41,7 @@ import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelE
 import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
 import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
+import { RegistrationSettingsForm } from "@/features/events/pages/detail/registration/RegistrationSettingsForm";
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
 
@@ -726,6 +727,18 @@ export function EventDetailPage() {
             registerSignal={registerSignal}
             joinSignal={joinSignal}
           />
+        )}
+
+        {/* SPM-139: the assigned coordinator sets the registration period and capacity. */}
+        {isAssignedCoordinator && (
+          <div className="lg:col-span-3">
+            <RegistrationSettingsForm
+              eventId={event.id}
+              startDateTime={event.startDateTime}
+              status={event.status}
+              onSaved={refreshEvent}
+            />
+          </div>
         )}
 
         {(isOwner || isAssignedCoordinator) && (

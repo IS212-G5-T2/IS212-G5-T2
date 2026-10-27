@@ -77,6 +77,7 @@ export class RegistrationsService {
       );
       if (state === 'not_open') throw this.notOpen(event.registration_opens_at);
       if (state === 'closed') throw this.closed();
+      if (state === 'disabled') throw this.disabled();
 
       const existing = await client.query(
         'SELECT status FROM event_registrations WHERE event_id = $1 AND attendee_id = $2',
@@ -157,6 +158,7 @@ export class RegistrationsService {
       );
       if (state === 'not_open') throw this.notOpen(event.registration_opens_at);
       if (state === 'closed') throw this.closed();
+      if (state === 'disabled') throw this.disabled();
 
       const existing = await client.query(
         'SELECT status FROM event_registrations WHERE event_id = $1 AND attendee_id = $2',
@@ -456,6 +458,14 @@ export class RegistrationsService {
       statusCode: 422,
       code: REGISTRATION_ERROR_CODES.closed,
       message: MESSAGES.closed,
+    });
+  }
+
+  private disabled(): UnprocessableEntityException {
+    return new UnprocessableEntityException({
+      statusCode: 422,
+      code: REGISTRATION_ERROR_CODES.disabled,
+      message: MESSAGES.disabled,
     });
   }
 

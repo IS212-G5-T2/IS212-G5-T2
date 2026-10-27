@@ -4,7 +4,7 @@
  * exclusive at close (D6).
  */
 import { describe, expect, it } from 'vitest';
-import { isRegistrationOpen } from './registration-window.js';
+import { isRegistrationOpen, registrationWindowState } from './registration-window.js';
 
 const opensAt = new Date('2030-01-10T02:00:00.000Z');
 const closesAt = new Date('2030-01-20T02:00:00.000Z');
@@ -37,6 +37,17 @@ describe('EVENT-REG-01-BND-1: the opening boundary and the open-state rules', ()
   it('treats a missing bound as unbounded', () => {
     expect(isRegistrationOpen({ ...event, opensAt: null }, at(-1_000_000))).toBe(true);
     expect(isRegistrationOpen({ ...event, closesAt: null }, at(1e12))).toBe(true);
+  });
+});
+
+// SPM-139 F5: a disabled registration reports its own state, distinct from closed.
+describe('SPM-139 F5: the disabled state', () => {
+  it('reports disabled, not closed, when the coordinator has switched registration off', () => {
+    expect(registrationWindowState({ ...event, registrationEnabled: false }, at(1000))).toBe('disabled');
+  });
+  it('still reports closed for an enabled event outside the window', () => {
+    expect(registrationWindowState(event, at(-1000))).toBe('not_open');
+    expect(registrationWindowState(event, closesAt)).toBe('closed');
   });
 });
 

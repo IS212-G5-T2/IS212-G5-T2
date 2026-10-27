@@ -413,6 +413,12 @@ scoping come from the local session.
 
 Existing databases apply `backend/migrations/011_spm138_waitlist.sql` once; fresh volumes get the same change from `database/postgresql/init/017_spm138_waitlist.sql`. The e2e suite is `test/registrations.waitlist.e2e-spec.ts` (needs `DATABASE_URL` with both applied). The fault-injection check is `node scripts/mutation/run.mjs --mutants spm138.mutants.mjs`.
 
+## Registration settings (SPM-139)
+
+`GET /api/events/:id/registration-settings` and `PUT /api/events/:id/registration-settings` let only the assigned Event Coordinator read and change an event's registration enabled flag, opening and closing times, and capacity (`src/registrations/settings/`). A PUT is partial: an omitted field keeps its saved value, and an explicit `null` is refused. It must send the `version` the form loaded; a stale version is `409 SETTINGS_CONFLICT`. Times are ISO 8601 with an offset or `Z`. The save runs in one transaction under the event row lock: the waiting list is settled on the old window, the new settings are validated and written, the list is settled on the new window (a shortened closing time or a disable removes it), and capacity that rose promotes the earliest waiting entries (`fillFreeSpots`). Cancelled, rejected and completed events return `409 EVENT_NOT_CONFIGURABLE`. A disabled registration answers attendee registrations with `422 REGISTRATION_DISABLED`.
+
+The migration adds `events.registration_settings_version`: `backend/migrations/024_spm139_registration_settings.sql` for existing databases, `database/postgresql/init/024_spm139_registration_settings.sql` for fresh volumes. Tests: `test/registration-settings.e2e-spec.ts` (needs `DATABASE_URL` with init 001 to 024) and the pure rules in `registration-settings.validation.spec.ts`.
+
 ## Registration report and exports
 
 The report and CSV/PDF exports all use `RegistrationsService.getReport`, so

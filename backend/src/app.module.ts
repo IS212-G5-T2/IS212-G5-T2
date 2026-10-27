@@ -25,6 +25,8 @@ import { ClarificationsModule } from './clarifications/clarifications.module.js'
 import { ClarificationsController } from './clarifications/clarifications.controller.js';
 import { CLOCK, systemClock } from './common/clock.js';
 import { RegistrationsController } from './registrations/registrations.controller.js';
+import { RegistrationSettingsController } from './registrations/settings/registration-settings.controller.js';
+import { RegistrationSettingsService } from './registrations/settings/registration-settings.service.js';
 import { ExportService } from './registrations/report/export.service.js';
 import { RegistrationsService } from './registrations/registrations.service.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -57,6 +59,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     ChangeRequestsController,
     DraftsController,
     RegistrationsController,
+    RegistrationSettingsController,
     EquipmentController,
     EquipmentRequestsController,
     CoordinatorAvailabilityController,
@@ -69,6 +72,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     CoordinatorQueueService,
     DraftsService,
     RegistrationsService,
+    RegistrationSettingsService,
     ExportService,
     EquipmentService,
     EquipmentRequestsRepository,
@@ -104,6 +108,7 @@ export class AppModule implements NestModule {
         ChangeRequestsController,
         DraftsController,
         RegistrationsController,
+        RegistrationSettingsController,
         EquipmentController,
         EquipmentRequestsController,
         VenuesController,

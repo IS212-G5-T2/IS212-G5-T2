@@ -16,6 +16,8 @@ export const REGISTRATION_ERROR_CODES = {
   waitlistNotAvailable: 'WAITLIST_NOT_AVAILABLE',
   alreadyOnWaitlist: 'already_on_waitlist',
   notWithdrawable: 'registration_not_withdrawable',
+  // SPM-139 F5: the coordinator has disabled registration (distinct from closed and not-yet-open).
+  disabled: 'REGISTRATION_DISABLED',
 } as const;
 
 // Same format as the frontend: 12 Mar 2027, 23:59 (24-hour, SGT).
@@ -73,4 +75,6 @@ export const MESSAGES = {
     `${eventName} has been cancelled. Your waitlist place is cancelled.`,
   // A-NOT-WITHDRAWABLE: a Removed or Cancelled entry cannot be withdrawn. The copy is ours (the spec gives the 409 only).
   notWithdrawable: 'This registration can no longer be withdrawn.',
+  // SPM-139 F5 (ASSUMED wording: the test-case document gives the code, not the text).
+  disabled: 'Registration is not available for this event.',
 } as const;
