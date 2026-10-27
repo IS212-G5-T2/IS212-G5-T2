@@ -37,7 +37,8 @@
     ],
     "frontend": [
       "frontend/src/utils/api.ts",
-      "frontend/src/features/events/pages/create/EventCreatePage.tsx"
+      "frontend/src/features/events/pages/create/EventCreatePage.tsx",
+      "frontend/src/features/events/pages/drafts/MyRequestsPage.tsx"
     ]
   },
   "suites": [
