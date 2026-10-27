@@ -54,7 +54,7 @@ function setVenueStaff() {
 }
 
 /** Builds one booking row as the GET /venues/bookings/pending endpoint returns it (now includes status). */
-function pendingRequest(overrides: Partial<Record<string, string>> = {}) {
+function pendingRequest(overrides: Partial<Record<string, unknown>> = {}) {
   return {
     id: "booking-1",
     eventId: "event-1",
@@ -94,6 +94,42 @@ describe("Coordinator venue bookings", () => {
     expect(within(bookingCard).getByRole("heading", { name: "Gala" })).toHaveClass("text-gray-900", "dark:text-gray-100");
     expect(screen.getByText(/VB-BOOKING1/)).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/mine");
+  });
+
+  /** VEN-HOLD-09-SUP-COORDINATOR: a fresh coordinator list distinguishes Pending, Active, and expired tentative holds with their expiry timestamps. */
+  it("VEN-HOLD-09-SUP-COORDINATOR shows coordinator hold state and expiry from the API", async () => {
+    apiMock.mockResolvedValueOnce([
+      {
+        ...booking,
+        id: "hold-pending",
+        eventName: "Pending Hold Event",
+        requestKind: "tentative_hold",
+        holdExpired: false,
+      },
+      {
+        ...booking,
+        id: "hold-active",
+        eventName: "Active Hold Event",
+        status: "approved",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        holdExpired: false,
+      },
+      {
+        ...booking,
+        id: "hold-expired",
+        eventName: "Expired Hold Event",
+        status: "approved",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-09T12:00:00.000Z",
+        holdExpired: true,
+      },
+    ] as never);
+    render(<BookingsPage />);
+
+    expect(await screen.findByText("Tentative hold request pending Venue Staff approval. The hold is not active.")).toBeInTheDocument();
+    expect(screen.getByText("Active tentative hold until 24 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
+    expect(screen.getByText("Expired tentative hold until 09 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
   });
 
   /** VEN-BKG-05-A: affected and cancelled history rows offer the assigned event as replacement context. */
@@ -194,6 +230,69 @@ describe("Coordinator venue bookings", () => {
     // The card shows the stored booking slot in Singapore time, not the current event window (eventStart/eventEnd).
     expect(screen.getByText("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT")).toBeInTheDocument();
     expect(screen.queryByText("12 Jan 2030, 17:00 – 12 Jan 2030, 18:00 SGT")).not.toBeInTheDocument();
+  });
+
+  /** VEN-HOLD-13-A: a setup change is visible on the Pending card and its review details for staff reassessment. */
+  it("VEN-HOLD-13-A shows the reassessment flag on a Pending card and review dialog", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([
+      pendingRequest({ reassessmentRequired: true }),
+    ] as never);
+    render(<BookingsPage />);
+
+    expect(
+      await screen.findByText("Venue setup changed. Reassess the occupied period before approval."),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review Details" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent(
+      "Venue setup changed after this request was submitted. Reassess the occupied period before approving it.",
+    );
+  });
+
+  /** VEN-HOLD-13-A: staff can distinguish a tentative hold, understand approval activates it temporarily, and see its expiry after approval. */
+  it("VEN-HOLD-13-A identifies tentative holds and explains their 14-day approval expiry", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold" })] as never)
+      .mockResolvedValueOnce({ holdExpiresAt: "2030-01-24T12:00:00.000Z" } as never);
+    render(<BookingsPage />);
+
+    expect(await screen.findByText("Tentative hold request")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Review Details" }));
+    const pendingDialog = screen.getByRole("dialog");
+    expect(pendingDialog).toHaveTextContent("Tentative Hold Request — Gala");
+    expect(pendingDialog).toHaveTextContent("14 days (336 hours) from approval");
+    expect(pendingDialog).toHaveTextContent("It does not confirm a booking");
+    expect(screen.getByLabelText(/Approve — activate tentative hold/)).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/Approve — activate tentative hold/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("Status filter"), "approved");
+    expect(await screen.findByText("Active tentative hold until 24 Jan 2030, 20:00 SGT")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "View Details" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Active tentative hold until 24 Jan 2030, 20:00 SGT");
+  });
+
+  /** VEN-HOLD-09-SUP-LOOKUP: an approved hold past its expiry is shown as expired in both card and details. */
+  it("VEN-HOLD-09-SUP-LOOKUP labels an approved hold expired after its cutoff", async () => {
+    setVenueStaff();
+    apiMock.mockResolvedValueOnce([
+      pendingRequest({
+        status: "approved",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        holdExpired: true,
+      }),
+    ] as never);
+    render(<BookingsPage />);
+
+    await userEvent.setup().selectOptions(screen.getByLabelText("Status filter"), "approved");
+    expect(await screen.findByText("Expired tentative hold until 24 Jan 2030, 20:00 SGT")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "View Details" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Expired tentative hold until 24 Jan 2030, 20:00 SGT");
   });
 
   /** VEN-REV-01-B: a Venue Staff member with no pending requests sees the empty state. */

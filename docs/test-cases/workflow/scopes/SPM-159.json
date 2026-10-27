@@ -1,0 +1,34 @@
+{
+  "story": "SPM-159",
+  "title": "Request a Tentative Hold on a Venue (Coordinator)",
+  "note": "Scope includes the coordinator request path and the minimum shared Venue Staff approval check required by Jira AC8: competing Pending tentative holds must not block the first approval, and an approved winner blocks overlapping approvals. This does not implement the broader SPM-132 approval lifecycle. Maintained Confluence matrix page 34603557 includes all VEN-HOLD-01..13 cases; every PRIMARY ID has a focused call site. PostgreSQL integration cases require the local test database.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": {"statements": 100, "branches": 100, "functions": 100, "lines": 100},
+  "tests": {
+    "backend-unit": [
+      {"glob":"backend/src/venues/availability/dto/tentative-hold-request.spec.ts"},
+      {"glob":"backend/src/venues/availability/tentative-hold-request.spec.ts"},
+      {"glob":"backend/src/venues/repository/tentative-hold.repository.spec.ts"},
+      {"glob":"backend/src/venues/venues.controller.spec.ts","titleMatch":"^VEN-HOLD-01-A"},
+      {"glob":"backend/src/venues/repository/venues.repository.spec.ts","titleMatch":"^(VEN-HOLD-13-B|VEN-HOLD-04-A)"}
+    ],
+    "backend-e2e": [{"glob":"backend/test/venues-booking-requests.e2e-spec.ts","titleMatch":"VEN-HOLD-"}],
+    "frontend": [
+      {"glob":"frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.hold.test.tsx","titleMatch":"VEN-HOLD-"},
+      {"glob":"frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx","titleMatch":"^(VEN-HOLD-13-A|VEN-HOLD-09-SUP-LOOKUP|VEN-HOLD-09-SUP-COORDINATOR)"}
+    ]
+  },
+  "sources": {
+    "backend":["backend/src/venues/availability/dto/tentative-hold-request.ts","backend/src/venues/venues.service.ts","backend/src/venues/venues.controller.ts","backend/src/venues/repository/venues.repository.ts"],
+    "frontend":["frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.tsx","frontend/src/features/bookings/pages/requests/BookingCard.tsx","frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx","frontend/src/types/index.ts"]
+  },
+  "suites":[
+    {"id":"backend-unit","cwd":"backend","tests":"backend-unit","config":null,"coverage":"backend","env":[]},
+    {"id":"backend-e2e","cwd":"backend","tests":"backend-e2e","config":"vitest.config.e2e.ts","coverage":null,"env":["DATABASE_URL"]},
+    {"id":"frontend","cwd":"frontend","tests":"frontend","config":null,"coverage":"frontend","env":[]}
+  ],
+  "mutation": [
+    {"id":"backend-spm159-approval-schedule","cwd":"backend","command":["node","scripts/mutation/run.mjs","--mutants","spm159.mutants.mjs"],"mutantsFile":"backend/scripts/mutation/spm159.mutants.mjs","export":"MUTANTS","env":["DATABASE_URL"]},
+    {"id":"frontend-spm159-active-hold-display","cwd":"frontend","command":["node","scripts/testing/mutation/run.mjs","--mutants","spm159.mutants.mjs"],"mutantsFile":"frontend/scripts/testing/mutation/spm159.mutants.mjs","export":"MUTANTS","env":[]}
+  ]
+}

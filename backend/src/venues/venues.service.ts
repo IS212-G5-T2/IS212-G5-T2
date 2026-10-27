@@ -22,6 +22,7 @@ import {
 import { validateVenue } from './creation/dto/venue-input.js';
 import { validateUnavailability } from './availability/dto/venue-unavailability.js';
 import { validateBookingRequest } from './availability/dto/booking-request.js';
+import { validateTentativeHoldRequest } from './availability/dto/tentative-hold-request.js';
 import {
   VenuesRepository,
   type VenueBookingDecision,
@@ -181,6 +182,14 @@ export class VenuesService {
       throw new ForbiddenException('Coordinator access required.');
     if (!UUID.test(venueId)) throw new NotFoundException('Venue not found.');
 
+    if (
+      body &&
+      typeof body === 'object' &&
+      !Array.isArray(body) &&
+      (body as Record<string, unknown>).request_kind === 'tentative_hold'
+    )
+      return this.submitTentativeHoldRequest(identity, venueId, body);
+
     const input = validateBookingRequest(body);
     const result = await this.repository.submitBookingRequest(
       venueId,
@@ -217,6 +226,73 @@ export class VenuesService {
       status: 'pending' as const,
       eventStatus: result.eventStatus,
       statusChanged: result.statusChanged,
+      bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    };
+  }
+
+  /** Submits a hold request for the server-selected event interval, never a client-supplied interval. */
+  async submitTentativeHoldRequest(
+    identity: AuthenticatedUser | undefined,
+    venueId: string,
+    body: unknown,
+  ) {
+    if (!identity?.uid)
+      throw new UnauthorizedException('Authentication required.');
+    if (!identity.roles.includes('COORDINATOR'))
+      throw new ForbiddenException('Coordinator access required.');
+    if (!UUID.test(venueId)) throw new NotFoundException('Venue not found.');
+
+    const input = validateTentativeHoldRequest(body);
+    const result = await this.repository.submitTentativeHoldRequest(
+      venueId,
+      identity.uid,
+      input,
+    );
+    if (result.kind === 'venue-not-found')
+      throw new NotFoundException('Venue not found.');
+    if (result.kind === 'event-not-assigned')
+      throw new NotFoundException('Assigned event not found.');
+    if (result.kind === 'event-not-open')
+      throw new ConflictException({
+        code: PLANNING_CODES.eventNotOpenForBooking,
+        message: PLANNING_MESSAGES.eventNotOpenForBooking,
+      });
+    if (result.kind === 'already-requested')
+      throw new ConflictException({
+        code: 'ACTIVE_VENUE_REQUEST_EXISTS',
+        message:
+          'A pending request or active hold already exists for this event and venue.',
+      });
+    if (result.kind === 'lead-time')
+      throw new ConflictException({
+        code: 'TENTATIVE_HOLD_LEAD_TIME',
+        message:
+          'A tentative hold can be requested only when the venue setup period begins at least 336 hours from now.',
+      });
+    if (result.kind === 'configuration-unavailable')
+      throw new ConflictException({
+        code: 'VENUE_TIMING_UNAVAILABLE',
+        message:
+          'This venue’s setup and turnaround times are unavailable. The tentative hold was not submitted.',
+      });
+    if (result.kind === 'conflict')
+      throw new ConflictException({
+        code: 'VENUE_SCHEDULE_CONFLICT',
+        message: `This venue is unavailable for the event's occupied period because it conflicts with ${result.reason}.`,
+      });
+    return {
+      id: result.id,
+      eventId: input.eventId,
+      venueId,
+      start: result.start,
+      end: result.end,
+      status: 'pending' as const,
+      requestKind: 'tentative_hold' as const,
+      holdDurationHours: 336,
+      holdStartsAt: 'venue-staff-approval' as const,
+      specialRequest: input.specialRequest,
+      message:
+        'Tentative hold request submitted for Venue Staff approval. The hold is not active yet.',
       bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
     };
   }
