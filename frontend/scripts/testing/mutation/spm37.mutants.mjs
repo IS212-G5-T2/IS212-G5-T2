@@ -13,4 +13,10 @@ export const MUTANTS = [
     edits: [['if (existingBytes + incomingBytes > 50 * 1024 * 1024) {', 'if (false) {']] },
   { id: 'FE-37-02', name: 'the API client sends no browser session credentials, so the session is not carried on requests (EVE-DRF-06-B session, api.test)', file: 'src/utils/api.ts', suites: ['drafts'],
     edits: [['credentials: "include",', 'credentials: "omit",']] },
+  { id: 'FE-37-03', name: 'the My Drafts list does not drop its cleanup on unmount or reload, so a superseded list load replaces the newer list (EVE-DRF-SUP-40)', file: 'src/features/events/pages/drafts/MyRequestsPage.tsx', suites: ['drafts'],
+    testMappings: [{ suite: 'drafts', file: 'src/features/events/pages/drafts/DraftWorkflow.test.tsx', title: 'EVE-DRF-SUP-40 ignores late list' }],
+    edits: [['active = false;', 'active = true;']] },
+  { id: 'FE-37-04', name: 'the draft load on the create page does not drop its cleanup on unmount or reload, so a superseded load replaces the newer draft (EVE-DRF-SUP-31)', file: PAGE, suites: ['drafts'],
+    testMappings: [{ suite: 'drafts', file: 'src/features/events/pages/drafts/DraftWorkflow.test.tsx', title: 'EVE-DRF-SUP-31 ignores late load' }],
+    edits: [['active = false;', 'active = true;']] },
 ];
