@@ -47,6 +47,27 @@ describe('validateMessage', () => {
     ).toThrow(BadRequestException);
   });
 
+  // The 2000-character limit is a self-imposed product limit, not a Jira or Confluence requirement.
+  // Kills: the limit tightened below 2000 (a message of exactly 2000 characters rejected).
+  it('REQ-CLAR-SUP-35 accepts a message of exactly 2000 characters', () => {
+    const message = 'a'.repeat(2000);
+    expect(validateMessage({ message }, 'Message cannot be blank.')).toBe(message);
+  });
+
+  // The 2000-character limit is a self-imposed product limit, not a Jira or Confluence requirement.
+  // Kills: the limit off by one upwards (2001 characters accepted), or the limit error text changed from the stated 2000.
+  it('REQ-CLAR-SUP-35 rejects a 2001-character message with the limit error', () => {
+    try {
+      validateMessage({ message: 'a'.repeat(2001) }, 'Message cannot be blank.');
+      expect.fail('expected validateMessage to throw');
+    } catch (error) {
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect((error as BadRequestException).getResponse()).toMatchObject({
+        message: 'Use 2000 characters or fewer.',
+      });
+    }
+  });
+
   // Kills: trimming skipped, so the returned message keeps its surrounding spaces.
   it('REQ-CLAR-SUP-36 trims and accepts a valid message', () => {
     expect(validateMessage({ message: '  Please confirm the layout.  ' }, 'x')).toBe(
