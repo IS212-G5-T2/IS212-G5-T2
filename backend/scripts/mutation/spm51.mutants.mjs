@@ -263,4 +263,19 @@ export const MUTANTS = [
       ],
     ],
   },
+  {
+    id: 'B19',
+    name: 'pending hold expiring exactly at server now is kept',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-10-A :: keeps only pending holds that expire after now',
+    ],
+    edits: [
+      [
+        "row.hold_expires_at.getTime() <= now.getTime())",
+        "row.hold_expires_at.getTime() < now.getTime())",
+      ],
+    ],
+  },
 ];
