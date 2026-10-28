@@ -106,7 +106,7 @@ export const MUTANTS = [
     edits: [
       [
         'row.id === booking.id ? { ...row, status: "cancelled" } : row',
-        '{ ...row, status: "cancelled" }',
+        '({ ...row, status: "cancelled" })',
       ],
     ],
   },
