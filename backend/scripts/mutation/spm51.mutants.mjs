@@ -30,6 +30,9 @@ export const SUITES = {
     ],
     needsEnv: ['DATABASE_URL'],
   },
+  repository: {
+    args: ['run', 'src/venues/repository/venues.repository.spec.ts'],
+  },
 };
 
 const DTO = 'src/venues/availability/dto/booking-request.ts';
@@ -243,6 +246,21 @@ export const MUTANTS = [
     ],
     edits: [
       ["const result = user.roles.includes('COORDINATOR')\n      ? await this.database.query(", "const result = user.roles.includes('ATTENDEE')\n      ? await this.database.query("],
+    ],
+  },
+  {
+    id: 'B18',
+    name: 'fresh booking conflict is persisted in the repository submission path',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-07-SEC-1 :: does not record a request when a fresh booking conflict appears after the availability read',
+    ],
+    edits: [
+      [
+        "if (conflict.rows[0])\n        return { kind: 'conflict', reason: conflict.rows[0].reason };",
+        "if (false)\n        return { kind: 'conflict', reason: conflict.rows[0].reason };",
+      ],
     ],
   },
 ];
