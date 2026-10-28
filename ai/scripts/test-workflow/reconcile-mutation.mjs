@@ -14,7 +14,7 @@ import {
   BLOCKED, PASS, UNABLE, abs, exitCodeFor, isMain, loadScope, parseArgs, printGate, readText, worst, writeGate, writeText,
 } from './lib.mjs';
 
-const RESULT = /^([A-Za-z][A-Za-z0-9-]*)\s+(killed|survived|equivalent|misapplied|skipped)\s+(.*)$/i;
+const RESULT = /^([A-Za-z][A-Za-z0-9-]*)\s+(killed|survived|equivalent|misapplied|skipped|suite-error)\s+(.*)$/i;
 const BASELINE = /^baseline\s+(.*?):\s+(green|NOT GREEN|SKIPPED.*)$/;
 
 export function parseLog(text, suiteNames) {
@@ -56,7 +56,7 @@ export function reconcile(entryId, definitions, parsed) {
     if (baseline.state === 'skipped') unable = true;
   }
   if (!parsed.baselines.length) findings.push(`${entryId}: the log has no baseline line`);
-  const counts = { total: definitions.length, killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, noResult: 0 };
+  const counts = { total: definitions.length, killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, suiteError: 0, noResult: 0 };
   for (const mutant of definitions) {
     const result = parsed.results.get(mutant.id);
     const row = { entry: entryId, id: mutant.id, file: mutant.file ?? '', mutation: mutant.name, flaggedEquivalent: !!mutant.equivalent, result: result?.status ?? 'NO RESULT', killers: result?.killers ?? [] };
@@ -66,7 +66,7 @@ export function reconcile(entryId, definitions, parsed) {
       findings.push(`${entryId} ${mutant.id}: defined but the log has no result`);
       continue;
     }
-    counts[result.status] += 1;
+    counts[result.status === 'suite-error' ? 'suiteError' : result.status] += 1;
     if (result.status === 'killed') {
       if (!result.killers.length) findings.push(`${entryId} ${mutant.id}: killed but no killing suite is named`);
       if (mutant.equivalent) findings.push(`${entryId} ${mutant.id}: flagged equivalent but killed by ${result.killers.join(', ') || 'a suite'} (an equivalent mutant must have no killing test)`);
@@ -75,6 +75,7 @@ export function reconcile(entryId, definitions, parsed) {
       if (argument(mutant.name).length < 10) findings.push(`${entryId} ${mutant.id}: equivalent without a written argument in its name ("equivalent: ...")`);
     } else if (result.status === 'survived') findings.push(`${entryId} ${mutant.id}: SURVIVED (${mutant.name}); add a test or record a gap`);
     else if (result.status === 'misapplied') findings.push(`${entryId} ${mutant.id}: MISAPPLIED; its edit no longer matches the code`);
+    else if (result.status === 'suite-error') findings.push(`${entryId} ${mutant.id}: SUITE-ERROR (a suite failed without a failed assertion, so the mutant is not measured as killed)`);
     else if (result.status === 'skipped') unable = true;
   }
   for (const id of parsed.results.keys()) if (!definitions.some((mutant) => mutant.id === id)) findings.push(`${entryId} ${id}: in the log but not in the definitions`);
@@ -118,7 +119,7 @@ async function main() {
   const findings = [];
   const rows = [];
   const entries = [];
-  const totals = { total: 0, killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, noResult: 0 };
+  const totals = { total: 0, killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, suiteError: 0, noResult: 0 };
   let unable = false;
   for (const entry of scope.mutation ?? []) {
     const logPath = join(flags.cycle, 'mutation', `${entry.id}.log`);

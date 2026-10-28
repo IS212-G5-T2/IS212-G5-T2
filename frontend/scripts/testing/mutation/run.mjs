@@ -136,7 +136,7 @@ try {
     }
   }
   if (exitCode === 0) {
-    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0 };
+    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, suiteError: 0 };
     for (const m of selected) {
       const path = join(scratch, m.file);
       const source = readFileSync(path, 'utf8');
@@ -154,6 +154,8 @@ try {
       let by = [];
       const skippedMappings = [];
       const emptyMappings = [];
+      // Suites that failed without a failed assertion (beforeAll/import error, crash, no report): SUITE-ERROR, not a kill.
+      const suiteErrors = [];
       if (!applied) {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
@@ -181,7 +183,8 @@ try {
               const jsonFile = join(scratch, `vitest-${suite}.json`);
               const result = run(suite, undefined, ['--reporter=json', `--outputFile=${jsonFile}`]);
               const failed = failingTests(jsonFile);
-              if (result.status !== 0 || failed.length) by.push(suite);
+              if (failed.length) by.push(suite);
+              else if (result.status !== 0) suiteErrors.push(suite);
               killsOut[m.id] = [...(killsOut[m.id] ?? []), ...failed.map((test) => ({ suite, ...test }))];
             } else if (run(suite).status !== 0) {
               by.push(suite);
@@ -197,6 +200,9 @@ try {
         } else if (by.length) {
           status = 'killed';
           tally.killed += 1;
+        } else if (suiteErrors.length) {
+          status = 'SUITE-ERROR';
+          tally.suiteError += 1;
         } else if (skippedMappings.length) {
           status = 'skipped';
           tally.skipped += 1;
@@ -211,16 +217,17 @@ try {
       const evidence = [
         by.length ? `killed by: ${by.join(' | ')}` : '',
         emptyMappings.length ? emptyMappings.join(' | ') : '',
+        suiteErrors.length ? `suite-error (no failed assertion): ${suiteErrors.join(' | ')}` : '',
         skippedMappings.length ? `skipped: ${skippedMappings.join(' | ')}` : '',
       ].filter(Boolean).join(' | ');
       console.log(`${m.id.padEnd(8)} ${status.padEnd(16)} ${evidence} ${m.name}`);
     }
-    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
+    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped, ${tally.suiteError} suite-error`);
     if (measureOut) {
       for (const m of selected) killsOut[m.id] ??= [];
       writeFileSync(measureOut, JSON.stringify(killsOut, null, 2));
     }
-    if (tally.survived || tally.misapplied) exitCode = 1;
+    if (tally.survived || tally.misapplied || tally.suiteError) exitCode = 1;
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });
