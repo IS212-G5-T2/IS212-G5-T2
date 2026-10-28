@@ -2655,4 +2655,82 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     );
     expect(apiMock).toHaveBeenCalledTimes(3);
   });
+
+  /**
+   * VEN-BKG-SUP-11 SPM-54: a submitted request moved its event to Planning; the server then rejects the booking and the summary reloads. The review keeps the submitted Planning notice as a stale state (event status transition notice owned by SPM-148; parent AC10). Product owner decision, 28 Oct 2026: keep the submitted wording.
+   * Kills: a summary reload that drops the submitted Planning notice for a rejected request, or that swaps it for the cancelled wording ("is cancelled" or "is no longer in Planning") although no cancellation happened.
+   */
+  it("VEN-BKG-SUP-11 SPM-54 keeps the submitted Planning notice in the review as a stale state after the server rejects the request and the summary reloads", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-rejected-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-REJECT01",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return {
+          id: booking.id,
+          bookingReference: "VB-REJECT01",
+          statusChanged: true,
+        } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = screen.getByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    expect(
+      await screen.findByText(
+        "Venue booking request submitted. Event event-1 is now in Planning.",
+      ),
+    ).toBeInTheDocument();
+
+    // Act: the server rejects the booking (it leaves pending/approved), then a booking-mode change
+    // (the assigned event leaves and re-enters the store) reloads the page's booking summary.
+    bookings = [{ ...booking, status: "rejected" }];
+    const requestEvents = useAppStore.getState().events;
+    act(() => {
+      useAppStore.setState({ events: [] });
+    });
+    act(() => {
+      useAppStore.setState({ events: requestEvents });
+    });
+
+    // Assert: the summary was reloaded, the rejected booking is not an active summary, and the review
+    // still shows the submitted Planning wording with no cancelled wording.
+    await waitFor(() =>
+      expect(
+        apiMock.mock.calls.filter(([path]) => path === "/venues/bookings/mine"),
+      ).toHaveLength(2),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Existing venue booking request" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Venue booking request submitted. Event event-1 is now in Planning.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/is cancelled/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/is no longer in Planning/)).not.toBeInTheDocument();
+  });
 });
