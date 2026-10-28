@@ -1,12 +1,19 @@
-import { createElement, useState } from "react";
+import { createElement, forwardRef, useImperativeHandle, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
 import { getVenueScheduleEntries, isValidVenueSelection, VenueScheduleCalendar } from "./VenueScheduleCalendar";
 import type { VenueRecord } from "../venue-records";
 
+const calendarSpies = vi.hoisted(() => ({
+  gotoDate: vi.fn(),
+  lastProps: undefined as Record<string, unknown> | undefined,
+}));
+
 vi.mock("@fullcalendar/react", () => ({
-  default: function FullCalendarMock(props: Record<string, unknown>) {
+  default: forwardRef(function FullCalendarMock(props: Record<string, unknown>, ref) {
+    calendarSpies.lastProps = props;
+    useImperativeHandle(ref, () => ({ getApi: () => ({ gotoDate: calendarSpies.gotoDate }) }));
     const [allowed, setAllowed] = useState("");
     const start = sgtLocalDateTimeToDate("2030-01-07T10:00");
     const end = sgtLocalDateTimeToDate("2030-01-07T11:00");
@@ -40,7 +47,7 @@ vi.mock("@fullcalendar/react", () => ({
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "selected-event-time" } }) }, "Click selected time"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "booking-1" } }) }, "Click booking"),
     );
-  },
+  }),
 }));
 
 const venue: VenueRecord = {
@@ -259,6 +266,21 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByLabelText("Calendar scroll time")).toHaveTextContent("08:00:00");
     expect(screen.getByLabelText("Calendar minimum time")).toHaveTextContent("00:00:00");
     expect(screen.getByLabelText("Calendar maximum time")).toHaveTextContent("24:00:00");
+  });
+
+  /** VEN-AVL-SUP-04 (SPM-51): an empty initialDate leaves FullCalendar on its own default date and never calls gotoDate with an empty string. The control render proves the gotoDate spy is wired.
+   * Kills: initialDate forwarded raw as "" (the `initialDate || undefined` fallback at line 263 removed) and gotoDate("") called on mount (the `if (initialDate)` guard at line 223 removed). */
+  it("keeps the default calendar date when initialDate is empty", () => {
+    calendarSpies.gotoDate.mockClear();
+    const { unmount } = render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
+    expect(calendarSpies.gotoDate).toHaveBeenCalledWith("2030-01-07");
+    unmount();
+
+    calendarSpies.gotoDate.mockClear();
+    render(<VenueScheduleCalendar venue={venue} initialDate="" />);
+    // The fallback `initialDate || undefined` yields undefined, so FullCalendar uses its default (today, Asia/Singapore).
+    expect(calendarSpies.lastProps?.initialDate).toBeUndefined();
+    expect(calendarSpies.gotoDate).not.toHaveBeenCalled();
   });
 
   /** Defensive SGT formatting defaults to midnight when a host formatter omits time parts. */
