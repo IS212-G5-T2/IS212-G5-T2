@@ -278,4 +278,19 @@ export const MUTANTS = [
       ],
     ],
   },
+  {
+    id: 'B20',
+    name: 'pending request without a hold expiry is treated as an affected hold',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-09-A :: returns each affected booking without changing its stored booking status',
+    ],
+    edits: [
+      [
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              booking.status === 'approved' ||",
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              true ||",
+      ],
+    ],
+  },
 ];
