@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { expandLines, ignoreCommentLines, mergeEntry, summarise, totals, withoutLines } from './coverage-scope.mjs';
+import { expandLines, ignoreCommentLines, isStaleRow, measuredLines, mergeEntry, summarise, totals, withoutLines } from './coverage-scope.mjs';
 
 const loc = (line, col = 0, endLine = line, endCol = 10) => ({ start: { line, column: col }, end: { line: endLine, column: endCol } });
 
@@ -84,4 +84,32 @@ test('withoutLines with no excluded lines returns the merged data unchanged', ()
   const merged = fresh();
   mergeEntry(merged, entry([1, 0]), 'unit');
   assert.equal(withoutLines(merged, new Set()), merged);
+});
+
+test('an EXCLUDED row on a measured line with an owner-recorded exclusion is not stale', () => {
+  // Line 3 is the only uncovered statement and is measured; the owner-recorded exclusion removes it from the totals, so it is no longer in uncoveredLines.
+  const merged = fresh();
+  mergeEntry(merged, entry([1, 1, 0]), 'unit');
+  assert.deepEqual(summarise(merged, ['unit'], []).uncoveredLines, [3]);
+  const summary = summarise(withoutLines(merged, new Set([3])), ['unit'], []);
+  assert.deepEqual(summary.uncoveredLines, []);
+  const excludedRow = { file: 'a.ts', lines: new Set([3]), status: 'EXCLUDED', note: 'owner decision' };
+  assert.equal(isStaleRow(excludedRow, { uncoveredLines: summary.uncoveredLines, measured: measuredLines(merged) }), false);
+});
+
+test('an EXCLUDED row whose line was not measured, or no longer exists, is stale', () => {
+  // Lines measured by this cycle are 1-3 only; line 40 was never measured and line 99 no longer exists in the source.
+  const merged = fresh();
+  mergeEntry(merged, entry([1, 0, 0]), 'unit');
+  const context = { uncoveredLines: [], measured: measuredLines(merged) };
+  assert.equal(isStaleRow({ file: 'a.ts', lines: new Set([40]), status: 'EXCLUDED', note: '' }, context), true);
+  assert.equal(isStaleRow({ file: 'a.ts', lines: new Set([99]), status: 'EXCLUDED', note: '' }, context), true);
+});
+
+test('other status rows keep the uncovered-line rule: a covered line makes the row stale', () => {
+  const merged = fresh();
+  mergeEntry(merged, entry([1, 0, 0]), 'unit');
+  const context = { uncoveredLines: [3], measured: measuredLines(merged) };
+  assert.equal(isStaleRow({ file: 'a.ts', lines: new Set([1]), status: 'ADD-TEST', note: 'x' }, context), true);
+  assert.equal(isStaleRow({ file: 'a.ts', lines: new Set([3]), status: 'ADD-TEST', note: 'x' }, context), false);
 });

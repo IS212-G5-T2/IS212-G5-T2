@@ -67,6 +67,22 @@ export function withoutLines(merged, lines) {
   return { statements: keep(merged.statements), functions: keep(merged.functions), branches: keep(merged.branches) };
 }
 
+/** Every line that carries a statement, function or branch slot in a merged file: the lines this cycle measured. */
+export function measuredLines(merged) {
+  return new Set([...Object.values(merged.statements), ...Object.values(merged.functions), ...Object.values(merged.branches)].map((slot) => slot.line).filter(Boolean));
+}
+
+/**
+ * Stale-row rule for coverage-line-status.md. A non-EXCLUDED row is stale when none of its lines is still uncovered.
+ * An EXCLUDED row is removed from the totals before that check, so it is judged on measurement instead: it is stale only
+ * when none of its lines has coverage data in the measured set (the cycle did not measure the line, or the line no longer
+ * exists). An EXCLUDED row on a measured line, with an owner-recorded exclusion, is not stale.
+ */
+export function isStaleRow(row, { uncoveredLines, measured }) {
+  if (row.status === 'EXCLUDED') return ![...row.lines].some((line) => measured.has(line));
+  return ![...row.lines].some((line) => uncoveredLines.includes(line));
+}
+
 /** Metrics, uncovered lines and e2e-only lines of one merged file. */
 export function summarise(merged, unitRuns, e2eRuns) {
   const stmts = Object.values(merged.statements);
@@ -226,7 +242,8 @@ function main() {
       else if (!row.note) findings.push(`${file}:${line} status ${row.status} needs a note`);
       else classify(line, row.status, row.note);
     }
-    const stale = rows.filter((row) => ![...row.lines].some((line) => summary.uncoveredLines.includes(line)));
+    const measured = measuredLines(mergedByFile.get(file));
+    const stale = rows.filter((row) => isStaleRow(row, { uncoveredLines: summary.uncoveredLines, measured }));
     files.push({ file, ...summary, lineStatus, staleStatusRows: stale.length });
   }
 
