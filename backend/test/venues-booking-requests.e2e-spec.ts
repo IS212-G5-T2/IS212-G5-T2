@@ -1350,15 +1350,19 @@ describe.skipIf(!databaseUrl)(
         end: '2030-01-12T05:00:00Z',
       });
 
+      const path = `/api/venues/${venueId}/booking-requests`;
       const response = await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
+        .post(path)
         .set('Cookie', coordinator.cookie)
         .send({
           eventId: candidateEvent,
           start: '2030-01-12T04:00:00Z',
           end: '2030-01-12T05:00:00Z',
-        })
-        .expect(409);
+        });
+      expect(
+        response.status,
+        JSON.stringify({ path, body: response.body }),
+      ).toBe(409);
 
       expect(response.body.message).toContain('Confirmed conflict');
       const rows = await pool.query(
@@ -1380,11 +1384,15 @@ describe.skipIf(!databaseUrl)(
       );
       const instant = '2030-01-12T04:00:00Z';
 
-      await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
+      const path = `/api/venues/${venueId}/booking-requests`;
+      const response = await request(app.getHttpServer())
+        .post(path)
         .set('Cookie', coordinator.cookie)
-        .send({ eventId, start: instant, end: instant })
-        .expect(400);
+        .send({ eventId, start: instant, end: instant });
+      expect(
+        response.status,
+        JSON.stringify({ path, body: response.body }),
+      ).toBe(400);
 
       const rows = await pool.query(
         'SELECT status FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
