@@ -132,6 +132,34 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Expired tentative hold until 09 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
   });
 
+  /** VEN-HOLD-09-SUP-COORDINATOR: a rejected tentative hold, or an approved hold without an expiry, shows no hold-state label. */
+  it("VEN-HOLD-09-SUP-COORDINATOR shows no hold-state label for a rejected hold or an approved hold without expiry", async () => {
+    apiMock.mockResolvedValueOnce([
+      {
+        ...booking,
+        id: "hold-rejected",
+        eventName: "Rejected Hold Event",
+        status: "rejected",
+        requestKind: "tentative_hold",
+        holdExpired: false,
+        rejectionReason: "Venue closed",
+      },
+      {
+        ...booking,
+        id: "hold-no-expiry",
+        eventName: "No Expiry Hold Event",
+        status: "approved",
+        requestKind: "tentative_hold",
+        holdExpired: false,
+      },
+    ] as never);
+    render(<BookingsPage />);
+
+    expect(await screen.findAllByText("Rejected Hold Event")).not.toHaveLength(0);
+    expect(screen.getAllByText("No Expiry Hold Event")).not.toHaveLength(0);
+    expect(screen.queryByText(/tentative hold/i)).not.toBeInTheDocument();
+  });
+
   /** VEN-BKG-05-A: affected and cancelled history rows offer the assigned event as replacement context. */
   it("VEN-BKG-05-A VEN-BKG-06-A SPM-54 shows replacement context and preserves the affected booking history", async () => {
     apiMock.mockResolvedValue([
