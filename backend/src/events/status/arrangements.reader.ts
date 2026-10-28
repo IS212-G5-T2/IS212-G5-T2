@@ -68,12 +68,13 @@ export class ArrangementsReader {
       venue_name: string;
       status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
       hold_expires_at: Date | null;
+      request_kind: 'booking' | 'tentative_hold';
       start_at: Date;
       end_at: Date;
       created_at: Date;
       venue_unavailable: boolean;
     }>(
-      `SELECT b.id, v.name AS venue_name, b.status, b.hold_expires_at, b.start_at, b.end_at, b.created_at,
+      `SELECT b.id, v.name AS venue_name, b.status, b.hold_expires_at, b.request_kind, b.start_at, b.end_at, b.created_at,
               ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
@@ -108,6 +109,7 @@ export class ArrangementsReader {
         venueName: row.venue_name,
         status: row.status,
         holdExpiresAt: row.hold_expires_at,
+        requestKind: row.request_kind,
         venueUnavailable: row.venue_unavailable,
         start: row.start_at.toISOString(),
         end: row.end_at.toISOString(),

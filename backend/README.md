@@ -379,11 +379,34 @@ from an Active approved hold and an expired approved hold after a fresh list
 fetch. `holdExpired` is computed against the service clock when the list is
 read.
 
+Approval rechecks eligibility and conflicts: the 336-hour lead time is
+evaluated again on every hold approval (not only after a venue setup change)
+and a refusal returns `409 BOOKING_SLOT_CONFLICT` with the booking still
+Pending. Outside the venues module, an approved hold is never a confirmed
+booking: `src/events/venue-unavailable.ts` holds the one rule (`approvedHoldState`
+and the `*ApprovedHoldSql` fragments). While the expiry is in the future the
+hold reads "Hold" and from the expiry instant "Hold expired" (venue summary
+`(hold)` / `(hold expired)`, planning status `Hold` / `Hold expired`, event
+record `venueHoldState`); neither satisfies the Confirm readiness "Venue
+booking approval" item, and an expired hold no longer occupies the venue, counts
+as a clashing neighbour, or flags the queue venue-unavailable indicator. Moving
+an expired hold to a terminal status and notifying about it belong to related
+stories. `test/events-approved-hold.e2e-spec.ts` proves this against PostgreSQL
+(`DATABASE_URL` with `database/postgresql/init` 001 to 024).
+
 Migration `024_spm159_tentative_hold_requests.sql` adds `request_kind` and
 `reassessment_required` to `venue_bookings`, the request-kind constraint and
 pending-hold index, and event-time/setup-change triggers. Existing databases
 must apply the migration in sequence; fresh databases receive the mirrored
 `database/postgresql/init/024_spm159_tentative_hold_requests.sql`.
+
+Migration `025_spm159_approved_hold_expiry.sql` requires every approved
+tentative hold to have `hold_expires_at`; pending holds and ordinary approved
+bookings may still have NULL. It checks for existing invalid approved holds
+and fails with their count rather than inventing historical expiry times. An
+operator must review and resolve those rows explicitly before retrying. Fresh
+databases receive the mirrored
+`database/postgresql/init/025_spm159_approved_hold_expiry.sql`.
 
 Run SPM-51 fault-injection checks with a PostgreSQL database configured in
 `DATABASE_URL`:

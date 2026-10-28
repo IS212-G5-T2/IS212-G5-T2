@@ -7,6 +7,8 @@ test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('a single failure: $name').test('a single failure: no venue'));
   assert.ok(titleRegExp('exact title (A)').test('exact title (A)'));
   assert.ok(!titleRegExp('exact title').test('exact title and more'));
+  assert.ok(titleRegExp("event\\'s neighbours").test("event's neighbours"));
+  assert.ok(!titleRegExp("event\\'s neighbours").test('events neighbours'));
 });
 
 test('resultOf: PASS needs every matched test to pass, FAIL on any failure, NOT RUN when unmatched', () => {

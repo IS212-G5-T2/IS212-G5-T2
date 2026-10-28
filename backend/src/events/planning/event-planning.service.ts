@@ -53,7 +53,12 @@ const VIEWABLE_STATUSES = new Set(['approved', 'planning', 'confirmed']);
 /** "After event approval ... pre-confirmation" (SPM-49, SPM-85). */
 const EDITABLE_STATUSES = new Set(['approved', 'planning']);
 /** Booking/arrangement states that no longer hold anything for the event. */
-const INACTIVE_BOOKING_STATUSES = new Set(['unavailable', 'cancelled']);
+// SPM-159: an expired approved hold ('hold expired') holds no venue, like a cancelled request.
+const INACTIVE_BOOKING_STATUSES = new Set([
+  'unavailable',
+  'cancelled',
+  'hold expired',
+]);
 const INACTIVE_EQUIPMENT_STATUSES = new Set([
   'unavailable',
   'cancelled',
