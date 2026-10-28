@@ -2,7 +2,7 @@ test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,ki
 VEN-AVL-07-SEC-1,backend/src/venues/availability/booking-request.spec.ts,returns a conflict when the fresh schedule check finds a new booking,43,AC7,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-06-A,backend/src/venues/availability/booking-request.spec.ts,returns the recorded request and booking reference after persistence succeeds,79,AC6,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-07-SEC-1,backend/src/venues/repository/venues.repository.spec.ts,does not record a request when a fresh booking conflict appears after the availability read,803,AC7,Security,Present,Unit,SPEC,,mutants:B18,Yes,Yes,Yes,PASS
-VEN-AVL-10-A,backend/src/venues/repository/venues.repository.spec.ts,keeps only pending holds that expire after now,1420,AC10,Happy,Present,Unit,SPEC,,mutants:B19,Yes,Yes,Yes,PASS
+VEN-AVL-10-A,backend/src/venues/repository/venues.repository.spec.ts,keeps only pending holds that expire after now,1420,AC10,Happy,Present,Unit,SPEC,,mutants:B19/repository(2),Yes,Yes,Yes,PASS
 VEN-AVL-09-A,backend/src/venues/repository/venues.repository.spec.ts,returns each affected booking without changing its stored booking status,1530,AC9,Sad,Present,Unit,SPEC,,mutants:B20,Yes,Yes,Yes,PASS
 VEN-AVL-02-C,backend/test/venues-booking-requests.e2e-spec.ts,does not expose pending or rejected requests as confirmed venue bookings,1244,AC2,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-07-SEC-1,backend/test/venues-booking-requests.e2e-spec.ts,rejects a fresh confirmed-booking conflict without persisting a request,1292,AC7,Security,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
