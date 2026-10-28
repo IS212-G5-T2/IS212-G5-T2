@@ -36,6 +36,12 @@ export const SUITES = {
   statusLabels: {
     args: ["run", "src/features/events/components/StatusLabels.test.tsx"],
   },
+  venueScheduleCalendar: {
+    args: [
+      "run",
+      "src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+    ],
+  },
 };
 
 const PAGE = "src/features/bookings/pages/requests/BookingsPage.tsx";
@@ -397,6 +403,24 @@ export const MUTANTS = [
       [
         'const venueReserved = event.venueRequestStatus === "approved";',
         "const venueReserved = false;",
+      ],
+    ],
+  },
+  {
+    id: "SPM54-FE-INITIAL-DATE-FALLBACK",
+    name: "empty calendar initialDate falls back to a fixed date instead of the calendar default",
+    file: "src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx",
+    suites: ["venueScheduleCalendar"],
+    kills: [
+      {
+        file: "src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+        title: "keeps the default calendar date when initialDate is empty",
+      },
+    ],
+    edits: [
+      [
+        "initialDate={initialDate || undefined}",
+        'initialDate={initialDate || "2030-01-01"}',
       ],
     ],
   },
