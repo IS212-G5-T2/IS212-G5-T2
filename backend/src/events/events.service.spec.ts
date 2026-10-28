@@ -610,6 +610,69 @@ describe('EventsService', () => {
     });
   });
 
+  describe('VEN-HOLD-04-SUP-EVENTS the latest venue request reports its hold state', () => {
+    const withRequest = (venueRequest: Record<string, unknown>) => ({
+      ...savedEventRow(),
+      status: 'Planning',
+      safety_status: null,
+      equipment_statuses: [],
+      ...venueRequest,
+    });
+
+    /** SPM-159: the event record carries the latest request's kind and expiry, and labels an active approved hold "Hold". */
+    it('VEN-HOLD-04-SUP-EVENTS labels an active approved hold Hold and surfaces its kind and expiry', async () => {
+      // Far enough ahead that the service's real clock cannot reach it.
+      const expires = new Date('2999-01-01T00:00:00.000Z');
+      const row = withRequest({ venue_request_status: 'approved', venue_request_kind: 'tentative_hold', venue_hold_expires_at: expires });
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({
+        venueRequestStatus: 'approved',
+        venueRequestKind: 'tentative_hold',
+        venueHoldExpiresAt: expires.toISOString(),
+        venueHoldState: 'Hold',
+      });
+      expect(db.query.mock.calls[0][0]).toContain('b.request_kind');
+      expect(db.query.mock.calls[0][0]).toContain('b.hold_expires_at');
+    });
+
+    /** SPM-159: an approved hold past its expiry reads "Hold expired". */
+    it('VEN-HOLD-04-SUP-EVENTS labels an expired approved hold Hold expired', async () => {
+      const row = withRequest({
+        venue_request_status: 'approved',
+        venue_request_kind: 'tentative_hold',
+        venue_hold_expires_at: new Date('2000-01-01T00:00:00.000Z'),
+      });
+      db.query.mockResolvedValue({ rows: [row] });
+
+      const event = await service.get(organiserUser({ uid: row.organiser_id }), row.id);
+
+      expect(event).toMatchObject({ venueHoldState: 'Hold expired' });
+    });
+
+    /** SPM-159: ordinary requests (approved booking, pending, or none) carry no hold label. */
+    it('VEN-HOLD-04-SUP-EVENTS gives ordinary and missing venue requests no hold label', async () => {
+      const approved = withRequest({ venue_request_status: 'approved', venue_request_kind: 'booking', venue_hold_expires_at: null });
+      db.query.mockResolvedValueOnce({ rows: [approved] });
+      expect(await service.get(organiserUser({ uid: approved.organiser_id }), approved.id)).toMatchObject({
+        venueRequestKind: 'booking',
+        venueHoldExpiresAt: null,
+        venueHoldState: null,
+      });
+
+      const none = withRequest({});
+      db.query.mockResolvedValueOnce({ rows: [none] });
+      expect(await service.get(organiserUser({ uid: none.organiser_id }), none.id)).toMatchObject({
+        venueRequestStatus: null,
+        venueRequestKind: null,
+        venueHoldExpiresAt: null,
+        venueHoldState: null,
+      });
+    });
+  });
+
   // SPM-36 event lookup guard
   it('returns not found for malformed and unknown event IDs', async () => {
     const row = savedEventRow();

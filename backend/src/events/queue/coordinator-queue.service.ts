@@ -35,12 +35,13 @@ interface BookingRow {
   venue_location: string;
   status: 'pending' | 'approved';
   hold_expires_at: Date | null;
+  request_kind: 'booking' | 'tentative_hold';
   venue_unavailable: boolean;
 }
 
 // The one venue-unavailable rule (venue-unavailable.ts), shared with the venue summary and Confirm readiness,
 // so the queue flag and the card's "(unavailable)" venue agree.
-const QUEUE_BOOKINGS_SQL = `SELECT b.event_id, v.id AS venue_id, v.name AS venue_name, v.location AS venue_location, b.status, b.hold_expires_at,
+const QUEUE_BOOKINGS_SQL = `SELECT b.event_id, v.id AS venue_id, v.name AS venue_name, v.location AS venue_location, b.status, b.hold_expires_at, b.request_kind,
          ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
     FROM venue_bookings b
     JOIN venues v ON v.id = b.venue_id
@@ -89,6 +90,7 @@ export class CoordinatorQueueService {
         venueLocation: row.venue_location,
         status: row.status,
         holdExpiresAt: row.hold_expires_at,
+        requestKind: row.request_kind,
         venueUnavailable: row.venue_unavailable,
       });
       bookingsById.set(row.event_id, list);

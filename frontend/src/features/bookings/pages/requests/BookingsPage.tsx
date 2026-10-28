@@ -3,7 +3,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/FormControls";
 import { BookingCard } from "@/features/bookings/pages/requests/BookingCard";
-import { formatSingaporeRange } from "@/utils/format";
+import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 import { BookingDetailModal } from "@/features/bookings/pages/requests/BookingDetailModal";
 import type { Booking, PendingBookingRequest } from "@/types";
 
@@ -24,10 +24,21 @@ type CoordinatorBooking = Pick<
   status: string;
   bookingReference: string;
   specialRequest?: string;
+  requestKind: "booking" | "tentative_hold";
+  holdExpiresAt?: string;
+  holdExpired: boolean;
   affected: boolean;
   venueStaffName?: string;
   rejectionReason?: string;
 };
+
+function coordinatorHoldLabel(booking: CoordinatorBooking): string | null {
+  if (booking.requestKind !== "tentative_hold") return null;
+  if (booking.status === "pending")
+    return "Tentative hold request pending Venue Staff approval. The hold is not active.";
+  if (booking.status !== "approved" || !booking.holdExpiresAt) return null;
+  return `${booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until ${formatSingaporeDateTime(booking.holdExpiresAt)}.`;
+}
 
 export function BookingsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
@@ -254,6 +265,11 @@ export function BookingsPage() {
                             </div>
                           )}
                         </dl>
+                        {coordinatorHoldLabel(booking) && (
+                          <p role="status" className="mt-3 text-sm font-medium text-amber-700 dark:text-amber-300">
+                            {coordinatorHoldLabel(booking)}
+                          </p>
+                        )}
                         {booking.affected && (
                           <p
                             role="status"
@@ -311,14 +327,14 @@ export function BookingsPage() {
           setStaffBookings((prev) =>
             prev.map((b) =>
               b.id === outcome.id
-                ? { ...b, status: outcome.status, rejectionReason: outcome.reason }
+                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
                 : b,
             ),
           );
           setCoordinatorBookings((prev) =>
             prev.map((b) =>
               b.id === outcome.id
-                ? { ...b, status: outcome.status, rejectionReason: outcome.reason }
+                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }
                 : b,
             ),
           );

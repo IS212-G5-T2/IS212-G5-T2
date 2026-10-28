@@ -25,7 +25,10 @@ export const keyOf = (row) => `${row.file}::${row.title}`;
 
 /** Regex for the expanded titles an it.each call site produces ("%s", "$name" ...). */
 export function titleRegExp(title) {
-  const escaped = title.replace(/[.+^${}()|[\]\\*?]/g, '\\$&').replace(/%[sdifjoO#%]|\\\$\w+/g, '.*');
+  // Test discovery reads template literals as source text, so an apostrophe
+  // escaped for the source can differ from Vitest's runtime title.
+  const normalized = title.replace(/\\(['"`])/g, '$1');
+  const escaped = normalized.replace(/[.+^${}()|[\]\\*?]/g, '\\$&').replace(/%[sdifjoO#%]|\\\$\w+/g, '.*');
   return new RegExp(`^${escaped}$`);
 }
 

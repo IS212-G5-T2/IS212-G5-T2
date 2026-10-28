@@ -4,6 +4,7 @@
  * database themselves, so every rule can be checked with fixed values.
  */
 import { deriveSafetyIndicator } from '../status/event-indicators.js';
+import { approvedHoldState } from '../venue-unavailable.js';
 
 /** Statuses an event can have once it is in a coordinator's queue (AC2; drafts never reach it, AC3). */
 export const QUEUE_STATUSES = [
@@ -51,6 +52,8 @@ export interface QueueBookingFact {
   venueLocation: string;
   status: 'pending' | 'approved';
   holdExpiresAt: Date | null;
+  /** SPM-159: 'tentative_hold' marks a coordinator hold request; an approved one is a hold, not a confirmed booking. */
+  requestKind?: 'booking' | 'tentative_hold';
   /** A Venue Staff unavailable period overlaps the booking's window (SPM-122). */
   venueUnavailable: boolean;
 }
@@ -96,7 +99,6 @@ export function holdIsActive(expiresAt: Date, now: Date): boolean {
   return expiresAt.getTime() > now.getTime();
 }
 
-/** AC8: each tentative hold (a pending booking with an expiry) with its state and expiry. */
 /**
  * How a venue is named on the card: its name, plus its location when another of the event's venues has the same
  * name, so venues that share a name stay distinguishable (PR #80 review).
@@ -106,9 +108,16 @@ export function venueLabel(booking: QueueBookingFact, bookings: QueueBookingFact
   return clash ? `${booking.venueName} (${booking.venueLocation})` : booking.venueName;
 }
 
+/**
+ * AC8: each tentative hold with its state and expiry: a pending booking with an expiry, or (SPM-159) an approved
+ * tentative hold, which stays a hold and is never a confirmed booking.
+ */
 export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[] {
   return bookings
-    .filter((booking) => booking.status === 'pending' && booking.holdExpiresAt !== null)
+    .filter(
+      (booking) =>
+        booking.holdExpiresAt !== null && (booking.status === 'pending' || approvedHoldState(booking, now) !== null),
+    )
     .map((booking) => ({
       venueName: venueLabel(booking, bookings),
       expiresAt: booking.holdExpiresAt!.toISOString(),
@@ -119,19 +128,17 @@ export function deriveHolds(bookings: QueueBookingFact[], now: Date): QueueHold[
 /**
  * AC9: venues of the event's active bookings that an unavailable period now overlaps. A booking is
  * active while it is approved, or pending with no hold or a hold that has not expired (CONTEXT.md:
- * active venue request). The flag clears once the affected booking is no longer active (cancelled by
+ * active venue request). An approved tentative hold (SPM-159) is active until its expiry and no longer
+ * counts once expired. The flag clears once the affected booking is no longer active (cancelled by
  * the coordinator) or the unavailable period no longer overlaps it (ended early); booking a
  * replacement alone does not clear it (decided 23 Oct 2026, SPM-54 AC6 keeps the affected booking).
  */
 export function deriveUnavailableVenues(bookings: QueueBookingFact[], now: Date): string[] {
-  const affected = bookings
-    .filter(
-      (booking) =>
-        booking.venueUnavailable &&
-        (booking.status === 'approved' ||
-          booking.holdExpiresAt === null ||
-          holdIsActive(booking.holdExpiresAt, now)),
-    );
+  const isActive = (booking: QueueBookingFact) =>
+    booking.status === 'approved'
+      ? approvedHoldState(booking, now) !== 'expired'
+      : booking.holdExpiresAt === null || holdIsActive(booking.holdExpiresAt, now);
+  const affected = bookings.filter((booking) => booking.venueUnavailable && isActive(booking));
   // One entry per venue, by id: two bookings of the same venue are listed once, two venues with one name twice.
   const byVenue = new Map(affected.map((booking) => [booking.venueId, booking]));
   return [...byVenue.values()].map((booking) => venueLabel(booking, bookings));
