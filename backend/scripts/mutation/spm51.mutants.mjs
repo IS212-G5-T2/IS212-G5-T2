@@ -63,7 +63,12 @@ export const MUTANTS = [
     kills: [
       'backend/src/venues/availability/booking-request.spec.ts :: rejects anonymous and non-coordinator callers before persistence',
     ],
-    edits: [["if (!identity.roles.includes('COORDINATOR'))", 'if (false)']],
+    edits: [
+      [
+        "// SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.\n    if (!identity.roles.includes('COORDINATOR'))",
+        "// SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.\n    if (false)",
+      ],
+    ],
   },
   {
     id: 'B08',
@@ -135,8 +140,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz',
-        'b.start_at\n                    < $3::timestamptz',
+        'b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
+        'b.start_at\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
       ],
     ],
   },
@@ -150,8 +155,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'start_at < $3::timestamptz + make_interval(mins => $5::int)',
-        'start_at < $3::timestamptz',
+        "start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
+        "start_at < $3::timestamptz\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
       ],
     ],
   },
@@ -165,8 +170,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'end_at > $2::timestamptz - make_interval(mins => $4::int)',
-        'end_at > $2::timestamptz',
+        "end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
+        "end_at > $2::timestamptz\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
       ],
     ],
   },
@@ -224,7 +229,7 @@ export const MUTANTS = [
       'backend/src/events/events.service.spec.ts :: scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events',
     ],
     edits: [
-      ['FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC', 'FROM events ORDER BY created_at DESC'],
+      ['FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC', 'FROM events ORDER BY start_date_time ASC, created_at DESC'],
     ],
   },
   {
