@@ -240,7 +240,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     }).expect(422);
     expect(refused.body.code).toBe('SETTINGS_INCOMPLETE');
     expect(refused.body.errors).toEqual({
-      registrationOpensAt: 'Set the registration period and capacity before enabling registration.',
+      registrationOpensAt: 'Set the registration period and capacity before turning registration on.',
     });
     expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
@@ -460,10 +460,11 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(await statusOf(eventId, waiter)).toBe('Removed');
   });
 
-  // 09-B and 09-C: a cancelled or rejected event refuses configuration (409) and stays as saved.
+  // 09-B and 09-C: a cancelled or rejected event refuses configuration (409) and stays as saved. Only Approved,
+  // Planning and Confirmed are configurable (v2.0 AC4).
   it.each([
-    ['Cancelled', 'Registration cannot be configured for a cancelled or rejected event.'],
-    ['Rejected', 'Registration cannot be configured for a cancelled or rejected event.'],
+    ['Cancelled', 'Registration details can only be set while the event is Approved, Planning or Confirmed.'],
+    ['Rejected', 'Registration details can only be set while the event is Approved, Planning or Confirmed.'],
   ])('CONFIG-REG-09-B/C: a %s event refuses saves with EVENT_NOT_CONFIGURABLE', async (status, message) => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 09BC');
     const eventId = await seedEvent({ coordinatorId: coordinator.uid, status, enabled: true, opens: '2026-10-17T01:00:00Z', closes: '2026-10-28T15:59:00Z', limit: 10 });
@@ -479,7 +480,7 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     const refused = await put(eventId, coordinator, { ...SET_OK, version: 0 }).expect(409);
     expect(refused.body).toMatchObject({
       code: 'EVENT_NOT_CONFIGURABLE',
-      message: 'Registration cannot be configured for a completed event.',
+      message: 'Registration details can only be set while the event is Approved, Planning or Confirmed.',
     });
   });
 
@@ -534,5 +535,24 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
       const saved = (await get(eventId, coordinator).expect(200)).body;
       expect(saved.confirmedCount).toBeLessThanOrEqual(saved.capacity);
     }
+  });
+  // 04-A (v2.0): registration details can be set in each of the three allowed statuses.
+  it.each(['Approved', 'Planning', 'Confirmed'])('CONFIG-REG-04-A: a %s event accepts the settings', async (status) => {
+    const coordinator = await user(['COORDINATOR'], `Coordinator 04A ${status}`);
+    const eventId = await seedEvent({ coordinatorId: coordinator.uid, status });
+    await put(eventId, coordinator, { ...SET_OK, version: 0 }).expect(200);
+    expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: true, capacity: 50, version: 1 });
+  });
+
+  // 04-B (v2.0): every other status refuses registration details with one message, and nothing is saved.
+  it.each(['Submitted', 'Completed', 'Cancelled', 'Rejected'])('CONFIG-REG-04-B: a %s event refuses the settings', async (status) => {
+    const coordinator = await user(['COORDINATOR'], `Coordinator 04B ${status}`);
+    const eventId = await seedEvent({ coordinatorId: coordinator.uid, status, start: status === 'Completed' ? '2026-10-10T18:00:00+08:00' : START });
+    const refused = await put(eventId, coordinator, { ...SET_OK, version: 0 }).expect(409);
+    expect(refused.body).toMatchObject({
+      code: 'EVENT_NOT_CONFIGURABLE',
+      message: 'Registration details can only be set while the event is Approved, Planning or Confirmed.',
+    });
+    expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({ registrationEnabled: false, version: 0 });
   });
 });

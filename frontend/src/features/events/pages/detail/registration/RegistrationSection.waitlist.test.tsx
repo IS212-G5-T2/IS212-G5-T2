@@ -127,7 +127,7 @@ describe("JOIN-WAITLIST-01-D-FE: a closed or not-yet-open full event shows the w
   it("JOIN-WAITLIST-01-D-FE-INT-A: a closed full event shows Registration closed and no controls", () => {
     renderSection(buildGala({ registrationClosesAt: iso(-HOUR), registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
     expect(joinButton()).not.toBeInTheDocument();
     expect(registerButton()).not.toBeInTheDocument();
   });
@@ -137,7 +137,7 @@ describe("JOIN-WAITLIST-01-D-FE: a closed or not-yet-open full event shows the w
     const opens = "2026-10-17T09:00:00+08:00";
     renderSection(buildGala({ registrationOpensAt: opens, registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByRole("heading", { name: "Registration opens on 17 Oct 2026, 09:00 SGT" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has not started" })).toBeInTheDocument();
     expect(joinButton()).not.toBeInTheDocument();
   });
 });
@@ -200,7 +200,7 @@ describe("JOIN-WAITLIST-02-B-FE: the other states show no waitlist text (AC2)", 
   it("JOIN-WAITLIST-02-B-FE-INT: a closed event shows Registration closed and no waitlist text", () => {
     renderSection(buildGala({ registrationClosesAt: iso(-HOUR), registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
     expect(screen.queryByText(/waitlist/i)).not.toBeInTheDocument();
   });
 
@@ -208,7 +208,7 @@ describe("JOIN-WAITLIST-02-B-FE: the other states show no waitlist text (AC2)", 
   it("JOIN-WAITLIST-02-B-FE-INT: a not-yet-open event shows Registration opens on, and no waitlist text", () => {
     renderSection(buildGala({ registrationOpensAt: "2026-10-17T09:00:00+08:00", registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByRole("heading", { name: /Registration opens on/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /Registration has not started/ })).toBeInTheDocument();
     expect(screen.queryByText(/waitlist/i)).not.toBeInTheDocument();
   });
 });
@@ -420,7 +420,7 @@ describe("JOIN-WAITLIST-11-A-FE: a removed entry shows Removed and no position (
     );
 
     expect(screen.getByText("Removed")).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
     expect(screen.queryByText(/in line/)).not.toBeInTheDocument();
     expect(joinButton()).not.toBeInTheDocument();
     expect(registerButton()).not.toBeInTheDocument();
@@ -581,7 +581,7 @@ describe("JOIN-WAITLIST-01-E-FE-INT-SAMETICK: a same-batch double click sends on
 /**
  * JOIN-WAITLIST-11-C-FE: a registration-disabled event (manual close) offers neither Register nor Join, for a full
  * event and for a not-full one. The section shows the existing SPM-61 "not enabled" sentence; it does not show a
- * "Registration closed" heading (see the report: that wording conflicts with the existing SPM-61 test).
+ * "Registration has closed" heading (see the report: that wording conflicts with the existing SPM-61 test).
  * Kills F16: the disabled guard is dropped, so the normal state logic offers Join (full) or Register (not full).
  */
 describe("JOIN-WAITLIST-11-C-FE: a registration-disabled event offers no Register or Join (AC11)", () => {
@@ -589,7 +589,7 @@ describe("JOIN-WAITLIST-11-C-FE: a registration-disabled event offers no Registe
   it("JOIN-WAITLIST-11-C-FE-INT-FULL: a full event with registration disabled offers no Join and no Register", () => {
     renderSection(buildGala({ registrationEnabled: false, registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByText("Registration through the website is not enabled for this event.")).toBeInTheDocument();
+    expect(screen.getByText("Registration has not started")).toBeInTheDocument();
     expect(joinButton()).not.toBeInTheDocument();
     expect(registerButton()).not.toBeInTheDocument();
   });
@@ -598,7 +598,7 @@ describe("JOIN-WAITLIST-11-C-FE: a registration-disabled event offers no Registe
   it("JOIN-WAITLIST-11-C-FE-INT-NOTFULL: a not-full event with registration disabled offers no Register and no Join", () => {
     renderSection(notFull({ registrationEnabled: false, registrationOpen: false, waitlistAvailable: false }), ATT_04);
 
-    expect(screen.getByText("Registration through the website is not enabled for this event.")).toBeInTheDocument();
+    expect(screen.getByText("Registration has not started")).toBeInTheDocument();
     expect(registerButton()).not.toBeInTheDocument();
     expect(joinButton()).not.toBeInTheDocument();
   });

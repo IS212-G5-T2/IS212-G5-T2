@@ -64,3 +64,20 @@ describe("CDLG-03: an error keeps the dialog open with the message and enabled b
     expect(onCancel).not.toHaveBeenCalled();
   });
 });
+
+// Withdrawing after registration has closed warns that the attendee cannot register again.
+describe("CDLG-04: the withdrawal warning once registration has closed", () => {
+  const closedWarning = "Registration has closed, and you will no longer be able to register again for the event.";
+
+  // Kills: CDLG-04-M1 (the closed warning missing from the withdraw dialog)
+  it("shows the closed warning when withdrawing after registration has closed", () => {
+    render(<ConfirmDialog {...baseProps} variant="withdraw" registrationClosed />);
+    expect(screen.getByText(closedWarning)).toBeInTheDocument();
+  });
+
+  // Kills: CDLG-04-M2 (the closed warning shown while registration is still open)
+  it("shows no closed warning while registration is still open", () => {
+    render(<ConfirmDialog {...baseProps} variant="withdraw" />);
+    expect(screen.queryByText(closedWarning)).not.toBeInTheDocument();
+  });
+});

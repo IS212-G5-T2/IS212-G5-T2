@@ -20,14 +20,13 @@ export const SETTINGS_MESSAGES = {
   saved: 'Registration settings saved.',
   closeAfterOpen: 'Registration closing time must be after the opening time.',
   closeOnOrBeforeStart: 'Registration must close on or before the event start time.',
-  incomplete: 'Set the registration period and capacity before enabling registration.',
+  incomplete: 'Set the registration period and capacity before turning registration on.',
   capacityInvalid: 'Capacity must be a positive whole number.',
   capacityBelowConfirmed: (confirmed: number) =>
     `Capacity cannot be lower than the number of Confirmed registrations (${confirmed}).`,
-  notConfigurable: 'Registration cannot be configured for a cancelled or rejected event.',
+  notConfigurable: 'Registration details can only be set while the event is Approved, Planning or Confirmed.',
   conflict: 'These settings were changed elsewhere. Reload and try again.',
-  // ASSUMED: the document has no wording for these cases (F4, F8, D4).
-  notConfigurableCompleted: 'Registration cannot be configured for a completed event.',
+  // ASSUMED: the document has no wording for these cases (F4, F8).
   capacityTooLarge: (max: number) => `Capacity cannot be more than ${max}.`,
   invalidDatetime: 'Enter a date and time with an offset, for example 2026-10-19T09:00:00+08:00.',
   invalidRequest: 'The registration settings request is not valid.',

@@ -144,9 +144,10 @@ describe("SPM-139 coordinator registration settings form", () => {
 
   // 09-B and 09-C: a cancelled or rejected event shows its saved settings with no Save.
   it.each([
-    ["cancelled", "Registration cannot be configured for a cancelled or rejected event."],
-    ["rejected", "Registration cannot be configured for a cancelled or rejected event."],
-    ["completed", "Registration cannot be configured for a completed event."],
+    ["cancelled", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
+    ["rejected", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
+    ["completed", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
+    ["submitted", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
   ])("a %s event is read-only with its message and no Save", async (status, message) => {
     renderForm(status, settings({ registrationEnabled: true, capacity: 10, registrationOpensAt: "2026-10-19T01:00:00.000Z", registrationClosesAt: "2026-10-28T15:59:00.000Z", version: 2 }));
     expect(await screen.findByText(message)).toBeInTheDocument();
@@ -158,5 +159,37 @@ describe("SPM-139 coordinator registration settings form", () => {
     fetchMock.mockRejectedValue(new ApiError("Request failed."));
     render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status="planning" />);
     expect(await screen.findByRole("alert")).toHaveTextContent("Request failed.");
+  });
+});
+
+// The registration end may not be after the event start. The warning appears as soon as it is entered and blocks Save.
+describe("registration end against the event start (live)", () => {
+  const startWarning = "Registration must close on or before the event start time.";
+
+  // Kills: RSF-LIVE-M1 (the rule checked only on Save, so the end date is accepted until then)
+  it("warns as soon as the end is after the start, keeps Save off and sends nothing", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const closes = await screen.findByLabelText("Registration closes (SGT)");
+    await user.type(closes, "2026-11-07T18:30");
+
+    expect(await screen.findByText(startWarning)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save registration settings" })).toBeDisabled();
+    expect(saveMock).not.toHaveBeenCalled();
+  });
+
+  // Kills: RSF-LIVE-M2 (the warning stays after the end is corrected to the start)
+  it("clears the warning when the end is moved back to the start instant", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    const closes = await screen.findByLabelText("Registration closes (SGT)");
+    await user.type(closes, "2026-11-07T18:30");
+    expect(await screen.findByText(startWarning)).toBeInTheDocument();
+
+    await user.clear(closes);
+    await user.type(closes, "2026-11-07T18:00");
+
+    expect(screen.queryByText(startWarning)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save registration settings" })).toBeEnabled();
   });
 });

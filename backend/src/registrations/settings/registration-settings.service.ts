@@ -37,12 +37,8 @@ import {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Statuses that refuse configuration (D4). Completed is included by decision; the other statuses are allowed. */
-const NOT_CONFIGURABLE: Record<string, string> = {
-  Cancelled: SETTINGS_MESSAGES.notConfigurable,
-  Rejected: SETTINGS_MESSAGES.notConfigurable,
-  Completed: SETTINGS_MESSAGES.notConfigurableCompleted,
-};
+/** SPM-139 AC4 (v2.0): registration details can be set only while the event is Approved, Planning or Confirmed. */
+const CONFIGURABLE_STATUSES = new Set(['Approved', 'Planning', 'Confirmed']);
 
 export interface RegistrationSettingsResponse {
   eventId: string;
@@ -98,12 +94,11 @@ export class RegistrationSettingsService {
       const query: Query = (text, params) => client.query(text, params);
       const row = await this.findEvent(query, eventId, ' FOR UPDATE');
       this.requireAssigned(row, coordinator);
-      const blocked = NOT_CONFIGURABLE[row.status];
-      if (blocked)
+      if (!CONFIGURABLE_STATUSES.has(row.status))
         throw new ConflictException({
           statusCode: 409,
           code: SETTINGS_ERROR_CODES.notConfigurable,
-          message: blocked,
+          message: SETTINGS_MESSAGES.notConfigurable,
         });
 
       const parsed = parseRegistrationSettingsBody(body);

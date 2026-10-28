@@ -18,7 +18,7 @@ export type AttendeeAction =
   | { kind: "register" }
   | { kind: "disabled"; reason: string; waitlistAvailable: boolean };
 
-const CLOSED_REASON = "Registration closed";
+const CLOSED_REASON = "Registration has closed";
 const FULL_REASON = "This event is full.";
 /** Statuses that leave the footer hidden: the registration status card (RegistrationSection) is the only thing shown. */
 const HIDDEN_FOR = new Set(["registered", "waitlisted", "withdrawn", "cancelled"]);
@@ -106,4 +106,20 @@ export function accessibilityIcon(feature: string): IconName {
   if (/hearing|audio|loop|sign language|captions?/i.test(feature)) return "hearing";
   if (/visual|braille|blind|vision|contrast|tactile/i.test(feature)) return "vision";
   return "check";
+}
+
+/**
+ * The attendee's registration label for a confirmed event: "Registration open" while the window is open (a full event
+ * still has an open window); "Registration opening soon" when registration is not enabled or has not started yet;
+ * "Registration closed" once it has closed. Null for every other event status.
+ */
+export function attendeeRegistrationLabel(
+  event: EventRecord,
+  now: Date,
+): "Registration open" | "Registration opening soon" | "Registration closed" | null {
+  if (event.status !== "confirmed") return null;
+  const state = registrationState(event, now);
+  if (state === "open" || state === "full") return "Registration open";
+  if (state === "disabled" || state === "not-yet-open") return "Registration opening soon";
+  return "Registration closed";
 }

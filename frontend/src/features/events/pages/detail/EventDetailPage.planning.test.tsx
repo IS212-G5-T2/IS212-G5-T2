@@ -654,7 +654,7 @@ describe("EventDetailPage planning information (coordinator)", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers View Registrations inside People once the event is confirmed", async () => {
+  it("offers View Registrations in the Registration tab, not in People, once the event is confirmed", async () => {
     asCoordinator({
       event: eventRecord({ status: "confirmed" }),
       readOnly: true,
@@ -664,14 +664,18 @@ describe("EventDetailPage planning information (coordinator)", () => {
     useAppStore.setState({ currentUser: COORDINATOR_USER });
     renderPage();
     const region = await planningRegion();
-    expect(
-      within(region).getByRole("button", { name: "View Registrations" }),
-    ).toBeInTheDocument();
-    // Confirmed events also show their details only in Planning Information, not in a second Event Details card.
+    expect(within(region).getByRole("tab", { name: /Requirements/ })).toBeInTheDocument();
+    // Confirmed events also show their details only in Event Information, not in a second Event Details card.
     expect(
       screen.queryByRole("heading", { name: "Event Details" }),
     ).not.toBeInTheDocument();
     expect(screen.getAllByRole("heading", { name: "People" })).toHaveLength(1);
+    // The People block (Event Info tab) no longer carries the button; the Registration tab does.
+    expect(within(region).queryByRole("button", { name: "View Registrations" })).not.toBeInTheDocument();
+    await userEvent.click(within(region).getByRole("tab", { name: /Registration/ }));
+    expect(
+      within(region).getByRole("button", { name: "View Registrations" }),
+    ).toBeInTheDocument();
   });
 
   // EVENT-VIEW-05-B: AC5 — background refreshes pause while the tab is hidden and resume when it is visible again.

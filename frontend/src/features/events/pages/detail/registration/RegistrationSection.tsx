@@ -31,13 +31,6 @@ interface Props {
   registration?: Registration;
   /** Called after a successful withdrawal so the page can refetch the event's capacity. */
   onWithdrawn?: () => void;
-  /**
-   * AttendeeEventView's footer asks for the form: each change opens the registration form and moves focus to its
-   * first field. A counter, so a repeated click is a new request.
-   */
-  registerSignal?: number;
-  /** AttendeeEventView's footer asks to join the waitlist: each change runs the same join as the waitlist panel. */
-  joinSignal?: number;
 }
 
 // How often the open/closed state is re-checked while the page stays open.
@@ -60,7 +53,7 @@ function Meta({ label, value }: { label: string; value: string }) {
  * registration state. Register is offered only while a place is free and registration is open; Join Waitlist is offered
  * while the event is full and open. Every other state is text only. The server still enforces every rule.
  */
-export function RegistrationSection({ event, currentUser, registration, onWithdrawn, registerSignal = 0, joinSignal = 0 }: Props) {
+export function RegistrationSection({ event, currentUser, registration, onWithdrawn }: Props) {
   const loadMyRegistration = useAppStore((s) => s.loadMyRegistration);
   const submitWithdrawal = useAppStore((s) => s.submitWithdrawal);
   const joinWaitlist = useAppStore((s) => s.joinWaitlist);
@@ -91,23 +84,13 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
   const joinInFlight = useRef(false);
   const sectionRef = useRef<HTMLElement>(null);
   const [focusFormPending, setFocusFormPending] = useState(false);
-  // Set after the join function is declared below; the footer's join signal calls the latest one.
-  const joinNowRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), RECHECK_MS);
     return () => clearInterval(timer);
   }, []);
 
-  // The footer's Register action: open the form and move focus to its first field once it has rendered.
-  useEffect(() => {
-    if (registerSignal === 0) return;
-    setFormOpen(true);
-    setReregistering(false);
-    setDuplicateNotice("");
-    setFocusFormPending(true);
-  }, [registerSignal]);
-
+  // Register opens the form and moves focus to its first field once it has rendered.
   useEffect(() => {
     if (!focusFormPending || !formOpen) return;
     const firstField = sectionRef.current?.querySelector<HTMLInputElement>('input[name="fullName"]');
@@ -115,12 +98,6 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     firstField?.scrollIntoView?.({ block: "center" });
     setFocusFormPending(false);
   }, [focusFormPending, formOpen]);
-
-  // The footer's Join waitlist action: the same join the waitlist panel offers, never a second implementation.
-  useEffect(() => {
-    if (joinSignal === 0) return;
-    joinNowRef.current();
-  }, [joinSignal]);
 
   const state = registrationState(event, now);
   const registered = current?.status === "registered";
@@ -165,11 +142,12 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     meta = detailRows;
   } else if (current?.status === "removed") {
     // SPM-138 AC11: a waiting entry removed when registration closed. No position, no controls.
-    heading = "Registration closed";
+    heading = "Registration has closed";
     if (closesAt && hasClosed) meta = [{ label: "Closed on", value: formatSgtDateTime(closesAt) }];
   } else if (uiState === "not-yet-open" && event.registrationOpensAt) {
-    heading = `Registration opens on ${formatSgt(event.registrationOpensAt)}`;
-    meta = [{ label: "Available", value: `${spots} ${spots === 1 ? "spot" : "spots"}` }];
+    heading = "Registration has not started";
+    meta = [{ label: "Opens", value: formatSgtDateTime(event.registrationOpensAt) }];
+    meta.push({ label: "Available", value: `${spots} ${spots === 1 ? "spot" : "spots"}` });
     if (closesAt) meta.push({ label: "Closes", value: formatSgtDateTime(closesAt) });
   } else if (uiState === "register" && closesAt) {
     heading = registrationClosingHeading(closesAt, now);
@@ -184,7 +162,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     meta = [{ label: "Available", value: `${Math.max(spots, 0)} of ${limit} available` }];
     if (closesAt) meta.push({ label: "Closes", value: formatSgtDateTime(closesAt) });
   } else {
-    heading = "Registration closed";
+    heading = "Registration has closed";
     if (closesAt && hasClosed) meta = [{ label: "Closed on", value: formatSgtDateTime(closesAt) }];
   }
 
@@ -250,17 +228,15 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
     }
   };
 
-  // Keeps the join the footer's signal calls current. Written after render, never during it.
-  useEffect(() => {
-    joinNowRef.current = () => void joinNow();
-  });
-
-  // Registration through the website is off: the attendee is told so, and nothing else in this section applies.
-  if (!event.registrationEnabled) {
+  // Registration through the website is off: the attendee is told it has not started. An attendee who already holds a
+  // place keeps it, so their registration (and its withdrawal) stays visible.
+  if (!event.registrationEnabled && !registered && !waitlisted) {
     return (
       <Card className="lg:col-span-3">
-        <CardBody className="text-sm text-gray-600 dark:text-gray-400">
-          Registration through the website is not enabled for this event.
+        <CardBody>
+          <h3 role="status" className="text-base font-semibold text-gray-900 dark:text-gray-100">
+            Registration has not started
+          </h3>
         </CardBody>
       </Card>
     );
@@ -309,13 +285,18 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
                     ))}
                   </dl>
                 )}
+                <p className="text-[13px] text-gray-600 dark:text-gray-400">
+                  Organised by {event.organiserName}.
+                  {event.coordinatorName ? ` Questions go to ${event.coordinatorName}.` : ""}
+                </p>
               </div>
               {showRegister && (
                 <Button
-                  variant="secondary"
                   onClick={() => {
                     setReregistering(false);
+                    setDuplicateNotice("");
                     setFormOpen(true);
+                    setFocusFormPending(true);
                   }}
                 >
                   Register
@@ -338,6 +319,7 @@ export function RegistrationSection({ event, currentUser, registration, onWithdr
             <ConfirmDialog
               variant={dialogVariant}
               position={current?.waitlistPosition}
+              registrationClosed={hasClosed}
               pending={withdrawPending}
               error={withdrawError}
               onConfirm={confirmWithdrawal}

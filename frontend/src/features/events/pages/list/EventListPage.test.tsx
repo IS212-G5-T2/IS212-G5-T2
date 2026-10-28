@@ -434,8 +434,8 @@ describe("EventListPage", () => {
     expect(screen.queryByText("My Past Event")).not.toBeInTheDocument();
     expect(screen.queryByText("Approved")).not.toBeInTheDocument();
     expect(within(screen.getByText("Open Approved Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
-    // Attendee rule: "Confirmed" means a registration, so a registered event shows exactly one Confirmed badge.
-    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
+    // No "Confirmed" label is shown to attendees, even on an event they are registered for.
+    expect(within(screen.getByText("My Registered Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Filter by status")).not.toBeInTheDocument();
 
     // Registered Events: my future registration with its one Confirmed badge, and my cancelled registration with one red
@@ -443,7 +443,7 @@ describe("EventListPage", () => {
     await user.selectOptions(screen.getByLabelText("Show"), "registered");
     expect(screen.getByText("My Registered Event")).toBeInTheDocument();
     expect(screen.queryByText("Open Approved Event")).not.toBeInTheDocument();
-    expect(within(screen.getByText("My Registered Event").closest("a")!).getAllByText("Confirmed")).toHaveLength(1);
+    expect(within(screen.getByText("My Registered Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
     expect(screen.getByText("My Cancelled Event")).toBeInTheDocument();
     expect(within(screen.getByText("My Cancelled Event").closest("a")!).getAllByText("Cancelled")).toHaveLength(1);
     expect(within(screen.getByText("My Cancelled Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
@@ -452,7 +452,7 @@ describe("EventListPage", () => {
     await user.selectOptions(screen.getByLabelText("Show"), "past");
     expect(screen.getByText("My Past Event")).toBeInTheDocument();
     expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(within(screen.getByText("My Past Event").closest("a")!).getByText("Confirmed")).toBeInTheDocument();
+    expect(within(screen.getByText("My Past Event").closest("a")!).queryByText("Confirmed")).not.toBeInTheDocument();
 
     // The Cancelled filter is removed: the Show dropdown lists only the three attendee filters.
     expect(within(screen.getByLabelText("Show")).queryByRole("option", { name: "Cancelled" })).not.toBeInTheDocument();

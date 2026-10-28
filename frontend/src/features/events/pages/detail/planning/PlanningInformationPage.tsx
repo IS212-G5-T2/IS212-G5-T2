@@ -39,7 +39,7 @@ import {
   safetyLabel,
 } from "@/features/events/components/StatusLabels";
 
-type TabKey = "event" | "venues" | "equipment";
+type TabKey = "event" | "venues" | "equipment" | "registration";
 
 interface Props {
   view: PlanningView;
@@ -50,6 +50,10 @@ interface Props {
   refreshError?: string;
   /** People for the event (organiser, coordinator), shown as a sub-section of Event Information. */
   people?: ReactNode;
+  /** SPM-139: the Registration tab's content. Passed only for approved, planning and confirmed events, so the tab exists only then. */
+  registration?: ReactNode;
+  /** Whether both registration dates are set; drives the Registration tab's status icon. */
+  registrationPeriodSet?: boolean;
 }
 
 const ALERT =
@@ -438,6 +442,8 @@ export function PlanningInformationPage({
   onConfirmed,
   refreshError,
   people,
+  registration,
+  registrationPeriodSet,
 }: Props) {
   const tabsId = useId();
   const [tab, setTab] = useState<TabKey>("event");
@@ -516,7 +522,8 @@ export function PlanningInformationPage({
     done: boolean;
     unavailable: boolean;
   }> = [
-    { key: "event", label: "Event Info", done: true, unavailable: false },
+    // Confirmed events show the same information as the requirements the event was confirmed against.
+    { key: "event", label: status === "confirmed" ? "Requirements" : "Event Info", done: true, unavailable: false },
     // Each section is a tick only when every remaining request is confirmed; otherwise a yellow
     // caution (an unavailable request is cleared with "Remove From List").
     { key: "venues", label: "Venues", done: !!venueDone, unavailable: false },
@@ -526,6 +533,9 @@ export function PlanningInformationPage({
       done: !!equipmentDone,
       unavailable: checklist?.equipment.status === "unavailable",
     },
+    ...(registration
+      ? [{ key: "registration" as const, label: "Registration", done: !!registrationPeriodSet, unavailable: false }]
+      : []),
   ];
 
   // SPM-135: always offered while planning, greyed out with its reasons until every prerequisite is met.
@@ -536,7 +546,7 @@ export function PlanningInformationPage({
       <Card>
         <CardHeader>
           <h2 className="font-semibold text-gray-900 dark:text-gray-100">
-            Planning Information
+            {status === "confirmed" ? "Event Information" : "Planning Information"}
           </h2>
         </CardHeader>
         <CardBody className="space-y-4">
@@ -621,6 +631,7 @@ export function PlanningInformationPage({
                   </p>
                 </div>
               )}
+              {item.key === "registration" && registration}
               {item.key === "venues" &&
                 (checklist ? (
                   <VenueStatusCard

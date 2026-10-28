@@ -2,10 +2,9 @@
  * SPM-139: the assigned coordinator sets the registration period and capacity, and switches registration on or off.
  * The server decides every rule and answers with field errors; this form only checks the same rules first so the
  * problem is explained before a request is sent, and it keeps what was typed when a save is refused.
- * A cancelled, rejected or completed event shows its saved settings read-only (BR13).
+ * An event outside Approved, Planning and Confirmed shows its saved settings read-only (BR13).
  */
 import { useCallback, useEffect, useId, useState, type FormEvent } from "react";
-import { Card, CardBody, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { TextInput } from "@/components/ui/FormControls";
 import { ApiError } from "@/utils/api";
@@ -17,16 +16,14 @@ import {
 } from "@/features/events/api/registration-settings-api";
 import {
   checkSettingsForm,
+  closingAfterStartError,
   isoToSgtInput,
   SETTINGS_MESSAGES,
   type SettingsFormValues,
 } from "@/features/events/lib/registrationSettings";
 
-const READ_ONLY_MESSAGES: Record<string, string> = {
-  cancelled: SETTINGS_MESSAGES.notConfigurable,
-  rejected: SETTINGS_MESSAGES.notConfigurable,
-  completed: SETTINGS_MESSAGES.notConfigurableCompleted,
-};
+/** SPM-139 AC4 (v2.0): details can be set only while the event is Approved, Planning or Confirmed. */
+const CONFIGURABLE_STATUSES = ["approved", "planning", "confirmed"];
 
 interface Props {
   eventId: string;
@@ -82,23 +79,19 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
     load();
   }, [load]);
 
-  const readOnlyMessage = READ_ONLY_MESSAGES[status];
-  const editable = !readOnlyMessage;
+  const editable = CONFIGURABLE_STATUSES.includes(status);
+  const readOnlyMessage = editable ? undefined : SETTINGS_MESSAGES.notConfigurable;
 
   if (loadError)
     return (
-      <Card>
-        <CardHeader>
-          <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>
-        </CardHeader>
-        <CardBody>
-          <p role="alert" className="text-sm text-danger-700 dark:text-danger-300">
-            {loadError}
-          </p>
-        </CardBody>
-      </Card>
+      <p role="alert" className="text-sm text-danger-700 dark:text-danger-300">
+        {loadError}
+      </p>
     );
   if (!settings || !values) return null;
+
+  // The end may not be after the event start. Shown as soon as it is entered, and Save stays off until it is corrected.
+  const liveClosesError = closingAfterStartError(values.closes, startDateTime);
 
   const update = (patch: Partial<SettingsFormValues>) => {
     setValues({ ...values, ...patch });
@@ -148,11 +141,7 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <h2 className="font-semibold text-gray-900 dark:text-gray-100">Registration</h2>
-      </CardHeader>
-      <CardBody>
+    <div>
         {!editable ? (
           <div className="space-y-2 text-sm">
             <p className="text-gray-600 dark:text-gray-400">{readOnlyMessage}</p>
@@ -210,7 +199,7 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
               type="datetime-local"
               value={values.closes}
               onChange={(e) => update({ closes: e.target.value })}
-              error={errors.registrationClosesAt}
+              error={liveClosesError ?? errors.registrationClosesAt}
             />
             <TextInput
               id={`${ids}-capacity`}
@@ -229,12 +218,11 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
               </p>
             )}
 
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || Boolean(liveClosesError)}>
               {saving ? "Saving…" : "Save registration settings"}
             </Button>
           </form>
         )}
-      </CardBody>
-    </Card>
+    </div>
   );
 }

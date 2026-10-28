@@ -31,18 +31,29 @@ describe("CARD-BADGE-09: a registration on a cancelled event shows the red Cance
 });
 
 describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a registration", () => {
-  // Kills: BADGE-M1
-  it("CARD-BADGE-01-A-STATE: an unregistered attendee sees no Confirmed badge on a Confirmed event", () => {
+  // Kills: BADGE-M1. The event's own label is "Event confirmed", never the registration's "Confirmed".
+  it("CARD-BADGE-01-A-STATE: an unregistered attendee sees a registration label, and no event status, on a Confirmed event", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true });
 
+    expect(screen.queryByText("Event confirmed")).not.toBeInTheDocument();
     expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
+    expect(screen.getByText(/^Registration (open|closed)$/)).toBeInTheDocument();
+  });
+
+  // An approved event is internal workflow state: no attendee label.
+  it("CARD-BADGE-01-B-STATE: an unregistered attendee sees no label on an Approved event", () => {
+    renderCard(buildGala({ status: "approved" }), { attendeeView: true });
+
+    expect(screen.queryByText("Event confirmed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
   });
 
   // Kills: BADGE-M1, BADGE-M4, F13
-  it("CARD-BADGE-02-A-STATE: a registered attendee sees exactly one Confirmed badge", () => {
+  it("CARD-BADGE-02-A-STATE: a registered attendee sees no Confirmed label", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "registered" });
 
-    expect(screen.getAllByText("Confirmed")).toHaveLength(1);
+    expect(screen.getByText("Registered")).toBeInTheDocument();
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
   // Kills: BADGE-M1, BADGE-M4, F12
@@ -68,7 +79,7 @@ describe("CARD-BADGE-05 to 07: the attendee card keeps the Completed and Cancell
     renderCard(buildGala({ status: "completed" }), { attendeeView: true, registrationStatus: "registered" });
 
     expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.getAllByText("Confirmed")).toHaveLength(1);
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
   // Kills: BADGE-M2

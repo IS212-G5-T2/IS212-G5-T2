@@ -6,6 +6,7 @@ import { formatDateRange } from "@/utils/format";
 import { SafetyIndicator } from "@/features/events/components/StatusIndicators";
 import { StateLabel, cardArrangementLabels, type StateLabelInfo } from "@/features/events/components/StatusLabels";
 import { NeedsActionMarker, QueueSafetyLabel, QueueVenueNotes } from "@/features/events/components/QueueIndicators";
+import { attendeeRegistrationLabel } from "@/features/events/lib/attendeeEventView";
 
 /** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
 export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
@@ -35,11 +36,38 @@ function arrangementLabels(event: EventRecord): StateLabelInfo[] {
     .map((l) => (l.label === "Equipment & Venue Reserved" ? { ...l, label: "Equipment Reserved" } : l));
 }
 
+const REGISTRATION_CHIPS: Record<CardRegistrationStatus, { label: string; className: string }> = {
+  registered: {
+    label: "Registered",
+    className: "bg-primary-100 text-primary-800 dark:bg-primary-900/40 dark:text-primary-200",
+  },
+  waitlisted: {
+    label: "Waitlisted",
+    className: "bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300",
+  },
+  withdrawn: {
+    label: "Withdrawn",
+    className: "bg-danger-100 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300",
+  },
+};
+
+/** A status label in the attendee card's shared label box; the colour carries the state. */
+function Chip({ label, className }: { label: string; className: string }) {
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${className}`}>{label}</span>
+  );
+}
+
 export function EventCard({ event, attendeeView = false, registrationStatus, changeRequestPending = false }: EventCardProps) {
-  // For an attendee, an approved or confirmed event is only "published": that is not a registration, so it carries no badge.
-  const showEventBadge = !(attendeeView && (event.status === "approved" || event.status === "confirmed"));
-  // A registration on a cancelled event shows the event's red Cancelled badge, not a green Confirmed one (SPM-136).
-  const showRegistrationBadge = Boolean(registrationStatus) && !(registrationStatus === "registered" && event.status === "cancelled");
+  // For an attendee, an approved event is internal workflow and carries no badge. A confirmed event shows only its
+  // registration label, Registration open or Registration closed (never the event's own status).
+  const showEventBadge = !(attendeeView && event.status === "approved");
+  const attendeeLabel = attendeeView ? attendeeRegistrationLabel(event, new Date()) : null;
+  // The attendee's own registration is one chip: Registered, Waitlisted or Withdrawn. A cancelled event keeps its own
+  // Cancelled badge instead of a Registered chip (SPM-136).
+  const registrationChip = registrationStatus && !(registrationStatus === "registered" && event.status === "cancelled")
+    ? REGISTRATION_CHIPS[registrationStatus]
+    : null;
   return (
     <Link to={`/events/${event.id}`} className="block">
       <Card className="transition-shadow hover:shadow-md">
@@ -53,10 +81,20 @@ export function EventCard({ event, attendeeView = false, registrationStatus, cha
               )}
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1.5">
-              {showEventBadge && <StatusBadge status={event.status} />}
+              {attendeeLabel && (
+                <Chip
+                  label={attendeeLabel}
+                  className={
+                    attendeeLabel === "Registration open"
+                      ? "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300"
+                      : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+                  }
+                />
+              )}
+              {showEventBadge && !attendeeLabel && <StatusBadge status={event.status} />}
               {/* SPM-48 AC5: the coordinator queue marks events that need action. */}
               {event.queue && <NeedsActionMarker queue={event.queue} />}
-              {showRegistrationBadge && registrationStatus && <StatusBadge status={registrationStatus} />}
+              {registrationChip && <Chip label={registrationChip.label} className={registrationChip.className} />}
               {/* SPM-94 AC3: organiser-facing indicators; the attendee card never shows them. */}
               {!attendeeView && arrangementLabels(event).map((l) => <StateLabel key={`${l.tone}-${l.label}`} {...l} />)}
               {/* SPM-48 AC6, AC7: a queue card shows the queue's safety state instead of the SPM-94 indicator. */}

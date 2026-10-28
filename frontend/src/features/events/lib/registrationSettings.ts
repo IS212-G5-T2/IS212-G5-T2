@@ -10,11 +10,10 @@ export const SETTINGS_MESSAGES = {
   saved: "Registration settings saved.",
   closeAfterOpen: "Registration closing time must be after the opening time.",
   closeOnOrBeforeStart: "Registration must close on or before the event start time.",
-  incomplete: "Set the registration period and capacity before enabling registration.",
+  incomplete: "Set the registration period and capacity before turning registration on.",
   capacityInvalid: "Capacity must be a positive whole number.",
   conflict: "These settings were changed elsewhere. Reload and try again.",
-  notConfigurable: "Registration cannot be configured for a cancelled or rejected event.",
-  notConfigurableCompleted: "Registration cannot be configured for a completed event.",
+  notConfigurable: "Registration details can only be set while the event is Approved, Planning or Confirmed.",
   invalidDatetime: "Enter a date and time with an offset, for example 2026-10-19T09:00:00+08:00.",
 } as const;
 
@@ -97,4 +96,13 @@ export function checkSettingsForm(values: SettingsFormValues, startsAt: string, 
   if (closesIso) request.registrationClosesAt = closesIso;
   if (capacity !== undefined) request.capacity = capacity;
   return { errors, request };
+}
+
+/**
+ * The closing-time rule on its own, for live feedback while the end date is being entered: the registration end may not
+ * be after the event start (equal is valid). Undefined when the end date is blank, invalid or within the start.
+ */
+export function closingAfterStartError(closes: string, startsAt: string): string | undefined {
+  const closesIso = closes.trim() ? sgtInputToIso(closes) : undefined;
+  return closesIso && Date.parse(closesIso) > Date.parse(startsAt) ? SETTINGS_MESSAGES.closeOnOrBeforeStart : undefined;
 }

@@ -124,7 +124,7 @@ describe('SPM-139 BR3: enabling needs the period and capacity in the resulting s
     if (!decision.ok) {
       expect(decision.violation.code).toBe('SETTINGS_INCOMPLETE');
       expect(decision.violation.field).toBe('registrationOpensAt');
-      expect(decision.violation.message).toBe('Set the registration period and capacity before enabling registration.');
+      expect(decision.violation.message).toBe('Set the registration period and capacity before turning registration on.');
     }
   });
 

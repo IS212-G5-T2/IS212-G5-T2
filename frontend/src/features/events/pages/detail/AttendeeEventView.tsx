@@ -1,22 +1,21 @@
 /*
- * The attendee's view of one event: when and where it is, whether registration is still open and by when, the
- * accessibility features on offer, and the action footer that leads into the registration flow. The registration
- * form, waitlist panel and status card stay in RegistrationSection, below this view. Coordinator, room, facility,
- * equipment, attendance and internal status details are not shown to attendees.
+ * The attendee's view of one event: when and where it is, whether registration is still open and by when, and the
+ * accessibility features on offer. The one register box (status, Register, waitlist and the form) is RegistrationSection,
+ * directly below this view. Coordinator, room, facility, equipment, attendance and internal status details are not
+ * shown to attendees.
  *
  * Times are formatted in the viewer's local time zone (the attendee's own clock), as the spec asks. The rest of the
  * registration UI uses Singapore time; this view deliberately does not. The rules and formatters live in
  * features/events/lib/attendeeEventView.ts.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import type { EventAttachment, EventRecord, Registration } from "@/types";
-import { Button } from "@/components/ui/Button";
+import type { EventAttachment, EventRecord } from "@/types";
 import {
   type IconName,
   accessibilityFeatures,
   accessibilityIcon,
-  attendeeAction,
   attendeeBadge,
+  attendeeRegistrationLabel,
   deadlineValue,
   formatAttendeeDate,
   formatAttendeeTime,
@@ -105,16 +104,10 @@ function Fact({ icon, label, value, warning = false }: { icon: IconName; label: 
 
 interface Props {
   event: EventRecord;
-  /** The attendee's own registration for this event, of any status, if any. */
-  registration?: Registration;
-  /** Focuses and opens the registration form in RegistrationSection. */
-  onRegister: () => void;
-  /** Joins the waitlist through RegistrationSection's existing join. */
-  onJoinWaitlist: () => void;
   onViewAttachment: (attachment: EventAttachment) => void;
 }
 
-export function AttendeeEventView({ event, registration, onRegister, onJoinWaitlist, onViewAttachment }: Props) {
+export function AttendeeEventView({ event, onViewAttachment }: Props) {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), RECHECK_MS);
@@ -122,6 +115,7 @@ export function AttendeeEventView({ event, registration, onRegister, onJoinWaitl
   }, []);
 
   const badge = attendeeBadge(event, now);
+  const registrationLabel = attendeeRegistrationLabel(event, now);
   const start = event.startDateTime;
   const end = event.endDateTime;
   const sameDay = new Date(start).toDateString() === new Date(end).toDateString();
@@ -131,7 +125,6 @@ export function AttendeeEventView({ event, registration, onRegister, onJoinWaitl
   const timeValue = `${formatAttendeeTime(start)} to ${formatAttendeeTime(end)}`;
   const deadline = deadlineValue(event, now);
   const features = accessibilityFeatures(event);
-  const action = attendeeAction(event, now, registration);
   const attachments = event.attachments ?? [];
 
   return (
@@ -140,6 +133,17 @@ export function AttendeeEventView({ event, registration, onRegister, onJoinWaitl
         <span className="inline-block rounded-md bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-900/40 dark:text-primary-200">
           {badge === "upcoming" ? "Upcoming" : badge === "ongoing" ? "Ongoing" : "Ended"}
         </span>
+        {registrationLabel && (
+          <span
+            className={`ml-2 inline-block rounded-md px-2.5 py-1 text-xs font-medium ${
+              registrationLabel === "Registration open"
+                ? "bg-success-100 text-success-800 dark:bg-success-900/30 dark:text-success-300"
+                : "bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300"
+            }`}
+          >
+            {registrationLabel}
+          </span>
+        )}
         <p className="text-sm text-gray-600 dark:text-gray-400">{event.description || "No description provided."}</p>
       </header>
 
@@ -205,32 +209,6 @@ export function AttendeeEventView({ event, registration, onRegister, onJoinWaitl
         </section>
       )}
 
-      {action.kind !== "hidden" && (
-        <footer className="flex flex-wrap items-center justify-between gap-4 rounded-xl border-[0.5px] border-gray-200 bg-white p-5 dark:border-gray-700 dark:bg-gray-800">
-          <div className="min-w-0 space-y-1">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Ready to attend?</p>
-            <p className="text-[13px] text-gray-600 dark:text-gray-400">
-              Organised by {event.organiserName}.
-              {event.coordinatorName ? ` Questions go to ${event.coordinatorName}.` : ""}
-            </p>
-          </div>
-          <div className="flex flex-col items-end gap-2">
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {action.kind === "disabled" && action.waitlistAvailable && (
-                <Button variant="secondary" onClick={onJoinWaitlist}>
-                  Join waitlist
-                </Button>
-              )}
-              <Button onClick={onRegister} disabled={action.kind === "disabled"}>
-                Register for this event
-              </Button>
-            </div>
-            {action.kind === "disabled" && (
-              <p className="text-right text-[13px] text-gray-600 dark:text-gray-400">{action.reason}</p>
-            )}
-          </div>
-        </footer>
-      )}
     </div>
   );
 }
