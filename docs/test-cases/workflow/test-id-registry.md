@@ -718,6 +718,9 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-AVL-10-A | PRIMARY | SPM-51 | AC10 | Confluence matrix 24117310; case page 23265889 | backend/src/venues/repository/venues.repository.spec.ts | pending (story owner) | Active |
 | VEN-AVL-10-B | PRIMARY | SPM-51 | AC10 | Confluence matrix 24117310; case page 23265889 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx | pending (story owner) | Active |
 | VEN-AVL-10-BND-1 | PRIMARY | SPM-51 | AC10 | Confluence matrix 24117310; case page 23265889 | frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx | pending (story owner) | Active |
+| VEN-AVL-SUP-01 | SUPPORTING | SPM-51 | AC1 | untagged calendar test; registered under the nearest AC | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | pending (story owner) | Active |
+| VEN-AVL-SUP-02 | SUPPORTING | SPM-51 | AC1 | untagged calendar test; registered under the nearest AC | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | pending (story owner) | Active |
+| VEN-AVL-SUP-03 | SUPPORTING | SPM-51 | AC2 | untagged calendar test; registered under the nearest AC | frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx | pending (story owner) | Active |
 
 ## Notes
 

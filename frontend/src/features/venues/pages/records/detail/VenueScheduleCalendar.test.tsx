@@ -231,14 +231,14 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onSelectRange.mock.calls[0][1].toISOString()).toBe("2030-01-07T03:00:00.000Z");
   });
 
-  /** SPM-51 does not enable drag updates when the parent has no selection handler. */
+  /** VEN-AVL-SUP-01: SPM-51 does not enable drag updates when the parent has no selection handler. */
   it("does not invoke a missing range callback", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
     expect(screen.getByRole("button", { name: "Emit selection" })).toBeDisabled();
   });
 
-  /** SPM-51 only clears a selected range when its own calendar block is clicked. */
+  /** VEN-AVL-SUP-02: SPM-51 only clears a selected range when its own calendar block is clicked. */
   it("clears selection from the selected event and ignores booking clicks", () => {
     const onClearSelection = vi.fn();
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" selectedRange={{ start: "2030-01-07T10:00", end: "2030-01-07T11:00" }} onClearSelection={onClearSelection} />);
@@ -249,7 +249,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onClearSelection).toHaveBeenCalledOnce();
   });
 
-  /** SPM-51 shows the whole day for availability inspection without calling the venue 24-hour. */
+  /** VEN-AVL-SUP-03: SPM-51 shows the whole day for availability inspection without calling the venue 24-hour. */
   it("shows a full-day time grid with a neutral default scroll position", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
