@@ -2603,9 +2603,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
     const sqls = clientQuery.mock.calls.map(([sql]) => normalizeSql(String(sql)));
     // The status UPDATE ran inside the transaction, and the audit insert that followed it failed.
-    const updateAt = sqls.findIndex(
-      (sql) => sql.includes('UPDATE venue_bookings') && sql.includes("SET status = 'approved'"),
-    );
+    const updateAt = sqls.findIndex((sql) => sql.includes("UPDATE venue_bookings SET status = 'approved'"));
     expect(updateAt).toBeGreaterThan(-1);
     expect(sqls[updateAt + 1]).toContain('INSERT INTO booking_review_log');
     // The failed audit insert rolls the transaction back, so the approval is never committed.
