@@ -69,7 +69,7 @@
       },
       {
         "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
-        "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS"
+        "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS|VEN-AVL-SUP-04"
       },
       {
         "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
