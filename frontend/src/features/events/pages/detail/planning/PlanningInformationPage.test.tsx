@@ -512,10 +512,10 @@ describe("PlanningInformationPage", () => {
   });
 
   /**
-   * VEN-BKG-09-A SPM-54: a venue removal that fails with a non-Error rejection shows the action's own fallback message.
+   * VEN-BKG-SUP-05 SPM-54: a venue removal that fails with a non-Error rejection shows the action's own fallback message (planning checklist behaviour owned by SPM-135; parent AC9).
    * Kills: a page that shows nothing, or the raw rejection value, when a removal fails without a reason.
    */
-  it("VEN-BKG-09-A SPM-54 shows the venue removal fallback message when the failure carries no reason", async () => {
+  it("VEN-BKG-SUP-05 SPM-54 shows the venue removal fallback message when the failure carries no reason", async () => {
     const user = userEvent.setup();
     current = checklist({
       venue: {
@@ -553,10 +553,10 @@ describe("PlanningInformationPage", () => {
   });
 
   /**
-   * VEN-BKG-09-A SPM-54: a checklist refresh error reported by the parent page is shown as an alert above the checklist.
+   * VEN-BKG-SUP-06 SPM-54: a checklist refresh error reported by the parent page is shown as an alert above the checklist (planning checklist behaviour owned by SPM-135; parent AC9).
    * Kills: a page that drops the parent's refresh error instead of showing it to the coordinator.
    */
-  it("VEN-BKG-09-A SPM-54 shows the parent's refresh error above the planning checklist", async () => {
+  it("VEN-BKG-SUP-06 SPM-54 shows the parent's refresh error above the planning checklist", async () => {
     render(
       <MemoryRouter>
         <PlanningInformationPage

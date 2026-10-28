@@ -85,7 +85,7 @@
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
-        "titleMatch": "VEN-BKG-09-A"
+        "titleMatch": "VEN-BKG-09-A|VEN-BKG-SUP-0[56]"
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/activeVenueRequests.test.ts",
