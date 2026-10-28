@@ -2732,5 +2732,12 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/is cancelled/)).not.toBeInTheDocument();
     expect(screen.queryByText(/is no longer in Planning/)).not.toBeInTheDocument();
+    // Product owner's current behaviour (28 Oct 2026): the Submit booking request button stays disabled
+    // after a rejected booking reloads until the schedule refreshes. The product owner should confirm this is intended.
+    expect(
+      within(
+        await screen.findByRole("region", { name: "Review booking request" }),
+      ).getByRole("button", { name: "Submit booking request" }),
+    ).toBeDisabled();
   });
 });
