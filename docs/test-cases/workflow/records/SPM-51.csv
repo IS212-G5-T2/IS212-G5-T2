@@ -5,11 +5,11 @@ VEN-AVL-07-SEC-1,backend/src/venues/repository/venues.repository.spec.ts,does no
 VEN-AVL-10-A,backend/src/venues/repository/venues.repository.spec.ts,keeps only pending holds that expire after now,1420,AC10,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-09-A,backend/src/venues/repository/venues.repository.spec.ts,returns each affected booking without changing its stored booking status,1530,AC9,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-02-C,backend/test/venues-booking-requests.e2e-spec.ts,does not expose pending or rejected requests as confirmed venue bookings,1244,AC2,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
-VEN-AVL-07-SEC-1,backend/test/venues-booking-requests.e2e-spec.ts,rejects a fresh confirmed-booking conflict without persisting a request,1292,AC7,Security,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
-VEN-AVL-08-A,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate after a booking when turnaround occupancy overlaps,1444,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
-VEN-AVL-08-B,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate before a booking when setup occupancy overlaps,1477,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
-VEN-AVL-07-C,backend/test/venues-booking-requests.e2e-spec.ts,rejects a request inside a Maintenance blockout without persisting it,1510,AC7,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
-VEN-AVL-08-A,backend/test/venues-booking-requests.e2e-spec.ts,rejects setup-only and turnaround-only blockout conflicts without insertion,1538,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,Yes,PASS
+VEN-AVL-07-SEC-1,backend/test/venues-booking-requests.e2e-spec.ts,rejects a fresh confirmed-booking conflict without persisting a request,1292,AC7,Security,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
+VEN-AVL-08-A,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate after a booking when turnaround occupancy overlaps,1444,AC8,Sad,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
+VEN-AVL-08-B,backend/test/venues-booking-requests.e2e-spec.ts,rejects a candidate before a booking when setup occupancy overlaps,1477,AC8,Sad,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
+VEN-AVL-07-C,backend/test/venues-booking-requests.e2e-spec.ts,rejects a request inside a Maintenance blockout without persisting it,1510,AC7,Sad,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
+VEN-AVL-08-A,backend/test/venues-booking-requests.e2e-spec.ts,rejects setup-only and turnaround-only blockout conflicts without insertion,1538,AC8,Sad,Present,Integration,SPEC,,"mutants:B08,B09",Yes,Yes,Yes,PASS
 VEN-AVL-05-A,frontend/src/features/venues/pages/records/availability.test.ts,keeps the enclosing occupancy end when later intervals are nested and overlapping,29,AC5,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-02-A,frontend/src/features/venues/pages/records/availability.test.ts,returns no gaps for an invalid view range (%s to %s),71,AC2,Interaction,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
 VEN-AVL-01-A,frontend/src/features/venues/pages/records/availability.test.ts,parses event form values as Singapore time independent of host timezone,80,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
