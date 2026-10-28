@@ -35,6 +35,7 @@ vi.mock("@fullcalendar/react", () => ({
       createElement("output", { "aria-label": "Calendar scroll time" }, String(props.scrollTime)),
       createElement("output", { "aria-label": "Calendar minimum time" }, String(props.slotMinTime)),
       createElement("output", { "aria-label": "Calendar maximum time" }, String(props.slotMaxTime)),
+      createElement("output", { "aria-label": "Calendar selectable" }, String(props.selectable)),
       createElement("button", { disabled: !props.select, onClick: () => (props.select as (range: { start: Date; end: Date }) => void)?.({ start, end }) }, "Emit selection"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "selected-event-time" } }) }, "Click selected time"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "booking-1" } }) }, "Click booking"),
@@ -231,10 +232,12 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onSelectRange.mock.calls[0][1].toISOString()).toBe("2030-01-07T03:00:00.000Z");
   });
 
-  /** VEN-AVL-SUP-01: SPM-51 does not enable drag updates when the parent has no selection handler. */
+  /** VEN-AVL-SUP-01: SPM-51 does not enable drag updates when the parent has no selection handler.
+   * Kills: a calendar that passes selectable as true with no range-selection handler (selectable={true} regardless of onSelectRange). */
   it("does not invoke a missing range callback", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
+    expect(screen.getByLabelText("Calendar selectable")).toHaveTextContent("false");
     expect(screen.getByRole("button", { name: "Emit selection" })).toBeDisabled();
   });
 
