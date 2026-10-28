@@ -230,7 +230,7 @@ export const MUTANTS = [
       'backend/src/events/events.service.spec.ts :: scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events',
     ],
     edits: [
-      ['FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC', 'FROM events ORDER BY start_date_time ASC, created_at DESC'],
+      ['FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC', 'FROM events WHERE $1::text IS NOT NULL ORDER BY start_date_time ASC, created_at DESC'],
     ],
   },
   {
