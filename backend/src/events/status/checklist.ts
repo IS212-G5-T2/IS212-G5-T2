@@ -10,6 +10,7 @@ import {
   type VenueBookingFact,
 } from './readiness.js';
 import type { SafetyCheckView } from './safety-check.source.js';
+import { approvedHoldState } from '../venue-unavailable.js';
 
 export type RequestStatus =
   'not_requested' | 'pending' | 'confirmed' | 'unavailable';
@@ -28,6 +29,8 @@ export interface VenueRequestItem {
   id: string;
   venueName: string;
   status: RequestStatus;
+  /** SPM-159: an approved tentative hold is shown as "Hold" or "Hold expired", never as confirmed. */
+  holdState?: 'Hold' | 'Hold expired';
   requestedDate?: string;
 }
 
@@ -73,8 +76,12 @@ const earliest = (times: Array<string | undefined>) =>
   times.filter((t): t is string => !!t).sort()[0];
 
 // A rejected booking, or one whose venue is blocked for the window, needs a replacement request.
-function venueRequestStatus(booking: VenueBookingFact): RequestStatus {
+// SPM-159: an approved hold is not confirmed. A running hold is pending the coordinator's confirmed booking; an
+// expired hold has released the venue and needs a replacement request.
+function venueRequestStatus(booking: VenueBookingFact, now: Date): RequestStatus {
   if (booking.status === 'rejected') return 'unavailable';
+  const hold = approvedHoldState(booking, now);
+  if (hold) return hold === 'expired' ? 'unavailable' : 'pending';
   if (booking.status === 'approved')
     return booking.venueUnavailable ? 'unavailable' : 'confirmed';
   return 'pending';
@@ -100,12 +107,16 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
   const bookings = snapshot.venueBookings.filter(
     (b) => b.status !== 'released' && b.status !== 'cancelled',
   );
-  const venueItems: VenueRequestItem[] = bookings.map((b) => ({
-    id: b.id,
-    venueName: b.venueName,
-    status: venueRequestStatus(b),
-    ...(b.requestedAt ? { requestedDate: b.requestedAt } : {}),
-  }));
+  const venueItems: VenueRequestItem[] = bookings.map((b) => {
+    const hold = approvedHoldState(b, input.now);
+    return {
+      id: b.id,
+      venueName: b.venueName,
+      status: venueRequestStatus(b, input.now),
+      ...(hold ? { holdState: hold === 'expired' ? ('Hold expired' as const) : ('Hold' as const) } : {}),
+      ...(b.requestedAt ? { requestedDate: b.requestedAt } : {}),
+    };
+  });
   const venueStatus: RequestStatus =
     bookings.length === 0
       ? 'not_requested'

@@ -389,6 +389,38 @@ describe('EventPlanningRepository row mapping', () => {
   });
 
   /**
+   * SPM-159: an approved tentative hold reads Hold (running) or Hold expired, never Booked, and an expired approved
+   * hold of another event is not a neighbour that clashes. The CASE and neighbour join are SQL, proved against
+   * PostgreSQL in test/events-approved-hold.e2e-spec.ts; this checks the SQL that is sent and that the labels map through.
+   */
+  it('VEN-HOLD-04-SUP-EVENTS labels approved holds Hold and Hold expired and leaves expired holds out of the neighbours', async () => {
+    const hold = (id: string, status: string) => ({
+      id,
+      venue_id: 'venue-a',
+      venue_name: 'Hall A',
+      venue_capacity: 200,
+      start_at: new Date('2026-11-10T10:00:00.000Z'),
+      end_at: new Date('2026-11-10T13:00:00.000Z'),
+      planning_status: status,
+      request_status: 'approved',
+      neighbours: [],
+    });
+    const { repository, poolQuery } = makeDatabase([hold('bk-1', 'Hold'), hold('bk-2', 'Hold expired')]);
+
+    const rows = await repository.listVenueBookings(EVENT_ID);
+
+    expect(rows.map((row) => [row.id, row.status])).toEqual([
+      ['bk-1', 'Hold'],
+      ['bk-2', 'Hold expired'],
+    ]);
+    const sql = String(poolQuery.mock.calls[0][0]).replace(/\s+/g, ' ');
+    expect(sql).toContain("WHEN (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND b.hold_expires_at IS NOT NULL AND b.hold_expires_at <= now()) THEN 'Hold expired'");
+    expect(sql).toContain("THEN 'Hold' ");
+    expect(sql).toContain("WHEN (b.status = 'approved' AND b.request_kind <> 'tentative_hold') THEN 'Booked'");
+    expect(sql).toContain("((n.status = 'approved' AND NOT (n.status = 'approved' AND n.request_kind = 'tentative_hold' AND n.hold_expires_at IS NOT NULL AND n.hold_expires_at <= now())) AND n.event_id <> b.event_id) OR n.status = 'blocked'");
+  });
+
+  /**
    * EVENT-VIEW-02-G: venue bookings come back with venue name, capacity,
    * planning status and ISO times for the booking and each neighbouring
    * booking; with no proposed window the search window is sent as null and the

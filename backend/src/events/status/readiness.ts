@@ -5,6 +5,8 @@
  * endpoint and in unit tests. Fail closed: missing data is outstanding.
  */
 
+import { approvedHoldState } from '../venue-unavailable.js';
+
 export type OutstandingType = 'venue' | 'equipment' | 'safety';
 
 export interface OutstandingItem {
@@ -19,8 +21,13 @@ export interface VenueBookingFact {
   venueName: string;
   /** released belongs to a cancelled event; cancelled is an individually cancelled venue request. */
   status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
-  /** Pending bookings with a hold expiry are tentative holds (SPM-132/133). */
+  /** Pending bookings with a hold expiry are tentative holds (SPM-132/133); an approved hold carries its expiry too. */
   holdExpiresAt: Date | null;
+  /**
+   * SPM-159: 'tentative_hold' marks a coordinator hold request. An approved one is a Hold (or Hold expired), never a
+   * confirmed booking. Absent or 'booking' is an ordinary request.
+   */
+  requestKind?: 'booking' | 'tentative_hold';
   /** An approved booking whose venue is flagged unavailable for the window. */
   venueUnavailable: boolean;
   /** ISO slot times; carried for the organiser view, not used by the rule. */
@@ -74,6 +81,17 @@ function venueItem(
   now: Date,
 ): OutstandingItem | undefined {
   if (booking.status === 'approved') {
+    // SPM-159: an approved hold does not satisfy the venue approval, whether it is running or has expired.
+    const hold = approvedHoldState(booking, now);
+    if (hold) {
+      const state = hold === 'expired' ? 'Hold expired' : 'Hold';
+      return {
+        type: 'venue',
+        label: VENUE_LABEL,
+        detail: `${booking.venueName} (${state})`,
+        state,
+      };
+    }
     if (!booking.venueUnavailable) return undefined;
     return {
       type: 'venue',

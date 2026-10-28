@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/Button";
 import { Card, CardBody, CardHeader } from "@/components/ui/Card";
+import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { api, ApiError } from "@/utils/api";
 import { formatDateTimeRange } from "@/utils/format";
@@ -28,6 +29,8 @@ type CoordinatorVenueBooking = {
   start: string;
   end: string;
   status: string;
+  requestKind?: "booking" | "tentative_hold";
+  holdExpiresAt?: string;
   specialRequest?: string;
   bookingReference: string;
 };
@@ -45,6 +48,22 @@ function toSgtDateTimeLocal(value: string): string {
   const part = (type: string) =>
     parts.find((item) => item.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}T${part("hour")}:${part("minute")}`;
+}
+
+function formatVenueOccupiedRange(
+  start: string,
+  end: string,
+  setupMinutes: number,
+  turnaroundMinutes: number,
+): string {
+  const occupiedStart =
+    sgtLocalDateTimeToDate(start).getTime() - setupMinutes * 60_000;
+  const occupiedEnd =
+    sgtLocalDateTimeToDate(end).getTime() + turnaroundMinutes * 60_000;
+  return formatVenueRange(
+    new Date(occupiedStart).toISOString(),
+    new Date(occupiedEnd).toISOString(),
+  );
 }
 
 /** Provides a stable detail-page error even when the record is absent without a transport error. */
@@ -114,11 +133,15 @@ export function VenueRecordDetailPage() {
   );
   const [requestError, setRequestError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [holdSubmitting, setHoldSubmitting] = useState(false);
+  const [holdPrompt, setHoldPrompt] = useState(false);
+  const [requestHolding, setRequestHolding] = useState(false);
+  const [holdError, setHoldError] = useState("");
   const [bookingReference, setBookingReference] = useState("");
   const [specialRequest, setSpecialRequest] = useState("");
   const [eventVenueBooking, setEventVenueBooking] =
     useState<CoordinatorVenueBooking>();
-  const [bookingSummaryLoading, setBookingSummaryLoading] = useState(false);
+  const [bookingSummaryLoading, setBookingSummaryLoading] = useState(true);
   const [bookingSummaryError, setBookingSummaryError] = useState("");
   const [cancelPrompt, setCancelPrompt] = useState(false);
   const [cancelNeedsLastWarning, setCancelNeedsLastWarning] = useState(false);
@@ -130,7 +153,13 @@ export function VenueRecordDetailPage() {
       eventVenueBooking.status === "approved")
       ? eventVenueBooking
       : undefined;
+  const submittedRequestMessage =
+    eventVenueBooking?.requestKind === "tentative_hold"
+      ? `Tentative hold request submitted for Venue Staff approval. The hold is not active yet. Reference: ${bookingReference}.`
+      : `Booking request submitted. Reference: ${bookingReference}.`;
   const [movedToPlanning, setMovedToPlanning] = useState("");
+  const requestCancelled =
+    cancelledReference !== "" && cancelledReference === bookingReference;
   const [checking, setChecking] = useState(false);
   const validRange =
     Number.isFinite(parseRequestTime(start)) &&
@@ -199,9 +228,15 @@ export function VenueRecordDetailPage() {
   const detailError = getVenueDetailErrorMessage(error, venue);
 
   useEffect(() => {
-    if (!canCoordinate || !requestedEventId || !venue?.id || !bookingMode) {
+    if (!canCoordinate || !requestedEventId || !bookingMode) {
       setEventVenueBooking(undefined);
       setBookingSummaryLoading(false);
+      setBookingSummaryError("");
+      return;
+    }
+    if (!venue?.id) {
+      setEventVenueBooking(undefined);
+      setBookingSummaryLoading(true);
       setBookingSummaryError("");
       return;
     }
@@ -218,7 +253,11 @@ export function VenueRecordDetailPage() {
                     (row) =>
                       row.eventId === requestedEventId &&
                       row.venueId === venue.id &&
-                      (row.status === "pending" || row.status === "approved"),
+                      (row.status === "pending" ||
+                        (row.status === "approved" &&
+                          (row.requestKind !== "tentative_hold" ||
+                            !row.holdExpiresAt ||
+                            Date.parse(row.holdExpiresAt) > availabilityNow))),
                   )
                 : undefined,
             );
@@ -241,7 +280,7 @@ export function VenueRecordDetailPage() {
     return () => {
       active = false;
     };
-  }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision]);
+  }, [canCoordinate, requestedEventId, venue?.id, bookingMode, revision, availabilityNow]);
 
   async function cancelEventVenueBooking(confirmed = false) {
     if (!eventVenueBooking) return;
@@ -447,6 +486,56 @@ export function VenueRecordDetailPage() {
     }
   }
 
+  /** VEN-HOLD-05-A: submit an assigned coordinator's hold request for the persisted event interval. */
+  async function submitTentativeHoldRequest() {
+    if (!venue || !selectedRequestEvent || !bookingMode) return;
+    setHoldSubmitting(true);
+    setHoldError("");
+    setSubmitted(false);
+    try {
+      const result = await api<{
+        id: string;
+        start: string;
+        end: string;
+        bookingReference: string;
+        specialRequest?: string;
+      }>(`/venues/${encodeURIComponent(venue.id)}/booking-requests`, {
+        method: "POST",
+        body: JSON.stringify({
+          eventId: selectedRequestEvent.id,
+          request_kind: "tentative_hold",
+          ...(specialRequest.trim()
+            ? { specialRequest: specialRequest.trim() }
+            : {}),
+        }),
+      });
+      setBookingReference(result.bookingReference);
+      setEventVenueBooking({
+        id: result.id,
+        eventId: selectedRequestEvent.id,
+        eventName: selectedRequestEvent.name,
+        venueId: venue.id,
+        venueName: venue.name,
+        start: result.start,
+        end: result.end,
+        status: "pending",
+        requestKind: "tentative_hold",
+        specialRequest: result.specialRequest,
+        bookingReference: result.bookingReference,
+      });
+      setSubmitted(true);
+      setHoldPrompt(false);
+    } catch (failure) {
+      setHoldError(
+        failure instanceof ApiError || failure instanceof Error
+          ? failure.message
+          : "Unable to submit the tentative hold request. Try again.",
+      );
+    } finally {
+      setHoldSubmitting(false);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     if (displayedVenueId.current !== id) {
@@ -605,10 +694,24 @@ export function VenueRecordDetailPage() {
                         </div>
                       )}
                     </dl>
+                    {activeEventVenueBooking.requestKind === "tentative_hold" &&
+                      activeEventVenueBooking.status === "pending" && (
+                      <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                        Tentative hold request pending Venue Staff approval; the
+                        venue is not held yet.
+                      </p>
+                    )}
+                    {activeEventVenueBooking.requestKind === "tentative_hold" &&
+                      activeEventVenueBooking.status === "approved" &&
+                      activeEventVenueBooking.holdExpiresAt && (
+                        <p className="text-sm font-medium text-emerald-800 dark:text-emerald-200">
+                          Tentative hold approved and active until{" "}
+                          {formatVenueInstant(activeEventVenueBooking.holdExpiresAt)}.
+                        </p>
+                      )}
                     {submitted && (
                       <p role="status">
-                        Booking request submitted. Reference: {bookingReference}
-                        .
+                        {submittedRequestMessage}
                       </p>
                     )}
                     {submitted && movedToPlanning && (
@@ -789,43 +892,135 @@ export function VenueRecordDetailPage() {
                         }
                         className="block w-full rounded-md border p-2"
                       />
-                      <p className="text-sm">
-                        Submitting records a pending booking request for Venue
-                        Staff to review.
-                      </p>
-                      <Button
-                        disabled={submitting || submitted}
-                        onClick={() => void submitRequest()}
-                      >
-                        {submitting ? "Submitting…" : "Submit booking request"}
-                      </Button>
+                      <label className="flex items-start gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={requestHolding}
+                          disabled={holdSubmitting || submitted}
+                          onChange={(event) => setRequestHolding(event.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium">Request holding</span>
+                          <span className="block text-gray-600 dark:text-gray-300">
+                            Ask Venue Staff to place a tentative hold instead of submitting a booking request.
+                          </span>
+                        </span>
+                      </label>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          disabled={requestHolding
+                            ? holdSubmitting || submitted
+                            : submitting || submitted}
+                          onClick={() => {
+                            if (requestHolding) {
+                              setHoldError("");
+                              setHoldPrompt(true);
+                            } else {
+                              void submitRequest();
+                            }
+                          }}
+                        >
+                          {requestHolding
+                            ? holdSubmitting
+                              ? "Submitting hold request…"
+                              : "Submit booking request"
+                            : submitting
+                              ? "Submitting…"
+                              : "Submit booking request"}
+                        </Button>
+                      </div>
                     </section>
                   )}
-                  {submitted &&
-                    !movedToPlanning &&
-                    cancelledReference !== "" &&
-                    cancelledReference === bookingReference && (
-                      <p role="status">
-                        Booking request {bookingReference} is cancelled.
-                      </p>
-                    )}
-                  {submitted &&
-                    movedToPlanning &&
-                    (cancelledReference !== "" &&
-                    cancelledReference === bookingReference ? (
-                      <p role="status">
-                        Venue booking request {bookingReference} is cancelled.{" "}
-                        {movedToPlanning} is no longer in Planning.
-                      </p>
-                    ) : (
-                      <p role="status">
-                        Venue booking request submitted. {movedToPlanning} is
-                        now in Planning.
-                      </p>
-                    ))}
+                  {submitted && !movedToPlanning && requestCancelled && (
+                    <p role="status">
+                      Booking request {bookingReference} is cancelled.
+                    </p>
+                  )}
+                  {submitted && !requestCancelled && (
+                    <p role="status">
+                      {submittedRequestMessage}
+                    </p>
+                  )}
+                  {submitted && movedToPlanning && (requestCancelled ? (
+                    <p role="status">
+                      Venue booking request {bookingReference} is cancelled.{" "}
+                      {movedToPlanning} is no longer in Planning.
+                    </p>
+                  ) : (
+                    <p role="status">
+                      Venue booking request submitted. {movedToPlanning} is now
+                      in Planning.
+                    </p>
+                  ))}
                 </div>
               ))}
             {requestError && <p role="alert">{requestError}</p>}
+            <Modal
+              open={holdPrompt}
+              onClose={() => {
+                if (!holdSubmitting) setHoldPrompt(false);
+              }}
+              title="Confirm tentative hold request"
+              footer={
+                <>
+                  <Button
+                    variant="secondary"
+                    disabled={holdSubmitting}
+                    onClick={() => setHoldPrompt(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    disabled={holdSubmitting}
+                    onClick={() => void submitTentativeHoldRequest()}
+                  >
+                    {holdSubmitting
+                      ? "Submitting hold request…"
+                      : holdError
+                        ? "Retry request"
+                        : "Confirm request"}
+                  </Button>
+                </>
+              }
+            >
+              {selectedRequestEvent && venue && (
+                <div className="space-y-3 text-sm">
+                  {holdError && (
+                    <div
+                      role="alert"
+                      className="rounded-md border border-red-300 bg-red-50 p-3 text-red-900 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                    >
+                      <p className="font-semibold">Request not submitted</p>
+                      <p>{holdError}</p>
+                    </div>
+                  )}
+                  <p>
+                    This request uses the event’s scheduled time and this venue’s
+                    {` ${venue.setupTimeMinutes}-minute setup and ${venue.turnaroundTimeMinutes}-minute turnaround`}.
+                    If Venue Staff approves it, the hold lasts 14 days (336
+                    hours) from approval.
+                  </p>
+                  <p>
+                    Event time: {formatVenueRange(
+                      selectedRequestEvent.startDateTime,
+                      selectedRequestEvent.endDateTime,
+                    )}.
+                  </p>
+                  <p>
+                    Venue occupied period, including setup and turnaround: {formatVenueOccupiedRange(
+                      toSgtDateTimeLocal(selectedRequestEvent.startDateTime),
+                      toSgtDateTimeLocal(selectedRequestEvent.endDateTime),
+                      venue.setupTimeMinutes,
+                      venue.turnaroundTimeMinutes,
+                    )}.
+                  </p>
+                  <p>
+                    Confirming submits this request for Pending Venue Staff
+                    review; it does not make the venue hold active.
+                  </p>
+                </div>
+              )}
+            </Modal>
             <div
               className="flex flex-wrap gap-2"
               role="group"
@@ -1049,6 +1244,12 @@ export function VenueRecordDetailPage() {
                         : "Tentative hold"}
                       <br />
                       {formatDateTimeRange(reservation.start, reservation.end)}
+                      {reservation.status === "tentative" && reservation.holdExpiresAt && (
+                        <>
+                          <br />
+                          Hold expires {formatVenueInstant(reservation.holdExpiresAt)}
+                        </>
+                      )}
                       {reservation.affectedByUnavailablePeriod && (
                         <p className="text-danger-700 dark:text-danger-300">
                           Affected by an unavailable period

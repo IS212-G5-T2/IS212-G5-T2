@@ -262,6 +262,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByRole("button", { name: "Submit booking request" });
     const eventStart = screen.getByLabelText("Event starts");
     const eventEnd = screen.getByLabelText("Event ends");
     expect(eventStart).toHaveAttribute("readonly");
@@ -378,6 +379,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByRole("button", { name: "Submit booking request" });
     expect(mockCalendarApi.latestProps?.selectable).toBe(false);
     expect(mockCalendarApi.latestProps?.select).toBeUndefined();
     expect(

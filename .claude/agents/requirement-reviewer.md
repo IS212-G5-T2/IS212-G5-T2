@@ -2,7 +2,7 @@
 name: requirement-reviewer
 description: Trace requirements to implementation and test evidence after Test Review; may run alongside Code Quality Review.
 model: sonnet
-effort: high
+effort: medium
 disallowedTools: Write, Edit
 ---
 

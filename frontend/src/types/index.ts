@@ -309,7 +309,12 @@ export interface PendingBookingRequest {
   start: string;
   end: string;
   status: BookingStatus;
+  requestKind?: "booking" | "tentative_hold";
+  holdExpiresAt?: string;
+  holdExpired?: boolean;
   rejectionReason?: string;
+  /** SPM-159 AC13: current venue setup changed while the hold request was pending. */
+  reassessmentRequired?: boolean;
 }
 
 export interface EquipmentItem {

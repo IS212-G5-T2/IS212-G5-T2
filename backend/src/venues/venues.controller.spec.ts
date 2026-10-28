@@ -105,6 +105,23 @@ describe('SPM-50 venue route wiring', () => {
     );
   });
 
+  /** VEN-HOLD-01-A: a tentative hold uses the shared booking request route and verified identity. */
+  it('VEN-HOLD-01-A forwards a discriminated tentative hold through booking requests', () => {
+    const coordinator: AuthenticatedUser = { uid: 'coordinator-1', roles: ['COORDINATOR'] };
+    const coordinatorRequest = { [CURRENT_USER_REQUEST_KEY]: coordinator } as Request;
+    const venueId = '00000000-0000-4000-8000-000000000159';
+    const body = {
+      eventId: '00000000-0000-4000-8000-000000000158',
+      request_kind: 'tentative_hold',
+    };
+    service.submitBookingRequest.mockReturnValue({ status: 'pending' });
+
+    expect(controller.submitBookingRequest(coordinatorRequest, venueId, body)).toEqual({ status: 'pending' });
+    expect(service.submitBookingRequest).toHaveBeenCalledWith(coordinator, venueId, body);
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.submitBookingRequest)).toBe(RequestMethod.POST);
+    expect(Reflect.getMetadata(PATH_METADATA, controller.submitBookingRequest)).toBe(':id/booking-requests');
+  });
+
   /** VEN-REV-07-A: the review endpoints keep their HTTP methods and paths. */
   it('SPM-55 maps the review endpoints to their HTTP methods and paths', () => {
     // Route metadata pins the method and path, so a renamed path or a changed verb fails here.

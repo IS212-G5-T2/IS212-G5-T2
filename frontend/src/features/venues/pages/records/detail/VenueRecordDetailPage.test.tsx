@@ -215,6 +215,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     mockVenueApi();
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-12T12:00" },
     });
@@ -773,7 +774,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
-    const review = screen.getByRole("region", {
+    const review = await screen.findByRole("region", {
       name: "Review booking request",
     });
     await user.click(
@@ -844,7 +845,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
-    const review = screen.getByRole("region", {
+    const review = await screen.findByRole("region", {
       name: "Review booking request",
     });
     await user.click(
@@ -1035,6 +1036,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     renderPage(`/venue-records/${id}?eventId=event-1`);
 
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     expect(screen.getByLabelText("Event starts")).toHaveValue(
       "2030-01-12T12:00",
     );
@@ -1255,6 +1257,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce([] as never);
     renderPage(`/venue-records/${id}?eventId=event-1`);
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-12T12:00" },
     });
@@ -1516,6 +1519,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-12T12:00" },
     });
@@ -1563,6 +1567,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
         .mockRejectedValueOnce(failure);
       renderPage();
       await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
       fireEvent.change(screen.getByLabelText("Event starts"), {
         target: { value: "2030-01-15T12:00" },
       });
@@ -1589,6 +1594,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       .mockRejectedValueOnce(new Error("offline"));
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-15T12:00" },
     });
@@ -1710,6 +1716,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     try {
       renderPage();
       await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
       fireEvent.change(screen.getByLabelText("Event starts"), {
         target: { value: "2030-01-12T12:00" },
       });
@@ -1782,6 +1789,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
+    await screen.findByLabelText("Event starts");
     fireEvent.change(screen.getByLabelText("Event starts"), {
       target: { value: "2030-01-12T12:00" },
     });
@@ -2069,6 +2077,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     try {
       renderPage();
       await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
       const schedule = screen.getByRole("region", { name: "Venue schedule" });
       expect(schedule).toHaveTextContent("Active Hold");
       fireEvent.change(screen.getByLabelText("Event starts"), {
@@ -2129,6 +2138,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     try {
       renderPage();
       await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
       fireEvent.change(screen.getByLabelText("Event starts"), {
         target: { value: "2030-01-12T13:00" },
       });
@@ -2689,7 +2699,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     const user = userEvent.setup();
     renderPage();
     await screen.findByRole("heading", { name: "Conference Room" });
-    const review = screen.getByRole("region", {
+    const review = await screen.findByRole("region", {
       name: "Review booking request",
     });
     await user.click(

@@ -1119,7 +1119,8 @@ describe('SPM-97 view: lifecycle and privacy', () => {
 
 describe('SPM-85 flagging: which bookings count', () => {
   // EVENT-FLAG-01-D: AC1 — a lost or cancelled booking holds nothing, so it does not force a review.
-  it.each(['Unavailable', 'Cancelled'])(
+  // SPM-159: an expired approved hold ('Hold expired') holds no venue either; an active 'Hold' still does.
+  it.each(['Unavailable', 'Cancelled', 'Hold expired'])(
     'EVENT-FLAG-01-D ignores a venue booking that is %s',
     async (status) => {
       repo.listVenueBookings.mockResolvedValue([venueBooking({ status })]);
@@ -1130,6 +1131,30 @@ describe('SPM-85 flagging: which bookings count', () => {
       expect(repo.createFlaggedChange).not.toHaveBeenCalled();
     },
   );
+
+  // SPM-159: an active approved hold still holds the venue, so a change that affects it is flagged for review.
+  it('VEN-HOLD-04-SUP-EVENTS ignores an expired Hold even when its capacity is too small', async () => {
+    // The same too-small capacity forces a review for an active Hold (next test); an expired Hold holds no venue.
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({ status: 'Hold expired', capacity: 100 }),
+    ]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 150,
+    });
+    expect(result.applied).toEqual(['expectedAttendance']);
+    expect(repo.createFlaggedChange).not.toHaveBeenCalled();
+  });
+
+  it('VEN-HOLD-04-SUP-EVENTS still assesses a venue booking that is an active Hold', async () => {
+    // Capacity 100 cannot take 150 attendees, so an assessed booking forces a review; an ignored one would not.
+    repo.listVenueBookings.mockResolvedValue([
+      venueBooking({ status: 'Hold', capacity: 100 }),
+    ]);
+    await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 150,
+    });
+    expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
+  });
 
   it.each(['Unavailable', 'Cancelled', 'Released'])(
     'EVENT-FLAG-01-D ignores an equipment arrangement that is %s',

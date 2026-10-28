@@ -708,12 +708,12 @@ describe('VenuesRepository', () => {
       id: 'booking-1',
       status: 'pending',
     });
-    expect(query.mock.calls[2][0]).toContain(
-      "status IN ('pending', 'approved')",
-    );
+    expect(query.mock.calls[2][0]).toContain("status = 'pending' OR (status = 'approved' AND");
+    expect(query.mock.calls[2][0]).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
     expect(query.mock.calls[2][1]).toEqual([
       '00000000-0000-4000-8000-000000000099',
       venue.id,
+      expect.any(Date),
     ]);
     expect(query).toHaveBeenCalledTimes(3);
   });
@@ -789,12 +789,12 @@ describe('VenuesRepository', () => {
         kind: 'created',
         id: '00000000-0000-4000-8000-000000000100',
       });
-      expect(String(query.mock.calls[2][0])).toContain(
-        "status IN ('pending', 'approved')",
-      );
-      expect((query.mock.calls[2] as unknown[])[1]).toEqual([
+      expect(String(query.mock.calls[2][0])).toContain("status = 'pending' OR (status = 'approved' AND");
+      expect(String(query.mock.calls[2][0])).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
+      expect(query.mock.calls[2][1]).toEqual([
         '00000000-0000-4000-8000-000000000099',
         venue.id,
+        expect.any(Date),
       ]);
     },
   );
@@ -863,9 +863,13 @@ describe('VenuesRepository', () => {
     expect(result).toEqual({ kind: 'conflict', reason: 'Workshop' });
     expect(queries[0]).toContain('FOR UPDATE');
     expect(queries[1]).toContain('coordinator_id = $2::text');
-    expect(queries[2]).toContain("status IN ('pending', 'approved')");
+    expect(queries[2]).toContain("status = 'pending' OR (status = 'approved' AND");
+    expect(queries[2]).toContain("request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz");
+    expect(parameters[2]).toEqual(['00000000-0000-4000-8000-000000000001', venue.id, now]);
     expect(queries[3]).toContain('b.hold_expires_at > $6::timestamptz');
     expect(queries[3]).toContain('FROM venue_booking_requests r');
+    expect(queries[3]).toContain("b.status = 'approved'");
+    expect(queries[3]).toContain("b.request_kind <> 'tentative_hold' AND EXISTS (");
     expect(parameters[3][5]).toBe(now);
     expect(
       queries.some((sql) => sql.includes('INSERT INTO venue_bookings')),
@@ -1285,6 +1289,40 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
+  /** SPM-159: a current Pending row with an unexpired hold expiry (legacy data) still makes the venue unavailable. */
+  it('VEN-HOLD-04-SUP-BLOCKOUT marks the venue unavailable while a current pending row carries an unexpired hold', async () => {
+    const now = new Date('2030-10-08T00:30:00.000Z');
+    readQuery
+      .mockResolvedValueOnce({ rows: [{ ...row, id }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'current-pending-hold',
+            venue_id: id,
+            event_name: 'Current pending hold',
+            start_at: now,
+            end_at: new Date(now.getTime() + 60_000),
+            status: 'pending',
+            request_kind: 'tentative_hold',
+            hold_expires_at: new Date(now.getTime() + 60_000),
+            current: true,
+            affected: false,
+          },
+        ],
+      });
+    const repository = new VenuesRepository(
+      { query: readQuery } as unknown as DatabaseService,
+      { now: () => now },
+    );
+
+    const [record] = await repository.list();
+
+    expect(record.availabilityStatus).toBe('unavailable');
+    expect(record.reservations).toHaveLength(1);
+    expect(record.reservations[0].status).toBe('tentative');
+  });
+
   // SPM-124: My venues queries are owner-scoped and include schedule data.
   it('scopes an explicit My venues query by owner and maps schedule information', async () => {
     readQuery
@@ -1478,6 +1516,94 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
+  /** VEN-HOLD-04-A: approved tentative holds stay tentative while their approval-time expiry is future; expired holds disappear. */
+  it('maps an approved active hold as tentative and filters expired approved holds', async () => {
+    const now = new Date('2030-10-08T00:30:00.000Z');
+    readQuery
+      .mockResolvedValueOnce({ rows: [{ ...row, id }] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'approved-booking',
+            venue_id: id,
+            event_name: 'Ordinary approved booking',
+            start_at: new Date('2030-10-08T01:00:00Z'),
+            end_at: new Date('2030-10-08T02:00:00Z'),
+            status: 'approved',
+            request_kind: 'booking',
+            hold_expires_at: null,
+            current: false,
+            affected: false,
+          },
+          {
+            id: 'approved-active-hold',
+            venue_id: id,
+            event_name: 'Approved active hold',
+            start_at: new Date('2030-10-08T03:00:00Z'),
+            end_at: new Date('2030-10-08T04:00:00Z'),
+            status: 'approved',
+            request_kind: 'tentative_hold',
+            hold_expires_at: new Date('2030-10-22T00:30:00Z'),
+            current: true,
+            affected: false,
+          },
+          {
+            id: 'approved-null-expiry-hold',
+            venue_id: id,
+            event_name: 'Approved hold missing expiry',
+            start_at: new Date('2030-10-08T05:00:00Z'),
+            end_at: new Date('2030-10-08T06:00:00Z'),
+            status: 'approved',
+            request_kind: 'tentative_hold',
+            hold_expires_at: null,
+            current: false,
+            affected: false,
+          },
+        ],
+      });
+    const repository = new VenuesRepository(
+      { query: readQuery } as unknown as DatabaseService,
+      { now: () => now },
+    );
+
+    const [record] = await repository.list();
+
+    expect(record.availabilityStatus).toBe('unavailable');
+    expect(record.reservations).toEqual([
+      {
+        id: 'approved-booking',
+        eventName: 'Ordinary approved booking',
+        start: '2030-10-08T01:00:00.000Z',
+        end: '2030-10-08T02:00:00.000Z',
+        status: 'booked',
+        affectedByUnavailablePeriod: false,
+      },
+      {
+        id: 'approved-active-hold',
+        eventName: 'Approved active hold',
+        start: '2030-10-08T03:00:00.000Z',
+        end: '2030-10-08T04:00:00.000Z',
+        status: 'tentative',
+        holdExpiresAt: '2030-10-22T00:30:00.000Z',
+        affectedByUnavailablePeriod: false,
+      },
+      {
+        id: 'approved-null-expiry-hold',
+        eventName: 'Approved hold missing expiry',
+        start: '2030-10-08T05:00:00.000Z',
+        end: '2030-10-08T06:00:00.000Z',
+        status: 'tentative',
+        affectedByUnavailablePeriod: false,
+      },
+    ]);
+    const scheduleSql = String(readQuery.mock.calls[2][0]).replace(/\s+/g, ' ');
+    expect(scheduleSql).toContain(
+      "(b.status = 'approved' AND (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz))",
+    );
+    expect(readQuery.mock.calls[2][1]).toEqual([[id], now]);
+  });
+
   // SPM-124: a readable venue detail is not restricted merely because the reader also owns venues.
   it('gets one shared-catalogue record or undefined when SQL finds none', async () => {
     readQuery
@@ -1563,6 +1689,17 @@ describe('SPM-124 venue reads', () => {
             hold_expires_at: new Date('2030-01-13T00:00:00Z'),
           },
           {
+            id: 'hold-null-expiry',
+            event_id: 'event-4',
+            venue_id: venue.id,
+            event_name: 'Approved hold missing expiry',
+            start_at: new Date('2030-01-12T04:15:00Z'),
+            end_at: new Date('2030-01-12T04:45:00Z'),
+            status: 'approved',
+            request_kind: 'tentative_hold',
+            hold_expires_at: null,
+          },
+          {
             id: 'request-1',
             event_id: 'event-3',
             venue_id: venue.id,
@@ -1602,11 +1739,19 @@ describe('SPM-124 venue reads', () => {
           holdExpiresAt: '2030-01-13T00:00:00.000Z',
           affectedByUnavailablePeriod: true,
         },
+        {
+          id: 'hold-null-expiry',
+          status: 'tentative',
+          affectedByUnavailablePeriod: true,
+        },
       ],
     });
     expect(query).toHaveBeenCalledTimes(3);
-    expect(query.mock.calls[2][0]).toContain(
-      "b.status = 'pending' AND b.hold_expires_at > $3::timestamptz",
+    expect(query.mock.calls[2][0].replace(/\s+/g, ' ')).toContain(
+      "((b.status = 'approved' AND b.request_kind <> 'tentative_hold') OR (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)) OR (b.status = 'pending' AND b.hold_expires_at > $3::timestamptz))",
+    );
+    expect(result.affectedBookings).toContainEqual(
+      expect.objectContaining({ id: 'hold-null-expiry', status: 'tentative' }),
     );
     expect(query.mock.calls[2][1]).toEqual([
       venue.id,
@@ -1614,6 +1759,53 @@ describe('SPM-124 venue reads', () => {
       now,
       new Date('2030-01-12T04:00:00Z'),
     ]);
+  });
+
+  /**
+   * SPM-159: an approved tentative hold is not a confirmed booking. Active it is reported tentative with its expiry;
+   * expired (or at the exact expiry instant) it is not affected; an ordinary approved booking stays booked.
+   */
+  it('VEN-HOLD-04-SUP-BLOCKOUT reports an active approved hold as tentative and omits expired approved holds from affected bookings', async () => {
+    const now = new Date('2030-01-01T00:00:00Z');
+    const base = {
+      event_id: 'event-1',
+      venue_id: venue.id,
+      start_at: new Date('2030-01-12T04:10:00Z'),
+      end_at: new Date('2030-01-12T04:50:00Z'),
+      status: 'approved',
+    };
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id }] })
+      .mockResolvedValueOnce({
+        rows: [
+          { id: 'blockout-1', start_at: new Date('2030-01-12T04:00:00Z'), end_at: new Date('2030-01-12T05:00:00Z'), reason: 'Maintenance' },
+        ],
+      })
+      .mockResolvedValueOnce({
+        rows: [
+          { ...base, id: 'standard', event_name: 'Standard', request_kind: 'booking', hold_expires_at: null },
+          { ...base, id: 'active-hold', event_name: 'Active hold', request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-02T00:00:00Z') },
+          { ...base, id: 'expired-hold', event_name: 'Expired hold', request_kind: 'tentative_hold', hold_expires_at: new Date('2029-12-31T00:00:00Z') },
+          { ...base, id: 'exact-expiry', event_name: 'Exact expiry', request_kind: 'tentative_hold', hold_expires_at: now },
+        ],
+      });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => now },
+    );
+
+    const result = await repository.markUnavailable(venue.id, {
+      start: new Date('2030-01-12T04:00:00Z'),
+      end: new Date('2030-01-12T05:00:00Z'),
+      reason: 'Maintenance',
+    });
+
+    expect(result?.affectedBookings.map((b) => [b.id, b.status])).toEqual([
+      ['standard', 'booked'],
+      ['active-hold', 'tentative'],
+    ]);
+    expect(result?.affectedBookings[1]).toMatchObject({ holdExpiresAt: '2030-01-02T00:00:00.000Z' });
   });
 
   /** SPM-122: ending a blockout shortens only that active period at server time. */
@@ -1822,7 +2014,13 @@ describe('SPM-55 venue booking review repository', () => {
       query,
       transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
     };
-    return { repository: new VenuesRepository(database as unknown as DatabaseService), query };
+    return {
+      repository: new VenuesRepository(
+        database as unknown as DatabaseService,
+        { now: () => new Date('2030-01-10T12:00:00.000Z') },
+      ),
+      query,
+    };
   }
 
   /**
@@ -1839,7 +2037,10 @@ describe('SPM-55 venue booking review repository', () => {
       transaction: (work: (client: unknown) => Promise<unknown>) => work({ query: clientQuery }),
     };
     return {
-      repository: new VenuesRepository(database as unknown as DatabaseService),
+      repository: new VenuesRepository(
+        database as unknown as DatabaseService,
+        { now: () => new Date('2030-01-10T12:00:00.000Z') },
+      ),
       clientQuery,
       poolQuery,
     };
@@ -1881,7 +2082,7 @@ describe('SPM-55 venue booking review repository', () => {
     };
   }
 
-  /** VEN-REV-01-A: the staff list covers pending, approved, and rejected bookings for owned venues, soonest first, and maps all fields including status and rejection reason. */
+  /** VEN-REV-01-A: the staff list covers pending, approved, and rejected requests for owned venues and maps request kind and expiry. */
   it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start', async () => {
     const { repository, query } = createReviewRepository({
       rows: [
@@ -1895,6 +2096,8 @@ describe('SPM-55 venue booking review repository', () => {
           venue_name: 'Orchid Hall Test',
           booking_reference: 'VB-6F0D6F3A',
           special_request: 'Microphones',
+          request_kind: 'tentative_hold' as const,
+          hold_expires_at: null,
           start_at: pendingRow.start_at,
           end_at: pendingRow.end_at,
           status: 'pending' as const,
@@ -1910,6 +2113,8 @@ describe('SPM-55 venue booking review repository', () => {
           venue_name: 'Orchid Hall Test',
           booking_reference: 'VB-BOOKING2',
           special_request: null,
+          request_kind: 'booking' as const,
+          hold_expires_at: null,
           start_at: new Date('2030-01-13T04:00:00.000Z'),
           end_at: new Date('2030-01-13T05:00:00.000Z'),
           status: 'rejected' as const,
@@ -1932,6 +2137,9 @@ describe('SPM-55 venue booking review repository', () => {
         start: '2030-01-12T04:00:00.000Z',
         end: '2030-01-12T05:00:00.000Z',
         status: 'pending',
+        requestKind: 'tentative_hold',
+        holdExpiresAt: undefined,
+        holdExpired: false,
         rejectionReason: undefined,
       },
       {
@@ -1947,25 +2155,28 @@ describe('SPM-55 venue booking review repository', () => {
         start: '2030-01-13T04:00:00.000Z',
         end: '2030-01-13T05:00:00.000Z',
         status: 'rejected',
+        requestKind: 'booking',
+        holdExpiresAt: undefined,
+        holdExpired: false,
         rejectionReason: 'Clashes with maintenance',
       },
     ]);
     const [sql, params] = query.mock.calls[0] as [string, unknown[]];
     // The whole staff-list statement: its FROM/JOIN block, the owner filter with pending/approved/rejected statuses, and the ordering.
     expect(normalizeSql(sql).trim()).toBe(
-      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY b.start_at ASC, b.id",
+      "SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start, e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name, v.name AS venue_name, 'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference, b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason, b.request_kind, b.hold_expires_at, b.reassessment_required FROM venue_bookings b JOIN venues v ON v.id = b.venue_id JOIN events e ON e.id = b.event_id JOIN users coordinator_user ON coordinator_user.id::text = e.coordinator_id WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected') ORDER BY b.start_at ASC, b.id",
     );
     expect(params).toEqual([staffId]);
   });
 
-  /** VEN-REV-02-A: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
-  it('SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor', async () => {
+  /** SPM-55 AC2 AC5: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
+  it('approves a pending request and writes the audit row with the actor', async () => {
     const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
       ownedRow,
       venueLockRow,
       bookingLockRow,
       noConflict,
-      { rows: [{ ...pendingRow, status: 'approved' }] },
+      { rows: [{ ...pendingRow, status: 'approved', request_kind: 'booking', hold_expires_at: null }] },
       { rows: [] },
     );
 
@@ -1980,6 +2191,8 @@ describe('SPM-55 venue booking review repository', () => {
         end: '2030-01-12T05:00:00.000Z',
         rejectionReason: undefined,
         bookingReference: 'VB-6F0D6F3A',
+        requestKind: 'booking',
+        holdExpiresAt: undefined,
       },
     });
     // Every statement of the approval runs on the transaction client; the pool spy must see none of them.
@@ -1999,7 +2212,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason FROM venue_bookings WHERE id = $1::uuid FOR UPDATE',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     expect(calls[3][1]).toEqual([
@@ -2009,17 +2222,52 @@ describe('SPM-55 venue booking review repository', () => {
       30,
       45,
       bookingId,
-      expect.any(Date),
+      new Date('2030-01-10T12:00:00.000Z'),
     ]);
     // The approval UPDATE targets exactly the one booking id, not a broader set.
     expect(normalizeSql(calls[4][0])).toContain(
-      "UPDATE venue_bookings SET status = 'approved' WHERE id = $1::uuid RETURNING",
+      "UPDATE venue_bookings SET status = 'approved', reassessment_required = false, hold_expires_at = CASE WHEN request_kind = 'tentative_hold' THEN $2::timestamptz ELSE hold_expires_at END WHERE id = $1::uuid RETURNING",
     );
-    expect(calls[4][1]).toEqual([bookingId]);
+    expect(normalizeSql(calls[4][0])).toContain('request_kind, hold_expires_at');
+    expect(calls[4][1]).toEqual([
+      bookingId,
+      new Date('2030-01-24T12:00:00.000Z'),
+    ]);
     expect(normalizeSql(calls[5][0])).toContain(
       "INSERT INTO booking_review_log (booking_id, actor_user_id, action) VALUES ($1::uuid, $2::uuid, 'approved')",
     );
     expect(calls[5][1]).toEqual([bookingId, staffId]);
+  });
+
+  /** VEN-HOLD-04-A: a tentative hold's expiry is exactly 14 days after the injected approval time. */
+  it('VEN-HOLD-04-A computes expiry from the approval clock for a tentative hold', async () => {
+    const holdRow = {
+      ...pendingRow,
+      request_kind: 'tentative_hold' as const,
+      event_start: new Date('2030-02-01T00:00:00.000Z'),
+    };
+    const { repository, clientQuery } = createSplitReviewRepository(
+      ownedRow,
+      venueLockRow,
+      { rows: [holdRow] },
+      noConflict,
+      { rows: [{ ...holdRow, status: 'approved' }] },
+      { rows: [] },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({
+      kind: 'decided',
+      booking: { status: 'approved' },
+    });
+
+    const update = clientQuery.mock.calls[4] as [string, unknown[]];
+    expect(normalizeSql(update[0])).toContain(
+      "WHEN request_kind = 'tentative_hold' THEN $2::timestamptz ELSE hold_expires_at",
+    );
+    expect(update[1]).toEqual([
+      bookingId,
+      new Date('2030-01-24T12:00:00.000Z'),
+    ]);
   });
 
   /** VEN-REV-05-A: an approval writes exactly one audit row that names the approving staff member and the approved action. */
@@ -2069,7 +2317,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(normalized).toContain("end_at > $2::timestamptz - make_interval(mins => $4::int)");
     // Approved bookings: setup pads the existing booking's start and turnaround its end; both comparisons are strict.
     // The approved-booking branch is scoped to the venue being decided, with self-exclusion and active-hold check.
-    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND (b.status = 'approved' OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id ))))");
+    expect(normalized).toContain("WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid AND ((b.status = 'approved' AND (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL OR b.hold_expires_at > $7::timestamptz)) OR (b.status = 'pending' AND (b.hold_expires_at > $7::timestamptz OR (b.request_kind <> 'tentative_hold' AND EXISTS ( SELECT 1 FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id )))))");
     expect(normalized).toContain(
       "b.start_at - make_interval(mins => $4::int) < $3::timestamptz + make_interval(mins => $5::int)",
     );
@@ -2078,7 +2326,157 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(normalized).not.toMatch(/<=|>=/);
     // The booking being approved is excluded from its own conflict check, and setup/turnaround keep their order.
-    expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId, expect.any(Date)]);
+    // The seventh parameter is the injected clock, so hold expiry is judged at the approval instant, not at SQL now().
+    expect(params).toEqual([venue.id, pendingRow.start_at, pendingRow.end_at, 30, 45, bookingId, new Date('2030-01-10T12:00:00.000Z')]);
+  });
+
+  /** VEN-HOLD-13-B: a reassessed hold whose setup-adjusted start is inside 336 hours remains Pending. */
+  it('VEN-HOLD-13-B refuses approval after setup reassessment makes the 336-hour lead too short', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{
+        ...pendingRow,
+        request_kind: 'tentative_hold',
+        reassessment_required: true,
+        event_start: new Date('2030-01-24T14:00:00.000Z'),
+      }] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'conflict' });
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'approved'"))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('booking_review_log'))).toBe(false);
+  });
+
+  /**
+   * SPM-159 (Venue Staff recheck eligibility on every hold approval): a hold submitted outside 336 hours that is
+   * decided after the clock has moved inside the minimum is refused with the lead-time reason, whether or not a
+   * venue setup change flagged it. The approval clock is 2030-01-10T12:00Z and setup is 180 minutes.
+   */
+  it('VEN-HOLD-03-SUP-RECHECK refuses an unflagged hold approval once the event is inside the 336-hour lead time', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{
+        ...pendingRow,
+        request_kind: 'tentative_hold',
+        reassessment_required: false,
+        // Occupied start 2030-01-24T11:59Z is 335h59m after the approval clock.
+        event_start: new Date('2030-01-24T14:59:00.000Z'),
+      }] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
+      kind: 'conflict',
+      reason: 'The event is now inside the 336-hour lead-time minimum for a tentative hold.',
+    });
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'approved'"))).toBe(false);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('booking_review_log'))).toBe(false);
+  });
+
+  /** SPM-159: a hold with no persisted event start fails the unconditional lead-time recheck closed. */
+  it('VEN-HOLD-03-SUP-RECHECK refuses an unflagged hold approval when the event start is missing', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{ ...pendingRow, request_kind: 'tentative_hold', reassessment_required: false, event_start: null }] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'conflict' });
+    expect(query).toHaveBeenCalledTimes(3);
+  });
+
+  /** SPM-159 positive case: submitted and approved outside 336 hours (exactly at the minimum), the hold is approved. */
+  it('VEN-HOLD-03-SUP-RECHECK approves an unflagged hold that is still exactly 336 hours out', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{
+        ...pendingRow,
+        request_kind: 'tentative_hold',
+        reassessment_required: false,
+        event_start: new Date('2030-01-24T15:00:00.000Z'),
+      }] })
+      .mockResolvedValueOnce(noConflict)
+      .mockResolvedValueOnce({ rows: [{ ...pendingRow, status: 'approved', request_kind: 'tentative_hold' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
+    expect(query).toHaveBeenCalledTimes(6);
+  });
+
+  /** SPM-159: the lead-time recheck is for holds only; an ordinary booking close to its event is still approvable. */
+  it('VEN-HOLD-03-SUP-RECHECK does not apply the hold lead-time recheck to an ordinary booking approval', async () => {
+    const { repository, query } = createReviewRepository(
+      ownedRow,
+      venueLockRow,
+      { rows: [{ ...pendingRow, request_kind: 'booking', event_start: new Date('2030-01-11T00:00:00.000Z') }] },
+      noConflict,
+      { rows: [{ ...pendingRow, status: 'approved', request_kind: 'booking' }] },
+      { rows: [] },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
+    expect(query).toHaveBeenCalledTimes(6);
+  });
+
+  /** VEN-HOLD-13-B: a reassessed hold with no persisted event start fails closed and stays Pending. */
+  it('VEN-HOLD-13-B refuses reassessed approval when the event start is missing', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{
+        ...pendingRow,
+        request_kind: 'tentative_hold',
+        reassessment_required: true,
+        event_start: null,
+      }] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'conflict' });
+    expect(query).toHaveBeenCalledTimes(3);
+    expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'approved'"))).toBe(false);
+  });
+
+  /** VEN-HOLD-13-B: a reassessed hold still at the 336-hour threshold remains eligible for staff approval. */
+  it('VEN-HOLD-13-B permits approval when reassessment preserves the exact minimum lead', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce(ownedRow)
+      .mockResolvedValueOnce({ rows: [{ setup_time_minutes: 180, turnaround_time_minutes: 30 }] })
+      .mockResolvedValueOnce({ rows: [{
+        ...pendingRow,
+        request_kind: 'tentative_hold',
+        reassessment_required: true,
+        event_start: new Date('2030-01-24T15:00:00.000Z'),
+      }] })
+      .mockResolvedValueOnce(noConflict)
+      .mockResolvedValueOnce({ rows: [{ ...pendingRow, status: 'approved' }] })
+      .mockResolvedValueOnce({ rows: [] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
+    expect(query).toHaveBeenCalledTimes(6);
   });
 
   /** VEN-REV-06-A: a cancelled, approved or rejected request is reported as already decided, with no write. */
@@ -2153,7 +2551,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason FROM venue_bookings WHERE id = $1::uuid FOR UPDATE',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     // The rejection UPDATE sets exactly the rejected status and the reason, on exactly the one booking id.
@@ -2205,7 +2603,9 @@ describe('SPM-55 venue booking review repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
     const sqls = clientQuery.mock.calls.map(([sql]) => normalizeSql(String(sql)));
     // The status UPDATE ran inside the transaction, and the audit insert that followed it failed.
-    const updateAt = sqls.findIndex((sql) => sql.includes("UPDATE venue_bookings SET status = 'approved'"));
+    const updateAt = sqls.findIndex(
+      (sql) => sql.includes('UPDATE venue_bookings') && sql.includes("SET status = 'approved'"),
+    );
     expect(updateAt).toBeGreaterThan(-1);
     expect(sqls[updateAt + 1]).toContain('INSERT INTO booking_review_log');
     // The failed audit insert rolls the transaction back, so the approval is never committed.
@@ -2263,6 +2663,48 @@ describe('SPM-55 venue booking review repository', () => {
     await expect(
       repository.rejectVenueBooking(staffId, bookingId, 'Clash'),
     ).resolves.toEqual({ kind: 'not-found' });
+  });
+
+  /**
+   * VEN-HOLD-09-SUP-API / VEN-HOLD-09-SUP-COORDINATOR: both booking lists read hold expiry exclusively at the expiry
+   * instant. The injected clock is 2030-01-10T12:00Z: an approved hold expiring one millisecond later is not expired,
+   * one expiring exactly now or earlier is. Only tentative holds can be expired.
+   * Kills: `<=` weakened to `<` in the staff and coordinator list mappers.
+   */
+  it.each([
+    ['one millisecond in the future', new Date('2030-01-10T12:00:00.001Z'), false],
+    ['exactly now', new Date('2030-01-10T12:00:00.000Z'), true],
+    ['one millisecond in the past', new Date('2030-01-10T11:59:59.999Z'), true],
+  ])('VEN-HOLD-09-SUP-API and VEN-HOLD-09-SUP-COORDINATOR mark an approved hold expiring %s as expired=%s', async (_label, expires, expired) => {
+    const staffRow = {
+      id: bookingId,
+      event_id: 'event-1',
+      event_name: 'Gala',
+      event_start: new Date('2030-02-12T03:00:00.000Z'),
+      event_end: new Date('2030-02-12T06:00:00.000Z'),
+      coordinator_name: 'Coordinator One',
+      venue_name: 'Orchid Hall Test',
+      booking_reference: 'VB-6F0D6F3A',
+      special_request: null,
+      request_kind: 'tentative_hold' as const,
+      hold_expires_at: expires,
+      start_at: pendingRow.start_at,
+      end_at: pendingRow.end_at,
+      status: 'approved' as const,
+      rejection_reason: null,
+    };
+    const staff = createReviewRepository({ rows: [staffRow, { ...staffRow, id: 'ordinary', request_kind: 'booking' as const }] });
+    const staffList = await staff.repository.listPendingVenueBookings(staffId);
+    expect(staffList.map((row) => [row.requestKind, row.holdExpired])).toEqual([['tentative_hold', expired], ['booking', false]]);
+
+    const coordinator = createReviewRepository({
+      rows: [
+        { ...staffRow, venue_id: venue.id, venue_staff_name: 'Venue Staff', created_at: new Date('2030-01-01T00:00:00.000Z'), affected: false },
+        { ...staffRow, id: 'ordinary', request_kind: 'booking' as const, venue_id: venue.id, venue_staff_name: 'Venue Staff', created_at: new Date('2030-01-01T00:00:00.000Z'), affected: false },
+      ],
+    });
+    const coordinatorList = await coordinator.repository.listCoordinatorBookings('coord-1');
+    expect(coordinatorList.map((row) => [row.requestKind, row.holdExpired])).toEqual([['tentative_hold', expired], ['booking', false]]);
   });
 
   /** VEN-REV-04-A: the coordinator list returns the stored rejection reason and omits it when absent. */

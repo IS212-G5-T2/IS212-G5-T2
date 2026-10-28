@@ -183,6 +183,10 @@ SPM-55 venue booking review (`021_spm55_booking_review.sql`) adds `venue_booking
 
 SPM-48 (`023_spm48_safety_rejected.sql`) adds `rejected` to the allowed `event_safety_checks.status` values so the coordinator queue can show a rejected safety arrangement (SPM-130 AC2 writes it). For an existing volume, apply `backend/migrations/023_spm48_safety_rejected.sql` once with `psql -v ON_ERROR_STOP=1 -f <path>`; it is idempotent.
 
+SPM-159 (`024_spm159_tentative_hold_requests.sql`) adds `venue_bookings.request_kind` (`booking` or `tentative_hold`) and `reassessment_required`, a partial index for Pending tentative holds, and triggers that cancel Pending holds after event timing changes and flag Pending holds after venue setup changes. Fresh volumes receive the mirrored `database/postgresql/init/024_spm159_tentative_hold_requests.sql`. Existing volumes must apply the backend migration after the earlier venue booking migrations; do not reset the volume. Tentative hold expiry is stored in the existing `venue_bookings.hold_expires_at` column when Venue Staff approves a hold (14 days from approval). Only an approved, unexpired tentative hold blocks an ordinary booking; other tentative-hold statuses and expired holds do not.
+
+SPM-159 migration `backend/migrations/025_spm159_approved_hold_expiry.sql` adds a validated conditional check: approved tentative holds require `hold_expires_at`, while pending holds and ordinary approved bookings may keep NULL. It fails with a clear count if existing approved tentative holds lack expiry; review those rows explicitly without assigning guessed dates, then rerun. Fresh volumes get the mirrored `025_spm159_approved_hold_expiry.sql` from `database/postgresql/init/`.
+
 `002_seed_data.sql` adds two clearly named local sample venues, small
 illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and

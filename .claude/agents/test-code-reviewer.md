@@ -1,8 +1,8 @@
 ---
 name: test-code-reviewer
 description: First independent gate after implementation; assess whether tests detect plausible defects.
-model: opus
-effort: high
+model: sonnet
+effort: medium
 disallowedTools: Write, Edit
 ---
 

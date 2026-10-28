@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
 import type { PendingBookingRequest } from "@/types";
 import { api } from "@/utils/api";
-import { formatSingaporeRange } from "@/utils/format";
+import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 
 /**
  * Venue Staff decision on one pending request (SPM-55 AC2, AC3). Approve and reject call the
@@ -17,12 +17,13 @@ export function BookingDetailModal({
 }: {
   booking: PendingBookingRequest | null;
   onClose: () => void;
-  onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string }) => void;
+  onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string; holdExpiresAt?: string }) => void;
 }) {
   const [decision, setDecision] = useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const isTentativeHold = booking?.requestKind === "tentative_hold";
 
   if (!booking) return null;
 
@@ -32,19 +33,23 @@ export function BookingDetailModal({
     setError("");
     try {
       const path = `/venues/bookings/${encodeURIComponent(booking.id)}`;
-      if (decision === "approved")
-        await api(`${path}/approve`, { method: "POST" });
-      else
+      let holdExpiresAt: string | undefined;
+      if (decision === "approved") {
+        const result = await api<{ holdExpiresAt?: string }>(`${path}/approve`, { method: "POST" });
+        holdExpiresAt = result.holdExpiresAt;
+      } else {
         await api(`${path}/reject`, {
           method: "POST",
           body: JSON.stringify({ reason: reason.trim() }),
         });
+      }
       setDecision("");
       setReason("");
       onDecided({
         id: booking.id,
         status: decision as "approved" | "rejected",
         reason: decision === "rejected" ? reason.trim() : undefined,
+        holdExpiresAt,
       });
       onClose();
     } catch (failure) {
@@ -62,7 +67,7 @@ export function BookingDetailModal({
     <Modal
       open={!!booking}
       onClose={onClose}
-      title={`Booking Request — ${booking.eventName}`}
+      title={`${isTentativeHold ? "Tentative Hold Request" : "Booking Request"} — ${booking.eventName}`}
       size="lg"
       footer={
         booking.status === "pending" ? (
@@ -120,6 +125,25 @@ export function BookingDetailModal({
         )}
       </dl>
 
+      {booking.reassessmentRequired && booking.status === "pending" && (
+        <p role="status" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          Venue setup changed after this request was submitted. Reassess the
+          occupied period before approving it.
+        </p>
+      )}
+
+      {isTentativeHold && booking.status === "pending" && (
+        <p className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          If approved, this request activates a tentative hold for 14 days (336 hours) from approval. It does not confirm a booking.
+        </p>
+      )}
+
+      {isTentativeHold && booking.status === "approved" && booking.holdExpiresAt && (
+        <p role="status" className="mt-4 rounded border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          {booking.holdExpired ? "Expired tentative hold" : "Active tentative hold"} until {formatSingaporeDateTime(booking.holdExpiresAt)}.
+        </p>
+      )}
+
       {booking.status === "pending" ? (
         <div className="mt-4 border-t border-gray-100 dark:border-gray-800 pt-4">
           <RadioGroup
@@ -128,7 +152,7 @@ export function BookingDetailModal({
             value={decision}
             onChange={(v) => setDecision(v as "approved" | "rejected")}
             options={[
-              { value: "approved", label: "Approve — accept booking" },
+              { value: "approved", label: isTentativeHold ? "Approve — activate tentative hold" : "Approve — accept booking" },
               { value: "rejected", label: "Reject — provide reason" },
             ]}
           />
