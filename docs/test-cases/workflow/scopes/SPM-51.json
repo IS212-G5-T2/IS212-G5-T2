@@ -30,6 +30,19 @@
   ],
   "mutation": [
     {
+      "id": "backend-spm51",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm51.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm51.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
       "id": "frontend-spm51",
       "cwd": "frontend",
       "command": [
