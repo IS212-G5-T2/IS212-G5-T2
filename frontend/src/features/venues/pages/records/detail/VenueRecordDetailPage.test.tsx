@@ -740,10 +740,9 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   /**
-   * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the submitted notice stays in the review section.
-   * The expected notice after cancellation is an open product decision (coverage-line-status.md, VenueRecordDetailPage.tsx 803),
-   * so this test pins the current literal behaviour.
-   * Kills: a page that hides the review section, or clears the submitted notice, when the new request is cancelled.
+   * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the review section stays and its notice reads as cancelled.
+   * Product owner decision, 28 Oct 2026 (spec-conflicts.md SC-SPM54-05): the notice stays visible and says the request is cancelled.
+   * Kills: a page that hides the review section, keeps the "submitted" wording after cancellation, or clears the notice when the new request is cancelled.
    */
   it("VEN-BKG-10-A SPM-54 keeps the submitted notice in the review after the new request is cancelled", async () => {
     setCoordinator(["event-1"]);
@@ -801,8 +800,11 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       await screen.findByRole("region", { name: "Review booking request" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Booking request submitted\. Reference: VB-CANCEL01/),
+      screen.getByText("Booking request VB-CANCEL01 is cancelled."),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Booking request submitted\. Reference/),
+    ).not.toBeInTheDocument();
   });
 
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */

@@ -123,6 +123,7 @@ export function VenueRecordDetailPage() {
   const [cancelPrompt, setCancelPrompt] = useState(false);
   const [cancelNeedsLastWarning, setCancelNeedsLastWarning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelledReference, setCancelledReference] = useState("");
   const activeEventVenueBooking =
     eventVenueBooking &&
     (eventVenueBooking.status === "pending" ||
@@ -255,6 +256,7 @@ export function VenueRecordDetailPage() {
         },
       );
       setEventVenueBooking({ ...eventVenueBooking, status: "cancelled" });
+      setCancelledReference(eventVenueBooking.bookingReference);
       setCancelPrompt(false);
       setCancelNeedsLastWarning(false);
       setRevision((value) => value + 1);
@@ -799,11 +801,18 @@ export function VenueRecordDetailPage() {
                       </Button>
                     </section>
                   )}
-                  {submitted && (
-                    <p role="status">
-                      Booking request submitted. Reference: {bookingReference}.
-                    </p>
-                  )}
+                  {submitted &&
+                    (cancelledReference !== "" &&
+                    cancelledReference === bookingReference ? (
+                      <p role="status">
+                        Booking request {bookingReference} is cancelled.
+                      </p>
+                    ) : (
+                      <p role="status">
+                        Booking request submitted. Reference: {bookingReference}
+                        .
+                      </p>
+                    ))}
                   {submitted && movedToPlanning && (
                     <p role="status">
                       Venue booking request submitted. {movedToPlanning} is now
