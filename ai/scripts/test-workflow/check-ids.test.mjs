@@ -64,3 +64,27 @@ test('readRegistry reads registry rows from every table in the file, not only th
   const { rows } = readRegistry(file, 'S');
   assert.deepEqual(rows.map((row) => row.id), ['P-01-A', 'SUP-01']);
 });
+
+test('collectCodeIds traces a registered id whose test sits outside the titleMatch (no orphan without a scope change)', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { collectCodeIds, activeStoryIds } = await import('./check-ids.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'collect-ids-'));
+  const file = join(dir, 'calendar.test.tsx');
+  writeFileSync(file, [
+    "describe('calendar', () => {",
+    '  /** VEN-AVL-SUP-04 (SPM-51): an empty initialDate keeps the default date. */',
+    "  it('keeps the default calendar date when initialDate is empty', () => {});",
+    "  it('SPM54-COVERAGE-ONLY-NO-IDS renders the grid', () => {});",
+    "  it('VEN-OTHER-01-A belongs to another story', () => {});",
+    '});',
+  ].join('\n'));
+  const scope = { story: 'S', tests: { frontend: [{ glob: file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }] } };
+  const rows = [row('VEN-AVL-SUP-04', 'SUPPORTING'), row('SPM54-COVERAGE-ONLY-NO-IDS', 'SUPPORTING', { status: 'retired' })];
+  const withRegistry = collectCodeIds(scope, new Set(['SPM']), activeStoryIds(rows));
+  assert.deepEqual([...withRegistry.keys()].sort(), ['VEN-AVL-SUP-04']);
+  const result = evaluate({ rows, codeIds: withRegistry, matrixIds: matrix([]) });
+  assert.equal(result.counts.orphans, 0);
+  assert.equal(collectCodeIds(scope, new Set(['SPM'])).has('VEN-AVL-SUP-04'), false);
+});

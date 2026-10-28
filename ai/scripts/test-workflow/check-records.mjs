@@ -13,7 +13,7 @@ import {
   BLOCKED, PASS, WORKFLOW_DIR, abs, exitCodeFor, fileExists, isMain, levelOf, loadScope, parseArgs, parseCsv, printGate, readJson,
   readText, rel, scopeTests, scopedTests, testIdOf, toCsv, writeGate, writeText,
 } from './lib.mjs';
-import { readRegistry } from './check-ids.mjs';
+import { activeStoryIds, readRegistry } from './check-ids.mjs';
 import { loadEntry, suiteLinks } from './reconcile-mutation.mjs';
 
 export const HEADER = ['test_id', 'file', 'title', 'line', 'ac', 'tier', 'tier_status', 'level', 'oracle_class', 'assumption_ref', 'kills', 'explained', 'comment_present', 'deterministic', 'result'];
@@ -92,7 +92,7 @@ export async function buildRows(scope, existingRows, ctx) {
   const deterministic = ctx.determinism?.perFile ?? {};
   const rows = [];
   for (const entry of scopeTests(scope)) {
-    for (const test of scopedTests(entry)) {
+    for (const test of scopedTests(entry, activeStoryIds(ctx.registryRows))) {
       const base = { file: entry.file, title: test.title };
       const previous = existing.get(keyOf(base)) ?? {};
       const testId = testIdOf(test, ctx.ignoredFamilies);

@@ -375,13 +375,20 @@ export function scopeTests(scope) {
   return [...files.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 
-/** The tests of one scope file, restricted by its titleMatch when it has one. */
-export function scopedTests(entry) {
+/**
+ * The tests of one scope file, restricted by its titleMatch when it has one. A test is in scope when its title,
+ * its describe blocks or its own comment (JSDoc or // tags above it) match, or when it carries an id from
+ * `storyIds` (the story's active registry ids). The registry, not the titleMatch, decides which ids belong to
+ * the story, so a registered id whose test title does not repeat the story prefix is still traced and recorded.
+ */
+export function scopedTests(entry, storyIds = new Set()) {
   const tests = extractTests(readText(entry.file));
   if (!entry.titleMatch) return tests;
   const pattern = new RegExp(entry.titleMatch);
-  // A test is in scope when its title, its describe blocks or its own comment (JSDoc or // tags above it) match.
-  return tests.filter((test) => pattern.test(test.title) || pattern.test(test.describes.join(' ')) || pattern.test(test.comment));
+  return tests.filter((test) => {
+    if (pattern.test(test.title) || pattern.test(test.describes.join(' ')) || pattern.test(test.comment)) return true;
+    return idsIn([test.title, test.comment, test.describes.join(' ')].join('\n')).some((id) => storyIds.has(id));
+  });
 }
 
 export function writeGate(cycleDir, result) {

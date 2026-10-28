@@ -180,3 +180,25 @@ test('scopedTests keeps a test whose own comment carries the story prefix, even 
   const titles = scopedTests({ file, titleMatch: 'EVE-DRF' }).map((test) => test.title);
   assert.deepEqual(titles, ['saves an incomplete request', 'prefills a request']);
 });
+
+test('scopedTests keeps a test that carries a story registry id even when its title and comment do not match the titleMatch', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { scopedTests } = await import('./lib.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'scoped-registry-'));
+  const file = join(dir, 'calendar.test.tsx');
+  writeFileSync(file, [
+    "describe('calendar', () => {",
+    '  /** VEN-AVL-SUP-04 (SPM-51): an empty initialDate keeps the default date. */',
+    "  it('keeps the default calendar date when initialDate is empty', () => {});",
+    "  it('SPM54-COVERAGE-ONLY-NO-IDS renders the grid', () => {});",
+    "  it('VEN-OTHER-01-A belongs to another story', () => {});",
+    '});',
+  ].join('\n'));
+  const storyIds = new Set(['VEN-AVL-SUP-04']);
+  const titles = scopedTests({ file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }, storyIds).map((test) => test.title);
+  assert.deepEqual(titles, ['keeps the default calendar date when initialDate is empty', 'SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
+  const without = scopedTests({ file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }).map((test) => test.title);
+  assert.deepEqual(without, ['SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
+});
