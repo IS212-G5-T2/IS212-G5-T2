@@ -864,8 +864,8 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       await screen.findByRole("region", { name: "Review booking request" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("Booking request VB-PLAN0001 is cancelled."),
-    ).toBeInTheDocument();
+      screen.queryByText("Booking request VB-PLAN0001 is cancelled."),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText(
         "Venue booking request VB-PLAN0001 is cancelled. Event event-1 is no longer in Planning.",

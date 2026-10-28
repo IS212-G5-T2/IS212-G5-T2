@@ -802,6 +802,7 @@ export function VenueRecordDetailPage() {
                     </section>
                   )}
                   {submitted &&
+                    !movedToPlanning &&
                     cancelledReference !== "" &&
                     cancelledReference === bookingReference && (
                       <p role="status">
