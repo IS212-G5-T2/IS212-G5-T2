@@ -75,8 +75,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "'SELECT id FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR SHARE'",
-        "'SELECT id FROM events WHERE id = $1::uuid FOR SHARE'",
+        'FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
+        'FROM events WHERE id = $1::uuid FOR UPDATE',
       ],
     ],
   },
@@ -120,8 +120,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "(b.status = 'pending' AND b.hold_expires_at > $6::timestamptz)",
-        "b.status = 'pending'",
+        '(b.hold_expires_at > $6::timestamptz OR EXISTS (',
+        '(b.hold_expires_at IS NULL OR b.hold_expires_at > $6::timestamptz OR EXISTS (',
       ],
     ],
   },
