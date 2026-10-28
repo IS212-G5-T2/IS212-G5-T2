@@ -268,7 +268,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByLabelText("Calendar maximum time")).toHaveTextContent("24:00:00");
   });
 
-  /** VEN-AVL-SUP-04 (SPM-51): an empty initialDate leaves FullCalendar on its own default date and never calls gotoDate with an empty string. The control render proves the gotoDate spy is wired.
+  /** VEN-AVL-SUP-04 (SPM-54 AC3): an empty initialDate leaves FullCalendar on its own default date and never calls gotoDate with an empty string. The control render proves the gotoDate spy is wired.
    * Kills: initialDate forwarded raw as "" (the `initialDate || undefined` fallback at line 263 removed) and gotoDate("") called on mount (the `if (initialDate)` guard at line 223 removed). */
   it("keeps the default calendar date when initialDate is empty", () => {
     calendarSpies.gotoDate.mockClear();
