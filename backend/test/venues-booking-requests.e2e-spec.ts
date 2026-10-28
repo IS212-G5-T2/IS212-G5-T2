@@ -1240,6 +1240,48 @@ describe.skipIf(!databaseUrl)(
       expect(secondRequest.rows).toEqual([]);
     });
 
+    /** VEN-AVL-10-A: a pending row without hold expiry and without a booking request for its event is not an active hold, so an overlapping submission is accepted. Kills: pending request without a Venue Staff expiry counted as an active hold (B11). */
+    it('VEN-AVL-10-A ignores a pending row without hold expiry and without a request record when an overlapping request is submitted', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const unboundedEvent = await createAssignedEvent(
+        coordinator.id,
+        'Unbounded pending row without request',
+      );
+      const candidateEvent = await createAssignedEvent(
+        coordinator.id,
+        'Candidate overlapping unbounded pending row',
+      );
+      await addBooking(venueId, unboundedEvent, {
+        start: '2030-01-12T06:00:00Z',
+        end: '2030-01-12T07:00:00Z',
+        status: 'pending',
+        expires: null,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId: candidateEvent,
+          start: '2030-01-12T06:00:00Z',
+          end: '2030-01-12T07:00:00Z',
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.status).toBe('pending');
+          expect(body.eventId).toBe(candidateEvent);
+        });
+      const candidateRows = await pool.query(
+        'SELECT status, hold_expires_at FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, candidateEvent],
+      );
+      expect(candidateRows.rows).toEqual([
+        { status: 'pending', hold_expires_at: null },
+      ]);
+    });
+
     /** VEN-AVL-02-C: pending requests are tentative, not confirmed; rejected requests are absent. The schema supports rejected, not cancelled. */
     it('does not expose pending or rejected requests as confirmed venue bookings', async () => {
       const owner = await createUser('VENUE_STAFF');

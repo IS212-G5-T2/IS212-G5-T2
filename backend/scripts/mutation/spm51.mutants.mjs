@@ -122,6 +122,7 @@ export const MUTANTS = [
     suites: ['e2e'],
     kills: [
       'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-BKG-02-B SPM-54 blocks overlap on an unbounded pending request without showing it as a schedule hold',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-AVL-10-A ignores a pending row without hold expiry and without a request record when an overlapping request is submitted',
     ],
     edits: [
       [
