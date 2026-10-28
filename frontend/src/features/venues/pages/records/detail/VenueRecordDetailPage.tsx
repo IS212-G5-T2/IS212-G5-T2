@@ -802,17 +802,12 @@ export function VenueRecordDetailPage() {
                     </section>
                   )}
                   {submitted &&
-                    (cancelledReference !== "" &&
-                    cancelledReference === bookingReference ? (
+                    cancelledReference !== "" &&
+                    cancelledReference === bookingReference && (
                       <p role="status">
                         Booking request {bookingReference} is cancelled.
                       </p>
-                    ) : (
-                      <p role="status">
-                        Booking request submitted. Reference: {bookingReference}
-                        .
-                      </p>
-                    ))}
+                    )}
                   {submitted && movedToPlanning && (
                     <p role="status">
                       Venue booking request submitted. {movedToPlanning} is now

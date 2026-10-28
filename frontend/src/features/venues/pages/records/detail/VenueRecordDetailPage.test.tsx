@@ -741,7 +741,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
 
   /**
    * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the review section stays and its notice reads as cancelled.
-   * Product owner decision, 28 Oct 2026 (spec-conflicts.md SC-SPM54-05): the notice stays visible and says the request is cancelled.
+   * Product owner decision, 28 Oct 2026 (recorded in spec-conflicts.md): the notice stays visible and says the request is cancelled.
    * Kills: a page that hides the review section, keeps the "submitted" wording after cancellation, or clears the notice when the new request is cancelled.
    */
   it("VEN-BKG-10-A SPM-54 keeps the submitted notice in the review after the new request is cancelled", async () => {
@@ -805,6 +805,72 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(
       screen.queryByText(/Booking request submitted\. Reference/),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-SUP-10 SPM-54: a submitted request that moved its event to Planning keeps that notice in the review after the request is cancelled (event status transition notice owned by SPM-148; parent AC10).
+   * Kills: a review section that drops the Planning transition notice once the request that moved the event is cancelled.
+   */
+  it("VEN-BKG-SUP-10 SPM-54 keeps the Planning notice in the review after the request that moved the event is cancelled", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-planning-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-PLAN0001",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return {
+          id: booking.id,
+          bookingReference: "VB-PLAN0001",
+          statusChanged: true,
+        } as never;
+      }
+      if (path === `/venues/bookings/${booking.id}/cancel`) {
+        bookings = [];
+        return { id: booking.id, status: "cancelled" } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = screen.getByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    await screen.findByRole("region", {
+      name: "Existing venue booking request",
+    });
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Booking request VB-PLAN0001 is cancelled."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Venue booking request submitted. Event event-1 is now in Planning.",
+      ),
+    ).toBeInTheDocument();
   });
 
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */
