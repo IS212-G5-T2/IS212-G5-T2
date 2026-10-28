@@ -808,12 +808,20 @@ export function VenueRecordDetailPage() {
                         Booking request {bookingReference} is cancelled.
                       </p>
                     )}
-                  {submitted && movedToPlanning && (
-                    <p role="status">
-                      Venue booking request submitted. {movedToPlanning} is now
-                      in Planning.
-                    </p>
-                  )}
+                  {submitted &&
+                    movedToPlanning &&
+                    (cancelledReference !== "" &&
+                    cancelledReference === bookingReference ? (
+                      <p role="status">
+                        Venue booking request {bookingReference} is cancelled.{" "}
+                        {movedToPlanning} is no longer in Planning.
+                      </p>
+                    ) : (
+                      <p role="status">
+                        Venue booking request submitted. {movedToPlanning} is
+                        now in Planning.
+                      </p>
+                    ))}
                 </div>
               ))}
             {requestError && <p role="alert">{requestError}</p>}

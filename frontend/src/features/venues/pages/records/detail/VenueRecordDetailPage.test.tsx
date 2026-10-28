@@ -808,10 +808,10 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
   });
 
   /**
-   * VEN-BKG-SUP-10 SPM-54: a submitted request that moved its event to Planning keeps that notice in the review after the request is cancelled (event status transition notice owned by SPM-148; parent AC10).
-   * Kills: a review section that drops the Planning transition notice once the request that moved the event is cancelled.
+   * VEN-BKG-SUP-10 SPM-54: a submitted request that moved its event to Planning shows a cancelled notice in the review after the request is cancelled, and no longer reports the submission (event status transition notice owned by SPM-148; parent AC10).
+   * Kills: a review section that drops the Planning transition notice once the request that moved the event is cancelled, or that keeps the "submitted" wording after cancellation.
    */
-  it("VEN-BKG-SUP-10 SPM-54 keeps the Planning notice in the review after the request that moved the event is cancelled", async () => {
+  it("VEN-BKG-SUP-10 SPM-54 replaces the Planning notice with a cancelled notice in the review after the request that moved the event is cancelled", async () => {
     setCoordinator(["event-1"]);
     let bookings: unknown[] = [];
     const booking = {
@@ -868,9 +868,12 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Venue booking request submitted. Event event-1 is now in Planning.",
+        "Venue booking request VB-PLAN0001 is cancelled. Event event-1 is no longer in Planning.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Venue booking request submitted/),
+    ).not.toBeInTheDocument();
   });
 
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */
