@@ -2660,7 +2660,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
    * VEN-BKG-SUP-11 SPM-54: a submitted request moved its event to Planning; the server then rejects the booking and the summary reloads. The review keeps the submitted Planning notice as a stale state (event status transition notice owned by SPM-148; parent AC10). Product owner decision, 28 Oct 2026: keep the submitted wording.
    * Kills: a summary reload that drops the submitted Planning notice for a rejected request, or that swaps it for the cancelled wording ("is cancelled" or "is no longer in Planning") although no cancellation happened.
    */
-  it("VEN-BKG-SUP-11 SPM-54 keeps the submitted Planning notice in the review as a stale state after the server rejects the request and the summary reloads", async () => {
+  it("VEN-BKG-SUP-11 SPM-54 keeps the submitted Planning notice in the review as a stale state after the server rejects the request and the summary reloads, and leaves Submit booking request disabled until the schedule refreshes", async () => {
     setCoordinator(["event-1"]);
     let bookings: unknown[] = [];
     const booking = {
