@@ -8,7 +8,7 @@
  */
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventCard } from "@/features/events/pages/list/EventCard";
 import { buildGala } from "@/features/events/pages/detail/registration/waitlist.fixtures";
 import type { EventRecord } from "@/types";
@@ -104,5 +104,30 @@ describe("CARD-BADGE-08: the non-attendee view is unchanged", () => {
     renderCard(buildGala({ status: "approved" }));
 
     expect(screen.getByText("Approved")).toBeInTheDocument();
+  });
+});
+
+// The registration label follows the window, not the clock: the dates here are far in the past or the future.
+describe("CARD-BADGE-01-C/D: the registration label on a confirmed event", () => {
+  // The label reads the clock; it is frozen here so the window check never depends on the real date.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-18T04:00:00Z") });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Kills: BADGE-LABEL-SWAP (open and closed labels swapped)
+  it("CARD-BADGE-01-C-STATE: an open window reads Registration open", () => {
+    renderCard(buildGala({ status: "confirmed", registrationEnabled: true, registrationOpensAt: "2000-01-01T00:00:00Z", registrationClosesAt: "2099-01-01T00:00:00Z", availableRegistrationSpots: 5 }), { attendeeView: true });
+    expect(screen.getByText("Registration open")).toBeInTheDocument();
+    expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
+  });
+
+  // Kills: BADGE-LABEL-SWAP (closed window shown as open)
+  it("CARD-BADGE-01-D-STATE: a closed window reads Registration closed", () => {
+    renderCard(buildGala({ status: "confirmed", registrationEnabled: true, registrationOpensAt: "2000-01-01T00:00:00Z", registrationClosesAt: "2000-01-02T00:00:00Z", availableRegistrationSpots: 5 }), { attendeeView: true });
+    expect(screen.getByText("Registration closed")).toBeInTheDocument();
+    expect(screen.queryByText("Registration open")).not.toBeInTheDocument();
   });
 });

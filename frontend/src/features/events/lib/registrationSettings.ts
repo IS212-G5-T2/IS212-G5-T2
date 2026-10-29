@@ -90,19 +90,23 @@ export function checkSettingsForm(values: SettingsFormValues, startsAt: string, 
     if (!closesIso && !errors.registrationClosesAt) errors.registrationClosesAt = SETTINGS_MESSAGES.incomplete;
   }
 
-  if (Object.keys(errors).length > 0) return { errors };
-  const request: SettingsRequest = { registrationEnabled: values.enabled, version };
+  // An unreadable capacity always has its error above, so this return also narrows capacity to a number.
+  if (Object.keys(errors).length > 0 || capacity === undefined) return { errors };
+  const request: SettingsRequest = { registrationEnabled: values.enabled, version, capacity };
   if (opensIso) request.registrationOpensAt = opensIso;
   if (closesIso) request.registrationClosesAt = closesIso;
-  if (capacity !== undefined) request.capacity = capacity;
   return { errors, request };
 }
 
 /**
- * The closing-time rule on its own, for live feedback while the end date is being entered: the registration end may not
- * be after the event start (equal is valid). Undefined when the end date is blank, invalid or within the start.
+ * The closing-time rules on their own, for live feedback while the dates are being entered: the registration end must be
+ * after the opening time and not after the event start (equal to the start is valid). Undefined when the end date is
+ * blank, invalid or within both limits.
  */
-export function closingAfterStartError(closes: string, startsAt: string): string | undefined {
+export function closingError(opens: string, closes: string, startsAt: string): string | undefined {
   const closesIso = closes.trim() ? sgtInputToIso(closes) : undefined;
-  return closesIso && Date.parse(closesIso) > Date.parse(startsAt) ? SETTINGS_MESSAGES.closeOnOrBeforeStart : undefined;
+  if (!closesIso) return undefined;
+  const opensIso = opens.trim() ? sgtInputToIso(opens) : undefined;
+  if (opensIso && Date.parse(closesIso) <= Date.parse(opensIso)) return SETTINGS_MESSAGES.closeAfterOpen;
+  return Date.parse(closesIso) > Date.parse(startsAt) ? SETTINGS_MESSAGES.closeOnOrBeforeStart : undefined;
 }

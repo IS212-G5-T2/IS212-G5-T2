@@ -45,6 +45,10 @@ describe('SPM-139 F5: the disabled state', () => {
   it('reports disabled, not closed, when the coordinator has switched registration off', () => {
     expect(registrationWindowState({ ...event, registrationEnabled: false }, at(1000))).toBe('disabled');
   });
+  // Kills: W-PRECEDENCE (a disabled event that is also not Confirmed reports disabled instead of closed).
+  it('reports closed, not disabled, for a switched-off event that is not Confirmed', () => {
+    expect(registrationWindowState({ ...event, status: 'Approved', registrationEnabled: false }, at(1000))).toBe('closed');
+  });
   it('still reports closed for an enabled event outside the window', () => {
     expect(registrationWindowState(event, at(-1000))).toBe('not_open');
     expect(registrationWindowState(event, closesAt)).toBe('closed');
@@ -60,5 +64,15 @@ describe('EVENT-REG-02-BND-1: the closing boundary', () => {
   // [D] the closing instant is already closed (exclusive).
   it('[D] exactly at the closing instant, registration is closed', () => {
     expect(isRegistrationOpen(event, closesAt)).toBe(false);
+  });
+});
+
+// The one predicate every caller uses: true only inside an open, enabled, Confirmed window.
+describe('SPM-139 isRegistrationOpen: plain cases (mutation mapping)', () => {
+  // Kills: isRegistrationOpen returning the wrong comparison (open for a switched-off or closed window)
+  it('CONFIG-REG-02-C: isRegistrationOpen is true only inside an open, enabled, Confirmed window', () => {
+    expect(isRegistrationOpen(event, at(1000))).toBe(true);
+    expect(isRegistrationOpen({ ...event, registrationEnabled: false }, at(1000))).toBe(false);
+    expect(isRegistrationOpen(event, at(-1000))).toBe(false);
   });
 });

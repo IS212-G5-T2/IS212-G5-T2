@@ -71,9 +71,16 @@ describe("SPM-139 AC4 and AC5 in the form: the same rules as the server", () => 
     expect(checkSettingsForm({ ...SET_OK, closes: "2026-11-07T18:00" }, START, 0).request).toBeDefined();
   });
 
-  // Kills: M5/M9 boundary at 17:59, 18:00, 18:01 (the 18:01 case is refused above).
+  // Kills: M5 boundary at 17:59 on the start day (accepted).
   it("accepts 17:59 on the start day", () => {
     expect(checkSettingsForm({ ...SET_OK, closes: "2026-11-07T17:59" }, START, 0).request).toBeDefined();
+  });
+
+  // Kills: M9 boundary at 18:01, one minute after the start (refused).
+  it("refuses 18:01 on the start day", () => {
+    expect(checkSettingsForm({ ...SET_OK, closes: "2026-11-07T18:01" }, START, 0).errors).toEqual({
+      registrationClosesAt: SETTINGS_MESSAGES.closeOnOrBeforeStart,
+    });
   });
 
   // 01-E: enabling needs the opening and closing times; disabling does not.
@@ -104,5 +111,23 @@ describe("SPM-139 AC4 and AC5 in the form: the same rules as the server", () => 
       capacity: 50,
       version: 4,
     });
+  });
+});
+
+describe("SPM-139 unreadable typed values in the form", () => {
+  it("shows an instant that cannot be read as a blank input", () => {
+    expect(isoToSgtInput("not a date")).toBe("");
+  });
+
+  it("refuses an opening time that does not exist in the calendar", () => {
+    const check = checkSettingsForm({ ...SET_OK, opens: "2026-13-01T09:00" }, START, 0);
+    expect(check.request).toBeUndefined();
+    expect(check.errors).toEqual({ registrationOpensAt: SETTINGS_MESSAGES.invalidDatetime });
+  });
+
+  it("refuses a closing time that does not exist in the calendar", () => {
+    const check = checkSettingsForm({ ...SET_OK, closes: "2026-13-28T23:59" }, START, 0);
+    expect(check.request).toBeUndefined();
+    expect(check.errors).toEqual({ registrationClosesAt: SETTINGS_MESSAGES.invalidDatetime });
   });
 });

@@ -283,3 +283,12 @@ describe("attendee view: helpers (local time, no time zone assumed)", () => {
     expect(venueText(baseEvent({ venueName: "   " }))).toBe("To be announced");
   });
 });
+
+describe("attendee view: a full event still reads Registration open", () => {
+  // Kills: AV-LABEL-FULL (a full event shows Registration closed although its window is open)
+  it("shows Registration open when every place is taken but the window is open", () => {
+    renderView(baseEvent({ status: "confirmed", availableRegistrationSpots: 0, isFull: true }));
+    expect(screen.getByText("Registration open")).toBeInTheDocument();
+    expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
+  });
+});

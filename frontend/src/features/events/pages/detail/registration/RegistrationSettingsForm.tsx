@@ -16,7 +16,7 @@ import {
 } from "@/features/events/api/registration-settings-api";
 import {
   checkSettingsForm,
-  closingAfterStartError,
+  closingError,
   isoToSgtInput,
   SETTINGS_MESSAGES,
   type SettingsFormValues,
@@ -90,12 +90,14 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
     );
   if (!settings || !values) return null;
 
-  // The end may not be after the event start. Shown as soon as it is entered, and Save stays off until it is corrected.
-  const liveClosesError = closingAfterStartError(values.closes, startDateTime);
+  // The end must be after the opening time and not after the event start. Shown as soon as it is entered, and Save stays off until it is corrected.
+  const liveClosesError = closingError(values.opens, values.closes, startDateTime);
 
+  // Editing a field clears the errors of the last Save, so a corrected field never keeps showing its old message.
   const update = (patch: Partial<SettingsFormValues>) => {
     setValues({ ...values, ...patch });
     setSavedMessage(null);
+    setErrors({});
   };
 
   const reload = async () => {
