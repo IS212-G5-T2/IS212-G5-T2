@@ -8,6 +8,7 @@ import {
   fetchPlanningView,
   fieldLabel,
   formatFieldValue,
+  historyOutcome,
   isPlanningView,
   resolvePlanningChange,
   satisfiesCondition,
@@ -136,6 +137,15 @@ describe("planning labels and values", () => {
     expect(formatFieldValue("startDateTime", iso)).toBe("10 Nov 2026, 6:00 pm");
     expect(formatFieldValue("endDateTime", "2026-11-10T16:30:00.000Z")).toBe("11 Nov 2026, 12:30 am");
     expect(formatFieldValue("description", iso)).toBe(iso);
+  });
+});
+
+describe("historyOutcome (SPM-156)", () => {
+  // EVENT-UPDATE-07-C: direct updates read as such; reviewed changes keep their outcome.
+  it("EVENT-UPDATE-07-C names direct updates and review outcomes", () => {
+    expect(historyOutcome({ kind: "direct_update", status: "Applied" })).toBe("Updated directly");
+    expect(historyOutcome({ kind: "booking_conflict", status: "Applied" })).toBe("Applied");
+    expect(historyOutcome({ status: "Rejected" })).toBe("Rejected");
   });
 });
 

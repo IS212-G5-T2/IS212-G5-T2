@@ -93,9 +93,9 @@ Routes (all behind `AuthenticationMiddleware`; the service checks role, ownershi
 | `GET /api/events/:id/planning` | Owning organiser (read-only), assigned coordinator | Event information, venue bookings, equipment, pending changes, and for the coordinator each field's edit mode (`direct`, `conditional` with its condition, or `needs_review`) |
 | `PATCH /api/events/:id/planning` | Assigned coordinator | Update fields. A change that stays compatible with every existing venue booking and equipment arrangement applies immediately; only an incompatible change is flagged "Needs Review", listing just the arrangements it affects |
 | `POST /api/events/:id/planning/changes/:changeId/resolve` | Assigned coordinator | `{ decision: 'confirm' \| 'reject', bookingId? }` |
-| `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Resolved changes, newest first |
+| `GET /api/events/:id/planning/history` | Owning organiser, assigned coordinator | Change history, newest first: changes applied immediately (`kind: 'direct_update'`, always `Applied`, SPM-156) and flagged changes once confirmed or rejected (`kind: 'booking_conflict'`) |
 
-Rules, assumptions and the placeholder tables behind this are in `HANDOVER.md`; test cases are indexed in `../docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`.
+Every change the coordinator applies immediately is written to `event_flagged_changes` as an Applied `direct_update` row in the same transaction as the event update, so history and `lastUpdatedAt` agree (SPM-156; needs `backend/migrations/026_spm156_direct_update_history.sql`). Changes applied by approving an SPM-65 change request are recorded in `event_change_request_audit`, not here. The rules behind this are documented in the header comments of `src/events/planning/event-planning.service.ts` and `event-planning.repository.ts`; test cases are indexed in `../docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md`.
 
 ```sh
 # Unit tests for the rules (mocked repository)

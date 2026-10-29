@@ -212,7 +212,10 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
         {control}
         {!pending && lastDecision[key] && (
           <p data-testid={`last-change-${key}`} className="-mt-3 mb-1 text-xs text-gray-500 dark:text-gray-400">
-            Last change {lastDecision[key].status === "Applied" ? "confirmed" : "rejected"} by{" "}
+            {lastDecision[key].kind === "direct_update"
+              ? "Last changed"
+              : `Last change ${lastDecision[key].status === "Applied" ? "confirmed" : "rejected"}`}{" "}
+            by{" "}
             {lastDecision[key].resolvedBy} on {formatSgtDateTime(lastDecision[key].resolvedAt)}.
           </p>
         )}

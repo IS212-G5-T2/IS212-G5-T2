@@ -537,6 +537,12 @@ export type PendingChange = FlaggedChange | ReplacementRequired;
 
 export interface ChangeHistoryEntry {
   id: string;
+  /**
+   * SPM-156: "direct_update" for a change applied immediately (SPM-49 AC3/AC5),
+   * "booking_conflict" for a flagged change that was confirmed or rejected
+   * (SPM-85 AC6). Absent from older responses; treat as "booking_conflict".
+   */
+  kind?: "booking_conflict" | "direct_update";
   field: string;
   originalValue: unknown;
   proposedValue: unknown;

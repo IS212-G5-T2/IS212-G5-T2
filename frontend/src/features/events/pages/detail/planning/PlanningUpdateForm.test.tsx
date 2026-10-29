@@ -88,6 +88,16 @@ describe("PlanningUpdateForm", () => {
     expect(screen.queryByTestId("last-change-description")).not.toBeInTheDocument();
   });
 
+  // SPM-156 EVENT-UPDATE-07-C: a change applied immediately is not described as confirmed.
+  it("EVENT-UPDATE-07-C describes a direct update as changed, not confirmed", () => {
+    const history = [
+      { id: "d1", kind: "direct_update" as const, field: "description", originalValue: "A", proposedValue: "B", resolvedValue: "B", resolvedBy: "Coord Nine", resolvedAt: "2026-10-05T10:00:00.000Z", status: "Applied" as const },
+    ];
+    render(<PlanningUpdateForm event={eventRecord()} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} history={history} onSave={vi.fn()} />);
+    expect(screen.getByTestId("last-change-description")).toHaveTextContent("Last changed by Coord Nine on 5 Oct 2026, 6:00 pm.");
+    expect(screen.getByTestId("last-change-description")).not.toHaveTextContent(/confirmed/);
+  });
+
   // EVENT-UPDATE-03-A: only the fields the coordinator changed are sent.
   it("EVENT-UPDATE-03-A saves only the changed fields", async () => {
     const user = userEvent.setup();

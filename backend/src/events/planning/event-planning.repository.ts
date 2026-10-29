@@ -104,10 +104,17 @@ export interface StoredBookingImpact extends BookingImpact {
 
 export type FlaggedChangeStatus = 'Needs Review' | 'Applied' | 'Rejected';
 
+/**
+ * 'booking_conflict': a change flagged for review (SPM-85).
+ * 'direct_update': a change applied immediately (SPM-49 AC3/AC5), recorded as
+ * Applied by the coordinator who made it so change history is complete (SPM-156).
+ */
+export type ChangeKind = 'booking_conflict' | 'direct_update';
+
 export interface FlaggedChangeRow {
   id: string;
   eventId: string;
-  kind: 'booking_conflict';
+  kind: ChangeKind;
   field: EventFieldKey;
   originalValue: unknown;
   proposedValue: unknown;
@@ -140,6 +147,13 @@ export interface ChangeResolution {
   clearImpacts?: boolean;
   /** Record the decision for this one venue booking only (SPM-85 AC7). */
   bookingId?: string;
+}
+
+/** One field applied immediately, for the change history (SPM-156). */
+export interface DirectChange {
+  field: EventFieldKey;
+  originalValue: unknown;
+  newValue: unknown;
 }
 
 /** A time window used to widen the neighbour search to a proposed date. */
@@ -412,6 +426,38 @@ export class EventPlanningRepository {
         );
       throw error;
     }
+  }
+
+  /**
+   * SPM-156: records each field applied immediately as an Applied change
+   * history row by the coordinator who made it, at the same instant the event's
+   * updated_at was stamped, so history and "Last updated" agree.
+   */
+  async recordDirectChanges(
+    eventId: string,
+    changes: DirectChange[],
+    by: { name: string; id: string },
+    at: Date,
+  ): Promise<void> {
+    if (!changes.length) return;
+    const values: unknown[] = [eventId, by.name, by.id, at];
+    const rows = changes.map((change) => {
+      values.push(
+        randomUUID(),
+        change.field,
+        JSON.stringify(change.originalValue),
+        JSON.stringify(change.newValue),
+      );
+      const n = values.length;
+      return `($${n - 3}, $1, 'direct_update', $${n - 2}, $${n - 1}::jsonb, $${n}::jsonb, 'Applied', $2, $3, $4, $2, $3, $4)`;
+    });
+    await this.db().query(
+      `INSERT INTO event_flagged_changes
+         (id, event_id, kind, field, original_value, proposed_value, status,
+          proposed_by, proposed_by_id, created_at, resolved_by, resolved_by_id, resolved_at)
+       VALUES ${rows.join(', ')}`,
+      values,
+    );
   }
 
   /**

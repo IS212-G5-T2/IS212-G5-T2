@@ -199,6 +199,47 @@ describe('EventPlanningRepository writes', () => {
   });
 
   /**
+   * EVENT-UPDATE-07-A (SPM-156): each field applied immediately is inserted as
+   * an Applied 'direct_update' history row by the coordinator, at the update
+   * instant, with every value bound as a parameter. Nothing to record, no query.
+   */
+  it('EVENT-UPDATE-07-A records direct updates as Applied history rows with bound values', async () => {
+    const { repository, poolQuery } = makeDatabase();
+    const at = new Date('2026-10-05T08:00:00.000Z');
+
+    await repository.recordDirectChanges(EVENT_ID, [], { name: 'Coord Nine', id: 'coord-9' }, at);
+    expect(poolQuery).not.toHaveBeenCalled();
+
+    await repository.recordDirectChanges(
+      EVENT_ID,
+      [
+        { field: 'name', originalValue: 'Welcome Evening', newValue: "Robert'); DROP TABLE events;--" },
+        { field: 'facilities', originalValue: ['Catering'], newValue: [] },
+      ],
+      { name: 'Coord Nine', id: 'coord-9' },
+      at,
+    );
+
+    const [sql, params] = poolQuery.mock.calls[0];
+    expect(sql).toContain('INSERT INTO event_flagged_changes');
+    expect(sql).toContain("'direct_update'");
+    expect(sql).toContain("'Applied'");
+    expect(sql).not.toContain('DROP TABLE');
+    expect(params.slice(0, 4)).toEqual([EVENT_ID, 'Coord Nine', 'coord-9', at]);
+    expect(params.slice(5)).toEqual([
+      'name',
+      '"Welcome Evening"',
+      JSON.stringify("Robert'); DROP TABLE events;--"),
+      expect.any(String),
+      'facilities',
+      '["Catering"]',
+      '[]',
+    ]);
+    // Two rows, each with its own id parameter.
+    expect(sql.match(/'direct_update'/g)).toHaveLength(2);
+  });
+
+  /**
    * EVENT-FLAG-01-G: when another request has already flagged the same field
    * (unique-violation 23505), the coordinator gets a clear conflict naming the
    * field; any other database error is passed on unchanged.

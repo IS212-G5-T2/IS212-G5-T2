@@ -119,6 +119,7 @@ function makeRepo() {
     listHistory: vi.fn().mockResolvedValue([]),
     findChange: vi.fn().mockResolvedValue(undefined),
     safetyCheckExists: vi.fn().mockResolvedValue(false),
+    recordDirectChanges: vi.fn().mockResolvedValue(undefined),
     applyFields: vi.fn(
       async (_id: string, patch: Record<string, unknown>, now: Date) => ({
         ...eventRow(),
@@ -823,6 +824,7 @@ describe('SPM-85 flagged changes', () => {
     ]);
     expect(history[1]).toEqual({
       id: 'chg-1',
+      kind: 'booking_conflict',
       field: 'expectedAttendance',
       originalValue: 80,
       proposedValue: 150,
@@ -1394,6 +1396,151 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
     expect(
       await conflictKindsFor({ startDateTime: '2026-11-10T09:40:00.000Z' }),
     ).toEqual(['window', 'overlap']);
+  });
+});
+
+describe('SPM-156 change history for updates applied immediately', () => {
+  const by = { name: 'Coord Nine', id: 'coord-9' };
+
+  // EVENT-UPDATE-07-A: on an Approved event nothing is booked, so every update
+  // applies immediately and each changed field gets a history entry.
+  it('EVENT-UPDATE-07-A records every field applied on an Approved event, by the coordinator, at the update time', async () => {
+    repo.findEvent.mockResolvedValue(eventRow({ status: 'Approved' }));
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      name: 'Welcome Night',
+      expectedAttendance: 120,
+    });
+    expect(result.applied).toEqual(['name', 'expectedAttendance']);
+    expect(repo.recordDirectChanges).toHaveBeenCalledTimes(1);
+    expect(repo.recordDirectChanges).toHaveBeenCalledWith(
+      EVENT_ID,
+      [
+        { field: 'name', originalValue: 'Welcome Evening', newValue: 'Welcome Night' },
+        { field: 'expectedAttendance', originalValue: 80, newValue: 120 },
+      ],
+      by,
+      NOW,
+    );
+    // History and "Last updated" (SPM-49 AC6) carry the same instant.
+    expect(repo.applyFields).toHaveBeenCalledWith(
+      EVENT_ID,
+      { name: 'Welcome Night', expectedAttendance: 120 },
+      NOW,
+    );
+    expect(result.updatedAt).toBe(NOW.toISOString());
+  });
+
+  // EVENT-UPDATE-07-A: every SPM-49 AC5 field group is recorded on an Approved event.
+  it.each([
+    ['date & time', { startDateTime: '2026-11-11T10:00:00.000Z', endDateTime: '2026-11-11T13:00:00.000Z' }],
+    ['attendance', { expectedAttendance: 120 }],
+    ['venue requirements (layout)', { layout: 'Theatre' }],
+    ['venue requirements (facilities)', { facilities: ['AV System'] }],
+    ['accessibility needs', { accessibility: ['Hearing loop'] }],
+    ['equipment requirements', { equipmentNeeds: 'Four microphones' }],
+    ['purpose and description', { purpose: 'Orientation', description: 'Updated.' }],
+  ])(
+    'EVENT-UPDATE-07-A records %s applied on an Approved event',
+    async (_label, patch) => {
+      repo.findEvent.mockResolvedValue(eventRow({ status: 'Approved' }));
+      const result = await service.updateEvent(coordinator(), EVENT_ID, patch);
+      const recorded = repo.recordDirectChanges.mock.calls[0][1] as Array<{
+        field: string;
+        newValue: unknown;
+      }>;
+      expect(recorded.map((c) => c.field)).toEqual(Object.keys(patch));
+      expect(recorded.map((c) => c.field)).toEqual(result.applied);
+      for (const change of recorded)
+        expect(change.newValue).toEqual(
+          (patch as Record<string, unknown>)[change.field],
+        );
+    },
+  );
+
+  // EVENT-UPDATE-07-B: on a Planning event, the compatible part is recorded as
+  // applied directly and the incompatible part is flagged, never both.
+  it('EVENT-UPDATE-07-B records only the immediately applied fields on a Planning event and flags the rest', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    const result = await service.updateEvent(coordinator(), EVENT_ID, {
+      expectedAttendance: 150,
+      layout: 'Theatre',
+    });
+    expect(result.applied).toEqual(['expectedAttendance']);
+    expect(result.flagged.map((c: { field: string }) => c.field)).toEqual(['layout']);
+    expect(repo.recordDirectChanges).toHaveBeenCalledWith(
+      EVENT_ID,
+      [{ field: 'expectedAttendance', originalValue: 80, newValue: 150 }],
+      by,
+      NOW,
+    );
+  });
+
+  // EVENT-UPDATE-07-B: a change that is only flagged writes no direct entry;
+  // it reaches history when it is confirmed or rejected (SPM-85 AC6).
+  it('EVENT-UPDATE-07-B writes no direct entry when every change is flagged or nothing changed', async () => {
+    repo.listVenueBookings.mockResolvedValue([venueBooking()]);
+    await service.updateEvent(coordinator(), EVENT_ID, { layout: 'Theatre' });
+    await service.updateEvent(coordinator(), EVENT_ID, { name: 'Welcome Evening' });
+    expect(repo.recordDirectChanges).not.toHaveBeenCalled();
+    expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
+  });
+
+  // EVENT-UPDATE-07-A: a refused update records nothing.
+  it('EVENT-UPDATE-07-A records nothing when the update is refused', async () => {
+    repo.findEvent.mockResolvedValue(eventRow({ status: 'Confirmed' }));
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { name: 'X' }),
+    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { name: '  ' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.recordDirectChanges).not.toHaveBeenCalled();
+  });
+
+  // EVENT-UPDATE-07-A: the history write is part of the update's transaction.
+  it('EVENT-UPDATE-07-A fails the whole update when the history write fails', async () => {
+    const runInTransaction = vi.fn(<T>(work: () => Promise<T>) => work());
+    Object.assign(repo, { runInTransaction });
+    repo.recordDirectChanges.mockRejectedValueOnce(new Error('db down'));
+    await expect(
+      service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed' }),
+    ).rejects.toThrow('db down');
+    expect(runInTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  // EVENT-UPDATE-07-C: history tells a direct update from a reviewed change.
+  it('EVENT-UPDATE-07-C lists direct updates with their kind, newest first, beside reviewed changes', async () => {
+    repo.listHistory.mockResolvedValue([
+      flaggedChange({
+        id: 'dir-1',
+        kind: 'direct_update',
+        field: 'name',
+        originalValue: 'Welcome Evening',
+        proposedValue: 'Welcome Night',
+        status: 'Applied',
+        resolvedBy: 'Coord Nine',
+        resolvedAt: '2026-10-05T11:00:00.000Z',
+      }),
+      flaggedChange({
+        id: 'chg-1',
+        status: 'Rejected',
+        resolvedBy: 'Coord Nine',
+        resolvedAt: '2026-10-05T09:00:00.000Z',
+      }),
+    ]);
+    const history = await service.changeHistory(organiser(), EVENT_ID);
+    expect(history[0]).toEqual({
+      id: 'dir-1',
+      kind: 'direct_update',
+      field: 'name',
+      originalValue: 'Welcome Evening',
+      proposedValue: 'Welcome Night',
+      resolvedValue: 'Welcome Night',
+      resolvedBy: 'Coord Nine',
+      resolvedAt: '2026-10-05T11:00:00.000Z',
+      status: 'Applied',
+    });
+    expect(history[1]).toMatchObject({ id: 'chg-1', kind: 'booking_conflict' });
   });
 });
 

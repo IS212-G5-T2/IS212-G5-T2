@@ -8,10 +8,10 @@ Case IDs: `EVENT-VIEW-*` = SPM-97, `EVENT-UPDATE-*` = SPM-49, `EVENT-FLAG-*` = S
 
 ```sh
 # Backend unit tests (mocked repository) — no database needed
-cd backend && npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts src/events/event-planning.repository.spec.ts
+cd backend && npx vitest run src/events/planning
 
 # Backend integration tests (real repository, real SQL) — needs a DISPOSABLE PostgreSQL database.
-# The spec applies database/postgresql/init/001_schema.sql and 007_*.sql itself.
+# The spec applies database/postgresql/init/001_schema.sql and 026_spm156_direct_update_history.sql itself.
 # Uses TEST_DATABASE_URL if set, otherwise DATABASE_URL (which the Backend E2E CI job provides).
 cd backend && TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.e2e-spec.ts
 
@@ -21,6 +21,8 @@ cd backend && DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run 
 # Frontend component / page / helper tests
 cd frontend && npx vitest run src/features/events/pages/detail/EventDetailPage.planning.test.tsx src/features/events/pages/detail/planning src/utils/planning.test.ts
 ```
+
+File paths: the backend planning code moved to `backend/src/events/planning/` (`event-planning.service.ts`, `event-planning.repository.ts`, `event-planning.controller.ts`, `dto/event-update-input.ts`, `helpers/event-impact.ts`). Older rows below name the files without that folder.
 
 Locally, with neither `TEST_DATABASE_URL` nor `DATABASE_URL` set, the integration suite is skipped. In CI (`CI` is set) a missing database **fails** the suite instead, so a green pipeline cannot hide these tests being skipped. Both suites run in the Backend E2E Tests job.
 
@@ -150,9 +152,24 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-UPDATE-HTTP-03 | SPM-97 AC4 | Owning organiser gets a read-only view and 403 on PATCH | PASS |
 | EVENT-UPDATE-HTTP-04 | SPM-49 AC1 | Unassigned coordinator gets 404 on GET and PATCH | PASS |
 | EVENT-UPDATE-HTTP-05 | SPM-49 AC4 | Identity fields in the body are rejected (400); identity comes only from the session | PASS |
-| EVENT-UPDATE-HTTP-06 | SPM-49 AC3/AC5, SPM-85 AC1/AC3/AC5 | Compatible attendance applies despite a booking; incompatible is flagged; resolve route confirms; history records it | PASS |
+| EVENT-UPDATE-HTTP-06 | SPM-49 AC3/AC5, SPM-85 AC1/AC3/AC5 | Compatible attendance applies despite a booking; incompatible is flagged; resolve route confirms; history records both (the direct update since SPM-156) | PASS |
+| EVENT-UPDATE-HTTP-07 | SPM-49 AC5, AC6 (SPM-156) | An update on an Approved event appears in `GET .../history` for the coordinator and the owning organiser, with the same time as `updatedAt` | PASS |
 
 Removing `EventPlanningController` from the authentication middleware's routes fails 5 of these 6 tests.
+
+### Cases added by SPM-156 (change history for updates applied immediately)
+
+Defect: an update the coordinator applied immediately was saved but never written to the change history, because history was built only from flagged changes. It showed on every update to an Approved event (nothing is booked yet, so every update applies immediately) and on direct updates to Planning events. Fix: each field applied immediately is recorded as an Applied `direct_update` row in the same transaction (migration 026), the history response carries `kind`, the form and history list say "Updated directly" / "Last changed" instead of "confirmed", and the owning organiser sees the history read-only.
+
+| Case | Story / AC | Scenario | Automated by |
+| --- | --- | --- | --- |
+| EVENT-UPDATE-07-A | SPM-49 AC3, AC5, AC6 | Update on an Approved event: one Applied history entry per changed field (field, old and new value, coordinator, time equal to `updatedAt`); every AC5 field group; a refused update records nothing; a failed history write fails the whole update | `event-planning.service.spec.ts`, `event-planning.repository.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-07-B | SPM-49 AC5, SPM-85 AC6 | Planning event with bookings: the compatible change is recorded directly, the flagged one only once confirmed or rejected; nothing changed or everything flagged writes no direct entry | `event-planning.service.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-07-C | SPM-49 AC5, SPM-85 AC6 | History tells a direct update ("Updated directly", "Last changed by") from a reviewed change ("Applied"/"Rejected", "Last change confirmed/rejected by") | `event-planning.service.spec.ts`, `ChangeHistoryList.test.tsx`, `PlanningUpdateForm.test.tsx`, `planning.test.ts` |
+| EVENT-UPDATE-07-D | SPM-97 AC2 (SPM-156) | The owning organiser sees the Change History card read-only, including direct updates; no empty card when nothing is recorded | `EventDetailPage.planning.test.tsx` |
+| EVENT-UPDATE-07-SEC-1 | SPM-156 | The database refuses a direct update that is not Applied, a flagged change to a field that cannot affect a booking, and an unknown kind | `events-planning.e2e-spec.ts` (PostgreSQL) |
+
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 026) on 29 Oct 2026: backend unit (all suites), backend E2E (all suites) and the frontend event and utils suites PASS. The new 07-A/07-B/07-C service tests fail on `dev` before the fix.
 
 ## Assumptions behind the expected results
 

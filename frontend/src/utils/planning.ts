@@ -2,7 +2,7 @@
  * SPM-97 / SPM-49 / SPM-85 — shared helpers for event information during the
  * planning phase: API calls, field labels and value formatting.
  *
- * Backend contract (backend/src/events/event-planning.controller.ts):
+ * Backend contract (backend/src/events/planning/event-planning.controller.ts):
  *   GET   /events/:id/planning                            PlanningView
  *   PATCH /events/:id/planning                            PlanningUpdateResult
  *   POST  /events/:id/planning/changes/:changeId/resolve  { decision, bookingId? }
@@ -51,6 +51,14 @@ export const FIELD_LABELS: Record<string, string> = {
 
 export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
+}
+
+/**
+ * SPM-156: how a change history entry came about, in words: "Updated directly"
+ * for a change applied immediately, otherwise the review outcome.
+ */
+export function historyOutcome(entry: Pick<ChangeHistoryEntry, "kind" | "status">): string {
+  return entry.kind === "direct_update" ? "Updated directly" : entry.status;
 }
 
 /** Human-readable value for any planning field; dates in Singapore time with am/pm. */

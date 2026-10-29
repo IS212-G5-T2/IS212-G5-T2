@@ -130,6 +130,58 @@ afterEach(() => {
 });
 
 describe("EventDetailPage planning information (organiser)", () => {
+  // SPM-156 EVENT-UPDATE-07-D: the owning organiser sees the change history,
+  // including changes the coordinator applied immediately, read-only.
+  it("EVENT-UPDATE-07-D shows the owning organiser the change history with direct updates", async () => {
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.endsWith("/planning/history"))
+        return [
+          {
+            id: "dir-1",
+            kind: "direct_update",
+            field: "name",
+            originalValue: "Welcome Evening",
+            proposedValue: "Welcome Night",
+            resolvedValue: "Welcome Night",
+            resolvedBy: "Coord Nine",
+            resolvedAt: "2026-10-05T10:00:00.000Z",
+            status: "Applied",
+          },
+        ];
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    renderPage();
+    const list = await screen.findByRole("list", { name: /change history/i });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(list).toHaveTextContent(
+      "Event name: Welcome Evening → Welcome Night",
+    );
+    expect(list).toHaveTextContent("Updated directly by Coord Nine");
+    expect(
+      screen.getByRole("heading", { name: "Change History" }),
+    ).toBeInTheDocument();
+    // Still read-only for the organiser (SPM-97 AC4).
+    expect(
+      screen.queryByRole("form", { name: /update event information/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // SPM-156 EVENT-UPDATE-07-D: with nothing recorded, the organiser sees no empty history card.
+  it("EVENT-UPDATE-07-D hides the organiser's change history while nothing is recorded", async () => {
+    renderPage();
+    await planningRegion();
+    expect(
+      apiMock.mock.calls.some(([path]) =>
+        String(path).endsWith("/planning/history"),
+      ),
+    ).toBe(true);
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
+
   // EVENT-VIEW-01-A: once the event is in planning the organiser sees the planning panel.
   it("EVENT-VIEW-01-A shows the planning information panel for a planning-phase event", async () => {
     renderPage();

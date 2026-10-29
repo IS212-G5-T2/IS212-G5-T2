@@ -10,7 +10,10 @@
  * coordinator gets 404, exactly like a missing event, so existence never leaks
  * (same rule as EventsService.get, SPM-38 AC4).
  *
- * See backend/HANDOVER.md "Event planning (SPM-97/49/85)" for assumptions.
+ * - SPM-156: every change applied immediately is also recorded in the change
+ *   history (an Applied 'direct_update' row), in the same transaction.
+ *
+ * Routes and the history contract are documented in backend/README.md.
  */
 import { assertEventNotCancelled } from '../cancelled-guard.js';
 import {
@@ -251,12 +254,27 @@ export class EventPlanningService {
       let current = event;
       // Any applied detail resets the safety check (database trigger); report it so the page can say so.
       const hadSafetyCheck = immediate.length ? await this.repository.safetyCheckExists(eventId) : false;
-      if (immediate.length)
+      if (immediate.length) {
+        const appliedAt = new Date();
         current = await this.repository.applyFields(
           eventId,
           pick(patch, immediate),
-          new Date(),
+          appliedAt,
         );
+        // SPM-156: every change applied immediately gets a change history
+        // entry, whatever the event's status (on an Approved event every
+        // change is immediate, because nothing is booked yet).
+        await this.repository.recordDirectChanges(
+          eventId,
+          immediate.map((field) => ({
+            field,
+            originalValue: event[field],
+            newValue: current[field],
+          })),
+          { name: displayName(user), id: user.uid },
+          appliedAt,
+        );
+      }
 
       const flagged: FlaggedChangeRow[] = [];
       for (const field of needsReview) {
@@ -387,7 +405,11 @@ export class EventPlanningService {
 
   // ---------------------------------------------------------------- SPM-85 AC5
 
-  /** Resolved changes, newest first: original → proposed, who, when, status. */
+  /**
+   * Resolved changes, newest first: original → proposed, who, when, status.
+   * `kind` tells a reviewed change (SPM-85) from one applied immediately
+   * (SPM-49, recorded since SPM-156).
+   */
   async changeHistory(
     identity: AuthenticatedUser | undefined,
     eventId: string,
@@ -402,6 +424,7 @@ export class EventPlanningService {
       )
       .map((row) => ({
         id: row.id,
+        kind: row.kind,
         field: row.field,
         originalValue: row.originalValue,
         proposedValue: row.proposedValue,

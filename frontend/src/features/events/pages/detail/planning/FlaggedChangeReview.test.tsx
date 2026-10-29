@@ -258,7 +258,7 @@ describe("FlaggedChangeReview: empty states and history values", () => {
   it("EVENT-FLAG-05-A shows empty states for no pending changes and no history", () => {
     render(<FlaggedChangeReview changes={[]} history={[]} onResolve={vi.fn()} />);
     expect(screen.getByText("No changes are awaiting review.")).toBeInTheDocument();
-    expect(screen.getByText("No resolved changes yet.")).toBeInTheDocument();
+    expect(screen.getByText("No changes recorded yet.")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: /change history/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });

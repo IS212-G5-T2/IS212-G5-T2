@@ -228,12 +228,50 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     expect(
       (
         history.body as Array<{
+          kind: string;
           field: string;
           status: string;
           resolvedValue: unknown;
         }>
-      ).map((h) => [h.field, h.status, h.resolvedValue]),
-    ).toEqual([['expectedAttendance', 'Applied', 150]]);
+      ).map((h) => [h.kind, h.field, h.status, h.resolvedValue]),
+    ).toEqual([
+      // SPM-156: the confirmed flagged change and, before it, the compatible
+      // change that applied immediately.
+      ['booking_conflict', 'expectedAttendance', 'Applied', 150],
+      ['direct_update', 'expectedAttendance', 'Applied', 70],
+    ]);
+  });
+
+  // SPM-156 EVENT-UPDATE-HTTP-07: an update on an Approved event is in the
+  // change history read by both the coordinator and the owning organiser.
+  it('EVENT-UPDATE-HTTP-07 records an update on an Approved event in change history over HTTP', async () => {
+    await pool.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+      eventId,
+    ]);
+    const saved = await request(app.getHttpServer())
+      .patch(planningUrl())
+      .set('Cookie', coordinator.cookie)
+      .send({ name: 'HTTP Welcome Night' })
+      .expect(200);
+    expect(saved.body.applied).toEqual(['name']);
+
+    for (const viewer of [coordinator, organiser]) {
+      const history = await request(app.getHttpServer())
+        .get(`${planningUrl()}/history`)
+        .set('Cookie', viewer.cookie)
+        .expect(200);
+      expect(history.body).toEqual([
+        expect.objectContaining({
+          kind: 'direct_update',
+          field: 'name',
+          originalValue: 'HTTP Welcome Evening',
+          resolvedValue: 'HTTP Welcome Night',
+          status: 'Applied',
+          resolvedBy: 'HTTP Coordinator',
+          resolvedAt: saved.body.updatedAt,
+        }),
+      ]);
+    }
   });
 
   async function storedName(): Promise<string> {

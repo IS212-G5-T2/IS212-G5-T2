@@ -140,7 +140,11 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
-      for (const file of ['001_schema.sql']) {
+      for (const file of [
+        '001_schema.sql',
+        // SPM-156: direct updates are recorded in event_flagged_changes.
+        '026_spm156_direct_update_history.sql',
+      ]) {
         const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
           ? join(process.env.SPM51_DATABASE_INIT_DIR, file)
           : new URL(`../../database/postgresql/init/${file}`, import.meta.url);
@@ -726,6 +730,106 @@ describe.skipIf(!database)(
           eventId,
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // SPM-156 EVENT-UPDATE-07-A: on an Approved event (nothing booked yet) every
+    // update applies immediately and is stored as an Applied history row.
+    it('EVENT-UPDATE-07-A records an update on an Approved event in change history', async () => {
+      const approved = await insertEvent({ name: 'Approved Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      const result = await service.updateEvent(coordinator, approved, {
+        name: 'Approved Night',
+        accessibility: ['Hearing loop'],
+        expectedAttendance: 90,
+      });
+      expect(result.flagged).toEqual([]);
+
+      const rows = await db.query(
+        `SELECT kind, field, original_value, proposed_value, status, proposed_by_id,
+                resolved_by, resolved_by_id, resolved_at, impacts
+           FROM event_flagged_changes WHERE event_id = $1 ORDER BY field`,
+        [approved],
+      );
+      expect(rows.rows).toHaveLength(3);
+      for (const row of rows.rows)
+        expect(row).toMatchObject({
+          kind: 'direct_update',
+          status: 'Applied',
+          proposed_by_id: coordinator.uid,
+          resolved_by: 'E2E Coordinator',
+          resolved_by_id: coordinator.uid,
+          impacts: [],
+        });
+      // History and "Last updated" (SPM-49 AC6) carry the same instant.
+      expect(rows.rows[0].resolved_at.toISOString()).toBe(result.updatedAt);
+
+      // Both the assigned coordinator and the owning organiser can read it.
+      for (const viewer of [coordinator, organiser]) {
+        const history = await service.changeHistory(viewer, approved);
+        expect(
+          history
+            .map((h) => [h.kind, h.field, h.originalValue, h.resolvedValue])
+            .sort(),
+        ).toEqual(
+          [
+            [
+              'direct_update',
+              'accessibility',
+              ['Wheelchair ramps'],
+              ['Hearing loop'],
+            ],
+            ['direct_update', 'expectedAttendance', 80, 90],
+            ['direct_update', 'name', 'Approved Evening', 'Approved Night'],
+          ].sort(),
+        );
+      }
+      const view = await service.getPlanningView(coordinator, approved);
+      expect(view.lastUpdatedAt).toBe(result.updatedAt);
+    });
+
+    // SPM-156 EVENT-UPDATE-07-B: on a Planning event with bookings, the
+    // compatible change is recorded directly and the flagged one only once
+    // it is resolved.
+    it('EVENT-UPDATE-07-B records direct and reviewed changes on a Planning event', async () => {
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        description: 'New description',
+        expectedAttendance: 150,
+      });
+      let history = await service.changeHistory(coordinator, eventId);
+      expect(history.map((h) => [h.kind, h.field, h.status])).toEqual([
+        ['direct_update', 'description', 'Applied'],
+      ]);
+      await service.resolveChange(coordinator, eventId, flagged[0].id, {
+        decision: 'confirm',
+      });
+      history = await service.changeHistory(coordinator, eventId);
+      expect(history.map((h) => [h.kind, h.field, h.status])).toEqual([
+        ['booking_conflict', 'expectedAttendance', 'Applied'],
+        ['direct_update', 'description', 'Applied'],
+      ]);
+    });
+
+    // SPM-156: the database refuses a direct update that is not Applied, and a
+    // flagged change to a field that can never affect a booking.
+    it('EVENT-UPDATE-07-SEC-1 rejects malformed history rows in the database', async () => {
+      const insert = (kind: string, field: string, status: string) =>
+        db.query(
+          `INSERT INTO event_flagged_changes
+             (id, event_id, kind, field, original_value, proposed_value, status, proposed_by, proposed_by_id)
+           VALUES ($1,$2,$3,$4,'1'::jsonb,'2'::jsonb,$5,'X','x')`,
+          [randomUUID(), eventId, kind, field, status],
+        );
+      await expect(
+        insert('direct_update', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('booking_conflict', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('other', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
     });
   },
 );
