@@ -7,9 +7,11 @@ import {
 } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -903,6 +905,64 @@ describe.skipIf(!database)(
       });
       const history = await service.changeHistory(coordinator, approved);
       expect(history.map((h) => h.field)).toEqual(['description', 'name']);
+    });
+
+    /**
+     * EVENT-UPDATE-07-SEC-1 (SPM-156): migration 026 runs as one transaction. It is applied the
+     * documented way (psql -v ON_ERROR_STOP=1 -f) to a scratch copy of event_flagged_changes holding a
+     * row that only its last constraint rejects; none of its earlier constraint changes may remain.
+     */
+    it('EVENT-UPDATE-07-SEC-1 rolls migration 026 back completely when one step fails', async () => {
+      const schema = `spm156_m026_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      await db.query(`CREATE SCHEMA ${schema}`);
+      try {
+        await db.query(
+          `CREATE TABLE ${schema}.event_flagged_changes
+             (LIKE public.event_flagged_changes INCLUDING DEFAULTS)`,
+        );
+        await db.query(
+          `INSERT INTO ${schema}.event_flagged_changes
+             (id, event_id, kind, field, original_value, proposed_value, status, proposed_by, proposed_by_id)
+           VALUES ($1, $2, 'direct_update', 'name', '"a"'::jsonb, '"b"'::jsonb, 'Needs Review', 'X', 'x')`,
+          [randomUUID(), randomUUID()],
+        );
+        const run = spawnSync(
+          'psql',
+          [
+            database!,
+            '-q',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-f',
+            fileURLToPath(
+              new URL(
+                '../migrations/026_spm156_direct_update_history.sql',
+                import.meta.url,
+              ),
+            ),
+          ],
+          {
+            encoding: 'utf8',
+            env: { ...process.env, PGOPTIONS: `-c search_path=${schema}` },
+          },
+        );
+        expect(
+          run.error,
+          'the psql client must be installed to run this test',
+        ).toBeUndefined();
+        expect(run.status).not.toBe(0);
+        expect(run.stderr).toContain(
+          'event_flagged_changes_direct_update_check',
+        );
+        const constraints = await db.query(
+          `SELECT conname FROM pg_constraint
+            WHERE conrelid = $1::regclass AND contype = 'c' AND conname LIKE 'event_flagged_changes_%_check'`,
+          [`${schema}.event_flagged_changes`],
+        );
+        expect(constraints.rows).toEqual([]);
+      } finally {
+        await db.query(`DROP SCHEMA ${schema} CASCADE`);
+      }
     });
   },
 );

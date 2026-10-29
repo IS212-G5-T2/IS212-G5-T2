@@ -1,4 +1,7 @@
 -- SPM-156 fresh database equivalent of backend migration 026.
+-- Runs as one transaction: if any statement fails, nothing is changed.
+BEGIN;
+
 ALTER TABLE event_flagged_changes
   DROP CONSTRAINT IF EXISTS event_flagged_changes_kind_check;
 ALTER TABLE event_flagged_changes
@@ -29,3 +32,5 @@ ALTER TABLE event_flagged_changes
        AND field IN ('startDateTime', 'endDateTime', 'expectedAttendance',
                      'layout', 'facilities', 'equipmentNeeds'))
   );
+
+COMMIT;

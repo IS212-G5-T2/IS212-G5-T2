@@ -143,6 +143,11 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
             error={options.status === "error" ? `Could not load the options. ${options.error}` : undefined}
             onChange={setFacilities}
           />
+          {options.status === "error" && (
+            <button type="button" className="-mt-2 text-xs text-danger-600 underline" onClick={options.retry}>
+              Try again
+            </button>
+          )}
         </div>
 
         {/* Section 3: Accessibility Requirements */}
@@ -161,6 +166,11 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
             error={options.status === "error" ? `Could not load the options. ${options.error}` : undefined}
             onChange={setAccessibility}
           />
+          {options.status === "error" && (
+            <button type="button" className="-mt-2 text-xs text-danger-600 underline" onClick={options.retry}>
+              Try again
+            </button>
+          )}
         </div>
 
         {/* Section 4: Date & Logistics */}

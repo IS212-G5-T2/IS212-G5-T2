@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
@@ -186,6 +186,118 @@ describe("EventDetailPage planning information (organiser)", () => {
     expect(
       screen.queryByRole("heading", { name: "Change History" }),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * Two events the organiser owns, and a page that can move from the first to the second without
+   * unmounting (as the app does when a link changes the :id parameter).
+   */
+  const OTHER_ID = "00000000-0000-4000-8000-000000000050";
+  const historyEntry = (
+    id: string,
+    field: string,
+    from: string,
+    to: string,
+  ): ChangeHistoryEntry => ({
+    id,
+    kind: "direct_update",
+    field,
+    originalValue: from,
+    proposedValue: to,
+    resolvedValue: to,
+    resolvedBy: "Coord Nine",
+    resolvedAt: "2026-10-05T10:00:00.000Z",
+    status: "Applied",
+  });
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  function GoToOtherEvent() {
+    const navigate = useNavigate();
+    return (
+      <button onClick={() => navigate(`/events/${OTHER_ID}`)}>
+        Open other event
+      </button>
+    );
+  }
+  function renderTwoEvents(history: Record<string, () => Promise<unknown>>) {
+    const other = eventRecord({ id: OTHER_ID, name: "Second Evening" });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning/history"))
+        return history[path.split("/")[2]]();
+      if (path.endsWith("/planning"))
+        return path.includes(OTHER_ID)
+          ? planningView({ event: other })
+          : currentView;
+      if (path.includes("/comments")) return [];
+      return path.includes(OTHER_ID) ? other : currentView.event;
+    }) as typeof api);
+    render(
+      <MemoryRouter initialEntries={[`/events/${EVENT_ID}`]}>
+        <Routes>
+          <Route
+            path="/events/:id"
+            element={
+              <>
+                <EventDetailPage />
+                <GoToOtherEvent />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  /** EVENT-UPDATE-07-D: moving to another event clears the previous event's change history. */
+  it("EVENT-UPDATE-07-D clears the change history when the page moves to another event", async () => {
+    const user = userEvent.setup();
+    const otherHistory = deferred<unknown>();
+    renderTwoEvents({
+      [EVENT_ID]: async () => [
+        historyEntry("h-1", "name", "Welcome Evening", "Welcome Night"),
+      ],
+      [OTHER_ID]: () => otherHistory.promise,
+    });
+    expect(
+      await screen.findByRole("list", { name: /change history/i }),
+    ).toHaveTextContent("Event name: Welcome Evening → Welcome Night");
+    await user.click(screen.getByRole("button", { name: "Open other event" }));
+    await screen.findByRole("heading", { name: "Second Evening" });
+    // The second event's history has not arrived yet; the first event's must not be shown under it.
+    expect(
+      screen.queryByRole("list", { name: /change history/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
+
+  /** EVENT-UPDATE-07-D: a slow history reply for the previous event is ignored once another event is open. */
+  it("EVENT-UPDATE-07-D ignores a delayed history reply for the previous event", async () => {
+    const user = userEvent.setup();
+    const firstHistory = deferred<unknown>();
+    renderTwoEvents({
+      [EVENT_ID]: () => firstHistory.promise,
+      [OTHER_ID]: async () => [
+        historyEntry("h-2", "description", "Old", "New"),
+      ],
+    });
+    await planningRegion();
+    await user.click(screen.getByRole("button", { name: "Open other event" }));
+    expect(
+      await screen.findByRole("list", { name: /change history/i }),
+    ).toHaveTextContent("Description: Old → New");
+    await act(async () =>
+      firstHistory.resolve([
+        historyEntry("h-1", "name", "Welcome Evening", "Welcome Night"),
+      ]),
+    );
+    const list = screen.getByRole("list", { name: /change history/i });
+    expect(list).toHaveTextContent("Description: Old → New");
+    expect(list).not.toHaveTextContent("Welcome Night");
   });
 
   /** EVENT-UPDATE-07-D: the change history refreshes with the planning poll, so the organiser sees a coordinator's new change. */

@@ -5,6 +5,7 @@
 // Migration 026 constraints are not mutated here: the E2E database is built once from database/postgresql/init,
 // so a mutated migration file would not reach the constraints EVENT-UPDATE-07-SEC-1 checks (and re-applying a
 // weakened constraint would leave the shared database weakened). 07-SEC-1 pins those constraints directly.
+// The 026 transaction mutant is safe: its test applies 026 only to a throwaway schema.
 export const SUITES = {
   backendUnit: {
     args: [
@@ -50,6 +51,7 @@ const REPOSITORY = 'src/events/planning/event-planning.repository.ts';
 const REVIEW =
   'src/events/change-requests/review/change-request-review.service.ts';
 const INPUT = 'src/events/dto/event-input.ts';
+const M026 = 'migrations/026_spm156_direct_update_history.sql';
 const M027 = 'migrations/027_spm156_retire_legacy_event_options.sql';
 
 const svc = (title) =>
@@ -431,6 +433,36 @@ export const MUTANTS = [
         '       GROUP BY mapped\n    ) kept',
         '       GROUP BY mapped, position\n    ) kept',
       ],
+    ],
+  },
+  {
+    id: 'SPM156-M026-NOT-ATOMIC',
+    name: 'migration 026 runs without a transaction',
+    file: M026,
+    suites: ['planningE2E'],
+    kills: [
+      planE2E(
+        'EVENT-UPDATE-07-SEC-1 rolls migration 026 back completely when one step fails',
+      ),
+    ],
+    edits: [
+      ['\nBEGIN;\n', '\n'],
+      ['\nCOMMIT;\n', '\n'],
+    ],
+  },
+  {
+    id: 'SPM156-M027-NOT-ATOMIC',
+    name: 'migration 027 runs without a transaction',
+    file: M027,
+    suites: ['migrationE2E'],
+    kills: [
+      migE2E(
+        'EVENT-UPDATE-08-SEC-1 rolls migration 027 back completely when one step fails',
+      ),
+    ],
+    edits: [
+      ['\nBEGIN;\n', '\n'],
+      ['\nCOMMIT;\n', '\n'],
     ],
   },
 ];

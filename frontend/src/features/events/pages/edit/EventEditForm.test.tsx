@@ -524,6 +524,26 @@ describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () 
     }
   });
 
+  /** EVENT-UPDATE-08-D (edit form): after a failure, Try again under each list reloads the options. */
+  it("EVENT-UPDATE-08-D offers Try again under each list after the options fail", async () => {
+    const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");
+    const retry = vi.fn();
+    venueOptionsState.current = { status: "error", facilities: [], accessibility: [], error: "Server unavailable." };
+    venueOptionsState.retry = retry;
+    try {
+      const user = userEvent.setup();
+      render(<EventEditForm event={event} onSave={vi.fn()} onCancel={vi.fn()} />);
+      const buttons = screen.getAllByRole("button", { name: "Try again" });
+      expect(buttons).toHaveLength(2);
+      await user.click(buttons[0]);
+      expect(retry).toHaveBeenCalledTimes(1);
+      await user.click(buttons[1]);
+      expect(retry).toHaveBeenCalledTimes(2);
+    } finally {
+      resetVenueOptions();
+    }
+  });
+
   /** EVENT-UPDATE-08-D (edit form): when the options cannot be loaded, both lists show the error and the stored values are saved unchanged. */
   it("EVENT-UPDATE-08-D shows the load error and keeps stored values when options fail", async () => {
     const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");

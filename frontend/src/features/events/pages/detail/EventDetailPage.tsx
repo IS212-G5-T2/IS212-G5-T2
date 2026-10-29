@@ -147,6 +147,13 @@ export function EventDetailPage() {
   const [planningView, setPlanningView] = useState<PlanningView | null>(null);
   const [planningError, setPlanningError] = useState("");
   const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  // SPM-156: only the newest history request may set the list, so a slow reply for the previous
+  // event (or an older poll) never shows up under this one. Changing event clears the list.
+  const historyRequest = useRef(0);
+  useEffect(() => {
+    historyRequest.current += 1;
+    setChangeHistory([]);
+  }, [id]);
   const isPlanningCoordinator =
     hasRole(currentUser, "coordinator") && !!event && event.coordinatorId === currentUser.id;
   const isPlanningOwner =
@@ -173,8 +180,10 @@ export function EventDetailPage() {
 
   const loadHistory = useCallback(async () => {
     if (!id) return;
+    const request = ++historyRequest.current;
     try {
-      setChangeHistory(await fetchChangeHistory(id));
+      const history = await fetchChangeHistory(id);
+      if (request === historyRequest.current) setChangeHistory(history);
     } catch {
       // History is supplementary; the review panel still works without it.
     }

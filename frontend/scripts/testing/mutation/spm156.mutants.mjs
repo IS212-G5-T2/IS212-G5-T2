@@ -2,7 +2,7 @@
 //   node scripts/testing/mutation/run.mjs --mutants spm156.mutants.mjs
 // Each edit is [from, to]; `from` must occur exactly once in the file (the runner reports MISAPPLIED otherwise).
 // Every mutant names the exact tests that must go red (testMappings); the runner checks each title exists.
-// Groups: H* change history labels and visibility (EVENT-UPDATE-07-C/D/E); O* option lists in the three event
+// Groups: H* change history labels, visibility and per-event reset (EVENT-UPDATE-07-C/D/E); O* option lists in the three event
 // forms and the shared hook (EVENT-UPDATE-08-B/C/D); L1 the stacked field notes (EVENT-UPDATE-08-E).
 export const SUITES = {
   spm156: {
@@ -222,6 +222,42 @@ export const MUTANTS = [
       tm(
         REVIEW_TEST,
         "EVENT-FLAG-05-A shows each resolved change with values, coordinator, timestamp and status",
+      ),
+    ],
+  },
+  {
+    id: "H10",
+    name: "moving to another event keeps the previous event's change history",
+    file: DETAIL,
+    suites,
+    edits: [
+      [
+        "    historyRequest.current += 1;\n    setChangeHistory([]);\n  }, [id]);",
+        "    historyRequest.current += 1;\n  }, [id]);",
+      ],
+    ],
+    testMappings: [
+      tm(
+        DETAIL_TEST,
+        "EVENT-UPDATE-07-D clears the change history when the page moves to another event",
+      ),
+    ],
+  },
+  {
+    id: "H11",
+    name: "an outdated history reply still replaces the list",
+    file: DETAIL,
+    suites,
+    edits: [
+      [
+        "      if (request === historyRequest.current) setChangeHistory(history);",
+        "      setChangeHistory(history);",
+      ],
+    ],
+    testMappings: [
+      tm(
+        DETAIL_TEST,
+        "EVENT-UPDATE-07-D ignores a delayed history reply for the previous event",
       ),
     ],
   },
@@ -589,6 +625,42 @@ export const MUTANTS = [
       tm(
         EDIT_TEST,
         "EVENT-UPDATE-08-D disables both lists while the options load",
+      ),
+    ],
+  },
+  {
+    id: "O17",
+    name: "Edit Event's Try again under the accessibility list does not reload the options",
+    file: EDIT,
+    suites,
+    edits: [
+      [
+        '            onChange={setAccessibility}\n          />\n          {options.status === "error" && (\n            <button type="button" className="-mt-2 text-xs text-danger-600 underline" onClick={options.retry}>',
+        '            onChange={setAccessibility}\n          />\n          {options.status === "error" && (\n            <button type="button" className="-mt-2 text-xs text-danger-600 underline">',
+      ],
+    ],
+    testMappings: [
+      tm(
+        EDIT_TEST,
+        "EVENT-UPDATE-08-D offers Try again under each list after the options fail",
+      ),
+    ],
+  },
+  {
+    id: "O17b",
+    name: "Edit Event's Try again under the facilities list does not reload the options",
+    file: EDIT,
+    suites,
+    edits: [
+      [
+        '            onChange={setFacilities}\n          />\n          {options.status === "error" && (\n            <button type="button" className="-mt-2 text-xs text-danger-600 underline" onClick={options.retry}>',
+        '            onChange={setFacilities}\n          />\n          {options.status === "error" && (\n            <button type="button" className="-mt-2 text-xs text-danger-600 underline">',
+      ],
+    ],
+    testMappings: [
+      tm(
+        EDIT_TEST,
+        "EVENT-UPDATE-08-D offers Try again under each list after the options fail",
       ),
     ],
   },

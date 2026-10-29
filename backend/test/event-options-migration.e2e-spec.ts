@@ -1,4 +1,6 @@
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -297,6 +299,76 @@ describe.skipIf(!database)(
           [inactiveFeature],
         );
       }
+    });
+
+    /**
+     * EVENT-UPDATE-08-SEC-1: migration 027 runs as one transaction. When its last step (the drafts)
+     * fails, the events it had already rewritten in that run are restored.
+     */
+    it('EVENT-UPDATE-08-SEC-1 rolls migration 027 back completely when one step fails', async () => {
+      const eventId = await insertEvent(['Wheelchair ramps'], ['PA System']);
+      const draftId = randomUUID();
+      draftIds.push(draftId);
+      await pool.query(
+        `INSERT INTO event_drafts (id, organiser_id, fields) VALUES ($1,'org-156',$2::jsonb)`,
+        [
+          draftId,
+          JSON.stringify({
+            accessibility: ['Wheelchair ramps'],
+            facilities: ['PA System'],
+          }),
+        ],
+      );
+      const fn = `spm156_refuse_draft_${draftId.replace(/-/g, '')}`;
+      await pool.query(
+        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
+           BEGIN
+             IF NEW.id = '${draftId}'::uuid THEN RAISE EXCEPTION 'draft rewrite refused'; END IF;
+             RETURN NEW;
+           END $$`,
+      );
+      await pool.query(
+        `CREATE TRIGGER ${fn} BEFORE UPDATE ON event_drafts FOR EACH ROW EXECUTE FUNCTION ${fn}()`,
+      );
+      // Applied the documented way (psql -v ON_ERROR_STOP=1 -f): psql commits each statement
+      // on its own unless the file opens a transaction, unlike a single node-postgres query.
+      let run: ReturnType<typeof spawnSync>;
+      try {
+        run = spawnSync(
+          'psql',
+          [
+            database!,
+            '-q',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-f',
+            fileURLToPath(
+              new URL(
+                '../migrations/027_spm156_retire_legacy_event_options.sql',
+                import.meta.url,
+              ),
+            ),
+          ],
+          { encoding: 'utf8' },
+        );
+      } finally {
+        await pool.query(`DROP TRIGGER ${fn} ON event_drafts`);
+        await pool.query(`DROP FUNCTION ${fn}()`);
+      }
+      expect(
+        run.error,
+        'the psql client must be installed to run this test',
+      ).toBeUndefined();
+      expect(run.status).not.toBe(0);
+      expect(run.stderr).toContain('draft rewrite refused');
+      const event = await pool.query(
+        'SELECT accessibility_needs, required_facilities FROM events WHERE id = $1',
+        [eventId],
+      );
+      expect(event.rows[0]).toEqual({
+        accessibility_needs: ['Wheelchair ramps'],
+        required_facilities: ['PA System'],
+      });
     });
   },
 );

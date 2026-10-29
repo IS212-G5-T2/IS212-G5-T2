@@ -29,6 +29,9 @@
 --     'PA System') would write it back if the coordinator confirms it. Known limitation,
 --     accepted on 29 Oct 2026 as a rare case.
 
+-- Runs as one transaction: if any statement fails, nothing is changed.
+BEGIN;
+
 CREATE OR REPLACE FUNCTION pg_temp.spm156_current_options(items text[], kind text)
 RETURNS text[] LANGUAGE sql STABLE AS $$
   SELECT COALESCE(array_agg(mapped ORDER BY first_position), '{}')
@@ -108,3 +111,5 @@ BEGIN
   END IF;
 END;
 $$;
+
+COMMIT;
