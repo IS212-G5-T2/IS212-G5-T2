@@ -83,8 +83,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
-        'FROM events WHERE id = $1::uuid FOR UPDATE',
+        'preferred_room_layout, start_date_time, end_date_time\n           FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
+        'preferred_room_layout, start_date_time, end_date_time\n           FROM events WHERE id = $1::uuid FOR UPDATE',
       ],
     ],
   },
@@ -113,8 +113,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.hold_expires_at > $6::timestamptz',
-        'b.hold_expires_at >= $6::timestamptz',
+        '(b.hold_expires_at > $6::timestamptz OR',
+        '(b.hold_expires_at >= $6::timestamptz OR',
       ],
     ],
   },
@@ -129,8 +129,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        '(b.hold_expires_at > $6::timestamptz OR EXISTS (',
-        '(b.hold_expires_at IS NULL OR b.hold_expires_at > $6::timestamptz OR EXISTS (',
+        '(b.hold_expires_at > $6::timestamptz OR',
+        '(b.hold_expires_at IS NULL OR b.hold_expires_at > $6::timestamptz OR',
       ],
     ],
   },
@@ -144,8 +144,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
-        'b.start_at\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
+        '                   )))))\n              AND b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
+        '                   )))))\n              AND b.start_at\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
       ],
     ],
   },
@@ -159,8 +159,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
-        "start_at < $3::timestamptz\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz\n",
       ],
     ],
   },
@@ -174,8 +174,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "end_at > $2::timestamptz - make_interval(mins => $4::int)\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
-        "end_at > $2::timestamptz\n           UNION ALL\n           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason\n             FROM venue_bookings b\n             LEFT JOIN events e ON e.id = b.event_id\n            WHERE b.venue_id = $1::uuid\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz\n",
       ],
     ],
   },
@@ -288,8 +288,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              booking.status === 'approved' ||",
-        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              true ||",
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              (booking.status === 'approved' &&",
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              true ||\n              (booking.status === 'approved' &&",
       ],
     ],
   },

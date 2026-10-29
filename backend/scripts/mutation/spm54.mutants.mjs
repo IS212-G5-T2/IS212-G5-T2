@@ -139,14 +139,16 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        `              AND b.start_at - make_interval(mins => $4::int)
+        `                   )))))
+              AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
                     > $2::timestamptz - make_interval(mins => $4::int)
          ) conflicts LIMIT 1\`,
         [
           venueId,`,
-        `              AND b.start_at - make_interval(mins => $4::int)
+        `                   )))))
+              AND b.start_at - make_interval(mins => $4::int)
                     > $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
                     > $2::timestamptz - make_interval(mins => $4::int)
@@ -171,11 +173,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        `(b.hold_expires_at > $6::timestamptz OR EXISTS (
-                    SELECT 1 FROM venue_booking_requests r
-                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                  )`,
-        '(b.hold_expires_at > $6::timestamptz OR false',
+        "(b.hold_expires_at > $6::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (",
+        "(b.hold_expires_at > $6::timestamptz OR\n                   (false AND EXISTS (",
       ],
     ],
   },
@@ -208,7 +207,12 @@ export const MUTANTS = [
           'VEN-BKG-07-A SPM-54 serializes duplicates and allows retries after final history statuses',
       },
     ],
-    edits: [['if (activeRequest.rows[0])', 'if (false)']],
+    edits: [
+      [
+        "if (activeRequest.rows[0])\n        return {\n          kind: 'already-requested',",
+        "if (false)\n        return {\n          kind: 'already-requested',",
+      ],
+    ],
   },
   {
     id: 'SPM54-BE-FINAL-CONFIRMATION',
@@ -245,7 +249,12 @@ export const MUTANTS = [
           'VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request',
       },
     ],
-    edits: [["if (result.kind === 'event-not-assigned')", 'if (false)']],
+    edits: [
+      [
+        "// SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.\n    if (result.kind === 'event-not-assigned')",
+        "// SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.\n    if (false)",
+      ],
+    ],
   },
   {
     id: 'SPM54-BE-BOOKING-LIST-AUTH',
@@ -287,8 +296,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        '          venueId,\n          eventRow.start_date_time,\n          eventRow.end_date_time,',
-        '          venueId,\n          input.start,\n          input.end,',
+        "          venueId,\n          eventRow.start_date_time,\n          eventRow.end_date_time,\n          venueRow.setup_time_minutes,\n          venueRow.turnaround_time_minutes,\n          this.clock.now(),\n        ],\n      );\n      if (conflict.rows[0])\n        return { kind: 'conflict', reason",
+        "          venueId,\n          input.start,\n          input.end,\n          venueRow.setup_time_minutes,\n          venueRow.turnaround_time_minutes,\n          this.clock.now(),\n        ],\n      );\n      if (conflict.rows[0])\n        return { kind: 'conflict', reason",
       ],
     ],
   },
@@ -528,8 +537,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`",
-        'bookingReference: `VB-INVALID`',
+        "statusChanged: result.statusChanged,\n      bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,",
+        "statusChanged: result.statusChanged,\n      bookingReference: `VB-INVALID`,",
       ],
     ],
   },

@@ -438,7 +438,7 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "          setCoordinatorBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? { ...b, status: outcome.status, rejectionReason: outcome.reason }\n                : b,\n            ),\n          );\n",
+        "          setCoordinatorBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }\n                : b,\n            ),\n          );\n",
         "",
       ],
     ],
