@@ -15,9 +15,10 @@ import { useAppStore } from "@/store/useAppStore";
 import type { DraftFields, DraftRecord } from "@/features/events/types/draft";
 import { readFileAsDataUrl } from "@/utils/uploads";
 import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
+import { fetchVenueOptions, type VenueOption } from "@/features/venues/api/venue-options-api";
 
-type FacilityOption = { label: string; value: string };
-type AccessibilityOption = { label: string; value: string };
+type FacilityOption = VenueOption;
+type AccessibilityOption = VenueOption;
 
 const steps = [
   "Basic Information",
@@ -143,15 +144,8 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     if (step < 1 || facilityStatus !== "idle") return;
     setFacilityStatus("loading");
     setFacilityError("");
-    api<{ facilities: FacilityOption[]; accessibility: AccessibilityOption[] }>("/venues/options")
+    fetchVenueOptions()
       .then((result) => {
-        const isValidOptions = (options: unknown): options is FacilityOption[] =>
-          Array.isArray(options) && options.every(
-            (option) => option && typeof option.label === "string" && typeof option.value === "string",
-          );
-        if (!isValidOptions(result?.facilities) || !isValidOptions(result?.accessibility)) {
-          throw new Error("Facility and accessibility options response is invalid.");
-        }
         setFacilityOptions(result.facilities);
         setAccessibilityOptions(result.accessibility);
         setFacilityStatus("loaded");

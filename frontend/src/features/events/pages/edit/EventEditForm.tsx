@@ -8,7 +8,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import type { EventRecord, EventAttachment } from "@/types";
 import { readFileAsDataUrl } from "@/utils/uploads";
-import { FACILITY_OPTIONS, ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
+import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
+import { useVenueOptions } from "@/features/venues/api/venue-options-api";
 
 interface EventEditFormProps {
   event: EventRecord;
@@ -16,13 +17,6 @@ interface EventEditFormProps {
   onCancel: () => void;
   isLoading?: boolean;
 }
-
-const ACCESSIBILITY_OPTIONS = [
-  "Wheelchair ramps",
-  "Accessible restrooms",
-  "Hearing loop",
-  "Elevator access",
-];
 
 function toDateTimeLocal(isoString: string): string {
   if (!isoString) return "";
@@ -52,6 +46,11 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
   const [equipmentNeeds, setEquipmentNeeds] = useState(event.equipmentNeeds || "");
   const [attachments, setAttachments] = useState<EventAttachment[]>(event.attachments || []);
   const [uploadFailure, setUploadFailure] = useState("");
+  // Facility and accessibility choices come from the backend venue schema, like every event form;
+  // a stored value it no longer supports is not shown and is dropped on save.
+  const options = useVenueOptions();
+  const supportedOnly = (key: "facilities" | "accessibility", list: string[]) =>
+    options.status === "loaded" ? list.filter((value) => options[key].includes(value)) : list;
 
   const addFiles = async (files: File[] | null) => {
     if (!files?.length) return;
@@ -86,8 +85,8 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
       description,
       venueRequirements: {
         minCapacity: event.venueRequirements?.minCapacity || 0,
-        facilities,
-        accessibility,
+        facilities: supportedOnly("facilities", facilities),
+        accessibility: supportedOnly("accessibility", accessibility),
         layout,
       },
       startDateTime: fromDateTimeLocal(startDateTime),
@@ -138,8 +137,10 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           </div>
           <CheckboxGroup
             label=""
-            options={[...FACILITY_OPTIONS]}
-            values={facilities}
+            options={options.facilities}
+            values={supportedOnly("facilities", facilities)}
+            disabled={options.status !== "loaded"}
+            error={options.status === "error" ? `Could not load the options. ${options.error}` : undefined}
             onChange={setFacilities}
           />
         </div>
@@ -154,8 +155,10 @@ export function EventEditForm({ event, onSave, onCancel, isLoading }: EventEditF
           </div>
           <CheckboxGroup
             label=""
-            options={ACCESSIBILITY_OPTIONS}
-            values={accessibility}
+            options={options.accessibility}
+            values={supportedOnly("accessibility", accessibility)}
+            disabled={options.status !== "loaded"}
+            error={options.status === "error" ? `Could not load the options. ${options.error}` : undefined}
             onChange={setAccessibility}
           />
         </div>

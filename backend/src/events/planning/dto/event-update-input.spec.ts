@@ -1,6 +1,11 @@
 import { BadRequestException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { ACCESSIBILITY, FACILITIES } from '../../dto/event-input.js';
+import { accessibilityLabels } from '../../../venues/helpers/accessibility-options.js';
+import {
+  facilityNames,
+  roomLayoutNames,
+} from '../../../venues/helpers/venue-options.js';
 import {
   FIELD_POLICY,
   classifyUpdate,
@@ -217,6 +222,28 @@ describe('validateEventUpdate', () => {
   it('EVENT-UPDATE-04-E rejects a room layout outside the allowed list', () => {
     expect(errorsOf({ layout: 'Circus' }).layout).toBe(
       'Choose a valid room layout.',
+    );
+  });
+
+  /**
+   * EVENT-UPDATE-08-B (SPM-156): the coordinator may choose any room layout,
+   * facility or accessibility need the venue schema offers (the same lists
+   * GET /api/venues/options and the Create Event form use), and nothing retired.
+   */
+  it('EVENT-UPDATE-08-B accepts every venue-schema option and refuses retired ones', () => {
+    for (const layout of roomLayoutNames)
+      expect(() => validateEventUpdate({ layout })).not.toThrow();
+    expect(() =>
+      validateEventUpdate({
+        facilities: [...facilityNames],
+        accessibility: [...accessibilityLabels],
+      }),
+    ).not.toThrow();
+    expect(
+      errorsOf({ accessibility: ['Wheelchair ramps'] }).accessibility,
+    ).toBe('Choose valid options.');
+    expect(errorsOf({ facilities: ['PA System'] }).facilities).toBe(
+      'Choose valid options.',
     );
   });
 

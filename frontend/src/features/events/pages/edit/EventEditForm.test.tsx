@@ -4,6 +4,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { EventRecord } from "@/types";
 import { EventEditForm } from "./EventEditForm";
 
+// Facility and accessibility choices: the current backend venue-schema lists (src/test/venueOptions.ts).
+vi.mock("@/features/venues/api/venue-options-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...(await import("@/test/venueOptions")).venueOptionsModuleMock(),
+}));
+
 const event: EventRecord = {
   id: "event-1",
   name: "Welcome Evening",
@@ -19,7 +25,7 @@ const event: EventRecord = {
     minCapacity: 80,
     layout: "Classroom",
     facilities: ["AV System"],
-    accessibility: ["Wheelchair ramps"],
+    accessibility: ["Wheelchair access"],
   },
   attachments: [],
   equipmentNeeds: "Two microphones",
@@ -65,15 +71,15 @@ describe("EventEditForm", () => {
   it("shows a field-level upload failure when the browser cannot read a selected file", async () => {
     const user = userEvent.setup();
     const onSave = vi.fn();
-    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (
-      this: FileReader,
-    ) {
-      Object.defineProperty(this, "error", {
-        configurable: true,
-        value: new DOMException("Read failed", "NotReadableError"),
-      });
-      this.dispatchEvent(new ProgressEvent("error"));
-    });
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(
+      function (this: FileReader) {
+        Object.defineProperty(this, "error", {
+          configurable: true,
+          value: new DOMException("Read failed", "NotReadableError"),
+        });
+        this.dispatchEvent(new ProgressEvent("error"));
+      },
+    );
     render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
 
     await user.upload(
@@ -105,7 +111,13 @@ describe("EventEditForm", () => {
 
   /** With no booking the read-only Venue field shows the "Not yet booked" fallback. */
   it("shows Not yet booked in the Venue field when the event has no venue", () => {
-    render(<EventEditForm event={{ ...event, venueName: undefined }} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm
+        event={{ ...event, venueName: undefined }}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText("Venue")).toHaveValue("Not yet booked");
   });
@@ -125,13 +137,27 @@ describe("EventEditForm", () => {
     const onSave = vi.fn();
     render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText(/event name/i), { target: { value: "Spring Gala" } });
-    fireEvent.change(screen.getByLabelText("Description"), { target: { value: "Dinner and awards." } });
-    fireEvent.change(screen.getByLabelText(/start date/i), { target: { value: "2030-02-01T09:30" } });
-    fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: "2030-02-01T12:00" } });
-    fireEvent.change(screen.getByLabelText("Expected attendance"), { target: { value: "120" } });
-    fireEvent.change(screen.getByLabelText("Room layout"), { target: { value: "Theatre" } });
-    fireEvent.change(screen.getByLabelText("Equipment needs"), { target: { value: "Projector" } });
+    fireEvent.change(screen.getByLabelText(/event name/i), {
+      target: { value: "Spring Gala" },
+    });
+    fireEvent.change(screen.getByLabelText("Description"), {
+      target: { value: "Dinner and awards." },
+    });
+    fireEvent.change(screen.getByLabelText(/start date/i), {
+      target: { value: "2030-02-01T09:30" },
+    });
+    fireEvent.change(screen.getByLabelText(/end date/i), {
+      target: { value: "2030-02-01T12:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Expected attendance"), {
+      target: { value: "120" },
+    });
+    fireEvent.change(screen.getByLabelText("Room layout"), {
+      target: { value: "Theatre" },
+    });
+    fireEvent.change(screen.getByLabelText("Equipment needs"), {
+      target: { value: "Projector" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(onSave).toHaveBeenCalledWith(
@@ -142,7 +168,10 @@ describe("EventEditForm", () => {
         endDateTime: new Date("2030-02-01T12:00").toISOString(),
         expectedAttendance: 120,
         equipmentNeeds: "Projector",
-        venueRequirements: expect.objectContaining({ layout: "Theatre", minCapacity: 80 }),
+        venueRequirements: expect.objectContaining({
+          layout: "Theatre",
+          minCapacity: 80,
+        }),
       }),
     );
   });
@@ -152,10 +181,14 @@ describe("EventEditForm", () => {
     const onSave = vi.fn();
     render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText(/end date/i), { target: { value: "" } });
+    fireEvent.change(screen.getByLabelText(/end date/i), {
+      target: { value: "" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ endDateTime: "" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ endDateTime: "" }),
+    );
   });
 
   /**
@@ -163,10 +196,19 @@ describe("EventEditForm", () => {
    * is entered (the start date is required).
    */
   it("shows an empty start date when the stored start date is missing", () => {
-    render(<EventEditForm event={{ ...event, startDateTime: "" }} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm
+        event={{ ...event, startDateTime: "" }}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText(/start date/i)).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   /**
@@ -175,10 +217,19 @@ describe("EventEditForm", () => {
    * the same if the date were passed through, because a date input shows an invalid value as empty.
    */
   it("shows an empty start date when the stored start date cannot be parsed", () => {
-    render(<EventEditForm event={{ ...event, startDateTime: "not-a-date" }} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm
+        event={{ ...event, startDateTime: "not-a-date" }}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText(/start date/i)).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   /** An event with no stored optional details opens with blank fields and saves blank details. */
@@ -201,7 +252,12 @@ describe("EventEditForm", () => {
     expect(onSave).toHaveBeenCalledWith({
       name: sparse.name,
       description: "",
-      venueRequirements: { minCapacity: 0, facilities: [], accessibility: [], layout: "" },
+      venueRequirements: {
+        minCapacity: 0,
+        facilities: [],
+        accessibility: [],
+        layout: "",
+      },
       startDateTime: sparse.startDateTime,
       endDateTime: sparse.endDateTime,
       expectedAttendance: 0,
@@ -212,10 +268,19 @@ describe("EventEditForm", () => {
 
   /** Saving is blocked and the field stays empty when the event name is blank. */
   it("leaves the name field empty and blocks saving when the event has no name", () => {
-    render(<EventEditForm event={{ ...event, name: "" }} onSave={vi.fn()} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm
+        event={{ ...event, name: "" }}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+      />,
+    );
 
     expect(screen.getByLabelText(/event name/i)).toHaveValue("");
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty(
+      "disabled",
+      true,
+    );
   });
 
   /** A file dialog closed without a choice leaves the attachments unchanged and shows no error. */
@@ -223,11 +288,15 @@ describe("EventEditForm", () => {
     const onSave = vi.fn();
     render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
 
-    fireEvent.change(screen.getByLabelText("Supporting files"), { target: { files: [] } });
+    fireEvent.change(screen.getByLabelText("Supporting files"), {
+      target: { files: [] },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
     expect(screen.queryByRole("alert")).toBeNull();
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ attachments: [] }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments: [] }),
+    );
   });
 
   /** A sixth supporting file is refused with the five-file message and is not saved. */
@@ -244,7 +313,9 @@ describe("EventEditForm", () => {
       })),
     };
     const user = userEvent.setup();
-    render(<EventEditForm event={fullEvent} onSave={onSave} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm event={fullEvent} onSave={onSave} onCancel={vi.fn()} />,
+    );
 
     await user.upload(
       screen.getByLabelText("Supporting files"),
@@ -254,22 +325,30 @@ describe("EventEditForm", () => {
     expect(await screen.findByText("Use up to five files.")).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave.mock.calls[0][0].attachments).toHaveLength(5);
-    expect(onSave.mock.calls[0][0].attachments.map((a: { name: string }) => a.name)).not.toContain("extra.txt");
+    expect(
+      onSave.mock.calls[0][0].attachments.map((a: { name: string }) => a.name),
+    ).not.toContain("extra.txt");
   });
 
   /** A selection that takes the supporting files past 50 MB in total is refused and not saved. */
   it("refuses a selection that takes the supporting files past 50 MB in total", async () => {
     const onSave = vi.fn();
     const user = userEvent.setup();
-    const oversized = new File(["big"], "large.pdf", { type: "application/pdf" });
+    const oversized = new File(["big"], "large.pdf", {
+      type: "application/pdf",
+    });
     Object.defineProperty(oversized, "size", { value: 50 * 1024 * 1024 + 1 });
     render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
 
     await user.upload(screen.getByLabelText("Supporting files"), oversized);
 
-    expect(await screen.findByText("Use up to five files, 50 MB total.")).toBeTruthy();
+    expect(
+      await screen.findByText("Use up to five files, 50 MB total."),
+    ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ attachments: [] }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments: [] }),
+    );
   });
 
   /** A new file is added after the attachments the event already has, and both are saved. */
@@ -278,9 +357,19 @@ describe("EventEditForm", () => {
     const user = userEvent.setup();
     const withBrief = {
       ...event,
-      attachments: [{ id: "attachment-1", name: "brief.pdf", type: "application/pdf", size: 1024, dataUrl: "data:application/pdf;base64,AA==" }],
+      attachments: [
+        {
+          id: "attachment-1",
+          name: "brief.pdf",
+          type: "application/pdf",
+          size: 1024,
+          dataUrl: "data:application/pdf;base64,AA==",
+        },
+      ],
     };
-    render(<EventEditForm event={withBrief} onSave={onSave} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm event={withBrief} onSave={onSave} onCancel={vi.fn()} />,
+    );
 
     await user.upload(
       screen.getByLabelText("Supporting files"),
@@ -301,22 +390,77 @@ describe("EventEditForm", () => {
     const user = userEvent.setup();
     const withBrief = {
       ...event,
-      attachments: [{ id: "attachment-1", name: "brief.pdf", type: "application/pdf", size: 1024, dataUrl: "data:application/pdf;base64,AA==" }],
+      attachments: [
+        {
+          id: "attachment-1",
+          name: "brief.pdf",
+          type: "application/pdf",
+          size: 1024,
+          dataUrl: "data:application/pdf;base64,AA==",
+        },
+      ],
     };
-    render(<EventEditForm event={withBrief} onSave={onSave} onCancel={vi.fn()} />);
+    render(
+      <EventEditForm event={withBrief} onSave={onSave} onCancel={vi.fn()} />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Remove" }));
 
     expect(screen.queryByText("brief.pdf")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save" }));
-    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ attachments: [] }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ attachments: [] }),
+    );
   });
 
   /** While a save is in progress the Save button reads Saving... and cannot be pressed again. */
   it("shows Saving... and disables the Save button while a save is in progress", () => {
-    render(<EventEditForm event={event} onSave={vi.fn()} onCancel={vi.fn()} isLoading />);
+    render(
+      <EventEditForm
+        event={event}
+        onSave={vi.fn()}
+        onCancel={vi.fn()}
+        isLoading
+      />,
+    );
 
     const saving = screen.getByRole("button", { name: "Saving..." });
     expect(saving).toHaveProperty("disabled", true);
+  });
+});
+
+describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () => {
+  /** EVENT-UPDATE-08-C (edit form): a retired stored value is not shown and is not saved. */
+  it("EVENT-UPDATE-08-C hides retired values and saves only current ones", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <EventEditForm
+        event={{
+          ...event,
+          venueRequirements: {
+            ...event.venueRequirements,
+            facilities: ["PA System", "AV System"],
+            accessibility: ["Wheelchair ramps"],
+          },
+        }}
+        onSave={onSave}
+        onCancel={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Wheelchair ramps")).not.toBeInTheDocument();
+    expect(screen.queryByText("PA System")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Wheelchair access" }),
+    ).not.toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        venueRequirements: expect.objectContaining({
+          facilities: ["AV System"],
+          accessibility: [],
+        }),
+      }),
+    );
   });
 });

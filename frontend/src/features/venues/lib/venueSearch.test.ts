@@ -69,7 +69,7 @@ const event: EventRecord = {
     minCapacity: 24,
     layout: "Classroom",
     facilities: ["Projector"],
-    accessibility: ["Wheelchair ramps", "Hearing loop"],
+    accessibility: ["Wheelchair access", "Hearing loop"],
   },
   equipmentNeeds: "",
   registrationEnabled: false,

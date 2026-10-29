@@ -177,6 +177,9 @@ For SPM-156 apply
 before rebuilding the backend (it is idempotent, so re-run it if you applied an earlier version of the file). It lets change
 history record updates applied immediately and approved change requests; without it every coordinator update that applies
 immediately, and every change request approval, is refused with a server error and nothing is saved.
+Then apply `../backend/migrations/027_spm156_retire_legacy_event_options.sql` the same way (idempotent). It replaces
+retired facility and accessibility values in stored events, change requests and drafts (for example
+"Wheelchair ramps" becomes "Wheelchair access"), so no form shows them or refuses to save because of them.
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.

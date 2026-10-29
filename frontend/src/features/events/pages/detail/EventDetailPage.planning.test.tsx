@@ -21,6 +21,12 @@ import type {
   PlanningView,
 } from "@/types";
 
+// Facility and accessibility choices: the current backend venue-schema lists (src/test/venueOptions.ts).
+vi.mock("@/features/venues/api/venue-options-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...(await import("@/test/venueOptions")).venueOptionsModuleMock(),
+}));
+
 /**
  * SPM-97 (organiser), SPM-49 and SPM-85 (coordinator) on EventDetailPage.
  * Contract: for planning-phase events the page fetches GET /events/:id/planning
@@ -57,7 +63,7 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
       minCapacity: 80,
       layout: "Banquet",
       facilities: ["Catering"],
-      accessibility: ["Wheelchair ramps"],
+      accessibility: ["Wheelchair access"],
     },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,

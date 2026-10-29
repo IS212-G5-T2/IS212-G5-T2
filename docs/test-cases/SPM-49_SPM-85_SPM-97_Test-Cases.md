@@ -174,6 +174,21 @@ Defect: an update the coordinator applied immediately was saved but never writte
 
 Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 026) on 29 Oct 2026: backend unit 1915/1915, frontend 1912 passed (1 skipped, 1 todo), backend E2E 773 passed (19 skipped) with one failure in PLAN-STATUS-03-B (SPM-148, `events-planning-transition.e2e-spec.ts`), which also fails intermittently on unmodified `dev` and passed on rerun. The new 07-A/07-B/07-C service tests and the 07-E approval tests (unit and PostgreSQL) fail before the fix and pass after it. Migration 026 was applied over its earlier version and then re-run, without error.
 
+### Cases added by the SPM-156 follow-up (current option lists in every event form)
+
+Defect: Update Event Information, Request a Change and Edit Event offered facility and accessibility choices from their own old lists, while the server validates against the venue schema. The retired "Wheelchair ramps" was offered and still stored on seed events, so saving accessibility needs was refused with "Choose valid options." and "Wheelchair access" could not be chosen; newer facilities and layouts were missing; and on Update Event Information a list error overlapped the "Last changed" note. Fix: every event form loads choices from `GET /api/venues/options` (`useVenueOptions`); event layouts follow the venue layouts; migration 027 rewrites retired stored values; the venue-search mapping table is removed; notes under a field are stacked in one block.
+
+| Case | Story / AC | Scenario | Automated by |
+| --- | --- | --- | --- |
+| EVENT-UPDATE-08-A | SPM-49 AC1, AC3 (SPM-156) | Migration 027 renames retired values (Wheelchair ramps / Step-free access to Wheelchair access, PA System to AV System), removes others, de-duplicates and keeps order in events, change requests (original and proposed values; free text untouched) and drafts | `event-options-migration.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-08-SEC-1 | SPM-156 | Migration 027 is idempotent | `event-options-migration.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-08-B | SPM-49 AC1, AC3 (SPM-156) | Every current venue-schema layout, facility and accessibility need is offered and accepted; retired values are refused by the server and never offered | `event-update-input.spec.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx` |
+| EVENT-UPDATE-08-C | SPM-49 AC1, AC3, SPM-64 AC1 (SPM-156) | A retired stored value is not shown; it is not sent while its list is untouched and is dropped when the list is edited (planning, change-request and edit forms) | `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx`, `EventEditForm.test.tsx` |
+| EVENT-UPDATE-08-D | SPM-49 AC1 (SPM-156) | Options come from `GET /api/venues/options`; a malformed reply is refused; while loading or after a failure the lists are disabled and Try again reloads them | `venue-options-api.test.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx` |
+| EVENT-UPDATE-08-E | SPM-49 AC4 (SPM-156) | A list error and the "Last changed" note are stacked in one block under the field, so they never overlap | `PlanningUpdateForm.test.tsx` (EVENT-UPDATE-04-H updated for the new position) |
+
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 027) on 29 Oct 2026: backend unit 1919/1919, frontend 1926 passed (1 skipped, 1 todo), backend E2E 775 passed (19 skipped) with the intermittent PLAN-STATUS-03-B (SPM-148) failing once and passing on rerun. The four new PlanningUpdateForm cases fail against the previous form.
+
 ## Assumptions behind the expected results
 
 `backend/HANDOVER.md`, which this section used to point to, is not in the repository; the rules below are the authoritative list, with the reasoning kept in the header comments of `backend/src/events/planning/` (`event-planning.service.ts`, `helpers/event-impact.ts`, `dto/event-update-input.ts`). The ones that decide an expected result, and that the team should confirm, are:

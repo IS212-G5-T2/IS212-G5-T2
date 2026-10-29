@@ -30,10 +30,9 @@ export const PLANNING_REFRESH_MS = 15_000;
 /** "Once the event has entered the planning process" (matches the backend). */
 export const PLANNING_STATUSES: readonly EventStatus[] = ["approved", "planning", "confirmed"];
 
-// Mirrors backend/src/events/event-input.ts; keep the lists in sync.
-export const LAYOUTS = ["Theatre", "Classroom", "Banquet", "Boardroom", "U-shape", "Standing"];
-export const FACILITIES = ["Catering", "AV System", "Parking", "Stage", "Projector", "Whiteboard"];
-export const ACCESSIBILITY = ["Wheelchair ramps", "Accessible restrooms", "Hearing loop", "Elevator access"];
+// Facility and accessibility choices are loaded from the backend venue schema
+// (features/venues/api/venue-options-api.ts) and room layouts come from
+// features/venues/lib/venueOptions.ts; no planning form keeps its own list.
 
 export const FIELD_LABELS: Record<string, string> = {
   name: "Event name",
