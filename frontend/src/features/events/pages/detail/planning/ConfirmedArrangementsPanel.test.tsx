@@ -68,7 +68,7 @@ describe("SPM-135 TR-13: the confirmed-arrangements panel's remaining branches",
   });
   afterEach(cleanup);
 
-  it("SPM-135 AC5 (FE, unmount): a response that arrives after unmount is dropped without an error", async () => {
+  it("CONFIRM-EVENT-SUP-28 SPM-135 AC5 (FE, unmount): a response that arrives after unmount is dropped without an error", async () => {
     // Arrange: the allowlist request is still open when the panel unmounts
     const late = deferred<unknown>();
     apiMock.mockReturnValue(late.promise as never);
@@ -84,7 +84,7 @@ describe("SPM-135 TR-13: the confirmed-arrangements panel's remaining branches",
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("SPM-135 AC5 (FE, stale response): a response for the previous event is ignored once the event changes", async () => {
+  it("CONFIRM-EVENT-SUP-29 SPM-135 AC5 (FE, stale response): a response for the previous event is ignored once the event changes", async () => {
     // Arrange: EVT-201's request is held open; the other event answers at once
     const OTHER_EVENT_ID = "00000000-0000-4000-8000-000000000202";
     const previous = deferred<unknown>();
@@ -107,7 +107,7 @@ describe("SPM-135 TR-13: the confirmed-arrangements panel's remaining branches",
     expect(screen.getByText(/Breakout Room 1:/)).toBeInTheDocument();
   });
 
-  it("SPM-135 AC5 (FE, stale error): a failure for the previous event does not replace the current arrangements", async () => {
+  it("CONFIRM-EVENT-SUP-30 SPM-135 AC5 (FE, stale error): a failure for the previous event does not replace the current arrangements", async () => {
     // Arrange: EVT-201's request is held open; the other event loads
     const OTHER_EVENT_ID = "00000000-0000-4000-8000-000000000202";
     const previous = deferred<unknown>();
@@ -130,7 +130,7 @@ describe("SPM-135 TR-13: the confirmed-arrangements panel's remaining branches",
     expect(screen.getByText(/Breakout Room 1:/)).toBeInTheDocument();
   });
 
-  it("SPM-135 AC5 (FE, failure): an Error from the load is shown as the alert text", async () => {
+  it("CONFIRM-EVENT-SUP-31 SPM-135 AC5 (FE, failure): an Error from the load is shown as the alert text", async () => {
     // Arrange: the allowlist request fails with an Error
     apiMock.mockRejectedValue(new Error("Venue service unavailable"));
 
@@ -141,7 +141,7 @@ describe("SPM-135 TR-13: the confirmed-arrangements panel's remaining branches",
     expect((await screen.findByRole("alert")).textContent).toBe("Venue service unavailable");
   });
 
-  it("SPM-135 AC5 (FE, fallback): a non-Error failure shows the fallback text in an alert", async () => {
+  it("CONFIRM-EVENT-SUP-32 SPM-135 AC5 (FE, fallback): a non-Error failure shows the fallback text in an alert", async () => {
     // Arrange: the allowlist request rejects with a value that is not an Error
     apiMock.mockRejectedValue("socket closed");
 

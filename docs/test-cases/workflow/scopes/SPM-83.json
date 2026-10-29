@@ -1,0 +1,95 @@
+{
+  "story": "SPM-83",
+  "title": "Reject a Request with a Clear Reason",
+  "note": "Scope for SPM-83 (Reject a Request with a Clear Reason), built for the SPM-150 Sprint 1 workflow records. Matrix: ai/runtime/test-cycles/SPM-83/cycle-02/confluence-matrix-ids.txt (saved from Confluence matrix pages). Shared files are narrowed with titleMatch on the story prefix; a test without its own ID in its title is not counted (see the G1 output). Parent ACs are matrix rows, not Jira ACs, until the Requirement reviewer confirms them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      { "glob": "backend/src/events/review/events.reject.spec.ts", "titleMatch": "EVENT-REJECT" }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+        "titleMatch": "SPM-83|EVENT-REJECT"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
+        "titleMatch": "EVENT-REJECT"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "EVENT-REJECT"
+      },
+      {
+        "glob": "frontend/src/store/useAppStore.decisions.test.ts",
+        "titleMatch": "EVENT-REJECT"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/events.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/RejectionNotifications.tsx",
+      "frontend/src/store/useAppStore.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm83",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm83.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm83.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm83",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm83.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm83.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

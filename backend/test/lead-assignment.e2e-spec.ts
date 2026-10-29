@@ -494,8 +494,8 @@ describe('Lead assignment (SPM-123 e2e)', () => {
 
     // Assert: not listed, refused with the existing messages, and the event is still Submitted with only the original clarification.
     expect(list.body.map((e: { id: string }) => e.id)).not.toContain(eventId);
-    expect(approve.body.message).toBe('This request is assigned to another coordinator.');
-    expect(reject.body.message).toBe('This request is assigned to another coordinator.');
+    expect(approve.body.message).toBe('Only the assigned coordinator can approve this request.');
+    expect(reject.body.message).toBe('Only the assigned coordinator can reject this request.');
     expect(history.body.message).toBe("You don't have access to this event's comment history.");
     const stored = await pool.query('SELECT status FROM events WHERE id = $1', [eventId]);
     expect(stored.rows[0].status).toBe('Submitted');

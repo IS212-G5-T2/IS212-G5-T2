@@ -238,6 +238,7 @@ export const isTestFile = (file) => /\.(spec|test|e2e-spec)\.(ts|tsx)$|\.playwri
 const TEST_CALL = /^(\s*)(it|test)(?:\.(only|skip|todo|fails|concurrent))?\s*\(\s*(['"`])((?:\\.|(?!\4).)*)\4/;
 const EACH_CALL = /^(\s*)(it|test)(?:\.(only|skip))?\.each\s*\(/;
 const EACH_TITLE = /\)\s*\(\s*(['"`])((?:\\.|(?!\1).)*)\1/;
+const EACH_TITLE_BELOW = /^\s*(['"`])((?:\\.|(?!\1).)*)\1/;
 const DESCRIBE_CALL = /^(\s*)describe(?:\.(?:only|skip))?(?:\.skipIf\([^)]*\))?\s*\(\s*(['"`])((?:\\.|(?!\2).)*)\2/;
 
 /**
@@ -268,10 +269,18 @@ export function extractTests(text) {
     } else if (EACH_CALL.test(line)) {
       indent = line.match(/^(\s*)/)[1].length;
       kind = 'each';
+      // The title follows the table's closing `)(`, on that line or the line below it. The search stops at the
+      // next call site, so a table without a title cannot take the title of the test after it.
       for (let j = i; j < Math.min(lines.length, i + 80); j += 1) {
+        if (j > i && (TEST_CALL.test(lines[j]) || EACH_CALL.test(lines[j]) || DESCRIBE_CALL.test(lines[j]))) break;
         const found = lines[j].match(EACH_TITLE);
         if (found) {
           title = found[2];
+          break;
+        }
+        const below = /\)\s*\(\s*$/.test(lines[j]) && lines[j + 1]?.match(EACH_TITLE_BELOW);
+        if (below) {
+          title = below[2];
           break;
         }
       }
@@ -297,7 +306,7 @@ export function extractTests(text) {
       }
     }
     tests.push({
-      title,
+      title: title.replace(/\\(['"`])/g, '$1'),
       line: i + 1,
       kind,
       modifier,
@@ -328,9 +337,25 @@ export function testIdOf(test, ignoredFamilies = new Set()) {
 
 // ---------------------------------------------------------------- scope and gates
 
+/** Allowed values of the optional scope field `linesFrom`. */
+export const LINES_FROM = ['changed-lines'];
+
+/** Problem with a scope's `linesFrom` field, or undefined when it is absent or allowed. */
+export function linesFromError(scope) {
+  if (scope.linesFrom === undefined || LINES_FROM.includes(scope.linesFrom)) return undefined;
+  return `unknown "linesFrom" ${JSON.stringify(scope.linesFrom)} (allowed: ${LINES_FROM.join(', ')})`;
+}
+
+/** True when the scope measures coverage on the story's changed lines (story-lines.mjs writes them). */
+export function usesChangedLines(scope) {
+  return scope.linesFrom === 'changed-lines';
+}
+
 export function loadScope(scopePath) {
   const scope = readJson(scopePath);
   for (const key of ['story', 'tests']) if (!scope[key]) throw new Error(`scope ${scopePath} is missing "${key}"`);
+  const problem = linesFromError(scope);
+  if (problem) throw new Error(`scope ${scopePath} has ${problem}`);
   return scope;
 }
 
@@ -350,12 +375,20 @@ export function scopeTests(scope) {
   return [...files.values()].sort((a, b) => a.file.localeCompare(b.file));
 }
 
-/** The tests of one scope file, restricted by its titleMatch when it has one. */
-export function scopedTests(entry) {
+/**
+ * The tests of one scope file, restricted by its titleMatch when it has one. A test is in scope when its title,
+ * its describe blocks or its own comment (JSDoc or // tags above it) match, or when it carries an id from
+ * `storyIds` (the story's active registry ids). The registry, not the titleMatch, decides which ids belong to
+ * the story, so a registered id whose test title does not repeat the story prefix is still traced and recorded.
+ */
+export function scopedTests(entry, storyIds = new Set()) {
   const tests = extractTests(readText(entry.file));
   if (!entry.titleMatch) return tests;
   const pattern = new RegExp(entry.titleMatch);
-  return tests.filter((test) => pattern.test(test.title) || pattern.test(test.describes.join(' ')));
+  return tests.filter((test) => {
+    if (pattern.test(test.title) || pattern.test(test.describes.join(' ')) || pattern.test(test.comment)) return true;
+    return idsIn([test.title, test.comment, test.describes.join(' ')].join('\n')).some((id) => storyIds.has(id));
+  });
 }
 
 export function writeGate(cycleDir, result) {

@@ -18,7 +18,9 @@ export const CANCEL_MESSAGES = {
   notAllowed: 'You do not have permission to cancel this event.',
   /** MSG-CN-06 */
   notCancellable: 'This event can no longer be cancelled.',
-  /** ASSUMED (not in the Confluence pages): a status change this module does not allow for a cancelled event. */
+  /** SPM-136 SC-136-003 (PO confirmed 22 Oct 2026): a status change this module does not allow for a cancelled event. */
   invalidTransition: 'This status change is not allowed for this event.',
+  /** MSG-CN-04 (PO confirmed 22 Oct 2026, SC-136-004): refuses arrangement changes, and withdrawals, on a cancelled event. */
+  eventCancelled: 'This event has been cancelled and its arrangements cannot be changed.',
   notFound: 'Event not found.',
 } as const;

@@ -13,23 +13,34 @@ import {
 
 export function readRegistry(registryPath, story) {
   const tables = parseTables(readText(registryPath));
-  const registry = tables.find((table) => table.header.includes('id') && table.header.includes('type'));
+  const registryRows = tables.filter((table) => table.header.includes('id') && table.header.includes('type')).flatMap((table) => table.rows);
   const ignore = tables.find((table) => table.header.includes('family') && /non-test/i.test(table.heading));
   return {
-    rows: (registry?.rows ?? []).filter((row) => row.story === story).map((row) => ({ ...row, id: stripTicks(row.id) })),
+    rows: registryRows.filter((row) => row.story === story).map((row) => ({ ...row, id: stripTicks(row.id) })),
+    // ids registered to another story: a shared test file may carry them, but they are not this story's ids
+    foreignIds: new Set(registryRows.filter((row) => row.story !== story).map((row) => stripTicks(row.id))),
     ignoredFamilies: new Set((ignore?.rows ?? []).map((row) => stripTicks(row.family))),
   };
 }
 
-/** Test ids used by the scope's files. Files with a titleMatch only count the matching tests. */
-export function collectCodeIds(scope, ignoredFamilies) {
+/** Active ids of the story's registry rows (retired and withdrawn ids are not traced). */
+export function activeStoryIds(rows) {
+  return new Set(rows.filter((row) => !/^(retired|withdrawn)$/i.test(row.status)).map((row) => row.id));
+}
+
+/**
+ * Test ids used by the scope's files. Files with a titleMatch only count the matching tests and the tests that
+ * carry one of the story's active registry ids (`storyIds`). Ids registered to another story (`foreignIds`) are
+ * skipped: they belong to that story's scope and are neither invented nor orphaned here.
+ */
+export function collectCodeIds(scope, ignoredFamilies, storyIds = new Set(), foreignIds = new Set()) {
   const byId = new Map();
   for (const entry of scopeTests(scope)) {
     const text = [];
-    if (entry.titleMatch) for (const test of scopedTests(entry)) text.push(test.title, test.comment, test.describes.join(' '));
+    if (entry.titleMatch) for (const test of scopedTests(entry, storyIds)) text.push(test.title, test.comment, test.describes.join(' '));
     else text.push(readText(entry.file));
     for (const id of idsIn(text.join('\n'))) {
-      if (ignoredFamilies.has(idFamily(id))) continue;
+      if (ignoredFamilies.has(idFamily(id)) || foreignIds.has(id)) continue;
       if (!byId.has(id)) byId.set(id, new Set());
       byId.get(id).add(entry.file);
     }
@@ -100,8 +111,8 @@ function main() {
   }
   const scope = loadScope(flags.scope);
   const registryPath = flags.registry || `${WORKFLOW_DIR}/test-id-registry.md`;
-  const { rows, ignoredFamilies } = readRegistry(registryPath, scope.story);
-  const codeIds = collectCodeIds(scope, ignoredFamilies);
+  const { rows, foreignIds, ignoredFamilies } = readRegistry(registryPath, scope.story);
+  const codeIds = collectCodeIds(scope, ignoredFamilies, activeStoryIds(rows), foreignIds);
 
   if (flags.scaffold) {
     const known = new Set(rows.map((row) => row.id));

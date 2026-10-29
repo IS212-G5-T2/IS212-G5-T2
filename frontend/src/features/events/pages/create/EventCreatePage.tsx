@@ -24,6 +24,26 @@ const steps = [
   "Schedule & Venue Needs",
   "Equipment & Review",
 ];
+const basicInformationFields = ["name", "purpose", "description"];
+const scheduleFields = [
+  "startDate",
+  "startTime",
+  "endDate",
+  "endTime",
+  "startDateTime",
+  "endDateTime",
+  "expectedAttendance",
+  "layout",
+  "facilities",
+  "accessibility",
+  "attachments",
+];
+/** The wizard step that shows a server-rejected field. Fields with no step of their own go to review. */
+function stepForField(field: string) {
+  if (basicInformationFields.includes(field)) return 0;
+  if (scheduleFields.includes(field)) return 1;
+  return 2;
+}
 function todayInputValue() {
   const today = new Date();
   const year = today.getFullYear();
@@ -137,7 +157,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
         setFacilityStatus("loaded");
       })
       .catch((error) => {
-        setFacilityError(error instanceof Error ? error.message : "Unable to load facility and accessibility options.");
+        setFacilityError((error as Error).message);
         setFacilityStatus("error");
       });
   }, [step, facilityStatus]);
@@ -211,16 +231,14 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
     if (!form.description.trim())
       next.description = "Enter a description of your event.";
     if (step > 0) {
-      if (facilityStatus === "loaded") {
-        const supportedFacilities = new Set(facilityOptions.map(({ value }) => value));
-        const supportedAccessibility = new Set(accessibilityOptions.map(({ value }) => value));
-        const staleFacilities = form.facilities.filter((value) => !supportedFacilities.has(value));
-        const staleAccessibility = form.accessibility.filter((value) => !supportedAccessibility.has(value));
-        if (staleFacilities.length)
-          next.facilities = `Unsupported facilities: ${staleFacilities.join(", ")}. Choose current options before submitting.`;
-        if (staleAccessibility.length)
-          next.accessibility = `Unsupported accessibility options: ${staleAccessibility.join(", ")}. Choose current options before submitting.`;
-      }
+      const supportedFacilities = new Set(facilityOptions.map(({ value }) => value));
+      const supportedAccessibility = new Set(accessibilityOptions.map(({ value }) => value));
+      const staleFacilities = form.facilities.filter((value) => !supportedFacilities.has(value));
+      const staleAccessibility = form.accessibility.filter((value) => !supportedAccessibility.has(value));
+      if (staleFacilities.length)
+        next.facilities = `Unsupported facilities: ${staleFacilities.join(", ")}. Choose current options before submitting.`;
+      if (staleAccessibility.length)
+        next.accessibility = `Unsupported accessibility options: ${staleAccessibility.join(", ")}. Choose current options before submitting.`;
       for (const key of [
         "startDate",
         "startTime",
@@ -355,7 +373,10 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
       );
       if (error instanceof ApiError && error.errors) {
         setErrors(error.errors);
-        if (error.errors.facilities || error.errors.accessibility) setStep(1);
+        // Return the user to the first step that shows a rejected field (SPM-36 AC9). Each rejected
+        // field shows its own message next to its input, so the banner keeps the server's message.
+        const rejectedSteps = Object.keys(error.errors).map(stepForField);
+        if (rejectedSteps.length) setStep(Math.min(...rejectedSteps));
       }
     } finally {
       setBusy(false);
@@ -629,6 +650,7 @@ function EventRequestForm({ draftId }: { draftId?: string }) {
                     placeholder="e.g. Two wireless microphones and a portable speaker"
                     value={form.equipmentNeeds}
                     onChange={(e) => change("equipmentNeeds", e.target.value)}
+                    error={errors.equipmentNeeds}
                   />
                   <div className="rounded-lg bg-gray-50 p-4 text-gray-900 dark:bg-gray-800 dark:text-gray-100">
                     <h2 className="mb-4 text-sm font-semibold text-gray-900 dark:text-gray-100">

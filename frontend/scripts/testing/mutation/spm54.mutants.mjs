@@ -36,6 +36,12 @@ export const SUITES = {
   statusLabels: {
     args: ["run", "src/features/events/components/StatusLabels.test.tsx"],
   },
+  venueScheduleCalendar: {
+    args: [
+      "run",
+      "src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+    ],
+  },
 };
 
 const PAGE = "src/features/bookings/pages/requests/BookingsPage.tsx";
@@ -106,7 +112,7 @@ export const MUTANTS = [
     edits: [
       [
         'row.id === booking.id ? { ...row, status: "cancelled" } : row',
-        '{ ...row, status: "cancelled" }',
+        '({ ...row, status: "cancelled" })',
       ],
     ],
   },
@@ -397,6 +403,43 @@ export const MUTANTS = [
       [
         'const venueReserved = event.venueRequestStatus === "approved";',
         "const venueReserved = false;",
+      ],
+    ],
+  },
+  {
+    id: "SPM54-FE-INITIAL-DATE-FALLBACK",
+    name: "empty calendar initialDate falls back to a fixed date instead of the calendar default",
+    file: "src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx",
+    suites: ["venueScheduleCalendar"],
+    kills: [
+      {
+        file: "src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+        title: "keeps the default calendar date when initialDate is empty",
+      },
+    ],
+    edits: [
+      [
+        "initialDate={initialDate || undefined}",
+        'initialDate={initialDate || "2030-01-01"}',
+      ],
+    ],
+  },
+  {
+    id: "SPM54-FE-COORDINATOR-DECISION-MIRROR",
+    name: "Venue Staff decision is not mirrored onto the coordinator card for the same booking",
+    file: PAGE,
+    suites: ["coordinatorBookings"],
+    kills: [
+      {
+        file: "src/features/bookings/pages/requests/BookingsPage.test.tsx",
+        title:
+          "VEN-BKG-08-A SPM-54 shows a Venue Staff decision on the coordinator card for the same booking",
+      },
+    ],
+    edits: [
+      [
+        "          setCoordinatorBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }\n                : b,\n            ),\n          );\n",
+        "",
       ],
     ],
   },

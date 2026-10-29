@@ -42,6 +42,7 @@ afterEach(cleanup);
 describe("EventCard", () => {
   // An assigned coordinator's email is long and unbroken, which
   // previously overflowed the card's fixed-width grid cell.
+  // Kills: the coordinator value without its truncate class, title attribute or min-w-0 wrapper, so a long email overflows the card.
   it("truncates a long coordinator email instead of overflowing the card", () => {
     render(
       <MemoryRouter>
@@ -57,6 +58,7 @@ describe("EventCard", () => {
     expect(coordinatorValue.parentElement?.className).toContain("min-w-0");
   });
 
+  // Kills: an event with no coordinator showing a blank cell or a name instead of 'Unassigned'.
   it("shows Unassigned when no coordinator has been assigned yet", () => {
     render(
       <MemoryRouter>
@@ -67,6 +69,7 @@ describe("EventCard", () => {
     expect(screen.getByText("Unassigned")).toBeTruthy();
   });
 
+  // Kills: a long venue name without the truncate class, title or min-w-0 wrapper, so it overflows the card.
   it("truncates a long venue name the same way as a long coordinator email", () => {
     const longVenueName = "The Grand Ballroom at the Downtown Convention and Exhibition Centre";
     render(
@@ -81,6 +84,7 @@ describe("EventCard", () => {
     expect(venueValue.parentElement?.className).toContain("min-w-0");
   });
 
+  // Kills: the card altering the server venue text (pending label stripped) or replacing it with 'Not booked'.
   /** The card shows the venue text the server sends, including its "(pending)" label, unchanged. */
   it("shows the server venue text, including a pending label, on the card", () => {
     render(
@@ -93,6 +97,7 @@ describe("EventCard", () => {
     expect(screen.queryByText("Not booked")).toBeNull();
   });
 
+  // Kills: an event with no venue showing a blank cell instead of 'Not booked'.
   it("shows Not booked when no venue has been booked yet", () => {
     render(
       <MemoryRouter>
@@ -125,6 +130,7 @@ describe("EventCard", () => {
 
 // SPM-94: a planning event whose venue and equipment are reserved shows the combined label, then the safety check.
 describe("EventCard reserved planning labels", () => {
+  // Kills: the awaiting safety label placed before the combined reserved label, or the combined label missing for reserved venue and equipment.
   it("TRACK-EVENT-STATUS-01-A CARD: venue and equipment reserved show the combined label, then the awaiting safety check", () => {
     render(
       <MemoryRouter>

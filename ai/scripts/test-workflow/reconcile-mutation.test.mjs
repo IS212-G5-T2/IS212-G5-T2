@@ -85,3 +85,23 @@ test('reads the killing suite from the runner format "killed by: <suite> <mutant
   assert.deepEqual(parsed.results.get('M2').killers, ['e2e']);
   assert.deepEqual(parsed.results.get('M3e').killers, ['assignE2e']);
 });
+
+test('a suite-level failure with no failed assertion is SUITE-ERROR, never a kill (beforeAll or import error)', () => {
+  // The runner prints this line when the suite exits non-zero but its JSON report has no failed assertionResults.
+  const line = 'A1       suite-error     suite-error (no failed assertion): unit a real mutant';
+  const parsed = parseLog(`baseline unit: green\n${line}\n`, SUITES);
+  assert.deepEqual(parsed.results.get('A1'), { status: 'suite-error', killers: [] });
+  const out = reconcile('t', [defs[0]], parsed);
+  assert.equal(out.counts.killed, 0);
+  assert.equal(out.counts.suiteError, 1);
+  assert.equal(out.counts.noResult, 0);
+  assert.match(out.findings.join('\n'), /A1: SUITE-ERROR/);
+  assert.equal(out.unable, false);
+});
+
+test('a file-level failure is not counted as killed and blocks the gate', () => {
+  const out = reconcile('t', defs, parseLog(log(['A1       suite-error     suite-error (no failed assertion): unit a real mutant', 'E1       equivalent  unreachable']), SUITES));
+  assert.equal(out.counts.killed, 0);
+  assert.equal(out.counts.suiteError, 1);
+  assert.ok(out.findings.some((f) => !/no mutation log/.test(f)), 'a SUITE-ERROR finding must block, not pass');
+});

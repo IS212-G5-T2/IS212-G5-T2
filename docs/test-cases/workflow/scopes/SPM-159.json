@@ -3,6 +3,7 @@
   "title": "Request a Tentative Hold on a Venue (Coordinator)",
   "note": "Scope includes the coordinator request path and the minimum shared Venue Staff approval check required by Jira AC8: competing Pending tentative holds must not block the first approval, and an approved winner blocks overlapping approvals. This does not implement the broader SPM-132 approval lifecycle. Maintained Confluence matrix page 34603557 includes all VEN-HOLD-01..13 cases; every PRIMARY ID has a focused call site. PostgreSQL integration cases require the local test database. Review-correction pass (2026-10-27) adds supporting IDs for the events-module reading of approved holds (VEN-HOLD-04-SUP-EVENTS), the unconditional 336-hour recheck on approval (VEN-HOLD-03-SUP-RECHECK), the unavailable-period listing (VEN-HOLD-04-SUP-BLOCKOUT) and approved-hold submission and approval conflicts (VEN-HOLD-07-SUP-APPROVED-HOLD, VEN-HOLD-08-SUP-APPROVAL-EXPIRED).",
   "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "linesFrom": "changed-lines",
   "coverageFloor": {"statements": 100, "branches": 100, "functions": 100, "lines": 100},
   "tests": {
     "backend-unit": [

@@ -46,6 +46,14 @@
       {
         "glob": "backend/src/events/planning/event-planning.repository.spec.ts",
         "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS"
+      },
+      {
+        "glob": "backend/src/venues/availability/tentative-hold-request.spec.ts",
+        "titleMatch": "VEN-HOLD-"
+      },
+      {
+        "glob": "backend/src/venues/repository/tentative-hold.repository.spec.ts",
+        "titleMatch": "VEN-HOLD-"
       }
     ],
     "backend-e2e": [
@@ -68,6 +76,10 @@
         "titleMatch": "SPM54-UI-MODE-01"
       },
       {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx",
+        "titleMatch": "SPM54-COVERAGE-ONLY-NO-IDS"
+      },
+      {
         "glob": "frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx",
         "titleMatch": "SPM-54"
       },
@@ -85,7 +97,7 @@
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
-        "titleMatch": "VEN-BKG-09-A"
+        "titleMatch": "VEN-BKG-09-A|VEN-BKG-SUP-0[5-9]"
       },
       {
         "glob": "frontend/src/features/events/pages/detail/planning/activeVenueRequests.test.ts",
@@ -102,6 +114,10 @@
       {
         "glob": "frontend/src/features/events/components/StatusLabels.test.tsx",
         "titleMatch": "VEN-BKG-(08-A|09-A)"
+      },
+      {
+        "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.hold.test.tsx",
+        "titleMatch": "VEN-HOLD-"
       }
     ]
   },

@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import {
   act,
   cleanup,
@@ -73,8 +74,11 @@ function mockResumedDraftFlow(
   });
   return { resolveOptions: () => options.resolve(facilityOptions) };
 }
-function open(path = `/requests/${id}`) {
-  return render(
+// strict: mounts inside StrictMode, which re-runs each mount effect once while
+// the component stays mounted. The second run is a newer request, so the first
+// request's result arriving late is a real stale response.
+function open(path = `/requests/${id}`, strict = false) {
+  const tree = (
     <MemoryRouter initialEntries={[path]}>
       <Routes>
         <Route path="/requests/:id" element={<EventCreatePage />} />
@@ -82,8 +86,9 @@ function open(path = `/requests/${id}`) {
         <Route path="/requests" element={<MyRequestsPage />} />
         <Route path="/events/:id" element={<p>Event submitted</p>} />
       </Routes>
-    </MemoryRouter>,
+    </MemoryRouter>
   );
+  return render(strict ? <StrictMode>{tree}</StrictMode> : tree);
 }
 const click = (name: string | RegExp) =>
   fireEvent.click(screen.getByRole("button", { name }));
@@ -108,7 +113,8 @@ afterEach(() => {
 });
 
 describe("SPM-37 Q2 functional cases", () => {
-  it("Q2-022 rapid save clicks issue only one request", async () => {
+  // Kills: two rapid clicks on Save draft sending two requests (no in-flight guard).
+  it("EVE-DRF-SUP-26 rapid save clicks issue only one request", async () => {
     const pending = deferred<DraftRecord>();
     mocked.mockReturnValue(pending.promise);
     open("/events/create");
@@ -121,7 +127,8 @@ describe("SPM-37 Q2 functional cases", () => {
     await act(async () => pending.resolve(draft()));
     expect(screen.getByRole("dialog")).toBeTruthy();
   });
-  it("Q2-023 back navigation preserves data and server attachment errors are visible", async () => {
+  // Kills: Back dropping the typed expected attendance, or a server attachment error not shown after the next save.
+  it("EVE-DRF-SUP-27 back navigation preserves data and server attachment errors are visible", async () => {
     mocked
       .mockResolvedValueOnce(draft({ formStep: 2 }))
       .mockResolvedValueOnce(facilityOptions)
@@ -144,8 +151,9 @@ describe("SPM-37 Q2 functional cases", () => {
       "25",
     );
   });
+  // Kills: an incomplete draft rejected on save, formStep missing from the PUT body, or a POST issued for a draft save.
   it.each([0, 1, 2])(
-    "Q2-001 saves incomplete values from wizard step %s",
+    "EVE-DRF-SUP-28 saves incomplete values from wizard step %s",
     async (formStep) => {
       mockDraftWithFacilityOptions(draft({ formStep, purpose: "", startTime: "" }));
       open();
@@ -164,8 +172,9 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe(false);
     },
   );
+  // Kills: an undefined, negative, out-of-range or fractional saved step not falling back to Basic Information, or the saved name not prefilled.
   it.each([undefined, -1, 3, 1.5])(
-    "Q2-002 legacy or invalid saved step %j falls back to basic fields",
+    "EVE-DRF-SUP-29 legacy or invalid saved step %j falls back to basic fields",
     async (formStep) => {
       mocked.mockResolvedValue(draft({ formStep }));
       open();
@@ -175,8 +184,9 @@ describe("SPM-37 Q2 functional cases", () => {
       );
     },
   );
+  // Kills: a failed draft load still rendering editable fields, or the alert text or the Back To My Drafts link changed.
   it.each([new Error("Not found"), "unknown failure"])(
-    "Q2-003 failed draft retrieval hides editing %j",
+    "EVE-DRF-SUP-30 failed draft retrieval hides editing %j",
     async (error) => {
       mocked.mockRejectedValue(error);
       open();
@@ -192,23 +202,39 @@ describe("SPM-37 Q2 functional cases", () => {
       ).toBe("/requests");
     },
   );
+  /** EVE-DRF-SUP-31: a late draft load result from a superseded load never replaces the newer draft on screen. */
   it.each(["resolve", "reject"])(
-    "Q2-004 ignores late load %s after leaving the editor",
+    "EVE-DRF-SUP-31 ignores late load %s after a newer load",
     async (outcome) => {
-      const pending = deferred<DraftRecord>();
-      mocked.mockReturnValue(pending.promise);
-      const view = open();
-      expect(screen.getByRole("status")).toBeTruthy();
-      view.unmount();
+      const stale = deferred<DraftRecord>();
+      const newer = deferred<DraftRecord>();
+      mocked
+        .mockReturnValueOnce(stale.promise)
+        .mockReturnValueOnce(newer.promise);
+      open(`/requests/${id}`, true);
+      // StrictMode re-runs the mount effect: the first load is now superseded by a second, still mounted, load.
+      expect(mocked).toHaveBeenCalledTimes(2);
+      await act(async () => newer.resolve(draft({ name: "Newer draft" })));
+      expect(screen.getByLabelText(/Event name/)).toHaveProperty(
+        "value",
+        "Newer draft",
+      );
       await act(async () => {
-        if (outcome === "resolve") pending.resolve(draft());
-        else pending.reject(new Error("late"));
+        if (outcome === "resolve") stale.resolve(draft({ name: "Older draft" }));
+        else stale.reject(new Error("late"));
       });
+      // The superseded result must not overwrite the newer draft or show its error.
+      expect(screen.getByLabelText(/Event name/)).toHaveProperty(
+        "value",
+        "Newer draft",
+      );
       expect(screen.queryByRole("alert")).toBeNull();
-      expect(screen.queryByRole("textbox")).toBeNull();
+      expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
-  it("Q2-005 retries uncertain operation before saving edits made after failure", async () => {
+  // Kills: the retry after a failed save using a new operation id, or the later edit sent with the original operation id.
+  /** EVE-DRF-06-A: a failed save is retried with the same operation before newer edits (EVE-DRF-SUP-48). */
+  it("EVE-DRF-SUP-48 retries uncertain operation before saving edits made after failure", async () => {
     mocked
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(draft())
@@ -231,7 +257,9 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(last).toMatchObject({ version: 1, fields: { name: "After" } });
     expect(last.operationId).not.toBe(first.operationId);
   });
-  it("Q2-006 field validation error allows corrected payload with a new operation", async () => {
+  // Kills: the corrected save reusing the rejected operation id, or the old 'Too long' error still shown after correction.
+  /** EVE-DRF-06-B: a field validation error allows a corrected save with a new operation (EVE-DRF-SUP-49). */
+  it("EVE-DRF-SUP-49 field validation error allows corrected payload with a new operation", async () => {
     mocked
       .mockRejectedValueOnce(
         new ApiError("Correct fields", { name: "Too long" }),
@@ -252,7 +280,9 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(calls[1].operationId).not.toBe(calls[0].operationId);
     expect(screen.queryByText("Too long")).toBeNull();
   });
-  it("Q2-007 save fallback message retains input and pending controls prevent duplicate submission", async () => {
+  // Kills: Save draft enabled while a save is pending, a second request on form submit, or the 'Unable to save draft' fallback missing.
+  /** EVE-DRF-06-A: a failed save keeps input and pending controls prevent duplicate submission (EVE-DRF-SUP-50). */
+  it("EVE-DRF-SUP-50 save fallback message retains input and pending controls prevent duplicate submission", async () => {
     const pending = deferred<DraftRecord>();
     mocked.mockReturnValue(pending.promise);
     open("/events/create");
@@ -268,7 +298,8 @@ describe("SPM-37 Q2 functional cases", () => {
       "Unable to save draft",
     );
   });
-  it("Q2-008 confirmation supports keyboard and returns to My Drafts", async () => {
+  // Kills: the confirmation dialog not preventing the default action on Tab, Escape being default-prevented (the test checks only that Escape is not prevented), or OK not returning to My Drafts.
+  it("EVE-DRF-SUP-32 confirmation supports keyboard and returns to My Drafts", async () => {
     mocked.mockResolvedValueOnce(draft()).mockResolvedValueOnce([]);
     open("/events/create");
     save();
@@ -278,7 +309,8 @@ describe("SPM-37 Q2 functional cases", () => {
     click("OK");
     expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
   });
-  it("Q2-009 saved draft submits through requests API and replaces existing event in store", async () => {
+  // Kills: submission sending a version other than the saved one, or the store replacing the wrong event (duplicate or dropped entries).
+  it("EVE-DRF-SUP-33 saved draft submits through requests API and replaces existing event in store", async () => {
     const event = { id, name: "Workshop" };
     useAppStore.setState({ events: [event, { id: "other" }] as never });
     const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => ({ event }));
@@ -299,8 +331,9 @@ describe("SPM-37 Q2 functional cases", () => {
       "other",
     ]);
   });
+  // Kills: a failed submission clearing the draft or leaving Submit For Review disabled, or the server message not shown.
   it.each([new ApiError("Rejected", { equipmentNeeds: "Invalid" }), "unknown"])(
-    "Q2-010 failed submission keeps draft data %j",
+    "EVE-DRF-SUP-34 failed submission keeps draft data %j",
     async (error) => {
       const flow = mockResumedDraftFlow(draft({ formStep: 2 }), () => {
         throw error;
@@ -310,19 +343,20 @@ describe("SPM-37 Q2 functional cases", () => {
       await waitFor(() => expect(mocked).toHaveBeenCalledWith("/venues/options"));
       await act(async () => flow.resolveOptions());
       click(/Submit For Review/);
-      expect((await screen.findByRole("alert")).textContent).toBe(
-        error instanceof Error
-          ? "Rejected"
-          : "Unable to submit. Please try again.",
-      );
+      // The banner shows the server's message; a rejected field also shows its own alert next to its input.
+      const expected = error instanceof Error ? "Rejected" : "Unable to submit. Please try again.";
+      const alerts = await screen.findAllByRole("alert");
+      expect(alerts.map((alert) => alert.textContent)).toContain(expected);
       expect(screen.getByText("Workshop")).toBeTruthy();
       expect(
         screen.getByRole("button", { name: /Submit For Review/ }),
       ).toHaveProperty("disabled", false);
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
+  // Kills: expected attendance accepted outside 1 to 2147483647, or rejected inside that range (off-by-one at either end).
   it.each(["0", "1", "2", "2147483646", "2147483647", "2147483648"])(
-    "Q2-011 attendance boundary %s on submission",
+    "EVE-DRF-SUP-35 attendance boundary %s on submission",
     async (expectedAttendance) => {
       mockDraftWithFacilityOptions(draft({ formStep: 1, expectedAttendance }));
       open();
@@ -337,8 +371,10 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC2 (low confidence: submission boundary, closest draft AC)
+  // Kills: an end time equal to or before the 10:00 start accepted, or 10:01 rejected.
   it.each(["09:59", "10:00", "10:01"])(
-    "Q2-012 end time %s relative to start 10:00",
+    "EVE-DRF-SUP-36 end time %s relative to start 10:00",
     async (endTime) => {
       mockDraftWithFacilityOptions(draft({ formStep: 1, endTime }));
       open();
@@ -350,7 +386,9 @@ describe("SPM-37 Q2 functional cases", () => {
       else expect(screen.getByText("End must be after start.")).toBeTruthy();
     },
   );
-  it("Q2-013 missing required basic fields in resumed review returns to step one", async () => {
+  // Parent AC (SUPPORTING): SPM-37 AC5
+  // Kills: a resumed review submitted without its basic fields, or the user not returned to Basic Information.
+  it("EVE-DRF-SUP-37 missing required basic fields in resumed review returns to step one", async () => {
     const flow = mockResumedDraftFlow(
       draft({ formStep: 2, name: "", purpose: "", description: "" }),
     );
@@ -364,11 +402,13 @@ describe("SPM-37 Q2 functional cases", () => {
       mocked.mock.calls.filter(([path]) => path !== "/venues/options"),
     ).toHaveLength(1);
   });
+  // Parent AC (SUPPORTING): SPM-37 AC5
+  // Kills: a corrupt persisted start date or end time allowed to proceed to the Equipment step.
   it.each([
     ["bad-date", "11:00"],
     ["2030-01-02", "bad-time"],
   ])(
-    "Q2-014 corrupt persisted schedule %s %s cannot submit",
+    "EVE-DRF-SUP-38 corrupt persisted schedule %s %s cannot submit",
     async (startDate, endTime) => {
       mockDraftWithFacilityOptions(draft({ formStep: 1, startDate, endTime }));
       open();
@@ -379,7 +419,9 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked.mock.calls.filter(([path]) => path !== "/venues/options")).toHaveLength(1);
     },
   );
-  it("Q2-015 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
+  // Kills: submitted requests listed under My Drafts, or an untitled draft not linking to its editor.
+  /** EVE-DRF-03: My Drafts lists only drafts; submitted requests are excluded (EVE-DRF-SUP-51). */
+  it("EVE-DRF-SUP-51 list shows only drafts; submitted requests are excluded (moved to My Events)", async () => {
     const pending = deferred<DraftRecord[]>();
     mocked.mockReturnValue(pending.promise);
     open("/requests");
@@ -401,7 +443,9 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(screen.queryByText("Submitted")).toBeNull();
   });
   // A response containing only submitted requests must behave like an empty draft list.
-  it("Q2-015B shows the draft empty state when every request is submitted", async () => {
+  // Kills: the empty-state message missing when every request is submitted, or a submitted request still shown.
+  /** EVE-DRF-03: My Drafts shows the empty state when every request is submitted (EVE-DRF-SUP-52). */
+  it("EVE-DRF-SUP-52 shows the draft empty state when every request is submitted", async () => {
     mocked.mockResolvedValue([
       { ...draft(), id: "submitted", status: "Submitted", eventId: id },
     ]);
@@ -409,8 +453,9 @@ describe("SPM-37 Q2 functional cases", () => {
     expect(await screen.findByText(/No saved drafts yet/)).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Workshop" })).toBeNull();
   });
+  // Kills: Retry not requesting the list again, or the empty state not shown after a successful retry.
   it.each([new Error("List unavailable"), "unknown"])(
-    "Q2-016 failed list retry recovers %j",
+    "EVE-DRF-SUP-39 failed list retry recovers %j",
     async (error) => {
       mocked.mockRejectedValueOnce(error).mockResolvedValueOnce([]);
       open("/requests");
@@ -420,22 +465,37 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
+  /** EVE-DRF-SUP-40: a late draft list result from a superseded load never replaces the newer list on screen. */
   it.each(["resolve", "reject"])(
-    "Q2-017 ignores late list %s after navigation",
+    "EVE-DRF-SUP-40 ignores late list %s after a newer load",
     async (outcome) => {
-      const pending = deferred<DraftRecord[]>();
-      mocked.mockReturnValue(pending.promise);
-      const view = open("/requests");
-      view.unmount();
+      const stale = deferred<DraftRecord[]>();
+      const newer = deferred<DraftRecord[]>();
+      mocked
+        .mockReturnValueOnce(stale.promise)
+        .mockReturnValueOnce(newer.promise);
+      open("/requests", true);
+      // StrictMode re-runs the mount effect: the first list load is now superseded by a second, still mounted, load.
+      expect(mocked).toHaveBeenCalledTimes(2);
+      await act(async () => newer.resolve([draft({ name: "Newer draft" })]));
+      expect(screen.getByRole("link", { name: "Newer draft" })).toBeTruthy();
       await act(async () => {
-        if (outcome === "resolve") pending.resolve([]);
-        else pending.reject("late");
+        if (outcome === "resolve")
+          stale.resolve([draft({ name: "Older draft" })]);
+        else stale.reject("late");
       });
+      // The superseded result must not replace the newer list or show its error.
+      expect(screen.getByRole("link", { name: "Newer draft" })).toBeTruthy();
+      expect(screen.queryByRole("link", { name: "Older draft" })).toBeNull();
       expect(screen.queryByRole("alert")).toBeNull();
+      expect(mocked).toHaveBeenCalledTimes(2);
     },
   );
+  // Parent AC (SUPPORTING): SPM-37 AC6 (low confidence: file size error)
+  // Kills: a 50 MB file (52428800 bytes) rejected, a file one byte over accepted, or the size and type missing from the payload.
+  /** EVE-DRF-10-A: the page enforces the 50 MB limit on a single file (EVE-DRF-SUP-53). */
   it.each([52428799, 52428800, 52428801])(
-    "Q2-018 file size boundary %s bytes",
+    "EVE-DRF-SUP-53 file size boundary %s bytes",
     async (size) => {
       mockDraftWithFacilityOptions(draft({ formStep: 1 }));
       open();
@@ -448,7 +508,12 @@ describe("SPM-37 Q2 functional cases", () => {
       fireEvent.change(input, {
         target: { files: [file] },
       });
-      if (size > 52428800) expect(await screen.findByRole("alert")).toBeTruthy();
+      if (size > 52428800) {
+        // EVE-DRF-10-A: an oversize file shows the documented total-size message.
+        expect((await screen.findByRole("alert")).textContent).toContain(
+          "Use up to five files, 50 MB total.",
+        );
+      }
       else {
         await screen.findByText("size.txt");
         save();
@@ -462,7 +527,9 @@ describe("SPM-37 Q2 functional cases", () => {
       }
     },
   );
-  it.each([4, 5, 6])("Q2-019 file count boundary %s", async (count) => {
+  // Parent AC (SUPPORTING): SPM-37 AC5 (low confidence: file count, closest draft AC)
+  // Kills: a sixth file accepted, or a file set of five or fewer rejected, or Remove failing to drop the selected file.
+  it.each([4, 5, 6])("EVE-DRF-SUP-41 file count boundary %s", async (count) => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");
@@ -484,7 +551,9 @@ describe("SPM-37 Q2 functional cases", () => {
       expect(screen.queryByText("file-0.txt")).toBeNull();
     }
   });
-  it("Q2-020 cancelled file selection is harmless and read failure allows retry", async () => {
+  // Parent AC (SUPPORTING): SPM-37 AC6
+  // Kills: a FileReader error that shows no "Unable to read" alert or leaves Save draft disabled (no retry). Null and empty selections are exercised but their outcome is not asserted.
+  it("EVE-DRF-SUP-42 cancelled file selection is harmless and read failure allows retry", async () => {
     mockDraftWithFacilityOptions(draft({ formStep: 1 }));
     open();
     const input = await screen.findByLabelText("Supporting files");

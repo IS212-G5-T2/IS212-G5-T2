@@ -405,11 +405,27 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     renderRoutes("/events/create");
     expect(screen.getByText("Assignment queue")).toBeInTheDocument();
 
-    // Assert: only the Lead's navigation offers the queue.
-    expect(navByRole.coordinator_lead.map((item) => item.to)).toContain("/lead/queue");
-    for (const [role, items] of Object.entries(navByRole)) {
-      if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/queue");
-    }
+    // Assert: only the Lead's navigation offers the queue. Expected links are written out per role, not computed from the nav config.
+    expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue", "/lead/reassign"]);
+    expect(navByRole.organiser.map((item) => item.to)).toEqual(["/events", "/requests", "/events/create"]);
+    expect(navByRole.coordinator.map((item) => item.to)).toEqual([
+      "/events",
+      "/venue-records",
+      "/bookings",
+      "/equipment/requests",
+    ]);
+    expect(navByRole.venue_staff.map((item) => item.to)).toEqual([
+      "/venue-records",
+      "/venues/create",
+      "/bookings",
+    ]);
+    expect(navByRole.tech_support.map((item) => item.to)).toEqual([
+      "/equipment/requests",
+      "/equipment/availability",
+      "/equipment/audit-trail",
+      "/equipment",
+    ]);
+    expect(navByRole.attendee.map((item) => item.to)).toEqual(["/events"]);
   });
 
   // SPM-47 AC9: only the Lead can open the reassignment page or see it in the navigation.
@@ -435,8 +451,24 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     // Assert: the Lead's navigation offers the queue and the reassignment page; no other role's does.
     expect(navByRole.coordinator_lead.map((item) => item.to)).toEqual(["/lead/queue", "/lead/reassign"]);
     expect(navByRole.coordinator_lead.find((item) => item.to === "/lead/reassign")?.label).toBe("Reassign Events");
-    for (const [role, items] of Object.entries(navByRole)) {
-      if (role !== "coordinator_lead") expect(items.map((item) => item.to)).not.toContain("/lead/reassign");
-    }
+    expect(navByRole.organiser.map((item) => item.to)).toEqual(["/events", "/requests", "/events/create"]);
+    expect(navByRole.coordinator.map((item) => item.to)).toEqual([
+      "/events",
+      "/venue-records",
+      "/bookings",
+      "/equipment/requests",
+    ]);
+    expect(navByRole.venue_staff.map((item) => item.to)).toEqual([
+      "/venue-records",
+      "/venues/create",
+      "/bookings",
+    ]);
+    expect(navByRole.tech_support.map((item) => item.to)).toEqual([
+      "/equipment/requests",
+      "/equipment/availability",
+      "/equipment/audit-trail",
+      "/equipment",
+    ]);
+    expect(navByRole.attendee.map((item) => item.to)).toEqual(["/events"]);
   });
 });

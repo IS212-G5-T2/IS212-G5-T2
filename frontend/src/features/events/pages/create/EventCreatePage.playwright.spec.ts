@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
+const organiserEmail = process.env.SPM37_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
+const password = process.env.SPM37_TEST_PASSWORD ?? "P@55w0rd";
 const fields = {
   name: "",
   purpose: "",
@@ -20,11 +22,15 @@ const fields = {
 // AC1-7: this test uses the actual API/database; mocks only one failed network response.
 test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI", async ({
   page,
-  request,
 }) => {
   const name = process.env.SPM37_TEST_NAME ?? `Draft browser ${Date.now()}`;
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/login");
+  await page.getByLabel("Email").fill(organiserEmail);
+  await page.getByLabel("Password").fill(password);
+  await page.getByRole("button", { name: "Log in" }).click();
+  await expect(page).not.toHaveURL(/\/login$/);
   await page.goto("/events/create");
   await expect(page).toHaveTitle(/ConnectSphere/);
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
@@ -159,7 +165,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
       animations: "disabled",
     });
   await page
-    .getByRole("button", { name: "Submit for Review", exact: true })
+    .getByRole("button", { name: "Submit For Review", exact: true })
     .click();
   await expect(page).toHaveURL(new RegExp(`/events/${saved.id}$`));
   await page.goto(`/requests/${saved.id}`);
@@ -169,7 +175,7 @@ test("Q2-021 SPM-37 save, refresh, reopen, retry, submit and lock the current UI
   await expect(
     page.getByRole("button", { name: "Save draft", exact: true }),
   ).toHaveCount(0);
-  const rejected = await request.put(`${apiBase}/api/requests/${saved.id}`, {
+  const rejected = await page.request.put(`${apiBase}/api/requests/${saved.id}`, {
     data: { fields, version: 1, operationId: crypto.randomUUID() },
   });
   expect(rejected.status()).toBe(409);

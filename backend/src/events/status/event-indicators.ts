@@ -7,7 +7,7 @@
 
 export type SafetyIndicator = 'AWAITING_CHECK' | 'CHANGES_REQUESTED' | 'CLEARED';
 
-// SPM-94 D5: terminal statuses show no safety indicator (ASSUMED).
+// SPM-94 D5: terminal statuses show no safety indicator (PO confirmed 22 Oct 2026, SC-SPM94-10).
 const SAFETY_SUPPRESSED_STATUSES = ['Completed', 'Cancelled', 'Rejected'] as const;
 
 // Safety-check rows use the snake_case states written by SPM-135 (event_safety_checks.status).

@@ -30,6 +30,15 @@ export const SUITES = {
   venueBrowse: {
     args: ['run', 'src/venues/venues.service.spec.ts'],
   },
+  arrangementsReader: {
+    args: ['run', 'src/events/status/arrangements.reader.spec.ts'],
+  },
+  eventChecklist: {
+    args: ['run', 'src/events/status/checklist.spec.ts'],
+  },
+  venuesController: {
+    args: ['run', 'src/venues/venues.controller.spec.ts'],
+  },
 };
 
 const REPOSITORY = 'src/venues/repository/venues.repository.ts';
@@ -130,8 +139,22 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz + make_interval(mins => $5::int)',
-        'b.start_at - make_interval(mins => $4::int)\n                    > $3::timestamptz + make_interval(mins => $5::int)',
+        `                   )))))
+              AND b.start_at - make_interval(mins => $4::int)
+                    < $3::timestamptz + make_interval(mins => $5::int)
+              AND b.end_at + make_interval(mins => $5::int)
+                    > $2::timestamptz - make_interval(mins => $4::int)
+         ) conflicts LIMIT 1\`,
+        [
+          venueId,`,
+        `                   )))))
+              AND b.start_at - make_interval(mins => $4::int)
+                    > $3::timestamptz + make_interval(mins => $5::int)
+              AND b.end_at + make_interval(mins => $5::int)
+                    > $2::timestamptz - make_interval(mins => $4::int)
+         ) conflicts LIMIT 1\`,
+        [
+          venueId,`,
       ],
     ],
   },
@@ -150,11 +173,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        `OR EXISTS (
-                    SELECT 1 FROM venue_booking_requests r
-                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                  )`,
-        'OR false',
+        "(b.hold_expires_at > $6::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (",
+        "(b.hold_expires_at > $6::timestamptz OR\n                   (false AND EXISTS (",
       ],
     ],
   },
@@ -187,7 +207,12 @@ export const MUTANTS = [
           'VEN-BKG-07-A SPM-54 serializes duplicates and allows retries after final history statuses',
       },
     ],
-    edits: [['if (activeRequest.rows[0])', 'if (false)']],
+    edits: [
+      [
+        "if (activeRequest.rows[0])\n        return {\n          kind: 'already-requested',",
+        "if (false)\n        return {\n          kind: 'already-requested',",
+      ],
+    ],
   },
   {
     id: 'SPM54-BE-FINAL-CONFIRMATION',
@@ -224,7 +249,12 @@ export const MUTANTS = [
           'VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request',
       },
     ],
-    edits: [["if (result.kind === 'event-not-assigned')", 'if (false)']],
+    edits: [
+      [
+        "// SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.\n    if (result.kind === 'event-not-assigned')",
+        "// SPM-148 PLAN-STATUS-01-D: an unassigned Coordinator gets the existing 404.\n    if (false)",
+      ],
+    ],
   },
   {
     id: 'SPM54-BE-BOOKING-LIST-AUTH',
@@ -266,8 +296,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        '[\n          venueId,\n          input.eventId,\n          eventRow.start_date_time,\n          eventRow.end_date_time,\n        ],',
-        '[\n          venueId,\n          input.eventId,\n          input.start,\n          input.end,\n        ],',
+        "          venueId,\n          eventRow.start_date_time,\n          eventRow.end_date_time,\n          venueRow.setup_time_minutes,\n          venueRow.turnaround_time_minutes,\n          this.clock.now(),\n        ],\n      );\n      if (conflict.rows[0])\n        return { kind: 'conflict', reason",
+        "          venueId,\n          input.start,\n          input.end,\n          venueRow.setup_time_minutes,\n          venueRow.turnaround_time_minutes,\n          this.clock.now(),\n        ],\n      );\n      if (conflict.rows[0])\n        return { kind: 'conflict', reason",
       ],
     ],
   },
@@ -485,7 +515,12 @@ export const MUTANTS = [
           'VEN-BKG-05-A VEN-BKG-05-B VEN-BKG-06-A VEN-BKG-07-A VEN-BKG-07-B SPM-54 supports replacement while preserving independent booking history',
       },
     ],
-    edits: [['if (conflict.rows[0])', 'if (false)']],
+    edits: [
+      [
+        "if (conflict.rows[0])\n        return { kind: 'conflict', reason",
+        "if (false)\n        return { kind: 'conflict', reason",
+      ],
+    ],
   },
   {
     id: 'SPM54-BE-BOOKING-REFERENCE',
@@ -502,8 +537,86 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`",
-        'bookingReference: `VB-INVALID`',
+        "statusChanged: result.statusChanged,\n      bookingReference: `VB-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,",
+        "statusChanged: result.statusChanged,\n      bookingReference: `VB-INVALID`,",
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-ARRANGEMENTS-CANCELLED-HISTORY',
+    name: 'cancelled venue bookings are dropped from the event arrangements read model',
+    file: 'src/events/status/arrangements.reader.ts',
+    suites: ['arrangementsReader'],
+    kills: [
+      {
+        suite: 'arrangementsReader',
+        file: 'src/events/status/arrangements.reader.spec.ts',
+        title:
+          'maps venue, equipment, and confirmation rows while using shared locks when requested',
+      },
+    ],
+    edits: [
+      [
+        '      venueBookings: bookings.rows.map((row) => ({',
+        "      venueBookings: bookings.rows.filter((row) => row.status !== 'cancelled').map((row) => ({",
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-CHECKLIST-CANCELLED',
+    name: 'individually cancelled venue requests reappear in the active event venue checklist',
+    file: 'src/events/status/checklist.ts',
+    suites: ['eventChecklist'],
+    kills: [
+      {
+        suite: 'eventChecklist',
+        file: 'src/events/status/checklist.spec.ts',
+        title:
+          'excludes cancelled venue requests from the active checklist without hiding other venues',
+      },
+    ],
+    edits: [
+      [
+        "(b) => b.status !== 'released' && b.status !== 'cancelled',",
+        "(b) => b.status !== 'released',",
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-COORDINATOR-BOOKINGS-IDENTITY',
+    name: 'coordinator booking history is requested without the authenticated identity',
+    file: 'src/venues/venues.controller.ts',
+    suites: ['venuesController'],
+    kills: [
+      {
+        suite: 'venuesController',
+        file: 'src/venues/venues.controller.spec.ts',
+        title: 'lists coordinator bookings for the authenticated user',
+      },
+    ],
+    edits: [
+      [
+        '    return this.venues.listCoordinatorBookings(\n      request[CURRENT_USER_REQUEST_KEY],',
+        '    return this.venues.listCoordinatorBookings(\n      undefined,',
+      ],
+    ],
+  },
+  {
+    id: 'SPM54-BE-CANCEL-CONFIRMATION-FALSE',
+    name: 'an explicit false cancellation confirmation is treated as confirmed',
+    file: 'src/venues/venues.controller.ts',
+    suites: ['venuesController'],
+    kills: [
+      {
+        suite: 'venuesController',
+        file: 'src/venues/venues.controller.spec.ts',
+        title: 'passes explicit cancellation confirmation',
+      },
+    ],
+    edits: [
+      [
+        '(body as { confirmed?: unknown }).confirmed === true,',
+        'true,',
       ],
     ],
   },

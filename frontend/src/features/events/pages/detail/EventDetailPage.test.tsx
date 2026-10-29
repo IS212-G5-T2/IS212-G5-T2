@@ -81,6 +81,7 @@ beforeEach(() => {
 
 describe("EventDetailPage", () => {
   // SPM-38 Test Case EVE-REV-03-A
+  // Kills: the attachment list missing its View button, or the Download link lacking the file name or the data URL as href.
   it("shows attached files with view and download actions", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -113,6 +114,7 @@ describe("EventDetailPage", () => {
   // of a link to a data: URL, so "View" previously opened nothing in a real
   // browser (only jsdom's laxer <a href> checks made the old test pass). The
   // fix converts the attachment to a Blob object URL before opening it.
+  // Kills: View opening the raw data: URL instead of a Blob object URL, or the Blob type not text/plain.
   it("EVE-REV-03-B opens the attachment as a Blob object URL instead of navigating to the raw data: URL", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -140,6 +142,7 @@ describe("EventDetailPage", () => {
 
   // SPM-38 Test Case EVE-REV-03-C: an event with no attachments shows a plain
   // fallback and never renders View/Download controls.
+  // Kills: an event with no attachments showing View or Download controls, or not showing 'None specified'.
   it("EVE-REV-03-C shows None specified and no view/download controls when there are no attachments", async () => {
     const event = { ...assignedEvent(), attachments: [] };
     apiMock.mockImplementation((path: string) =>
@@ -165,6 +168,7 @@ describe("EventDetailPage", () => {
   // SPM-38 Test Case EVE-REV-03-D: openAttachmentPreview falls back to the
   // attachment's own `type` field when the data: URL header doesn't carry a
   // recognizable `;base64` marker to extract a MIME type from.
+  // Kills: a missing MIME type in the data URL leaving the Blob type empty or defaulted to text/plain instead of the recorded type.
   it("EVE-REV-03-D falls back to the attachment's type when the data URL has no extractable MIME type", async () => {
     const event = {
       ...assignedEvent(),
@@ -198,9 +202,11 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-E: when the data URL has no MIME type, the
   // preview uses the attachment's recorded type, not the generic default. A
   // distinctive type makes it obvious if the recorded type is ignored.
+  // Kills: the generic octet-stream default used instead of the recorded application/x-notes type.
   it("EVE-REV-03-E opens the attachment with its recorded type when the data URL has no MIME type", async () => {
     // Arrange: an attachment with a distinctive recorded type and a data URL with no MIME type.
     const event = {
@@ -237,10 +243,12 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/x-notes");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-F: when the data URL has no MIME type and the
   // attachment records no type either, the preview uses the generic
   // application/octet-stream type. The upload helper always records a type, so
   // this covers an event record returned by the API without one.
+  // Kills: an empty recorded type replaced by a type other than application/octet-stream.
   it("EVE-REV-03-F uses the generic application/octet-stream type when neither the data URL nor the attachment has a type", async () => {
     // Arrange: an attachment with an empty recorded type and a data URL with no MIME type.
     const event = {
@@ -277,8 +285,10 @@ describe("EventDetailPage", () => {
     expect((blob as Blob).type).toBe("application/octet-stream");
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC3
   // SPM-38 Test Case EVE-REV-03-G: the temporary link made for the preview is
   // released 60 seconds after opening, not sooner and not never.
+  // Kills: the preview link revoked before 60 seconds (at 59,999 ms) or never revoked.
   it("EVE-REV-03-G releases the preview's temporary link 60 seconds after the attachment opens", async () => {
     // Arrange: render the event and open its attachment on the real clock.
     const event = assignedEvent();
@@ -316,9 +326,11 @@ describe("EventDetailPage", () => {
     }
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC1
   // SPM-38 Test Case EVE-REV-01-C: StrictMode runs the load effect twice, so
   // the first event load is superseded. If that stale load succeeds late, its
   // event data must not replace what the user is waiting for.
+  // Kills: a superseded load's late data replacing the current event in the page or in the store.
   it("EVE-REV-01-C ignores a superseded event load that succeeds after a newer load", async () => {
     // Arrange: two pending event loads; the first one is superseded by the second.
     const event = assignedEvent();
@@ -363,8 +375,10 @@ describe("EventDetailPage", () => {
     expect(screen.queryByText("Superseded Event")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-38 AC1
   // SPM-38 Test Case EVE-REV-01-D: if a superseded event load fails late, its
   // error must not be shown while the current load is still in progress.
+  // Kills: a superseded load's failure shown as an alert while the current load is still pending.
   it("EVE-REV-01-D does not show a load error from a superseded event load that fails late", async () => {
     // Arrange: two pending event loads; the first one is superseded by the second.
     const event = assignedEvent();
@@ -408,8 +422,10 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // SPM-36 EVE-CRE-07-C: straight after submitting, the page must not offer "← Back": history -1 is
   // the form that was just submitted. The success banner links on instead.
+  // Kills: the Back button shown straight after submission (the submitted navigation state ignored).
   it("EVE-CRE-07-C hides the Back button right after a request is submitted", async () => {
     // Arrive the way EventCreatePage navigates after a successful submit.
     const event = assignedEvent();
@@ -430,7 +446,9 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Back/ })).toBeNull();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // Opening an event normally (not straight from submitting) keeps "← Back".
+  // Kills: the Back button missing when an event is opened normally, or the success banner shown without a submission.
   it("EVE-CRE-07-D keeps the Back button when the event is opened normally", async () => {
     // Arrive without the post-submission state.
     const event = assignedEvent();
@@ -451,7 +469,9 @@ describe("EventDetailPage", () => {
     expect(screen.getByRole("button", { name: /Back/ })).toBeTruthy();
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC7
   // "← Back" returns to whichever page the user came from.
+  // Kills: Back navigating to the wrong route or not returning to the previous page in history.
   it("EVE-CRE-07-E takes the user back to the previous page when Back is clicked", async () => {
     // Arrange: history is the events list, then this event's detail page.
     const event = assignedEvent();
@@ -479,6 +499,7 @@ describe("EventDetailPage", () => {
   // SPM-38 AC5 / SPM-123: coordinators are assigned by the Event Coordinator
   // Lead from the Assignment Queue, so there is no manual "claim this request"
   // control for coordinators to see or use on the event page.
+  // Kills: a manual coordinator-assignment control (Assign Myself) rendered on the event page.
   it("SPM-38 EVE-REV-05-E never renders a manual coordinator-assignment control", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -501,6 +522,7 @@ describe("EventDetailPage", () => {
   // backend persistence existed for it), so an organiser viewing the same
   // event never saw the change. Removed for this sprint; real post-submission
   // editing is tracked separately under "Edit Event Details".
+  // Kills: an Edit control shown to the assigned coordinator on a submitted request.
   it("does not show an Edit control to the assigned coordinator on a submitted request", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) =>
@@ -520,6 +542,7 @@ describe("EventDetailPage", () => {
   });
 
   // SPM-37 follow-up: submitting a draft must not pick a coordinator.
+  // Kills: submitEvent assigning a coordinator, omitting the submission notification, or changing its wording.
   it("leaves a submitted draft unassigned and sends only a submission notification", () => {
     // Start with a new draft and an empty notification list.
     useAppStore.setState({ events: [], notifications: [] });
@@ -541,6 +564,7 @@ describe("EventDetailPage", () => {
   // coordinator the event isn't assigned to (see events.service.spec.ts for
   // the server-side enforcement), so the page must surface that as an error
   // rather than rendering event details it should never have received.
+  // Kills: event details rendered (heading shown) when the backend denies access, instead of the error alert.
   it("EVE-REV-04-E shows an error instead of event details when the backend denies access", async () => {
     apiMock.mockRejectedValue(new Error("Event not found."));
 
@@ -570,6 +594,7 @@ describe("EventDetailPage", () => {
   // SPM-83 builds the approve/reject decision controls behind the Review Event
   // entrypoint, replacing the SPM-37 "not available yet" placeholder. Full
   // coverage of the reject workflow lives in EventDetailPage.decision.test.tsx.
+  // Kills: Review Event not revealing both Approve and Reject radios with Submit Decision, or the 'not available yet' placeholder still shown.
   it("reveals approve/reject decision controls when the assigned coordinator opens Review Event", async () => {
     // Load a request already assigned to the signed-in coordinator.
     const event = assignedEvent();
@@ -608,6 +633,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: /Assign Myself/i })).toBeNull();
   });
 
+  // Kills: approval not POSTed to the approve route, the status not updated to approved, or Submit Decision still shown after approval.
   it("persists an approval and updates the event after Submit Decision", async () => {
     const event = assignedEvent();
     apiMock.mockImplementation((path: string) => {
@@ -636,6 +662,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("button", { name: "Submit Decision" })).toBeNull();
   });
 
+  // Kills: venue staff shown the details of an unapproved submitted request instead of the access restriction.
   it("restricts venue staff from accessing unapproved submitted requests", async () => {
     const event = assignedEvent();
     apiMock.mockResolvedValue(event);
@@ -663,6 +690,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
 
+  // Kills: tech support shown the details of an unapproved submitted request instead of the access restriction.
   it("restricts tech support staff from accessing unapproved submitted requests", async () => {
     const event = assignedEvent();
     apiMock.mockResolvedValue(event);
@@ -690,6 +718,7 @@ describe("EventDetailPage", () => {
     expect(screen.queryByRole("heading", { name: "Welcome Evening" })).toBeNull();
   });
 
+  // Kills: the Venue field showing a local value rather than the server venue text, including the '(pending)' label.
   /** The detail page's Venue field shows the venue text the server sent, including the "(pending)" label. */
   it("shows the server venue text, including a pending label, in the Venue field", async () => {
     const event = { ...assignedEvent(), venueName: "Breakout Room 1 (pending)" };
@@ -708,5 +737,26 @@ describe("EventDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
     const venueTerm = screen.getByText("Venue", { selector: "dt" });
     expect(venueTerm.nextElementSibling).toHaveTextContent("Breakout Room 1 (pending)");
+  });
+
+  // Kills: an event with no venue rendered blank or with another label instead of 'Not yet booked'.
+  /** An event with no venue shows the Not yet booked text in the Venue field. */
+  it("CONFIRM-EVENT-SUP-42 shows Not yet booked in the Venue field when the event has no venue", async () => {
+    const event = { ...assignedEvent(), venueName: undefined };
+    apiMock.mockImplementation((path: string) =>
+      path.includes("/comments") ? Promise.resolve([]) : Promise.resolve(event),
+    );
+
+    render(
+      <MemoryRouter initialEntries={[`/events/${event.id}`]}>
+        <Routes>
+          <Route path="/events/:id" element={<EventDetailPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Welcome Evening" })).toBeTruthy();
+    const venueTerm = screen.getByText("Venue", { selector: "dt" });
+    expect(venueTerm.nextElementSibling).toHaveTextContent("Not yet booked");
   });
 });

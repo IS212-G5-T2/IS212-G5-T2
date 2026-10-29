@@ -1,12 +1,19 @@
-import { createElement, useState } from "react";
+import { createElement, forwardRef, useImperativeHandle, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { sgtDayKey, sgtLocalDateTimeToDate } from "@/utils/sgtDate";
 import { getVenueScheduleEntries, isValidVenueSelection, VenueScheduleCalendar } from "./VenueScheduleCalendar";
 import type { VenueRecord } from "../venue-records";
 
+const calendarSpies = vi.hoisted(() => ({
+  gotoDate: vi.fn(),
+  lastProps: undefined as Record<string, unknown> | undefined,
+}));
+
 vi.mock("@fullcalendar/react", () => ({
-  default: function FullCalendarMock(props: Record<string, unknown>) {
+  default: forwardRef(function FullCalendarMock(props: Record<string, unknown>, ref) {
+    calendarSpies.lastProps = props;
+    useImperativeHandle(ref, () => ({ getApi: () => ({ gotoDate: calendarSpies.gotoDate }) }));
     const [allowed, setAllowed] = useState("");
     const start = sgtLocalDateTimeToDate("2030-01-07T10:00");
     const end = sgtLocalDateTimeToDate("2030-01-07T11:00");
@@ -35,11 +42,12 @@ vi.mock("@fullcalendar/react", () => ({
       createElement("output", { "aria-label": "Calendar scroll time" }, String(props.scrollTime)),
       createElement("output", { "aria-label": "Calendar minimum time" }, String(props.slotMinTime)),
       createElement("output", { "aria-label": "Calendar maximum time" }, String(props.slotMaxTime)),
+      createElement("output", { "aria-label": "Calendar selectable" }, String(props.selectable)),
       createElement("button", { disabled: !props.select, onClick: () => (props.select as (range: { start: Date; end: Date }) => void)?.({ start, end }) }, "Emit selection"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "selected-event-time" } }) }, "Click selected time"),
       createElement("button", { onClick: () => (props.eventClick as (click: { event: { id: string } }) => void)({ event: { id: "booking-1" } }) }, "Click booking"),
     );
-  },
+  }),
 }));
 
 const venue: VenueRecord = {
@@ -63,7 +71,7 @@ function range(start: string, end: string): [Date, Date] {
 }
 
 describe("isValidVenueSelection", () => {
-  /** Positive ranges are valid on any date or time because venues have no operating-hours schedule. */
+  /** VEN-AVL-01-A: positive ranges are valid on any date or time because venues have no operating-hours schedule. */
   it("allows daytime, weekend, overnight, and after-hours selections", () => {
     const [dayStart, dayEnd] = range("2030-01-07T09:00", "2030-01-07T18:00");
     const [weekendStart, weekendEnd] = range("2030-01-12T02:00", "2030-01-12T03:00");
@@ -76,7 +84,7 @@ describe("isValidVenueSelection", () => {
     expect(isValidVenueSelection(afterHoursStart, afterHoursEnd)).toBe(true);
   });
 
-  /** Calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
+  /** VEN-AVL-01-B: calendar selection still requires a finite, positive-duration range. Kills: FE-B06. */
   it("rejects zero-length, reversed, and invalid ranges", () => {
     const [zeroLengthStart, zeroLengthEnd] = range("2030-01-07T12:00", "2030-01-07T12:00");
     const [laterStart, earlierEnd] = range("2030-01-07T12:00", "2030-01-07T11:00");
@@ -88,7 +96,7 @@ describe("isValidVenueSelection", () => {
 });
 
 describe("venue schedule occupancy", () => {
-  /** VEN-AVL-02-A/B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
+  /** VEN-AVL-02-B: clear shading covers the entire SGT date without declaring the venue open 24 hours. */
   it("shades clear periods over a full SGT day without an operating-hours label", () => {
     const entries = getVenueScheduleEntries(
       venue,
@@ -103,7 +111,7 @@ describe("venue schedule occupancy", () => {
     expect(free[0].extendedProps.detail).not.toMatch(/operating hours|24 hours/i);
   });
 
-  /** VEN-AVL-02-A/B and VEN-AVL-05-A: confirmed event occupancy is excluded from available calendar shading. */
+  /** VEN-AVL-02-A: confirmed event occupancy is excluded from available calendar shading. */
   it("does not shade a confirmed booking or its setup and turnaround as free", () => {
     const bookedVenue: VenueRecord = {
       ...venue,
@@ -130,7 +138,7 @@ describe("venue schedule occupancy", () => {
     expect(free.some((entry) => Date.parse(entry.start) < Date.parse("2030-01-07T03:30:00.000Z") && Date.parse(entry.end) > Date.parse("2030-01-07T01:30:00.000Z"))).toBe(false);
   });
 
-  /** VEN-AVL-02-A/B/C and VEN-AVL-05-A/B: unavailable periods and active tentative holds both split green free intervals. */
+  /** VEN-AVL-04-A: unavailable periods and active tentative holds both split green free intervals. A second equal case is the active tentative hold, which is tentative rather than confirmed. */
   it("excludes a closure and an active hold with setup and turnaround from free shading", () => {
     const blockedVenue: VenueRecord = {
       ...venue,
@@ -164,7 +172,7 @@ describe("venue schedule occupancy", () => {
     ]);
   });
 
-  /** VEN-AVL-08-A/B/VAR-1: setup ends at the event start and turnaround begins at the event end across SGT midnight. */
+  /** VEN-AVL-08-A: setup ends at the event start and turnaround begins at the event end across SGT midnight. The turnaround-start edge of the same buffer rule is the second AC8 case. */
   it("places exact setup and turnaround intervals on their SGT calendar days", () => {
     const crossMidnightVenue: VenueRecord = {
       ...venue,
@@ -199,7 +207,7 @@ describe("venue schedule occupancy", () => {
 });
 
 describe("VenueScheduleCalendar interactions", () => {
-  /** SPM-51 calendar selection accepts ranges without applying retired operating-hours rules. */
+  /** VEN-AVL-01-A (SPM-51): calendar selection accepts ranges without applying retired operating-hours rules. */
   it("allows selections on any weekday through FullCalendar's selectAllow prop", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
@@ -209,7 +217,7 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(screen.getByText("true")).toBeInTheDocument();
   });
 
-  /** SPM-51 keeps selection independent of days and times previously treated as closed. */
+  /** VEN-AVL-01-A (SPM-51): keeps selection independent of days and times previously treated as closed. */
   it("allows cross-day, closed-day, and formerly out-of-hour ranges through selectAllow", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
@@ -219,7 +227,7 @@ describe("VenueScheduleCalendar interactions", () => {
     }
   });
 
-  /** SPM-51 calendar selection forwards a drag range to the page callback. */
+  /** VEN-AVL-06-A (SPM-51): calendar selection forwards a drag range to the page callback that starts the booking request review. */
   it("connects the FullCalendar select callback to the selected range handler", () => {
     const onSelectRange = vi.fn();
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" onSelectRange={onSelectRange} />);
@@ -231,14 +239,16 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onSelectRange.mock.calls[0][1].toISOString()).toBe("2030-01-07T03:00:00.000Z");
   });
 
-  /** SPM-51 does not enable drag updates when the parent has no selection handler. */
+  /** VEN-AVL-SUP-01: SPM-51 does not enable drag updates when the parent has no selection handler.
+   * Kills: a calendar that passes selectable as true with no range-selection handler (selectable={true} regardless of onSelectRange). */
   it("does not invoke a missing range callback", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
+    expect(screen.getByLabelText("Calendar selectable")).toHaveTextContent("false");
     expect(screen.getByRole("button", { name: "Emit selection" })).toBeDisabled();
   });
 
-  /** SPM-51 only clears a selected range when its own calendar block is clicked. */
+  /** VEN-AVL-SUP-02: SPM-51 only clears a selected range when its own calendar block is clicked. */
   it("clears selection from the selected event and ignores booking clicks", () => {
     const onClearSelection = vi.fn();
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" selectedRange={{ start: "2030-01-07T10:00", end: "2030-01-07T11:00" }} onClearSelection={onClearSelection} />);
@@ -249,13 +259,28 @@ describe("VenueScheduleCalendar interactions", () => {
     expect(onClearSelection).toHaveBeenCalledOnce();
   });
 
-  /** SPM-51 shows the whole day for availability inspection without calling the venue 24-hour. */
+  /** VEN-AVL-SUP-03: SPM-51 shows the whole day for availability inspection without calling the venue 24-hour. */
   it("shows a full-day time grid with a neutral default scroll position", () => {
     render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
 
     expect(screen.getByLabelText("Calendar scroll time")).toHaveTextContent("08:00:00");
     expect(screen.getByLabelText("Calendar minimum time")).toHaveTextContent("00:00:00");
     expect(screen.getByLabelText("Calendar maximum time")).toHaveTextContent("24:00:00");
+  });
+
+  /** VEN-AVL-SUP-04 (SPM-54 AC3): an empty initialDate leaves FullCalendar on its own default date and never calls gotoDate with an empty string. The control render proves the gotoDate spy is wired.
+   * Kills: initialDate forwarded raw as "" (the `initialDate || undefined` fallback at line 263 removed) and gotoDate("") called on mount (the `if (initialDate)` guard at line 223 removed). */
+  it("keeps the default calendar date when initialDate is empty", () => {
+    calendarSpies.gotoDate.mockClear();
+    const { unmount } = render(<VenueScheduleCalendar venue={venue} initialDate="2030-01-07" />);
+    expect(calendarSpies.gotoDate).toHaveBeenCalledWith("2030-01-07");
+    unmount();
+
+    calendarSpies.gotoDate.mockClear();
+    render(<VenueScheduleCalendar venue={venue} initialDate="" />);
+    // The fallback `initialDate || undefined` yields undefined, so FullCalendar uses its default (today, Asia/Singapore).
+    expect(calendarSpies.lastProps?.initialDate).toBeUndefined();
+    expect(calendarSpies.gotoDate).not.toHaveBeenCalled();
   });
 
   /** Defensive SGT formatting defaults to midnight when a host formatter omits time parts. */

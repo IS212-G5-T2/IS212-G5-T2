@@ -50,17 +50,11 @@ export const MUTANTS = [
   { id: 'FM1', name: 'confirm button not disabled while pending (M19)', file: PANEL, suites,
     edits: [['disabled={pending || !loaded || reasons.length > 0} aria-busy={pending}', 'aria-busy={pending}']] },
   // FM2: the page shows the panel to any coordinator (COO-02 included). Killer: EventDetailPage.confirm 01-C (COO-02).
-  { id: 'FM2', name: 'page shows the confirm panel to every coordinator', file: PAGE, suites,
-    edits: [
-      ['(isPlanningOwner || isPlanningCoordinator);', '(isPlanningOwner || isPlanningCoordinator || hasRole(currentUser, "coordinator"));'],
-      ['{planningView && isAssignedCoordinator && (\n        <PlanningInformationPage', '{planningView && currentUser.role === "coordinator" && (\n        <PlanningInformationPage'],
-    ] },
+  { id: 'FM2', name: "page shows the confirm panel to every coordinator", file: "src/features/events/pages/detail/EventDetailPage.tsx", suites: ['spm135'],
+    edits: [["(isPlanningOwner || isPlanningCoordinator);","(isPlanningOwner || isPlanningCoordinator || currentUser.role === \"coordinator\");"],["{planningView && isAssignedCoordinator && !isCancelled && (","{planningView && currentUser.role === \"coordinator\" && !isCancelled && ("]] },
   // FM3: the Coordinator Lead is allowed to see the panel. Killer: EventDetailPage.confirm 01-C (Lead).
-  { id: 'FM3', name: 'coordinator_lead allowed to see the confirm panel', file: PAGE, suites,
-    edits: [
-      ['(isPlanningOwner || isPlanningCoordinator);', '(isPlanningOwner || isPlanningCoordinator || hasRole(currentUser, "coordinator_lead"));'],
-      ['{planningView && isAssignedCoordinator && (\n        <PlanningInformationPage', '{planningView && (isAssignedCoordinator || hasRole(currentUser, "coordinator_lead")) && (\n        <PlanningInformationPage'],
-    ] },
+  { id: 'FM3', name: "coordinator_lead allowed to see the confirm panel", file: "src/features/events/pages/detail/EventDetailPage.tsx", suites: ['spm135'],
+    edits: [["(isPlanningOwner || isPlanningCoordinator);","(isPlanningOwner || isPlanningCoordinator || hasRole(currentUser, \"coordinator_lead\"));"],["{planningView && isAssignedCoordinator && !isCancelled && (","{planningView && (isAssignedCoordinator || hasRole(currentUser, \"coordinator_lead\")) && !isCancelled && ("]] },
   // FM4: the page no longer updates the store after a confirm. Killer: EventDetailPage.confirm 04-A (page).
   { id: 'FM4', name: 'setEventStatus removed from onConfirmed', file: PAGE, suites,
     edits: [['onConfirmed={() => setEventStatus(event.id, "confirmed")}', 'onConfirmed={() => undefined}']] },
@@ -114,9 +108,8 @@ export const MUTANTS = [
   { id: 'X9', name: 'arrangements non-Error fallback text removed', file: ARRANGED, suites,
     edits: [['e instanceof Error ? e.message : "Could not load confirmed arrangements."', 'e instanceof Error ? e.message : ""']] },
   // X10 (TR-13): a malformed readiness answer is accepted. Killer: arrangements helper test.
-  { id: 'X10', name: 'malformed readiness answer accepted', file: HELPERS, suites,
-    edits: [['if (!isArrangementsStatus(view)) throw', 'if (false) throw']] },
-
+  { id: 'X10', name: "malformed readiness answer accepted", file: "src/utils/arrangements.ts", suites: ['spm135'],
+    edits: [["if (!isArrangementsStatus(view))","if (false)"]] },
   // ---- PlanningInformationPage.tsx: unavailable requests, per-request badges, tab ticks and tab colours ----
   // PP1: Remove From List offered on a venue request that is not unavailable (the pending one too).
   { id: 'PP1', name: 'Remove From List offered on a non-unavailable venue request', file: PLANNING, suites: planningSuites,
@@ -128,8 +121,8 @@ export const MUTANTS = [
   { id: 'PP3', name: 'Remove From List deletes without the confirmation step', file: PLANNING, suites: planningSuites,
     edits: [['        onClick={onAsk}\n        disabled={busy}\n        aria-label={`Remove ${label} From List`}', '        onClick={onConfirm}\n        disabled={busy}\n        aria-label={`Remove ${label} From List`}']] },
   // PP4: Cancel sends the removal instead of closing the confirmation.
-  { id: 'PP4', name: 'Cancel sends the removal', file: PLANNING, suites: planningSuites,
-    edits: [['<button type="button" onClick={onCancel} disabled={busy}', '<button type="button" onClick={onConfirm} disabled={busy}']] },
+  { id: 'PP4', name: "Cancel sends the removal", file: "src/features/events/pages/detail/planning/PlanningInformationPage.tsx", suites: ['planningPage'],
+    edits: [["onClick={onCancel}","onClick={onConfirm}"]] },
   // PP5: Confirm Remove does nothing.
   { id: 'PP5', name: 'Confirm Remove does not send the removal', file: PLANNING, suites: planningSuites,
     edits: [['        onClick={onConfirm}\n        disabled={busy}\n        aria-busy={busy}', '        onClick={() => undefined}\n        disabled={busy}\n        aria-busy={busy}']] },
@@ -140,21 +133,20 @@ export const MUTANTS = [
   { id: 'PP7', name: 'unavailable request badge text changed', file: PLANNING, suites: planningSuites,
     edits: [['    label: "Unavailable",', '    label: "Cancelled",']] },
   // PP8: a pending request gets a tick in its list row.
-  { id: 'PP8', name: 'pending request row shows the complete tick', file: PLANNING, suites: planningSuites,
-    edits: [['          <StatusIcon done={item.status === "confirmed"} unavailable={item.status === "unavailable"} />', '          <StatusIcon done={item.status !== "unavailable"} unavailable={item.status === "unavailable"} />']] },
+  { id: 'PP8', name: "pending request row shows the complete tick", file: "src/features/events/pages/detail/planning/PlanningInformationPage.tsx", suites: ['planningPage'],
+    edits: [["<StatusIcon done={done} unavailable={unavailable} />","<StatusIcon done={true} unavailable={unavailable} />"]] },
   // PP9: the Venues tab is ticked when any request is confirmed, not only when all are.
   { id: 'PP9', name: 'Venues ticked when any request is confirmed', file: PLANNING, suites: planningSuites,
     edits: [['  const venueDone = checklist?.venue.status === "confirmed";', '  const venueDone = !!checklist?.venue.items.some((item) => item.status === "confirmed");']] },
   // PP10: the Equipment tab is not red when an equipment request is unavailable.
-  { id: 'PP10', name: 'Equipment tab not red when unavailable', file: PLANNING, suites: planningSuites,
-    edits: [['unavailable: checklist?.equipment.status === "unavailable" },', 'unavailable: false },']] },
+  { id: 'PP10', name: "Equipment tab not red when unavailable", file: "src/features/events/pages/detail/planning/PlanningInformationPage.tsx", suites: ['planningPage'],
+    edits: [["unavailable: checklist?.equipment.status === \"unavailable\",","unavailable: false,"]] },
   // PP11: the Venues tab turns red instead of yellow when the venue is unavailable.
   { id: 'PP11', name: 'Venues tab red instead of yellow when unavailable', file: PLANNING, suites: planningSuites,
     edits: [['{ key: "venues", label: "Venues", done: !!venueDone, unavailable: false },', '{ key: "venues", label: "Venues", done: !!venueDone, unavailable: checklist?.venue.status === "unavailable" },']] },
   // PP12: the Equipment tab is ticked when only one equipment request is confirmed.
-  { id: 'PP12', name: 'Equipment ticked when any request is confirmed', file: PLANNING, suites: planningSuites,
-    edits: [['    checklist?.equipment.status === "confirmed" || (!!checklist && checklist.equipment.confirmedByCoordinator);', '    !!checklist?.equipment.items.some((item) => item.status === "confirmed") || (!!checklist && checklist.equipment.confirmedByCoordinator);']] },
-
+  { id: 'PP12', name: "Equipment ticked when any request is confirmed", file: "src/features/events/pages/detail/planning/PlanningInformationPage.tsx", suites: ['planningPage'],
+    edits: [["checklist?.equipment.status === \"confirmed\" ||","!!checklist?.equipment.items.some((item) => item.status === \"confirmed\") ||"]] },
   // ---- the venue text on the card, the detail page and the edit form ----
   // VT1: the card shows a blank venue instead of the "Not booked" fallback.
   { id: 'VT1', name: 'card venue fallback blank instead of Not booked', file: CARD, suites: venueSuites,

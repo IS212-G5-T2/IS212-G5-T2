@@ -88,7 +88,7 @@ export const MUTANTS = [
     name: 'operating hours are rendered on the public venue detail page',
     file: DETAIL,
     suites: ['venueDetail'],
-    testMappings: [{ suite: 'venueDetail', file: DETAIL_TEST, title: 'renders venue details and durations when no image is saved' }],
+    testMappings: [{ suite: 'venueDetail', file: DETAIL_TEST, title: 'loads the API-backed venue details and durations' }],
     edits: [['              <div>\n                <dt className="text-gray-400 dark:text-gray-500">Setup time</dt>', '              <div>\n                <dt>Operating hours</dt><dd>24 hours</dd>\n              </div>\n              <div>\n                <dt className="text-gray-400 dark:text-gray-500">Setup time</dt>']],
   },
   {

@@ -13,7 +13,7 @@ import { coordinator, eventRow, organiser, VALID_UUID } from './review.fixtures.
 
 /**
  * SPM-40 regression coverage for `EventsService.approve(id, identity)`.
- * Covers EVENT-APPROVE-03, EVENT-APPROVE-04-A/B, and the AC4 organiser
+ * Covers EVENT-APPROVE-03, EVENT-APPROVE-04-A/B, and the organiser notification (owned by SPM-88; closest SPM-40 AC3)
  * notification. The implemented approval contract:
  *
  *   approve(id, identity?)
@@ -92,7 +92,8 @@ afterEach(() => {
 });
 
 describe('EventsService.approve (SPM-40)', () => {
-  // EVENT-APPROVE-03-A — happy path (AC3 + AC4)
+  // EVENT-APPROVE-03-A — happy path (AC3; the notification is SPM-88)
+  // Kills: approve that does not write Approved, skips the FOR UPDATE lock, or inserts no approval notification (wrong type, recipient or event id).
   it('approves a Submitted request: sets Approved and notifies the organiser', async () => {
     wireApprove(eventRow({ status: 'Submitted' }), eventRow({ status: 'Approved' }));
 
@@ -122,6 +123,7 @@ describe('EventsService.approve (SPM-40)', () => {
   });
 
   // EVENT-APPROVE-03-B — authorization
+  // Kills: an approve that admits a non-coordinator or missing identity, or that updates the event when the wrong coordinator is refused.
   it('refuses a non-coordinator, a missing identity, and the wrong coordinator', async () => {
     // Non-coordinator / missing identity are rejected before any transaction.
     await expect(approve(VALID_UUID, organiser())).rejects.toBeInstanceOf(ForbiddenException);
@@ -130,8 +132,11 @@ describe('EventsService.approve (SPM-40)', () => {
 
     // A coordinator who is not the assigned one is refused inside the transaction.
     wireApprove(eventRow({ coordinator_id: 'coordinator-1', status: 'Submitted' }), null);
-    await expect(approve(VALID_UUID, coordinator('coordinator-2'))).rejects.toBeInstanceOf(
-      ForbiddenException,
+    const attempt = approve(VALID_UUID, coordinator('coordinator-2'));
+    await expect(attempt).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(attempt).rejects.toHaveProperty(
+      'message',
+      'Only the assigned coordinator can approve this request.',
     );
     const sql = txSql();
     expect(sql.some((s) => s.startsWith('UPDATE'))).toBe(false);
@@ -139,6 +144,7 @@ describe('EventsService.approve (SPM-40)', () => {
   });
 
   // EVENT-APPROVE-03-C — id / existence guard
+  // Kills: a malformed id that opens a transaction, or an unknown id that succeeds instead of NotFound.
   it('guards the event id: malformed id never opens a transaction, unknown id is not found', async () => {
     await expect(approve('not-a-uuid', coordinator())).rejects.toBeInstanceOf(NotFoundException);
     expect(db.transaction).not.toHaveBeenCalled();
@@ -150,6 +156,7 @@ describe('EventsService.approve (SPM-40)', () => {
 });
 
 describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
+  // Kills: approval of an event in any non-Submitted status (UPDATE runs or no ConflictException).
   it.each(['Approved', 'Planning', 'Confirmed', 'Completed', 'Rejected', 'Cancelled'])(
     'cannot approve a %s request (Conflict, no update)',
     async (status) => {
@@ -166,6 +173,7 @@ describe('EventsService.approve — state guard (EVENT-APPROVE-04-A)', () => {
 });
 
 describe('EventsService.approve — immutability (EVENT-APPROVE-04-B)', () => {
+  // Kills: re-approval of an Approved event that issues an UPDATE or a second approval notification.
   it('does not re-process or revert an already-Approved event', async () => {
     // An already-approved event stays approved: the Submitted-only guard blocks
     // it, so no status-mutating UPDATE and no duplicate approval notification.
@@ -180,7 +188,8 @@ describe('EventsService.approve — immutability (EVENT-APPROVE-04-B)', () => {
 });
 
 describe('EventsService approval notifications (SPM-40 AC4)', () => {
-  it('returns the organiser approval confirmation with its event link', async () => {
+  // Kills: notifications() dropping the approval type, audience, related event id or read flag, or altering the message.
+  it('EVENT-APPROVE-SUP-01 returns the organiser approval confirmation with its event link', async () => {
     db.query.mockResolvedValue({
       rows: [
         {
@@ -208,7 +217,9 @@ describe('EventsService approval notifications (SPM-40 AC4)', () => {
 });
 
 describe('SPM-123 AC10: approving keeps the assigned coordinator', () => {
+  // Parent AC (SUPPORTING): SPM-40 AC3 (cross-story: test belongs to SPM-123 AC10)
   // Approval changes status only; the coordinator stays on the event.
+  // Kills: approval that writes coordinator_id or coordinator_name in the UPDATE, or a result that clears the assigned coordinator.
   it('LEAD-ASN-10-A keeps the coordinator when a request is approved', async () => {
     // Arrange: an assigned, submitted request.
     wireApprove(eventRow({ status: 'Submitted' }), eventRow({ status: 'Approved' }));

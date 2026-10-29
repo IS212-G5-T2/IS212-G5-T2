@@ -1,0 +1,59 @@
+{
+  "story": "SPM-51",
+  "title": "View Venue Availability (Coordinator)",
+  "note": "Authoritative matrix: Confluence View Venue Availability Matrix (page 24117310), VEN-AVL-01 to VEN-AVL-10. This scope measures the shared VenueScheduleCalendar component so that the three lines owned by SPM-51 (28, 292, 296; coverage-exclusions.md) are counted in SPM-51 test cases. VenueScheduleCalendar.test.tsx is selected by titleMatch \"SPM-51|VEN-AVL-\" (its VEN-AVL-tagged tests carry no SPM-51 text). The shared files below are narrowed by titleMatch \"VEN-AVL-\" so that only tests whose title, describe block or comment names a VEN-AVL case ID are selected (the product-owner widening of the SPM-51 scope). The Playwright spec VenueScheduleCalendar.playwright.spec.ts is excluded from the vitest suite (vitest.config excludes *.playwright.spec.ts) and is not counted in this scope's coverage. Backend suites are executed for traceability only; the sources list still measures the frontend component.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": { "statements": 100, "branches": 100, "functions": 100, "lines": 100 },
+  "tests": {
+    "backend-unit": [
+      { "glob": "backend/src/venues/availability/booking-request.spec.ts", "titleMatch": "VEN-AVL-" },
+      { "glob": "backend/src/venues/repository/venues.repository.spec.ts", "titleMatch": "VEN-AVL-" }
+    ],
+    "backend-e2e": [
+      { "glob": "backend/test/venues-booking-requests.e2e-spec.ts", "titleMatch": "VEN-AVL-" }
+    ],
+    "frontend": [
+      { "glob": "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.test.tsx", "titleMatch": "SPM-51|VEN-AVL-" },
+      { "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx", "titleMatch": "VEN-AVL-" },
+      { "glob": "frontend/src/features/venues/pages/records/availability.test.ts", "titleMatch": "VEN-AVL-" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/venues/pages/records/detail/VenueScheduleCalendar.tsx"
+    ]
+  },
+  "suites": [
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL", "TEST_DATABASE_URL"] },
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm51",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm51.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm51.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
+      "id": "frontend-spm51",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm51.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm51.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

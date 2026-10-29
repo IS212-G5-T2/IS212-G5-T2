@@ -9,6 +9,7 @@ const apiBase = process.env.PLAYWRIGHT_API_URL ?? "http://localhost:8080";
 const password = process.env.SPM40_TEST_PASSWORD ?? "P@55w0rd";
 const organiserEmail =
   process.env.SPM40_ORGANISER_EMAIL ?? "organiser1@connectsphere.test";
+const leadEmail = process.env.SPM40_LEAD_EMAIL ?? "lead@connectsphere.test";
 const defaultName =
   process.env.SPM40_TEST_NAME ?? `SPM-40 approval functional ${Date.now()}`;
 
@@ -59,7 +60,7 @@ async function login(page: Page, email: string) {
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page.getByText(/Signed in as/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Log out" })).toBeVisible();
 }
 
 async function logout(page: Page) {
@@ -79,8 +80,35 @@ async function createSubmittedEvent(request: APIRequestContext, name: string) {
   expect(createResponse.ok()).toBe(true);
   const body = (await createResponse.json()) as CreateEventResponse;
   expect(body.event.status).toBe("submitted");
-  expect(body.event.coordinatorName).toBeTruthy();
-  return body.event;
+  // SPM-123: a submitted request is not auto-assigned; the Lead assigns a coordinator before review.
+  const assigned = await assignCoordinator(request, body.event.id);
+  return { ...body.event, coordinatorName: assigned.event.coordinatorName };
+}
+
+async function assignCoordinator(request: APIRequestContext, eventId: string) {
+  const leadLogin = await request.post(`${apiBase}/api/auth/login`, {
+    data: { email: leadEmail, password },
+  });
+  expect(leadLogin.ok()).toBe(true);
+
+  const coordinatorsResponse = await request.get(`${apiBase}/api/lead/coordinators`);
+  expect(coordinatorsResponse.ok()).toBe(true);
+  const coordinators = (await coordinatorsResponse.json()) as {
+    id: string;
+    name: string;
+    available: boolean;
+    activeAssignments: number;
+  }[];
+  const coordinator = coordinators
+    .filter((item) => item.available && coordinatorEmailByName[item.name] !== undefined)
+    .sort((a, b) => a.activeAssignments - b.activeAssignments)[0];
+  expect(coordinator, "an available named coordinator").toBeTruthy();
+
+  const assignResponse = await request.post(`${apiBase}/api/lead/queue/${eventId}/assign`, {
+    data: { coordinatorId: coordinator.id },
+  });
+  expect(assignResponse.ok()).toBe(true);
+  return (await assignResponse.json()) as { event: { coordinatorName: string } };
 }
 
 test.describe("SPM-40 approve request functional workflow", () => {
@@ -100,6 +128,7 @@ test.describe("SPM-40 approve request functional workflow", () => {
     // Coordinator signs in and sees the request in the default Submitted queue.
     await login(page, coordinatorEmail);
     await page.goto("/events");
+    await page.getByLabel("Filter by status").selectOption("submitted");
     await expect(
       page.getByRole("heading", { name: "Pending Requests" }),
     ).toBeVisible();
@@ -121,6 +150,7 @@ test.describe("SPM-40 approve request functional workflow", () => {
 
     // The approved request drops out of the coordinator's Submitted pending list.
     await page.goto("/events");
+    await page.getByLabel("Filter by status").selectOption("submitted");
     await expect(
       page.getByRole("heading", { name: "Pending Requests" }),
     ).toBeVisible();

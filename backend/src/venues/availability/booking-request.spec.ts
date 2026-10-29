@@ -57,7 +57,7 @@ describe('SPM-51 venue booking request submission', () => {
     );
   });
 
-  /** SPM-54 AC7: the Coordinator gets a stable 409 when an active request already exists for this event and venue. */
+  /** VEN-BKG-SUP-01 SPM-54 AC7: the Coordinator gets a stable 409 when an active request already exists for this event and venue. */
   it('returns a conflict for an active event and venue duplicate', async () => {
     submitBookingRequest.mockResolvedValue({
       kind: 'already-requested',

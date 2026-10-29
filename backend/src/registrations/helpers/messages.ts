@@ -12,7 +12,7 @@ export const REGISTRATION_ERROR_CODES = {
   // SPM-120 withdrawal. Code names are assumed (not fixed by the AC text).
   eventAlreadyOccurred: 'event_already_occurred',
   alreadyWithdrawn: 'registration_already_withdrawn',
-  // SPM-138 waitlist. The 422 code is fixed by D14; the other two codes are ASSUMPTIONS (A-CODE-DUP, A-NOT-WITHDRAWABLE).
+  // SPM-138 waitlist. The 422 code is fixed by D14; the other two codes were ASSUMED and are PO confirmed 22 Oct 2026 (SC-138-001, SC-138-002).
   waitlistNotAvailable: 'WAITLIST_NOT_AVAILABLE',
   alreadyOnWaitlist: 'already_on_waitlist',
   notWithdrawable: 'registration_not_withdrawable',
@@ -69,11 +69,11 @@ export const MESSAGES = {
   waitlistNotAvailable: 'This event still has available spots. Please register directly.',
   waitlistDuplicate: 'You are already on the waitlist for this event.',
   waitlistPromoted: (eventName: string) => `A spot opened up. You are now registered for ${eventName}.`,
-  // SPM-136 rule (a person cannot be both a waiting-list attendee and the organiser or assigned coordinator). ASSUMED wording.
+  // SPM-136 rule (a person cannot be both a waiting-list attendee and the organiser or assigned coordinator). PO confirmed 22 Oct 2026 (SC-136-008).
   ownEventWaitlist: 'An organiser or the assigned coordinator cannot join the waiting list for their own event.',
   waitlistCancelled: (eventName: string) =>
     `${eventName} has been cancelled. Your waitlist place is cancelled.`,
-  // A-NOT-WITHDRAWABLE: a Removed or Cancelled entry cannot be withdrawn. The copy is ours (the spec gives the 409 only).
+  // SC-138-002 (PO confirmed 22 Oct 2026): a Removed or Cancelled entry cannot be withdrawn. The spec gives the 409 only.
   notWithdrawable: 'This registration can no longer be withdrawn.',
   // SPM-139 F5 (ASSUMED wording: the test-case document gives the code, not the text).
   disabled: 'Registration is not available for this event.',

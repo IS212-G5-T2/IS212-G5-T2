@@ -56,6 +56,21 @@ export const MUTANTS = [
     ]],
   },
   {
+    id: 'SPM159-COORDINATOR-STATUS-GUARD',
+    name: 'coordinator hold label no longer requires an approved status',
+    file: 'src/features/bookings/pages/requests/BookingsPage.tsx',
+    suites: ['holdUi'],
+    testMappings: [{
+      suite: 'holdUi',
+      file: 'src/features/bookings/pages/requests/BookingsPage.test.tsx',
+      title: 'VEN-HOLD-09-SUP-COORDINATOR shows no hold-state label for a rejected hold or an approved hold without expiry',
+    }],
+    edits: [[
+      'if (booking.status !== "approved" || !booking.holdExpiresAt) return null;',
+      'if (!booking.holdExpiresAt) return null;',
+    ]],
+  },
+  {
     id: 'SPM159-COORDINATOR-HOLD-EXPIRY-TEXT',
     name: 'coordinator hold cards format the event start instead of hold expiry',
     file: 'src/features/bookings/pages/requests/BookingsPage.tsx',

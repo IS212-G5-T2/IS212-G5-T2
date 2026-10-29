@@ -542,7 +542,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   it.each([
     ['CONFIRM-EVENT-06-A', 'Rejected', 'EVT-207'],
     ['CONFIRM-EVENT-06-B', 'Cancelled', 'EVT-208'],
-  ])('%s: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and stays %s', async (_caseId, status, label) => {
+  ])('CONFIRM-EVENT-SUP-01 %s: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and stays %s', async (_caseId, status, label) => {
     // Arrange: a ready arrangement set on an event that is Rejected or Cancelled, assigned to COO-01
     const eventId = await seedEvent({
       name: label,
@@ -567,7 +567,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   });
 
   // D6 / F6: with no safety source, the event is not ready. This uses the real production default.
-  it('fail closed: with no safety record the event is not confirmable (production default)', async () => {
+  it('CONFIRM-EVENT-SUP-02 fail closed: with no safety record the event is not confirmable (production default)', async () => {
     // Arrange: override removed by re-creating the app with the real safety source
     await app.close();
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] })
@@ -625,7 +625,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   });
 
   // Unsupported target: Cancelled is handled by SPM-136 (the cancel path), so this uses Completed, which no handler supports.
-  it('an unsupported target status is refused with 400 UNSUPPORTED_TARGET_STATUS and nothing changes', async () => {
+  it('CONFIRM-EVENT-SUP-03 an unsupported target status is refused with 400 UNSUPPORTED_TARGET_STATUS and nothing changes', async () => {
     // Arrange
     const { eventId } = await seedReadyEvent();
 
@@ -637,7 +637,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     expect(await statusOf(eventId)).toBe('Planning');
   });
 
-  it('a stale hold on a pending booking is outstanding over HTTP (expired hold, D6)', async () => {
+  it('CONFIRM-EVENT-SUP-04 a stale hold on a pending booking is outstanding over HTTP (expired hold, D6)', async () => {
     // Arrange: a pending booking whose hold expired before T0
     const eventId = await seedEvent({ name: 'Held Event', status: 'Planning', coordinatorId: coordinator.uid });
     await seedBooking(eventId, await seedVenue('Main Hall'), 'pending', PAST_HOLD);
@@ -659,7 +659,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   }
 
   // TR-05 (BE): a venue block on a DIFFERENT venue does not flag the event's venue.
-  it('TR-05: a blocked row on a different venue over the same slot does not flag the approved venue', async () => {
+  it('CONFIRM-EVENT-SUP-05 TR-05: a blocked row on a different venue over the same slot does not flag the approved venue', async () => {
     // Arrange: EVT-201 ready on Main Hall; Breakout Room 2 is blocked over the same slot
     const { eventId } = await seedReadyEvent();
     await seedBlock(await seedVenue('Breakout Room 2'), SLOT_START, SLOT_END);
@@ -675,7 +675,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   it.each([
     ['ends exactly when the slot starts', '2026-11-05T01:00:00.000Z', SLOT_START],
     ['starts exactly when the slot ends', SLOT_END, '2026-11-05T05:00:00.000Z'],
-  ])('TR-05: a same-venue block that %s is not flagged', async (_label, start, end) => {
+  ])('CONFIRM-EVENT-SUP-06 TR-05: a same-venue block that %s is not flagged', async (_label, start, end) => {
     // Arrange: EVT-201 ready on Main Hall; the block touches the slot edge only
     const { eventId, venueId } = await seedReadyEvent();
     await seedBlock(venueId, start, end);
@@ -688,7 +688,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   });
 
   // TR-05 (BE): a block that overlaps only part of the slot flags the venue as unavailable.
-  it('TR-05: a same-venue block that partly overlaps the slot flags the venue as Venue unavailable', async () => {
+  it('CONFIRM-EVENT-SUP-07 TR-05: a same-venue block that partly overlaps the slot flags the venue as Venue unavailable', async () => {
     // Arrange: EVT-201 ready on Main Hall; the block starts one hour into the slot and runs past its end
     const { eventId, venueId } = await seedReadyEvent();
     await seedBlock(venueId, '2026-11-05T03:00:00.000Z', '2026-11-05T05:00:00.000Z');
@@ -715,7 +715,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       ['the submitting Organiser (ORG-01)', () => Promise.resolve(organiser)],
       ['an Attendee (ATT-01)', () => Promise.resolve(attendee)],
       ['a Lead who is not assigned (LEAD-01)', () => createSession('COORDINATOR_LEAD', 'Lead 1')],
-    ])('refuses %s with 403 MSG-CF-03 and returns no readiness data', async (_label, sessionFor) => {
+    ])('CONFIRM-EVENT-SUP-08 refuses %s with 403 MSG-CF-03 and returns no readiness data', async (_label, sessionFor) => {
       // Arrange: EVT-201 ready and assigned to COO-01
       const { eventId } = await seedReadyEvent();
       const session = await sessionFor();
@@ -731,7 +731,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       expect(await historyCount(eventId)).toBe(0);
     });
 
-    it('no session gets 401 and no readiness data', async () => {
+    it('CONFIRM-EVENT-SUP-09 no session gets 401 and no readiness data', async () => {
       // Arrange
       const { eventId } = await seedReadyEvent();
 
@@ -746,7 +746,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
 
   // TR-02 (BE, GET): the organiser's confirmed view is for the submitting organiser of a Confirmed event only.
   describe('TR-02: confirmed-arrangements is for the submitting organiser of a Confirmed event', () => {
-    it('a second organiser (ORG-02) who did not submit the event gets 404 Event not found.', async () => {
+    it('CONFIRM-EVENT-SUP-10 a second organiser (ORG-02) who did not submit the event gets 404 Event not found.', async () => {
       // Arrange: EVT-201 confirmed by COO-01, submitted by ORG-01
       const { eventId } = await seedReadyEvent();
       await statusChange(coordinator, eventId).expect(200);
@@ -759,7 +759,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       expect(response.body).not.toHaveProperty('venueBookings');
     });
 
-    it('the submitting organiser gets 404 for the same event while it is still Planning', async () => {
+    it('CONFIRM-EVENT-SUP-11 the submitting organiser gets 404 for the same event while it is still Planning', async () => {
       // Arrange: EVT-201 ready, not yet confirmed
       const { eventId } = await seedReadyEvent();
 
@@ -774,7 +774,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
     it.each([
       ['the assigned Coordinator (COO-01)', () => Promise.resolve(coordinator), 'Organiser access required.'],
       ['an Attendee (ATT-01)', () => Promise.resolve(attendee), 'Organiser access required.'],
-    ])('refuses %s with 403 and returns no arrangements', async (_label, sessionFor, message) => {
+    ])('CONFIRM-EVENT-SUP-12 refuses %s with 403 and returns no arrangements', async (_label, sessionFor, message) => {
       // Arrange: EVT-201 confirmed
       const { eventId } = await seedReadyEvent();
       await statusChange(coordinator, eventId).expect(200);
@@ -788,7 +788,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       expect(response.body).not.toHaveProperty('venueBookings');
     });
 
-    it('no session gets 401 and no arrangements', async () => {
+    it('CONFIRM-EVENT-SUP-13 no session gets 401 and no arrangements', async () => {
       // Arrange: EVT-201 confirmed
       const { eventId } = await seedReadyEvent();
       await statusChange(coordinator, eventId).expect(200);
@@ -804,7 +804,7 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
   // TR-03 (BE, R2 / D5 / Q1): every non-Planning source other than Rejected, Cancelled and Confirmed is refused.
   // The text "Only events in Planning can be confirmed." is ASSUMED (D5). Kills: a removed or widened source guard.
   it.each(['Approved', 'Submitted'])(
-    'TR-03: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and nothing changes',
+    'CONFIRM-EVENT-SUP-14 TR-03: a %s event is refused with 422 EVENT_NOT_CONFIRMABLE and nothing changes',
     async (status) => {
       // Arrange: a ready arrangement set on a non-Planning event assigned to COO-01
       const eventId = await seedEvent({ name: `${status} Event`, status, coordinatorId: coordinator.uid });
@@ -824,4 +824,18 @@ describe.skipIf(!database)('SPM-135 Confirm an Event over HTTP (e2e)', () => {
       expect(await notificationCount(organiser.uid, eventId)).toBe(0);
     },
   );
+
+  // A cancelled event accepts no status change except to Confirmed, which the Confirmed handler then refuses (status.service).
+  it('CONFIRM-EVENT-SUP-41 a Cancelled event refuses a Planning target with 422 and nothing changes', async () => {
+    const eventId = await seedEvent({ name: 'Cancelled Event', status: 'Cancelled', coordinatorId: coordinator.uid });
+
+    const response = await statusChange(coordinator, eventId, 'Planning').expect(422);
+
+    expect(response.body).toMatchObject({
+      code: 'INVALID_STATUS_TRANSITION',
+      message: 'This status change is not allowed for this event.',
+    });
+    expect(await statusOf(eventId)).toBe('Cancelled');
+    expect(await historyCount(eventId)).toBe(0);
+  });
 });

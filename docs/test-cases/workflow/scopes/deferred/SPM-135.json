@@ -1,0 +1,162 @@
+{
+  "story": "SPM-135",
+  "title": "Confirm an Event (Coordinator)",
+  "note": "Shared test files are limited with titleMatch to the tests that belong to SPM-135. Source files shared with other stories (events.service.ts, EventDetailPage.tsx, EventEditForm.tsx, EventCard.tsx) are not in the coverage scope; their SPM-135 behaviour is covered by the tests named here.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/status/*.spec.ts",
+        "titleMatch": "CONFIRM-EVENT|SAFETY-|CHECKLIST-ACTION|EQUIPMENT-GATE|EQUIPMENT-REMOVE|VENUE-REMOVE|VENUE-SUMMARY"
+      },
+      {
+        "glob": "backend/src/events/planning/event-planning.service.spec.ts",
+        "titleMatch": "SAFETY-RESET-UPDATE"
+      }
+    ],
+    "backend-e2e": [
+      "backend/test/events-confirm.e2e-spec.ts",
+      "backend/test/events-confirm-safety-source.e2e-spec.ts",
+      "backend/test/events-venue-removal.e2e-spec.ts",
+      "backend/test/events-equipment-removal.e2e-spec.ts",
+      "backend/test/events-venue-summary.e2e-spec.ts",
+      "backend/test/events-safety-invalidation.e2e-spec.ts",
+      "backend/test/events-safety-feedback.e2e-spec.ts",
+      "backend/test/events-checklist-actions.e2e-spec.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/detail/planning/ConfirmEventPanel.test.tsx",
+      "frontend/src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.test.tsx",
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "CONFIRM-EVENT|SAFETY-|CHECKLIST-ACTION|EQUIPMENT-GATE|EQUIPMENT-REMOVE|VENUE-REMOVE|VENUE-SUMMARY"
+      },
+      "frontend/src/features/events/pages/detail/EventDetailPage.confirm.test.tsx",
+      "frontend/src/utils/arrangements.test.ts",
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.test.tsx",
+        "titleMatch": "VENUE-SUMMARY|VENUE-REMOVE|SPM-135|CONFIRM-EVENT-SUP-42"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/edit/EventEditForm.test.tsx",
+        "titleMatch": "VENUE-SUMMARY|VENUE-REMOVE|SPM-135"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventCard.test.tsx",
+        "titleMatch": "VENUE-REMOVE|VENUE-SUMMARY"
+      }
+    ],
+    "backend-e2e-planning": [
+      {
+        "glob": "backend/test/events-planning-transition.e2e-spec.ts",
+        "titleMatch": "SPM-135-COVERAGE-ONLY"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/status/*.ts",
+      "backend/src/events/venue-summary.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/detail/planning/ConfirmEventPanel.tsx",
+      "frontend/src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx",
+      "frontend/src/utils/arrangements.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "backend-e2e-planning",
+      "cwd": "backend",
+      "tests": "backend-e2e-planning",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "DATABASE_URL",
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-app",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm135.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm135.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "backend-triggers",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run-triggers.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm135.triggers.mutants.mjs",
+      "export": "TRIGGER_MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm135.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm135.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

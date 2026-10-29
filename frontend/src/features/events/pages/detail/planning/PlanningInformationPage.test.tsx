@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   render,
   screen,
@@ -94,6 +95,17 @@ function renderPage() {
       />
     </MemoryRouter>,
   );
+}
+
+/** A promise the test settles by hand, so a request can be held in flight. */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 const postCalls = () =>
@@ -509,6 +521,241 @@ describe("PlanningInformationPage", () => {
     expect(
       screen.queryByText("Venue removed from list"),
     ).not.toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-SUP-07 SPM-54: an open venue removal shows "Removing…" and is disabled while another planning request is in flight (planning checklist behaviour owned by SPM-135; parent AC9).
+   * Kills: a removal confirmation that stays enabled and reads "Confirm Remove" while its request is still pending.
+   */
+  it("VEN-BKG-SUP-07 SPM-54 shows Removing… on an open venue removal while the equipment confirmation is in flight", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "unavailable",
+        items: [
+          { id: "b2", venueName: "Seminar Room B", status: "unavailable" },
+        ],
+      },
+    });
+    const confirmNone = deferred<unknown>();
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/confirm-no-equipment"))
+        return confirmNone.promise;
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({
+          eventId: EVENT_ID,
+          ready: false,
+          outstanding: [],
+          checklist: current,
+        });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Remove Seminar Room B From List",
+      }),
+    );
+    await user.click(screen.getByRole("tab", { name: /Equipment/ }));
+    await user.click(
+      screen.getByRole("checkbox", { name: "Confirm no equipment needed" }),
+    );
+    await user.click(screen.getByRole("tab", { name: /Venues/ }));
+
+    expect(screen.getByRole("button", { name: "Removing…" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Confirm Remove" }),
+    ).not.toBeInTheDocument();
+    await act(async () => {
+      confirmNone.resolve({});
+    });
+  });
+
+  /**
+   * VEN-BKG-SUP-08 SPM-54: a status response without a checklist shows the loading placeholder, not an error (planning checklist behaviour owned by SPM-135; parent AC9).
+   * Kills: a planning page that reports a failure, or renders an empty safety check, when the response omits the checklist.
+   */
+  it("VEN-BKG-SUP-08 SPM-54 shows the loading placeholder, not an error, when the status response has no checklist", async () => {
+    const user = userEvent.setup();
+    apiMock.mockImplementation(((path: string) => {
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({
+          eventId: EVENT_ID,
+          ready: false,
+          outstanding: [],
+        });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+
+    expect(screen.getAllByText("Loading…")).toHaveLength(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Operational Safety Check" }),
+    ).not.toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-SUP-09 SPM-54: a checklist load or action that finishes after the coordinator has left the planning page is ignored without an error (planning checklist behaviour owned by SPM-135; parent AC9).
+   * Kills: a page that logs or throws when a checklist load or action completes after it has unmounted.
+   */
+  it("VEN-BKG-SUP-09 SPM-54 ignores a checklist response that arrives after the page is left", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const load = deferred<unknown>();
+    apiMock.mockImplementation(((path: string) => {
+      if (path.endsWith("/arrangements-status")) return load.promise;
+      return Promise.resolve({});
+    }) as typeof api);
+    const { unmount, container } = renderPage();
+
+    unmount();
+    await act(async () => {
+      load.resolve({
+        eventId: EVENT_ID,
+        ready: true,
+        outstanding: [],
+        checklist: current,
+      });
+    });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  /** VEN-BKG-SUP-09 SPM-54: a checklist load that fails after the page is left is ignored without an error. */
+  it("VEN-BKG-SUP-09 SPM-54 ignores a checklist failure that arrives after the page is left", async () => {
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const load = deferred<unknown>();
+    apiMock.mockImplementation(((path: string) => {
+      if (path.endsWith("/arrangements-status")) return load.promise;
+      return Promise.resolve({});
+    }) as typeof api);
+    const { unmount, container } = renderPage();
+
+    unmount();
+    await act(async () => {
+      load.reject(new ApiError(500, "Server error", "SERVER_ERROR"));
+    });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  /** VEN-BKG-SUP-09 SPM-54: a safety-check request that completes after the page is left is ignored without an error. */
+  it("VEN-BKG-SUP-09 SPM-54 ignores a safety-check request that completes after the page is left", async () => {
+    const user = userEvent.setup();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    current = checklist({
+      canRequestSafetyCheck: true,
+      blocking: [],
+      venue: { status: "confirmed", items: [] },
+      equipment: {
+        required: false,
+        status: "confirmed",
+        items: [],
+        confirmedByCoordinator: true,
+      },
+    });
+    const request = deferred<unknown>();
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/safety-check/request"))
+        return request.promise;
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({
+          eventId: EVENT_ID,
+          ready: false,
+          outstanding: [],
+          checklist: current,
+        });
+      return Promise.resolve({});
+    }) as typeof api);
+    const { unmount, container } = renderPage();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Request For Safety Check" }),
+    );
+    unmount();
+    await act(async () => {
+      request.resolve({ eventId: EVENT_ID, status: "pending" });
+    });
+
+    expect(container).toBeEmptyDOMElement();
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  /**
+   * VEN-BKG-SUP-05 SPM-54: a venue removal that fails with a non-Error rejection shows the action's own fallback message (planning checklist behaviour owned by SPM-135; parent AC9).
+   * Kills: a page that shows nothing, or the raw rejection value, when a removal fails without a reason.
+   */
+  it("VEN-BKG-SUP-05 SPM-54 shows the venue removal fallback message when the failure carries no reason", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "unavailable",
+        items: [
+          { id: "b2", venueName: "Seminar Room B", status: "unavailable" },
+        ],
+      },
+    });
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "DELETE") return Promise.reject("boom");
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({
+          eventId: EVENT_ID,
+          ready: false,
+          outstanding: [],
+          checklist: current,
+        });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Remove Seminar Room B From List",
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Confirm Remove" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not remove the venue.",
+    );
+    expect(screen.getByText("Seminar Room B")).toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-SUP-06 SPM-54: a checklist refresh error reported by the parent page is shown as an alert above the checklist (planning checklist behaviour owned by SPM-135; parent AC9).
+   * Kills: a page that drops the parent's refresh error instead of showing it to the coordinator.
+   */
+  it("VEN-BKG-SUP-06 SPM-54 shows the parent's refresh error above the planning checklist", async () => {
+    render(
+      <MemoryRouter>
+        <PlanningInformationPage
+          view={view}
+          status="planning"
+          refreshError="Event details could not be refreshed."
+          onConfirmed={() => undefined}
+        />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Event details could not be refreshed.",
+    );
   });
 
   /** Only unavailable equipment requests offer Remove From List; confirmed and pending ones do not. */
@@ -1125,6 +1372,46 @@ describe("PlanningInformationPage", () => {
     },
   );
 
+  /** MONITOR-QUEUE-07-C: a safety check reset by a later change shows its reason and date, and labels the re-request. */
+  it("MONITOR-QUEUE-07-C shows the reset reason and date and labels the re-request as Re-Request For Safety Check", async () => {
+    current = checklist({
+      canRequestSafetyCheck: true,
+      blocking: [],
+      safetyCheck: {
+        status: "not_requested",
+        resetReason: "Venue change",
+        resetDate: "2026-10-20T02:00:00.000Z",
+      },
+    });
+    renderPage();
+
+    const notice = await screen.findByText("Re-request needed.");
+    expect(notice.closest("p")).toHaveTextContent(
+      /Re-request needed\. Venue change on \w{3} \d{1,2}, 2026, [^,]+, so the earlier safety check no longer applies\./,
+    );
+    expect(
+      screen.getByRole("button", { name: "Re-Request For Safety Check" }),
+    ).toBeEnabled();
+  });
+
+  /** MONITOR-QUEUE-07-C: a reset reason with no reset date shows the reason without a date. */
+  it("MONITOR-QUEUE-07-C shows a reset reason without a date as a sentence with no date", async () => {
+    current = checklist({
+      canRequestSafetyCheck: true,
+      blocking: [],
+      safetyCheck: { status: "not_requested", resetReason: "Venue change" },
+    });
+    renderPage();
+
+    const notice = await screen.findByText("Re-request needed.");
+    expect(notice.closest("p")).toHaveTextContent(
+      "Re-request needed. Venue change, so the earlier safety check no longer applies.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Re-Request For Safety Check" }),
+    ).toBeEnabled();
+  });
+
   /** A successful Confirm Event shows the server's confirmation message and tells the parent page the event is confirmed. */
   it("tells the parent when Confirm Event succeeds", async () => {
     const user = userEvent.setup();
@@ -1441,4 +1728,23 @@ describe("PlanningInformationPage", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(expected);
     },
   );
+
+  /** A pending section is not ticked: its card shows no Complete icon even when one of its requests is confirmed. */
+  it("CONFIRM-EVENT-SUP-40 does not tick a pending venue section on its card", async () => {
+    const user = userEvent.setup();
+    current = checklist({
+      venue: {
+        status: "pending",
+        items: [
+          { id: "b1", venueName: "Main Hall", status: "confirmed", requestedDate: "2026-10-10T00:00:00.000Z" },
+          { id: "b2", venueName: "Breakout Room 1", status: "pending", requestedDate: "2026-10-11T00:00:00.000Z" },
+        ],
+      },
+    });
+    renderPage();
+    await user.click(await screen.findByRole("tab", { name: /Venues/ }));
+    const card = (await screen.findByText("Venue Request Pending")).closest(".rounded-lg") as HTMLElement;
+    // The header icon is the first image on the card; the confirmed row further down has its own tick.
+    expect(within(card).getAllByRole("img")[0]).not.toHaveAttribute("aria-label", "Complete");
+  });
 });

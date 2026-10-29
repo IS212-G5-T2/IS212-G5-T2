@@ -11,11 +11,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { AppModule } from '../src/app.module.js';
 
 describe('Events coordinator assignment (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let createdEventIds: string[];
   let createdUserIds: string[];
@@ -78,7 +78,9 @@ describe('Events coordinator assignment (e2e)', () => {
     return eventId;
   }
 
-  it('omits attachment dataUrl from the events list but keeps it on the detail', async () => {
+  // Parent AC (SUPPORTING): SPM-38 AC3
+  // Kills: the events list returning attachment dataUrl, or the detail route dropping dataUrl from the attachment.
+  it('EVE-REV-SUP-01 omits attachment dataUrl from the events list but keeps it on the detail', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const attachment = {
       id: 'att-1',
@@ -113,6 +115,7 @@ describe('Events coordinator assignment (e2e)', () => {
   // SPM-38 AC4: a coordinator the event is not assigned to gets the same 404
   // as a non-existent event when reading it through the real HTTP pipeline,
   // and an unauthenticated request is rejected before it ever reaches that check.
+  // Kills: the detail route answering 200 or 403 (not 404) to a coordinator not assigned to the event, or serving an unauthenticated request.
   it('EVE-REV-04-F returns 404 for a coordinator the event is not assigned to', async () => {
     const organiser = await createDatabaseUser('ORGANISER', 'Demo Organiser');
     const coordinator = await createDatabaseUser('COORDINATOR', 'Demo Coordinator');
@@ -153,7 +156,7 @@ describe('Events coordinator assignment (e2e)', () => {
       .post('/api/auth/login')
       .send({ email, password })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');

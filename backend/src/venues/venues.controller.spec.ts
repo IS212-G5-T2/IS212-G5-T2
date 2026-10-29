@@ -14,7 +14,7 @@ describe('SPM-50 venue route wiring', () => {
     uid: 'staff-1',
     roles: ['VENUE_STAFF'],
   };
-  const request = { [CURRENT_USER_REQUEST_KEY]: identity } as Request;
+  const request = { [CURRENT_USER_REQUEST_KEY]: identity } as unknown as Request;
   const service = {
     create: vi.fn(),
     list: vi.fn(),
@@ -30,6 +30,7 @@ describe('SPM-50 venue route wiring', () => {
   };
   const controller = new VenuesController(service as unknown as VenuesService);
 
+  // Kills: options() returning a facility or accessibility list that drops, renames or reorders a venue-schema entry.
   /** EVE-FAC-02-A and EVE-ACC-02-ALIGN-01: options expose current facility and accessibility schema labels/values. */
   it('EVE-FAC-02-A EVE-ACC-02-ALIGN-01 returns facility and accessibility options from venue schemas', () => {
     const response = controller.options();
@@ -55,6 +56,7 @@ describe('SPM-50 venue route wiring', () => {
   });
 
   // SPM-50 / VEN-CRE-04-A: creation forwards the body and verified caller.
+  // Kills: create that forwards the body without the verified identity, or returns a different value from the service.
   it('forwards venue creation and keeps module wiring importable', () => {
     // Arrange a body and service response.
     const body = { name: 'Orchid Hall Test' };
@@ -66,6 +68,7 @@ describe('SPM-50 venue route wiring', () => {
   });
 
   // SPM-124: catalogue scope is an explicit flag; identity stays server-verified.
+  // Kills: list that treats the scope 'true' as anything but a true flag, or get that passes a caller-chosen identity or the wrong id.
   it('forwards catalogue scope and detail reads to the service', () => {
     // Arrange: service results make each delegated read distinguishable.
     service.list.mockReturnValue(['catalogue']);
@@ -81,6 +84,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.get).toHaveBeenCalledWith(identity, id);
   });
 
+  // Kills: submitBookingRequest that drops the venue id or body, or substitutes a body-supplied identity for the session identity.
   /** VEN-AVL-06-A: the authenticated booking API forwards the venue, body and verified identity. */
   it('forwards a venue booking request with the session identity', () => {
     const venueId = '00000000-0000-4000-8000-000000000124';
@@ -171,6 +175,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.rejectVenueBooking).toHaveBeenCalledWith(identity, bookingId, body);
   });
 
+  // Kills: listCoordinatorBookings called without the authenticated identity, or with another user's identity.
   /** VEN-BKG-08-SEC-1: coordinator booking history is fetched for the authenticated identity. */
   it('lists coordinator bookings for the authenticated user', () => {
     service.listCoordinatorBookings.mockReturnValue(['booking']);
@@ -178,6 +183,7 @@ describe('SPM-50 venue route wiring', () => {
     expect(service.listCoordinatorBookings).toHaveBeenCalledWith(identity);
   });
 
+  // Kills: cancellation confirmation that treats a null body as confirmed, or maps an explicit false to true.
   /** VEN-BKG-10-A: only a literal true in the request body confirms last-booking cancellation. */
   it.each([
     [{ confirmed: true }, true],
@@ -196,6 +202,7 @@ describe('SPM-50 venue route wiring', () => {
     );
   });
 
+  // Kills: markUnavailable or endUnavailable that swaps venue and period ids, drops the body, or omits the verified identity.
   /** SPM-122: venue staff unavailability actions forward the verified identity and route IDs. */
   it('forwards a blockout request and blockout end action', () => {
     const venueId = '00000000-0000-4000-8000-000000000124';
