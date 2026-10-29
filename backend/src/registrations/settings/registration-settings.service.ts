@@ -152,10 +152,10 @@ export class RegistrationSettingsService {
       // The new window: a shortened closing time or a disable removes the waiting list (D3).
       await settleLocked(client, eventId, now);
       // Capacity rose: the earliest waiting entries take the new places in this same transaction (BR10).
-      if (next.capacity > saved.capacity) await fillFreeSpots(client, eventId, now);
+      const promoted = next.capacity > saved.capacity ? await fillFreeSpots(client, eventId, now) : 0;
 
       return {
-        ...this.toResponse(eventId, next, confirmed, row.registration_settings_version + 1),
+        ...this.toResponse(eventId, next, confirmed + promoted, row.registration_settings_version + 1),
         message: SETTINGS_MESSAGES.saved,
       };
     });

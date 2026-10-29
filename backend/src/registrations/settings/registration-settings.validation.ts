@@ -91,6 +91,11 @@ export function parseRegistrationSettingsBody(body: unknown): ParseDecision {
 /** An ISO 8601 date-time that carries an offset or Z. Without one the instant is ambiguous, so it is refused. */
 function parseDateTime(value: unknown): Date | undefined {
   if (typeof value !== 'string' || !DATETIME_PATTERN.test(value)) return undefined;
+  // new Date rolls a day that does not exist (2026-02-30) into the next month; the date part must be a real calendar day.
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const calendar = new Date(Date.UTC(year, month - 1, day));
+  if (calendar.getUTCFullYear() !== year || calendar.getUTCMonth() !== month - 1 || calendar.getUTCDate() !== day)
+    return undefined;
   const instant = new Date(value);
   return Number.isNaN(instant.getTime()) ? undefined : instant;
 }

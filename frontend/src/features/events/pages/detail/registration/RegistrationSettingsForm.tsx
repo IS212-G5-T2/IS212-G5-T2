@@ -186,6 +186,11 @@ export function RegistrationSettingsForm({ eventId, startDateTime, status, onSav
                 Registration enabled
               </label>
             </div>
+            {errors.enabled && (
+              <p role="alert" className="-mt-2 mb-4 text-sm text-danger-700 dark:text-danger-300">
+                {errors.enabled}
+              </p>
+            )}
 
             <TextInput
               id={`${ids}-opens`}

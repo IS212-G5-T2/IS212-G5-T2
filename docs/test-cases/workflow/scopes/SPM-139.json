@@ -1,7 +1,7 @@
 {
   "story": "SPM-139",
   "title": "Configure Event Registration Period and Capacity (Event Coordinator)",
-  "note": "Test cases follow the v2.0 SPM-139 test-case document (docs/specs/SPM-139-test-cases.md; Confluence case pages CONFIG-REG-03 to CONFIG-REG-11 carry the same v2.0 content). The Confluence matrix summary page was not located, so G1 PRIMARY coverage is UNABLE_TO_VERIFY. Frontend tests of this story carry no CONFIG-REG ids and are reported as untraced. Non-v2.0 cases are CONFIG-REG-X-01 to X-04 (SUPPORTING, parent AC stated, approval pending).",
+  "note": "Test cases follow the v2.0 SPM-139 test-case document (docs/specs/SPM-139-test-cases.md; Confluence case pages CONFIG-REG-03 to CONFIG-REG-11 carry the same v2.0 content). The Confluence matrix summary page was not located, so G1 PRIMARY coverage is UNABLE_TO_VERIFY. Frontend tests of this story carry CONFIG-REG ids in their titles. Non-v2.0 cases are CONFIG-REG-X-01 to X-04 (SUPPORTING, parent AC stated, approved by the story owner).",
   "tz": [
     "UTC",
     "Asia/Singapore",

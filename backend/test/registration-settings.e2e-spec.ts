@@ -281,6 +281,8 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     ['no offset', '2026-10-19T09:00:00'],
     ['invalid calendar', '2026-13-45T25:61'],
     ['not a date', 'not-a-date'],
+    ['non-existent day (30 February)', '2026-02-30T10:00:00Z'],
+    ['non-existent day (31 February, offset)', '2026-02-31T10:00:00+08:00'],
   ])('CONFIG-REG-02-D: a %s opening time is refused with INVALID_DATETIME', async (_label, value) => {
     const coordinator = await user(['COORDINATOR'], 'Coordinator 02D');
     const eventId = await seedEvent({ coordinatorId: coordinator.uid, status: 'Planning' });
@@ -288,6 +290,20 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     expect(refused.body.code).toBe('INVALID_DATETIME');
     expect(refused.body.errors).toHaveProperty('registrationOpensAt');
     expect((await get(eventId, coordinator).expect(200)).body.version).toBe(0);
+  });
+
+  // An opening time changed alone is judged against the saved closing time.
+  it('CONFIG-REG-05-C: an opening time at or after the saved closing time is refused with INVALID_PERIOD', async () => {
+    const coordinator = await user(['COORDINATOR'], 'Coordinator 02E');
+    const eventId = await seedEvent({ coordinatorId: coordinator.uid, enabled: true, opens: '2026-10-17T01:00:00Z', closes: '2026-10-28T15:59:00Z', limit: 10 });
+    const refused = await put(eventId, coordinator, { registrationOpensAt: '2026-10-28T15:59:00Z', version: 0 }).expect(422);
+    expect(refused.body.code).toBe('INVALID_PERIOD');
+    expect(refused.body.errors).toHaveProperty('registrationClosesAt');
+    expect((await get(eventId, coordinator).expect(200)).body).toMatchObject({
+      registrationOpensAt: '2026-10-17T01:00:00.000Z',
+      registrationClosesAt: '2026-10-28T15:59:00.000Z',
+      version: 0,
+    });
   });
 
   // 03-C: a refused save changes nothing, including the fields that were valid in the same request.
@@ -435,7 +451,8 @@ describe.skipIf(!database)('SPM-139 registration settings (e2e, PostgreSQL)', ()
     await seedRow(eventId, next, 'Waitlisted', new Date('2026-10-18T10:05:00Z'));
     await seedRow(eventId, latest, 'Waitlisted', new Date('2026-10-18T10:10:00Z'));
 
-    await put(eventId, coordinator, { capacity: 4, version: 0 }).expect(200);
+    const saved = await put(eventId, coordinator, { capacity: 4, version: 0 }).expect(200);
+    expect(saved.body.confirmedCount).toBe(4);
 
     expect(await statusOf(eventId, earliest)).toBe('Registered');
     expect(await statusOf(eventId, next)).toBe('Registered');

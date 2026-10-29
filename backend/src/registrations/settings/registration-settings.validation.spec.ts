@@ -26,12 +26,12 @@ function run(saved: SavedSettings, patch: SettingsPatch, confirmed = 0, max = 21
 }
 
 describe('SPM-139 AC5 and AC6: the closing time against the opening time and the event start', () => {
-  // Kills: M10 (`<` for `<=` at the start), M9 (closing after the start accepted)
+  // Kills: M1 (start boundary written as `>=`); the 18:01 row also catches the start rule removed (no mutant id)
   it.each([
     ['2026-11-07T17:59:00+08:00', true],
     ['2026-11-07T18:00:00+08:00', true], // equal to the start is valid (R3)
     ['2026-11-07T18:01:00+08:00', false],
-  ])('closing %s against the 18:00 start: accepted=%s', (closes, accepted) => {
+  ])('CONFIG-REG-06-C: closing %s against the 18:00 start: accepted=%s', (closes, accepted) => {
     const decision = run(NONE, {
       registrationEnabled: true,
       opensAt: sgt('2026-10-19T09:00:00+08:00'),
@@ -46,11 +46,11 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
     }
   });
 
-  // Kills: M8 (equal times accepted), a closing time before the opening time accepted.
+  // Kills: M2 (equal times accepted); the second row catches a closing time before the opening time accepted (no mutant id)
   it.each([
     ['2026-10-23T09:00:00+08:00', '2026-10-23T09:00:00+08:00'], // equal
     ['2026-10-23T09:00:00+08:00', '2026-10-22T09:00:00+08:00'], // closing before opening
-  ])('opening %s and closing %s: refused with the closing-after-opening text', (opens, closes) => {
+  ])('CONFIG-REG-05-C: opening %s and closing %s: refused with the closing-after-opening text', (opens, closes) => {
     const decision = run(NONE, { opensAt: sgt(opens), closesAt: sgt(closes) });
     expect(decision.ok).toBe(false);
     if (!decision.ok) {
@@ -61,7 +61,7 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
   });
 
   // An opening time in the past is valid: registration opens at once (BR4, 02-B).
-  it('accepts an opening time before the current time', () => {
+  it('CONFIG-REG-02-C: accepts an opening time before the current time', () => {
     const decision = run(NONE, {
       registrationEnabled: true,
       opensAt: sgt('2026-10-18T11:00:00+08:00'),
@@ -75,8 +75,8 @@ describe('SPM-139 AC5 and AC6: the closing time against the opening time and the
 describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column maximum', () => {
   const valid = { registrationEnabled: true, opensAt: sgt('2026-10-19T09:00:00+08:00'), closesAt: sgt('2026-10-28T23:59:00+08:00') };
 
-  // Kills: M12 (string coercion), M13 (no upper bound), lower bound off by one (03-B).
-  it.each([0, -1, 2.5, '10', '1e3', null])('refuses capacity %j with INVALID_CAPACITY', (capacity) => {
+  // Kills: M3 (lower bound moved to 0), M5 (whole-number check removed); string and null rows have no mutant id.
+  it.each([0, -1, 2.5, '10', '1e3', null])('CONFIG-REG-07-C: refuses capacity %j with INVALID_CAPACITY', (capacity) => {
     const decision = run(NONE, { ...valid, capacity });
     expect(decision.ok).toBe(false);
     if (!decision.ok) {
@@ -85,12 +85,12 @@ describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column 
     }
   });
 
-  it.each([1, 1000, 2147483647])('accepts capacity %i', (capacity) => {
+  it.each([1, 1000, 2147483647])('CONFIG-REG-07-D: accepts capacity %i', (capacity) => {
     expect(run(NONE, { ...valid, capacity }).ok).toBe(true);
   });
 
-  // Kills: M13 (500 from the database instead of the column maximum).
-  it('refuses 2147483648 with CAPACITY_TOO_LARGE, never a server error', () => {
+  // Guards the column maximum (a 500 from the database instead of a 422); M32 removes the maximum check.
+  it('CONFIG-REG-07-D: refuses 2147483648 with CAPACITY_TOO_LARGE, never a server error', () => {
     const decision = run(NONE, { ...valid, capacity: 2147483648 });
     expect(decision.ok).toBe(false);
     if (!decision.ok) {
@@ -101,12 +101,12 @@ describe('SPM-139 AC7: the capacity is a JSON whole number from 1 to the column 
 });
 
 describe('SPM-139 AC8: capacity cannot drop below the Confirmed count', () => {
-  // Kills: M21 (check missing), M20 (Withdrawn or Waitlisted counted). The count passed in is Registered only (BR6).
+  // The count passed in is Registered only (BR6). The equal row is killed by M7; the other rows have no mutant id here.
   it.each([
     [4, false],
     [5, true],
     [6, true],
-  ])('capacity %i with 5 Confirmed: accepted=%s', (capacity, accepted) => {
+  ])('CONFIG-REG-08-B: capacity %i with 5 Confirmed: accepted=%s', (capacity, accepted) => {
     const decision = run(SAVED, { capacity }, 5);
     expect(decision.ok).toBe(accepted);
     if (!accepted && !decision.ok) {
@@ -117,8 +117,8 @@ describe('SPM-139 AC8: capacity cannot drop below the Confirmed count', () => {
 });
 
 describe('SPM-139 BR3: enabling needs the period and capacity in the resulting state', () => {
-  // Kills: M4 (completeness not checked). Saved values stay when a field is omitted (F1).
-  it('refuses enabling when the opening time is missing', () => {
+  // Kills: M6 (completeness check removed). Saved values stay when a field is omitted (F1).
+  it('CONFIG-REG-01-E: refuses enabling when the opening time is missing', () => {
     const decision = run(NONE, { registrationEnabled: true, closesAt: sgt('2026-10-28T23:59:00+08:00') });
     expect(decision.ok).toBe(false);
     if (!decision.ok) {
@@ -128,20 +128,20 @@ describe('SPM-139 BR3: enabling needs the period and capacity in the resulting s
     }
   });
 
-  it('refuses enabling when the closing time is missing', () => {
+  it('CONFIG-REG-01-E: refuses enabling when the closing time is missing', () => {
     const decision = run(NONE, { registrationEnabled: true, opensAt: sgt('2026-10-19T09:00:00+08:00') });
     expect(decision.ok).toBe(false);
     if (!decision.ok) expect(decision.violation.field).toBe('registrationClosesAt');
   });
 
-  // Disabling keeps the saved values (M2).
-  it('disabling keeps the saved period and capacity', () => {
+  // Disabling keeps the saved values (killed by M9 and M10).
+  it('CONFIG-REG-01-B: disabling keeps the saved period and capacity', () => {
     const decision = run(SAVED, { registrationEnabled: false });
     expect(decision).toEqual({ ok: true, settings: { ...SAVED, registrationEnabled: false } });
   });
 
   // Provided values are validated whether or not registration is enabled (BR3).
-  it('validates a provided period even while registration is disabled', () => {
+  it('CONFIG-REG-02-D: validates a provided period even while registration is disabled', () => {
     const decision = run(NONE, {
       registrationEnabled: false,
       opensAt: sgt('2026-10-23T09:00:00+08:00'),
@@ -152,20 +152,20 @@ describe('SPM-139 BR3: enabling needs the period and capacity in the resulting s
 });
 
 describe('SPM-139 F1: the merge keeps saved values for omitted fields', () => {
-  it('a lone capacity change keeps the saved period', () => {
+  it('CONFIG-REG-02-D: a lone capacity change keeps the saved period', () => {
     const decision = run(SAVED, { capacity: 80 });
     expect(decision).toEqual({ ok: true, settings: { ...SAVED, capacity: 80 } });
   });
 });
 
 describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
-  // Kills: M7 (offset-less or invalid date-time accepted), 12-A (unknown fields accepted).
+  // Kills: M8 (offset-less date-time accepted); the other rows have no mutant id.
   it.each([
     ['no offset', { registrationOpensAt: '2026-10-19T09:00:00', version: 0 }],
     ['invalid calendar', { registrationOpensAt: '2026-13-45T25:61', version: 0 }],
     ['not a date', { registrationOpensAt: 'not-a-date', version: 0 }],
     ['explicit null', { registrationClosesAt: null, version: 0 }],
-  ])('refuses a date-time that is %s with 400 INVALID_DATETIME', (_label, body) => {
+  ])('CONFIG-REG-02-D: refuses a date-time that is %s with 400 INVALID_DATETIME', (_label, body) => {
     const parsed = parseRegistrationSettingsBody(body);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
@@ -178,7 +178,7 @@ describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
     ['confirmedCount', { confirmedCount: 0, version: 0 }],
     ['status', { status: 'Cancelled', version: 0 }],
     ['eventId', { eventId: 'EVT-911', version: 0 }],
-  ])('refuses an unknown field %s with 400', (field, body) => {
+  ])('CONFIG-REG-11-C: refuses an unknown field %s with 400', (field, body) => {
     const parsed = parseRegistrationSettingsBody(body);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.violation.field).toBe(field);
@@ -188,8 +188,18 @@ describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
     ['missing', {}],
     ['string', { version: '1' }],
     ['negative', { version: -1 }],
+    ['non-integer', { version: 1.5 }],
   ])('refuses a %s version with 400', (_label, body) => {
     expect(parseRegistrationSettingsBody(body).ok).toBe(false);
+  });
+
+  it('refuses registrationEnabled null with 400 (null is not "keep saved")', () => {
+    const parsed = parseRegistrationSettingsBody({ registrationEnabled: null, version: 0 });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.status).toBe(400);
+      expect(parsed.violation.field).toBe('registrationEnabled');
+    }
   });
 
   it('refuses a non-object body with 400', () => {
@@ -197,7 +207,7 @@ describe('SPM-139 parseRegistrationSettingsBody: the request shape', () => {
     expect(parseRegistrationSettingsBody([]).ok).toBe(false);
   });
 
-  it('parses an offset date-time and Z to the same instant', () => {
+  it('CONFIG-REG-02-B: parses an offset date-time and Z to the same instant', () => {
     const parsed = parseRegistrationSettingsBody({
       registrationOpensAt: '2026-10-19T09:00:00+08:00',
       registrationClosesAt: '2026-10-19T01:00:00Z',
@@ -287,9 +297,49 @@ describe('SPM-139 closing time one minute after the opening time (mutation mappi
 });
 
 
+describe('SPM-139 AC2 02-D: a lone opening time is judged against the saved closing time', () => {
+  it.each([
+    ['equal to', '2026-10-28T15:59:00.000Z'],
+    ['after', '2026-10-29T01:00:00.000Z'],
+  ])('CONFIG-REG-05-C: an opening time %s the saved closing time is refused with INVALID_PERIOD on the closing field', (_label, opens) => {
+    const decision = run(SAVED, { opensAt: new Date(opens) });
+    expect(decision.ok).toBe(false);
+    if (!decision.ok) {
+      expect(decision.violation.code).toBe('INVALID_PERIOD');
+      expect(decision.violation.field).toBe('registrationClosesAt');
+      expect(decision.violation.message).toBe('Registration closing time must be after the opening time.');
+    }
+  });
+});
+
 describe('SPM-139 date-time text: a date-time that is not in the calendar is refused', () => {
-  it('refuses an opening time whose month does not exist', () => {
+  it.each([
+    '2026-02-30T10:00:00Z',
+    '2026-02-31T10:00:00+08:00',
+    '2026-04-31T10:00:00Z',
+    '2027-02-29T10:00:00Z',
+    '2026-00-10T10:00:00Z',
+    '2026-01-00T10:00:00Z',
+  ])('CONFIG-REG-02-D: refuses %s, a day that does not exist, with INVALID_DATETIME', (value) => {
+    const parsed = parseRegistrationSettingsBody({ registrationOpensAt: value, version: 0 });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.violation.code).toBe('INVALID_DATETIME');
+  });
+
+  it.each(['2028-02-29T10:00:00Z', '2026-12-31T24:00:00Z'])('CONFIG-REG-02-D: still accepts %s', (value) => {
+    expect(parseRegistrationSettingsBody({ registrationOpensAt: value, version: 0 }).ok).toBe(true);
+  });
+
+  it('CONFIG-REG-02-D: refuses an opening time whose month does not exist', () => {
     const parsed = parseRegistrationSettingsBody({ registrationEnabled: true, version: 0, registrationOpensAt: '2026-13-01T09:00:00+08:00' });
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) expect(parsed.violation.code).toBe('INVALID_DATETIME');
+  });
+});
+
+describe('SPM-139 date-time text: an hour that does not exist is refused', () => {
+  it('CONFIG-REG-02-D: refuses an opening time whose hour is 25', () => {
+    const parsed = parseRegistrationSettingsBody({ registrationEnabled: true, version: 0, registrationOpensAt: '2026-10-19T25:00:00+08:00' });
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) expect(parsed.violation.code).toBe('INVALID_DATETIME');
   });

@@ -58,7 +58,7 @@ afterEach(() => cleanup());
 
 describe("SPM-139 coordinator registration settings form", () => {
   // 01-A: enabling and saving SET-OK sends the instants with offsets and the loaded version.
-  it("saves SET-OK with the version it loaded and reports success", async () => {
+  it("CONFIG-REG-01-A: saves SET-OK with the version it loaded and reports success", async () => {
     const user = userEvent.setup();
     const { onSaved } = renderForm();
     saveMock.mockResolvedValue({
@@ -87,8 +87,8 @@ describe("SPM-139 coordinator registration settings form", () => {
     expect(onSaved).toHaveBeenCalled();
   });
 
-  // 04-B and 04-C: the rule is explained on the field, nothing is sent, and the typed values stay.
-  it("explains a closing time after the start and keeps the typed values without saving", async () => {
+  // Editable and read-only statuses (04-A, 04-B): the rule is explained on the field, nothing is sent, and the typed values stay.
+  it("CONFIG-REG-06-B: explains a closing time after the start and keeps the typed values without saving", async () => {
     const user = userEvent.setup();
     renderForm();
     await fillSetOk(user);
@@ -103,7 +103,7 @@ describe("SPM-139 coordinator registration settings form", () => {
   });
 
   // 05-B: a capacity that is not a positive whole number is refused in the form.
-  it("refuses a non-whole capacity with the capacity message", async () => {
+  it("CONFIG-REG-07-B: refuses a non-whole capacity with the capacity message", async () => {
     const user = userEvent.setup();
     renderForm();
     await screen.findByLabelText("Registration capacity");
@@ -131,7 +131,7 @@ describe("SPM-139 coordinator registration settings form", () => {
   });
 
   // 06-F: a stale save is refused; the form offers a reload and does not overwrite anything.
-  it("shows the conflict message with a Reload action on SETTINGS_CONFLICT", async () => {
+  it("CONFIG-REG-X-03: shows the conflict message with a Reload action on SETTINGS_CONFLICT", async () => {
     const user = userEvent.setup();
     renderForm();
     saveMock.mockRejectedValue(new ApiError("These settings were changed elsewhere.", undefined, "SETTINGS_CONFLICT", 409));
@@ -148,7 +148,7 @@ describe("SPM-139 coordinator registration settings form", () => {
     ["rejected", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
     ["completed", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
     ["submitted", "Registration details can only be set while the event is Approved, Planning or Confirmed."],
-  ])("a %s event is read-only with its message and no Save", async (status, message) => {
+  ])("CONFIG-REG-04-B: a %s event is read-only with its message and no Save", async (status, message) => {
     renderForm(status, settings({ registrationEnabled: true, capacity: 10, registrationOpensAt: "2026-10-19T01:00:00.000Z", registrationClosesAt: "2026-10-28T15:59:00.000Z", version: 2 }));
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save registration settings" })).not.toBeInTheDocument();
@@ -166,8 +166,8 @@ describe("SPM-139 coordinator registration settings form", () => {
 describe("registration end against the event start (live)", () => {
   const startWarning = "Registration must close on or before the event start time.";
 
-  // Kills: RSF-LIVE-M1 (the rule checked only on Save, so the end date is accepted until then)
-  it("warns as soon as the end is after the start, keeps Save off and sends nothing", async () => {
+  // Kills: FM2 (the start rule disabled, so the end date is accepted until Save)
+  it("CONFIG-REG-06-B: warns as soon as the end is after the start, keeps Save off and sends nothing", async () => {
     const user = userEvent.setup();
     renderForm();
     const closes = await screen.findByLabelText("Registration closes (SGT)");
@@ -178,8 +178,8 @@ describe("registration end against the event start (live)", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  // Kills: RSF-LIVE-M2 (the warning stays after the end is corrected to the start)
-  it("clears the warning when the end is moved back to the start instant", async () => {
+  // No mutant id: guards the live warning staying after the end is corrected to the start.
+  it("CONFIG-REG-06-B: clears the warning when the end is moved back to the start instant", async () => {
     const user = userEvent.setup();
     renderForm();
     const closes = await screen.findByLabelText("Registration closes (SGT)");
@@ -196,8 +196,8 @@ describe("registration end against the event start (live)", () => {
 
 // v2.0 AC4: the form is editable in Approved, Planning and Confirmed, and read-only in every other status.
 describe("settings form: editable statuses (v2.0 AC4)", () => {
-  // Kills: RSF-STATUS-M1 (one editable status left read-only; the other tests render only Planning)
-  it.each(["approved", "planning", "confirmed"])("%s: Save is shown and enabled", async (status) => {
+  // No mutant id: guards one editable status left read-only (the other tests render only Planning).
+  it.each(["approved", "planning", "confirmed"])("CONFIG-REG-04-A: %s: Save is shown and enabled", async (status) => {
     renderForm(status);
     expect(await screen.findByRole("button", { name: "Save registration settings" })).toBeEnabled();
   });
@@ -205,8 +205,8 @@ describe("settings form: editable statuses (v2.0 AC4)", () => {
 
 // v2.0 AC1 and AC2: a registration cannot be turned on without its closing time.
 describe("settings form: enabling needs the closing time", () => {
-  // Kills: RSF-INCOMPLETE-M1 (enabling accepted with only the opening time)
-  it("refuses enabling with an opening time but no closing time, and sends nothing", async () => {
+  // No mutant id: guards enabling accepted with only the opening time.
+  it("CONFIG-REG-01-E: refuses enabling with an opening time but no closing time, and sends nothing", async () => {
     const user = userEvent.setup();
     renderForm();
     await fillSetOk(user);
@@ -223,7 +223,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
   const startWarning = "Registration must close on or before the event start time.";
   const capacityWarning = "Capacity must be a positive whole number.";
 
-  // Kills: FE-05A-M1 (the closing error from the last Save persists after the closing time is corrected)
+  // Kills: FM3 (the closing error from the last Save persists after the closing time is corrected)
   it("CONFIG-REG-05-A: the closing-time error clears when corrected and the save is accepted", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -245,7 +245,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(2));
   });
 
-  // Kills: FE-05B-M1 (a closing time equal to the opening time accepted by the form)
+  // Kills: FM1 (a closing time equal to the opening time accepted by the form)
   it("CONFIG-REG-05-B: the form rejects a closing time not after the opening time and keeps the typed values", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -259,7 +259,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  // Kills: FE-06B-M1 (the form accepts a closing time after the event start)
+  // Kills: FM2 (the form accepts a closing time after the event start)
   it("CONFIG-REG-06-B: the form refuses a closing time after the event start and keeps the values", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -273,7 +273,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(saveMock).not.toHaveBeenCalled();
   });
 
-  // Kills: FE-07A-M1 (surrounding spaces not trimmed, so " 25 " is refused)
+  // Kills: FM4 (surrounding spaces not trimmed, so " 25 " is refused)
   it('CONFIG-REG-07-A: capacities "25", " 25 " and "1000" are saved as whole numbers', async () => {
     const user = userEvent.setup();
     const sent: number[] = [];
@@ -295,7 +295,7 @@ describe("settings form: v2.0 closing-time and capacity cases", () => {
     expect(sent).toEqual([25, 25, 1000]);
   });
 
-  // Kills: FE-07B-M1 (a value with trailing letters accepted, as parseInt would do)
+  // Kills: FM5 (a value with trailing letters accepted, as parseInt would do)
   it("CONFIG-REG-07-B: the form refuses a non-whole capacity and keeps the value typed", async () => {
     const user = userEvent.setup();
     renderForm("planning", settings({ registrationEnabled: true, registrationOpensAt: "2026-10-19T01:00:00.000Z", registrationClosesAt: "2026-10-28T15:59:00.000Z", capacity: 50, version: 1 }));
@@ -368,10 +368,106 @@ describe("settings form: server and load errors not covered by a field", () => {
     expect(await screen.findByText("Some settings were refused.")).toBeInTheDocument();
   });
 
-  it("shows a disabled event with no dates as Disabled and Not set, read-only", async () => {
+  it("CONFIG-REG-01-C: shows a disabled event with no dates as Disabled and Not set, read-only", async () => {
     renderForm("completed", settings({ registrationEnabled: false, capacity: 7 }));
     expect(await screen.findByText("Disabled")).toBeInTheDocument();
     expect(screen.getAllByText("Not set")).toHaveLength(2);
     expect(screen.getByText("7")).toBeInTheDocument();
+  });
+});
+
+describe("settings form: server field errors, in-flight save and stale messages", () => {
+  const savedOk = {
+    ...settings({
+      registrationEnabled: true,
+      registrationOpensAt: "2026-10-19T01:00:00.000Z",
+      registrationClosesAt: "2026-10-28T15:59:00.000Z",
+      capacity: 50,
+      version: 1,
+    }),
+    message: "Registration settings saved.",
+  };
+  const saveButton = () => screen.getByRole("button", { name: "Save registration settings" });
+
+  it("shows a server registrationOpensAt error on the opening field", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    saveMock.mockRejectedValue(
+      new ApiError("Refused.", { registrationOpensAt: "Enter the opening time with an offset." }, "INVALID_DATETIME", 400),
+    );
+    await fillSetOk(user);
+    await user.click(saveButton());
+    const opens = screen.getByLabelText("Registration opens (SGT)");
+    expect(await screen.findByText("Enter the opening time with an offset.")).toBeInTheDocument();
+    expect(opens).toHaveAccessibleDescription(/Enter the opening time with an offset\./);
+  });
+
+  it("disables Save while a save is in flight and enables it again when the save ends", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    let finish: (value: typeof savedOk) => void = () => {};
+    saveMock.mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    await fillSetOk(user);
+    await user.click(saveButton());
+
+    const busy = await screen.findByRole("button", { name: "Saving…" });
+    expect(busy).toBeDisabled();
+    finish(savedOk);
+    await waitFor(() => expect(saveButton()).toBeEnabled());
+    expect(saveMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes the saved message when a field is edited afterwards", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    saveMock.mockResolvedValue(savedOk);
+    await fillSetOk(user);
+    await user.click(saveButton());
+    expect(await screen.findByText("Registration settings saved.")).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("Registration capacity"), "1");
+
+    expect(screen.queryByText("Registration settings saved.")).not.toBeInTheDocument();
+  });
+
+  it("clears a server form error when the same form is saved again", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    saveMock.mockRejectedValueOnce(new ApiError("Server is busy, try again.", undefined, undefined, 503));
+    saveMock.mockResolvedValue(savedOk);
+    await fillSetOk(user);
+    await user.click(saveButton());
+    expect(await screen.findByText("Server is busy, try again.")).toBeInTheDocument();
+
+    await user.click(saveButton());
+
+    await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Server is busy, try again.")).not.toBeInTheDocument();
+  });
+
+  it("clears a server field error when the same form is saved again", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    saveMock.mockRejectedValueOnce(new ApiError("Refused.", { capacity: "Capacity is too big." }, "INVALID_CAPACITY", 422));
+    saveMock.mockResolvedValue(savedOk);
+    await fillSetOk(user);
+    await user.click(saveButton());
+    expect(await screen.findByText("Capacity is too big.")).toBeInTheDocument();
+
+    await user.click(saveButton());
+
+    await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("Capacity is too big.")).not.toBeInTheDocument();
+  });
+});
+
+describe("settings form: a server error on the enabled switch", () => {
+  it("shows the server error under the registration switch", async () => {
+    const user = userEvent.setup();
+    renderForm();
+    saveMock.mockRejectedValue(new ApiError("Registration enabled must be true or false.", { registrationEnabled: "Registration enabled must be true or false." }, undefined, 400));
+    await fillSetOk(user);
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    expect(await screen.findByText("Registration enabled must be true or false.")).toBeInTheDocument();
   });
 });

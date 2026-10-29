@@ -42,14 +42,14 @@ describe('EVENT-REG-01-BND-1: the opening boundary and the open-state rules', ()
 
 // SPM-139 F5: a disabled registration reports its own state, distinct from closed.
 describe('SPM-139 F5: the disabled state', () => {
-  it('reports disabled, not closed, when the coordinator has switched registration off', () => {
+  it('CONFIG-REG-01-B: reports disabled, not closed, when the coordinator has switched registration off', () => {
     expect(registrationWindowState({ ...event, registrationEnabled: false }, at(1000))).toBe('disabled');
   });
-  // Kills: W-PRECEDENCE (a disabled event that is also not Confirmed reports disabled instead of closed).
-  it('reports closed, not disabled, for a switched-off event that is not Confirmed', () => {
+  // Guards the precedence of the status check over the disabled check (M29 removes the status check).
+  it('CONFIG-REG-11-A: reports closed, not disabled, for a switched-off event that is not Confirmed', () => {
     expect(registrationWindowState({ ...event, status: 'Approved', registrationEnabled: false }, at(1000))).toBe('closed');
   });
-  it('still reports closed for an enabled event outside the window', () => {
+  it('CONFIG-REG-11-A: still reports closed for an enabled event outside the window', () => {
     expect(registrationWindowState(event, at(-1000))).toBe('not_open');
     expect(registrationWindowState(event, closesAt)).toBe('closed');
   });
