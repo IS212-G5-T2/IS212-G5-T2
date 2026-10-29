@@ -154,6 +154,8 @@ Where user is the user's github username.
 
 ## 2026-10-29
 
+- swr - rebase - SPM-56 - Rebase onto origin/dev fda88a9a: Resolved the test-id-registry.md conflict with dev's complete file per repository policy, displacing the SPM-56 registry additions; other changes replayed successfully and the unwanted integration analysis remains deleted. Repository tests passed (78), BookingsPage tests passed (47), backend build and git diff --check passed. Frontend build fails at PlanningInformationPage.test.tsx:646 (number passed to string parameter); that file is identical to origin/dev. Full suites, database E2E, and independent reviews not run.
+
 - swr - documentation correction - SPM-56 - Remove integration analysis: Deleted docs/spm56-spm159-integration-analysis.md at the user's request; no application behavior changed.
 
 - swr - commit preparation - SPM-56 - Package current conflict-detail reconciliation: Included existing backend/frontend changes, regression tests, workflow records, renamed local SQL fixture, and integration analysis for the user-requested commit and push. Focused repository tests passed (78/78), BookingsPage tests passed (45/45), and git diff --check passed. Database E2E, full suites, and independent review gates were not run in this handoff.
