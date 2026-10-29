@@ -375,6 +375,39 @@ describe('SPM-55 venue booking review service', () => {
     });
   });
 
+  /** VEN-CONF-02-C: multiple distinct blocker names are joined as "A, B and C" with duplicates removed. */
+  it('VEN-CONF-02-C SPM-56 joins multiple distinct blocker names and removes duplicates', async () => {
+    const conflicts = [
+      { id: 'b1', reason: 'Alpha Event', kind: 'booking' as const, start: '2030-01-12T03:00:00.000Z', end: '2030-01-12T04:00:00.000Z', occupiedStart: '2030-01-12T03:00:00.000Z', occupiedEnd: '2030-01-12T04:00:00.000Z', status: 'approved' as const },
+      { id: 'b2', reason: 'Beta Event', kind: 'booking' as const, start: '2030-01-12T03:30:00.000Z', end: '2030-01-12T04:30:00.000Z', occupiedStart: '2030-01-12T03:30:00.000Z', occupiedEnd: '2030-01-12T04:30:00.000Z', status: 'approved' as const },
+      { id: 'b3', reason: 'Alpha Event', kind: 'booking' as const, start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z', occupiedStart: '2030-01-12T04:00:00.000Z', occupiedEnd: '2030-01-12T05:00:00.000Z', status: 'approved' as const },
+    ];
+    approveBooking.mockResolvedValue({ kind: 'conflict', reason: 'Alpha Event', conflicts });
+    const failure = await service
+      .approveVenueBooking(staff, bookingId)
+      .catch((error: unknown) => error);
+    expect((failure as ConflictException).getResponse()).toMatchObject({
+      code: 'BOOKING_SLOT_CONFLICT',
+      message: 'This slot can no longer be approved because it conflicts with Alpha Event and Beta Event. Check availability again before approving.',
+    });
+  });
+
+  /** VEN-CONF-02-D: when the repository returns no conflict rows the lead-time reason string is used verbatim. */
+  it('VEN-CONF-02-D SPM-56 uses the repository reason string when conflicts array is empty', async () => {
+    approveBooking.mockResolvedValue({
+      kind: 'conflict',
+      reason: 'The booking window for this venue opens 48 hours before the event.',
+      conflicts: [],
+    });
+    const failure = await service
+      .approveVenueBooking(staff, bookingId)
+      .catch((error: unknown) => error);
+    expect((failure as ConflictException).getResponse()).toMatchObject({
+      code: 'BOOKING_SLOT_CONFLICT',
+      message: 'The booking window for this venue opens 48 hours before the event.',
+    });
+  });
+
   /** VEN-REV-03-A: rejection stores the trimmed, non-empty reason and returns the rejected booking. */
   it('SPM-55 AC3 rejects a pending request with the trimmed reason', async () => {
     rejectBooking.mockResolvedValue({

@@ -57,7 +57,6 @@ export function BookingDetailModal({
     } catch (failure) {
       if (failure instanceof ApiError && failure.code === "BOOKING_SLOT_CONFLICT" && onConflict) {
         onConflict(failure.message, failure.conflicts);
-        setError(failure.message);
         onClose();
       } else {
         setError(

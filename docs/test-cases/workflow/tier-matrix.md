@@ -247,3 +247,15 @@ Note (SPM-150 product-owner decision, AC5 Isolation cell): VEN-AVL-05-B is a SUP
 | AC11 | PRESENT (VEN-HOLD-11-A) | N/A (no separate refusal) | N/A (no numeric limit) | PRESENT (VEN-HOLD-11-A) | N/A (timing comes from event) | PRESENT (VEN-HOLD-11-A) | PRESENT (VEN-HOLD-11-A) | N/A (role is AC1) | N/A (concurrent timing-change/approval races deferred to SPM-132 approval lifecycle; sequential invalidation tested in VEN-HOLD-11-A) |
 | AC12 | PRESENT (VEN-HOLD-12-B) | PRESENT (VEN-HOLD-12-B, VEN-HOLD-12-SEC-1) | N/A (no numeric limit) | PRESENT (VEN-HOLD-12-B) | PRESENT (VEN-HOLD-02-B) | PRESENT (VEN-HOLD-12-C) | N/A (per-test fixture) | PRESENT (VEN-HOLD-12-SEC-1) | PRESENT (VEN-HOLD-12-SEC-1) |
 | AC13 | PRESENT (VEN-HOLD-13-A) | N/A (no refusal specified) | N/A (no numeric limit) | PRESENT (VEN-HOLD-13-A) | PRESENT (VEN-HOLD-13-A) | PRESENT (VEN-HOLD-13-A) | PRESENT (VEN-HOLD-13-A) | N/A (role is AC1) | N/A (concurrent setup-change/approval races deferred to SPM-132 approval lifecycle; sequential reassessment tested in VEN-HOLD-13-A) |
+
+
+## SPM-56
+
+| AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| AC1 | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-BND-1) | PRESENT (VEN-CONF-01-A) | N/A (no configurable parameter) | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-B, VEN-CONF-01-SEC-1) | PRESENT (VEN-CONF-01-SEC-1) | PRESENT (VEN-CONF-01-PERF-1) |
+| AC2 | PRESENT (VEN-CONF-02-A) | PRESENT (VEN-CONF-02-A) | N/A (no numeric limit) | PRESENT (VEN-CONF-02-A) | N/A (no configurable parameter) | PRESENT (VEN-CONF-02-B) | N/A (venue isolation is AC1) | N/A (role is AC1) | N/A (no concurrency rule) |
+| AC3 | PRESENT (VEN-CONF-03-A, VEN-CONF-03-B) | PRESENT (VEN-CONF-03-A, VEN-CONF-03-B) | PRESENT (VEN-CONF-03-BND-1) | PRESENT (VEN-CONF-03-A) | PRESENT (VEN-CONF-03-VAR-1) | N/A (no lifecycle transition) | N/A (each test uses isolated venue fixtures) | N/A (role is AC1) | N/A (no concurrency rule for buffer check) |
+| AC4 | PRESENT (VEN-CONF-04-A) | PRESENT (VEN-CONF-04-B, VEN-CONF-04-C) | N/A (no numeric limit) | PRESENT (VEN-CONF-04-A) | N/A (no setting) | PRESENT (VEN-CONF-04-A, VEN-CONF-04-D) | N/A (venue isolation is AC1) | N/A (role is AC1) | PRESENT (VEN-CONF-04-D, VEN-CONF-04-PERF-1) |
+| AC5 | PRESENT (VEN-CONF-05-A) | PRESENT (VEN-CONF-05-B) | PRESENT (VEN-CONF-05-BND-1) | PRESENT (VEN-CONF-05-A, VEN-CONF-05-C) | N/A (expiry is hold data) | PRESENT (VEN-CONF-05-A, VEN-CONF-05-B) | N/A (venue isolation is AC1) | N/A (role is AC1) | N/A (expiry check is deterministic) |
+| AC6 | PRESENT (VEN-CONF-06-A, VEN-CONF-06-B, VEN-CONF-06-C, VEN-CONF-06-D) | N/A (display criterion; no refusal path) | N/A (no numeric limit) | PRESENT (VEN-CONF-06-A, VEN-CONF-06-B, VEN-CONF-06-C, VEN-CONF-06-D) | N/A (no setting) | N/A (display only) | PRESENT (VEN-CONF-06-E) | N/A (role is AC1) | N/A (no concurrency rule) |

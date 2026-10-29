@@ -614,8 +614,8 @@ describe("Coordinator venue bookings", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  /** VEN-CONF-02-A: a successful decision after a conflict clears the stale conflict alert. */
-  it("VEN-CONF-02-A SPM-56 clears the conflict alert after a subsequent successful decision", async () => {
+  /** VEN-CONF-02-B: a successful decision after a conflict clears the stale conflict alert. */
+  it("VEN-CONF-02-B SPM-56 clears the conflict alert after a subsequent successful decision", async () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock
