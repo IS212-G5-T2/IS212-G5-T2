@@ -23,6 +23,12 @@ import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import { DatabaseService } from '../../database/database.service.js';
 import {
+  activeApprovedHoldSql,
+  confirmedBookingSql,
+  expiredApprovedHoldSql,
+  occupiesVenueSql,
+} from '../venue-unavailable.js';
+import {
   TURNAROUND_MINUTES,
   type BookingImpact,
   type NeighbourBooking,
@@ -57,7 +63,12 @@ export interface PlanningEventRow {
   updatedAt: string;
 }
 
-export type VenueBookingStatus = 'Booked' | 'Unavailable' | 'Cancelled';
+export type VenueBookingStatus =
+  | 'Booked'
+  | 'Hold'
+  | 'Hold expired'
+  | 'Unavailable'
+  | 'Cancelled';
 
 export interface VenueBookingRow {
   id: string;
@@ -225,7 +236,9 @@ export class EventPlanningRepository {
     // SPM-124 owns venue_bookings. An approved booking is confirmed; a pending
     // row is a venue hold only while it has an explicit future expiry. Pending
     // booking requests without a hold expiry are not tentative holds, and an
-    // expired hold has been released. Rejected rows remain unavailable for
+    // expired hold has been released. An approved tentative hold (SPM-159) is
+    // 'Hold' while running and 'Hold expired' afterwards, never 'Booked'; an expired
+    // one is not a neighbour that clashes with another event. Rejected rows remain unavailable for
     // planning because they require a replacement venue.
     // Neighbours are other events' approved bookings plus Venue Staff blockouts
     // ('blocked', no event), the same rows SPM-124 treats as occupying a venue.
@@ -233,6 +246,8 @@ export class EventPlanningRepository {
       `SELECT b.id, b.venue_id, v.name AS venue_name, v.capacity AS venue_capacity,
               b.start_at, b.end_at, b.created_at,
               CASE
+                WHEN ${expiredApprovedHoldSql('b')} THEN 'Hold expired'
+                WHEN ${activeApprovedHoldSql('b')} THEN 'Hold'
                 WHEN b.status = 'approved' AND EXISTS (
                   SELECT 1 FROM venue_bookings blockout
                    WHERE blockout.venue_id = b.venue_id
@@ -240,7 +255,7 @@ export class EventPlanningRepository {
                      AND blockout.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)
                      AND blockout.end_at > b.start_at - make_interval(mins => v.setup_time_minutes)
                 ) THEN 'Unavailable'
-                WHEN b.status = 'approved' THEN 'Booked'
+                WHEN ${confirmedBookingSql('b')} THEN 'Booked'
                 WHEN b.status = 'pending' AND b.hold_expires_at > now() THEN 'Booked'
                 WHEN b.status = 'rejected' THEN 'Unavailable'
                 ELSE 'Cancelled'
@@ -260,7 +275,7 @@ export class EventPlanningRepository {
          LEFT JOIN venue_bookings n
            ON n.venue_id = b.venue_id
           AND n.id <> b.id
-          AND ((n.status = 'approved' AND n.event_id <> b.event_id) OR n.status = 'blocked')
+          AND ((${occupiesVenueSql('n')} AND n.event_id <> b.event_id) OR n.status = 'blocked')
           AND n.start_at < GREATEST(b.end_at, $3::timestamptz) + make_interval(mins => $4)
           AND n.end_at > LEAST(b.start_at, $2::timestamptz) - make_interval(mins => $4)
          LEFT JOIN events e ON e.id = n.event_id

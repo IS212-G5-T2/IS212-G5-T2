@@ -244,3 +244,42 @@ describe('buildChecklist', () => {
     ).toBe('not_requested');
   });
 });
+
+describe('buildChecklist: VEN-HOLD-04-SUP-EVENTS approved tentative holds', () => {
+  const hold = (holdExpiresAt: Date | null, over: Partial<VenueBookingFact> = {}) =>
+    booking({ status: 'approved', requestKind: 'tentative_hold', holdExpiresAt, ...over });
+
+  /** SPM-159: an active approved hold is labelled Hold and is not confirmed, so it blocks the safety check request. */
+  it('VEN-HOLD-04-SUP-EVENTS shows an active approved hold as Hold, not confirmed', () => {
+    const result = build([hold(new Date('2026-10-20T00:00:00Z'))], [line()]);
+
+    expect(result.venue.status).toBe('pending');
+    expect(result.venue.items).toEqual([
+      expect.objectContaining({ id: 'b1', status: 'pending', holdState: 'Hold' }),
+    ]);
+    expect(result.blocking).toEqual(['venue']);
+    expect(result.canRequestSafetyCheck).toBe(false);
+  });
+
+  /** SPM-159: an expired approved hold is labelled Hold expired and needs a replacement request, never confirmed. */
+  it('VEN-HOLD-04-SUP-EVENTS shows an expired approved hold as Hold expired and unavailable', () => {
+    const result = build([hold(new Date('2026-10-12T00:00:00Z'))], [line()]);
+
+    expect(result.venue.status).toBe('unavailable');
+    expect(result.venue.items[0]).toMatchObject({ status: 'unavailable', holdState: 'Hold expired' });
+    expect(result.canRequestSafetyCheck).toBe(false);
+  });
+
+  /** SPM-159 boundary: expiry equal to the checklist time is expired. */
+  it('VEN-HOLD-04-SUP-EVENTS treats an approved hold expiring exactly now as expired', () => {
+    expect(build([hold(now)], [line()]).venue.items[0].holdState).toBe('Hold expired');
+  });
+
+  /** SPM-159: an ordinary approved booking is unchanged and carries no hold label. */
+  it('VEN-HOLD-04-SUP-EVENTS keeps an ordinary approved booking confirmed with no hold label', () => {
+    const result = build([booking({ requestKind: 'booking', holdExpiresAt: new Date('2026-10-12T00:00:00Z') })], [line()]);
+
+    expect(result.venue.status).toBe('confirmed');
+    expect(result.venue.items[0]).not.toHaveProperty('holdState');
+  });
+});

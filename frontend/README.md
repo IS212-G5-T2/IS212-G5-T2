@@ -58,6 +58,9 @@ includes the venue's configured setup and turnaround buffers; active holds show
 their expiry time and expired holds are omitted by the API. Submission posts to
 `POST /api/venues/:id/booking-requests`, which rechecks the live schedule and
 returns a booking reference only after the pending request is persisted.
+In My Bookings, Pending tentative holds are identified as not active, while
+approved holds show Active or expired state with the exact expiry returned by
+`GET /api/venues/bookings/mine`.
 When Search Venues is opened from an event, the catalogue includes a **Back to event** link.
 The view uses the credentialed backend API configured by
 `VITE_API_BASE_URL` (default `http://localhost:8080`). The backend database

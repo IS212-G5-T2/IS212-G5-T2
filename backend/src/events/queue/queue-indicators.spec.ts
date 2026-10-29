@@ -236,3 +236,59 @@ describe('SPM-48 status filter (MONITOR-QUEUE-01-SUP-FILTER)', () => {
     expect(parseStatusFilter(raw)).toEqual({ ok: false, unknown: named });
   });
 });
+
+describe('VEN-HOLD-04-SUP-EVENTS approved tentative holds in the queue', () => {
+  const approvedHold = (overrides: Partial<QueueBookingFact> = {}) =>
+    booking({ status: 'approved', requestKind: 'tentative_hold', holdExpiresAt: new Date('2026-11-12T04:00:00.000Z'), ...overrides });
+
+  /** SPM-159 (SPM-48 AC8): an active approved hold appears in the holds list as ACTIVE, an expired one as EXPIRED. */
+  it('VEN-HOLD-04-SUP-EVENTS lists active and expired approved holds with their state and expiry', () => {
+    const holds = deriveHolds(
+      [
+        approvedHold({ venueName: 'Hall A' }),
+        approvedHold({ venueName: 'Hall B', holdExpiresAt: new Date('2026-11-09T04:00:00.000Z') }),
+        approvedHold({ venueName: 'Hall C', holdExpiresAt: NOW }), // expired exactly at now
+        booking({ venueName: 'Hall D', status: 'approved', requestKind: 'booking', holdExpiresAt: new Date('2026-11-12T04:00:00.000Z') }),
+        approvedHold({ venueName: 'Hall E', holdExpiresAt: null }),
+      ],
+      NOW,
+    );
+
+    expect(holds).toEqual([
+      { venueName: 'Hall A', expiresAt: '2026-11-12T04:00:00.000Z', state: 'ACTIVE' },
+      { venueName: 'Hall B', expiresAt: '2026-11-09T04:00:00.000Z', state: 'EXPIRED' },
+      { venueName: 'Hall C', expiresAt: NOW.toISOString(), state: 'EXPIRED' },
+    ]);
+  });
+
+  /** SPM-159 (SPM-48 AC9): an expired approved hold is not an active booking, so it does not raise the venue-unavailable flag. */
+  it('VEN-HOLD-04-SUP-EVENTS does not flag an expired approved hold at an unavailable venue, but flags an active one', () => {
+    const venues = deriveUnavailableVenues(
+      [
+        approvedHold({ venueName: 'Hall A', venueUnavailable: true }),
+        approvedHold({ venueName: 'Hall B', venueUnavailable: true, holdExpiresAt: new Date('2026-11-09T04:00:00.000Z') }),
+        approvedHold({ venueName: 'Hall C', venueUnavailable: true, holdExpiresAt: NOW }),
+        approvedHold({ venueName: 'Hall D', venueUnavailable: true, holdExpiresAt: null }),
+        booking({ venueName: 'Hall E', status: 'approved', requestKind: 'booking', venueUnavailable: true }),
+      ],
+      NOW,
+    );
+
+    expect(venues).toEqual(['Hall A', 'Hall D', 'Hall E']);
+  });
+
+  /** SPM-159: an expired approved hold flags HOLD_EXPIRED for follow-up; an active one needs no action. */
+  it('VEN-HOLD-04-SUP-EVENTS builds the queue indicators for active and expired approved holds', () => {
+    const active = buildQueueIndicators({ status: 'Planning', safetyState: null, safetyReset: false, bookings: [approvedHold()] }, NOW);
+    expect(active.holds).toEqual([{ venueName: 'Hall A', expiresAt: '2026-11-12T04:00:00.000Z', state: 'ACTIVE' }]);
+    expect(active.actions).toEqual([]);
+
+    const expired = buildQueueIndicators(
+      { status: 'Planning', safetyState: null, safetyReset: false, bookings: [approvedHold({ holdExpiresAt: new Date('2026-11-09T04:00:00.000Z'), venueUnavailable: true })] },
+      NOW,
+    );
+    expect(expired.holds[0].state).toBe('EXPIRED');
+    expect(expired.unavailableVenues).toEqual([]);
+    expect(expired.actions).toEqual(['HOLD_EXPIRED']);
+  });
+});

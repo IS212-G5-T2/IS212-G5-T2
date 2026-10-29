@@ -14,6 +14,7 @@ import type {
 } from '../creation/dto/venue-input.js';
 import type { UnavailabilityInput } from '../availability/dto/venue-unavailability.js';
 import type { BookingRequestInput } from '../availability/dto/booking-request.js';
+import type { TentativeHoldRequestInput } from '../availability/dto/tentative-hold-request.js';
 
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {
@@ -54,7 +55,7 @@ interface VenueReservationBase {
 
 export type VenueReservation =
   | (VenueReservationBase & { status: 'booked'; holdExpiresAt?: never })
-  | (VenueReservationBase & { status: 'tentative'; holdExpiresAt: string });
+  | (VenueReservationBase & { status: 'tentative'; holdExpiresAt?: string });
 
 export type AffectedVenueReservation = VenueReservation & { eventId: string };
 
@@ -72,7 +73,11 @@ export interface PendingVenueBooking {
   start: string;
   end: string;
   status: 'pending' | 'approved' | 'rejected';
+  requestKind: 'booking' | 'tentative_hold';
+  holdExpiresAt?: string;
+  holdExpired: boolean;
   rejectionReason?: string;
+  reassessmentRequired?: boolean;
 }
 
 /** The booking state after an approve or reject decision (SPM-55). */
@@ -85,6 +90,8 @@ export interface VenueBookingDecision {
   end: string;
   rejectionReason?: string;
   bookingReference: string;
+  requestKind?: 'booking' | 'tentative_hold';
+  holdExpiresAt?: string;
 }
 
 export type VenueBookingDecisionResult =
@@ -101,6 +108,10 @@ interface BookingLockRow {
   start_at: Date;
   end_at: Date;
   rejection_reason: string | null;
+  request_kind?: 'booking' | 'tentative_hold';
+  hold_expires_at?: Date | null;
+  reassessment_required?: boolean;
+  event_start?: Date | null;
 }
 
 type BookingDecisionRow = BookingLockRow;
@@ -116,6 +127,8 @@ function toDecisionRecord(row: BookingDecisionRow): VenueBookingDecision {
     end: row.end_at.toISOString(),
     rejectionReason: row.rejection_reason ?? undefined,
     bookingReference: `VB-${row.id.replaceAll('-', '').slice(0, 8).toUpperCase()}`,
+    requestKind: row.request_kind,
+    holdExpiresAt: row.hold_expires_at?.toISOString(),
   };
 }
 
@@ -149,6 +162,7 @@ interface BookingRow {
   start_at: Date;
   end_at: Date;
   status: 'pending' | 'approved';
+  request_kind?: 'booking' | 'tentative_hold';
   hold_expires_at?: Date | null;
   current: boolean;
   affected: boolean;
@@ -238,6 +252,8 @@ export class VenuesRepository {
       start_at: Date;
       end_at: Date;
       status: string;
+      request_kind: 'booking' | 'tentative_hold';
+      hold_expires_at: Date | null;
       special_request: string | null;
       created_at: Date;
       affected: boolean;
@@ -246,7 +262,8 @@ export class VenuesRepository {
     }>(
       `SELECT b.id, b.event_id, e.event_name, b.venue_id, v.name AS venue_name,
               u.display_name AS venue_staff_name,
-              b.start_at, b.end_at, b.status, b.special_request, b.created_at,
+              b.start_at, b.end_at, b.status, b.request_kind, b.hold_expires_at,
+              b.special_request, b.created_at,
               b.rejection_reason,
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
               EXISTS (SELECT 1 FROM venue_bookings blockout
@@ -261,6 +278,7 @@ export class VenuesRepository {
         ORDER BY b.created_at DESC, b.id`,
       [coordinatorId],
     );
+    const now = this.clock.now();
     return result.rows.map((row) => ({
       id: row.id,
       eventId: row.event_id,
@@ -271,6 +289,9 @@ export class VenuesRepository {
       start: row.start_at.toISOString(),
       end: row.end_at.toISOString(),
       status: row.status,
+      requestKind: row.request_kind,
+      holdExpiresAt: row.hold_expires_at?.toISOString(),
+      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,
       bookingReference: row.booking_reference,
       specialRequest: row.special_request ?? undefined,
       affected: row.affected,
@@ -296,13 +317,18 @@ export class VenuesRepository {
       start_at: Date;
       end_at: Date;
       status: 'pending' | 'approved' | 'rejected';
+      request_kind: 'booking' | 'tentative_hold';
+      hold_expires_at: Date | null;
       rejection_reason: string | null;
+      reassessment_required: boolean;
     }>(
       `SELECT b.id, b.event_id, e.event_name, e.start_date_time AS event_start,
               e.end_date_time AS event_end, coordinator_user.display_name AS coordinator_name,
               v.name AS venue_name,
               'VB-' || upper(substr(replace(b.id::text, '-', ''), 1, 8)) AS booking_reference,
-              b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason
+              b.special_request, b.start_at, b.end_at, b.status, b.rejection_reason,
+              b.request_kind, b.hold_expires_at,
+              b.reassessment_required
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
          JOIN events e ON e.id = b.event_id
@@ -311,6 +337,7 @@ export class VenuesRepository {
         ORDER BY b.start_at ASC, b.id`,
       [staffId],
     );
+    const now = this.clock.now();
     return result.rows.map((row) => ({
       id: row.id,
       eventId: row.event_id,
@@ -324,7 +351,11 @@ export class VenuesRepository {
       start: row.start_at.toISOString(),
       end: row.end_at.toISOString(),
       status: row.status,
+      requestKind: row.request_kind,
+      holdExpiresAt: row.hold_expires_at?.toISOString(),
+      holdExpired: row.request_kind === 'tentative_hold' && row.hold_expires_at != null && row.hold_expires_at <= now,
       rejectionReason: row.rejection_reason ?? undefined,
+      reassessmentRequired: row.reassessment_required,
     }));
   }
 
@@ -342,6 +373,20 @@ export class VenuesRepository {
       const { booking, setupMinutes, turnaroundMinutes } = locked;
       if (booking.status !== 'pending')
         return { kind: 'already-decided' as const, status: booking.status };
+      // SPM-159: Venue Staff recheck eligibility and conflicts on every hold approval, so the
+      // 336-hour lead time is evaluated at the approval instant, not only after a setup change.
+      if (booking.request_kind === 'tentative_hold') {
+        const leadHours = booking.event_start
+          ? (booking.event_start.getTime() - setupMinutes * 60_000 - this.clock.now().getTime()) / 3_600_000
+          : Number.NEGATIVE_INFINITY;
+        if (leadHours < 336)
+          return {
+            kind: 'conflict' as const,
+            reason: booking.reassessment_required
+              ? 'The venue setup change makes this request fail the 336-hour lead-time rule.'
+              : 'The event is now inside the 336-hour lead-time minimum for a tentative hold.',
+          };
+      }
 
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
@@ -355,12 +400,15 @@ export class VenuesRepository {
              FROM venue_bookings b
              LEFT JOIN events e ON e.id = b.event_id
             WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid
-              AND (b.status = 'approved' OR
+              AND ((b.status = 'approved' AND
+                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
+                  OR b.hold_expires_at > $7::timestamptz)) OR
                 (b.status = 'pending' AND
-                  (b.hold_expires_at > $7::timestamptz OR EXISTS (
+                  (b.hold_expires_at > $7::timestamptz OR
+                   (b.request_kind <> 'tentative_hold' AND EXISTS (
                     SELECT 1 FROM venue_booking_requests r
                      WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                  ))))
+                   )))))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -380,10 +428,20 @@ export class VenuesRepository {
         return { kind: 'conflict' as const, reason: conflict.rows[0].reason };
 
       const updated = await client.query<BookingDecisionRow>(
-        `UPDATE venue_bookings SET status = 'approved'
+        `UPDATE venue_bookings
+            SET status = 'approved',
+                reassessment_required = false,
+                hold_expires_at = CASE
+                  WHEN request_kind = 'tentative_hold' THEN $2::timestamptz
+                  ELSE hold_expires_at
+                END
           WHERE id = $1::uuid
-          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason`,
-        [bookingId],
+          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason,
+                    request_kind, hold_expires_at`,
+        [
+          bookingId,
+          new Date(this.clock.now().getTime() + 14 * 24 * 60 * 60 * 1000),
+        ],
       );
       await client.query(
         `INSERT INTO booking_review_log (booking_id, actor_user_id, action)
@@ -415,7 +473,8 @@ export class VenuesRepository {
       const updated = await client.query<BookingDecisionRow>(
         `UPDATE venue_bookings SET status = 'rejected', rejection_reason = $2
           WHERE id = $1::uuid
-          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason`,
+          RETURNING id, event_id, venue_id, status, start_at, end_at, rejection_reason,
+                    request_kind, hold_expires_at`,
         [bookingId, reason],
       );
       await client.query(
@@ -456,8 +515,11 @@ export class VenuesRepository {
       [venueId],
     );
     const booking = await client.query<BookingLockRow>(
-      `SELECT id, event_id, venue_id, status, start_at, end_at, rejection_reason
-         FROM venue_bookings WHERE id = $1::uuid FOR UPDATE`,
+      `SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at,
+              b.rejection_reason, b.request_kind, b.reassessment_required,
+              e.start_date_time AS event_start
+         FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id
+        WHERE b.id = $1::uuid FOR UPDATE OF b`,
       [bookingId],
     );
     const row = booking.rows[0];
@@ -580,9 +642,10 @@ export class VenuesRepository {
       const activeRequest = await client.query<{ id: string; status: string }>(
         `SELECT id, status FROM venue_bookings
           WHERE event_id = $1::uuid AND venue_id = $2::uuid
-            AND status IN ('pending', 'approved')
+            AND (status = 'pending' OR (status = 'approved' AND
+              (request_kind <> 'tentative_hold' OR hold_expires_at IS NULL OR hold_expires_at > $3::timestamptz)))
           ORDER BY created_at DESC, id LIMIT 1`,
-        [input.eventId, venueId],
+        [input.eventId, venueId, this.clock.now()],
       );
       if (activeRequest.rows[0])
         return {
@@ -592,6 +655,7 @@ export class VenuesRepository {
         };
 
       // SPM-54 AC2: booking requests remain blockers without hold expiry; standalone Venue Staff holds block only until expiry. SPM-148 PLAN-STATUS-01-C, 01-BND: conflicts are checked before any write; an adjacent booking (end == start) does not conflict.
+      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.
       const conflict = await client.query<{ reason: string }>(
         `SELECT reason FROM (
            SELECT COALESCE(reason, 'Venue unavailable') AS reason
@@ -604,12 +668,15 @@ export class VenuesRepository {
              FROM venue_bookings b
              LEFT JOIN events e ON e.id = b.event_id
             WHERE b.venue_id = $1::uuid
-              AND (b.status = 'approved' OR
+              AND ((b.status = 'approved' AND
+                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
+                  OR b.hold_expires_at > $6::timestamptz)) OR
                 (b.status = 'pending' AND
-                  (b.hold_expires_at > $6::timestamptz OR EXISTS (
+                  (b.hold_expires_at > $6::timestamptz OR
+                   (b.request_kind <> 'tentative_hold' AND EXISTS (
                     SELECT 1 FROM venue_booking_requests r
                      WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                  ))))
+                   )))))
               AND b.start_at - make_interval(mins => $4::int)
                     < $3::timestamptz + make_interval(mins => $5::int)
               AND b.end_at + make_interval(mins => $5::int)
@@ -665,6 +732,139 @@ export class VenuesRepository {
         end: row.end_at.toISOString(),
         eventStatus: statusChanged ? 'Planning' : eventRow.status,
         statusChanged,
+      };
+    });
+  }
+
+  /** Records an assigned Coordinator's tentative hold request from persisted event times. */
+  async submitTentativeHoldRequest(
+    venueId: string,
+    coordinatorId: string,
+    input: TentativeHoldRequestInput,
+  ): Promise<
+    | { kind: 'venue-not-found' }
+    | { kind: 'event-not-assigned' }
+    | { kind: 'event-not-open'; status: string }
+    | { kind: 'already-requested'; status: string }
+    | { kind: 'lead-time' }
+    | { kind: 'configuration-unavailable' }
+    | { kind: 'conflict'; reason: string }
+    | { kind: 'created'; id: string; start: string; end: string; specialRequest?: string }
+  > {
+    return this.database.transaction(async (client) => {
+      const venue = await client.query<{
+        id: string;
+        setup_time_minutes: number | null;
+        turnaround_time_minutes: number | null;
+      }>(
+        `SELECT id, setup_time_minutes, turnaround_time_minutes
+           FROM venues WHERE id = $1::uuid FOR UPDATE`,
+        [venueId],
+      );
+      const venueRow = venue.rows[0];
+      if (!venueRow) return { kind: 'venue-not-found' as const };
+      if (
+        venueRow.setup_time_minutes === null ||
+        venueRow.turnaround_time_minutes === null
+      )
+        return { kind: 'configuration-unavailable' as const };
+
+      const event = await client.query<{
+        id: string;
+        status: string;
+        start_date_time: Date;
+        end_date_time: Date;
+      }>(
+        `SELECT id, status, start_date_time, end_date_time
+           FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE`,
+        [input.eventId, coordinatorId],
+      );
+      const eventRow = event.rows[0];
+      if (!eventRow) return { kind: 'event-not-assigned' as const };
+      if (!(BOOKING_OPEN_STATUSES as readonly string[]).includes(eventRow.status))
+        return { kind: 'event-not-open' as const, status: eventRow.status };
+
+      const occupiedStart =
+        eventRow.start_date_time.getTime() -
+        venueRow.setup_time_minutes * 60_000;
+      if (occupiedStart - this.clock.now().getTime() < 336 * 60 * 60_000)
+        return { kind: 'lead-time' as const };
+
+      const activeRequest = await client.query<{ status: string }>(
+        `SELECT status FROM venue_bookings
+          WHERE event_id = $1::uuid AND venue_id = $2::uuid
+            AND (status = 'pending' OR
+              (status = 'approved' AND
+                (request_kind <> 'tentative_hold' OR hold_expires_at IS NULL
+                  OR hold_expires_at > $3::timestamptz)))
+          ORDER BY created_at DESC, id LIMIT 1`,
+        [input.eventId, venueId, this.clock.now()],
+      );
+      if (activeRequest.rows[0])
+        return {
+          kind: 'already-requested' as const,
+          status: activeRequest.rows[0].status,
+        };
+
+      const conflict = await client.query<{ reason: string }>(
+        `SELECT reason FROM (
+           SELECT COALESCE(reason, 'Venue unavailable') AS reason
+             FROM venue_bookings
+            WHERE venue_id = $1::uuid AND status = 'blocked'
+              AND start_at < $3::timestamptz + make_interval(mins => $5::int)
+              AND end_at > $2::timestamptz - make_interval(mins => $4::int)
+           UNION ALL
+           SELECT COALESCE(e.event_name, 'Existing venue booking') AS reason
+             FROM venue_bookings b
+             LEFT JOIN events e ON e.id = b.event_id
+            WHERE b.venue_id = $1::uuid
+              AND ((b.status = 'approved' AND
+                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
+                  OR b.hold_expires_at > $6::timestamptz)) OR
+                (b.status = 'pending' AND b.hold_expires_at > $6::timestamptz))
+              AND b.start_at - make_interval(mins => $4::int)
+                    < $3::timestamptz + make_interval(mins => $5::int)
+              AND b.end_at + make_interval(mins => $5::int)
+                    > $2::timestamptz - make_interval(mins => $4::int)
+         ) conflicts LIMIT 1`,
+        [
+          venueId,
+          eventRow.start_date_time,
+          eventRow.end_date_time,
+          venueRow.setup_time_minutes,
+          venueRow.turnaround_time_minutes,
+          this.clock.now(),
+        ],
+      );
+      if (conflict.rows[0])
+        return { kind: 'conflict' as const, reason: conflict.rows[0].reason };
+
+      const saved = await client.query<{
+        id: string;
+        start_at: Date;
+        end_at: Date;
+      }>(
+        `INSERT INTO venue_bookings
+           (venue_id, event_id, start_at, end_at, status, request_kind, special_request)
+         VALUES ($1::uuid, $2::uuid, $3::timestamptz, $4::timestamptz,
+                 'pending', 'tentative_hold', $5)
+         RETURNING id, start_at, end_at`,
+        [venueId, input.eventId, eventRow.start_date_time, eventRow.end_date_time, input.specialRequest ?? null],
+      );
+      await client.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id)
+         VALUES ($1::uuid, $2::uuid)
+         ON CONFLICT (event_id, venue_id) DO NOTHING`,
+        [input.eventId, venueId],
+      );
+      await this.moveToPlanning(client, input.eventId, coordinatorId, eventRow.status);
+      const row = saved.rows[0];
+      return {
+        kind: 'created' as const,
+        id: row.id,
+        start: row.start_at.toISOString(),
+        end: row.end_at.toISOString(),
+        specialRequest: input.specialRequest,
       };
     });
   }
@@ -728,12 +928,14 @@ export class VenuesRepository {
       );
       const affected = await client.query<BookingRow & { event_id: string }>(
         `SELECT b.id, b.event_id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
-           b.hold_expires_at
+           b.request_kind, b.hold_expires_at
          FROM venue_bookings b JOIN events e ON e.id = b.event_id
          JOIN venues v ON v.id = b.venue_id
          WHERE b.venue_id = $1::uuid
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $3::timestamptz
-           AND (b.status = 'approved' OR
+           AND ((b.status = 'approved' AND b.request_kind <> 'tentative_hold') OR
+             (b.status = 'approved' AND b.request_kind = 'tentative_hold' AND
+               (b.hold_expires_at IS NULL OR b.hold_expires_at > $3::timestamptz)) OR
              (b.status = 'pending' AND b.hold_expires_at > $3::timestamptz))
            AND b.start_at - make_interval(mins => v.setup_time_minutes) < $2::timestamptz
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $4::timestamptz
@@ -751,9 +953,14 @@ export class VenuesRepository {
         affectedBookings: affected.rows
           .filter(
             (booking) =>
-              booking.status === 'approved' ||
-              (booking.hold_expires_at !== null &&
-                booking.hold_expires_at !== undefined &&
+              (booking.status === 'approved' &&
+                booking.request_kind !== 'tentative_hold') ||
+              (booking.status === 'approved' &&
+                booking.request_kind === 'tentative_hold' &&
+                (booking.hold_expires_at == null ||
+                  booking.hold_expires_at.getTime() > now.getTime())) ||
+              (booking.status === 'pending' &&
+                booking.hold_expires_at != null &&
                 booking.hold_expires_at.getTime() > now.getTime()),
           )
           .map((booking): AffectedVenueReservation => {
@@ -765,12 +972,16 @@ export class VenuesRepository {
               end: booking.end_at.toISOString(),
               affectedByUnavailablePeriod: true as const,
             };
-            return booking.status === 'approved'
+            // SPM-159: an active approved tentative hold is tentative; only a confirmed booking is booked.
+            return booking.status === 'approved' &&
+              booking.request_kind !== 'tentative_hold'
               ? { ...affectedBooking, status: 'booked' }
               : {
                   ...affectedBooking,
                   status: 'tentative',
-                  holdExpiresAt: booking.hold_expires_at!.toISOString(),
+                  ...(booking.hold_expires_at
+                    ? { holdExpiresAt: booking.hold_expires_at.toISOString() }
+                    : {}),
                 };
           }),
       };
@@ -865,7 +1076,8 @@ export class VenuesRepository {
         [ids, now],
       ),
       this.database.query<BookingRow>(
-        `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status, b.hold_expires_at,
+        `SELECT b.id, b.venue_id, e.event_name, b.start_at, b.end_at, b.status,
+         b.request_kind, b.hold_expires_at,
          b.start_at - make_interval(mins => v.setup_time_minutes) <= $2::timestamptz
            AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz AS current,
          EXISTS (
@@ -880,7 +1092,10 @@ export class VenuesRepository {
        JOIN venues v ON v.id = b.venue_id
        WHERE b.venue_id = ANY($1::uuid[])
          AND b.end_at + make_interval(mins => v.turnaround_time_minutes) > $2::timestamptz
-         AND (b.status = 'approved' OR
+         AND ((b.status = 'approved' AND
+              (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
+                OR b.hold_expires_at > $2::timestamptz)) OR
+           -- Schedule lists include only pending rows with future expiries; booking-conflict queries retain linked pending bookings.
            (b.status = 'pending' AND b.hold_expires_at > $2::timestamptz))
          ORDER BY b.start_at, b.id`,
         [ids, now],
@@ -914,16 +1129,22 @@ export class VenuesRepository {
         end: row.end_at.toISOString(),
         affectedByUnavailablePeriod: row.affected,
       };
-      if (row.status === 'approved') {
+      const activeTentativeHold =
+        row.request_kind === 'tentative_hold' &&
+        (row.hold_expires_at == null ||
+          row.hold_expires_at.getTime() > now.getTime());
+      if (row.status === 'approved' && !activeTentativeHold) {
         venue.reservations.push({ ...reservation, status: 'booked' });
       } else {
         venue.reservations.push({
           ...reservation,
           status: 'tentative',
-          holdExpiresAt: row.hold_expires_at!.toISOString(),
+          ...(row.hold_expires_at
+            ? { holdExpiresAt: row.hold_expires_at.toISOString() }
+            : {}),
         });
       }
-      if (row.current && row.status === 'approved')
+      if (row.current && (row.status === 'approved' || activeTentativeHold))
         venue.availabilityStatus = 'unavailable';
     }
     return venues;

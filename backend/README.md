@@ -356,6 +356,58 @@ Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
 requests are tentative and rejected requests are absent, without claiming a
 cancelled status exists.
 
+### Tentative hold requests (SPM-159)
+
+The same `POST /api/venues/:id/booking-requests` endpoint accepts the optional
+`request_kind: "tentative_hold"` discriminator. The event's scheduled start
+and end and the venue's current setup and turnaround buffers are read by the
+server; clients do not supply or override them. Submission creates a Pending
+`venue_bookings` row and does not activate a hold. Venue Staff approval changes
+the row to `approved` and sets `hold_expires_at` to 14 days (336 hours) after
+approval. Ordinary booking conflict checks count an approved, unexpired
+tentative hold; pending, rejected, cancelled, and expired tentative holds do
+not block. Pending ordinary booking requests keep the existing SPM-54 conflict
+behavior. An approved ordinary booking continues to block without a hold
+expiry. `GET /api/venues/bookings/pending` returns `requestKind`,
+`holdExpiresAt`, and `holdExpired` for staff review; `holdExpired` is computed
+against the service clock at read time. Tentative holds must be presented as
+temporary holds, not confirmed bookings. Expired approved holds do not block a
+same-event/venue retry.
+`GET /api/venues/bookings/mine` also returns `requestKind`, `holdExpiresAt`,
+and `holdExpired` for Coordinator cards so a Pending request is distinguished
+from an Active approved hold and an expired approved hold after a fresh list
+fetch. `holdExpired` is computed against the service clock when the list is
+read.
+
+Approval rechecks eligibility and conflicts: the 336-hour lead time is
+evaluated again on every hold approval (not only after a venue setup change)
+and a refusal returns `409 BOOKING_SLOT_CONFLICT` with the booking still
+Pending. Outside the venues module, an approved hold is never a confirmed
+booking: `src/events/venue-unavailable.ts` holds the one rule (`approvedHoldState`
+and the `*ApprovedHoldSql` fragments). While the expiry is in the future the
+hold reads "Hold" and from the expiry instant "Hold expired" (venue summary
+`(hold)` / `(hold expired)`, planning status `Hold` / `Hold expired`, event
+record `venueHoldState`); neither satisfies the Confirm readiness "Venue
+booking approval" item, and an expired hold no longer occupies the venue, counts
+as a clashing neighbour, or flags the queue venue-unavailable indicator. Moving
+an expired hold to a terminal status and notifying about it belong to related
+stories. `test/events-approved-hold.e2e-spec.ts` proves this against PostgreSQL
+(`DATABASE_URL` with `database/postgresql/init` 001 to 024).
+
+Migration `024_spm159_tentative_hold_requests.sql` adds `request_kind` and
+`reassessment_required` to `venue_bookings`, the request-kind constraint and
+pending-hold index, and event-time/setup-change triggers. Existing databases
+must apply the migration in sequence; fresh databases receive the mirrored
+`database/postgresql/init/024_spm159_tentative_hold_requests.sql`.
+
+Migration `025_spm159_approved_hold_expiry.sql` requires every approved
+tentative hold to have `hold_expires_at`; pending holds and ordinary approved
+bookings may still have NULL. It checks for existing invalid approved holds
+and fails with their count rather than inventing historical expiry times. An
+operator must review and resolve those rows explicitly before retrying. Fresh
+databases receive the mirrored
+`database/postgresql/init/025_spm159_approved_hold_expiry.sql`.
+
 Run SPM-51 fault-injection checks with a PostgreSQL database configured in
 `DATABASE_URL`:
 

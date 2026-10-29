@@ -14,12 +14,21 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { validateEvent, type EventAttachment } from './dto/event-input.js';
 import { VENUE_SUMMARY_SQL } from './venue-summary.js';
+import { approvedHoldState } from './venue-unavailable.js';
 import { deriveAssignmentIndicator, deriveSafetyIndicator } from './status/event-indicators.js';
 
 // SPM-94: the safety-check state the event's indicators read (null when no record exists).
 const SAFETY_STATUS = `(SELECT s.status FROM event_safety_checks s WHERE s.event_id = events.id) AS safety_status`;
 // SPM-94 planning cards: the latest venue request and every equipment reservation status (organiser and coordinator lists only).
-const VENUE_REQUEST_STATUS = `(SELECT b.status FROM venue_bookings b WHERE b.event_id = events.id ORDER BY b.created_at DESC LIMIT 1) AS venue_request_status`;
+// SPM-159: the same latest request also reports its kind and hold expiry, so an approved tentative hold is a Hold or
+// Hold expired (venueHoldState) and never a confirmed venue.
+const LATEST_VENUE_REQUEST = (column: string, alias: string) =>
+  `(SELECT b.${column} FROM venue_bookings b WHERE b.event_id = events.id ORDER BY b.created_at DESC LIMIT 1) AS ${alias}`;
+const VENUE_REQUEST_STATUS = [
+  LATEST_VENUE_REQUEST('status', 'venue_request_status'),
+  LATEST_VENUE_REQUEST('request_kind', 'venue_request_kind'),
+  LATEST_VENUE_REQUEST('hold_expires_at', 'venue_hold_expires_at'),
+].join(', ');
 const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.created_at), '{}') FROM equipment_reservations r WHERE r.event_id = events.id) AS equipment_statuses`;
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
@@ -121,6 +130,19 @@ export class EventsService {
     };
   }
 
+  /** SPM-159: "Hold" or "Hold expired" for an approved tentative hold (the latest venue request); null otherwise. */
+  private venueHoldLabel(row: pg.QueryResultRow): 'Hold' | 'Hold expired' | null {
+    const hold = approvedHoldState(
+      {
+        status: row.venue_request_status,
+        requestKind: row.venue_request_kind,
+        holdExpiresAt: row.venue_hold_expires_at ?? null,
+      },
+      this.clock.now(),
+    );
+    return hold === null ? null : hold === 'expired' ? 'Hold expired' : 'Hold';
+  }
+
   // SPM-94 F4: the safety state is shown only to the owning organiser and the assigned coordinator (showSafety).
   private record(row: pg.QueryResultRow, viewerUid?: string, showSafety = false) {
     return {
@@ -137,7 +159,15 @@ export class EventsService {
       awaitingCoordinatorAssignment: deriveAssignmentIndicator(row.status, row.coordinator_id),
       ...(showSafety ? { safetyIndicator: deriveSafetyIndicator(row.safety_status, row.status) } : {}),
       // Planning arrangements are shown to the same viewers as the safety state (SPM-94 cards).
-      ...(showSafety ? { venueRequestStatus: row.venue_request_status ?? null, equipmentStatuses: row.equipment_statuses ?? [] } : {}),
+      ...(showSafety
+        ? {
+            venueRequestStatus: row.venue_request_status ?? null,
+            venueRequestKind: row.venue_request_kind ?? null,
+            venueHoldExpiresAt: row.venue_hold_expires_at?.toISOString() ?? null,
+            venueHoldState: this.venueHoldLabel(row),
+            equipmentStatuses: row.equipment_statuses ?? [],
+          }
+        : {}),
       status: row.status.toLowerCase(),
       venueName: row.venue_summary ?? undefined,
       rejectionReason: row.rejection_reason ?? undefined,

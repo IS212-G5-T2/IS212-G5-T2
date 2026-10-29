@@ -474,3 +474,62 @@ describe('SPM-135 D6 rule unit: fail closed on every source (table-driven, liter
     ]);
   });
 });
+
+describe('VEN-HOLD-04-SUP-EVENTS an approved tentative hold is a Hold, never a confirmed booking', () => {
+  const approvedHold = (holdExpiresAt: Date | null, requestKind: 'tentative_hold' | 'booking' = 'tentative_hold') => ({
+    id: 'vb-hold',
+    venueName: 'Main Hall',
+    status: 'approved' as const,
+    holdExpiresAt,
+    requestKind,
+    venueUnavailable: false,
+  });
+  const only = (booking: ReturnType<typeof approvedHold>) => ready({ venueBookings: [booking] });
+
+  /** SPM-159: an approved hold that has not expired does not satisfy the Venue booking approval item, so Confirm stays blocked. */
+  it('VEN-HOLD-04-SUP-EVENTS an active approved hold is outstanding as Hold and blocks Confirm', () => {
+    const result = evaluateReadiness(only(approvedHold(FUTURE_HOLD)), NOW);
+
+    expect(result.ready).toBe(false);
+    expect(result.outstanding).toEqual([
+      { type: 'venue', label: 'Venue booking approval', detail: 'Main Hall (Hold)', state: 'Hold' },
+    ]);
+  });
+
+  /** SPM-159: an expired approved hold is outstanding as Hold expired and is not used as a confirmed booking. */
+  it('VEN-HOLD-04-SUP-EVENTS an expired approved hold is outstanding as Hold expired', () => {
+    const result = evaluateReadiness(only(approvedHold(PAST_HOLD)), NOW);
+
+    expect(result.ready).toBe(false);
+    expect(result.outstanding).toEqual([
+      { type: 'venue', label: 'Venue booking approval', detail: 'Main Hall (Hold expired)', state: 'Hold expired' },
+    ]);
+  });
+
+  /** SPM-159 boundary: an approved hold whose expiry equals the check time is expired (exclusive, as pending holds are). */
+  it('VEN-HOLD-04-SUP-EVENTS an approved hold expiring exactly at the check time is expired', () => {
+    expect(evaluateReadiness(only(approvedHold(NOW)), NOW).outstanding[0].state).toBe('Hold expired');
+    expect(evaluateReadiness(only(approvedHold(new Date(NOW.getTime() + 1))), NOW).outstanding[0].state).toBe('Hold');
+  });
+
+  /** SPM-159: fail closed, an approved hold with no recorded expiry is still not a confirmed booking. */
+  it('VEN-HOLD-04-SUP-EVENTS an approved hold with no recorded expiry is a Hold, not confirmed', () => {
+    expect(evaluateReadiness(only(approvedHold(null)), NOW).outstanding[0].state).toBe('Hold');
+  });
+
+  /** SPM-159: ordinary approved bookings keep their behaviour, even when a stray expiry is stored on them. */
+  it('VEN-HOLD-04-SUP-EVENTS an ordinary approved booking, with or without a stored expiry, still satisfies the venue item', () => {
+    expect(evaluateReadiness(only(approvedHold(PAST_HOLD, 'booking')), NOW)).toEqual({ ready: true, outstanding: [] });
+    const unflagged = { ...approvedHold(null), requestKind: undefined };
+    expect(evaluateReadiness(ready({ venueBookings: [unflagged] }), NOW)).toEqual({ ready: true, outstanding: [] });
+  });
+
+  /** SPM-159: a confirmed booking next to an expired hold is enough; the expired hold is still listed as outstanding. */
+  it('VEN-HOLD-04-SUP-EVENTS an active hold beside a confirmed booking still lists the hold', () => {
+    const result = evaluateReadiness(
+      ready({ venueBookings: [approvedVenue('vb-1', 'Main Hall'), { ...approvedHold(FUTURE_HOLD), id: 'vb-2', venueName: 'Annex' }] }),
+      NOW,
+    );
+    expect(result.outstanding.map((item) => item.detail)).toEqual(['Annex (Hold)']);
+  });
+});
