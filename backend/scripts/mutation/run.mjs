@@ -15,7 +15,7 @@ import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -251,6 +251,7 @@ try {
     console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped, ${tally.suiteError} suite-error`);
     if (measureOut) {
       for (const m of selected) killsOut[m.id] ??= [];
+      mkdirSync(dirname(measureOut), { recursive: true });
       writeFileSync(measureOut, JSON.stringify(killsOut, null, 2));
     }
     if (tally.survived || tally.misapplied || tally.suiteError) exitCode = 1;
