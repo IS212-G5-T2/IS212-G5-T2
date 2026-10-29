@@ -9,7 +9,6 @@ import { ApiError } from "@/utils/api";
 import {
   REGISTRATION_MESSAGES,
   WITHDRAWAL_MESSAGES,
-  formatSgt,
   formatSgtDateTime,
   hasEventStarted,
   registrationClosingHeading,

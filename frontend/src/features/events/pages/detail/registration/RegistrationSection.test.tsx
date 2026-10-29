@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationSection } from "./RegistrationSection";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
-import { formatSgt } from "@/features/events/lib/registration";
 import type { EventRecord, Registration, User } from "@/types";
 import { ATT_01, T0, buildEvent, buildPastEvent, buildRegistration, withdrawalResponse } from "./withdrawal.fixtures";
 
