@@ -233,3 +233,38 @@ describe('SPM-123 AC10: approving keeps the assigned coordinator', () => {
     expect(result).toMatchObject({ status: 'approved', coordinatorId: 'coordinator-1', coordinatorName: 'Coordinator One' });
   });
 });
+
+describe('SPM-88 decision notification write path', () => {
+  const REJECTION_REASON = 'Venue clash on that date';
+  const decisions = [
+    { decision: 'approve', run: () => approve(VALID_UUID, coordinator()) },
+    {
+      decision: 'reject',
+      run: () => service.reject(VALID_UUID, { reason: REJECTION_REASON }, coordinator()),
+    },
+  ];
+
+  /**
+   * DECISION-NOTIFY-06-D: for both approve and reject, the notification INSERT runs
+   * on the transaction client between BEGIN and COMMIT, and never on this.database.
+   * Kills: notification insert moved after COMMIT or onto this.database.query, which
+   * would let a status change persist without its notification (or the reverse).
+   */
+  it.each(decisions)('DECISION-NOTIFY-06-D: $decision writes the notification through the transaction client', async ({ run }) => {
+    // Arrange: a Submitted request assigned to the acting coordinator
+    wireApprove(eventRow({ status: 'Submitted' }), eventRow({ status: 'Approved' }));
+
+    // Act
+    await run();
+
+    // Assert: the insert went through the transaction client, inside BEGIN..COMMIT
+    const sql = txSql();
+    const insertIndex = sql.findIndex((s) => s.startsWith('INSERT INTO notifications'));
+    expect(insertIndex).toBeGreaterThan(sql.indexOf('BEGIN'));
+    expect(insertIndex).toBeLessThan(sql.indexOf('COMMIT'));
+    // Assert: the shared database handle never receives the notification insert
+    expect(
+      db.query.mock.calls.some((c) => String(c[0]).trim().startsWith('INSERT INTO notifications')),
+    ).toBe(false);
+  });
+});

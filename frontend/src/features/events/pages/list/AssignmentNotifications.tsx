@@ -16,7 +16,7 @@ const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.in
 
 // SPM-123 AC9: tells a coordinator which requests the Event Coordinator Lead
 // has assigned to them; SPM-47 AC8: and which events were reassigned to or away from them. Shown on the coordinator's events page. Refreshes on
-// sign-in, window focus and periodically, like RejectionNotifications, so an
+// sign-in, window focus and periodically, like the top-bar notification bell (useNotificationFeed), so an
 // assignment made while the coordinator is online still appears.
 export function AssignmentNotifications() {
   const user = useAppStore((s) => s.currentUser);
