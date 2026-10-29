@@ -132,7 +132,7 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Expired tentative hold until 09 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
   });
 
-  /** VEN-HOLD-09-SUP-COORDINATOR: a rejected tentative hold, or an approved hold without an expiry, shows no hold-state label. */
+  /** VEN-HOLD-09-SUP-COORDINATOR: a rejected or cancelled tentative hold, or an approved hold without an expiry, shows no hold-state label. */
   it("VEN-HOLD-09-SUP-COORDINATOR shows no hold-state label for a rejected hold or an approved hold without expiry", async () => {
     apiMock.mockResolvedValueOnce([
       {
@@ -141,8 +141,18 @@ describe("Coordinator venue bookings", () => {
         eventName: "Rejected Hold Event",
         status: "rejected",
         requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
         holdExpired: false,
         rejectionReason: "Venue closed",
+      },
+      {
+        ...booking,
+        id: "hold-cancelled",
+        eventName: "Cancelled Hold Event",
+        status: "cancelled",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        holdExpired: false,
       },
       {
         ...booking,
@@ -155,8 +165,17 @@ describe("Coordinator venue bookings", () => {
     ] as never);
     render(<BookingsPage />);
 
-    expect(await screen.findAllByText("Rejected Hold Event")).not.toHaveLength(0);
-    expect(screen.getAllByText("No Expiry Hold Event")).not.toHaveLength(0);
+    await screen.findAllByText("Rejected Hold Event");
+    for (const eventName of ["Rejected Hold Event", "Cancelled Hold Event", "No Expiry Hold Event"]) {
+      const card = screen
+        .getAllByRole("heading", { name: eventName })
+        .map((heading) => heading.closest("article"))
+        .find((article): article is HTMLElement => article !== null);
+      expect(card).toBeDefined();
+      expect(within(card as HTMLElement).queryByText(/tentative hold/i)).not.toBeInTheDocument();
+      expect(within(card as HTMLElement).queryByText(/hold expired/i)).not.toBeInTheDocument();
+      expect(within(card as HTMLElement).queryByText(/active/i)).not.toBeInTheDocument();
+    }
     expect(screen.queryByText(/tentative hold/i)).not.toBeInTheDocument();
   });
 
