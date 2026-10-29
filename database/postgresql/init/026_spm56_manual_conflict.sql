@@ -23,8 +23,8 @@ SELECT
     source.organiser_id, source.organiser_name, source.organiser_email,
     'SPM-56 confirmed booking blocker', 'SPM-56 local test fixture',
     'Approved booking used to verify approval-time conflict detection.',
-    ((CURRENT_DATE + 21)::timestamp + TIME '08:45') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '09:15') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '08:45') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '09:15') AT TIME ZONE 'Asia/Singapore',
     source.expected_attendance, source.preferred_room_layout,
     source.required_facilities, source.accessibility_needs,
     source.equipment_needs, false, 'Approved', source.coordinator_id,
@@ -50,8 +50,8 @@ SELECT
     source.organiser_id, source.organiser_name, source.organiser_email,
     'SPM-56 active tentative hold blocker', 'SPM-56 local test fixture',
     'Approved tentative hold used to verify active-hold conflict detection.',
-    ((CURRENT_DATE + 21)::timestamp + TIME '10:30') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '12:00') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '10:30') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '12:00') AT TIME ZONE 'Asia/Singapore',
     source.expected_attendance, source.preferred_room_layout,
     source.required_facilities, source.accessibility_needs,
     source.equipment_needs, false, 'Approved', source.coordinator_id,
@@ -73,8 +73,8 @@ SELECT
     '00000000-0000-4000-8000-000000005601'::uuid,
     venue.id,
     '00000000-0000-4000-8000-000000000202'::uuid,
-    ((CURRENT_DATE + 21)::timestamp + TIME '10:00') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '13:00') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '10:00') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '13:00') AT TIME ZONE 'Asia/Singapore',
     'pending', 'booking', NULL,
     'SPM-56 demo request: approve to review the conflict details.'
 FROM venues venue
@@ -103,8 +103,8 @@ SELECT
     '00000000-0000-4000-8000-000000005602'::uuid,
     venue.id,
     '00000000-0000-4000-8000-000000005610'::uuid,
-    ((CURRENT_DATE + 21)::timestamp + TIME '08:45') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '09:15') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '08:45') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '09:15') AT TIME ZONE 'Asia/Singapore',
     'approved', 'booking'
 FROM venues venue
 WHERE venue.id = '00000000-0000-4000-8000-000000000301'::uuid
@@ -121,8 +121,8 @@ SELECT
     '00000000-0000-4000-8000-000000005603'::uuid,
     venue.id,
     '00000000-0000-4000-8000-000000005611'::uuid,
-    ((CURRENT_DATE + 21)::timestamp + TIME '10:30') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '12:00') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '10:30') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '12:00') AT TIME ZONE 'Asia/Singapore',
     'approved', 'tentative_hold', now() + INTERVAL '1 day'
 FROM venues venue
 WHERE venue.id = '00000000-0000-4000-8000-000000000301'::uuid
@@ -140,8 +140,8 @@ SELECT
     '00000000-0000-4000-8000-000000005604'::uuid,
     venue.id,
     NULL,
-    ((CURRENT_DATE + 21)::timestamp + TIME '10:45') AT TIME ZONE 'Asia/Singapore',
-    ((CURRENT_DATE + 21)::timestamp + TIME '11:15') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '10:45') AT TIME ZONE 'Asia/Singapore',
+    (((now() AT TIME ZONE 'Asia/Singapore')::date + 21)::timestamp + TIME '11:15') AT TIME ZONE 'Asia/Singapore',
     'blocked', 'SPM-56 demo unavailable period'
 FROM venues venue
 WHERE venue.id = '00000000-0000-4000-8000-000000000301'::uuid

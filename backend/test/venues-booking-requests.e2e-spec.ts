@@ -2968,7 +2968,7 @@ describe.skipIf(!databaseUrl)(
       expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
       expect(response.body.conflicts).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ reason: 'Lecture Series', kind: 'booking', status: 'approved' }),
+          expect.objectContaining({ reason: 'Lecture Series', kind: 'booking', status: 'approved', requestKind: 'booking' }),
         ]),
       );
 
@@ -3097,9 +3097,12 @@ describe.skipIf(!databaseUrl)(
         .expect(409);
 
       expect(response.body.code).toBe('BOOKING_SLOT_CONFLICT');
-      const reasons = response.body.conflicts.map((c: { reason: string }) => c.reason);
+      const conflicts = response.body.conflicts as { reason: string; requestKind?: string }[];
+      const reasons = conflicts.map((c) => c.reason);
       expect(reasons).toContain('Active Hold');
       expect(reasons).not.toContain('Expired Hold');
+      const activeHold = conflicts.find((c) => c.reason === 'Active Hold');
+      expect(activeHold).toMatchObject({ requestKind: 'tentative_hold' });
     });
 
     /** VEN-CONF-04-D VEN-CONF-04-PERF-1: concurrent overlapping hold approvals are serialized so only one succeeds. */

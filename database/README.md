@@ -192,7 +192,7 @@ illustrative images, and one short blockout booking so the Venue Staff
 catalogue has records on a fresh development database. It is idempotent and
 does not replace staff-created venues.
 
-`025_spm56_manual_conflict.sql` adds a manual-review fixture for SPM-56 at
+`026_spm56_manual_conflict.sql` adds a manual-review fixture for SPM-56 at
 Sample Birch Lecture Hall: one pending request overlaps an approved booking,
 an active tentative hold, and an unavailable period. It requires the SPM-159
 schema migration (`024_spm159_tentative_hold_requests.sql`). Fresh volumes run
@@ -203,7 +203,7 @@ fixture from the repository root with:
 
 ```sh
 docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < backend/migrations/024_spm159_tentative_hold_requests.sql
-docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/025_spm56_manual_conflict.sql
+docker compose -f docker-compose/docker-compose.yml exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 -f - < database/postgresql/init/026_spm56_manual_conflict.sql
 ```
 
 The fixed fixture IDs make rerunning safe. The pending demo request is for

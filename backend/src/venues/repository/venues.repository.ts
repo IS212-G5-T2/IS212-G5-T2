@@ -110,6 +110,7 @@ export interface VenueBookingConflict {
   occupiedStart: string;
   occupiedEnd: string;
   status?: 'approved' | 'pending';
+  requestKind?: 'booking' | 'tentative_hold';
   holdExpiresAt?: string;
 }
 
@@ -411,15 +412,17 @@ export class VenuesRepository {
         occupied_start: Date;
         occupied_end: Date;
         status: 'approved' | 'pending' | null;
+        request_kind: 'booking' | 'tentative_hold' | null;
         hold_expires_at: Date | null;
       }>(
         `SELECT id, reason, kind, start_at, end_at, occupied_start, occupied_end,
-                status, hold_expires_at
+                status, request_kind, hold_expires_at
            FROM (
            SELECT id, COALESCE(reason, 'Venue unavailable') AS reason,
                   'unavailable'::text AS kind, start_at, end_at,
                   start_at AS occupied_start, end_at AS occupied_end,
-                  NULL::text AS status, NULL::timestamptz AS hold_expires_at
+                  NULL::text AS status, NULL::text AS request_kind,
+                  NULL::timestamptz AS hold_expires_at
              FROM venue_bookings
             WHERE venue_id = $1::uuid AND status = 'blocked'
               AND start_at < $3::timestamptz + make_interval(mins => $5::int)
@@ -429,7 +432,7 @@ export class VenuesRepository {
                   'booking'::text AS kind, b.start_at, b.end_at,
                   b.start_at - make_interval(mins => $4::int) AS occupied_start,
                   b.end_at + make_interval(mins => $5::int) AS occupied_end,
-                  b.status, b.hold_expires_at
+                  b.status, b.request_kind, b.hold_expires_at
              FROM venue_bookings b
              LEFT JOIN events e ON e.id = b.event_id
             WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid
@@ -471,6 +474,7 @@ export class VenuesRepository {
             occupiedStart: row.occupied_start.toISOString(),
             occupiedEnd: row.occupied_end.toISOString(),
             ...(row.status ? { status: row.status } : {}),
+            ...(row.request_kind ? { requestKind: row.request_kind } : {}),
             ...(row.hold_expires_at
               ? { holdExpiresAt: row.hold_expires_at.toISOString() }
               : {}),

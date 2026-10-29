@@ -2305,7 +2305,7 @@ describe('SPM-55 venue booking review repository', () => {
             end_at: new Date('2030-01-12T04:00:00.000Z'),
             occupied_start: new Date('2030-01-12T02:50:00.000Z'),
             occupied_end: new Date('2030-01-12T04:45:00.000Z'),
-            status: 'approved', hold_expires_at: null,
+            status: 'approved', request_kind: 'booking', hold_expires_at: null,
           },
           {
             id: 'hold-1', reason: 'Tentative Event', kind: 'booking',
@@ -2313,7 +2313,8 @@ describe('SPM-55 venue booking review repository', () => {
             end_at: new Date('2030-01-12T05:45:00.000Z'),
             occupied_start: new Date('2030-01-12T04:15:00.000Z'),
             occupied_end: new Date('2030-01-12T06:30:00.000Z'),
-            status: 'pending', hold_expires_at: new Date('2030-01-12T03:00:00.000Z'),
+            status: 'pending', request_kind: 'tentative_hold',
+            hold_expires_at: new Date('2030-01-12T03:00:00.000Z'),
           },
         ],
       },
@@ -2326,13 +2327,15 @@ describe('SPM-55 venue booking review repository', () => {
         {
           id: 'approved-1', reason: 'Lecture Series', kind: 'booking',
           start: '2030-01-12T03:20:00.000Z', end: '2030-01-12T04:00:00.000Z',
-          occupiedStart: '2030-01-12T02:50:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z', status: 'approved',
+          occupiedStart: '2030-01-12T02:50:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z',
+          status: 'approved', requestKind: 'booking',
         },
         {
           id: 'hold-1', reason: 'Tentative Event', kind: 'booking',
           start: '2030-01-12T04:45:00.000Z', end: '2030-01-12T05:45:00.000Z',
           occupiedStart: '2030-01-12T04:15:00.000Z', occupiedEnd: '2030-01-12T06:30:00.000Z',
-          status: 'pending', holdExpiresAt: '2030-01-12T03:00:00.000Z',
+          status: 'pending', requestKind: 'tentative_hold',
+          holdExpiresAt: '2030-01-12T03:00:00.000Z',
         },
       ],
     });

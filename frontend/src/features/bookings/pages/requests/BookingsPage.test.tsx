@@ -584,13 +584,10 @@ describe("Coordinator venue bookings", () => {
     expect(alert).toHaveTextContent("Active tentative hold: Tentative Event; occupied 12 Jan 2030, 12:15 – 12 Jan 2030, 14:30 SGT");
     expect(alert).toHaveTextContent("Unavailable period: 12 Jan 2030, 14:00 – 12 Jan 2030, 15:00 SGT — Maintenance");
     expect(within(alert).getAllByRole("listitem")).toHaveLength(3);
-    expect(alert).toHaveClass("fixed", "top-4");
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
-    await user.click(within(alert).getByRole("button", { name: "Dismiss conflict alert" }));
+    expect(alert).not.toHaveClass("fixed");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(within(alert).getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
   });
 
   /** VEN-CONF-02-A: the approval alert remains visible if a conflict response has no structured blocker list. */
@@ -614,7 +611,33 @@ describe("Coordinator venue bookings", () => {
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("conflicts with another booking");
     expect(within(alert).queryByRole("listitem")).not.toBeInTheDocument();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  /** VEN-CONF-02-A: a successful decision after a conflict clears the stale conflict alert. */
+  it("VEN-CONF-02-A SPM-56 clears the conflict alert after a subsequent successful decision", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with another booking.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+      ))
+      .mockResolvedValueOnce({ holdExpiresAt: undefined } as never);
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("conflicts with another booking");
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
   });
 
   /** VEN-REV-06-B: a reason typed and rejected for one request, with its error, does not carry into the next request's dialog. */
