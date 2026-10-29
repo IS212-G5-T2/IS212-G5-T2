@@ -23,6 +23,9 @@ const JUDGEMENT = ['tier', 'tier_status', 'oracle_class', 'assumption_ref', 'exp
 
 export const keyOf = (row) => `${row.file}::${row.title}`;
 
+/** A test whose id is registered to another story is checked against that story's records, not this one. */
+export const belongsToOtherStory = (testId, foreignIds = new Set()) => Boolean(testId) && foreignIds.has(testId);
+
 /** Regex for the expanded titles an it.each call site produces ("%s", "$name" ...). */
 export function titleRegExp(title) {
   // Test discovery reads template literals as source text, so an apostrophe
@@ -99,6 +102,7 @@ export async function buildRows(scope, existingRows, ctx) {
       const base = { file: entry.file, title: test.title };
       const previous = existing.get(keyOf(base)) ?? {};
       const testId = testIdOf(test, ctx.ignoredFamilies);
+      if (belongsToOtherStory(testId, ctx.foreignIds)) continue;
       const row = Object.fromEntries(HEADER.map((name) => [name, previous[name] ?? '']));
       Object.assign(row, {
         test_id: testId,
@@ -174,11 +178,11 @@ async function main() {
   }
   const scope = loadScope(flags.scope);
   const recordsPath = `${WORKFLOW_DIR}/records/${scope.story}.csv`;
-  const { rows: registryRows, ignoredFamilies } = readRegistry(`${WORKFLOW_DIR}/test-id-registry.md`, scope.story);
+  const { rows: registryRows, ignoredFamilies, foreignIds } = readRegistry(`${WORKFLOW_DIR}/test-id-registry.md`, scope.story);
   const existing = fileExists(recordsPath) ? parseCsv(readText(recordsPath)) : [];
   const gatePath = join(flags.cycle, 'gates', 'G4scan.json');
   const determinism = fileExists(gatePath) ? readJson(gatePath) : undefined;
-  const ctx = { registryRows, ignoredFamilies, runDir: join(flags.cycle, 'test-run'), determinism, mutantIds: new Set() };
+  const ctx = { registryRows, ignoredFamilies, foreignIds, runDir: join(flags.cycle, 'test-run'), determinism, mutantIds: new Set() };
   const { definitions } = await killsIndex(scope, flags.cycle);
   ctx.mutantIds = new Set(definitions.keys());
   const rows = await buildRows(scope, existing, ctx);

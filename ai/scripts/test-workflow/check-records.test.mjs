@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { resultOf, titleRegExp, validate } from './check-records.mjs';
+import { belongsToOtherStory, resultOf, titleRegExp, validate } from './check-records.mjs';
 
 test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('refuses %s with 403').test('refuses an Attendee (ATT-01) with 403'));
@@ -63,4 +63,12 @@ test('an unexplained test must have a comment; a named mutant must exist', () =>
 test('an id that is not in the registry is reported as such, not as missing', () => {
   const out = validate([{ ...good(), test_id: 'OTHER-01' }], ctx);
   assert.match(out.findings.join('\n'), /carries an id that is not in the registry/);
+});
+
+test('a test whose id is registered to another story is not checked against this story\u0027s records', () => {
+  const foreign = new Set(['VEN-HOLD-05-A']);
+  assert.equal(belongsToOtherStory('VEN-HOLD-05-A', foreign), true);
+  assert.equal(belongsToOtherStory('S-01', foreign), false);
+  assert.equal(belongsToOtherStory('', foreign), false);
+  assert.equal(belongsToOtherStory('S-01'), false);
 });
