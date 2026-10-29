@@ -483,6 +483,23 @@ describe("PlanningUpdateForm: saving feedback", () => {
     );
   });
 
+  /** SAFETY-RESET-UPDATE-04 (SPM-135 AC2): when the saved change reset the safety check, the confirmation says it must be requested again. */
+  it("SAFETY-RESET-UPDATE-04 says the safety check was reset after a save that reset it", async () => {
+    const user = userEvent.setup();
+    renderForm(
+      vi.fn().mockResolvedValue({
+        applied: ["name"],
+        flagged: [],
+        safetyCheckReset: true,
+      }),
+    );
+    await user.type(screen.getByLabelText(/event name/i), " 2");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Changes saved. The safety check was reset, so it must be requested again before the event can be confirmed.",
+    );
+  });
+
   // EVENT-FLAG-01-A: a save that held some fields for review says how many and why.
   it("EVENT-FLAG-01-A tells the coordinator how many changes were sent for review", async () => {
     const user = userEvent.setup();

@@ -463,4 +463,30 @@ describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () 
       }),
     );
   });
+
+  /** EVENT-UPDATE-08-D (edit form): when the options cannot be loaded, both lists show the error and the stored values are saved unchanged. */
+  it("EVENT-UPDATE-08-D shows the load error and keeps stored values when options fail", async () => {
+    const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");
+    venueOptionsState.current = { status: "error", facilities: [], accessibility: [], error: "Server unavailable." };
+    try {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
+      // Both lists report the failure; no choices can be ticked.
+      expect(screen.getAllByText("Could not load the options. Server unavailable.")).toHaveLength(2);
+      expect(screen.queryByRole("checkbox", { name: "AV System" })).not.toBeInTheDocument();
+      // Saving does not wipe the stored lists it could not check.
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          venueRequirements: expect.objectContaining({
+            facilities: ["AV System"],
+            accessibility: ["Wheelchair access"],
+          }),
+        }),
+      );
+    } finally {
+      resetVenueOptions();
+    }
+  });
 });

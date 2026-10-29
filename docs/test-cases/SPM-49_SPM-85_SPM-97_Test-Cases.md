@@ -184,10 +184,10 @@ Defect: Update Event Information, Request a Change and Edit Event offered facili
 | EVENT-UPDATE-08-SEC-1 | SPM-156 | Migration 027 is idempotent | `event-options-migration.e2e-spec.ts` (PostgreSQL) |
 | EVENT-UPDATE-08-B | SPM-49 AC1, AC3 (SPM-156) | Every current venue-schema layout, facility and accessibility need is offered and accepted; retired values are refused by the server and never offered | `event-update-input.spec.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx` |
 | EVENT-UPDATE-08-C | SPM-49 AC1, AC3, SPM-64 AC1 (SPM-156) | A retired stored value is not shown; it is not sent while its list is untouched and is dropped when the list is edited (planning, change-request and edit forms) | `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx`, `EventEditForm.test.tsx` |
-| EVENT-UPDATE-08-D | SPM-49 AC1 (SPM-156) | Options come from `GET /api/venues/options`; a malformed reply is refused; while loading or after a failure the lists are disabled and Try again reloads them | `venue-options-api.test.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx` |
+| EVENT-UPDATE-08-D | SPM-49 AC1 (SPM-156) | Options come from `GET /api/venues/options`; a malformed reply is refused; while loading or after a failure the lists are disabled and Try again reloads them | `venue-options-api.test.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx`, `EventEditForm.test.tsx` (load error shown; stored values saved unchanged) |
 | EVENT-UPDATE-08-E | SPM-49 AC4 (SPM-156) | A list error and the "Last changed" note are stacked in one block under the field, so they never overlap | `PlanningUpdateForm.test.tsx` (EVENT-UPDATE-04-H updated for the new position) |
 
-Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 027) on 29 Oct 2026: backend unit 1919/1919, frontend 1926 passed (1 skipped, 1 todo), backend E2E 775 passed (19 skipped) with the intermittent PLAN-STATUS-03-B (SPM-148) failing once and passing on rerun. The four new PlanningUpdateForm cases fail against the previous form.
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 027) on 29 Oct 2026: backend unit 1919/1919, frontend 1928 passed after the review fixes (1 skipped, 1 todo; `npm run test:cov` in both components), backend E2E 775 passed (19 skipped) with the intermittent PLAN-STATUS-03-B (SPM-148) failing once and passing on rerun. The four new PlanningUpdateForm cases fail against the previous form.
 
 ## Assumptions behind the expected results
 
