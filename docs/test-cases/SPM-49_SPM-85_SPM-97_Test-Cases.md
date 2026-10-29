@@ -140,7 +140,7 @@ Line numbers as of SPM-156 (29 Oct 2026); the same rows are kept in `docs/test-c
 
 - `event-planning.service.ts` lines 802–803, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
 - `event-planning.service.ts` line 103 and `event-planning.repository.ts` line 203: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
-- `EventDetailPage.tsx` lines 159 and 175, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
+- `EventDetailPage.tsx` lines 166 and 182, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
 - Other uncovered branches in `EventDetailPage.tsx` belong to other stories and are left to their owners (see SPM-141).
 
 ### HTTP route tests
