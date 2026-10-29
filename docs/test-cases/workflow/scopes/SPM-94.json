@@ -27,7 +27,10 @@
     "frontend": [
       "frontend/src/features/events/components/StatusIndicators.test.tsx",
       "frontend/src/features/events/pages/detail/EventDetailPage.status.test.tsx",
-      "frontend/src/store/useAppStore.logout.test.ts",
+      {
+        "glob": "frontend/src/store/useAppStore.logout.test.ts",
+        "titleMatch": "TRACK-EVENT-STATUS|SPM-94"
+      },
       {
         "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
         "titleMatch": "TRACK-EVENT-STATUS|SPM-94"

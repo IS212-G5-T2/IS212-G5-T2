@@ -272,7 +272,7 @@ describe.skipIf(!database)('VENUE-SUMMARY: the venue text on event list and deta
    * overlaps the booking, so the approved booking shows "(unavailable)". Only a true overlap check
    * catches this; an equality or containment check would not.
    */
-  it('VENUE-SUMMARY (partial overlap): a block that starts before the booking and ends inside it shows "(unavailable)"', async () => {
+  it('CONFIRM-EVENT-SUP-18 VENUE-SUMMARY (partial overlap): a block that starts before the booking and ends inside it shows "(unavailable)"', async () => {
     // Arrange: approved booking 02:00 to 04:00; the venue is blocked 01:00 to 03:00
     const eventId = await seedEvent();
     const venueId = await seedVenue('Main Hall');
@@ -291,7 +291,7 @@ describe.skipIf(!database)('VENUE-SUMMARY: the venue text on event list and deta
    * overlaps the booking, so the approved booking shows "(unavailable)". Only a true overlap check
    * catches this; an equality or containment check would not.
    */
-  it('VENUE-SUMMARY (partial overlap): a block that starts inside the booking and ends after it shows "(unavailable)"', async () => {
+  it('CONFIRM-EVENT-SUP-19 VENUE-SUMMARY (partial overlap): a block that starts inside the booking and ends after it shows "(unavailable)"', async () => {
     // Arrange: approved booking 02:00 to 04:00; the venue is blocked 03:00 to 05:00
     const eventId = await seedEvent();
     const venueId = await seedVenue('Main Hall');
@@ -309,7 +309,7 @@ describe.skipIf(!database)('VENUE-SUMMARY: the venue text on event list and deta
    * The planning view and the planning update response carry the same venue text as the list and detail,
    * so the page does not blank the venue after the coordinator saves a change.
    */
-  it('VENUE-SUMMARY (planning): the planning view and the update response show the venue text', async () => {
+  it('CONFIRM-EVENT-SUP-20 VENUE-SUMMARY (planning): the planning view and the update response show the venue text', async () => {
     // Arrange: one pending booking on a Planning event
     const eventId = await seedEvent();
     await addBooking(eventId, await seedVenue('Main Hall'), 'pending');

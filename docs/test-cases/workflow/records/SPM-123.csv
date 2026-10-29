@@ -1,0 +1,3 @@
+test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
+LEAD-ASN-09-C,backend/src/events/review/events.reject.spec.ts,LEAD-ASN-09-C lets a coordinator read and mark read only their own assignment notifications,433,needs review (no matrix row; family LEAD-ASN-09),Isolation,Present,Unit,SPEC,,mutants:backend-spm83/rejection(6),Yes,Yes,Yes,PASS
+LEAD-ASN-10-B,backend/src/events/review/events.reject.spec.ts,LEAD-ASN-10-B keeps the coordinator when a request is rejected,404,needs review (no matrix row; family LEAD-ASN-10),Sad,Present,Unit,SPEC,,mutants:backend-spm83/rejection(6),Yes,Yes,Yes,PASS

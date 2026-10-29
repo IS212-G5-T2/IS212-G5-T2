@@ -87,6 +87,52 @@ test('extractTests finds call sites, titles, comments and describes', () => {
   assert.equal(tests[3].commentPresent, false);
 });
 
+test('extractTests reads an it.each title on the line below the table, and never borrows the next test title', () => {
+  const tests = extractTests(`
+describe('EVE-CRE-05-E', () => {
+  it.each([
+    ['a', 1],
+  ])(
+    'EVE-CRE-05-E rejects %s',
+    () => {},
+  );
+  it.each([
+    ['b', 2],
+  ])(
+    'EVE-CRE-05-F rejects %s',
+    () => {},
+  );
+  it.each([
+    ['c', 3],
+  ])('EVE-CRE-05-G rejects %s', () => {});
+  it.each([1, 2])(
+    'EVE-CRE-05-H, two rows',
+    () => {},
+  );
+  it('EVE-CRE-05-Z after a title-less table', () => {});
+});
+`);
+  assert.deepEqual(tests.map((t) => t.title), [
+    'EVE-CRE-05-E rejects %s',
+    'EVE-CRE-05-F rejects %s',
+    'EVE-CRE-05-G rejects %s',
+    'EVE-CRE-05-H, two rows',
+    'EVE-CRE-05-Z after a title-less table',
+  ]);
+});
+
+test('extractTests does not take the title of a later test for an it.each without a title', () => {
+  const tests = extractTests(`
+  it.each([
+    ['a', 1],
+  ])(
+    () => {},
+  );
+  it('EVE-CRE-99-A the next test', () => {});
+`);
+  assert.deepEqual(tests.map((t) => t.title), ['EVE-CRE-99-A the next test']);
+});
+
 test('testIdOf: own title, then enclosing describe, ignoring non-test families', () => {
   const tests = extractTests(SAMPLE);
   assert.equal(testIdOf(tests[1]), 'CONFIRM-EVENT-06-A');
@@ -113,4 +159,46 @@ test('timezoneStatus blocks skipped tests and distinguishes a zone that did not 
   assert.equal(timezoneStatus({ UTC: { total: 22, failed: 0, skipped: 22, notRun: 0 } }), 'BLOCKED');
   assert.equal(timezoneStatus({ UTC: { total: 22, failed: 0, skipped: 0, notRun: 0 } }), 'PASS');
   assert.equal(timezoneStatus({ UTC: { total: 0, failed: 0, skipped: 0, notRun: 1 } }), 'UNABLE_TO_VERIFY');
+});
+
+test('scopedTests keeps a test whose own comment carries the story prefix, even when its title does not', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { scopedTests } = await import('./lib.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'scoped-'));
+  const file = join(dir, 'x.spec.ts');
+  writeFileSync(file, [
+    "describe('other', () => {",
+    "  /** EVE-DRF-01-A: a draft saves with incomplete fields. */",
+    "  it('saves an incomplete request', () => {});",
+    "  // EVE-DRF-02-A line tag above the test",
+    "  it('prefills a request', () => {});",
+    "  it('TRACK-EVENT-STATUS-01-A unrelated', () => {});",
+    '});',
+  ].join('\n'));
+  const titles = scopedTests({ file, titleMatch: 'EVE-DRF' }).map((test) => test.title);
+  assert.deepEqual(titles, ['saves an incomplete request', 'prefills a request']);
+});
+
+test('scopedTests keeps a test that carries a story registry id even when its title and comment do not match the titleMatch', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  const { scopedTests } = await import('./lib.mjs');
+  const dir = mkdtempSync(join(tmpdir(), 'scoped-registry-'));
+  const file = join(dir, 'calendar.test.tsx');
+  writeFileSync(file, [
+    "describe('calendar', () => {",
+    '  /** VEN-AVL-SUP-04 (SPM-51): an empty initialDate keeps the default date. */',
+    "  it('keeps the default calendar date when initialDate is empty', () => {});",
+    "  it('SPM54-COVERAGE-ONLY-NO-IDS renders the grid', () => {});",
+    "  it('VEN-OTHER-01-A belongs to another story', () => {});",
+    '});',
+  ].join('\n'));
+  const storyIds = new Set(['VEN-AVL-SUP-04']);
+  const titles = scopedTests({ file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }, storyIds).map((test) => test.title);
+  assert.deepEqual(titles, ['keeps the default calendar date when initialDate is empty', 'SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
+  const without = scopedTests({ file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }).map((test) => test.title);
+  assert.deepEqual(without, ['SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
 });

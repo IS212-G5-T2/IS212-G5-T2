@@ -266,7 +266,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
    * A reset only records a reason when there was a safety check to reset. An event that was never requested
    * gets no reset reason when one of its venue bookings changes.
    */
-  it('SAFETY-STALE (never requested): a changed venue booking on an event with no safety record records no reset reason', async () => {
+  it('CONFIRM-EVENT-SUP-15 SAFETY-STALE (never requested): a changed venue booking on an event with no safety record records no reset reason', async () => {
     // Arrange: approved arrangements, then the safety record is removed (the event was never requested)
     const { id } = await seedApprovedEvent();
     await pool.query('DELETE FROM event_safety_checks WHERE event_id = $1', [id]);
@@ -285,7 +285,7 @@ describe.skipIf(!database)('SAFETY-STALE: safety approval is invalidated by arra
    * A booking removed from an event with no safety record still clears any feedback items left for that
    * event, so no stale feedback can show up on a later check.
    */
-  it('SAFETY-STALE (leftover feedback): a removed booking clears leftover feedback even when no safety record exists', async () => {
+  it('CONFIRM-EVENT-SUP-16 SAFETY-STALE (leftover feedback): a removed booking clears leftover feedback even when no safety record exists', async () => {
     // Arrange: no safety record, but one feedback item is still stored for the event
     const { id } = await seedApprovedEvent();
     await pool.query('DELETE FROM event_safety_checks WHERE event_id = $1', [id]);

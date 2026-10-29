@@ -740,6 +740,143 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
+  /**
+   * VEN-BKG-10-A SPM-54: after a submitted request is cancelled, the review section stays and its notice reads as cancelled.
+   * Product owner decision, 28 Oct 2026 (recorded in spec-conflicts.md): the notice stays visible and says the request is cancelled.
+   * Kills: a page that hides the review section, keeps the "submitted" wording after cancellation, or clears the notice when the new request is cancelled.
+   */
+  it("VEN-BKG-10-A SPM-54 keeps the submitted notice in the review after the new request is cancelled", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-cancel-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-CANCEL01",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return { ...booking, bookingReference: "VB-CANCEL01" } as never;
+      }
+      if (path === `/venues/bookings/${booking.id}/cancel`) {
+        bookings = [];
+        return { id: booking.id, status: "cancelled" } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = await screen.findByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    await screen.findByRole("region", {
+      name: "Existing venue booking request",
+    });
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", {
+          name: "Existing venue booking request",
+        }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Booking request VB-CANCEL01 is cancelled."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Booking request submitted\. Reference/),
+    ).not.toBeInTheDocument();
+  });
+
+  /**
+   * VEN-BKG-SUP-10 SPM-54: a submitted request that moved its event to Planning shows a cancelled notice in the review after the request is cancelled, and no longer reports the submission (event status transition notice owned by SPM-148; parent AC10).
+   * Kills: a review section that drops the Planning transition notice once the request that moved the event is cancelled, or that keeps the "submitted" wording after cancellation.
+   */
+  it("VEN-BKG-SUP-10 SPM-54 replaces the Planning notice with a cancelled notice in the review after the request that moved the event is cancelled", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-planning-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-PLAN0001",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return {
+          id: booking.id,
+          bookingReference: "VB-PLAN0001",
+          statusChanged: true,
+        } as never;
+      }
+      if (path === `/venues/bookings/${booking.id}/cancel`) {
+        bookings = [];
+        return { id: booking.id, status: "cancelled" } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = await screen.findByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    await screen.findByRole("region", {
+      name: "Existing venue booking request",
+    });
+    await user.click(screen.getByRole("button", { name: "Cancel booking" }));
+    await user.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: "Confirm cancellation",
+      }),
+    );
+
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Booking request VB-PLAN0001 is cancelled."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Venue booking request VB-PLAN0001 is cancelled. Event event-1 is no longer in Planning.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Venue booking request submitted/),
+    ).not.toBeInTheDocument();
+  });
+
   /** VEN-BKG-09-A: a server cancellation failure leaves the active event-linked request visible and reports the reason. */
   it("VEN-BKG-09-A SPM-54 preserves the event venue summary when cancellation fails", async () => {
     setCoordinator(["event-1"]);
@@ -1114,7 +1251,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeEnabled();
   });
 
-  /** SPM-54: assigned event time fields cannot be edited to create a zero-duration request. */
+  /** VEN-BKG-SUP-03 SPM-54 AC3: assigned event time fields cannot be edited to create a zero-duration request. */
   it("keeps the assigned event times read-only", async () => {
     setCoordinator(["event-1"]);
     apiMock.mockResolvedValueOnce(venue).mockResolvedValueOnce([] as never);
@@ -1162,7 +1299,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(apiMock).not.toHaveBeenCalled();
   });
 
-  /** VEN-AVL-07-A / VEN-AVL-08-A: a conflict blocks request submission after the coordinator checks a venue. */
+  /** VEN-AVL-07-A: a conflict blocks request submission after the coordinator checks a venue. The buffer overlap that causes the conflict is also an AC8 case. */
   it("SPM-51: blocks booking submission for a time that conflicts with a confirmed booking", async () => {
     useAppStore.setState({
       currentUser: {
@@ -1515,7 +1652,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).toBeInTheDocument();
   });
 
-  /** SPM-54 AC5: a pending request without a Venue Staff hold is absent from the tentative schedule. */
+  /** VEN-BKG-SUP-04 SPM-54 AC2: a pending request without a Venue Staff hold is absent from the tentative schedule. */
   it("does not display pending requests without a hold expiry as tentative reservations", async () => {
     setCoordinator();
     const user = userEvent.setup();
@@ -1540,7 +1677,71 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     ).not.toBeInTheDocument();
   });
 
-  /** VEN-AVL-02-A/B/C/05-A/B and VEN-AVL-03-A/B: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. */
+  /**
+   * VEN-AVL-03-B: an active tentative hold shows the stored expiry instant, 12 Jan 2030 15:00 SGT, in both the calendar and the list views.
+   * Kills: a view that shows the hold end (14:00 SGT) or no expiry for a live hold instead of the stored expiry.
+   */
+  it("shows the active tentative hold and its expiry instant in calendar and list views", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+    const user = userEvent.setup();
+    const holdSchedule: VenueRecord = {
+      ...venue,
+      unavailablePeriods: [],
+      reservations: [
+        {
+          id: "live-hold",
+          eventName: "Held seminar",
+          start: "2030-01-12T05:00:00Z",
+          end: "2030-01-12T06:00:00Z",
+          status: "tentative",
+          holdExpiresAt: "2030-01-12T07:00:00Z",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    };
+    apiMock
+      .mockResolvedValueOnce(holdSchedule)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce(holdSchedule);
+
+    try {
+      renderPage();
+      await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
+      fireEvent.change(screen.getByLabelText("Event starts"), {
+        target: { value: "2030-01-12T12:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Event ends"), {
+        target: { value: "2030-01-12T18:00" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Refresh schedule" }),
+      );
+
+      const calendar = screen.getByRole("region", { name: "Venue schedule" });
+      expect(calendar).toHaveTextContent("Tentative hold");
+      expect(calendar).toHaveTextContent("Hold expires 12 Jan 2030, 15:00 SGT");
+
+      await user.click(screen.getByRole("button", { name: "List" }));
+      const list = screen.getByRole("list", { name: "Venue schedule" });
+      expect(list).toHaveTextContent("Tentative hold");
+      expect(list).toHaveTextContent("hold expires 12 Jan 2030, 15:00 SGT");
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
+  });
+
+  /** VEN-AVL-03-A: calendar/list both show the schedule, free slot, reasons, hold expiry and preserve selection. The hold-expiry display in both views is the second AC3 case. */
   it("shows the same schedule facts in calendar and list views without changing the selected range", async () => {
     useAppStore.setState({
       currentUser: {
@@ -1721,7 +1922,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(schedule).not.toHaveTextContent("Maintenance");
   });
 
-  /** VEN-AVL-02 / SPM-51 AC5: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
+  /** VEN-AVL-02-B / SPM-51 AC2: moving the time-grid week changes the visible dates and recomputes free periods for that week. */
   it("navigates the real time grid and shows availability in the newly visible week", async () => {
     const originalNow = Date.now();
     vi.setSystemTime(new Date("2030-01-12T04:00:00.000Z"));
@@ -1839,7 +2040,7 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     expect(calendar).not.toHaveTextContent("Turnaround buffer");
   });
 
-  /** VEN-AVL-10-A/B: the backend-clock-filtered schedule displays and blocks only the active hold. */
+  /** VEN-AVL-10-B: the backend-clock-filtered schedule displays and blocks only the active hold. The only-active-hold assertion also excludes the expired hold, which is the first AC10 case. */
   it("renders and blocks the live hold returned by the server at a fixed check time", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");
@@ -1898,7 +2099,70 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
     }
   });
 
-  /** VEN-AVL-09-A/B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. */
+  /**
+   * VEN-AVL-10-BND-1: at the exact expiry instant, 12 Jan 2030 09:00 SGT, the hold is inactive and a range that only overlaps it is not blocked.
+   * Kills: a page that keeps a hold active at its expiry instant (a >= comparison), which would list it as a conflict and block the time.
+   */
+  it("does not block a range that overlaps a hold at its exact expiry instant", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2030-01-12T01:00:00.000Z"));
+    useAppStore.setState({
+      currentUser: {
+        id: "coordinator",
+        name: "Coordinator",
+        email: "coordinator@example.test",
+        role: "coordinator",
+      },
+    });
+    const user = userEvent.setup();
+    const boundarySchedule: VenueRecord = {
+      ...venue,
+      unavailablePeriods: [],
+      reservations: [
+        {
+          id: "expiring-hold",
+          eventName: "Expiring Hold",
+          start: "2030-01-12T05:00:00Z",
+          end: "2030-01-12T06:00:00Z",
+          status: "tentative",
+          holdExpiresAt: "2030-01-12T01:00:00.000Z",
+          affectedByUnavailablePeriod: false,
+        },
+      ],
+    };
+    apiMock
+      .mockResolvedValueOnce(boundarySchedule)
+      .mockResolvedValueOnce([] as never)
+      .mockResolvedValueOnce(boundarySchedule);
+
+    try {
+      renderPage();
+      await screen.findByRole("heading", { name: "Conference Room" });
+      await screen.findByLabelText("Event starts");
+      fireEvent.change(screen.getByLabelText("Event starts"), {
+        target: { value: "2030-01-12T13:00" },
+      });
+      fireEvent.change(screen.getByLabelText("Event ends"), {
+        target: { value: "2030-01-12T14:00" },
+      });
+      await user.click(
+        screen.getByRole("button", { name: "Refresh schedule" }),
+      );
+
+      expect(
+        await screen.findByText("This time is available for this venue."),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+      expect(
+        screen.getByRole("region", { name: "Venue schedule" }),
+      ).not.toHaveTextContent("Expiring Hold");
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
+  });
+
+  /** VEN-AVL-09-B: a booking affected by a setup-overlapping blockout remains recorded and visibly flagged. The retained-and-visible check is the first AC9 case. */
   it("retains and flags an existing booking affected only through its setup buffer", async () => {
     apiMock
       .mockResolvedValueOnce({
@@ -2400,5 +2664,90 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       0,
     );
     expect(apiMock).toHaveBeenCalledTimes(3);
+  });
+
+  /**
+   * VEN-BKG-SUP-11 SPM-54: a submitted request moved its event to Planning; the server then rejects the booking and the summary reloads. The review keeps the submitted Planning notice as a stale state (event status transition notice owned by SPM-148; parent AC10). Product owner decision, 28 Oct 2026: keep the submitted wording.
+   * Kills: a summary reload that drops the submitted Planning notice for a rejected request, or that swaps it for the cancelled wording ("is cancelled" or "is no longer in Planning") although no cancellation happened.
+   */
+  it("VEN-BKG-SUP-11 SPM-54 keeps the submitted Planning notice in the review as a stale state after the server rejects the request and the summary reloads and leaves Submit booking request disabled until the schedule refreshes", async () => {
+    setCoordinator(["event-1"]);
+    let bookings: unknown[] = [];
+    const booking = {
+      id: "booking-rejected-1",
+      eventId: "event-1",
+      eventName: "Event event-1",
+      venueId: id,
+      venueName: "Conference Room",
+      start: "2030-01-12T04:00:00.000Z",
+      end: "2030-01-12T05:00:00.000Z",
+      status: "pending",
+      bookingReference: "VB-REJECT01",
+    };
+    apiMock.mockImplementation(async (path: string) => {
+      if (path === "/venues/bookings/mine") return bookings as never;
+      if (path === `/venues/${id}/booking-requests`) {
+        bookings = [booking];
+        return {
+          id: booking.id,
+          bookingReference: "VB-REJECT01",
+          statusChanged: true,
+        } as never;
+      }
+      return venue as never;
+    });
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByRole("heading", { name: "Conference Room" });
+    const review = await screen.findByRole("region", {
+      name: "Review booking request",
+    });
+    await user.click(
+      within(review).getByRole("button", { name: "Submit booking request" }),
+    );
+    expect(
+      await screen.findByText(
+        "Venue booking request submitted. Event event-1 is now in Planning.",
+      ),
+    ).toBeInTheDocument();
+
+    // Act: the server rejects the booking (it leaves pending/approved), then a booking-mode change
+    // (the assigned event leaves and re-enters the store) reloads the page's booking summary.
+    bookings = [{ ...booking, status: "rejected" }];
+    const requestEvents = useAppStore.getState().events;
+    act(() => {
+      useAppStore.setState({ events: [] });
+    });
+    act(() => {
+      useAppStore.setState({ events: requestEvents });
+    });
+
+    // Assert: the summary was reloaded, the rejected booking is not an active summary, and the review
+    // still shows the submitted Planning wording with no cancelled wording.
+    await waitFor(() =>
+      expect(
+        apiMock.mock.calls.filter(([path]) => path === "/venues/bookings/mine"),
+      ).toHaveLength(2),
+    );
+    expect(
+      await screen.findByRole("region", { name: "Review booking request" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Existing venue booking request" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Venue booking request submitted. Event event-1 is now in Planning.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/is cancelled/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/is no longer in Planning/)).not.toBeInTheDocument();
+    // Product owner's current behaviour (28 Oct 2026): the Submit booking request button stays disabled
+    // after a rejected booking reloads until the schedule refreshes. The product owner should confirm this is intended.
+    expect(
+      within(
+        await screen.findByRole("region", { name: "Review booking request" }),
+      ).getByRole("button", { name: "Submit booking request" }),
+    ).toBeDisabled();
   });
 });

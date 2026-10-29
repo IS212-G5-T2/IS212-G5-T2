@@ -132,6 +132,53 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Expired tentative hold until 09 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
   });
 
+  /** VEN-HOLD-09-SUP-COORDINATOR: a rejected or cancelled tentative hold, or an approved hold without an expiry, shows no hold-state label. */
+  it("VEN-HOLD-09-SUP-COORDINATOR shows no hold-state label for a rejected hold or an approved hold without expiry", async () => {
+    apiMock.mockResolvedValueOnce([
+      {
+        ...booking,
+        id: "hold-rejected",
+        eventName: "Rejected Hold Event",
+        status: "rejected",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        holdExpired: false,
+        rejectionReason: "Venue closed",
+      },
+      {
+        ...booking,
+        id: "hold-cancelled",
+        eventName: "Cancelled Hold Event",
+        status: "cancelled",
+        requestKind: "tentative_hold",
+        holdExpiresAt: "2030-01-24T12:00:00.000Z",
+        holdExpired: false,
+      },
+      {
+        ...booking,
+        id: "hold-no-expiry",
+        eventName: "No Expiry Hold Event",
+        status: "approved",
+        requestKind: "tentative_hold",
+        holdExpired: false,
+      },
+    ] as never);
+    render(<BookingsPage />);
+
+    await screen.findAllByText("Rejected Hold Event");
+    for (const eventName of ["Rejected Hold Event", "Cancelled Hold Event", "No Expiry Hold Event"]) {
+      const card = screen
+        .getAllByRole("heading", { name: eventName })
+        .map((heading) => heading.closest("article"))
+        .find((article): article is HTMLElement => article !== null);
+      expect(card).toBeDefined();
+      expect(within(card as HTMLElement).queryByText(/tentative hold/i)).not.toBeInTheDocument();
+      expect(within(card as HTMLElement).queryByText(/hold expired/i)).not.toBeInTheDocument();
+      expect(within(card as HTMLElement).queryByText(/active/i)).not.toBeInTheDocument();
+    }
+    expect(screen.queryByText(/tentative hold/i)).not.toBeInTheDocument();
+  });
+
   /** VEN-BKG-05-A: affected and cancelled history rows offer the assigned event as replacement context. */
   it("VEN-BKG-05-A VEN-BKG-06-A SPM-54 shows replacement context and preserves the affected booking history", async () => {
     apiMock.mockResolvedValue([
@@ -179,6 +226,43 @@ describe("Coordinator venue bookings", () => {
 
     expect(screen.getByText("Venue: Garden Hall")).toBeInTheDocument();
     expect(screen.queryByText("Venue: Main Hall")).not.toBeInTheDocument();
+  });
+
+  // VEN-BKG-08-A. Kills: the BookingsPage onDecided mirror that updates coordinatorBookings for the same booking id; without it
+  // the coordinator card keeps its pending status after a Venue Staff approval of that booking.
+  it("VEN-BKG-08-A SPM-54 shows a Venue Staff decision on the coordinator card for the same booking", async () => {
+    const user = userEvent.setup();
+    useAppStore.setState({
+      currentUser: {
+        id: "dual-1",
+        name: "Dual Role",
+        email: "dual@example.test",
+        role: "venue_staff",
+        roles: ["coordinator", "venue_staff"],
+      },
+      bookings: [],
+    });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path === "/venues/bookings/mine")
+        return [booking, { ...booking, id: "booking-2", bookingReference: "VB-BOOKING2", venueName: "Garden Hall", status: "cancelled" }];
+      if (path === "/venues/bookings/pending") return [pendingRequest()];
+      if (path === "/venues/bookings/booking-1/approve") return { id: "booking-1", status: "approved" };
+      throw new Error(`unexpected request ${path}`);
+    }) as never);
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    // The staff card leaves the default Pending view, so the only card for this reference is the coordinator's.
+    const coordinatorCard = screen.getByText("Reference VB-BOOKING1").closest("article");
+    expect(coordinatorCard).not.toBeNull();
+    expect(within(coordinatorCard as HTMLElement).getByText("approved")).toBeInTheDocument();
+    // An unrelated coordinator row keeps its own status.
+    const otherCard = screen.getByText("Reference VB-BOOKING2").closest("article");
+    expect(within(otherCard as HTMLElement).getByText("cancelled")).toBeInTheDocument();
   });
 
   /** VEN-BKG-08-A: a failed booking-history request is reported without rendering phantom rows. */

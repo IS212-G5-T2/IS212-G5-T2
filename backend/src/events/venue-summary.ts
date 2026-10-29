@@ -4,7 +4,7 @@ import { activeApprovedHoldSql, expiredApprovedHoldSql, VENUE_UNAVAILABLE_SQL } 
 // an approved booking not blocked for its window (with setup and turnaround, venue-unavailable.ts) is confirmed, a pending request is pending, and a
 // rejected or blocked booking is unavailable. An approved tentative hold (SPM-159) is not confirmed: it reads
 // "(hold)" while it runs and "(hold expired)" from its expiry instant. A released booking (SPM-136, cancelled event) holds no venue and is
-// left out (ASSUMED, documented in docs/specs/SPM-136-test-results.md, RR-136-01).
+// left out (PO confirmed 22 Oct 2026, SC-136-013; documented in docs/specs/SPM-136-test-results.md, RR-136-01).
 export const VENUE_SUMMARY_SQL = `(SELECT string_agg(
     CASE
       WHEN ${expiredApprovedHoldSql('b')} THEN v.name || ' (hold expired)'

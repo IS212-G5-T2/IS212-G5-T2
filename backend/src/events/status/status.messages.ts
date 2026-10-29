@@ -23,7 +23,7 @@ export const STATUS_CODES = {
 export const STATUS_MESSAGES = {
   /** MSG-CF-01; `{eventName}` is the event's name. */
   confirmed: (eventName: string) => `${eventName} has been confirmed.`,
-  /** MSG-CF-02; `{list}` is the outstanding items joined with "; " (ASSUMED, D7). */
+  /** MSG-CF-02; `{list}` is the outstanding items joined with "; " (PO confirmed 22 Oct 2026, SC-136-009). */
   outstanding: (list: string) => `This event cannot be confirmed yet. Outstanding: ${list}`,
   /** MSG-CF-03 */
   notAssigned: 'You do not have permission to confirm this event.',
@@ -31,7 +31,7 @@ export const STATUS_MESSAGES = {
   alreadyConfirmed: 'This event is already confirmed.',
   /** MSG-CF-05 */
   rejectedOrCancelled: 'A rejected or cancelled event cannot be confirmed.',
-  /** Other source statuses (ASSUMED text, D5). */
+  /** Other source statuses (PO confirmed 22 Oct 2026, SC-136-010). */
   notPlanning: 'Only events in Planning can be confirmed.',
   unsupportedTarget: 'This status change is not supported.',
   notFound: 'Event not found.',

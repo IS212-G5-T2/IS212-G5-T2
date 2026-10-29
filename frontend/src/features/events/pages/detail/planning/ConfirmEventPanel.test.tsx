@@ -192,7 +192,7 @@ describe("SPM-135 AC2 and AC3: too-early clicks show what is outstanding", () =>
     ]);
   });
   /** Supporting test for AC1 and AC2 (no Confluence case): when a change resets the safety check, the panel re-reads readiness and lists the safety check as pending, so Confirm cannot stay enabled on a stale approval. */
-  it("SAFETY-RESET-CONFIRM (FE): a safety check reset moves the safety check back to pending in the Confirm section", async () => {
+  it("CONFIRM-EVENT-SUP-21 SAFETY-RESET-CONFIRM (FE): a safety check reset moves the safety check back to pending in the Confirm section", async () => {
     // Arrange: safety approved, nothing outstanding, Confirm enabled
     route({ arrangements: { ready: true, outstanding: [] } });
     const { rerender } = render(
@@ -335,7 +335,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
   afterEach(cleanup);
 
   /** Supporting test for AC4: a second confirm call while one is in flight must not send a second request, which would double the history row and notification. */
-  it("SPM-135 AC4 (FE, re-entrancy): a confirm invoked again while one is in flight sends no second request", async () => {
+  it("CONFIRM-EVENT-SUP-22 SPM-135 AC4 (FE, re-entrancy): a confirm invoked again while one is in flight sends no second request", async () => {
     // Arrange: the first confirm is held open until the test releases it
     const gate = deferred<unknown>();
     const calls = route({ arrangements: { ready: true, outstanding: [] }, confirm: () => gate.promise });
@@ -357,7 +357,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
   });
 
   /** Supporting test for AC4: an already-confirmed answer (409) is an error to show, not a blocked list to refresh, so the readiness list is not requested again. */
-  it("SPM-135 AC4 (FE, other error): a 409 EVENT_ALREADY_CONFIRMED shows its message in an alert, keeps the button, and changes nothing else", async () => {
+  it("CONFIRM-EVENT-SUP-23 SPM-135 AC4 (FE, other error): a 409 EVENT_ALREADY_CONFIRMED shows its message in an alert, keeps the button, and changes nothing else", async () => {
     // Arrange: the server answers 409 for an event that is already Confirmed (backend status.messages.ts)
     const calls = route({
       arrangements: { ready: true, outstanding: [] },
@@ -381,7 +381,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
   });
 
   /** Supporting test for AC4: a failure that is not an Error object still gives the coordinator a readable alert and leaves the button usable. */
-  it("SPM-135 AC4 (FE, unexpected failure): a non-Error failure shows the fallback text in an alert and changes nothing", async () => {
+  it("CONFIRM-EVENT-SUP-24 SPM-135 AC4 (FE, unexpected failure): a non-Error failure shows the fallback text in an alert and changes nothing", async () => {
     // Arrange: the confirm rejects with a value that is not an Error
     route({
       arrangements: { ready: true, outstanding: [] },
@@ -400,7 +400,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
   });
 
   /** Supporting test for AC2: if readiness cannot be read, Confirm stays disabled, because an unknown answer must not be treated as ready. */
-  it("SPM-135 AC2 (FE, load): a readiness request that fails on load keeps Confirm greyed out and shows no list", async () => {
+  it("CONFIRM-EVENT-SUP-25 SPM-135 AC2 (FE, load): a readiness request that fails on load keeps Confirm greyed out and shows no list", async () => {
     // Arrange: the readiness request is refused when the panel loads
     apiMock.mockImplementation((path: string) => {
       if (path.endsWith("/arrangements-status")) return Promise.reject(new ApiError("Service unavailable", undefined, undefined, 503));
@@ -416,7 +416,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
   /** Supporting test for AC3: a slow readiness answer for a previous event must not overwrite the pending list of the event now on screen. */
-  it("SPM-135 AC3 (FE, stale response): a readiness answer for the previous event is ignored once the event changes", async () => {
+  it("CONFIRM-EVENT-SUP-26 SPM-135 AC3 (FE, stale response): a readiness answer for the previous event is ignored once the event changes", async () => {
     // Arrange: the readiness request for EVT-201 is held open; EVT-202 answers at once with a venue item
     const OTHER_EVENT_ID = "00000000-0000-4000-8000-000000000202";
     const previous = deferred<unknown>();
@@ -447,7 +447,7 @@ describe("SPM-135 TR-13: the confirm panel's remaining branches", () => {
     expect(screen.getByRole("list", { name: "Pending" })).toHaveTextContent("Pending venue booking");
   });
   /** Supporting test for AC3: a readiness answer that arrives after the panel is gone is dropped without writing to the unmounted component. */
-  it("SPM-135 AC3 (FE, unmount): a readiness answer that arrives after unmount is dropped without an error", async () => {
+  it("CONFIRM-EVENT-SUP-27 SPM-135 AC3 (FE, unmount): a readiness answer that arrives after unmount is dropped without an error", async () => {
     // Arrange: the readiness request is still open when the panel unmounts
     const late = deferred<unknown>();
     apiMock.mockImplementation((path: string) => {

@@ -13,9 +13,9 @@
 // Each component keeps a local runner with the same mutation-selection and result-reporting contract.
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, relative } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -25,6 +25,8 @@ const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : und
 const { SUITES, MUTANTS } = await import(pathToFileURL(join(here, flag('--mutants') ?? 'spm120.mutants.mjs')).href);
 const only = flag('--only')?.split(',');
 const suiteOnly = flag('--suite');
+// --measure-kills <file>: run every suite of each mutant with the JSON reporter and save the failing tests per mutant.
+const measureOut = flag('--measure-kills') && resolve(flag('--measure-kills'));
 const suitesOf = (m) => (suiteOnly ? m.suites.filter((s) => s === suiteOnly) : m.suites);
 const selected = MUTANTS.filter((m) => (!only || only.includes(m.id)) && suitesOf(m).length);
 
@@ -89,17 +91,29 @@ symlinkSync(
   process.platform === 'win32' ? 'junction' : 'dir',
 );
 
-const run = (suite, mapping) =>
+const run = (suite, mapping, extra = []) =>
   spawnSync(process.execPath, [
     join(scratch, 'node_modules/vitest/vitest.mjs'),
     ...SUITES[suite].args,
     ...(mapping ? ['--reporter=verbose', '--testNamePattern', mapping.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')] : []),
+    ...extra,
   ], {
     cwd: scratch,
     env: { ...process.env, ...SUITES[suite].env, CI: '1' },
     encoding: 'utf8',
     timeout: 180_000,
   });
+// Failing tests of one vitest JSON report, as repository-relative file and title.
+const failingTests = (jsonFile) => {
+  if (!existsSync(jsonFile)) return [];
+  const data = JSON.parse(readFileSync(jsonFile, 'utf8'));
+  const scratchName = basename(scratch);
+  return (data.testResults ?? []).flatMap((result) => {
+    const rel = result.name.split(`/${scratchName}/`).at(-1);
+    return (result.assertionResults ?? []).filter((test) => test.status === 'failed').map((test) => ({ file: `frontend/${rel}`, title: test.title }));
+  });
+};
+const killsOut = {};
 const skipped = (suite) => SUITES[suite].needsEnv?.find((name) => !process.env[name]);
 const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
 const hasExecutedTests = (result) => /\bTests\s+\d+\s+(?:passed|failed)\b/i.test(outputOf(result));
@@ -122,7 +136,7 @@ try {
     }
   }
   if (exitCode === 0) {
-    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0 };
+    const tally = { killed: 0, survived: 0, equivalent: 0, misapplied: 0, skipped: 0, suiteError: 0 };
     for (const m of selected) {
       const path = join(scratch, m.file);
       const source = readFileSync(path, 'utf8');
@@ -140,12 +154,14 @@ try {
       let by = [];
       const skippedMappings = [];
       const emptyMappings = [];
+      // Suites that failed without a failed assertion (beforeAll/import error, crash, no report): SUITE-ERROR, not a kill.
+      const suiteErrors = [];
       if (!applied) {
         status = 'MISAPPLIED';
         tally.misapplied += 1;
       } else {
         writeFileSync(path, mutated);
-        const mappings = mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
+        const mappings = measureOut ? undefined : mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
         if (mappings?.length) {
           for (const mapping of mappings) {
             const missing = skipped(mapping.suite);
@@ -163,7 +179,14 @@ try {
         } else {
           const runnable = suitesOf(m).filter((s) => !skipped(s));
           for (const suite of runnable) {
-            if (run(suite).status !== 0) {
+            if (measureOut) {
+              const jsonFile = join(scratch, `vitest-${suite}.json`);
+              const result = run(suite, undefined, ['--reporter=json', `--outputFile=${jsonFile}`]);
+              const failed = failingTests(jsonFile);
+              if (failed.length) by.push(suite);
+              else if (result.status !== 0) suiteErrors.push(suite);
+              killsOut[m.id] = [...(killsOut[m.id] ?? []), ...failed.map((test) => ({ suite, ...test }))];
+            } else if (run(suite).status !== 0) {
               by.push(suite);
               break;
             }
@@ -177,6 +200,9 @@ try {
         } else if (by.length) {
           status = 'killed';
           tally.killed += 1;
+        } else if (suiteErrors.length) {
+          status = 'SUITE-ERROR';
+          tally.suiteError += 1;
         } else if (skippedMappings.length) {
           status = 'skipped';
           tally.skipped += 1;
@@ -191,12 +217,18 @@ try {
       const evidence = [
         by.length ? `killed by: ${by.join(' | ')}` : '',
         emptyMappings.length ? emptyMappings.join(' | ') : '',
+        suiteErrors.length ? `suite-error (no failed assertion): ${suiteErrors.join(' | ')}` : '',
         skippedMappings.length ? `skipped: ${skippedMappings.join(' | ')}` : '',
       ].filter(Boolean).join(' | ');
       console.log(`${m.id.padEnd(8)} ${status.padEnd(16)} ${evidence} ${m.name}`);
     }
-    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped`);
-    if (tally.survived || tally.misapplied) exitCode = 1;
+    console.log(`\n${selected.length} mutants: ${tally.killed} killed, ${tally.equivalent} equivalent, ${tally.survived} survived, ${tally.misapplied} misapplied, ${tally.skipped} skipped, ${tally.suiteError} suite-error`);
+    if (measureOut) {
+      for (const m of selected) killsOut[m.id] ??= [];
+      mkdirSync(dirname(measureOut), { recursive: true });
+      writeFileSync(measureOut, JSON.stringify(killsOut, null, 2));
+    }
+    if (tally.survived || tally.misapplied || tally.suiteError) exitCode = 1;
   }
 } finally {
   rmSync(scratch, { recursive: true, force: true });

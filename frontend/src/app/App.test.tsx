@@ -60,8 +60,9 @@ describe("App venue creation route", () => {
 
   // SPM-50 / AC1 regression: venue creation routing preserves the app's role-aware root destinations.
   it.each([
-    ["venue_staff", "Venue Catalogue"],
-    ["tech_support", "Equipment Review Queue"],
+    // SPM-124: the root redirect uses dashboardPathByRole, so venue staff and technical support land on the events dashboard.
+    ["venue_staff", "All Events"],
+    ["tech_support", "All Events"],
     // SPM-48 AC1: the coordinator lands on every assigned event (All statuses), headed "All Events".
     ["coordinator", "All Events"],
   ] as const)("redirects %s from the root to %s", (role, destination) => {
@@ -267,8 +268,41 @@ describe("App equipment request editor routes", () => {
       currentUser: { id: "support-1", name: "Support", email: "support@example.test", role: "tech_support" },
     });
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
-    expect(await screen.findByRole("heading", { name: "Equipment Review Queue" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "All Events" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Create Equipment Request" })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Update Equipment Request" })).toBeNull();
   });
+});
+
+// SPM-30 to SPM-34 AC2: after login, each role is redirected to the Events Dashboard. Each row
+// names the heading that the dashboard shows for that role's default filter.
+describe("SPM-30 to SPM-34 AC2: post-login landing on the Events Dashboard", () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      eventListFilters: {} as { attendee: string; status: string | null },
+      restoreAuthSession: vi.fn(),
+    });
+  });
+
+  it.each([
+    ["attendee", "attendee-1", "Browse Events"],
+    ["organiser", "organiser-1", "My Events"],
+    // SPM-48 AC1: the coordinator opens on All statuses, so the default heading is "All Events" (not Pending Requests).
+    ["coordinator", "coordinator-1", "All Events"],
+    ["venue_staff", "venue-staff-1", "All Events"],
+    ["tech_support", "tech-support-1", "All Events"],
+  ] as const)(
+    "SPM-30 to SPM-34 AC2 sends %s from the root route to the Events Dashboard",
+    async (role, id, heading) => {
+      useAppStore.setState({
+        currentUser: { id, name: role, email: `${role}@example.test`, role },
+      });
+
+      render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+
+      expect(await screen.findByRole("heading", { name: heading })).toBeTruthy();
+    },
+  );
 });

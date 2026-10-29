@@ -74,7 +74,7 @@ describe('validateBookingRequest', () => {
     expect(validateBookingRequest(valid)).toEqual(valid);
   });
 
-  /** SPM-54: non-text and oversized special requests are rejected before they can be stored. */
+  /** VEN-BKG-SUP-02 SPM-54 AC3: non-text and oversized special requests are rejected before they can be stored. */
   it.each([null, 5, 'x'.repeat(1001)])(
     'SPM-54 rejects invalid special request %j',
     (specialRequest) => {

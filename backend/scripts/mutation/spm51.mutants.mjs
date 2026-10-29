@@ -30,6 +30,9 @@ export const SUITES = {
     ],
     needsEnv: ['DATABASE_URL'],
   },
+  repository: {
+    args: ['run', 'src/venues/repository/venues.repository.spec.ts'],
+  },
 };
 
 const DTO = 'src/venues/availability/dto/booking-request.ts';
@@ -63,7 +66,12 @@ export const MUTANTS = [
     kills: [
       'backend/src/venues/availability/booking-request.spec.ts :: rejects anonymous and non-coordinator callers before persistence',
     ],
-    edits: [["if (!identity.roles.includes('COORDINATOR'))", 'if (false)']],
+    edits: [
+      [
+        "// SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.\n    if (!identity.roles.includes('COORDINATOR'))",
+        "// SPM-148 PLAN-STATUS-01-D: only the Coordinator role may submit; Lead, Organiser and Attendee get 403; no token gets 401.\n    if (false)",
+      ],
+    ],
   },
   {
     id: 'B08',
@@ -71,12 +79,12 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: rejects an unassigned coordinator without persisting a request',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-BKG-03-SEC-2 SPM-54 rejects an unassigned Coordinator without persisting a request',
     ],
     edits: [
       [
-        "'SELECT id FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR SHARE'",
-        "'SELECT id FROM events WHERE id = $1::uuid FOR SHARE'",
+        'preferred_room_layout, start_date_time, end_date_time\n           FROM events WHERE id = $1::uuid AND coordinator_id = $2::text FOR UPDATE',
+        'preferred_room_layout, start_date_time, end_date_time\n           FROM events WHERE id = $1::uuid FOR UPDATE',
       ],
     ],
   },
@@ -105,8 +113,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.hold_expires_at > $6::timestamptz',
-        'b.hold_expires_at >= $6::timestamptz',
+        '(b.hold_expires_at > $6::timestamptz OR',
+        '(b.hold_expires_at >= $6::timestamptz OR',
       ],
     ],
   },
@@ -116,12 +124,13 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['e2e'],
     kills: [
-      'backend/test/venues-booking-requests.e2e-spec.ts :: keeps a pending request without expiry out of holds and conflict checks',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-BKG-02-B SPM-54 blocks overlap on an unbounded pending request without showing it as a schedule hold',
+      'backend/test/venues-booking-requests.e2e-spec.ts :: VEN-AVL-10-A ignores a pending row without hold expiry and without a request record when an overlapping request is submitted',
     ],
     edits: [
       [
-        "(b.status = 'pending' AND b.hold_expires_at > $6::timestamptz)",
-        "b.status = 'pending'",
+        '(b.hold_expires_at > $6::timestamptz OR',
+        '(b.hold_expires_at IS NULL OR b.hold_expires_at > $6::timestamptz OR',
       ],
     ],
   },
@@ -135,8 +144,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz',
-        'b.start_at\n                    < $3::timestamptz',
+        '                   )))))\n              AND b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
+        '                   )))))\n              AND b.start_at\n                    < $3::timestamptz + make_interval(mins => $5::int)\n              AND b.end_at + make_interval(mins => $5::int)\n                    > $2::timestamptz - make_interval(mins => $4::int)\n         ) conflicts LIMIT 1`,\n        [\n          venueId,',
       ],
     ],
   },
@@ -150,8 +159,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'start_at < $3::timestamptz + make_interval(mins => $5::int)',
-        'start_at < $3::timestamptz',
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz\n",
       ],
     ],
   },
@@ -165,8 +174,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'end_at > $2::timestamptz - make_interval(mins => $4::int)',
-        'end_at > $2::timestamptz',
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz - make_interval(mins => $4::int)\n",
+        "      // Only standalone pending holds need an expiry here; event-linked pending booking requests also block below.\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'\n              AND start_at < $3::timestamptz + make_interval(mins => $5::int)\n              AND end_at > $2::timestamptz\n",
       ],
     ],
   },
@@ -224,7 +233,7 @@ export const MUTANTS = [
       'backend/src/events/events.service.spec.ts :: scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events',
     ],
     edits: [
-      ['FROM events WHERE coordinator_id = $1 ORDER BY created_at DESC', 'FROM events ORDER BY created_at DESC'],
+      ['FROM events WHERE coordinator_id = $1 ORDER BY start_date_time ASC, created_at DESC', 'FROM events WHERE $1::text IS NOT NULL ORDER BY start_date_time ASC, created_at DESC'],
     ],
   },
   {
@@ -237,6 +246,51 @@ export const MUTANTS = [
     ],
     edits: [
       ["const result = user.roles.includes('COORDINATOR')\n      ? await this.database.query(", "const result = user.roles.includes('ATTENDEE')\n      ? await this.database.query("],
+    ],
+  },
+  {
+    id: 'B18',
+    name: 'fresh booking conflict is persisted in the repository submission path',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-07-SEC-1 :: does not record a request when a fresh booking conflict appears after the availability read',
+    ],
+    edits: [
+      [
+        "if (conflict.rows[0])\n        return { kind: 'conflict', reason: conflict.rows[0].reason };",
+        "if (false)\n        return { kind: 'conflict', reason: conflict.rows[0].reason };",
+      ],
+    ],
+  },
+  {
+    id: 'B19',
+    name: 'pending hold expiring exactly at server now is kept',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-10-A :: keeps only pending holds that expire after now',
+    ],
+    edits: [
+      [
+        "row.hold_expires_at.getTime() <= now.getTime())",
+        "row.hold_expires_at.getTime() < now.getTime())",
+      ],
+    ],
+  },
+  {
+    id: 'B20',
+    name: 'pending request without a hold expiry is treated as an affected hold',
+    file: REPOSITORY,
+    suites: ['repository'],
+    kills: [
+      'backend/src/venues/repository/venues.repository.spec.ts :: VEN-AVL-09-A :: returns each affected booking without changing its stored booking status',
+    ],
+    edits: [
+      [
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              (booking.status === 'approved' &&",
+        "affectedBookings: affected.rows\n          .filter(\n            (booking) =>\n              true ||\n              (booking.status === 'approved' &&",
+      ],
     ],
   },
 ];

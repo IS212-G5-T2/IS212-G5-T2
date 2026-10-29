@@ -399,7 +399,7 @@ describe("VenueRecordDetailPage calendar range handoff", () => {
     await waitFor(() => expect(apiMock).toHaveBeenCalledTimes(2));
   });
 
-  /** VEN-AVL-10-A/B/BND-1 / ASSUMPTION A1: a hold becomes available at its expiry instant. */
+  /** VEN-AVL-10-BND-1 / ASSUMPTION A1: a hold becomes available at its expiry instant. */
   it("removes an expired hold from the displayed schedule when its expiry timer fires", async () => {
     const realNow = Date.now();
     const fixedNow = new Date("2030-01-01T12:00:00.000Z");

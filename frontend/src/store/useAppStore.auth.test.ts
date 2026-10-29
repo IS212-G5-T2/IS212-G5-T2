@@ -105,6 +105,25 @@ describe("useAppStore authentication", () => {
     });
   });
 
+  // A failed startup lookup that finishes after a newer lookup succeeded must not sign that user out.
+  it("keeps a newer session when an older session lookup fails late", async () => {
+    let rejectOlder!: (error: Error) => void;
+    mockRestoreSession
+      .mockImplementationOnce(() => new Promise<User | undefined>((_resolve, reject) => { rejectOlder = reject; }))
+      .mockResolvedValueOnce(multiRoleUser);
+
+    const olderLookup = useAppStore.getState().restoreAuthSession();
+    await useAppStore.getState().restoreAuthSession();
+    rejectOlder(new Error("network failure"));
+    await olderLookup;
+
+    expect(useAppStore.getState()).toMatchObject({
+      currentUser: multiRoleUser,
+      isAuthenticated: true,
+      authLoading: false,
+    });
+  });
+
   // Logout always clears browser state after a successful server-side revocation.
   it("clears authentication state after logout", async () => {
     useAppStore.setState({ currentUser: multiRoleUser, isAuthenticated: true });

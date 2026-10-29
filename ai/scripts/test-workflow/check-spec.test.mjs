@@ -55,3 +55,25 @@ test('tiers: a PRESENT id must be registered, MISSING becomes a gap, a blank cel
 test('tiers: a fully valid row has no findings', () => {
   assert.deepEqual(checkTiers({ rows: [full({ happy: 'PRESENT (A-01)' })] }, new Set(['A-01'])).findings, []);
 });
+
+test('conflictRows reads every conflict table, not only the first (the register is split by headings and notes)', async () => {
+  const { conflictRows } = await import('./check-spec.mjs');
+  const markdown = [
+    '# Register',
+    '',
+    '| ID | Story | Subject | Decision | Status | Tag | Confirmed by | Follow-up |',
+    '|---|---|---|---|---|---|---|---|',
+    '| SC-A | S1 | a | d | DECIDED | - | x | - |',
+    '',
+    '## Second section',
+    '',
+    'A note paragraph that ends the first table.',
+    '',
+    '| ID | Story | Subject | Decision | Status | Tag | Confirmed by | Follow-up |',
+    '|---|---|---|---|---|---|---|---|',
+    '| SC-B | S2 | b | - | OPEN | - | - | - |',
+  ].join('\n');
+  const rows = conflictRows(markdown);
+  assert.deepEqual(rows.map((row) => row.id), ['SC-A', 'SC-B']);
+  assert.equal(checkConflicts(rows, 'S2').counts.open, 1);
+});

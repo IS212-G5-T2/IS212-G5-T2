@@ -196,7 +196,7 @@ describe.skipIf(!database)('VENUE-REMOVE: coordinator removes an unavailable ven
    * Removing a venue request on an event that never had a safety check records no reset reason: there was
    * nothing to reset, so the coordinator sees a plain "not requested" safety check.
    */
-  it('VENUE-REMOVE (no safety record): removing a request on an event never safety-checked gives no reset reason', async () => {
+  it('CONFIRM-EVENT-SUP-17 VENUE-REMOVE (no safety record): removing a request on an event never safety-checked gives no reset reason', async () => {
     // Arrange: the event has an unavailable booking but no safety record at all
     const { id, venueId } = await seedApprovedEvent();
     await pool.query('DELETE FROM event_safety_checks WHERE event_id = $1', [id]);

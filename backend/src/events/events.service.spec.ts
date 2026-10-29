@@ -5,14 +5,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser, UserRole } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { EventsService } from './events.service.js';
 
 const db = {
   query: vi.fn(),
-  connect: vi.fn(),
   transaction: vi.fn(),
   release: vi.fn(),
   end: vi.fn(),
@@ -120,7 +119,14 @@ function savedEventRow() {
 
 let service: EventsService;
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 beforeEach(async () => {
+  // Freeze only Date so the date-dependent fixtures and checks do not depend on the run date.
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date('2026-10-20T10:00:00+08:00'));
   vi.resetAllMocks();
   db.transaction.mockResolvedValue({ rows: [] });
   database.transaction.mockImplementation(async (work) => {
@@ -148,6 +154,7 @@ describe('EventsService', () => {
   // SPM-38 AC1: the assigned coordinator can view the full submitted details
   // of a request assigned to them (name, purpose, date/time, attendance,
   // venue and equipment requirements, accessibility needs).
+  // Kills: get() dropping or mis-mapping a field (name, purpose, start or end time, attendance, venue requirements or equipmentNeeds).
   it('EVE-REV-01-A returns the full submitted details of an event assigned to the coordinator', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -171,6 +178,7 @@ describe('EventsService', () => {
   });
 
   // SPM-38 AC2: the coordinator can see the current status of the request.
+  // Kills: status mapping that does not normalise 'Approved' to 'approved' or reads the status from the wrong field.
   it('EVE-REV-02-A shows the current status of the event request', async () => {
     const row = { ...savedEventRow(), status: 'Approved' };
     db.query.mockResolvedValue({ rows: [row] });
@@ -180,6 +188,7 @@ describe('EventsService', () => {
     expect(event.status).toBe('approved');
   });
 
+  // Kills: legacy null attachments not defaulted to an empty array, or get() failing on a draft row.
   it('Q1-042 loads the submitted draft event and defaults legacy attachments', async () => {
     const row = { ...savedEventRow(), attachments: null };
     db.query.mockResolvedValue({ rows: [row] });
@@ -188,6 +197,7 @@ describe('EventsService', () => {
       attachments: [],
     });
   });
+  // Kills: create() opening its own transaction or releasing the caller's client instead of reusing the shared transaction.
   it('Q1-043 draft submission shares transaction ownership on success and failure', async () => {
     const row = savedEventRow();
     const client = { query: db.transaction, release: db.release };
@@ -195,7 +205,7 @@ describe('EventsService', () => {
     expect(
       await service.create(organiserUser(), validEventRequest(), client as never, row.id),
     ).toMatchObject({ event: { id: row.id } });
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
     expect(db.transaction).not.toHaveBeenCalledWith('BEGIN');
     expect(db.transaction).not.toHaveBeenCalledWith('COMMIT');
     expect(db.release).not.toHaveBeenCalled();
@@ -208,25 +218,46 @@ describe('EventsService', () => {
     expect(db.transaction).not.toHaveBeenCalledWith('ROLLBACK');
     expect(db.release).not.toHaveBeenCalled();
   });
+  // Parent AC (SUPPORTING): SPM-36 AC4
   // SPM-36 Test Cases EVE-CRE-04-A, EVE-CRE-04-B, EVE-CRE-04-C, and EVE-CRE-04-D
-  it('rejects invalid requests before opening a database transaction', async () => {
+  // Kills: validation skipped, so an empty name reaches the database transaction instead of a BadRequestException.
+  it('EVE-CRE-SUP-10 rejects invalid requests before opening a database transaction', async () => {
     await expect(
       service.create(organiserUser(), { ...validEventRequest(), name: '' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
   });
 
+  // Kills: create() admitting a COORDINATOR, or opening a transaction before the organiser role check.
   it('rejects event creation from a caller without the organiser role', async () => {
     await expect(
       service.create(coordinatorUser(), validEventRequest()),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
-    expect(db.connect).not.toHaveBeenCalled();
+    expect(database.transaction).not.toHaveBeenCalled();
+  });
+
+  // SPM-36 AC6 (supporting): the insert leaves status to the database default, which is 'Submitted'
+  // (database/postgresql/init/001_schema.sql). The status is not written by the application.
+  // Kills: an INSERT that writes an explicit status value instead of relying on the database default of Submitted.
+  it('does not write status on insert, so Submitted comes from the database default', async () => {
+    db.transaction
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [savedEventRow()] });
+
+    await service.create(organiserUser(), validEventRequest());
+
+    const insert = db.transaction.mock.calls.find(([sql]) =>
+      String(sql).startsWith('INSERT INTO events'),
+    );
+    expect(insert).toBeDefined();
+    expect(String(insert?.[0])).not.toMatch(/\bstatus\b/i);
   });
 
   // SPM-36 Test Case EVE-CRE-06-A (its attachment assertion below also incidentally covers EVE-CRE-08-A persistence)
-  it('saves a valid request under the authenticated organiser with Submitted status', async () => {
+  // Kills: a save under a caller-supplied organiserId or status instead of the verified identity and Submitted, or a result dropping attachments or the success message.
+  it('EVE-CRE-06-A saves a valid request under the authenticated organiser with Submitted status', async () => {
     const request = validEventRequest();
     const row = savedEventRow();
     db.transaction
@@ -285,7 +316,9 @@ describe('EventsService', () => {
     expect(db.release).toHaveBeenCalledTimes(1);
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   // SPM-36 Test Case EVE-CRE-06-BND-1: an organiser with no display name is saved under their email.
+  // Kills: organiser name left blank or set to the uid when the display name is missing or whitespace-only, instead of the email.
   it('EVE-CRE-06-BND-1 saves the organiser under their email when no display name is set', async () => {
     // Arrange: the organiser has an email address but no name.
     const row = savedEventRow();
@@ -301,9 +334,17 @@ describe('EventsService', () => {
     expect(insertParams[1]).toBe('organiser-1');
     expect(insertParams[2]).toBe('organiser@example.test');
     expect(insertParams[3]).toBe('organiser@example.test');
+
+    // A blank display name (whitespace only) counts as not set, so the email is used.
+    db.transaction.mockClear();
+    db.transaction.mockResolvedValueOnce({ rows: [] }).mockResolvedValueOnce({ rows: [row] });
+    await service.create(organiserUser({ name: '   ' }), validEventRequest());
+    expect(db.transaction.mock.calls[1][1][2]).toBe('organiser@example.test');
   });
 
+  // Parent AC (SUPPORTING): SPM-36 AC6
   // SPM-36 Test Case EVE-CRE-06-BND-2: with neither a name nor an email, the organiser is saved as "Organiser" with a blank email.
+  // Kills: the fallback name not 'Organiser', or a blank email saved as null or the name instead of an empty string.
   it('EVE-CRE-06-BND-2 saves the organiser as "Organiser" with a blank email when neither name nor email is set', async () => {
     // Arrange: the organiser has no name and no email address.
     const row = savedEventRow();
@@ -322,6 +363,7 @@ describe('EventsService', () => {
   });
 
   // SPM-36 retry safety check
+  // Kills: a retried submission inserting a second row instead of looking up the existing submission_key for this organiser.
   it('returns the existing event when the same submission is retried', async () => {
     const request = validEventRequest();
     const row = savedEventRow();
@@ -341,6 +383,7 @@ describe('EventsService', () => {
   });
 
   // SPM-36 transaction safety check
+  // Kills: a database failure that is swallowed, a COMMIT still issued, or the connection not released.
   it('rolls back database failures and releases the connection', async () => {
     db.transaction
       .mockResolvedValueOnce({ rows: [] })
@@ -356,6 +399,7 @@ describe('EventsService', () => {
   });
 
   // SPM-36 Test Case EVE-CRE-07-B
+  // Kills: list() without the organiser_id predicate, or mapping organiserId, status or attendance incorrectly.
   it('loads submitted events for the authenticated organiser under My Events', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -375,6 +419,7 @@ describe('EventsService', () => {
     );
   });
 
+  // Kills: list() querying the database for an anonymous caller instead of throwing UnauthorizedException first.
   it('requires authentication to list events', async () => {
     await expect(service.list(undefined)).rejects.toBeInstanceOf(
       UnauthorizedException,
@@ -384,6 +429,7 @@ describe('EventsService', () => {
 
   // Coverage note: the non-string branch of `validateRejectionReason` is left to its owning story (SPM-83) and is out of scope for SPM-141.
   // SPM-38 AC1-AC3 Test Case EVE-REV-01-B: a signed-in user with none of the event roles sees an empty list.
+  // Kills: list() querying events for a signed-in user with no event role, or returning rows to a VENUE_STAFF caller.
   it('EVE-REV-01-B returns an empty event list, without querying, to a signed-in user with none of the event roles', async () => {
     // Arrange: a venue staff account, which has no organiser, coordinator or attendee role.
     const venueStaff: AuthenticatedUser = {
@@ -405,6 +451,7 @@ describe('EventsService', () => {
   // attendee-facing lifecycle states, with registration availability included.
   // SPM-61: Approved counts as published, and each row carries the caller's
   // own registration status.
+  // Kills: the attendee feed including Submitted or Approved events, or availableRegistrationSpots or myRegistrationStatus mis-mapped (17 of 80 with 63 confirmed).
   it('lists attendee-viewable events with current registration availability', async () => {
     // 63 confirmed of a limit of 80 leaves 17 places.
     const row = { ...savedEventRow(), status: 'Confirmed', my_registration_status: 'Registered', confirmed_registrations: 63 };
@@ -427,6 +474,7 @@ describe('EventsService', () => {
 
   // SPM-38 AC1/AC2: a coordinator's My Events list is scoped to only the
   // requests the Event Coordinator Lead assigned to them (SPM-123).
+  // Kills: the coordinator list not filtered by coordinator_id, so unassigned or other coordinators' events appear.
   it('scopes list to the coordinator own assigned events', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -441,6 +489,7 @@ describe('EventsService', () => {
   });
 
   // SPM-51 booking requests must use coordinator assignments for dual-role accounts, while attendee-only accounts retain the public feed.
+  // Kills: a dual-role account given the public attendee feed (attendee SQL) instead of its coordinator assignments.
   it('scopes a coordinator-attendee list to coordinator assignments instead of attendee-visible events', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -460,6 +509,7 @@ describe('EventsService', () => {
 
   // The list view must not ship the base64 file contents (they balloon the
   // response); metadata is retained so the UI can still show name/size/type.
+  // Kills: list() returning attachment dataUrl payloads, or dropping id, name, type or size metadata.
   it('omits attachment dataUrl from the list while keeping metadata', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -473,6 +523,7 @@ describe('EventsService', () => {
   });
 
   // The detail endpoint still returns the full attachment including dataUrl.
+  // Kills: the detail get() using the list projection, so dataUrl is stripped from the single event.
   it('keeps attachment dataUrl on the single-event detail', async () => {
     const row = savedEventRow();
     db.query.mockResolvedValue({ rows: [row] });
@@ -486,10 +537,11 @@ describe('EventsService', () => {
   });
 
   // SPM-38 AC4: a coordinator may view a request only when it is assigned to
-  // them; anyone else (a different coordinator, a non-owning organiser, or an
-  // unauthenticated caller) gets the same NotFoundException as a bad ID, so
-  // existence is never leaked.
+  // them; anyone else (a different coordinator, or an unauthenticated caller)
+  // gets the same NotFoundException as a bad ID, so existence is never leaked.
+  // A non-owning organiser with no other role is refused with 403 (SPM-94 D6).
   describe('SPM-38 AC4: per-coordinator access restriction', () => {
+    // Kills: the coordinator access check rejecting the assigned coordinator (wrong id comparison).
     it('EVE-REV-04-A lets the assigned coordinator view the event', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -499,6 +551,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ id: row.id, coordinatorId: 'coord-9' });
     });
 
+    // Kills: get() returning an event to an unassigned coordinator, or using a status other than NotFound.
     it('EVE-REV-04-B hides the event from a coordinator it is not assigned to', async () => {
       const row = savedEventRow();
       // The event, then no reassignment history for this coordinator (SPM-46 checks it before "not found").
@@ -510,7 +563,23 @@ describe('EventsService', () => {
     });
 
     // SPM-94 D6: a non-owning organiser is refused with 403 (changed from 404 by SPM-94).
+    // Kills: a non-owning organiser getting 404 instead of 403, or event data returned with the refusal.
+    /**
+     * SPM-38 AC4 non-owning organiser case (current behaviour): refused with 403 and no event data.
+     * Spec conflict: the Confluence page still expects 404; SC-SPM94-02 (decided 17 Oct) changed the rule to 403.
+     */
     it('TRACK-EVENT-STATUS-01-C D6: refuses the event to an organiser who does not own it with 403', async () => {
+      const row = savedEventRow();
+      db.query.mockResolvedValue({ rows: [row] });
+
+      await expect(
+        service.get(organiserUser({ uid: 'someone-else' }), row.id),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // SPM-38 AC4 case EVE-REV-04-C: the Confluence case still says 404; SC-SPM94-02 (decided 17 Oct 2026) made it 403.
+    // Kills: a non-owning organiser refused with 404 instead of 403, or event fields included in the refusal body.
+    it('EVE-REV-04-C refuses a non-owning organiser with 403 and returns no event data', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
 
@@ -521,6 +590,7 @@ describe('EventsService', () => {
 
     // SPM-94 D6 exemption: an ORGANISER who also holds another role is not refused with 403; the 404 rule applies.
     // Oracle: D6 says existing rules for other roles are unchanged, so these keep the SPM-38 AC4 404.
+    // Kills: the D6 403 applied to organisers who also hold COORDINATOR or ATTENDEE (they must get 404).
     it.each([
       [['ORGANISER', 'COORDINATOR'] as UserRole[]],
       [['ORGANISER', 'ATTENDEE'] as UserRole[]],
@@ -533,6 +603,7 @@ describe('EventsService', () => {
       ).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // Kills: get() reaching the database for an anonymous caller, or answering 403 instead of UnauthorizedException.
     it('EVE-REV-04-D requires authentication to view event details', async () => {
       await expect(
         service.get(undefined, savedEventRow().id),
@@ -540,6 +611,7 @@ describe('EventsService', () => {
       expect(db.query).not.toHaveBeenCalled();
     });
 
+    // Kills: a non-organiser, non-coordinator role (ATTENDEE) allowed to read the event because the coordinator uid matches.
     it('EVE-REV-04-G hides the event from a role that is neither organiser nor coordinator', async () => {
       const row = savedEventRow();
       db.query.mockResolvedValue({ rows: [row] });
@@ -551,6 +623,7 @@ describe('EventsService', () => {
 
     // SPM-99 EVENT-VIEW-01-A and supplementary security coverage: attendees can read a
     // confirmed event, but submitted planning data remains unavailable.
+    // Kills: an attendee read of a Confirmed event missing registration or spot fields, or of an Approved (internal) event returning data.
     it('lets attendees view only attendee-facing lifecycle states', async () => {
       const attendeeVisible = { ...savedEventRow(), status: 'Confirmed', confirmed_registrations: 63 };
       db.query.mockResolvedValueOnce({ rows: [attendeeVisible] }).mockResolvedValueOnce({ rows: [] });
@@ -566,6 +639,7 @@ describe('EventsService', () => {
       await expect(service.get(attendeeUser(), savedEventRow().id)).rejects.toBeInstanceOf(NotFoundException);
     });
 
+    // Kills: an event with null coordinator_id shown to a coordinator (null compared as matching the caller).
     it('EVE-REV-04-H hides an unassigned event from every coordinator, not just non-matching ones', async () => {
       const row = { ...savedEventRow(), coordinator_id: null, coordinator_name: null };
       // The event, then no reassignment history for this coordinator (SPM-46 checks it before "not found").
@@ -580,6 +654,7 @@ describe('EventsService', () => {
   // SPM-94 AC2/AC3: the owning organiser's event carries the derived indicators.
   // Oracle: unassigned Submitted gives awaiting assignment; a pending safety check on a Planning event gives AWAITING_CHECK.
   describe('SPM-94 AC2/AC3: organiser status indicators', () => {
+    // Kills: awaitingCoordinatorAssignment false for an unassigned Submitted event, or safetyIndicator set with no safety state.
     it('TRACK-EVENT-STATUS-02-A: an unassigned Submitted event shows awaiting Coordinator assignment', async () => {
       const row = { ...savedEventRow(), status: 'Submitted', coordinator_id: null, coordinator_name: null, safety_status: null };
       db.query.mockResolvedValue({ rows: [row] });
@@ -589,6 +664,7 @@ describe('EventsService', () => {
       expect(event).toMatchObject({ awaitingCoordinatorAssignment: true, safetyIndicator: null });
     });
 
+    // Kills: a pending safety check on a Planning event mapped to no indicator or a value other than AWAITING_CHECK.
     it('TRACK-EVENT-STATUS-03-A: a pending safety check on a Planning event shows AWAITING_CHECK', async () => {
       const row = { ...savedEventRow(), status: 'Planning', coordinator_id: 'coord-9', safety_status: 'pending' };
       db.query.mockResolvedValue({ rows: [row] });
@@ -599,6 +675,7 @@ describe('EventsService', () => {
     });
 
     // SPM-94 F4: the safety state is never sent to an attendee, even on a Confirmed event with an approved safety check.
+    // Kills: safetyIndicator included in an attendee read (projection not stripped for attendees).
     it('TRACK-EVENT-STATUS-03-B F4: an attendee gets no safety indicator field', async () => {
       const attendeeVisible = { ...savedEventRow(), status: 'Confirmed', safety_status: 'approved', confirmed_registrations: 1 };
       db.query.mockResolvedValueOnce({ rows: [attendeeVisible] }).mockResolvedValueOnce({ rows: [] });
@@ -674,6 +751,7 @@ describe('EventsService', () => {
   });
 
   // SPM-36 event lookup guard
+  // Kills: a malformed id that reaches the database, or an unknown id returning data instead of NotFound.
   it('returns not found for malformed and unknown event IDs', async () => {
     const row = savedEventRow();
 
@@ -691,6 +769,7 @@ describe('EventsService', () => {
 
   // Supplementary SPM-99 negative path: an authenticated attendee receives the same safe
   // not-found result for a syntactically valid identifier with no event row.
+  // Kills: a missing event shown to an attendee with a different error or message, which would reveal that the id exists.
   it('does not disclose a nonexistent event to an attendee', async () => {
     const missingId = '00000000-0000-4000-8000-000000000099';
     db.query.mockResolvedValue({ rows: [] });
@@ -703,6 +782,7 @@ describe('EventsService', () => {
 
   // Supplementary negative path: malformed identifiers are rejected before an
   // attendee request reaches persistence, just like a real missing event.
+  // Kills: a malformed id from an attendee reaching the database (query called) instead of failing with NotFound first.
   it('rejects a malformed event identifier from an attendee without querying', async () => {
     await expect(
       service.get(attendeeUser(), 'not-a-valid-event-id'),
@@ -712,6 +792,7 @@ describe('EventsService', () => {
 
   // SPM-123 AC1: a submitted request waits in the Lead's unassigned queue.
   // It is never auto-assigned (this replaces SPM-38's round-robin).
+  // Kills: submit that auto-assigns a coordinator, sends an assignment notification, or runs statements beyond BEGIN, INSERT and COMMIT.
   it('LEAD-ASN-01-A saves a submitted request with no coordinator and sends no assignment notification', async () => {
     // Arrange: the insert returns a fresh, unassigned row.
     const freshRow = { ...savedEventRow(), coordinator_id: null, coordinator_name: null, status: 'Submitted' };
@@ -867,6 +948,7 @@ describe('SPM-138 capacity fields on the event read (AC2)', () => {
   });
 
   // Oracle (02-A UNIT): 3 Confirmed of a limit of 3, open: full, waitlist available, no spots, the limit is reported.
+  // Kills: isFull, waitlistAvailable, availableSpots or registrationLimit off by one (not full at 3 of 3, or spots not zero at the limit).
   it('JOIN-WAITLIST-02-A-UNIT: a full, open event reports isFull, waitlistAvailable, zero spots and its limit', async () => {
     db.query.mockResolvedValue({ rows: [confirmedRow()] });
 
@@ -876,6 +958,7 @@ describe('SPM-138 capacity fields on the event read (AC2)', () => {
   });
 
   // Oracle (02-B UNIT): a closed event is full but offers no waitlist.
+  // Kills: a closed event offering the waitlist (waitlistAvailable ignoring registrationOpen), or registrationOpen true after close.
   it('JOIN-WAITLIST-02-B-UNIT: a full but closed event does not offer the waitlist', async () => {
     db.query.mockResolvedValue({ rows: [confirmedRow({ registration_closes_at: new Date('2026-10-13T23:59:00Z') })] });
 

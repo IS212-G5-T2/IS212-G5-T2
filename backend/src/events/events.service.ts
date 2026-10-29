@@ -102,7 +102,7 @@ export class EventsService {
     const user = this.requireUser(identity);
     if (!user.roles.includes('ORGANISER'))
       throw new ForbiddenException('Organiser access required.');
-    return { id: user.uid, name: user.name ?? user.email ?? 'Organiser', email: user.email ?? '' };
+    return { id: user.uid, name: [user.name, user.email].find((value) => value?.trim()) ?? 'Organiser', email: user.email ?? '' };
   }
 
   /**
@@ -335,9 +335,9 @@ export class EventsService {
     const trimmed = raw.trim();
     const words = trimmed.split(/\s+/).filter(Boolean);
     const hasLetters = /[a-zA-Z]/.test(trimmed);
+    // EVENT-REJECT-01/03: only the trimmed reason is measured (10 to 500 characters).
     if (
       !trimmed ||
-      raw.length > 500 ||
       trimmed.length < 10 ||
       trimmed.length > 500 ||
       words.length < 3 ||
@@ -374,7 +374,7 @@ export class EventsService {
         );
       if (event.coordinator_id !== coordinator.uid)
         throw new ForbiddenException(
-          'This request is assigned to another coordinator.',
+          'Only the assigned coordinator can reject this request.',
         );
       const updated = await client.query(
         `UPDATE events
@@ -419,7 +419,7 @@ export class EventsService {
         );
       if (event.coordinator_id !== coordinator.uid)
         throw new ForbiddenException(
-          'This request is assigned to another coordinator.',
+          'Only the assigned coordinator can approve this request.',
         );
       const updated = await client.query(
         `UPDATE events

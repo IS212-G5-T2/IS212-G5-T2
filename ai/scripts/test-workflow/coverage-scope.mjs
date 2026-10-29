@@ -12,10 +12,16 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   BLOCKED, PASS, UNABLE, WORKFLOW_DIR, abs, exitCodeFor, expandGlobs, globToRegExp, isMain, isTestFile, loadScope, parseArgs, parseTables,
-  printGate, readJson, readText, rel, stripTicks, writeGate, writeText,
+  printGate, readJson, readText, rel, stripTicks, usesChangedLines, writeGate, writeText,
 } from './lib.mjs';
 
-export const STATUSES = ['COVERED-BY-E2E', 'ADD-TEST', 'UNREACHABLE', 'LOW-VALUE', 'OPEN'];
+export const STATUSES = ['COVERED-BY-E2E', 'ADD-TEST', 'UNREACHABLE', 'LOW-VALUE', 'OPEN', 'EXCLUDED'];
+
+/** Finding when the scope measures changed lines but <cycle>/changed-lines.json (story-lines.mjs) is absent; undefined otherwise. */
+export function changedLinesFinding(scope, changedLinesPresent) {
+  if (!usesChangedLines(scope) || changedLinesPresent) return undefined;
+  return 'scope sets linesFrom "changed-lines" but changed-lines.json is missing from the cycle folder (story-lines.mjs did not run); coverage is not measured on the story lines';
+}
 const key = (loc) => `${loc?.start?.line}:${loc?.start?.column}-${loc?.end?.line}:${loc?.end?.column}`;
 
 /** Folds one run's istanbul-style entry for a file into the merged record. */
@@ -42,6 +48,40 @@ export function mergeEntry(merged, entry, runId) {
 const covered = (slot) => Object.values(slot.runs).some((count) => count > 0);
 const coveredBy = (slot, ids) => ids.some((id) => (slot.runs[id] ?? 0) > 0);
 const pct = (c, t) => (t === 0 ? 100 : Math.round((c / t) * 10000) / 100);
+
+/**
+ * Keeps only the story's owned lines (changed-lines.json, written by story-lines.mjs). A file the story does not own
+ * any line of returns undefined, so it is left out of the story's totals.
+ */
+export function ownedOnly(merged, owned) {
+  if (!owned) return merged;
+  const keep = (slots) => Object.fromEntries(Object.entries(slots).filter(([, slot]) => owned.has(slot.line)));
+  const result = { statements: keep(merged.statements), functions: keep(merged.functions), branches: keep(merged.branches) };
+  return Object.values(result).some((slots) => Object.keys(slots).length) ? result : undefined;
+}
+
+/** Drops every statement, branch and function whose start line is in `lines` (EXCLUDED lines leave the totals). */
+export function withoutLines(merged, lines) {
+  if (!lines || !lines.size) return merged;
+  const keep = (slots) => Object.fromEntries(Object.entries(slots).filter(([, slot]) => !lines.has(slot.line)));
+  return { statements: keep(merged.statements), functions: keep(merged.functions), branches: keep(merged.branches) };
+}
+
+/** Every line that carries a statement, function or branch slot in a merged file: the lines this cycle measured. */
+export function measuredLines(merged) {
+  return new Set([...Object.values(merged.statements), ...Object.values(merged.functions), ...Object.values(merged.branches)].map((slot) => slot.line).filter(Boolean));
+}
+
+/**
+ * Stale-row rule for coverage-line-status.md. A non-EXCLUDED row is stale when none of its lines is still uncovered.
+ * An EXCLUDED row is removed from the totals before that check, so it is judged on measurement instead: it is stale only
+ * when none of its lines has coverage data in the measured set (the cycle did not measure the line, or the line no longer
+ * exists). An EXCLUDED row on a measured line, with an owner-recorded exclusion, is not stale.
+ */
+export function isStaleRow(row, { uncoveredLines, measured }) {
+  if (row.status === 'EXCLUDED') return ![...row.lines].some((line) => measured.has(line));
+  return ![...row.lines].some((line) => uncoveredLines.includes(line));
+}
 
 /** Metrics, uncovered lines and e2e-only lines of one merged file. */
 export function summarise(merged, unitRuns, e2eRuns) {
@@ -85,7 +125,7 @@ export function expandLines(spec) {
   return lines;
 }
 
-/** Rows of coverage-exclusions.md. Kind `file` (default) removes the file from measurement; `ignore-comment` documents a coverage ignore comment and keeps the file measured. */
+/** Rows of coverage-exclusions.md. Kind `file` (default) removes the file from measurement; `ignore-comment` documents a coverage ignore comment and keeps the file measured; kind `line` names one `file:line` whose uncovered line is excluded (status EXCLUDED in coverage-line-status.md). */
 export function readExclusions() {
   const table = parseTables(readText(`${WORKFLOW_DIR}/coverage-exclusions.md`)).find((t) => t.header.includes('reason'));
   return (table?.rows ?? []).map((row) => ({ glob: stripTicks(row.file), kind: (stripTicks(row.kind ?? '') || 'file').toLowerCase(), reason: (row.reason ?? '').trim() }));
@@ -162,12 +202,28 @@ function main() {
   writeText(join(coverageDir, 'source-files.txt'), `${sourceFiles.join('\n')}\n`);
   writeText(join(coverageDir, 'measured-files.txt'), `${measured.join('\n')}\n`);
 
+  const ownedPath = join(flags.cycle, 'changed-lines.json');
+  const ownedByFile = existsSync(abs(ownedPath)) ? readJson(ownedPath).files : undefined;
+  const linesFinding = changedLinesFinding(scope, !!ownedByFile);
+  if (linesFinding) findings.push(linesFinding);
   const statuses = readLineStatuses();
   const files = [];
   const lineStatusCounts = Object.fromEntries(STATUSES.map((status) => [status, 0]));
   for (const file of sourceFiles.filter((f) => mergedByFile.has(f) && !excluded(f))) {
-    const summary = summarise(mergedByFile.get(file), unitRuns, e2eRuns);
+    const owned = ownedByFile ? new Set(ownedByFile[file] ?? []) : undefined;
+    const merged = ownedOnly(mergedByFile.get(file), owned);
+    if (!merged) continue;
     const rows = statuses.filter((row) => row.file === file);
+    // EXCLUDED lines (status EXCLUDED with a `line` row in coverage-exclusions.md) leave every total: statements, branches, functions and lines.
+    const excludedLines = new Set();
+    for (const row of rows.filter((r) => r.status === 'EXCLUDED')) {
+      for (const line of row.lines) {
+        if (exclusions.some((e) => e.kind === 'line' && e.reason && e.glob === `${file}:${line}`)) excludedLines.add(line);
+        else findings.push(`${file}:${line} is EXCLUDED but coverage-exclusions.md has no line row with a reason for it`);
+      }
+    }
+    const uncoveredBeforeExclusion = summarise(merged, unitRuns, e2eRuns).uncoveredLines;
+    const summary = summarise(withoutLines(merged, excludedLines), unitRuns, e2eRuns);
     const lineStatus = {};
     const classify = (line, status, note) => {
       lineStatus[line] = status;
@@ -175,6 +231,7 @@ function main() {
       if (status === 'OPEN') gaps.push({ type: 'coverage-open', ref: `${file}:${line}`, reason: note || 'status OPEN' });
     };
     for (const line of summary.e2eOnlyLines) classify(line, 'COVERED-BY-E2E', `covered by ${e2eRuns.join(', ')} only`);
+    for (const line of uncoveredBeforeExclusion) if (excludedLines.has(line)) classify(line, 'EXCLUDED', 'removed from the coverage totals by a line row in coverage-exclusions.md');
     for (const line of summary.uncoveredLines) {
       const row = rows.find((r) => r.lines.has(line));
       if (!row) {
@@ -185,7 +242,8 @@ function main() {
       else if (!row.note) findings.push(`${file}:${line} status ${row.status} needs a note`);
       else classify(line, row.status, row.note);
     }
-    const stale = rows.filter((row) => ![...row.lines].some((line) => summary.uncoveredLines.includes(line)));
+    const measured = measuredLines(mergedByFile.get(file));
+    const stale = rows.filter((row) => isStaleRow(row, { uncoveredLines: summary.uncoveredLines, measured }));
     files.push({ file, ...summary, lineStatus, staleStatusRows: stale.length });
   }
 
@@ -203,6 +261,8 @@ function main() {
       runs: present.map((run) => run.id),
       sourceFiles: sourceFiles.length,
       measuredInScope: files.length,
+      linesFrom: scope.linesFrom ?? null,
+      scope: ownedByFile ? 'story-owned lines (changed-lines.json)' : 'all lines of the scope files',
       notMeasured: notMeasured.length,
       total,
       floor,

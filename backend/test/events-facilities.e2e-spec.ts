@@ -4,7 +4,7 @@ import { Test } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 
@@ -20,7 +20,7 @@ if (!database && process.env.CI)
 type Session = { uid: string; cookie: string };
 
 describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let organiser: Session;
   let createdEventIds: string[];
@@ -65,13 +65,14 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
       .post('/api/auth/login')
       .send({ email, password: 'password123' })
       .expect(201);
-    const cookie = response.headers['set-cookie']?.find((value) =>
+    const cookie = (response.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
       value.startsWith('connectsphere_session='),
     );
     if (!cookie) throw new Error('Expected a PostgreSQL-backed organiser session.');
     return { uid, cookie: cookie.split(';', 1)[0] };
   }
 
+  // Kills: the options route missing its auth guard (200 instead of 401), a changed label or value on the checked entries (Catering, Wired network, Wheelchair access, Hearing loop), or a facility count other than 11 or accessibility count other than 4.
   /** EVE-FAC-01-C: the options endpoint is protected and returns the facility and accessibility schema over HTTP. */
   it('EVE-FAC-01-C serves current options to an authenticated organiser only', async () => {
     await request(app.getHttpServer())
@@ -115,6 +116,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
     };
   }
 
+  // Kills: submission dropping facilities or accessibility on write (required_facilities or accessibility_needs not stored), or the list omitting them.
   /** EVE-FAC-03-B, EVE-FAC-06-A, and EVE-FAC-06-B: facility and accessibility values persist through HTTP under the authenticated owner and appear on its Submitted request. */
   it('EVE-FAC-03-B EVE-FAC-06-A EVE-FAC-06-B persists supported facilities and accessibility for its owner', async () => {
     const input = validRequest();
@@ -165,6 +167,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
     ]));
   });
 
+  // Kills: the HTTP validator accepting 'Unsupported facility' (201) or persisting an events row after the 400.
   /** EVE-FAC-04-A: the real HTTP validator rejects an unsupported facility and PostgreSQL receives no event row. */
   it('EVE-FAC-04-A rejects an unsupported facility without saving an event', async () => {
     const input = { ...validRequest(), facilities: ['Unsupported facility'] };
@@ -182,6 +185,7 @@ describe.skipIf(!database)('SPM-144 facility request over HTTP and PostgreSQL', 
     expect(persisted.rows).toEqual([]);
   });
 
+  // Kills: the HTTP validator accepting 'Wheelchair ramps' or persisting an event row after the 400.
   /** EVE-FAC-04-A: the HTTP validator rejects an unsupported accessibility value and persists no event. */
   it('EVE-FAC-04-A rejects unsupported accessibility without saving an event', async () => {
     const input = { ...validRequest(), accessibility: ['Wheelchair ramps'] };

@@ -26,13 +26,13 @@ beforeEach(() => {
 });
 
 describe("SPM-135 AC3: the outstanding item text is the label, a colon and the detail", () => {
-  it("SPM-135 AC3 (FE helper): a venue item reads 'Venue booking approval: Main Hall (Pending)'", () => {
+  it("CONFIRM-EVENT-SUP-33 SPM-135 AC3 (FE helper): a venue item reads 'Venue booking approval: Main Hall (Pending)'", () => {
     expect(
       outstandingText({ type: "venue", label: "Venue booking approval", detail: "Main Hall (Pending)", state: "Pending" }),
     ).toBe("Venue booking approval: Main Hall (Pending)");
   });
 
-  it("SPM-135 AC3 (FE helper): the safety item reads 'Safety Officer approval: Changes requested'", () => {
+  it("CONFIRM-EVENT-SUP-34 SPM-135 AC3 (FE helper): the safety item reads 'Safety Officer approval: Changes requested'", () => {
     expect(
       outstandingText({ type: "safety", label: "Safety Officer approval", detail: "Changes requested", state: "Changes Requested" }),
     ).toBe("Safety Officer approval: Changes requested");
@@ -40,7 +40,7 @@ describe("SPM-135 AC3: the outstanding item text is the label, a colon and the d
 });
 
 describe("SPM-135 AC1 and AC3: the readiness and confirm helpers read the server contract", () => {
-  it("SPM-135 AC3 (FE helper): a well-formed readiness answer is returned as it is", async () => {
+  it("CONFIRM-EVENT-SUP-35 SPM-135 AC3 (FE helper): a well-formed readiness answer is returned as it is", async () => {
     // Arrange
     const view = { eventId: EVENT_ID, ready: false, outstanding: [] };
     apiMock.mockResolvedValue(view);
@@ -50,7 +50,7 @@ describe("SPM-135 AC1 and AC3: the readiness and confirm helpers read the server
     expect(apiMock).toHaveBeenCalledWith(`/events/${EVENT_ID}/arrangements-status`);
   });
 
-  it("SPM-135 AC3 (FE helper): a readiness answer without a ready flag is refused with the literal message", async () => {
+  it("CONFIRM-EVENT-SUP-36 SPM-135 AC3 (FE helper): a readiness answer without a ready flag is refused with the literal message", async () => {
     // Arrange: the answer lacks the boolean ready flag
     apiMock.mockResolvedValue({ eventId: EVENT_ID, outstanding: [] });
 
@@ -58,7 +58,7 @@ describe("SPM-135 AC1 and AC3: the readiness and confirm helpers read the server
     await expect(fetchArrangementsStatus(EVENT_ID)).rejects.toThrow("Arrangements could not be read.");
   });
 
-  it("SPM-135 AC1 (FE helper): confirm posts targetStatus Confirmed to the status-change route", async () => {
+  it("CONFIRM-EVENT-SUP-37 SPM-135 AC1 (FE helper): confirm posts targetStatus Confirmed to the status-change route", async () => {
     // Arrange
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Confirmed", message: "Product Launch Mixer has been confirmed." });
 
@@ -74,7 +74,7 @@ describe("SPM-135 AC1 and AC3: the readiness and confirm helpers read the server
 });
 
 describe("SPM-135 AC5: the confirmed-arrangements helper refuses a response without its parts", () => {
-  it("SPM-135 AC5 (FE helper): a complete response is returned as it is", async () => {
+  it("CONFIRM-EVENT-SUP-38 SPM-135 AC5 (FE helper): a complete response is returned as it is", async () => {
     // Arrange
     const view = { eventId: EVENT_ID, status: "Confirmed", venueBookings: [], equipment: [], safety: { state: "Approved" } };
     apiMock.mockResolvedValue(view);
@@ -83,7 +83,7 @@ describe("SPM-135 AC5: the confirmed-arrangements helper refuses a response with
     await expect(fetchConfirmedArrangements(EVENT_ID)).resolves.toEqual(view);
   });
 
-  it("SPM-135 AC5 (FE helper): a response without the safety part is refused with the literal message", async () => {
+  it("CONFIRM-EVENT-SUP-39 SPM-135 AC5 (FE helper): a response without the safety part is refused with the literal message", async () => {
     // Arrange: the safety part is missing
     apiMock.mockResolvedValue({ eventId: EVENT_ID, status: "Confirmed", venueBookings: [], equipment: [] });
 

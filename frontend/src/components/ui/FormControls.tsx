@@ -280,6 +280,7 @@ export function CheckboxGroup({
   values,
   onChange,
   disabled = false,
+  error,
 }: {
   label: string;
   options: string[];
@@ -287,6 +288,8 @@ export function CheckboxGroup({
   onChange: (values: string[]) => void;
   /** Disables every option (a disabled fieldset disables its inputs). */
   disabled?: boolean;
+  /** Server or validation message shown under the group. */
+  error?: string;
 }) {
   const toggle = (option: string) => {
     onChange(values.includes(option) ? values.filter((v) => v !== option) : [...values, option]);
@@ -319,6 +322,7 @@ export function CheckboxGroup({
           );
         })}
       </div>
+      {error && <p className="mt-1 text-xs text-danger-600">{error}</p>}
     </fieldset>
   );
 }

@@ -1,0 +1,94 @@
+{
+  "story": "SPM-40",
+  "title": "Approve a Request",
+  "note": "Scope for SPM-40 (Approve a Request), built for the SPM-150 Sprint 1 workflow records. Matrix: ai/runtime/test-cycles/SPM-40/cycle-02/confluence-matrix-ids.txt (saved from Confluence matrix pages). Shared files are narrowed with titleMatch on the story prefix; a test without its own ID in its title is not counted (see the G1 output). Parent ACs are matrix rows, not Jira ACs, until the Requirement reviewer confirms them.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      "backend/src/events/review/events.approve.spec.ts"
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx",
+        "titleMatch": "EVENT-APPROVE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "EVENT-APPROVE"
+      },
+      {
+        "glob": "frontend/src/store/useAppStore.decisions.test.ts",
+        "titleMatch": "EVENT-APPROVE"
+      },
+      {
+        "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+        "titleMatch": "EVENT-APPROVE"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/events.service.ts"
+    ],
+    "frontend": [
+      "frontend/src/store/useAppStore.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm40",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm40.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm40.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    },
+    {
+      "id": "frontend-spm40",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm40.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm40.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

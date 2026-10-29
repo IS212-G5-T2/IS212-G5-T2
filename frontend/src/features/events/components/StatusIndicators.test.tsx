@@ -41,6 +41,7 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
     expect(screen.getByText("Awaiting Coordinator Assignment")).toBeInTheDocument();
   });
 
+  // Kills: AssignmentIndicator rendering a label for an assigned event (awaitingCoordinatorAssignment false).
   it("TRACK-EVENT-STATUS-02-B: renders nothing once the event is assigned", () => {
     const { container } = render(<AssignmentIndicator event={{ awaitingCoordinatorAssignment: false }} />);
     expect(container).toBeEmptyDOMElement();
@@ -49,6 +50,7 @@ describe("SPM-94 AC2: awaiting Coordinator assignment indicator", () => {
 
 describe("SPM-94 AC3: one safety indicator from the safety state", () => {
   // Owner decision (18 Oct 2026): no safety label until the venue and all equipment are reserved.
+  // Kills: SafetyIndicator showing a label before the venue and equipment are reserved.
   it("TRACK-EVENT-STATUS-03-B: a changes-requested label waits until the venue and equipment are reserved", () => {
     const { container } = render(
       <SafetyIndicator event={{ safetyIndicator: "CHANGES_REQUESTED", status: "planning", venueRequestStatus: "pending", equipmentStatuses: ["Requested"] }} />,
@@ -67,12 +69,14 @@ describe("SPM-94 AC3: one safety indicator from the safety state", () => {
     expect(screen.getAllByText(/Safety /)).toHaveLength(1);
   });
 
+  // Kills: SafetyIndicator rendering a label when safetyIndicator is null.
   it("TRACK-EVENT-STATUS-03-B: renders nothing when there is no safety indicator", () => {
     const { container } = render(<SafetyIndicator event={{ safetyIndicator: null, status: "planning", venueRequestStatus: null, equipmentStatuses: [] }} />);
     expect(container).toBeEmptyDOMElement();
   });
 
   // Owner decision (18 Oct 2026): empty equipmentStatuses means no equipment is needed, so a reserved venue alone completes the check.
+  // Kills: SafetyIndicator hiding AWAITING_CHECK when equipment is empty (the readiness rule inverted).
   it("TRACK-EVENT-STATUS-03-B: a planning event with an approved venue and no equipment shows Awaiting Safety Officer Check", () => {
     render(<SafetyIndicator event={{ safetyIndicator: "AWAITING_CHECK", status: "planning", venueRequestStatus: "approved", equipmentStatuses: [] }} />);
     expect(screen.getByText("Awaiting Safety Officer Check")).toBeInTheDocument();
@@ -80,6 +84,7 @@ describe("SPM-94 AC3: one safety indicator from the safety state", () => {
 });
 
 describe("SPM-94 AC3 on the organiser list card", () => {
+  // Kills: EventCard rendering the assignment or safety indicator on the organiser card.
   it("TRACK-EVENT-STATUS-01-A: the organiser card does not show assignment indicator (redundant with Coordinator field)", () => {
     render(
       <MemoryRouter>
@@ -93,6 +98,7 @@ describe("SPM-94 AC3 on the organiser list card", () => {
     expect(screen.queryByText("Awaiting Safety Officer Check")).not.toBeInTheDocument();
   });
 
+  // Kills: EventCard showing organiser indicators to the attendee view.
   it("TRACK-EVENT-STATUS-01-A: the attendee card never shows organiser indicators", () => {
     render(
       <MemoryRouter>

@@ -61,7 +61,8 @@ beforeEach(() => {
 });
 
 describe("RejectionNotifications (SPM-83 AC6)", () => {
-  it("shows the organiser the rejection with its reason and a link to the request", async () => {
+  // Kills: the rejection headline or reason text dropped, or the 'View Request' link pointing anywhere other than /events/event-1.
+  it("EVENT-REJECT-SUP-01 shows the organiser the rejection with its reason and a link to the request", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([rejectionNotification()]);
 
@@ -82,7 +83,8 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     ).toBe("/events/event-1");
   });
 
-  it("lets the organiser mark a rejection notification as read", async () => {
+  // Kills: 'Mark As Read' not posting to the notification's read route with method POST.
+  it("EVENT-REJECT-SUP-02 lets the organiser mark a rejection notification as read", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([rejectionNotification()]);
 
@@ -103,6 +105,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     );
   });
 
+  // Kills: the show-all toggle not revealing read decisions, or the label not switching between 'show all' and 'show unread'.
   /**
    * EVENT-REJECT-02-D: organisers can switch between unread-only and all rejection notifications.
    */
@@ -133,6 +136,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(screen.getByRole("button", { name: /show all/i })).toBeInTheDocument();
   });
 
+  // Kills: a failed load not showing the 'Could not load request decisions.' alert, or Retry not re-fetching the feed.
   /**
    * EVENT-REJECT-02-E: organisers can retry after rejection-notification loading fails.
    */
@@ -156,6 +160,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
+  // Kills: an empty successful feed rendering a decisions header or wrapper element.
   /**
    * EVENT-REJECT-02-F: an empty successful rejection-notification feed renders no section.
    */
@@ -186,6 +191,7 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  // Kills: an all-read feed not showing the 'All caught up' state, or read decisions unavailable after 'show all'.
   /**
    * EVENT-REJECT-02-G: an all-read feed shows the caught-up state and remains reviewable.
    */
@@ -211,7 +217,8 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
     expect(screen.getByText(/Reason: Venue is not available/)).toBeInTheDocument();
   });
 
-  it("renders nothing for a non-organiser", () => {
+  // Kills: the component rendering for a coordinator, or calling the notifications API for a non-organiser.
+  it("EVENT-REJECT-SUP-03 renders nothing for a non-organiser", () => {
     setUserRole("coordinator");
 
     const { container } = render(
@@ -226,7 +233,8 @@ describe("RejectionNotifications (SPM-83 AC6)", () => {
 });
 
 describe("RejectionNotifications (SPM-40 AC4)", () => {
-  it("shows the organiser that the approved event can proceed", async () => {
+  // Kills: an approval notification shown with altered text, or its link pointing away from /events/event-1.
+  it("EVENT-APPROVE-SUP-02 shows the organiser that the approved event can proceed", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([approvalNotification()]);
 
@@ -246,6 +254,8 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
     );
   });
 
+  // Parent AC (SUPPORTING): SPM-65 AC not in pasted list (to confirm) (story reassigned on 23 Oct 2026)
+  // Kills: a denial shown without its reason, or the change-request link going to the event page instead of /change-requests.
   /** SPM-65: change request decisions show with their reason and open the Change Requests page. */
   it("REVIEW-CHANGE-05-D shows a change request denial with its reason and an approval as a confirmation", async () => {
     setUserRole("organiser");
@@ -272,5 +282,27 @@ describe("RejectionNotifications (SPM-40 AC4)", () => {
     const links = screen.getAllByRole("link", { name: "View Change Request" });
     expect(links).toHaveLength(2);
     expect(links[0].getAttribute("href")).toBe("/events/event-1/change-requests");
+  });
+
+  // Kills: a window focus refresh starting a second load while one is in flight (apiMock called twice).
+  /**
+   * A window focus refresh that arrives while a notification load is still in flight does not start a second load;
+   * the held load then fills the list when it resolves.
+   */
+  it("EVENT-APPROVE-SUP-03 does not start a second notification load while one is still in flight", async () => {
+    setUserRole("organiser");
+    const load = deferred<Notification[]>();
+    apiMock.mockReturnValueOnce(load.promise);
+    render(
+      <MemoryRouter>
+        <RejectionNotifications />
+      </MemoryRouter>,
+    );
+
+    fireEvent(window, new Event("focus"));
+
+    expect(apiMock).toHaveBeenCalledTimes(1);
+    load.resolve([rejectionNotification()]);
+    expect(await screen.findByText(/Reason: Venue is not available/)).toBeTruthy();
   });
 });

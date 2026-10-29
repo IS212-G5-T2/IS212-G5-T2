@@ -5,7 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 import { CLOCK, type Clock } from '../src/common/clock.js';
@@ -59,7 +59,7 @@ type QueueRow = {
 };
 
 describe.skipIf(!database)('SPM-48 Monitor Workspace Queue & Status (coordinator, e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
   let pool: pg.Pool;
   let now: Date;
   const clock: Clock = { now: () => now };

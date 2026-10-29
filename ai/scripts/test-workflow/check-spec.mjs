@@ -12,6 +12,14 @@ import { readRegistry } from './check-ids.mjs';
 
 export const TIERS = ['happy', 'sad', 'boundary', 'interaction', 'configuration', 'state', 'isolation', 'security', 'concurrency'];
 
+/**
+ * Every conflict row in the register. The register is split into several tables by section headings and notes, so
+ * all tables with a status column are read, not only the first one.
+ */
+export function conflictRows(markdown) {
+  return parseTables(markdown).filter((table) => table.header.includes('status')).flatMap((table) => table.rows);
+}
+
 export function checkConflicts(rows, story) {
   const findings = [];
   const gaps = [];
@@ -89,8 +97,7 @@ function main() {
   const findings = [];
   const gaps = [];
 
-  const conflictTable = parseTables(readText(`${WORKFLOW_DIR}/spec-conflicts.md`)).find((table) => table.header.includes('status'));
-  const conflicts = checkConflicts(conflictTable?.rows ?? [], scope.story);
+  const conflicts = checkConflicts(conflictRows(readText(`${WORKFLOW_DIR}/spec-conflicts.md`)), scope.story);
   findings.push(...conflicts.findings);
   gaps.push(...conflicts.gaps);
 

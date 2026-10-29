@@ -91,7 +91,7 @@ describe.skipIf(!databaseUrl)(
         .post('/api/auth/login')
         .send({ email, password: 'password123' })
         .expect(201);
-      const cookie = login.headers['set-cookie']?.find((value) =>
+      const cookie = (login.headers['set-cookie'] as unknown as string[] | undefined)?.find((value) =>
         value.startsWith('connectsphere_session='),
       );
       if (!cookie)
@@ -1244,6 +1244,48 @@ describe.skipIf(!databaseUrl)(
       expect(secondRequest.rows).toEqual([]);
     });
 
+    /** VEN-AVL-10-A: a pending row without hold expiry and without a booking request for its event is not an active hold, so an overlapping submission is accepted. Kills: pending request without a Venue Staff expiry counted as an active hold (B11). */
+    it('VEN-AVL-10-A ignores a pending row without hold expiry and without a request record when an overlapping request is submitted', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const unboundedEvent = await createAssignedEvent(
+        coordinator.id,
+        'Unbounded pending row without request',
+      );
+      const candidateEvent = await createAssignedEvent(
+        coordinator.id,
+        'Candidate overlapping unbounded pending row',
+      );
+      await addBooking(venueId, unboundedEvent, {
+        start: '2030-01-12T06:00:00Z',
+        end: '2030-01-12T07:00:00Z',
+        status: 'pending',
+        expires: null,
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({
+          eventId: candidateEvent,
+          start: '2030-01-12T06:00:00Z',
+          end: '2030-01-12T07:00:00Z',
+        })
+        .expect(201)
+        .expect(({ body }) => {
+          expect(body.status).toBe('pending');
+          expect(body.eventId).toBe(candidateEvent);
+        });
+      const candidateRows = await pool.query(
+        'SELECT status, hold_expires_at FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, candidateEvent],
+      );
+      expect(candidateRows.rows).toEqual([
+        { status: 'pending', hold_expires_at: null },
+      ]);
+    });
+
     /** VEN-AVL-02-C: pending requests are tentative, not confirmed; rejected requests are absent. The schema supports rejected, not cancelled. */
     it('does not expose pending or rejected requests as confirmed venue bookings', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1312,15 +1354,19 @@ describe.skipIf(!databaseUrl)(
         end: '2030-01-12T05:00:00Z',
       });
 
+      const path = `/api/venues/${venueId}/booking-requests`;
       const response = await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
+        .post(path)
         .set('Cookie', coordinator.cookie)
         .send({
           eventId: candidateEvent,
           start: '2030-01-12T04:00:00Z',
           end: '2030-01-12T05:00:00Z',
-        })
-        .expect(409);
+        });
+      expect(
+        response.status,
+        JSON.stringify({ path, body: response.body }),
+      ).toBe(409);
 
       expect(response.body.message).toContain('Confirmed conflict');
       const rows = await pool.query(
@@ -1342,11 +1388,15 @@ describe.skipIf(!databaseUrl)(
       );
       const instant = '2030-01-12T04:00:00Z';
 
-      await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
+      const path = `/api/venues/${venueId}/booking-requests`;
+      const response = await request(app.getHttpServer())
+        .post(path)
         .set('Cookie', coordinator.cookie)
-        .send({ eventId, start: instant, end: instant })
-        .expect(400);
+        .send({ eventId, start: instant, end: instant });
+      expect(
+        response.status,
+        JSON.stringify({ path, body: response.body }),
+      ).toBe(400);
 
       const rows = await pool.query(
         'SELECT status FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
@@ -1444,7 +1494,7 @@ describe.skipIf(!databaseUrl)(
       expect(activeConflict.body.message).toContain('Active hold');
     });
 
-    /** VEN-AVL-08-A/VAR-1: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
+    /** VEN-AVL-08-A: a candidate after a booking conflicts when only turnaround occupancy overlaps. */
     it('rejects a candidate after a booking when turnaround occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1477,7 +1527,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A/B/VAR-1: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
+    /** VEN-AVL-08-B: a candidate before a booking conflicts when only setup occupancy overlaps. Kills: B12-A. */
     it('rejects a candidate before a booking when setup occupancy overlaps', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1538,7 +1588,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-AVL-08-A/B/BND-1/VAR-1: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
+    /** VEN-AVL-08-A: setup and turnaround blockout intersections both reject without insertion. Kills: setup or turnaround occupancy omitted for blockouts (B12-B, B12-C). */
     it('rejects setup-only and turnaround-only blockout conflicts without insertion', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');

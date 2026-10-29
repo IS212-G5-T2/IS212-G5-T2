@@ -29,11 +29,11 @@ import { SettingsPage } from "@/features/account/pages/settings/SettingsPage";
 import { VenueCreatePage } from "@/features/venues/pages/create/VenueCreatePage";
 import { AssignmentQueuePage } from "@/features/lead/pages/assignment-queue/AssignmentQueuePage";
 import { ReassignmentPage } from "@/features/lead/pages/reassignment/ReassignmentPage";
-import { homePathByRole } from "@/components/layout/navConfig";
+import { dashboardPathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
   const role = useAppStore((state) => state.currentUser.role);
-  return <Navigate to={homePathByRole[role]} replace />;
+  return <Navigate to={dashboardPathByRole[role]} replace />;
 }
 
 export default function App() {
@@ -57,7 +57,8 @@ export default function App() {
       >
         <Route path="/" element={<RootRedirect />} />
 
-        <Route element={<RequireRole allowedRoles={["coordinator", "organiser", "attendee"]} />}>
+        {/* SPM-33 and SPM-34 AC2: Venue Staff and Technical Support land on the Events Dashboard. */}
+        <Route element={<RequireRole allowedRoles={["coordinator", "organiser", "attendee", "venue_staff", "tech_support"]} />}>
           <Route path="/events" element={<EventListPage />} />
         </Route>
         <Route element={<RequireRole allowedRoles={["organiser"]} />}>

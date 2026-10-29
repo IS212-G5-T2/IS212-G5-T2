@@ -56,6 +56,10 @@ describe('AuthService', () => {
     await expect(
       service.login('unknown@example.test', 'wrong'),
     ).rejects.toThrow(UnauthorizedException);
+    // One generic message for every cause, so the response does not reveal which part was wrong.
+    await expect(
+      service.login('unknown@example.test', 'wrong'),
+    ).rejects.toThrow('Invalid email or password');
     expect(repository.createSession).not.toHaveBeenCalled();
   });
 

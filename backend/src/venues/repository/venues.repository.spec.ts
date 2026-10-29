@@ -123,8 +123,6 @@ describe('VenuesRepository', () => {
             {
               id: venue.id,
               capacity: 120,
-              facilities: ['AV System'],
-              accessibility: ['Wheelchair access'],
               layouts: ['Classroom'],
               setup_time_minutes: 0,
               turnaround_time_minutes: 0,
@@ -139,8 +137,6 @@ describe('VenuesRepository', () => {
               status: 'Planning',
               ...assignedEventTime,
               expected_attendance: 20,
-              required_facilities: [],
-              accessibility_needs: [],
               preferred_room_layout: '',
               ...eventFields,
             },
@@ -1458,7 +1454,7 @@ describe('SPM-124 venue reads', () => {
     );
   });
 
-  /** VEN-AVL-10-A/B/BND-1: expired and exact-expiry pending holds are excluded at the injected current time. */
+  /** VEN-AVL-10-A: expired and exact-expiry pending holds are excluded at the injected current time. The exact-expiry instant is the boundary case of the same rule. */
   it('keeps only pending holds that expire after now', async () => {
     const now = new Date('2030-10-08T00:30:00.000Z');
     readQuery
@@ -1656,7 +1652,7 @@ describe('SPM-124 venue reads', () => {
     expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
   });
 
-  /** VEN-AVL-09-A/B: blockouts persist while affected confirmed bookings and active holds remain visible. */
+  /** VEN-AVL-09-A: blockouts persist while affected confirmed bookings and active holds remain visible. The venue-staff fixture authority that creates the blockout is the second AC9 case. */
   it('returns each affected booking without changing its stored booking status', async () => {
     const query = vi
       .fn()
@@ -2607,9 +2603,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(poolQuery).not.toHaveBeenCalled();
     const sqls = clientQuery.mock.calls.map(([sql]) => normalizeSql(String(sql)));
     // The status UPDATE ran inside the transaction, and the audit insert that followed it failed.
-    const updateAt = sqls.findIndex(
-      (sql) => sql.includes('UPDATE venue_bookings') && sql.includes("SET status = 'approved'"),
-    );
+    const updateAt = sqls.findIndex((sql) => sql.includes("UPDATE venue_bookings SET status = 'approved'"));
     expect(updateAt).toBeGreaterThan(-1);
     expect(sqls[updateAt + 1]).toContain('INSERT INTO booking_review_log');
     // The failed audit insert rolls the transaction back, so the approval is never committed.

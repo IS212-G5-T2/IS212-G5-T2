@@ -237,7 +237,7 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
         .expect(403);
 
       // Assert: DEVIATION from the expected 409 MSG-CN-04 (recorded in the results document); nothing changed
-      // ASSUMPTION A7: 403 is the working expectation (the existing coordinator-only rule runs first; SC-002, accepted)
+      // ASSUMPTION A7: 403 is the working expectation (the existing coordinator-only rule runs first; SC-136-002, accepted)
       expect(response.body.message).toBe('Only the assigned coordinator can change event information.');
       expect(await snapshot(eventId)).toEqual(before);
     });
@@ -247,5 +247,5 @@ describe.skipIf(!database)('SPM-136 cancelled events refuse every arrangement ch
 /*
  * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
  *   A2 INVALID_STATUS_TRANSITION (422) and its text for a Planning target on a cancelled event -> CANCEL-EVENT-07-B-D (Planning)
- *   A7 403 for the organiser's planning PATCH (not the Confluence 409 MSG-CN-04; SC-002) -> CANCEL-EVENT-07-B-C
+ *   A7 403 for the organiser's planning PATCH (not the Confluence 409 MSG-CN-04; SC-136-002) -> CANCEL-EVENT-07-B-C
  */

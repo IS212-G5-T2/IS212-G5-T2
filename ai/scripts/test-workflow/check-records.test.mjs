@@ -1,12 +1,17 @@
 import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
-import { resultOf, titleRegExp, validate } from './check-records.mjs';
+import { buildRows, belongsToOtherStory, resultOf, titleRegExp, validate } from './check-records.mjs';
 
 test('titleRegExp matches the titles an it.each call site expands to', () => {
   assert.ok(titleRegExp('refuses %s with 403').test('refuses an Attendee (ATT-01) with 403'));
   assert.ok(titleRegExp('a single failure: $name').test('a single failure: no venue'));
   assert.ok(titleRegExp('exact title (A)').test('exact title (A)'));
   assert.ok(!titleRegExp('exact title').test('exact title and more'));
+  assert.ok(titleRegExp('Q1-007 ${field} accepts length %s').test('Q1-007 name accepts length 0'));
+  assert.ok(titleRegExp('Q1-008 ${field} rejects length ${limit + 1}').test('Q1-008 name rejects length 201'));
   assert.ok(titleRegExp("event\\'s neighbours").test("event's neighbours"));
   assert.ok(!titleRegExp("event\\'s neighbours").test('events neighbours'));
 });
@@ -61,4 +66,35 @@ test('an unexplained test must have a comment; a named mutant must exist', () =>
 test('an id that is not in the registry is reported as such, not as missing', () => {
   const out = validate([{ ...good(), test_id: 'OTHER-01' }], ctx);
   assert.match(out.findings.join('\n'), /carries an id that is not in the registry/);
+});
+
+test('a test whose id is registered to another story is not checked against this story\u0027s records', () => {
+  const foreign = new Set(['VEN-HOLD-05-A']);
+  assert.equal(belongsToOtherStory('VEN-HOLD-05-A', foreign), true);
+  assert.equal(belongsToOtherStory('S-01', foreign), false);
+  assert.equal(belongsToOtherStory('', foreign), false);
+  assert.equal(belongsToOtherStory('S-01'), false);
+});
+
+test('buildRows skips a scoped test whose id is registered to another story and keeps it otherwise', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'check-records-'));
+  try {
+    const file = join(dir, 'sample.test.mjs');
+    writeFileSync(file, [
+      "import { test } from 'node:test';",
+      "test('S-01 belongs to this story', () => {});",
+      "test('OTHER-05 belongs to another story', () => {});",
+      '',
+    ].join('\n'));
+    const scope = { tests: { unit: [file] } };
+    const base = { registryRows: [{ id: 'S-01', parent_ac: 'AC1' }, { id: 'OTHER-05', parent_ac: 'AC9' }], runDir: join(dir, 'cycle-1', 'run') };
+
+    const withForeign = await buildRows(scope, [], { ...base, foreignIds: new Set(['OTHER-05']) });
+    assert.deepEqual(withForeign.map((row) => row.test_id), ['S-01']);
+
+    const withoutForeign = await buildRows(scope, [], base);
+    assert.deepEqual(withoutForeign.map((row) => row.test_id), ['S-01', 'OTHER-05']);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

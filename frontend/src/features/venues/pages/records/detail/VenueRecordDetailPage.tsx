@@ -146,6 +146,7 @@ export function VenueRecordDetailPage() {
   const [cancelPrompt, setCancelPrompt] = useState(false);
   const [cancelNeedsLastWarning, setCancelNeedsLastWarning] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [cancelledReference, setCancelledReference] = useState("");
   const activeEventVenueBooking =
     eventVenueBooking &&
     (eventVenueBooking.status === "pending" ||
@@ -157,6 +158,8 @@ export function VenueRecordDetailPage() {
       ? `Tentative hold request submitted for Venue Staff approval. The hold is not active yet. Reference: ${bookingReference}.`
       : `Booking request submitted. Reference: ${bookingReference}.`;
   const [movedToPlanning, setMovedToPlanning] = useState("");
+  const requestCancelled =
+    cancelledReference !== "" && cancelledReference === bookingReference;
   const [checking, setChecking] = useState(false);
   const validRange =
     Number.isFinite(parseRequestTime(start)) &&
@@ -292,6 +295,7 @@ export function VenueRecordDetailPage() {
         },
       );
       setEventVenueBooking({ ...eventVenueBooking, status: "cancelled" });
+      setCancelledReference(eventVenueBooking.bookingReference);
       setCancelPrompt(false);
       setCancelNeedsLastWarning(false);
       setRevision((value) => value + 1);
@@ -927,17 +931,27 @@ export function VenueRecordDetailPage() {
                       </div>
                     </section>
                   )}
-                  {submitted && (
+                  {submitted && !movedToPlanning && requestCancelled && (
+                    <p role="status">
+                      Booking request {bookingReference} is cancelled.
+                    </p>
+                  )}
+                  {submitted && !requestCancelled && (
                     <p role="status">
                       {submittedRequestMessage}
                     </p>
                   )}
-                  {submitted && movedToPlanning && (
+                  {submitted && movedToPlanning && (requestCancelled ? (
+                    <p role="status">
+                      Venue booking request {bookingReference} is cancelled.{" "}
+                      {movedToPlanning} is no longer in Planning.
+                    </p>
+                  ) : (
                     <p role="status">
                       Venue booking request submitted. {movedToPlanning} is now
                       in Planning.
                     </p>
-                  )}
+                  ))}
                 </div>
               ))}
             {requestError && <p role="alert">{requestError}</p>}
