@@ -645,6 +645,18 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
 });
 
 describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
+  /**
+   * EVENT-UPDATE-07-E: the history entries are written in the approval's transaction, so a failed
+   * history write fails the approval and commits nothing (no event change, no decision, no notice).
+   */
+  it('EVENT-UPDATE-07-E fails the approval and commits nothing when the history write fails', async () => {
+    const { svc, committed } = setup({ failOn: 'recordAppliedChanges' });
+    await expect(
+      svc.approve(coordinator, EVENT_ID, REQUEST_ID, {}),
+    ).rejects.toThrow('injected fault');
+    expect(committed).toEqual([]);
+  });
+
   // EVENT-UPDATE-07-E: each requested field whose value changes is recorded as
   // an Applied 'change_request' entry, proposed by the organiser, applied by
   // the coordinator, at the decision time.

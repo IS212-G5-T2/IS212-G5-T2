@@ -77,17 +77,43 @@ describe("useVenueOptions", () => {
     expect(apiMock).toHaveBeenCalledTimes(2);
   });
 
-  it("EVENT-UPDATE-08-D gives a general message for a non-Error failure and ignores a late reply after unmount", async () => {
+  /** EVENT-UPDATE-08-D: a failure that is not an Error still shows a readable message. */
+  it("EVENT-UPDATE-08-D gives a general message for a non-Error failure", async () => {
     apiMock.mockRejectedValueOnce("boom");
     const failed = renderHook(() => useVenueOptions());
     await waitFor(() => expect(failed.result.current.status).toBe("error"));
     expect(failed.result.current.error).toBe("Could not load the options.");
+  });
 
-    let resolve!: (value: unknown) => void;
-    apiMock.mockReturnValueOnce(new Promise((r) => (resolve = r)) as never);
-    const late = renderHook(() => useVenueOptions());
-    late.unmount();
-    await act(async () => resolve(RESPONSE));
-    expect(late.result.current.status).toBe("loading");
+  /** EVENT-UPDATE-08-D: after a retry, a slow reply to the earlier request does not overwrite the newer options. */
+  it("EVENT-UPDATE-08-D ignores a stale reply that arrives after a retry", async () => {
+    let resolveFirst!: (value: unknown) => void;
+    apiMock
+      .mockReturnValueOnce(new Promise((r) => (resolveFirst = r)) as never)
+      .mockResolvedValueOnce(RESPONSE);
+    const { result } = renderHook(() => useVenueOptions());
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.status).toBe("loaded"));
+    await act(async () =>
+      resolveFirst({
+        facilities: [{ label: "Stale", value: "Stale" }],
+        accessibility: [],
+      }),
+    );
+    expect(result.current.facilities).toEqual(["Wi-Fi", "Lectern"]);
+  });
+
+  /** EVENT-UPDATE-08-D: after a retry, a slow failure of the earlier request does not replace the loaded options. */
+  it("EVENT-UPDATE-08-D ignores a stale failure that arrives after a retry", async () => {
+    let rejectFirst!: (reason: unknown) => void;
+    apiMock
+      .mockReturnValueOnce(new Promise((_r, j) => (rejectFirst = j)) as never)
+      .mockResolvedValueOnce(RESPONSE);
+    const { result } = renderHook(() => useVenueOptions());
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.status).toBe("loaded"));
+    await act(async () => rejectFirst(new Error("Network down")));
+    expect(result.current.status).toBe("loaded");
+    expect(result.current.error).toBe("");
   });
 });

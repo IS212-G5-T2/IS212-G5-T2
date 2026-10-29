@@ -198,5 +198,105 @@ describe.skipIf(!database)(
       expect(first.rows[0].accessibility_needs).toEqual(['Wheelchair access']);
       expect(first.rows[0].required_facilities).toEqual(['AV System']);
     });
+
+    /**
+     * EVENT-UPDATE-08-A: only active reference options are kept; drafts that were already
+     * submitted, the change request audit log and change history keep what was stored then.
+     */
+    it('EVENT-UPDATE-08-A keeps only active options and leaves submitted drafts, audit and history unchanged', async () => {
+      const tag = randomUUID().slice(0, 8);
+      const inactiveFacility = `Retired stage ${tag}`;
+      const inactiveFeature = `Retired ramp ${tag}`;
+      await pool.query(
+        `INSERT INTO facilities (name, category, is_active) VALUES ($1, 'Test', false)`,
+        [inactiveFacility],
+      );
+      await pool.query(
+        `INSERT INTO accessibility_features (id, label, is_active) VALUES ($1, $2, false)`,
+        [`spm156-${tag}`, inactiveFeature],
+      );
+      try {
+        const eventId = await insertEvent(
+          [inactiveFeature, 'Hearing loop'],
+          [inactiveFacility, 'Projector'],
+        );
+        const submittedDraft = randomUUID();
+        draftIds.push(submittedDraft);
+        const draftFields = {
+          name: 'Submitted',
+          accessibility: ['Wheelchair ramps'],
+          facilities: ['PA System'],
+        };
+        await pool.query(
+          `INSERT INTO event_drafts (id, organiser_id, fields, status, event_id)
+           VALUES ($1,'org-156',$2::jsonb,'Submitted',$3)`,
+          [submittedDraft, JSON.stringify(draftFields), eventId],
+        );
+        const requestId = randomUUID();
+        const auditChanges = [
+          {
+            field: 'accessibility',
+            originalValue: ['Wheelchair ramps'],
+            proposedValue: ['Step-free access'],
+          },
+        ];
+        await pool.query(
+          `INSERT INTO event_change_requests (id, event_id, requested_by_id, requested_by, changes, status)
+           VALUES ($1,$2,'org-156','Organiser',$3::jsonb,'Pending')`,
+          [requestId, eventId, JSON.stringify(auditChanges)],
+        );
+        await pool.query(
+          `INSERT INTO event_change_request_audit
+             (id, change_request_id, event_id, outcome, changes, requested_by_id, requested_by, decided_by, decided_at)
+           VALUES ($1,$2,$3,'Approved',$4::jsonb,'org-156','Organiser','Coordinator',now())`,
+          [randomUUID(), requestId, eventId, JSON.stringify(auditChanges)],
+        );
+        await pool.query(
+          `INSERT INTO event_flagged_changes
+             (id, event_id, kind, field, original_value, proposed_value, status, proposed_by, proposed_by_id, resolved_by, resolved_by_id, resolved_at)
+           VALUES ($1,$2,'direct_update','accessibility','["Wheelchair ramps"]'::jsonb,'["PA System"]'::jsonb,'Applied','Coordinator','coord-156','Coordinator','coord-156',now())`,
+          [randomUUID(), eventId],
+        );
+
+        await pool.query(await migration());
+
+        const event = await pool.query(
+          'SELECT accessibility_needs, required_facilities FROM events WHERE id = $1',
+          [eventId],
+        );
+        expect(event.rows[0]).toEqual({
+          accessibility_needs: ['Hearing loop'],
+          required_facilities: ['Projector'],
+        });
+        const draft = await pool.query(
+          'SELECT fields FROM event_drafts WHERE id = $1',
+          [submittedDraft],
+        );
+        expect(draft.rows[0].fields).toEqual(draftFields);
+        const audit = await pool.query(
+          'SELECT changes FROM event_change_request_audit WHERE change_request_id = $1',
+          [requestId],
+        );
+        expect(audit.rows[0].changes).toEqual(auditChanges);
+        const history = await pool.query(
+          'SELECT original_value, proposed_value FROM event_flagged_changes WHERE event_id = $1',
+          [eventId],
+        );
+        expect(history.rows).toEqual([
+          {
+            original_value: ['Wheelchair ramps'],
+            proposed_value: ['PA System'],
+          },
+        ]);
+      } finally {
+        await pool.query('DELETE FROM facilities WHERE name = $1', [
+          inactiveFacility,
+        ]);
+        await pool.query(
+          'DELETE FROM accessibility_features WHERE label = $1',
+          [inactiveFeature],
+        );
+      }
+    });
   },
 );

@@ -180,6 +180,9 @@ immediately, and every change request approval, is refused with a server error a
 Then apply `../backend/migrations/027_spm156_retire_legacy_event_options.sql` the same way (idempotent). It replaces
 retired facility and accessibility values in stored events, change requests and drafts (for example
 "Wheelchair ramps" becomes "Wheelchair access"), so no form shows them or refuses to save because of them.
+Every event it rewrites loses its safety check (the SPM-135 trigger resets it when facilities or accessibility
+needs change), so coordinators must request those safety checks again. Flagged changes still awaiting review are
+not rewritten: confirming one that proposes a retired value writes it back.
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.

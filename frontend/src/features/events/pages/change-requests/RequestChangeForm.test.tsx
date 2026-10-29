@@ -332,6 +332,65 @@ describe("RequestChangeForm: options from the venue schema (SPM-156 follow-up)",
     );
   });
 
+  /** EVENT-UPDATE-08-C (SPM-64 form): unticking and reticking a current value is an edit, so the retired value is dropped. */
+  it("EVENT-UPDATE-08-C drops a retired value when the list is edited back to the same visible choices", async () => {
+    const { onSubmit, user } = renderForm(
+      eventRecord({
+        venueRequirements: {
+          minCapacity: 120,
+          layout: "Banquet",
+          facilities: ["Catering"],
+          accessibility: ["Wheelchair ramps", "Hearing loop"],
+        },
+      }),
+    );
+    const hearingLoop = screen.getByRole("checkbox", { name: "Hearing loop" });
+    await user.click(hearingLoop);
+    await user.click(hearingLoop);
+    await user.click(screen.getByRole("button", { name: "Submit Change Request" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ changes: { accessibility: ["Hearing loop"] } }),
+    );
+  });
+
+  /**
+   * EVENT-UPDATE-08-D (SPM-64 form): the choices are exactly the lists GET /api/venues/options returned (here
+   * different from the built-in constants); a stored value missing from them is hidden and dropped on edit.
+   */
+  it("EVENT-UPDATE-08-D offers exactly the loaded lists, not built-in ones", async () => {
+    venueOptionsState.current = {
+      status: "loaded",
+      facilities: ["Projector", "Hologram wall"],
+      accessibility: ["Hearing loop", "Tactile paving"],
+      error: "",
+    };
+    const { onSubmit, user } = renderForm(
+      eventRecord({
+        venueRequirements: {
+          minCapacity: 120,
+          layout: "Banquet",
+          facilities: ["Projector"],
+          accessibility: ["Hearing loop", "Wheelchair access"],
+        },
+      }),
+    );
+    const [facilities, accessibility] = screen.getAllByRole("group");
+    const labels = (group: HTMLElement) =>
+      within(group)
+        .getAllByRole("checkbox")
+        .map((box) => (box as HTMLInputElement).labels?.[0]?.textContent?.trim());
+    expect(labels(facilities)).toEqual(["Projector", "Hologram wall"]);
+    expect(labels(accessibility)).toEqual(["Hearing loop", "Tactile paving"]);
+    expect(screen.queryByText("Wheelchair access")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Tactile paving" }));
+    await user.click(screen.getByRole("button", { name: "Submit Change Request" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        changes: { accessibility: ["Hearing loop", "Tactile paving"] },
+      }),
+    );
+  });
+
   /** EVENT-UPDATE-08-D (SPM-64 form): the lists cannot be changed until the options load; a failure offers a retry. */
   it("EVENT-UPDATE-08-D disables the lists while loading and offers a retry after a failure", async () => {
     venueOptionsState.current = {
@@ -342,6 +401,8 @@ describe("RequestChangeForm: options from the venue schema (SPM-156 follow-up)",
     };
     renderForm();
     expect(screen.getAllByText("Loading options…")).toHaveLength(2);
+    expect(screen.getAllByRole("group")).toHaveLength(2);
+    for (const group of screen.getAllByRole("group")) expect(group).toBeDisabled();
     cleanup();
     const retry = vi.fn();
     venueOptionsState.current = {
@@ -352,7 +413,8 @@ describe("RequestChangeForm: options from the venue schema (SPM-156 follow-up)",
     };
     venueOptionsState.retry = retry;
     const { user } = renderForm();
-    expect(screen.getAllByRole("group")[0]).toBeDisabled();
+    expect(screen.getAllByRole("group")).toHaveLength(2);
+    for (const group of screen.getAllByRole("group")) expect(group).toBeDisabled();
     await user.click(screen.getAllByRole("button", { name: "Try again" })[0]);
     expect(retry).toHaveBeenCalled();
   });

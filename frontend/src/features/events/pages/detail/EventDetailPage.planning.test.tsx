@@ -188,6 +188,42 @@ describe("EventDetailPage planning information (organiser)", () => {
     ).not.toBeInTheDocument();
   });
 
+  /** EVENT-UPDATE-07-D: the change history refreshes with the planning poll, so the organiser sees a coordinator's new change. */
+  it("EVENT-UPDATE-07-D refreshes the organiser's change history with the planning poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let history: unknown[] = [];
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.endsWith("/planning/history")) return history;
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    renderPage();
+    await planningRegion();
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+
+    history = [
+      {
+        id: "dir-2",
+        kind: "direct_update",
+        field: "description",
+        originalValue: "Old",
+        proposedValue: "New",
+        resolvedValue: "New",
+        resolvedBy: "Coord Nine",
+        resolvedAt: "2026-10-05T11:00:00.000Z",
+        status: "Applied",
+      },
+    ];
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+    });
+    const list = await screen.findByRole("list", { name: /change history/i });
+    expect(list).toHaveTextContent("Description: Old → New");
+  });
+
   // EVENT-VIEW-01-A: once the event is in planning the organiser sees the planning panel.
   it("EVENT-VIEW-01-A shows the planning information panel for a planning-phase event", async () => {
     renderPage();

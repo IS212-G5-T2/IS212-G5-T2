@@ -1503,13 +1503,36 @@ describe('SPM-156 change history for updates applied immediately', () => {
 
   // EVENT-UPDATE-07-A: the history write is part of the update's transaction.
   it('EVENT-UPDATE-07-A fails the whole update when the history write fails', async () => {
-    const runInTransaction = vi.fn(<T>(work: () => Promise<T>) => work());
+    // Track whether each write runs inside the transaction callback.
+    let inTransaction = false;
+    const runInTransaction = vi.fn(async <T>(work: () => Promise<T>) => {
+      inTransaction = true;
+      try {
+        return await work();
+      } finally {
+        inTransaction = false;
+      }
+    });
     Object.assign(repo, { runInTransaction });
-    repo.recordAppliedChanges.mockRejectedValueOnce(new Error('db down'));
+    const insideTransaction: Record<string, boolean> = {};
+    const applyFields = repo.applyFields.getMockImplementation()!;
+    repo.applyFields.mockImplementationOnce((...args) => {
+      insideTransaction.applyFields = inTransaction;
+      return applyFields(...args);
+    });
+    repo.recordAppliedChanges.mockImplementationOnce(async () => {
+      insideTransaction.recordAppliedChanges = inTransaction;
+      throw new Error('db down');
+    });
     await expect(
       service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed' }),
     ).rejects.toThrow('db down');
     expect(runInTransaction).toHaveBeenCalledTimes(1);
+    // The event update and its history entry share one transaction.
+    expect(insideTransaction).toEqual({
+      applyFields: true,
+      recordAppliedChanges: true,
+    });
   });
 
   // EVENT-UPDATE-07-C: history tells a direct update from a reviewed change.

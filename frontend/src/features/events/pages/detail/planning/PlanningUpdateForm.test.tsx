@@ -1016,6 +1016,61 @@ describe("PlanningUpdateForm: options from the venue schema (SPM-156 follow-up)"
     );
   });
 
+  /** EVENT-UPDATE-08-C: unticking and reticking a current value still counts as an edit, so the retired value is dropped. */
+  it("EVENT-UPDATE-08-C drops a retired value when the list is edited back to the same visible choices", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PlanningUpdateForm
+        event={withStored(["Wheelchair ramps", "Hearing loop"], ["Catering"])}
+        editableFields={EDITABLE_FIELDS}
+        lastUpdatedAt={LAST_UPDATED}
+        onSave={onSave}
+      />,
+    );
+    const hearingLoop = screen.getByRole("checkbox", { name: "Hearing loop" });
+    await user.click(hearingLoop);
+    await user.click(hearingLoop);
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenLastCalledWith({ accessibility: ["Hearing loop"] });
+  });
+
+  /**
+   * EVENT-UPDATE-08-D: the choices are exactly the lists GET /api/venues/options returned (here different
+   * from the built-in constants), and a stored value missing from them is hidden and dropped on edit.
+   */
+  it("EVENT-UPDATE-08-D offers exactly the loaded lists, not built-in ones", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    venueOptionsState.current = {
+      status: "loaded",
+      facilities: ["Projector", "Hologram wall"],
+      accessibility: ["Hearing loop", "Tactile paving"],
+      error: "",
+    };
+    render(
+      <PlanningUpdateForm
+        event={withStored(["Hearing loop", "Wheelchair access"], ["Projector"])}
+        editableFields={EDITABLE_FIELDS}
+        lastUpdatedAt={LAST_UPDATED}
+        onSave={onSave}
+      />,
+    );
+    const names = (group: string) =>
+      within(screen.getByRole("group", { name: group }))
+        .getAllByRole("checkbox")
+        .map((box) => (box as HTMLInputElement).labels?.[0]?.textContent?.trim());
+    expect(names("Required facilities")).toEqual(["Projector", "Hologram wall"]);
+    expect(names("Accessibility needs")).toEqual(["Hearing loop", "Tactile paving"]);
+    // "Wheelchair access" is stored but not in the loaded list: not shown, and dropped once the list is edited.
+    expect(screen.queryByText("Wheelchair access")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: "Tactile paving" }));
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+    expect(onSave).toHaveBeenLastCalledWith({
+      accessibility: ["Hearing loop", "Tactile paving"],
+    });
+  });
+
   /** EVENT-UPDATE-08-D: while the options load, or after they fail, the lists cannot be changed; Try again reloads them. */
   it("EVENT-UPDATE-08-D disables the lists while options load or after a failure, with a retry", async () => {
     const user = userEvent.setup();
@@ -1027,9 +1082,8 @@ describe("PlanningUpdateForm: options from the venue schema (SPM-156 follow-up)"
     };
     const view = renderForm();
     expect(screen.getAllByText("Loading options…")).toHaveLength(2);
-    expect(
-      screen.getByRole("group", { name: "Required facilities" }),
-    ).toBeDisabled();
+    for (const name of ["Required facilities", "Accessibility needs"])
+      expect(screen.getByRole("group", { name })).toBeDisabled();
     view.unmount();
 
     const retry = vi.fn();
@@ -1041,9 +1095,8 @@ describe("PlanningUpdateForm: options from the venue schema (SPM-156 follow-up)"
     };
     venueOptionsState.retry = retry;
     renderForm();
-    expect(
-      screen.getByRole("group", { name: "Accessibility needs" }),
-    ).toBeDisabled();
+    for (const name of ["Required facilities", "Accessibility needs"])
+      expect(screen.getByRole("group", { name })).toBeDisabled();
     expect(
       screen.getByText(
         /Could not load the accessibility needs options\. Network down/,

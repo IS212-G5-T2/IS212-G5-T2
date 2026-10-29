@@ -19,6 +19,16 @@
 -- change-request audit log and the event change history, which record what was
 -- true at the time.
 -- Idempotent: a second run changes nothing.
+-- Side effects to know before running it:
+--   - Safety checks are reset. The SPM-135 trigger events_invalidate_safety deletes an
+--     event's safety check whenever its facilities or accessibility needs change, so every
+--     event this migration rewrites (Confirmed ones included) loses its safety check and the
+--     coordinator must request it again. This is accepted (decision of 29 Oct 2026); no
+--     reset reason is recorded.
+--   - Flagged changes still awaiting review (event_flagged_changes, 'Needs Review') are not
+--     rewritten. A pending facilities change that proposes a retired value (for example
+--     'PA System') would write it back if the coordinator confirms it. Known limitation,
+--     accepted on 29 Oct 2026 as a rare case.
 
 CREATE OR REPLACE FUNCTION pg_temp.spm156_current_options(items text[], kind text)
 RETURNS text[] LANGUAGE sql STABLE AS $$

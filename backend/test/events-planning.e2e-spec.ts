@@ -834,5 +834,75 @@ describe.skipIf(!database)(
         insert('other', 'name', 'Needs Review'),
       ).rejects.toMatchObject({ code: '23514' });
     });
+
+    /**
+     * EVENT-UPDATE-07-A (SPM-156): the direct-update history write runs in the
+     * same transaction as the event update. When the history insert fails, the
+     * event row and its "Last updated" time stay as they were and nothing is recorded.
+     */
+    it('EVENT-UPDATE-07-A rolls the event update back when the history insert fails', async () => {
+      const approved = await insertEvent({ name: 'Rollback Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      const before = await db.query(
+        'SELECT event_name, updated_at FROM events WHERE id = $1',
+        [approved],
+      );
+      // A trigger that refuses history rows for this event only (the real write path fails).
+      const fn = `spm156_refuse_${approved.replace(/-/g, '')}`;
+      await db.query(
+        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
+           BEGIN
+             IF NEW.event_id = '${approved}'::uuid THEN
+               RAISE EXCEPTION 'history insert refused';
+             END IF;
+             RETURN NEW;
+           END $$`,
+      );
+      await db.query(
+        `CREATE TRIGGER ${fn} BEFORE INSERT ON event_flagged_changes
+           FOR EACH ROW EXECUTE FUNCTION ${fn}()`,
+      );
+      try {
+        await expect(
+          service.updateEvent(coordinator, approved, {
+            name: 'Rollback Night',
+          }),
+        ).rejects.toThrow('history insert refused');
+      } finally {
+        await db.query(`DROP TRIGGER ${fn} ON event_flagged_changes`);
+        await db.query(`DROP FUNCTION ${fn}()`);
+      }
+      const after = await db.query(
+        'SELECT event_name, updated_at FROM events WHERE id = $1',
+        [approved],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
+      expect(after.rows[0].event_name).toBe('Rollback Evening');
+      const history = await db.query(
+        'SELECT count(*)::int AS n FROM event_flagged_changes WHERE event_id = $1',
+        [approved],
+      );
+      expect(history.rows[0].n).toBe(0);
+    });
+
+    /**
+     * EVENT-UPDATE-07-A (SPM-156): entries saved by one update share their time and are
+     * listed by field name. The rows are inserted in editable-field order (name before
+     * description), so only the field tie-break gives description first.
+     */
+    it('EVENT-UPDATE-07-A lists entries saved by one update in a stable field order', async () => {
+      const approved = await insertEvent({ name: 'Order Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      await service.updateEvent(coordinator, approved, {
+        name: 'Order Night',
+        description: 'Order description',
+      });
+      const history = await service.changeHistory(coordinator, approved);
+      expect(history.map((h) => h.field)).toEqual(['description', 'name']);
+    });
   },
 );

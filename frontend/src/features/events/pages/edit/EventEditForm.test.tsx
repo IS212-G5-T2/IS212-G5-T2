@@ -464,6 +464,66 @@ describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () 
     );
   });
 
+  /** EVENT-UPDATE-08-D (edit form): the choices are exactly the loaded lists, and saving keeps only values in them. */
+  it("EVENT-UPDATE-08-D offers exactly the loaded lists, not built-in ones", async () => {
+    const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");
+    venueOptionsState.current = {
+      status: "loaded",
+      facilities: ["Projector", "Hologram wall"],
+      accessibility: ["Hearing loop", "Tactile paving"],
+      error: "",
+    };
+    try {
+      const user = userEvent.setup();
+      const onSave = vi.fn();
+      render(
+        <EventEditForm
+          event={{
+            ...event,
+            venueRequirements: {
+              ...event.venueRequirements,
+              facilities: ["Projector", "AV System"],
+              accessibility: ["Hearing loop", "Wheelchair access"],
+            },
+          }}
+          onSave={onSave}
+          onCancel={vi.fn()}
+        />,
+      );
+      const [facilities, accessibility] = screen.getAllByRole("group");
+      const labels = (group: HTMLElement) =>
+        Array.from(group.querySelectorAll<HTMLInputElement>("input[type=checkbox]")).map((box) =>
+          box.labels?.[0]?.textContent?.trim(),
+        );
+      expect(labels(facilities)).toEqual(["Projector", "Hologram wall"]);
+      expect(labels(accessibility)).toEqual(["Hearing loop", "Tactile paving"]);
+      await user.click(screen.getByRole("button", { name: "Save" }));
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          venueRequirements: expect.objectContaining({
+            facilities: ["Projector"],
+            accessibility: ["Hearing loop"],
+          }),
+        }),
+      );
+    } finally {
+      resetVenueOptions();
+    }
+  });
+
+  /** EVENT-UPDATE-08-D (edit form): while the options load, neither list can be changed. */
+  it("EVENT-UPDATE-08-D disables both lists while the options load", async () => {
+    const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");
+    venueOptionsState.current = { status: "loading", facilities: [], accessibility: [], error: "" };
+    try {
+      render(<EventEditForm event={event} onSave={vi.fn()} onCancel={vi.fn()} />);
+      expect(screen.getAllByRole("group")).toHaveLength(2);
+      for (const group of screen.getAllByRole("group")) expect(group).toBeDisabled();
+    } finally {
+      resetVenueOptions();
+    }
+  });
+
   /** EVENT-UPDATE-08-D (edit form): when the options cannot be loaded, both lists show the error and the stored values are saved unchanged. */
   it("EVENT-UPDATE-08-D shows the load error and keeps stored values when options fail", async () => {
     const { venueOptionsState, resetVenueOptions } = await import("@/test/venueOptions");
@@ -474,6 +534,8 @@ describe("EventEditForm: options from the venue schema (SPM-156 follow-up)", () 
       render(<EventEditForm event={event} onSave={onSave} onCancel={vi.fn()} />);
       // Both lists report the failure; no choices can be ticked.
       expect(screen.getAllByText("Could not load the options. Server unavailable.")).toHaveLength(2);
+      expect(screen.getAllByRole("group")).toHaveLength(2);
+      for (const group of screen.getAllByRole("group")) expect(group).toBeDisabled();
       expect(screen.queryByRole("checkbox", { name: "AV System" })).not.toBeInTheDocument();
       // Saving does not wipe the stored lists it could not check.
       await user.click(screen.getByRole("button", { name: "Save" }));
