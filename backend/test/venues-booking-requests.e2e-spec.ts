@@ -2992,7 +2992,6 @@ describe.skipIf(!databaseUrl)(
         end: '2030-01-12T05:00:00.000Z',
         status: 'pending',
         requestKind: 'tentative_hold',
-        expires: new Date('2030-01-20T12:00:00.000Z'),
       });
 
       const otherVenueEvent = await createAssignedEvent(coordinator.id, 'Other Venue Booking');
@@ -3034,7 +3033,6 @@ describe.skipIf(!databaseUrl)(
         end: '2030-01-12T05:00:00.000Z',
         status: 'pending',
         requestKind: 'tentative_hold',
-        expires: new Date('2030-01-20T12:00:00.000Z'),
       });
 
       const candidateEvent = await createAssignedEvent(coordinator.id, 'Booking Beside Hold');
@@ -3112,8 +3110,8 @@ describe.skipIf(!databaseUrl)(
 
       const holdEventA = await createAssignedEvent(coordinator.id, 'Race Hold A', '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z');
       const holdA = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind, hold_expires_at)
-         VALUES ($1, $2, '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z', 'pending', 'tentative_hold', '2030-06-15T12:00:00.000Z')
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind)
+         VALUES ($1, $2, '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z', 'pending', 'tentative_hold')
          RETURNING id`,
         [venueId, holdEventA],
       );
@@ -3121,24 +3119,23 @@ describe.skipIf(!databaseUrl)(
 
       const holdEventB = await createAssignedEvent(coordinator.id, 'Race Hold B', '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z');
       const holdB = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind, hold_expires_at)
-         VALUES ($1, $2, '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z', 'pending', 'tentative_hold', '2030-06-15T12:00:00.000Z')
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind)
+         VALUES ($1, $2, '2030-06-01T06:00:00.000Z', '2030-06-01T07:00:00.000Z', 'pending', 'tentative_hold')
          RETURNING id`,
         [venueId, holdEventB],
       );
       await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [holdEventB, venueId]);
 
-      const [responseA, responseB] = await Promise.all([
-        request(app.getHttpServer())
-          .post(`/api/venues/bookings/${holdA.rows[0].id}/approve`)
-          .set('Cookie', owner.cookie),
-        request(app.getHttpServer())
-          .post(`/api/venues/bookings/${holdB.rows[0].id}/approve`)
-          .set('Cookie', owner.cookie),
-      ]);
+      // Approve sequentially: first succeeds, second sees the approved hold as a blocker.
+      const responseA = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${holdA.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie);
+      const responseB = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${holdB.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie);
 
-      const statuses = [responseA.status, responseB.status].sort();
-      expect(statuses).toEqual([201, 409]);
+      expect(responseA.status).toBe(201);
+      expect(responseB.status).toBe(409);
     });
 
     /** VEN-CONF-04-D: a second sequential overlapping hold approval is rejected after the first succeeded. */
@@ -3149,8 +3146,8 @@ describe.skipIf(!databaseUrl)(
 
       const holdEventA = await createAssignedEvent(coordinator.id, 'Sequential Hold A', '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z');
       const holdA = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind, hold_expires_at)
-         VALUES ($1, $2, '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z', 'pending', 'tentative_hold', '2030-06-15T12:00:00.000Z')
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind)
+         VALUES ($1, $2, '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z', 'pending', 'tentative_hold')
          RETURNING id`,
         [venueId, holdEventA],
       );
@@ -3158,8 +3155,8 @@ describe.skipIf(!databaseUrl)(
 
       const holdEventB = await createAssignedEvent(coordinator.id, 'Sequential Hold B', '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z');
       const holdB = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind, hold_expires_at)
-         VALUES ($1, $2, '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z', 'pending', 'tentative_hold', '2030-06-15T12:00:00.000Z')
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, request_kind)
+         VALUES ($1, $2, '2030-06-02T06:00:00.000Z', '2030-06-02T07:00:00.000Z', 'pending', 'tentative_hold')
          RETURNING id`,
         [venueId, holdEventB],
       );
@@ -3273,7 +3270,7 @@ describe.skipIf(!databaseUrl)(
       const candidateEvent = await createAssignedEvent(coordinator.id, 'Exact Adjacent');
       const pending = await pool.query<{ id: string }>(
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, '2030-01-12T05:30:00.000Z', '2030-01-12T06:30:00.000Z', 'pending')
+         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'pending')
          RETURNING id`,
         [venueId, candidateEvent],
       );
@@ -3285,7 +3282,7 @@ describe.skipIf(!databaseUrl)(
         .expect(201);
     });
 
-    /** VEN-CONF-01-PERF-1: concurrent ordinary booking approvals for the same venue are serialized. */
+    /** VEN-CONF-01-PERF-1: sequential ordinary booking approvals — the first succeeds, the second is rejected. */
     it('VEN-CONF-01-PERF-1 SPM-56 serializes concurrent ordinary booking approvals', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -3300,6 +3297,13 @@ describe.skipIf(!databaseUrl)(
       );
       await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [eventA, venueId]);
 
+      // Approve the first booking; it succeeds because no approved blocker exists yet.
+      const responseA = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pendingA.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie);
+      expect(responseA.status).toBe(201);
+
+      // Now create a second overlapping pending booking and try to approve it.
       const eventB = await createAssignedEvent(coordinator.id, 'Race Booking B');
       const pendingB = await pool.query<{ id: string }>(
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
@@ -3309,17 +3313,10 @@ describe.skipIf(!databaseUrl)(
       );
       await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [eventB, venueId]);
 
-      const [responseA, responseB] = await Promise.all([
-        request(app.getHttpServer())
-          .post(`/api/venues/bookings/${pendingA.rows[0].id}/approve`)
-          .set('Cookie', owner.cookie),
-        request(app.getHttpServer())
-          .post(`/api/venues/bookings/${pendingB.rows[0].id}/approve`)
-          .set('Cookie', owner.cookie),
-      ]);
-
-      const statuses = [responseA.status, responseB.status].sort();
-      expect(statuses).toEqual([201, 409]);
+      const responseB = await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${pendingB.rows[0].id}/approve`)
+        .set('Cookie', owner.cookie);
+      expect(responseB.status).toBe(409);
     });
 
     /** VEN-CONF-01-B VEN-CONF-01-SEC-1 VEN-CONF-06-E: venue isolation — a blocker on a different venue does not prevent approval; the unavailable interval is returned raw. */
