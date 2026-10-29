@@ -3,7 +3,7 @@ ALTER TABLE event_flagged_changes
   DROP CONSTRAINT IF EXISTS event_flagged_changes_kind_check;
 ALTER TABLE event_flagged_changes
   ADD CONSTRAINT event_flagged_changes_kind_check
-  CHECK (kind IN ('booking_conflict', 'direct_update'));
+  CHECK (kind IN ('booking_conflict', 'direct_update', 'change_request'));
 
 ALTER TABLE event_flagged_changes
   DROP CONSTRAINT IF EXISTS event_flagged_changes_field_check;
@@ -13,15 +13,15 @@ ALTER TABLE event_flagged_changes
                    'expectedAttendance', 'layout', 'facilities', 'accessibility',
                    'equipmentNeeds'));
 
--- A direct update was never under review: it is Applied, affects no booking or
--- equipment arrangement, and the six booking-sensitive fields stay the only
--- ones that can ever be flagged.
+-- A direct update or an approved change request was never under review here:
+-- it is Applied and lists no booking or equipment impacts, and the six
+-- booking-sensitive fields stay the only ones that can ever be flagged.
 ALTER TABLE event_flagged_changes
   DROP CONSTRAINT IF EXISTS event_flagged_changes_direct_update_check;
 ALTER TABLE event_flagged_changes
   ADD CONSTRAINT event_flagged_changes_direct_update_check
   CHECK (
-    (kind = 'direct_update'
+    (kind IN ('direct_update', 'change_request')
        AND status = 'Applied'
        AND impacts = '[]'::jsonb
        AND equipment_impacts = '[]'::jsonb)

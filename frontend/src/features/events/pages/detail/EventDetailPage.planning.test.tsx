@@ -686,6 +686,39 @@ describe("EventDetailPage planning information (coordinator)", () => {
     },
   );
 
+  // SPM-156 EVENT-UPDATE-07-D: on a read-only (Confirmed) event the assigned
+  // coordinator still sees the change history, as a card of its own; while
+  // editing, the history appears once, inside the review panel.
+  it("EVENT-UPDATE-07-D shows the coordinator the change history on a read-only event, and only once while editing", async () => {
+    asCoordinator({
+      event: eventRecord({ status: "confirmed" }),
+      readOnly: true,
+      editableFields: [],
+      pendingChanges: [],
+    });
+    renderPage();
+    expect(
+      await screen.findByRole("heading", { name: "Change History" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("list", { name: /change history/i }),
+    ).toHaveLength(1);
+    cleanup();
+
+    asCoordinator();
+    renderPage();
+    await screen.findByRole("form", { name: /update event information/i });
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("list", { name: /change history/i }),
+      ).toHaveLength(1),
+    );
+    // The review panel's own sub-heading, not the standalone card.
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows People inside the approved planning Event Information, with no View Registrations button and no separate Event Details card", async () => {
     asCoordinator({
       event: eventRecord({ status: "approved" }),

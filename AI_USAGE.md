@@ -14,6 +14,10 @@ Add entries under one date per day, using this format:
 
 Where user is the user's github username.
 
+## 2026-10-29
+
+- general - fix - SPM-156 - Fix missing change history entry: Root cause: change history read only flagged changes, so every change applied without review was saved with no history entry (every update on an Approved event, direct updates on Planning events, and approved SPM-65 change requests). Added migration 026 (`direct_update` and `change_request` kinds, all ten fields, Applied-only check), `recordAppliedChanges` in the update and approval transactions, `kind`/`proposedBy` on GET history, "Updated directly" / "Change request approved" labels and the organiser's read-only Change History card. New cases EVENT-UPDATE-07-A to 07-E, 07-SEC-1 and HTTP-07 (Confluence folder "SPM-156 Fix missing change history entry" under SPM-16, with its own matrix; HTTP-07 on EVENT-UPDATE-HTTP); HTTP-06 and EVENT-FLAG-05-A updated. Updated coverage line rows that moved, removed `backend/HANDOVER.md` references and updated README/AGENTS. Local run (Node 22, PostgreSQL 16, init 001 to 026): backend unit and E2E and frontend event/utils suites pass; PLAN-STATUS-03-B (SPM-148) fails intermittently on unmodified dev as well. No test-workflow cycle, mutation run, or Test/Requirement/Code Quality review run. Delivered as two patches; nothing committed or pushed.
+
 ## 2026-10-28
 
 - swr - version control - SPM-159 - Prepare authorized correction commit: Included approved-hold state handling, null-expiry migration 025 and query fixes, regression/mutation evidence, test-record matching corrections and template-aligned PR description. Prior verification remains as recorded below; no new test run or independent gate claimed. Claude model/effort configuration changes excluded; no push or PR creation.

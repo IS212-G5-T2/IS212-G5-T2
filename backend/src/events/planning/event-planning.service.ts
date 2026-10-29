@@ -10,8 +10,9 @@
  * coordinator gets 404, exactly like a missing event, so existence never leaks
  * (same rule as EventsService.get, SPM-38 AC4).
  *
- * - SPM-156: every change applied immediately is also recorded in the change
- *   history (an Applied 'direct_update' row), in the same transaction.
+ * - SPM-156: every change applied without review is also recorded in the change
+ *   history, in the same transaction: an Applied 'direct_update' row here, and
+ *   an Applied 'change_request' row when a change request is approved (SPM-65).
  *
  * Routes and the history contract are documented in backend/README.md.
  */
@@ -264,14 +265,17 @@ export class EventPlanningService {
         // SPM-156: every change applied immediately gets a change history
         // entry, whatever the event's status (on an Approved event every
         // change is immediate, because nothing is booked yet).
-        await this.repository.recordDirectChanges(
+        await this.repository.recordAppliedChanges(
           eventId,
           immediate.map((field) => ({
             field,
             originalValue: event[field],
             newValue: current[field],
           })),
-          { name: displayName(user), id: user.uid },
+          {
+            kind: 'direct_update',
+            appliedBy: { name: displayName(user), id: user.uid },
+          },
           appliedAt,
         );
       }
@@ -408,7 +412,9 @@ export class EventPlanningService {
   /**
    * Resolved changes, newest first: original → proposed, who, when, status.
    * `kind` tells a reviewed change (SPM-85) from one applied immediately
-   * (SPM-49, recorded since SPM-156).
+   * (SPM-49) or by approving a change request (SPM-65); both recorded since
+   * SPM-156. `proposedBy` is who asked for the change: the coordinator, or the
+   * organiser for a change request.
    */
   async changeHistory(
     identity: AuthenticatedUser | undefined,
@@ -431,6 +437,7 @@ export class EventPlanningService {
         // The value the event ended up with after the decision.
         resolvedValue:
           row.status === 'Applied' ? row.proposedValue : row.originalValue,
+        proposedBy: row.proposedBy,
         resolvedBy: row.resolvedBy ?? '',
         resolvedAt: row.resolvedAt ?? '',
         status: row.status,

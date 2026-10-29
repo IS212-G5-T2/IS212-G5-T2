@@ -98,6 +98,17 @@ describe("PlanningUpdateForm", () => {
     expect(screen.getByTestId("last-change-description")).not.toHaveTextContent(/confirmed/);
   });
 
+  // SPM-156 EVENT-UPDATE-07-E: a field last changed by an approved change request says so.
+  it("EVENT-UPDATE-07-E describes a field changed by an approved change request", () => {
+    const history = [
+      { id: "c1", kind: "change_request" as const, field: "purpose", originalValue: "A", proposedValue: "B", resolvedValue: "B", proposedBy: "Demo Organiser", resolvedBy: "Coord Nine", resolvedAt: "2026-10-05T10:00:00.000Z", status: "Applied" as const },
+    ];
+    render(<PlanningUpdateForm event={eventRecord()} editableFields={EDITABLE_FIELDS} lastUpdatedAt={LAST_UPDATED} history={history} onSave={vi.fn()} />);
+    expect(screen.getByTestId("last-change-purpose")).toHaveTextContent(
+      "Last changed by Demo Organiser's change request, approved by Coord Nine on 5 Oct 2026, 6:00 pm.",
+    );
+  });
+
   // EVENT-UPDATE-03-A: only the fields the coordinator changed are sent.
   it("EVENT-UPDATE-03-A saves only the changed fields", async () => {
     const user = userEvent.setup();

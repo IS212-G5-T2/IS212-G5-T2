@@ -119,7 +119,7 @@ function makeRepo() {
     listHistory: vi.fn().mockResolvedValue([]),
     findChange: vi.fn().mockResolvedValue(undefined),
     safetyCheckExists: vi.fn().mockResolvedValue(false),
-    recordDirectChanges: vi.fn().mockResolvedValue(undefined),
+    recordAppliedChanges: vi.fn().mockResolvedValue(undefined),
     applyFields: vi.fn(
       async (_id: string, patch: Record<string, unknown>, now: Date) => ({
         ...eventRow(),
@@ -829,6 +829,7 @@ describe('SPM-85 flagged changes', () => {
       originalValue: 80,
       proposedValue: 150,
       resolvedValue: 150,
+      proposedBy: 'Coord Nine',
       resolvedBy: 'Coord Nine',
       resolvedAt: '2026-10-05T09:00:00.000Z',
       status: 'Applied',
@@ -842,7 +843,7 @@ describe('SPM-85 flagged changes', () => {
   });
 
   // EVENT-FLAG-07-A: AC7 — resolving one booking passes only that booking to the repository.
-  // NOTE: scoped-resolution semantics are an interpretation of the AC (backend/HANDOVER.md, rule 10); confirm with the team.
+  // NOTE: scoped-resolution semantics are an interpretation of the AC (assumption 5 in docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md); confirm with the team.
   it('EVENT-FLAG-07-A confirming for one booking resolves only that booking', async () => {
     repo.findChange.mockResolvedValue(
       flaggedChange({
@@ -1400,7 +1401,10 @@ describe('SPM-85 flagging: impacts are specific to the changed field', () => {
 });
 
 describe('SPM-156 change history for updates applied immediately', () => {
-  const by = { name: 'Coord Nine', id: 'coord-9' };
+  const by = {
+    kind: 'direct_update',
+    appliedBy: { name: 'Coord Nine', id: 'coord-9' },
+  };
 
   // EVENT-UPDATE-07-A: on an Approved event nothing is booked, so every update
   // applies immediately and each changed field gets a history entry.
@@ -1411,8 +1415,8 @@ describe('SPM-156 change history for updates applied immediately', () => {
       expectedAttendance: 120,
     });
     expect(result.applied).toEqual(['name', 'expectedAttendance']);
-    expect(repo.recordDirectChanges).toHaveBeenCalledTimes(1);
-    expect(repo.recordDirectChanges).toHaveBeenCalledWith(
+    expect(repo.recordAppliedChanges).toHaveBeenCalledTimes(1);
+    expect(repo.recordAppliedChanges).toHaveBeenCalledWith(
       EVENT_ID,
       [
         { field: 'name', originalValue: 'Welcome Evening', newValue: 'Welcome Night' },
@@ -1444,7 +1448,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     async (_label, patch) => {
       repo.findEvent.mockResolvedValue(eventRow({ status: 'Approved' }));
       const result = await service.updateEvent(coordinator(), EVENT_ID, patch);
-      const recorded = repo.recordDirectChanges.mock.calls[0][1] as Array<{
+      const recorded = repo.recordAppliedChanges.mock.calls[0][1] as Array<{
         field: string;
         newValue: unknown;
       }>;
@@ -1467,7 +1471,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     });
     expect(result.applied).toEqual(['expectedAttendance']);
     expect(result.flagged.map((c: { field: string }) => c.field)).toEqual(['layout']);
-    expect(repo.recordDirectChanges).toHaveBeenCalledWith(
+    expect(repo.recordAppliedChanges).toHaveBeenCalledWith(
       EVENT_ID,
       [{ field: 'expectedAttendance', originalValue: 80, newValue: 150 }],
       by,
@@ -1481,7 +1485,7 @@ describe('SPM-156 change history for updates applied immediately', () => {
     repo.listVenueBookings.mockResolvedValue([venueBooking()]);
     await service.updateEvent(coordinator(), EVENT_ID, { layout: 'Theatre' });
     await service.updateEvent(coordinator(), EVENT_ID, { name: 'Welcome Evening' });
-    expect(repo.recordDirectChanges).not.toHaveBeenCalled();
+    expect(repo.recordAppliedChanges).not.toHaveBeenCalled();
     expect(repo.createFlaggedChange).toHaveBeenCalledTimes(1);
   });
 
@@ -1494,14 +1498,14 @@ describe('SPM-156 change history for updates applied immediately', () => {
     await expect(
       service.updateEvent(coordinator(), EVENT_ID, { name: '  ' }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    expect(repo.recordDirectChanges).not.toHaveBeenCalled();
+    expect(repo.recordAppliedChanges).not.toHaveBeenCalled();
   });
 
   // EVENT-UPDATE-07-A: the history write is part of the update's transaction.
   it('EVENT-UPDATE-07-A fails the whole update when the history write fails', async () => {
     const runInTransaction = vi.fn(<T>(work: () => Promise<T>) => work());
     Object.assign(repo, { runInTransaction });
-    repo.recordDirectChanges.mockRejectedValueOnce(new Error('db down'));
+    repo.recordAppliedChanges.mockRejectedValueOnce(new Error('db down'));
     await expect(
       service.updateEvent(coordinator(), EVENT_ID, { name: 'Renamed' }),
     ).rejects.toThrow('db down');
@@ -1536,11 +1540,41 @@ describe('SPM-156 change history for updates applied immediately', () => {
       originalValue: 'Welcome Evening',
       proposedValue: 'Welcome Night',
       resolvedValue: 'Welcome Night',
+      proposedBy: 'Coord Nine',
       resolvedBy: 'Coord Nine',
       resolvedAt: '2026-10-05T11:00:00.000Z',
       status: 'Applied',
     });
     expect(history[1]).toMatchObject({ id: 'chg-1', kind: 'booking_conflict' });
+  });
+
+  // EVENT-UPDATE-07-E: a change applied by approving a change request is listed
+  // with its kind and the organiser who asked for it.
+  it('EVENT-UPDATE-07-E lists an approved change request with the organiser who proposed it', async () => {
+    repo.listHistory.mockResolvedValue([
+      flaggedChange({
+        id: 'cr-1',
+        kind: 'change_request',
+        field: 'description',
+        originalValue: 'Old',
+        proposedValue: 'New',
+        status: 'Applied',
+        proposedBy: 'Demo Organiser',
+        resolvedBy: 'Coord Nine',
+        resolvedAt: '2026-10-05T12:00:00.000Z',
+      }),
+    ]);
+    const history = await service.changeHistory(organiser(), EVENT_ID);
+    expect(history).toEqual([
+      expect.objectContaining({
+        kind: 'change_request',
+        field: 'description',
+        resolvedValue: 'New',
+        proposedBy: 'Demo Organiser',
+        resolvedBy: 'Coord Nine',
+        status: 'Applied',
+      }),
+    ]);
   });
 });
 

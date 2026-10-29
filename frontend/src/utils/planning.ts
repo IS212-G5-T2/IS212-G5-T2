@@ -55,10 +55,21 @@ export function fieldLabel(field: string): string {
 
 /**
  * SPM-156: how a change history entry came about, in words: "Updated directly"
- * for a change applied immediately, otherwise the review outcome.
+ * for a change applied immediately, "Change request approved" for a change
+ * applied by approving an organiser's request, otherwise the review outcome.
  */
 export function historyOutcome(entry: Pick<ChangeHistoryEntry, "kind" | "status">): string {
-  return entry.kind === "direct_update" ? "Updated directly" : entry.status;
+  if (entry.kind === "direct_update") return "Updated directly";
+  if (entry.kind === "change_request") return "Change request approved";
+  return entry.status;
+}
+
+/** SPM-156: the per-field note under the update form, e.g. "Last change confirmed by X". */
+export function lastChangeLabel(entry: Pick<ChangeHistoryEntry, "kind" | "status" | "proposedBy">): string {
+  if (entry.kind === "direct_update") return "Last changed";
+  if (entry.kind === "change_request")
+    return entry.proposedBy ? `Last changed by ${entry.proposedBy}'s change request, approved` : "Last changed by a change request, approved";
+  return `Last change ${entry.status === "Applied" ? "confirmed" : "rejected"}`;
 }
 
 /** Human-readable value for any planning field; dates in Singapore time with am/pm. */

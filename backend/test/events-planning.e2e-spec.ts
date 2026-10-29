@@ -811,8 +811,8 @@ describe.skipIf(!database)(
       ]);
     });
 
-    // SPM-156: the database refuses a direct update that is not Applied, and a
-    // flagged change to a field that can never affect a booking.
+    // SPM-156: the database refuses a direct update or change request that is
+    // not Applied, and a flagged change to a field that can never affect a booking.
     it('EVENT-UPDATE-07-SEC-1 rejects malformed history rows in the database', async () => {
       const insert = (kind: string, field: string, status: string) =>
         db.query(
@@ -826,6 +826,9 @@ describe.skipIf(!database)(
       ).rejects.toMatchObject({ code: '23514' });
       await expect(
         insert('booking_conflict', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('change_request', 'name', 'Needs Review'),
       ).rejects.toMatchObject({ code: '23514' });
       await expect(
         insert('other', 'name', 'Needs Review'),

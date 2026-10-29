@@ -136,9 +136,11 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 
 **Left uncovered in the unit run, with reasons**
 
-- `event-planning.service.ts` lines 727 and 750–751, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
-- `event-planning.service.ts` line 93 and `event-planning.repository.ts` line 167: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
-- `EventDetailPage.tsx` lines 138 and 154, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
+Line numbers as of SPM-156 (29 Oct 2026); the same rows are kept in `docs/test-cases/workflow/coverage-line-status.md` and `coverage-exclusions.md`.
+
+- `event-planning.service.ts` lines 802–803, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
+- `event-planning.service.ts` line 103 and `event-planning.repository.ts` line 203: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
+- `EventDetailPage.tsx` lines 159 and 175, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
 - Other uncovered branches in `EventDetailPage.tsx` belong to other stories and are left to their owners (see SPM-141).
 
 ### HTTP route tests
@@ -157,23 +159,24 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 
 Removing `EventPlanningController` from the authentication middleware's routes fails 5 of these 6 tests.
 
-### Cases added by SPM-156 (change history for updates applied immediately)
+### Cases added by SPM-156 (change history for every change applied without review)
 
-Defect: an update the coordinator applied immediately was saved but never written to the change history, because history was built only from flagged changes. It showed on every update to an Approved event (nothing is booked yet, so every update applies immediately) and on direct updates to Planning events. Fix: each field applied immediately is recorded as an Applied `direct_update` row in the same transaction (migration 026), the history response carries `kind`, the form and history list say "Updated directly" / "Last changed" instead of "confirmed", and the owning organiser sees the history read-only.
+Defect: an update the coordinator applied immediately was saved but never written to the change history, because history was built only from flagged changes. It showed on every update to an Approved event (nothing is booked yet, so every update applies immediately) and on direct updates to Planning events. Fix: each field applied immediately is recorded as an Applied `direct_update` row in the same transaction (migration 026), the history response carries `kind`, the form and history list say "Updated directly" / "Last changed" instead of "confirmed", and the owning organiser sees the history read-only. A change applied by approving an organiser's change request (SPM-65) is recorded the same way as an Applied `change_request` row, proposed by the organiser and applied by the coordinator; a denied request records nothing.
 
 | Case | Story / AC | Scenario | Automated by |
 | --- | --- | --- | --- |
 | EVENT-UPDATE-07-A | SPM-49 AC3, AC5, AC6 | Update on an Approved event: one Applied history entry per changed field (field, old and new value, coordinator, time equal to `updatedAt`); every AC5 field group; a refused update records nothing; a failed history write fails the whole update | `event-planning.service.spec.ts`, `event-planning.repository.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
 | EVENT-UPDATE-07-B | SPM-49 AC5, SPM-85 AC6 | Planning event with bookings: the compatible change is recorded directly, the flagged one only once confirmed or rejected; nothing changed or everything flagged writes no direct entry | `event-planning.service.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
 | EVENT-UPDATE-07-C | SPM-49 AC5, SPM-85 AC6 | History tells a direct update ("Updated directly", "Last changed by") from a reviewed change ("Applied"/"Rejected", "Last change confirmed/rejected by") | `event-planning.service.spec.ts`, `ChangeHistoryList.test.tsx`, `PlanningUpdateForm.test.tsx`, `planning.test.ts` |
-| EVENT-UPDATE-07-D | SPM-97 AC2 (SPM-156) | The owning organiser sees the Change History card read-only, including direct updates; no empty card when nothing is recorded | `EventDetailPage.planning.test.tsx` |
-| EVENT-UPDATE-07-SEC-1 | SPM-156 | The database refuses a direct update that is not Applied, a flagged change to a field that cannot affect a booking, and an unknown kind | `events-planning.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-07-D | SPM-97 AC2 (SPM-156) | The owning organiser sees the Change History card read-only, including direct updates; no empty card when nothing is recorded; the assigned coordinator sees the same card on a read-only (Confirmed) event, and the history only once while editing | `EventDetailPage.planning.test.tsx` |
+| EVENT-UPDATE-07-E | SPM-49 AC6, SPM-65 AC4 (SPM-156) | Approving a change request records each field whose value changes as an Applied `change_request` entry (organiser as proposer, coordinator as approver, time equal to `updatedAt`), unchanged values are left out, a failed history write fails the approval, a denial records nothing; the list reads "Change request approved (requested by …)" and the form "Last changed by …'s change request, approved by …" | `change-request-review.service.spec.ts`, `event-planning.service.spec.ts`, `event-planning.repository.spec.ts`, `change-request-review.e2e-spec.ts` (PostgreSQL), `ChangeHistoryList.test.tsx`, `PlanningUpdateForm.test.tsx`, `planning.test.ts` |
+| EVENT-UPDATE-07-SEC-1 | SPM-156 | The database refuses a direct update or change request that is not Applied, a flagged change to a field that cannot affect a booking, and an unknown kind | `events-planning.e2e-spec.ts` (PostgreSQL) |
 
-Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 026) on 29 Oct 2026: backend unit (all suites), backend E2E (all suites) and the frontend event and utils suites PASS. The new 07-A/07-B/07-C service tests fail on `dev` before the fix.
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 026) on 29 Oct 2026: backend unit 1915/1915, frontend 1912 passed (1 skipped, 1 todo), backend E2E 773 passed (19 skipped) with one failure in PLAN-STATUS-03-B (SPM-148, `events-planning-transition.e2e-spec.ts`), which also fails intermittently on unmodified `dev` and passed on rerun. The new 07-A/07-B/07-C service tests and the 07-E approval tests (unit and PostgreSQL) fail before the fix and pass after it. Migration 026 was applied over its earlier version and then re-run, without error.
 
 ## Assumptions behind the expected results
 
-The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assumptions". The ones that decide an expected result, and that the team should confirm, are:
+`backend/HANDOVER.md`, which this section used to point to, is not in the repository; the rules below are the authoritative list, with the reasoning kept in the header comments of `backend/src/events/planning/` (`event-planning.service.ts`, `helpers/event-impact.ts`, `dto/event-update-input.ts`). The ones that decide an expected result, and that the team should confirm, are:
 
 1. **Planning phase.** `Approved` and `Planning` events can be viewed and edited; `Confirmed` events can be viewed but nobody can edit them; any other status returns 409.
 2. **Field policy (impact-based).** Event name, purpose, description and accessibility needs always apply immediately. Date/time, attendance, venue requirements (layout + facilities) and equipment requirements apply immediately when the new value stays compatible with every active venue booking and equipment arrangement, and are flagged "Needs Review" only when incompatible with at least one. Compatible means: attendance within each booked capacity; a time inside the window each booking holds (and the event's current window when equipment is reserved); facilities only removed; equipment requirements changed while no equipment is reserved. **Confirm in Jira** that this is the intended reading of "does not affect bookings" (SPM-49 AC3/AC5) rather than "nothing is booked".
@@ -185,7 +188,7 @@ The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assum
 7. **One open review per field**, and values identical to the stored value are ignored.
 8. **Privacy.** The organiser sees that a change is pending, but never the impact detail, which names other organisers' events.
 9. **Live updates.** The frontend polls every 15 seconds while the tab is visible; there is no push channel.
-10. **Bookings and placeholders.** Venue bookings come from SPM-124's `venue_bookings` table (statuses mapped as described in `backend/HANDOVER.md`); `equipment_reservations` is still a minimal placeholder until the equipment story lands.
+10. **Bookings and placeholders.** Venue bookings come from SPM-124's `venue_bookings` table (statuses mapped as described in `listVenueBookings` in `backend/src/events/planning/event-planning.repository.ts`); `equipment_reservations` is still a minimal placeholder until the equipment story lands.
 
 ## Not covered by automated tests
 

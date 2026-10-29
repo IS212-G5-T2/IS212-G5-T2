@@ -1,7 +1,8 @@
 /*
  * Change history of an event's information during planning: every change the
- * assigned coordinator applied immediately (SPM-49, recorded since SPM-156) and
- * every flagged change that was confirmed or rejected (SPM-85 AC6), newest
+ * assigned coordinator applied immediately (SPM-49) or by approving an
+ * organiser's change request (SPM-65), both recorded since SPM-156, and every
+ * flagged change that was confirmed or rejected (SPM-85 AC6), newest
  * first, with the original and resulting values, who and when. Read-only;
  * shown to the assigned coordinator and to the owning organiser.
  */
@@ -37,8 +38,11 @@ export function ChangeHistoryList({
             </span>
           </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">
-            <span className="font-medium">{historyOutcome(entry)}</span> by{" "}
-            {entry.resolvedBy} ·{" "}
+            <span className="font-medium">{historyOutcome(entry)}</span>
+            {entry.kind === "change_request" && entry.proposedBy
+              ? ` (requested by ${entry.proposedBy})`
+              : ""}{" "}
+            by {entry.resolvedBy} ·{" "}
             <time dateTime={entry.resolvedAt}>
               {formatSgtDateTime(entry.resolvedAt)}
             </time>

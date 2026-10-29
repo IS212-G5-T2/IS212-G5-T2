@@ -51,6 +51,34 @@ describe("ChangeHistoryList", () => {
     );
   });
 
+  // EVENT-UPDATE-07-E: an approved change request names the organiser who asked and the coordinator who approved.
+  it("EVENT-UPDATE-07-E labels an approved change request with who asked and who approved", () => {
+    render(
+      <ChangeHistoryList
+        history={[
+          entry({
+            id: "c1",
+            kind: "change_request",
+            field: "description",
+            originalValue: "Old",
+            proposedValue: "New",
+            proposedBy: "Demo Organiser",
+          }),
+          entry({ id: "c2", kind: "change_request", proposedBy: undefined }),
+        ]}
+      />,
+    );
+    const items = within(
+      screen.getByRole("list", { name: /change history/i }),
+    ).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Description: Old → New");
+    expect(items[0]).toHaveTextContent(
+      "Change request approved (requested by Demo Organiser) by Coord Nine",
+    );
+    // Without a proposer the entry still reads correctly.
+    expect(items[1]).toHaveTextContent("Change request approved by Coord Nine");
+  });
+
   it("EVENT-UPDATE-07-C says when nothing is recorded yet", () => {
     render(<ChangeHistoryList history={[]} />);
     expect(screen.getByText("No changes recorded yet.")).toBeInTheDocument();
