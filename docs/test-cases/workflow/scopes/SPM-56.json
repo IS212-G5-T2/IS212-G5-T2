@@ -42,6 +42,7 @@
       "backend/src/venues/repository/venues.repository.ts"
     ],
     "frontend": [
+      "frontend/src/features/bookings/pages/requests/BookingsPage.tsx",
       "frontend/src/features/bookings/pages/requests/BookingDetailModal.tsx"
     ]
   },

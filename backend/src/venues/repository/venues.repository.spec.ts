@@ -2291,18 +2291,50 @@ describe('SPM-55 venue booking review repository', () => {
     expect(audits[0][1]).toEqual([bookingId, staffId]);
   });
 
-  /** VEN-REV-02-B: approval refuses a slot that an approved booking or blockout already holds, and does not change the request. */
-  it('SPM-55 AC2 refuses approval when an approved booking or blockout overlaps the slot', async () => {
+  /** VEN-CONF-01-A, VEN-CONF-03-A, VEN-CONF-06-A/C: approval reports every confirmed booking overlap with its complete setup/event/turnaround interval. */
+  it('VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals', async () => {
     const { repository, query } = createReviewRepository(
       ownedRow,
       venueLockRow,
       bookingLockRow,
-      { rows: [{ reason: 'Lecture Series' }] },
+      {
+        rows: [
+          {
+            id: 'approved-1', reason: 'Lecture Series', kind: 'booking',
+            start_at: new Date('2030-01-12T03:20:00.000Z'),
+            end_at: new Date('2030-01-12T04:00:00.000Z'),
+            occupied_start: new Date('2030-01-12T02:50:00.000Z'),
+            occupied_end: new Date('2030-01-12T04:45:00.000Z'),
+            status: 'approved', hold_expires_at: null,
+          },
+          {
+            id: 'hold-1', reason: 'Tentative Event', kind: 'booking',
+            start_at: new Date('2030-01-12T04:45:00.000Z'),
+            end_at: new Date('2030-01-12T05:45:00.000Z'),
+            occupied_start: new Date('2030-01-12T04:15:00.000Z'),
+            occupied_end: new Date('2030-01-12T06:30:00.000Z'),
+            status: 'pending', hold_expires_at: new Date('2030-01-12T03:00:00.000Z'),
+          },
+        ],
+      },
     );
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
       kind: 'conflict',
       reason: 'Lecture Series',
+      conflicts: [
+        {
+          id: 'approved-1', reason: 'Lecture Series', kind: 'booking',
+          start: '2030-01-12T03:20:00.000Z', end: '2030-01-12T04:00:00.000Z',
+          occupiedStart: '2030-01-12T02:50:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z', status: 'approved',
+        },
+        {
+          id: 'hold-1', reason: 'Tentative Event', kind: 'booking',
+          start: '2030-01-12T04:45:00.000Z', end: '2030-01-12T05:45:00.000Z',
+          occupiedStart: '2030-01-12T04:15:00.000Z', occupiedEnd: '2030-01-12T06:30:00.000Z',
+          status: 'pending', holdExpiresAt: '2030-01-12T03:00:00.000Z',
+        },
+      ],
     });
     expect(query).toHaveBeenCalledTimes(4);
     const [sql, params] = query.mock.calls[3] as [string, unknown[]];
@@ -2324,6 +2356,7 @@ describe('SPM-55 venue booking review repository', () => {
     expect(normalized).toContain(
       "b.end_at + make_interval(mins => $5::int) > $2::timestamptz - make_interval(mins => $4::int)",
     );
+    expect(normalized).toContain('ORDER BY occupied_start, occupied_end, id');
     expect(normalized).not.toMatch(/<=|>=/);
     // The booking being approved is excluded from its own conflict check, and setup/turnaround keep their order.
     // The seventh parameter is the injected clock, so hold expiry is judged at the approval instant, not at SQL now().
@@ -2376,6 +2409,7 @@ describe('SPM-55 venue booking review repository', () => {
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toEqual({
       kind: 'conflict',
       reason: 'The event is now inside the 336-hour lead-time minimum for a tentative hold.',
+      conflicts: [],
     });
     expect(query).toHaveBeenCalledTimes(3);
     expect(query.mock.calls.some(([sql]) => String(sql).includes("SET status = 'approved'"))).toBe(false);
