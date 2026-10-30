@@ -125,7 +125,9 @@ export class EquipmentRequestsRepository {
           [row.event_id, item.equipmentName, item.quantity, savedItem.rows[0].id],
         );
       }
-      await client.query('UPDATE equipment_requests SET updated_at = $2::timestamptz WHERE id = $1::uuid', [requestId, this.clock.now()]);
+      // SPM-58: a changed request must be re-checked, so it returns to the Technical
+      // Support review queue (any prior Reserved/Cannot Provide decision no longer applies).
+      await client.query("UPDATE equipment_requests SET status = 'Pending Review', updated_at = $2::timestamptz WHERE id = $1::uuid", [requestId, this.clock.now()]);
       return { kind: 'updated' as const, id: row.id };
     });
   }

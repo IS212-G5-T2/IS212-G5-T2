@@ -169,7 +169,7 @@ describe('SPM-57 equipment request persistence', () => {
       expect.stringContaining('FOR UPDATE OF r, e'),
       expect.stringContaining('DELETE FROM equipment_request_items WHERE request_id'),
       expect.stringContaining('INSERT INTO equipment_reservations'),
-      expect.stringContaining('UPDATE equipment_requests SET updated_at'),
+      expect.stringContaining("UPDATE equipment_requests SET status = 'Pending Review', updated_at"),
     ]));
     expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE r.id = $1::uuid AND e.coordinator_id = $2::text'), [requestId, coordinatorId]);
     expect(query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO equipment_reservations')).every(([sql]) => sql.includes('equipment_request_item_id'))).toBe(true);
