@@ -1,17 +1,15 @@
 /*
- * The attendee's event view (AttendeeEventView) and its footer. Each test builds its times with the local Date
- * constructor, so the same expectations hold in every host time zone (see scripts/testing/tz-matrix.mjs). The clock is
- * faked for Date only. Oracles are the spec's rules: local time, "To be announced", no internal status, and the footer
- * states from the registration window.
+ * The attendee's event view (AttendeeEventView). Each test builds its times with the local Date constructor, so the
+ * same expectations hold in every host time zone (see scripts/testing/tz-matrix.mjs). The clock is faked for Date only.
+ * Oracles are the spec's rules: local time, "To be announced", and no internal status. The register action and its
+ * states live in RegistrationSection (one register box), tested in RegistrationSection.merged.test.tsx.
  */
-import { useState } from "react";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AttendeeEventView } from "./AttendeeEventView";
 import {
   accessibilityIcon,
-  attendeeAction,
   attendeeBadge,
   deadlineValue,
   formatAttendeeDate,
@@ -19,14 +17,10 @@ import {
   formatDeadline,
   venueText,
 } from "@/features/events/lib/attendeeEventView";
-import { RegistrationSection } from "./registration/RegistrationSection";
-import { useAppStore } from "@/store/useAppStore";
-import type { EventAttachment, EventRecord, Registration, User } from "@/types";
+import type { EventAttachment, EventRecord } from "@/types";
 
 const local = (year: number, month: number, day: number, hour = 0, minute = 0) =>
   new Date(year, month - 1, day, hour, minute).toISOString();
-
-const ATTENDEE: User = { id: "att-1", name: "Attendee", email: "attendee@example.com", role: "attendee" };
 
 /** An open event: registration from 1 Oct, deadline 5 Nov 23:59 local, event on 12 Nov 8:00am to 5:00pm. */
 function baseEvent(overrides: Partial<EventRecord> = {}): EventRecord {
@@ -62,34 +56,9 @@ function baseEvent(overrides: Partial<EventRecord> = {}): EventRecord {
 /** The clock for every test: 16 Oct 2026, 10:00 local, between the opening and the deadline. */
 const NOW = new Date(2026, 9, 16, 10, 0);
 
-function renderView(event: EventRecord, registration?: Registration, handlers: Partial<Parameters<typeof AttendeeEventView>[0]> = {}) {
-  const onRegister = vi.fn();
-  const onJoinWaitlist = vi.fn();
-  const onViewAttachment = vi.fn();
-  render(
-    <AttendeeEventView
-      event={event}
-      registration={registration}
-      onRegister={onRegister}
-      onJoinWaitlist={onJoinWaitlist}
-      onViewAttachment={onViewAttachment}
-      {...handlers}
-    />,
-  );
-  return { onRegister, onJoinWaitlist, onViewAttachment };
-}
-
-function registration(status: Registration["status"]): Registration {
-  return {
-    id: "REG-1",
-    eventId: "EVT-900",
-    attendeeId: ATTENDEE.id,
-    attendeeName: ATTENDEE.name,
-    status,
-    registeredAt: local(2026, 10, 3, 9, 0),
-    fullName: ATTENDEE.name,
-    email: ATTENDEE.email,
-  } as Registration;
+function renderView(event: EventRecord, onViewAttachment = vi.fn()) {
+  render(<AttendeeEventView event={event} onViewAttachment={onViewAttachment} />);
+  return { onViewAttachment };
 }
 
 beforeEach(() => {
@@ -141,6 +110,14 @@ describe("attendee view: key facts", () => {
     expect(screen.queryByText("Register by")).not.toBeInTheDocument();
   });
 
+  // Kills: AV-DEADLINE-PASSED (the Register by item keeps a date after the deadline has passed)
+  it("shows Registration closed in the Register by item once the deadline has passed", () => {
+    vi.setSystemTime(new Date(2026, 10, 6, 9, 0));
+    renderView(baseEvent());
+
+    expect(within(screen.getByText("Register by").parentElement!).getByText("Registration has closed")).toBeInTheDocument();
+  });
+
   // Kills: AV-DATE-SPAN (a multi-day event is shown as one day with the first date)
   it("shows both dates when the event runs over more than one day", () => {
     renderView(baseEvent({ startDateTime: local(2026, 11, 12, 8, 0), endDateTime: local(2026, 11, 13, 17, 0) }));
@@ -151,87 +128,39 @@ describe("attendee view: key facts", () => {
   });
 });
 
-describe("attendee view: deadline and button states", () => {
-  // Kills: AV-BUTTON-ENABLED-AFTER-DEADLINE (the register button is enabled once the deadline has passed)
-  it("shows Registration closed and disables the button once the deadline has passed", () => {
+describe("attendee view: registration label on a confirmed event", () => {
+  // Kills: AV-LABEL-OPEN (the open window shows no Registration open label)
+  it("shows Registration open while the registration window is open", () => {
+    renderView(baseEvent({ status: "confirmed" }));
+    expect(screen.getByText("Registration open")).toBeInTheDocument();
+    expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
+  });
+
+  // Kills: AV-LABEL-CLOSED (the passed deadline shows no Registration closed label)
+  it("shows Registration closed once the deadline has passed", () => {
     vi.setSystemTime(new Date(2026, 10, 6, 9, 0));
-    renderView(baseEvent());
-
-    expect(within(screen.getByText("Register by").parentElement!).getByText("Registration closed")).toBeInTheDocument();
-    const button = screen.getByRole("button", { name: "Register for this event" });
-    expect(button).toBeDisabled();
-    expect(screen.getByText("Registration closed", { selector: "p" })).toBeInTheDocument();
+    renderView(baseEvent({ status: "confirmed" }));
+    expect(screen.getByText("Registration closed")).toBeInTheDocument();
+    expect(screen.queryByText("Registration open")).not.toBeInTheDocument();
   });
 
-  // Kills: AV-REGISTER-ENABLED-WHEN-FULL (a full event leaves the register button enabled)
-  it("disables the register button with a reason when the event is full", () => {
-    renderView(baseEvent({ availableRegistrationSpots: 0, isFull: true, waitlistAvailable: false }));
-
-    expect(screen.getByRole("button", { name: "Register for this event" })).toBeDisabled();
-    expect(screen.getByText("This event is full.")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Join waitlist" })).not.toBeInTheDocument();
+  // Kills: AV-LABEL-SOON (registration not enabled, or not yet open, shows no opening-soon label)
+  it("shows Registration opening soon when registration is not enabled or has not started", () => {
+    renderView(baseEvent({ status: "confirmed", registrationEnabled: false }));
+    expect(screen.getByText("Registration opening soon")).toBeInTheDocument();
   });
 
-  // Kills: AV-FULL-NO-WAITLIST-BUTTON (Join waitlist hidden on a full event that has a waitlist)
-  it("offers Join waitlist on a full event whose waitlist is available, and calls onJoinWaitlist", async () => {
-    const user = userEvent.setup();
-    const { onJoinWaitlist, onRegister } = renderView(
-      baseEvent({ availableRegistrationSpots: 0, isFull: true, waitlistAvailable: true }),
-    );
-
-    expect(screen.getByRole("button", { name: "Register for this event" })).toBeDisabled();
-    expect(screen.getByText("This event is full.")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Join waitlist" }));
-    expect(onJoinWaitlist).toHaveBeenCalledTimes(1);
-    expect(onRegister).not.toHaveBeenCalled();
-  });
-
-  // Kills: AV-NOT-YET-OPEN-REASON (the helper text omits the opening time)
-  it("disables the button and gives the opening time as the reason before registration opens", () => {
+  it("shows Registration opening soon before the opening time", () => {
     vi.setSystemTime(new Date(2026, 9, 10, 9, 0));
-    renderView(baseEvent({ registrationOpensAt: local(2026, 10, 20, 10, 0) }));
-
-    expect(screen.getByRole("button", { name: "Register for this event" })).toBeDisabled();
-    expect(screen.getByText("Registration opens 20 Oct 2026, 10:00am")).toBeInTheDocument();
+    renderView(baseEvent({ status: "confirmed", registrationOpensAt: local(2026, 10, 20, 10, 0) }));
+    expect(screen.getByText("Registration opening soon")).toBeInTheDocument();
+    expect(screen.queryByText("Registration open")).not.toBeInTheDocument();
   });
 
-  // Kills: AV-REGISTER-NOT-WIRED (the register button does nothing when clicked)
-  it("calls onRegister when the register button is clicked on an open event", async () => {
-    const user = userEvent.setup();
-    const { onRegister } = renderView(baseEvent());
-
-    await user.click(screen.getByRole("button", { name: "Register for this event" }));
-
-    expect(onRegister).toHaveBeenCalledTimes(1);
-  });
-
-  // Kills: AV-REGISTER-SHOWN-REGISTERED (the footer and register button remain for a registered attendee)
-  it("hides the footer and the register button for an attendee who is already registered", () => {
-    renderView(baseEvent(), registration("registered"));
-
-    expect(screen.queryByRole("button", { name: "Register for this event" })).not.toBeInTheDocument();
-    expect(screen.queryByText("Ready to attend?")).not.toBeInTheDocument();
-  });
-
-  // Kills: AV-REGISTER-SHOWN-REGISTERED (the footer remains for a waitlisted attendee)
-  it("hides the footer for an attendee who is on the waitlist or has withdrawn", () => {
-    const { unmount } = render(
-      <AttendeeEventView event={baseEvent()} registration={registration("waitlisted")} onRegister={() => undefined} onJoinWaitlist={() => undefined} onViewAttachment={() => undefined} />,
-    );
-    expect(screen.queryByRole("button", { name: "Register for this event" })).not.toBeInTheDocument();
-    unmount();
-    render(
-      <AttendeeEventView event={baseEvent()} registration={registration("withdrawn")} onRegister={() => undefined} onJoinWaitlist={() => undefined} onViewAttachment={() => undefined} />,
-    );
-    expect(screen.queryByRole("button", { name: "Register for this event" })).not.toBeInTheDocument();
-  });
-
-  // Kills: AV-REGISTRATION-OFF-FOOTER (a footer leads into registration that is switched off)
-  it("shows no footer when registration through the website is not enabled", () => {
-    renderView(baseEvent({ registrationEnabled: false }));
-
-    expect(screen.queryByText("Ready to attend?")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Register for this event" })).not.toBeInTheDocument();
+  // Kills: AV-LABEL-EVENT-CONFIRMED (the event's own confirmed label is shown instead of the registration label)
+  it("never shows an Event confirmed label", () => {
+    renderView(baseEvent({ status: "confirmed" }));
+    expect(screen.queryByText("Event confirmed")).not.toBeInTheDocument();
   });
 });
 
@@ -318,19 +247,6 @@ describe("attendee view: content rules", () => {
 
     expect(screen.queryByRole("heading", { name: "Event programme" })).not.toBeInTheDocument();
   });
-
-  // Kills: AV-FOOTER-COORDINATOR (the coordinator sentence is shown with no coordinator)
-  it("names the organiser in the footer, and the coordinator when one is assigned", () => {
-    renderView(baseEvent({ coordinatorName: "Daniel Koh" }));
-    expect(screen.getByText("Organised by Events Office. Questions go to Daniel Koh.")).toBeInTheDocument();
-  });
-
-  // Kills: AV-FOOTER-COORDINATOR (the coordinator sentence is shown with no coordinator)
-  it("omits the coordinator sentence when no coordinator is assigned", () => {
-    renderView(baseEvent({ coordinatorName: undefined }));
-    expect(screen.getByText("Organised by Events Office.")).toBeInTheDocument();
-    expect(screen.queryByText(/Questions go to/)).not.toBeInTheDocument();
-  });
 });
 
 describe("attendee view: helpers (local time, no time zone assumed)", () => {
@@ -353,17 +269,6 @@ describe("attendee view: helpers (local time, no time zone assumed)", () => {
     );
   });
 
-  // Kills: AV-BUTTON-ENABLED-AFTER-DEADLINE (the action ignores the deadline)
-  it("gives no register action at or after the deadline, and a register action one minute before it", () => {
-    const event = baseEvent({ registrationClosesAt: local(2026, 11, 5, 23, 59) });
-    expect(attendeeAction(event, new Date(2026, 10, 5, 23, 58))).toEqual({ kind: "register" });
-    expect(attendeeAction(event, new Date(2026, 10, 5, 23, 59))).toEqual({
-      kind: "disabled",
-      reason: "Registration closed",
-      waitlistAvailable: false,
-    });
-  });
-
   // Kills: AV-STATUS-BADGE-MAP (the badge maps the lifecycle label to the wrong value)
   it("maps the event's times to upcoming, ongoing and ended, with cancelled reading as ended", () => {
     const event = baseEvent();
@@ -379,37 +284,11 @@ describe("attendee view: helpers (local time, no time zone assumed)", () => {
   });
 });
 
-describe("attendee view: the footer's register action reaches the form", () => {
-  /** The footer and RegistrationSection wired together, as EventDetailPage wires them. */
-  function Harness({ event }: { event: EventRecord }) {
-    const [registerSignal, setRegisterSignal] = useState(0);
-    const [joinSignal, setJoinSignal] = useState(0);
-    return (
-      <>
-        <AttendeeEventView
-          event={event}
-          onRegister={() => setRegisterSignal((count) => count + 1)}
-          onJoinWaitlist={() => setJoinSignal((count) => count + 1)}
-          onViewAttachment={() => undefined}
-        />
-        <RegistrationSection
-          event={event}
-          currentUser={ATTENDEE}
-          registerSignal={registerSignal}
-          joinSignal={joinSignal}
-        />
-      </>
-    );
-  }
-
-  // Kills: RS-REGISTER-NOT-FOCUSED (the form opens but focus stays on the footer button)
-  it("opens the registration form and moves focus to its first field when the footer button is clicked", async () => {
-    useAppStore.setState({ registrations: [] });
-    const user = userEvent.setup();
-    render(<Harness event={baseEvent()} />);
-
-    await user.click(screen.getByRole("button", { name: "Register for this event" }));
-
-    expect(await screen.findByRole("textbox", { name: /full name/i })).toHaveFocus();
+describe("attendee view: a full event still reads Registration open", () => {
+  // Kills: AV-LABEL-FULL (a full event shows Registration closed although its window is open)
+  it("shows Registration open when every place is taken but the window is open", () => {
+    renderView(baseEvent({ status: "confirmed", availableRegistrationSpots: 0, isFull: true }));
+    expect(screen.getByText("Registration open")).toBeInTheDocument();
+    expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
   });
 });

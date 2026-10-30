@@ -74,6 +74,8 @@ The CI unit-test entrypoint is [scripts/ci/unit-test.sh](scripts/ci/unit-test.sh
 
 - SPM-138 waiting list lives in `src/registrations/waitlist/` (settle, promotion, position, the close job, the cancel releaser and the reopen hook). Waiting entries are `event_registrations` rows; the join route is `POST /api/events/:eventId/waitlist`. `test/registrations.waitlist.e2e-spec.ts` needs `DATABASE_URL` with `database/postgresql/init` 001 to 016 plus `backend/migrations/011`. Fault-injection check: `node scripts/mutation/run.mjs --mutants spm138.mutants.mjs`. The cancel releaser is not wired until SPM-136.
 
+- SPM-139 registration settings live in `src/registrations/settings/` (`GET`/`PUT /api/events/:id/registration-settings`, assigned coordinator only). The pure rules are in `registration-settings.validation.ts`; the save takes the event row lock and reuses `settleLocked` and `fillFreeSpots`. `registrationWindowState` returns `disabled` for a switched-off Confirmed event; every new registration or join path must map it to `REGISTRATION_DISABLED`. `test/registration-settings.e2e-spec.ts` needs `DATABASE_URL` with `database/postgresql/init` 001 to 024.
+
 ## Venues boundary
 
 - `src/venues` owns SPM-50 `POST /api/venues` creation, SPM-124 `GET /api/venues` and `GET /api/venues/:id` reads, and SPM-122 Venue Staff unavailable-period creation and early ending. Any role with the `Venue` read permission can access the shared catalogue and detail records. `GET /api/venues?mine=true` is an optional session-derived owner filter; creation requires `Venue` create permission and uses the verified user as owner.

@@ -250,7 +250,6 @@ Note (SPM-150 product-owner decision, AC5 Isolation cell): VEN-AVL-05-B is a SUP
 
 
 ## SPM-56
-
 | AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | AC1 | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-BND-1) | PRESENT (VEN-CONF-01-A) | N/A (no configurable parameter) | PRESENT (VEN-CONF-01-A) | PRESENT (VEN-CONF-01-B, VEN-CONF-01-SEC-1) | PRESENT (VEN-CONF-01-SEC-1) | PRESENT (VEN-CONF-01-PERF-1) |
@@ -260,11 +259,24 @@ Note (SPM-150 product-owner decision, AC5 Isolation cell): VEN-AVL-05-B is a SUP
 | AC5 | PRESENT (VEN-CONF-05-A) | PRESENT (VEN-CONF-05-B) | PRESENT (VEN-CONF-05-BND-1) | PRESENT (VEN-CONF-05-A, VEN-CONF-05-C) | N/A (expiry is hold data) | PRESENT (VEN-CONF-05-A, VEN-CONF-05-B) | N/A (venue isolation is AC1) | N/A (role is AC1) | N/A (expiry check is deterministic) |
 | AC6 | PRESENT (VEN-CONF-06-A, VEN-CONF-06-B, VEN-CONF-06-C, VEN-CONF-06-D) | N/A (display criterion; no refusal path) | N/A (no numeric limit) | PRESENT (VEN-CONF-06-A, VEN-CONF-06-B, VEN-CONF-06-C, VEN-CONF-06-D) | N/A (no setting) | N/A (display only) | PRESENT (VEN-CONF-06-E) | N/A (role is AC1) | N/A (no concurrency rule) |
 ## SPM-156
-
 Rows are the Definition of Done items of Jira SPM-156 (DoD2 to DoD11, as numbered on Confluence matrix 38010922) and the follow-up items 1 to 4 (FU1 to FU4) recorded in Jira comment 10105 and the matrix's follow-up rows. DoD1 (root cause recorded) and DoD10 (Confluence cases) are documentation, not tests. Migrations 026 and 027 are tested and mutated through their `backend/migrations` copies; the `database/postgresql/init` copies must stay identical below the header (checked by hand at each change, not by a test). Rollback of a failed migration is recorded under Concurrency, as for the EVENT-UPDATE-07-A update rollback.
 
+## SPM-139
 | AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
 |---|---|---|---|---|---|---|---|---|---|
+| AC1 | PRESENT (CONFIG-REG-01-A) | PRESENT (CONFIG-REG-01-D) | N/A (on/off has no numeric limit) | PRESENT (CONFIG-REG-01-B) | PRESENT (CONFIG-REG-01-C, CONFIG-REG-01-E) | PRESENT (CONFIG-REG-01-F) | N/A (one event per save) | PRESENT (CONFIG-REG-01-D) | N/A (no shared state on/off) |
+| AC2 | PRESENT (CONFIG-REG-02-A) | PRESENT (CONFIG-REG-02-D) | PRESENT (CONFIG-REG-02-C) | PRESENT (CONFIG-REG-02-A) | PRESENT (CONFIG-REG-02-B) | PRESENT (CONFIG-REG-02-C) | N/A (dates are per event) | N/A (same protection as AC1) | N/A (single save) |
+| AC3 | PRESENT (CONFIG-REG-03-A, CONFIG-REG-03-B) | PRESENT (CONFIG-REG-03-C) | PRESENT (CONFIG-REG-03-B) | N/A (venue capacity is AC11) | N/A (no configurable parameter beyond capacity) | PRESENT (CONFIG-REG-03-B) | N/A (per event) | N/A (no new authorisation) | N/A (single save) |
+| AC4 | PRESENT (CONFIG-REG-04-A) | PRESENT (CONFIG-REG-04-B, CONFIG-REG-04-E) | N/A (no numeric boundary) | PRESENT (CONFIG-REG-04-C) | N/A (fixed status list) | PRESENT (CONFIG-REG-04-D) | N/A (per event) | PRESENT (CONFIG-REG-04-B, CONFIG-REG-04-E) | N/A (status is read under the lock, covered by AC8) |
+| AC5 | PRESENT (CONFIG-REG-05-A) | PRESENT (CONFIG-REG-05-B, CONFIG-REG-05-C) | PRESENT (CONFIG-REG-05-C, CONFIG-REG-05-D) | N/A (single field rule) | N/A (fixed rule) | N/A (no state beyond AC4) | N/A (per event) | N/A (same protection as AC1) | N/A (single save) |
+| AC6 | PRESENT (CONFIG-REG-06-A) | PRESENT (CONFIG-REG-06-B, CONFIG-REG-06-D) | PRESENT (CONFIG-REG-06-C) | N/A (AC5 and AC6 apply to the same field, covered by AC5) | N/A (fixed rule) | PRESENT (CONFIG-REG-X-01, CONFIG-REG-X-02) | N/A (per event) | N/A (same protection as AC1) | N/A (single save) |
+| AC7 | PRESENT (CONFIG-REG-07-A) | PRESENT (CONFIG-REG-07-B, CONFIG-REG-07-C) | PRESENT (CONFIG-REG-07-D) | N/A (single field rule) | PRESENT (CONFIG-REG-07-C) | N/A (no state) | N/A (per event) | N/A (same protection as AC1) | N/A (single save) |
+| AC8 | PRESENT (CONFIG-REG-08-A) | PRESENT (CONFIG-REG-08-C) | PRESENT (CONFIG-REG-08-B) | N/A (waiting list rules are AC9) | N/A (fixed rule) | PRESENT (CONFIG-REG-08-E) | N/A (per event) | N/A (same protection as AC1) | PRESENT (CONFIG-REG-08-D) |
+| AC9 | PRESENT (CONFIG-REG-09-A, CONFIG-REG-09-E) | PRESENT (CONFIG-REG-09-F) | PRESENT (CONFIG-REG-09-B, CONFIG-REG-09-H) | PRESENT (CONFIG-REG-09-G) | N/A (fixed rule) | PRESENT (CONFIG-REG-09-I) | N/A (per event) | N/A (no new authorisation) | PRESENT (CONFIG-REG-09-G) |
+| AC10 | PRESENT (CONFIG-REG-10-A) | PRESENT (CONFIG-REG-10-C) | N/A (no numeric boundary) | PRESENT (CONFIG-REG-10-B) | N/A (fixed rule) | PRESENT (CONFIG-REG-10-A, CONFIG-REG-10-B) | N/A (per event) | N/A (no new authorisation) | N/A (single switch) |
+| Cross-cutting | PRESENT (CONFIG-REG-11-A) | PRESENT (CONFIG-REG-11-C) | PRESENT (CONFIG-REG-11-B) | PRESENT (CONFIG-REG-11-B) | N/A (no configuration) | N/A (no state beyond AC1) | N/A (per event) | PRESENT (CONFIG-REG-11-C) | N/A (no shared state) |
+## SPM-156
+Rows are the Definition of Done items of Jira SPM-156 (DoD2 to DoD11, as numbered on Confluence matrix 38010922) and the follow-up items 1 to 4 (FU1 to FU4) recorded in Jira comment 10105 and the matrix's follow-up rows. DoD1 (root cause recorded) and DoD10 (Confluence cases) are documentation, not tests. Migrations 026 and 027 are tested and mutated through their `backend/migrations` copies; the `database/postgresql/init` copies must stay identical below the header (checked by hand at each change, not by a test). Rollback of a failed migration is recorded under Concurrency, as for the EVENT-UPDATE-07-A update rollback.
 | DoD2 | PRESENT (EVENT-UPDATE-07-A, EVENT-UPDATE-HTTP-07) | PRESENT (EVENT-UPDATE-07-A) | N/A (no numeric limit; every field group is covered under Happy) | PRESENT (EVENT-UPDATE-HTTP-07) | N/A (no configuration) | PRESENT (EVENT-UPDATE-07-A) | N/A (history rows are per event) | N/A (authorization unchanged; owned by SPM-49 EVENT-UPDATE-HTTP cases) | PRESENT (EVENT-UPDATE-07-A) |
 | DoD3 | PRESENT (EVENT-UPDATE-07-E) | PRESENT (EVENT-UPDATE-07-E) | PRESENT (EVENT-UPDATE-07-E) | PRESENT (EVENT-UPDATE-07-E) | N/A (no configuration) | PRESENT (EVENT-UPDATE-07-E) | N/A (history rows are per event) | N/A (review authorization owned by SPM-65) | PRESENT (EVENT-UPDATE-07-E) |
 | DoD4 | PRESENT (EVENT-UPDATE-07-D, EVENT-UPDATE-HTTP-07) | PRESENT (EVENT-UPDATE-07-D) | N/A (no numeric limit) | PRESENT (EVENT-UPDATE-07-D) | N/A (no configuration) | PRESENT (EVENT-UPDATE-07-D) | PRESENT (EVENT-UPDATE-07-D) | PRESENT (EVENT-UPDATE-HTTP-07) | PRESENT (EVENT-UPDATE-07-D) |

@@ -39,6 +39,6 @@ export const MUTANTS = [
     id: 'FE-119-06', name: 'reactivation cancel confirms the update',
     file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.tsx', suites: ['availability'],
     testMappings: [{ suite: 'availability', file: 'src/features/equipment/pages/availability/EquipmentAvailabilityPage.test.tsx', title: 'SPM-119 AC6 cancels reactivation without updating equipment' }],
-    edits: [['          onConfirm={() => void handleReactivate()}\n          onCancel={() => setDialog(null)}', '          onConfirm={() => void handleReactivate()}\n          onCancel={() => void handleReactivate()}']],
+    edits: [['          onConfirm={() => void handleReactivate(dialog.record)}\n          onCancel={() => setDialog(null)}', '          onConfirm={() => void handleReactivate(dialog.record)}\n          onCancel={() => void handleReactivate(dialog.record)}']],
   },
 ];

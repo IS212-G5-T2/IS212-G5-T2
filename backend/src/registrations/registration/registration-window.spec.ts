@@ -4,7 +4,7 @@
  * exclusive at close (D6).
  */
 import { describe, expect, it } from 'vitest';
-import { isRegistrationOpen } from './registration-window.js';
+import { isRegistrationOpen, registrationWindowState } from './registration-window.js';
 
 const opensAt = new Date('2030-01-10T02:00:00.000Z');
 const closesAt = new Date('2030-01-20T02:00:00.000Z');
@@ -40,6 +40,21 @@ describe('EVENT-REG-01-BND-1: the opening boundary and the open-state rules', ()
   });
 });
 
+// SPM-139 F5: a disabled registration reports its own state, distinct from closed.
+describe('SPM-139 F5: the disabled state', () => {
+  it('CONFIG-REG-01-B: reports disabled, not closed, when the coordinator has switched registration off', () => {
+    expect(registrationWindowState({ ...event, registrationEnabled: false }, at(1000))).toBe('disabled');
+  });
+  // Guards the precedence of the status check over the disabled check (M29 removes the status check).
+  it('CONFIG-REG-11-A: reports closed, not disabled, for a switched-off event that is not Confirmed', () => {
+    expect(registrationWindowState({ ...event, status: 'Approved', registrationEnabled: false }, at(1000))).toBe('closed');
+  });
+  it('CONFIG-REG-11-A: still reports closed for an enabled event outside the window', () => {
+    expect(registrationWindowState(event, at(-1000))).toBe('not_open');
+    expect(registrationWindowState(event, closesAt)).toBe('closed');
+  });
+});
+
 // EVENT-REG-02-BND-1: the closing boundary
 describe('EVENT-REG-02-BND-1: the closing boundary', () => {
   // [C] one minute before the closing instant, registration is still accepted (open side of the close boundary).
@@ -49,5 +64,15 @@ describe('EVENT-REG-02-BND-1: the closing boundary', () => {
   // [D] the closing instant is already closed (exclusive).
   it('[D] exactly at the closing instant, registration is closed', () => {
     expect(isRegistrationOpen(event, closesAt)).toBe(false);
+  });
+});
+
+// The one predicate every caller uses: true only inside an open, enabled, Confirmed window.
+describe('SPM-139 isRegistrationOpen: plain cases (mutation mapping)', () => {
+  // Kills: isRegistrationOpen returning the wrong comparison (open for a switched-off or closed window)
+  it('CONFIG-REG-02-C: isRegistrationOpen is true only inside an open, enabled, Confirmed window', () => {
+    expect(isRegistrationOpen(event, at(1000))).toBe(true);
+    expect(isRegistrationOpen({ ...event, registrationEnabled: false }, at(1000))).toBe(false);
+    expect(isRegistrationOpen(event, at(-1000))).toBe(false);
   });
 });

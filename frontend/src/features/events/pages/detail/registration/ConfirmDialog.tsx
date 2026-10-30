@@ -9,6 +9,8 @@ interface ConfirmDialogProps {
   variant: ConfirmVariant;
   /** Leave-waitlist only: the place in line that is given up (the warning box states it). */
   position?: number | null;
+  /** Withdraw only: registration has closed, so withdrawing ends the chance to register again (the warning box says so). */
+  registrationClosed?: boolean;
   /** True while the withdrawal request is in flight. */
   pending: boolean;
   /** A failure to show inside the dialog (announced as an alert); empty when none. The dialog stays open. */
@@ -47,7 +49,7 @@ const placeWarning = (position: number | null | undefined) =>
  * request is pending both buttons are disabled, the danger button shows a loading state, and Escape does nothing. Focus
  * returns to whatever opened the dialog when it closes.
  */
-export function ConfirmDialog({ variant, position, pending, error, onConfirm, onCancel }: ConfirmDialogProps) {
+export function ConfirmDialog({ variant, position, registrationClosed = false, pending, error, onConfirm, onCancel }: ConfirmDialogProps) {
   const titleId = useId();
   const bodyId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -122,6 +124,11 @@ export function ConfirmDialog({ variant, position, pending, error, onConfirm, on
               {variant === "leave-waitlist" && (
                 <p className="rounded-lg bg-danger-50 px-3 py-2 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300">
                   {placeWarning(position)}
+                </p>
+              )}
+              {variant === "withdraw" && registrationClosed && (
+                <p className="rounded-lg bg-danger-50 px-3 py-2 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300">
+                  Registration has closed, and you will no longer be able to register again for the event.
                 </p>
               )}
             </div>

@@ -42,6 +42,7 @@ import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelE
 import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
 import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
+import { RegistrationSettingsForm } from "@/features/events/pages/detail/registration/RegistrationSettingsForm";
 import { RegistrationsModal } from "@/features/registrations/components/report/RegistrationsModal";
 import { canViewRegistrationReport } from "@/features/registrations/lib/registrationReport";
 
@@ -122,9 +123,6 @@ export function EventDetailPage() {
 
   const [comments, setComments] = useState<EventComment[]>([]);
   const [commentsError, setCommentsError] = useState("");
-  // The attendee footer's requests, forwarded to RegistrationSection (a counter per request).
-  const [registerSignal, setRegisterSignal] = useState(0);
-  const [joinSignal, setJoinSignal] = useState(0);
 
   const [registrationsOpen, setRegistrationsOpen] = useState(false);
   const [reviewNotice, setReviewNotice] = useState("");
@@ -565,11 +563,33 @@ export function EventDetailPage() {
         <PlanningInformationPage
           view={planningView}
           status={event.status}
+          registrationPeriodSet={Boolean(event.registrationOpensAt && event.registrationClosesAt)}
+          // SPM-139: the registration dates and capacity can be set from approval through confirmation, in their own tab.
+          registration={
+            ["approved", "planning", "confirmed"].includes(event.status) ? (
+              <>
+                <RegistrationSettingsForm
+                  eventId={event.id}
+                  startDateTime={event.startDateTime}
+                  status={event.status}
+                  onSaved={refreshEvent}
+                />
+                {event.status === "confirmed" && canViewRegistrationReport(currentUser, event) && (
+                  <div className="mt-4">
+                    <Button variant="secondary" size="sm" onClick={() => setRegistrationsOpen(true)}>
+                      View Registrations
+                    </Button>
+                  </div>
+                )}
+              </>
+            ) : undefined
+          }
           refreshError={planningError}
           people={
             <EventPeople
               event={event}
-              canViewRegistrations={canViewRegistrationReport(currentUser, event)}
+              // Confirmed events show View Registrations in the Registration tab instead.
+              canViewRegistrations={canViewRegistrationReport(currentUser, event) && event.status !== "confirmed"}
               onViewRegistrations={() => setRegistrationsOpen(true)}
               showLastUpdated={false}
             />
@@ -644,9 +664,6 @@ export function EventDetailPage() {
         {!planningView && currentUser.role === "attendee" && (
           <AttendeeEventView
             event={event}
-            registration={myRegistration}
-            onRegister={() => setRegisterSignal((count) => count + 1)}
-            onJoinWaitlist={() => setJoinSignal((count) => count + 1)}
             onViewAttachment={(attachment) => openAttachmentPreview(attachment.dataUrl, attachment.type)}
           />
         )}
@@ -751,8 +768,6 @@ export function EventDetailPage() {
             currentUser={currentUser}
             registration={myRegistration}
             onWithdrawn={refreshEvent}
-            registerSignal={registerSignal}
-            joinSignal={joinSignal}
           />
         )}
 

@@ -9,7 +9,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RegistrationSection } from "./RegistrationSection";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
-import { formatSgt } from "@/features/events/lib/registration";
 import type { EventRecord, Registration, User } from "@/types";
 import { ATT_01, T0, buildEvent, buildPastEvent, buildRegistration, withdrawalResponse } from "./withdrawal.fixtures";
 
@@ -72,14 +71,14 @@ describe("EVENT-REG-01-A/B/C: register button only while open (AC1)", () => {
   it("01-B not yet open: no button, shows the opening time in SGT", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(2 * HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: `Registration opens on ${formatSgt(iso(2 * HOUR))}` })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has not started" })).toBeInTheDocument();
   });
   // EVENT-REG-01-C
   // 01-C[A]: after the close time there is no button, only status text.
   it("01-C[A] closed by time: no button, closed text", () => {
     renderSection({ ...baseEvent, registrationOpensAt: iso(-48 * HOUR), registrationClosesAt: iso(-HOUR) });
     expect(registerButton()).not.toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
   });
   // EVENT-REG-01-C
   // 01-C[B]: manual close needs a schema field that does not exist (D17).
@@ -131,7 +130,7 @@ describe("SPM-61 registration heading states (design)", () => {
   // State 3: closed: "Closed on" replaces "Closes", Available is dropped, no button.
   it("State 3: closed shows Closed on, drops Available, hides Register", () => {
     renderSection(withCloses(iso(-HOUR), { registrationOpensAt: iso(-48 * HOUR) }));
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
     expect(screen.getByText("Closed on")).toBeInTheDocument();
     expect(screen.queryByText("Closes")).not.toBeInTheDocument();
     expect(screen.queryByText("Available")).not.toBeInTheDocument();
@@ -140,7 +139,7 @@ describe("SPM-61 registration heading states (design)", () => {
   // Not yet open: MSG-02 heading in SGT, Register hidden.
   it("not yet open shows the opening time and hides Register", () => {
     renderSection(withCloses(closesOn("2030-06-10"), { registrationOpensAt: "2030-06-03T01:00:00.000Z" }));
-    expect(screen.getByRole("heading", { name: "Registration opens on 3 Jun 2030, 09:00 SGT" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has not started" })).toBeInTheDocument();
     expect(registerButton()).not.toBeInTheDocument();
   });
   // Singular spot count.
@@ -812,7 +811,7 @@ describe("SPM-61 registration details: remaining form and availability branches 
   // Kills: a "Closed on" row shown for a closed event that has no closing time.
   it("omits the Closed on row for a closed event with no closing time", () => {
     renderSection({ ...baseEvent, status: "cancelled", registrationClosesAt: undefined });
-    expect(screen.getByText("Registration closed")).toBeInTheDocument();
+    expect(screen.getByText("Registration has closed")).toBeInTheDocument();
     expect(screen.queryByText("Closed on")).not.toBeInTheDocument();
   });
 
@@ -892,5 +891,38 @@ describe("VIEW-REG-DET-03-D (AC3, A-NULL): a legacy record without a name or ema
     renderSection(baseEvent, { ...created, attendeeName: "", fullName: "", email: "" });
     expect(within(screen.getByText("Full name").parentElement!).getByText("Not provided")).toBeInTheDocument();
     expect(within(screen.getByText("Email").parentElement!).getByText("Not provided")).toBeInTheDocument();
+  });
+});
+
+// SPM-139 one register box: the status, the organiser, the Register action and the form all sit in this card.
+describe("one register box (the merged attendee card)", () => {
+  // Kills: RS-ORGANISER-LINE-MISSING (the organiser and coordinator sentence is dropped with the footer)
+  it("names the organiser, and the coordinator when one is assigned", () => {
+    renderSection({ ...baseEvent, coordinatorName: "Daniel Koh" });
+    expect(screen.getByText("Organised by O. Questions go to Daniel Koh.")).toBeInTheDocument();
+  });
+
+  // Kills: RS-TWO-REGISTER-BUTTONS (a second Register action appears beside the first)
+  it("shows exactly one Register button on an open event", () => {
+    renderSection();
+    expect(screen.getAllByRole("button", { name: "Register" })).toHaveLength(1);
+  });
+
+  // Kills: RS-REGISTER-NOT-FOCUSED (the form opens but focus stays on the Register button)
+  it("moves focus to the form's first field when Register is clicked", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    renderSection();
+    await user.click(registerButton()!);
+    expect(await screen.findByRole("textbox", { name: /full name/i })).toHaveFocus();
+  });
+});
+
+// Registration switched off midway: an attendee who already holds a place keeps seeing it.
+describe("registration disabled after the attendee registered", () => {
+  // Kills: RS-DISABLED-HIDES-REGISTRANT (the registrant sees only "Registration has not started")
+  it("keeps the registrant's registration visible and shows no not-started heading", () => {
+    renderSection({ ...baseEvent, registrationEnabled: false }, created);
+    expect(screen.queryByText("Registration has not started")).not.toBeInTheDocument();
+    expect(screen.getByText("You\'re registered")).toBeInTheDocument();
   });
 });

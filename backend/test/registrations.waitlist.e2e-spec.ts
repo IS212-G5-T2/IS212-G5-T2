@@ -1358,7 +1358,11 @@ describe.skipIf(!database)('SPM-138 join waitlist (e2e, PostgreSQL)', () => {
       expect(await statusOf(eventId, a5.uid)).toBe('Removed');
       const refused = await join(eventId, a6, {});
       expect(refused.status).toBe(422);
-      expect(refused.body).toMatchObject({ code: 'registration_closed', message: MSG_01 });
+      // SPM-139 F5: a manual close is a disabled registration, so the join is refused with REGISTRATION_DISABLED.
+      expect(refused.body).toMatchObject({
+        code: 'REGISTRATION_DISABLED',
+        message: 'Registration is not available for this event.',
+      });
       expect((await event(eventId, a6).expect(200)).body.registrationOpen).toBe(false);
     });
 

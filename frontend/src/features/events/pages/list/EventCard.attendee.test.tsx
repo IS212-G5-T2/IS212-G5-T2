@@ -8,7 +8,7 @@
  */
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventCard } from "@/features/events/pages/list/EventCard";
 import { buildGala } from "@/features/events/pages/detail/registration/waitlist.fixtures";
 import type { EventRecord } from "@/types";
@@ -31,21 +31,32 @@ describe("CARD-BADGE-09: a registration on a cancelled event shows the red Cance
 });
 
 describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a registration", () => {
-  // Kills: BADGE-M1
-  it("CARD-BADGE-01-A-STATE: an unregistered attendee sees no Confirmed badge on a Confirmed event", () => {
+  // The event's own label is "Event confirmed", never the registration's "Confirmed".
+  it("CARD-BADGE-01-A-STATE: an unregistered attendee sees a registration label, and no event status, on a Confirmed event", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true });
 
+    expect(screen.queryByText("Event confirmed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
+    expect(screen.getByText(/^Registration (open|closed)$/)).toBeInTheDocument();
+  });
+
+  // An approved event is internal workflow state: no attendee label.
+  it("CARD-BADGE-01-B-STATE: an unregistered attendee sees no label on an Approved event", () => {
+    renderCard(buildGala({ status: "approved" }), { attendeeView: true });
+
+    expect(screen.queryByText("Event confirmed")).not.toBeInTheDocument();
+    expect(screen.queryByText("Approved")).not.toBeInTheDocument();
+  });
+
+  // Kills: BADGE-M4
+  it("CARD-BADGE-02-A-STATE: a registered attendee sees no Confirmed label", () => {
+    renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "registered" });
+
+    expect(screen.getByText("Registered")).toBeInTheDocument();
     expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
-  // Kills: BADGE-M1, BADGE-M4, F13
-  it("CARD-BADGE-02-A-STATE: a registered attendee sees exactly one Confirmed badge", () => {
-    renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "registered" });
-
-    expect(screen.getAllByText("Confirmed")).toHaveLength(1);
-  });
-
-  // Kills: BADGE-M1, BADGE-M4, F12
+  // Kills: BADGE-M4, F12
   it("CARD-BADGE-03-A-STATE: a waitlisted attendee sees Waitlisted and no Confirmed badge", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "waitlisted" });
 
@@ -53,7 +64,7 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
     expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
-  // Kills: BADGE-M1, BADGE-M4
+  // Kills: BADGE-M4
   it("CARD-BADGE-04-A-STATE: a withdrawn attendee sees Withdrawn and no Confirmed badge", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "withdrawn" });
 
@@ -63,12 +74,12 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
 });
 
 describe("CARD-BADGE-05 to 07: the attendee card keeps the Completed and Cancelled event badges", () => {
-  // Kills: BADGE-M2, BADGE-M4, F13
+  // Kills: BADGE-M2, BADGE-M4
   it("CARD-BADGE-06-A-STATE: a completed event keeps its Completed badge for an attendee", () => {
     renderCard(buildGala({ status: "completed" }), { attendeeView: true, registrationStatus: "registered" });
 
     expect(screen.getByText("Completed")).toBeInTheDocument();
-    expect(screen.getAllByText("Confirmed")).toHaveLength(1);
+    expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
   // Kills: BADGE-M2
@@ -93,5 +104,30 @@ describe("CARD-BADGE-08: the non-attendee view is unchanged", () => {
     renderCard(buildGala({ status: "approved" }));
 
     expect(screen.getByText("Approved")).toBeInTheDocument();
+  });
+});
+
+// The registration label follows the window, not the clock: the dates here are far in the past or the future.
+describe("CARD-BADGE-01-C/D: the registration label on a confirmed event", () => {
+  // The label reads the clock; it is frozen here so the window check never depends on the real date.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-18T04:00:00Z") });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Kills: BADGE-LABEL-SWAP (open and closed labels swapped)
+  it("CARD-BADGE-01-C-STATE: an open window reads Registration open", () => {
+    renderCard(buildGala({ status: "confirmed", registrationEnabled: true, registrationOpensAt: "2000-01-01T00:00:00Z", registrationClosesAt: "2099-01-01T00:00:00Z", availableRegistrationSpots: 5 }), { attendeeView: true });
+    expect(screen.getByText("Registration open")).toBeInTheDocument();
+    expect(screen.queryByText("Registration closed")).not.toBeInTheDocument();
+  });
+
+  // Kills: BADGE-LABEL-SWAP (closed window shown as open)
+  it("CARD-BADGE-01-D-STATE: a closed window reads Registration closed", () => {
+    renderCard(buildGala({ status: "confirmed", registrationEnabled: true, registrationOpensAt: "2000-01-01T00:00:00Z", registrationClosesAt: "2000-01-02T00:00:00Z", availableRegistrationSpots: 5 }), { attendeeView: true });
+    expect(screen.getByText("Registration closed")).toBeInTheDocument();
+    expect(screen.queryByText("Registration open")).not.toBeInTheDocument();
   });
 });

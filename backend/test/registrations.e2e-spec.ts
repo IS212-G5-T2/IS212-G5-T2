@@ -163,11 +163,12 @@ describe.skipIf(!database)('SPM-61 event registration (e2e, PostgreSQL)', () => 
     });
     // [B] manual close by organiser: the event schema has no manual-close field (D17).
     it.todo('[B] Blocked: no manual_close_at field exists in the events schema (D17)');
-    // Registration disabled on the event is treated as closed.
-    it('registration disabled -> 422 registration_closed', async () => {
+    // SPM-139 F5: a disabled registration is its own state, answered with REGISTRATION_DISABLED.
+    it('registration disabled -> 422 REGISTRATION_DISABLED', async () => {
       const id = await seedEvent({ enabled: false });
       const { cookie } = await createUser('ATTENDEE');
-      await post(id, cookie).expect(422);
+      const res = await post(id, cookie).expect(422);
+      expect(res.body).toMatchObject({ code: 'REGISTRATION_DISABLED', message: 'Registration is not available for this event.' });
     });
   });
 

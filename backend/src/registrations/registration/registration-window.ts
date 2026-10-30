@@ -11,12 +11,17 @@ export interface RegistrationWindow {
 
 export const ATTENDEE_VISIBLE_STATUSES = ['Confirmed', 'Completed', 'Cancelled'] as const;
 
-export type WindowState = 'open' | 'not_open' | 'closed';
+/**
+ * 'disabled' (SPM-139 F5): the coordinator has switched registration off. It is kept distinct from 'closed' so the
+ * API can answer REGISTRATION_DISABLED rather than the closed message.
+ */
+export type WindowState = 'open' | 'not_open' | 'closed' | 'disabled';
 
 /** Classifies why registration is (not) available at the given instant. */
 export function registrationWindowState(event: RegistrationWindow, now: Date): WindowState {
-  // Only published (Approved/Confirmed) events with registration enabled accept registrations.
-  if (!event.registrationEnabled || event.status !== 'Confirmed') return 'closed';
+  // Only published (Confirmed) events take registrations. Any other status stays 'closed', as before SPM-139.
+  if (event.status !== 'Confirmed') return 'closed';
+  if (!event.registrationEnabled) return 'disabled';
   const instant = now.getTime();
   if (event.opensAt && instant < event.opensAt.getTime()) return 'not_open';
   if (event.closesAt && instant >= event.closesAt.getTime()) return 'closed';

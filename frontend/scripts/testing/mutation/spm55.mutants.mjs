@@ -45,7 +45,7 @@ export const MUTANTS = [
     name: 'the venue review time window is formatted in UTC instead of Singapore time',
     file: FORMAT,
     suites: ['formatSingapore'],
-    edits: [['timeZone: "Asia/Singapore",', 'timeZone: "UTC",']],
+    edits: [['formatSingaporeRange(start: string, end: string): string {\n  const formatter = new Intl.DateTimeFormat("en-SG", {\n    timeZone: "Asia/Singapore",', 'formatSingaporeRange(start: string, end: string): string {\n  const formatter = new Intl.DateTimeFormat("en-SG", {\n    timeZone: "UTC",']],
   },
   {
     id: 'VEN-REV-M08',
@@ -60,7 +60,7 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'staffBookings.filter((b) => !statusFilter || b.status === statusFilter)',
+        'staffBookings.filter((b) => !staffStatusFilter || b.status === staffStatusFilter)',
         'staffBookings.filter(() => true)',
       ],
     ],
@@ -78,8 +78,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        '? { ...b, status: outcome.status, rejectionReason: outcome.reason }',
-        '? b',
+        'setStaffBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? { ...b, status: outcome.status, rejectionReason: outcome.reason, holdExpiresAt: outcome.holdExpiresAt, holdExpired: false }',
+        'setStaffBookings((prev) =>\n            prev.map((b) =>\n              b.id === outcome.id\n                ? b',
       ],
     ],
   },
@@ -122,7 +122,7 @@ export const MUTANTS = [
         title: 'SPM-55 AC1 shows both the staff review list and the coordinator bookings to a user with both roles',
       },
     ],
-    edits: [['{coordinator &&\n        (coordinatorFiltered.length === 0 ? (', '{coordinator && !staff &&\n        (coordinatorFiltered.length === 0 ? (']],
+    edits: [['{coordinator && (\n        <>\n          <div className="mb-4 max-w-xs">', '{coordinator && !staff && (\n        <>\n          <div className="mb-4 max-w-xs">']],
   },
   {
     id: 'VEN-REV-M44',

@@ -271,7 +271,7 @@ describe("EventDetailPage attendee registration", () => {
 
     await screen.findByRole("heading", { name: disabledEvent.name });
     expect(
-      screen.getByText("Registration through the website is not enabled for this event."),
+      screen.getByText("Registration has not started"),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Register" })).not.toBeInTheDocument();
     expect(
@@ -328,7 +328,7 @@ describe("EventDetailPage attendee registration", () => {
     freezeTime("2027-02-01T00:00:00.000Z");
     const beforeOpen = renderEventDetail();
     await screen.findByRole("heading", { name: scheduledEvent.name });
-    expect(screen.getByRole("heading", { name: "Registration opens on 1 Mar 2027, 09:00 SGT" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has not started" })).toBeInTheDocument();
     expect(within(screen.getByText("Closes").parentElement!).getByText("12 Mar 2027, 23:59")).toBeInTheDocument();
     beforeOpen.unmount();
 
@@ -357,7 +357,7 @@ describe("EventDetailPage attendee registration", () => {
     renderEventDetail();
 
     expect(await screen.findByRole("heading", { name: closedEvent.name })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Registration closed" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Registration has closed" })).toBeInTheDocument();
     expect(within(screen.getByText("Closed on").parentElement!).getByText("15 Oct 2020, 07:59")).toBeInTheDocument();
     expect(screen.queryByText("Closes")).not.toBeInTheDocument();
     expect(screen.queryByText("Available")).not.toBeInTheDocument();
@@ -371,17 +371,17 @@ describe("EventDetailPage attendee registration", () => {
     [
       "not-yet-open",
       { registrationOpensAt: "2099-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration opens on 1 Oct 2099, 17:00 SGT",
+      "Registration has not started",
     ],
     [
       "cancelled",
       { status: "cancelled" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration closed",
+      "Registration has closed",
     ],
     [
       "completed",
       { status: "completed" as const, registrationOpensAt: "2020-10-01T09:00:00.000Z", registrationClosesAt: "2099-10-14T23:59:00.000Z" },
-      "Registration closed",
+      "Registration has closed",
     ],
   ])("shows the correct %s registration heading and hides Register", async (_scenario, overrides, heading) => {
     const unavailableEvent = { ...event, ...overrides };

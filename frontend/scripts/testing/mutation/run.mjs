@@ -17,6 +17,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symli
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { executedLines, titlePattern } from './title-pattern.mjs';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -95,7 +96,7 @@ const run = (suite, mapping, extra = []) =>
   spawnSync(process.execPath, [
     join(scratch, 'node_modules/vitest/vitest.mjs'),
     ...SUITES[suite].args,
-    ...(mapping ? ['--reporter=verbose', '--testNamePattern', mapping.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')] : []),
+    ...(mapping ? ['--reporter=verbose', '--testNamePattern', titlePattern(mapping.title)] : []),
     ...extra,
   ], {
     cwd: scratch,
@@ -170,7 +171,8 @@ try {
               continue;
             }
             const result = run(mapping.suite, mapping);
-            if (!outputOf(result).includes(mapping.title)) {
+            // A title with an it.each placeholder selects its expanded tests; at least one must have run (a skipped test is not a run).
+            if (!executedLines(outputOf(result), mapping.title).length) {
               emptyMappings.push(`${mapping.suite}: zero tests selected for ${mapping.title}`);
             } else if (result.status !== 0) {
               by.push(`${mapping.suite}: ${mapping.title}`);

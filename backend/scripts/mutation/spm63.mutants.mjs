@@ -37,7 +37,7 @@ export const MUTANTS = [
   { id: 'M6a', name: 'service backstop 401 -> 403 (equivalent: the authentication middleware answers 401 first)', file: SERVICE, equivalent: true,
     edits: [["    if (!identity?.uid) throw new UnauthorizedException('Authentication required.');\n    this.requireEventId(eventId);\n\n    const found", "    if (!identity?.uid) throw new ForbiddenException('Authentication required.');\n    this.requireEventId(eventId);\n\n    const found"]], suites: ['e2e'] },
   { id: 'M6b', name: 'authentication middleware no longer applied to the registrations routes (every request loses its identity)', file: 'src/app.module.ts',
-    edits: [['        DraftsController,\n        RegistrationsController,\n        EquipmentController,', '        DraftsController,\n        EquipmentController,']], suites: ['e2e'] },
+    edits: [['        DraftsController,\n        RegistrationsController,\n        RegistrationSettingsController,\n        EquipmentController,', '        DraftsController,\n        RegistrationSettingsController,\n        EquipmentController,']], suites: ['e2e'] },
   { id: 'M7', name: 'an attendee is allowed', file: ACCESS,
     edits: [['return isAssignedCoordinator || isOwningOrganiser;', "return isAssignedCoordinator || isOwningOrganiser || user.roles.includes('ATTENDEE');"]], suites: both },
   { id: 'M8', name: 'confirmed rows sorted by registration date descending', file: SERVICE,

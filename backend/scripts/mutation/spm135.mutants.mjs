@@ -73,12 +73,13 @@ export const SUITES = {
   },
 };
 
-const READER = 'src/events/status/arrangements.reader.ts';
 const READINESS = 'src/events/status/readiness.ts';
 const SERVICE = 'src/events/status/status.service.ts';
 const CHECKLIST = 'src/events/status/checklist.ts';
 const SAFETY = 'src/events/status/safety-check.source.ts';
 const VENUE_SUMMARY = 'src/events/venue-summary.ts';
+// The shared unavailable-window predicate (VENUE_UNAVAILABLE_SQL) lives here; the reader and the summary both embed it.
+const VENUE_UNAVAILABLE = 'src/events/venue-unavailable.ts';
 const both = ['unit', 'e2e'];
 const e2eOnly = ['e2e'];
 const unitOnly = ['unit'];
@@ -114,16 +115,16 @@ export const MUTANTS = [
     suites: both },
 
   // ---- arrangements.reader.ts (overlap SQL for the venue-unavailable flag, D10) ----
-  { id: 'R1', name: 'overlap ignores the venue (any venue blocked flags the booking)', file: READER,
+  { id: 'R1', name: 'overlap ignores the venue (any venue blocked flags the booking)', file: VENUE_UNAVAILABLE,
     edits: [['u.venue_id = b.venue_id', 'TRUE']], suites: e2eOnly },
-  { id: 'R2', name: 'overlap start bound inclusive (a block starting when the slot ends is flagged)', file: READER,
+  { id: 'R2', name: 'overlap start bound inclusive (a block starting when the slot ends is flagged)', file: VENUE_UNAVAILABLE,
     edits: [['AND u.start_at < b.end_at', 'AND u.start_at <= b.end_at']], suites: e2eOnly },
-  { id: 'R3', name: 'overlap end bound inclusive (a block ending when the slot starts is flagged)', file: READER,
+  { id: 'R3', name: 'overlap end bound inclusive (a block ending when the slot starts is flagged)', file: VENUE_UNAVAILABLE,
     edits: [['AND u.end_at > b.start_at', 'AND u.end_at >= b.start_at']], suites: e2eOnly },
-  { id: 'R4', name: 'blocked status literal changed (venue-unavailable never recognised)', file: READER,
+  { id: 'R4', name: 'blocked status literal changed (venue-unavailable never recognised)', file: VENUE_UNAVAILABLE,
     edits: [["AND u.status = 'blocked'", "AND u.status = 'rejected'"]], suites: e2eOnly },
   // Equivalent: venue_bookings_kind_check (001_schema.sql, migration 009) forces a blocked row to have event_id NULL.
-  { id: 'R5', name: 'event_id IS NULL dropped (equivalent: the kind CHECK constraint already forces a blocked row to have no event)', file: READER, equivalent: true,
+  { id: 'R5', name: 'event_id IS NULL dropped (equivalent: the kind CHECK constraint already forces a blocked row to have no event)', file: VENUE_UNAVAILABLE, equivalent: true,
     edits: [['AND u.event_id IS NULL', 'AND TRUE']], suites: e2eOnly },
 
   // ---- status.service.ts: assignment (POST pre-check, POST locked re-check, GET path) ----
@@ -252,18 +253,18 @@ export const MUTANTS = [
 
   // ---- venue-summary.ts: the venue text SQL (labels, window overlap, joining) ----
   { id: 'VS1', name: 'approved unblocked booking labelled unavailable', file: VENUE_SUMMARY,
-    edits: [["WHEN b.status = 'approved' AND NOT EXISTS (", "WHEN b.status = 'approved' AND EXISTS ("]], suites: summaryOnly },
-  { id: 'VS2', name: 'a window block at another venue flags this venue', file: VENUE_SUMMARY,
+    edits: [["WHEN b.status = 'approved' AND NOT ${VENUE_UNAVAILABLE_SQL}", "WHEN b.status = 'approved' AND ${VENUE_UNAVAILABLE_SQL}"]], suites: summaryOnly },
+  { id: 'VS2', name: 'a window block at another venue flags this venue', file: VENUE_UNAVAILABLE,
     edits: [['WHERE u.venue_id = b.venue_id AND u.event_id IS NULL', 'WHERE u.event_id IS NULL']], suites: summaryOnly },
   { id: 'VS3', name: 'pending label reads unavailable', file: VENUE_SUMMARY,
     edits: [["WHEN b.status = 'pending' THEN v.name || ' (pending)'", "WHEN b.status = 'pending' THEN v.name || ' (unavailable)'"]], suites: summaryOnly },
   { id: 'VS4', name: 'rejected booking labelled pending', file: VENUE_SUMMARY,
     edits: [["      ELSE v.name || ' (unavailable)'", "      ELSE v.name || ' (pending)'"]], suites: summaryOnly },
-  { id: 'VS5', name: 'blocked status literal changed (window block never recognised)', file: VENUE_SUMMARY,
+  { id: 'VS5', name: 'blocked status literal changed (window block never recognised)', file: VENUE_UNAVAILABLE,
     edits: [["AND u.status = 'blocked'", "AND u.status = 'rejected'"]], suites: summaryOnly },
-  { id: 'VS6', name: 'window start bound inclusive (a block starting when the slot ends is flagged)', file: VENUE_SUMMARY,
+  { id: 'VS6', name: 'window start bound inclusive (a block starting when the slot ends is flagged)', file: VENUE_UNAVAILABLE,
     edits: [['AND u.start_at < b.end_at', 'AND u.start_at <= b.end_at']], suites: summaryOnly },
-  { id: 'VS7', name: 'window end bound inclusive (a block ending when the slot starts is flagged)', file: VENUE_SUMMARY,
+  { id: 'VS7', name: 'window end bound inclusive (a block ending when the slot starts is flagged)', file: VENUE_UNAVAILABLE,
     edits: [['AND u.end_at > b.start_at', 'AND u.end_at >= b.start_at']], suites: summaryOnly },
   { id: 'VS8', name: 'venue names joined with "; " instead of ", "', file: VENUE_SUMMARY,
     edits: [["    END, ', ' ORDER BY b.start_at)", "    END, '; ' ORDER BY b.start_at)"]], suites: summaryOnly },
@@ -272,12 +273,12 @@ export const MUTANTS = [
   // Overlap predicate forms (venue-summary.ts). The true overlap is "block starts before the booking ends AND
   // block ends after the booking starts". Each replacement below is a plausible wrong predicate; the partial-
   // overlap tests (block 01:00-03:00 and 03:00-05:00 against 02:00-04:00) kill the equality and containment forms.
-  { id: 'VS10', name: 'overlap predicate equality-only (a block must match the booking start and end exactly)', file: VENUE_SUMMARY,
-    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at = b.start_at AND u.end_at = b.end_at)']], suites: summaryOnly },
-  { id: 'VS11', name: 'overlap predicate containment-only (the block must fully contain the booking)', file: VENUE_SUMMARY,
-    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at <= b.start_at AND u.end_at >= b.end_at)']], suites: summaryOnly },
-  { id: 'VS12', name: 'overlap predicate containment-only (the booking must fully contain the block)', file: VENUE_SUMMARY,
-    edits: [['AND u.start_at < b.end_at AND u.end_at > b.start_at)', 'AND u.start_at >= b.start_at AND u.end_at <= b.end_at)']], suites: summaryOnly },
+  { id: 'VS10', name: 'overlap predicate equality-only (a block must match the booking start and end exactly)', file: VENUE_UNAVAILABLE,
+    edits: [['AND u.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)\n       AND u.end_at > b.start_at - make_interval(mins => v.setup_time_minutes))', 'AND u.start_at = b.start_at AND u.end_at = b.end_at)']], suites: summaryOnly },
+  { id: 'VS11', name: 'overlap predicate containment-only (the block must fully contain the booking)', file: VENUE_UNAVAILABLE,
+    edits: [['AND u.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)\n       AND u.end_at > b.start_at - make_interval(mins => v.setup_time_minutes))', 'AND u.start_at <= b.start_at AND u.end_at >= b.end_at)']], suites: summaryOnly },
+  { id: 'VS12', name: 'overlap predicate containment-only (the booking must fully contain the block)', file: VENUE_UNAVAILABLE,
+    edits: [['AND u.start_at < b.end_at + make_interval(mins => v.turnaround_time_minutes)\n       AND u.end_at > b.start_at - make_interval(mins => v.setup_time_minutes))', 'AND u.start_at >= b.start_at AND u.end_at <= b.end_at)']], suites: summaryOnly },
 
   // ---- status.service.ts: venue and equipment removal (VENUE-REMOVE, EQUIPMENT-REMOVE, 409/404/403/422) ----
   { id: 'RV1', name: 'any venue request removable (confirmed one can be deleted)', file: SERVICE,
@@ -327,10 +328,10 @@ export const MUTANTS = [
     edits: [["return typeof value === 'string' ? value : '';", "return typeof value === 'string' ? value : 'Confirmed';"]], suites: actionsOnly },
   { id: 'PLN1', name: 'a planning update never reports a safety-check reset (SAFETY-RESET-UPDATE-01)', file: 'src/events/planning/event-planning.service.ts', suites: ['planning'],
     edits: [['safetyCheckReset: hadSafetyCheck && !(await this.repository.safetyCheckExists(eventId)),', 'safetyCheckReset: false,']] },
-  { id: 'SF1', name: "a re-request is allowed while a feedback item is unresolved (SAFETY-FEEDBACK-02)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF5', name: "a re-request is allowed while a feedback item is unresolved (SAFETY-FEEDBACK-02)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["if (count > 0)","if (false)"]] },
-  { id: 'SF2', name: "unresolving a feedback item leaves it marked handled (SAFETY-FEEDBACK-01)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF6', name: "unresolving a feedback item leaves it marked handled (SAFETY-FEEDBACK-01)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["[feedbackId, event.id, resolved ? now : null],","[feedbackId, event.id, now],"]] },
-  { id: 'SF3', name: "a feedback item can be resolved outside changes-needed (SAFETY-FEEDBACK-03)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF7', name: "a feedback item can be resolved outside changes-needed (SAFETY-FEEDBACK-03)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["if (current?.status !== 'changes_needed')","if (false)"]] },
 ];

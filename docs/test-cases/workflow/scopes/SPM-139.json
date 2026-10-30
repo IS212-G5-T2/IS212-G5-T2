@@ -1,0 +1,119 @@
+{
+  "story": "SPM-139",
+  "title": "Configure Event Registration Period and Capacity (Event Coordinator)",
+  "note": "Test cases follow the v2.0 SPM-139 test-case document (docs/specs/SPM-139-test-cases.md; Confluence case pages CONFIG-REG-03 to CONFIG-REG-11 carry the same v2.0 content). The Confluence matrix summary page was not located, so G1 PRIMARY coverage is UNABLE_TO_VERIFY. Frontend tests of this story carry CONFIG-REG ids in their titles. Non-v2.0 cases are CONFIG-REG-X-01 to X-04 (SUPPORTING, parent AC stated, approved by the story owner).",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/registrations/settings/registration-settings.validation.spec.ts",
+        "titleMatch": "CONFIG-REG-"
+      },
+      {
+        "glob": "backend/src/registrations/registration/registration-window.spec.ts",
+        "titleMatch": "CONFIG-REG-"
+      },
+      {
+        "glob": "backend/src/registrations/settings/registration-settings.service.spec.ts",
+        "titleMatch": "CONFIG-REG-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/registration-settings.e2e-spec.ts",
+        "titleMatch": "CONFIG-REG-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.test.tsx",
+        "titleMatch": "CONFIG-REG-"
+      },
+      {
+        "glob": "frontend/src/features/events/lib/registrationSettings.test.ts",
+        "titleMatch": "CONFIG-REG-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/registrations/settings/registration-settings.validation.ts",
+      "backend/src/registrations/settings/registration-settings.service.ts",
+      "backend/src/registrations/settings/registration-settings.messages.ts",
+      "backend/src/registrations/settings/registration-settings.controller.ts",
+      "backend/src/registrations/registration/registration-window.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.tsx",
+      "frontend/src/features/events/lib/registrationSettings.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-settings",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm139.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm139.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-settings",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm139.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm139.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}
