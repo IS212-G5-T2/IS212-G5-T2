@@ -281,9 +281,16 @@ CREATE TABLE IF NOT EXISTS equipment_requests (
     event_id uuid NOT NULL REFERENCES events (id) ON DELETE CASCADE,
     requested_by uuid NOT NULL REFERENCES users (id),
     status text NOT NULL DEFAULT 'Pending Review'
-        CHECK (status IN ('Pending Review', 'Reserved', 'Unavailable', 'Cancelled')),
+        CHECK (status IN ('Pending Review', 'Reserved', 'Unavailable', 'Cannot Provide', 'Cancelled')),
+    -- SPM-58 AC8/AC9: why Technical Support cannot fulfil a request; shown to the event
+    -- coordinator. Required (non-blank) exactly when the request is Cannot Provide.
+    decision_reason text,
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT equipment_requests_cannot_provide_reason_check CHECK (
+        status <> 'Cannot Provide'
+        OR (decision_reason IS NOT NULL AND length(btrim(decision_reason)) BETWEEN 1 AND 500)
+    )
 );
 CREATE INDEX IF NOT EXISTS equipment_requests_event_idx ON equipment_requests (event_id, created_at);
 CREATE INDEX IF NOT EXISTS equipment_requests_requester_idx ON equipment_requests (requested_by, created_at DESC);

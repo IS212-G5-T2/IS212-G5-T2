@@ -11,7 +11,8 @@ const listQueue = vi.fn();
 const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
-const controller = new EquipmentRequestsController({ submit, update, listMine, listQueue, listReservations, listEligibleEvents } as never);
+const markCannotProvide = vi.fn();
+const controller = new EquipmentRequestsController({ submit, update, markCannotProvide, listMine, listQueue, listReservations, listEligibleEvents } as never);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -52,5 +53,12 @@ describe('SPM-57 equipment request controller', () => {
   it('forwards the reservation read', () => {
     controller.listReservations(request);
     expect(listReservations).toHaveBeenCalledWith(identity);
+  });
+
+  /** SPM-58 AC8/AC9: the cannot-provide endpoint forwards the caller, request id, and reason body. */
+  it('forwards a cannot-provide decision to the service', () => {
+    const body = { reason: 'Only 8 available; 10 requested.' };
+    controller.cannotProvide(request, 'request-1', body);
+    expect(markCannotProvide).toHaveBeenCalledWith(identity, 'request-1', body);
   });
 });
