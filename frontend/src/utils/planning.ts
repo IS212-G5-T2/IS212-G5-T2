@@ -2,7 +2,7 @@
  * SPM-97 / SPM-49 / SPM-85 — shared helpers for event information during the
  * planning phase: API calls, field labels and value formatting.
  *
- * Backend contract (backend/src/events/event-planning.controller.ts):
+ * Backend contract (backend/src/events/planning/event-planning.controller.ts):
  *   GET   /events/:id/planning                            PlanningView
  *   PATCH /events/:id/planning                            PlanningUpdateResult
  *   POST  /events/:id/planning/changes/:changeId/resolve  { decision, bookingId? }
@@ -30,10 +30,9 @@ export const PLANNING_REFRESH_MS = 15_000;
 /** "Once the event has entered the planning process" (matches the backend). */
 export const PLANNING_STATUSES: readonly EventStatus[] = ["approved", "planning", "confirmed"];
 
-// Mirrors backend/src/events/event-input.ts; keep the lists in sync.
-export const LAYOUTS = ["Theatre", "Classroom", "Banquet", "Boardroom", "U-shape", "Standing"];
-export const FACILITIES = ["Catering", "AV System", "Parking", "Stage", "Projector", "Whiteboard"];
-export const ACCESSIBILITY = ["Wheelchair ramps", "Accessible restrooms", "Hearing loop", "Elevator access"];
+// Facility and accessibility choices are loaded from the backend venue schema
+// (features/venues/api/venue-options-api.ts) and room layouts come from
+// features/venues/lib/venueOptions.ts; no planning form keeps its own list.
 
 export const FIELD_LABELS: Record<string, string> = {
   name: "Event name",
@@ -51,6 +50,25 @@ export const FIELD_LABELS: Record<string, string> = {
 
 export function fieldLabel(field: string): string {
   return FIELD_LABELS[field] ?? field;
+}
+
+/**
+ * SPM-156: how a change history entry came about, in words: "Updated directly"
+ * for a change applied immediately, "Change request approved" for a change
+ * applied by approving an organiser's request, otherwise the review outcome.
+ */
+export function historyOutcome(entry: Pick<ChangeHistoryEntry, "kind" | "status">): string {
+  if (entry.kind === "direct_update") return "Updated directly";
+  if (entry.kind === "change_request") return "Change request approved";
+  return entry.status;
+}
+
+/** SPM-156: the per-field note under the update form, e.g. "Last change confirmed by X". */
+export function lastChangeLabel(entry: Pick<ChangeHistoryEntry, "kind" | "status" | "proposedBy">): string {
+  if (entry.kind === "direct_update") return "Last changed";
+  if (entry.kind === "change_request")
+    return entry.proposedBy ? `Last changed by ${entry.proposedBy}'s change request, approved` : "Last changed by a change request, approved";
+  return `Last change ${entry.status === "Applied" ? "confirmed" : "rejected"}`;
 }
 
 /** Human-readable value for any planning field; dates in Singapore time with am/pm. */

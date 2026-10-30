@@ -8,7 +8,8 @@
  * applies at once; only the bookings it is incompatible with are marked
  * `impacted`.
  *
- * Assumptions (also recorded in backend/HANDOVER.md):
+ * Assumptions (also listed under "Assumptions behind the expected results" in
+ * docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md):
  * - A venue booking's required window follows the event's date/time. If the
  *   proposal moves only the start (or only the end), the other edge keeps the
  *   booking's current value.

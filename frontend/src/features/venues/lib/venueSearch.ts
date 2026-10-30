@@ -38,16 +38,6 @@ export interface VenueSearchErrors {
   end?: string;
 }
 
-/**
- * Event accessibility labels that differ from the venue feature label. Until SPM-144 aligns the
- * two lists, the search maps each event need to its equivalent venue feature. Delete this table
- * once the lists are aligned.
- * Assumption: the event "Wheelchair ramps" need is met by a venue's "Wheelchair access" feature.
- */
-const EVENT_TO_VENUE_ACCESSIBILITY: Record<string, string> = {
-  "Wheelchair ramps": "Wheelchair access",
-};
-
 /** Reports criteria the user must fix before they are applied (SPM-52 AC5). */
 export function validateVenueSearch(criteria: VenueSearchCriteria): VenueSearchErrors {
   const errors: VenueSearchErrors = {};
@@ -125,9 +115,9 @@ export function criteriaFromEvent(event: EventRecord): VenueSearchCriteria {
     minCapacity: String(event.expectedAttendance),
     layout: requirements.layout,
     facilities: [...requirements.facilities],
-    accessibility: requirements.accessibility.map(
-      (feature) => EVENT_TO_VENUE_ACCESSIBILITY[feature] ?? feature,
-    ),
+    // Event accessibility needs use the venue feature labels (SPM-144; migration 027 renamed the
+    // retired "Wheelchair ramps"), so they are searched for as they are.
+    accessibility: [...requirements.accessibility],
     start: toSgtDateTimeLocal(event.startDateTime),
     end: toSgtDateTimeLocal(event.endDateTime),
   };

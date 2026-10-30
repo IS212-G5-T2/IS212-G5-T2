@@ -101,6 +101,16 @@ retryable error states and blocks progression while the options request is
 unresolved or has failed. Event submission values are validated against the
 same backend venue schemas.
 
+Every other event form uses the same source: Update Event Information
+(coordinator), Request a Change (organiser) and Edit Event all load facility
+and accessibility choices through `useVenueOptions`
+(`src/features/venues/api/venue-options-api.ts`, which also backs the create
+form via `fetchVenueOptions`), and room layouts come from
+`ROOM_LAYOUT_OPTIONS` (`src/features/venues/lib/venueOptions.ts`, the venue
+layouts the backend accepts for events). No event form keeps its own list. A
+stored value the schema no longer has is not shown and is dropped from a list
+the user edits; migration 027 removes such values from stored data (SPM-156).
+
 ## Testing
 
 Unit tests use [Vitest](https://vitest.dev) with [React Testing Library](https://testing-library.com/react) and jsdom.

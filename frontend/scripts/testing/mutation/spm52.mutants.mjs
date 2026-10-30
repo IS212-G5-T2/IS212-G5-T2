@@ -91,8 +91,10 @@ export const MUTANTS = [
       tm(SEARCH_TEST, 'VEN-SRCH-05-B reports an end time that is not after the start time'),
       tm(PAGE_TEST, 'VEN-SRCH-05-F reports an end time not after the start time and does not apply the range'),
     ] },
-  { id: 'M8', name: 'event accessibility labels are not mapped to venue features (AC4)', file: SEARCH, suites,
-    edits: [['EVENT_TO_VENUE_ACCESSIBILITY[feature] ?? feature', 'feature']],
+  // M8 retargeted 2026-10-29 (SPM-156): the event-to-venue label mapping was removed once both use the
+  // venue-schema list, so the mutant now drops the event's accessibility needs from the criteria.
+  { id: 'M8', name: 'event accessibility needs not carried into the search criteria (AC4)', file: SEARCH, suites,
+    edits: [['    accessibility: [...requirements.accessibility],', '    accessibility: [],']],
     testMappings: [
       tm(SEARCH_TEST, 'VEN-SRCH-04-A maps the event requirements, attendance, times and accessibility labels into search criteria'),
       tm(PAGE_TEST, 'VEN-SRCH-04-D starts the filters from the event and lists only venues that suit it and are free'),

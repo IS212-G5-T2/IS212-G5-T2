@@ -172,6 +172,41 @@ the new schema: apply each new file in `backend/migrations` once, for SPM-64
 `docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < ../backend/migrations/023_spm48_safety_rejected.sql`
 (it allows a `rejected` safety check; it is idempotent). SPM-48's coordinator queue (`GET /api/coordinator/queue`)
 is a new route: until the backend image is rebuilt, a coordinator's Events page shows "Cannot GET /api/coordinator/queue".
+For SPM-156 apply
+`docker compose exec -T postgres psql -U spm -d spm -v ON_ERROR_STOP=1 < ../backend/migrations/026_spm156_direct_update_history.sql`
+before rebuilding the backend (it is idempotent, so re-run it if you applied an earlier version of the file). It lets change
+history record updates applied immediately and approved change requests; without it every coordinator update that applies
+immediately, and every change request approval, is refused with a server error and nothing is saved.
+Then apply `../backend/migrations/027_spm156_retire_legacy_event_options.sql` the same way (idempotent). It replaces
+retired facility and accessibility values in stored events, change requests and drafts (for example
+"Wheelchair ramps" becomes "Wheelchair access"), so no form shows them or refuses to save because of them.
+Every event it rewrites loses its safety check (the SPM-135 trigger resets it when facilities or accessibility
+needs change), so coordinators must request those safety checks again. Flagged changes still awaiting review are
+not rewritten: confirming one that proposes a retired value writes it back.
+Both 026 and 027 run as one transaction each, so a failure leaves the database unchanged. Before applying 027,
+list the records it affects (read-only), then re-request the safety checks it resets after it runs:
+
+```sh
+docker compose exec -T postgres psql -U spm -d spm <<'SQL'
+-- Events migration 027 will rewrite, and whether each has a safety check it will reset.
+SELECT e.id, e.event_name, e.status, (s.event_id IS NOT NULL) AS safety_check_will_reset
+  FROM events e
+  LEFT JOIN event_safety_checks s ON s.event_id = e.id
+ WHERE EXISTS (SELECT 1 FROM unnest(e.accessibility_needs) v
+                WHERE v NOT IN (SELECT label FROM accessibility_features WHERE is_active))
+    OR EXISTS (SELECT 1 FROM unnest(e.required_facilities) v
+                WHERE v NOT IN (SELECT name FROM facilities WHERE is_active))
+ ORDER BY e.status, e.event_name;
+-- Flagged changes awaiting review that propose a retired facility (027 does not rewrite these).
+SELECT c.id, c.event_id, c.proposed_value
+  FROM event_flagged_changes c
+ WHERE c.status = 'Needs Review' AND c.field = 'facilities'
+   AND jsonb_typeof(c.proposed_value) = 'array'
+   AND EXISTS (SELECT 1 FROM jsonb_array_elements_text(c.proposed_value) v
+                WHERE v NOT IN (SELECT name FROM facilities WHERE is_active));
+SQL
+```
+
 The frontend code is bind-mounted and
 refreshed by Vite. Visit http://localhost:5173/planning to create an event,
 then inspect it under My Events.

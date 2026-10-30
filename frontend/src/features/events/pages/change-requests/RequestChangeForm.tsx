@@ -14,13 +14,17 @@
  *   approving the change will need a new one (any approved change resets it).
  *
  * Date inputs are Singapore wall time, matching the rest of the app.
+ * Facility and accessibility choices come from the backend venue schema
+ * (`useVenueOptions`); a retired stored value is not shown and is dropped from
+ * a list the organiser edits.
  */
 import { useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/Button";
 import { CheckboxGroup, Select, TextArea, TextInput } from "@/components/ui/FormControls";
 import type { ChangeRequest, ChangeRequestSubmission, EventRecord } from "@/types";
 import { ApiError } from "@/utils/api";
-import { ACCESSIBILITY, FACILITIES, LAYOUTS } from "@/utils/planning";
+import { useVenueOptions } from "@/features/venues/api/venue-options-api";
+import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
 import { sgtLocalDateTimeToDate, toSgtLocalInput } from "@/utils/sgtDate";
 import { changeFieldLabel, mayNeedSafetyCheck } from "@/features/events/lib/changeRequests";
 
@@ -59,7 +63,11 @@ function initialValues(event: EventRecord): Values {
 const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every((v) => b.includes(v));
 
 /** The proposed values that differ from the event's current ones. */
-function changedFields(values: Values, baseline: Values): ChangeRequestSubmission["changes"] {
+function changedFields(
+  values: Values,
+  baseline: Values,
+  supported: { facilities: string[]; accessibility: string[] },
+): ChangeRequestSubmission["changes"] {
   const changes: ChangeRequestSubmission["changes"] = {};
   for (const key of ["description", "layout", "equipmentNeeds"] as const)
     if (values[key].trim() !== baseline[key].trim()) changes[key] = values[key].trim();
@@ -72,7 +80,8 @@ function changedFields(values: Values, baseline: Values): ChangeRequestSubmissio
     changes.expectedAttendance = /^\d+$/.test(text) ? Number(text) : text;
   }
   for (const key of ["facilities", "accessibility"] as const)
-    if (!sameSet(values[key], baseline[key])) changes[key] = values[key];
+    // Only supported values are sent, so a retired stored value is dropped rather than refused.
+    if (!sameSet(values[key], baseline[key])) changes[key] = values[key].filter((v) => supported[key].includes(v));
   return changes;
 }
 
@@ -82,9 +91,10 @@ export function RequestChangeForm({ event, onSubmit, onCancel }: Props) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const options = useVenueOptions();
 
   const set = <K extends keyof Values>(key: K, value: Values[K]) => setValues((v) => ({ ...v, [key]: value }));
-  const changes = changedFields(values, baseline);
+  const changes = changedFields(values, baseline, options);
   const hasChanges = Object.keys(changes).length > 0;
 
   async function handleSubmit(e: FormEvent) {
@@ -132,12 +142,29 @@ export function RequestChangeForm({ event, onSubmit, onCancel }: Props) {
         <TextInput id="change-start" type="datetime-local" label={changeFieldLabel("startDateTime")} hint="Singapore time" value={values.startDateTime} error={errors.startDateTime} onChange={(e) => set("startDateTime", e.target.value)} />
         <TextInput id="change-end" type="datetime-local" label={changeFieldLabel("endDateTime")} hint="Singapore time" value={values.endDateTime} error={errors.endDateTime} onChange={(e) => set("endDateTime", e.target.value)} />
         <TextInput id="change-attendance" type="number" min={1} step={1} label={changeFieldLabel("expectedAttendance")} value={values.expectedAttendance} error={errors.expectedAttendance} onChange={(e) => set("expectedAttendance", e.target.value)} />
-        <Select id="change-layout" label={changeFieldLabel("layout")} value={values.layout} error={errors.layout} options={LAYOUTS.map((l) => ({ value: l, label: l }))} onChange={(e) => set("layout", e.target.value)} />
+        <Select id="change-layout" label={changeFieldLabel("layout")} value={values.layout} error={errors.layout} options={ROOM_LAYOUT_OPTIONS.map((l) => ({ value: l, label: l }))} onChange={(e) => set("layout", e.target.value)} />
       </div>
-      <CheckboxGroup label={changeFieldLabel("facilities")} options={FACILITIES} values={values.facilities} onChange={(v) => set("facilities", v)} />
-      {errors.facilities && <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">{errors.facilities}</p>}
-      <CheckboxGroup label={changeFieldLabel("accessibility")} options={ACCESSIBILITY} values={values.accessibility} onChange={(v) => set("accessibility", v)} />
-      {errors.accessibility && <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">{errors.accessibility}</p>}
+      {(["facilities", "accessibility"] as const).map((key) => (
+        <div key={key}>
+          <CheckboxGroup
+            label={changeFieldLabel(key)}
+            options={options[key]}
+            values={values[key].filter((v) => options[key].includes(v))}
+            disabled={options.status !== "loaded"}
+            onChange={(v) => set(key, v)}
+          />
+          {options.status === "loading" && <p className="-mt-3 mb-4 text-xs text-gray-500 dark:text-gray-400">Loading options…</p>}
+          {options.status === "error" && (
+            <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">
+              Could not load the {changeFieldLabel(key).toLowerCase()} options. {options.error}{" "}
+              <button type="button" className="underline" onClick={options.retry}>
+                Try again
+              </button>
+            </p>
+          )}
+          {errors[key] && <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">{errors[key]}</p>}
+        </div>
+      ))}
       <TextArea id="change-equipment" label={changeFieldLabel("equipmentNeeds")} value={values.equipmentNeeds} error={errors.equipmentNeeds} onChange={(e) => set("equipmentNeeds", e.target.value)} />
       <TextArea id="change-reason" label="Reason for the change (optional)" maxLength={500} value={values.reason} error={errors.reason} onChange={(e) => set("reason", e.target.value)} />
 

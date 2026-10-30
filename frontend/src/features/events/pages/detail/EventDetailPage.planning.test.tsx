@@ -8,7 +8,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useNavigate } from "react-router-dom";
 import { EventDetailPage } from "@/features/events/pages/detail/EventDetailPage";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
@@ -20,6 +20,12 @@ import type {
   FlaggedChange,
   PlanningView,
 } from "@/types";
+
+// Facility and accessibility choices: the current backend venue-schema lists (src/test/venueOptions.ts).
+vi.mock("@/features/venues/api/venue-options-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...(await import("@/test/venueOptions")).venueOptionsModuleMock(),
+}));
 
 /**
  * SPM-97 (organiser), SPM-49 and SPM-85 (coordinator) on EventDetailPage.
@@ -57,7 +63,7 @@ function eventRecord(overrides: Partial<EventRecord> = {}): EventRecord {
       minCapacity: 80,
       layout: "Banquet",
       facilities: ["Catering"],
-      accessibility: ["Wheelchair ramps"],
+      accessibility: ["Wheelchair access"],
     },
     equipmentNeeds: "Two microphones",
     registrationEnabled: false,
@@ -130,6 +136,206 @@ afterEach(() => {
 });
 
 describe("EventDetailPage planning information (organiser)", () => {
+  // SPM-156 EVENT-UPDATE-07-D: the owning organiser sees the change history,
+  // including changes the coordinator applied immediately, read-only.
+  it("EVENT-UPDATE-07-D shows the owning organiser the change history with direct updates", async () => {
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.endsWith("/planning/history"))
+        return [
+          {
+            id: "dir-1",
+            kind: "direct_update",
+            field: "name",
+            originalValue: "Welcome Evening",
+            proposedValue: "Welcome Night",
+            resolvedValue: "Welcome Night",
+            resolvedBy: "Coord Nine",
+            resolvedAt: "2026-10-05T10:00:00.000Z",
+            status: "Applied",
+          },
+        ];
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    renderPage();
+    const list = await screen.findByRole("list", { name: /change history/i });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(1);
+    expect(list).toHaveTextContent(
+      "Event name: Welcome Evening → Welcome Night",
+    );
+    expect(list).toHaveTextContent("Updated directly by Coord Nine");
+    expect(
+      screen.getByRole("heading", { name: "Change History" }),
+    ).toBeInTheDocument();
+    // Still read-only for the organiser (SPM-97 AC4).
+    expect(
+      screen.queryByRole("form", { name: /update event information/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  // SPM-156 EVENT-UPDATE-07-D: with nothing recorded, the organiser sees no empty history card.
+  it("EVENT-UPDATE-07-D hides the organiser's change history while nothing is recorded", async () => {
+    renderPage();
+    await planningRegion();
+    expect(
+      apiMock.mock.calls.some(([path]) =>
+        String(path).endsWith("/planning/history"),
+      ),
+    ).toBe(true);
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
+
+  /**
+   * Two events the organiser owns, and a page that can move from the first to the second without
+   * unmounting (as the app does when a link changes the :id parameter).
+   */
+  const OTHER_ID = "00000000-0000-4000-8000-000000000050";
+  const historyEntry = (
+    id: string,
+    field: string,
+    from: string,
+    to: string,
+  ): ChangeHistoryEntry => ({
+    id,
+    kind: "direct_update",
+    field,
+    originalValue: from,
+    proposedValue: to,
+    resolvedValue: to,
+    resolvedBy: "Coord Nine",
+    resolvedAt: "2026-10-05T10:00:00.000Z",
+    status: "Applied",
+  });
+  function deferred<T>() {
+    let resolve!: (value: T) => void;
+    const promise = new Promise<T>((r) => (resolve = r));
+    return { promise, resolve };
+  }
+  function GoToOtherEvent() {
+    const navigate = useNavigate();
+    return (
+      <button onClick={() => navigate(`/events/${OTHER_ID}`)}>
+        Open other event
+      </button>
+    );
+  }
+  function renderTwoEvents(history: Record<string, () => Promise<unknown>>) {
+    const other = eventRecord({ id: OTHER_ID, name: "Second Evening" });
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning/history"))
+        return history[path.split("/")[2]]();
+      if (path.endsWith("/planning"))
+        return path.includes(OTHER_ID)
+          ? planningView({ event: other })
+          : currentView;
+      if (path.includes("/comments")) return [];
+      return path.includes(OTHER_ID) ? other : currentView.event;
+    }) as typeof api);
+    render(
+      <MemoryRouter initialEntries={[`/events/${EVENT_ID}`]}>
+        <Routes>
+          <Route
+            path="/events/:id"
+            element={
+              <>
+                <EventDetailPage />
+                <GoToOtherEvent />
+              </>
+            }
+          />
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  /** EVENT-UPDATE-07-D: moving to another event clears the previous event's change history. */
+  it("EVENT-UPDATE-07-D clears the change history when the page moves to another event", async () => {
+    const user = userEvent.setup();
+    const otherHistory = deferred<unknown>();
+    renderTwoEvents({
+      [EVENT_ID]: async () => [
+        historyEntry("h-1", "name", "Welcome Evening", "Welcome Night"),
+      ],
+      [OTHER_ID]: () => otherHistory.promise,
+    });
+    expect(
+      await screen.findByRole("list", { name: /change history/i }),
+    ).toHaveTextContent("Event name: Welcome Evening → Welcome Night");
+    await user.click(screen.getByRole("button", { name: "Open other event" }));
+    await screen.findByRole("heading", { name: "Second Evening" });
+    // The second event's history has not arrived yet; the first event's must not be shown under it.
+    expect(
+      screen.queryByRole("list", { name: /change history/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
+
+  /** EVENT-UPDATE-07-D: a slow history reply for the previous event is ignored once another event is open. */
+  it("EVENT-UPDATE-07-D ignores a delayed history reply for the previous event", async () => {
+    const user = userEvent.setup();
+    const firstHistory = deferred<unknown>();
+    renderTwoEvents({
+      [EVENT_ID]: () => firstHistory.promise,
+      [OTHER_ID]: async () => [
+        historyEntry("h-2", "description", "Old", "New"),
+      ],
+    });
+    await planningRegion();
+    await user.click(screen.getByRole("button", { name: "Open other event" }));
+    expect(
+      await screen.findByRole("list", { name: /change history/i }),
+    ).toHaveTextContent("Description: Old → New");
+    await act(async () =>
+      firstHistory.resolve([
+        historyEntry("h-1", "name", "Welcome Evening", "Welcome Night"),
+      ]),
+    );
+    const list = screen.getByRole("list", { name: /change history/i });
+    expect(list).toHaveTextContent("Description: Old → New");
+    expect(list).not.toHaveTextContent("Welcome Night");
+  });
+
+  /** EVENT-UPDATE-07-D: the change history refreshes with the planning poll, so the organiser sees a coordinator's new change. */
+  it("EVENT-UPDATE-07-D refreshes the organiser's change history with the planning poll", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let history: unknown[] = [];
+    apiMock.mockImplementation((async (path: string) => {
+      if (path.endsWith("/planning")) return currentView;
+      if (path.endsWith("/planning/history")) return history;
+      if (path.includes("/comments")) return [];
+      return currentView.event;
+    }) as typeof api);
+    renderPage();
+    await planningRegion();
+    expect(
+      screen.queryByRole("heading", { name: "Change History" }),
+    ).not.toBeInTheDocument();
+
+    history = [
+      {
+        id: "dir-2",
+        kind: "direct_update",
+        field: "description",
+        originalValue: "Old",
+        proposedValue: "New",
+        resolvedValue: "New",
+        resolvedBy: "Coord Nine",
+        resolvedAt: "2026-10-05T11:00:00.000Z",
+        status: "Applied",
+      },
+    ];
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PLANNING_REFRESH_MS);
+    });
+    const list = await screen.findByRole("list", { name: /change history/i });
+    expect(list).toHaveTextContent("Description: Old → New");
+  });
+
   // EVENT-VIEW-01-A: once the event is in planning the organiser sees the planning panel.
   it("EVENT-VIEW-01-A shows the planning information panel for a planning-phase event", async () => {
     renderPage();
@@ -633,6 +839,39 @@ describe("EventDetailPage planning information (coordinator)", () => {
       expect(editControls).toHaveLength(0);
     },
   );
+
+  // SPM-156 EVENT-UPDATE-07-D: on a read-only (Confirmed) event the assigned
+  // coordinator still sees the change history, as a card of its own; while
+  // editing, the history appears once, inside the review panel.
+  it("EVENT-UPDATE-07-D shows the coordinator the change history on a read-only event, and only once while editing", async () => {
+    asCoordinator({
+      event: eventRecord({ status: "confirmed" }),
+      readOnly: true,
+      editableFields: [],
+      pendingChanges: [],
+    });
+    renderPage();
+    expect(
+      await screen.findByRole("heading", { name: "Change History" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("list", { name: /change history/i }),
+    ).toHaveLength(1);
+    cleanup();
+
+    asCoordinator();
+    renderPage();
+    await screen.findByRole("form", { name: /update event information/i });
+    await waitFor(() =>
+      expect(
+        screen.getAllByRole("list", { name: /change history/i }),
+      ).toHaveLength(1),
+    );
+    // The review panel's own sub-heading, not the standalone card.
+    expect(
+      screen.queryByRole("heading", { level: 2, name: "Change History" }),
+    ).not.toBeInTheDocument();
+  });
 
   it("shows People inside the approved planning Event Information, with no View Registrations button and no separate Event Details card", async () => {
     asCoordinator({

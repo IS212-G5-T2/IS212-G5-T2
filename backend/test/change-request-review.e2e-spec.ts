@@ -384,6 +384,81 @@ describe('SPM-65 change request review over HTTP (e2e)', () => {
     ]);
   });
 
+  /** EVENT-UPDATE-07-E (SPM-156): an approved request is in the event's change history; a denied one is not. */
+  it('EVENT-UPDATE-07-E records an approved change request on an Approved event in change history', async () => {
+    const approved = await seedEvent('Approved');
+    const created = await submit(
+      { description: 'Updated agenda.', expectedAttendance: 90 },
+      approved,
+    ).expect(201);
+    const response = await approve(
+      created.body.id,
+      coordinator,
+      approved,
+    ).expect(200);
+    expect(response.body.request.status).toBe('Approved');
+    const stored = await pool.query(
+      `SELECT kind, field, status, proposed_by, proposed_by_id, resolved_by, resolved_by_id,
+              resolved_at, impacts
+         FROM event_flagged_changes WHERE event_id = $1 ORDER BY field`,
+      [approved],
+    );
+    expect(stored.rows.map((row) => row.field)).toEqual([
+      'description',
+      'expectedAttendance',
+    ]);
+    for (const row of stored.rows)
+      expect(row).toMatchObject({
+        kind: 'change_request',
+        status: 'Applied',
+        proposed_by: 'CR Organiser',
+        proposed_by_id: organiser.uid,
+        resolved_by: 'CR Coordinator',
+        resolved_by_id: coordinator.uid,
+        impacts: [],
+      });
+    // Same instant as the event's "Last updated".
+    expect(stored.rows[0].resolved_at.getTime()).toBe(
+      (await eventRow(approved)).updated_at.getTime(),
+    );
+    for (const viewer of [organiser, coordinator]) {
+      const history = await request(http())
+        .get(`/api/events/${approved}/planning/history`)
+        .set('Cookie', viewer.cookie)
+        .expect(200);
+      expect(
+        (
+          history.body as Array<{
+            kind: string;
+            field: string;
+            resolvedValue: unknown;
+            proposedBy: string;
+          }>
+        ).map((h) => [h.kind, h.field, h.resolvedValue, h.proposedBy]),
+      ).toEqual([
+        ['change_request', 'description', 'Updated agenda.', 'CR Organiser'],
+        ['change_request', 'expectedAttendance', 90, 'CR Organiser'],
+      ]);
+    }
+
+    // A denied request changes nothing and records nothing.
+    const refused = await submit(
+      { description: 'Denied agenda.' },
+      approved,
+    ).expect(201);
+    await deny(
+      refused.body.id,
+      'The programme is already printed.',
+      coordinator,
+      approved,
+    ).expect(200);
+    const after = await pool.query(
+      'SELECT count(*)::int AS n FROM event_flagged_changes WHERE event_id = $1',
+      [approved],
+    );
+    expect(after.rows[0].n).toBe(2);
+  });
+
   /** REVIEW-CHANGE-04-B, 04-C: a request is decided once; parallel decisions settle to one. */
   it('REVIEW-CHANGE-04-C decides a request exactly once', async () => {
     const created = await submit({ expectedAttendance: 90 }).expect(201);

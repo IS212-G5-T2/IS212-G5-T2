@@ -1,17 +1,15 @@
 import { BadRequestException } from '@nestjs/common';
 import { accessibilityLabels } from '../../venues/helpers/accessibility-options.js';
-import { facilityNames } from '../../venues/helpers/venue-options.js';
+import {
+  facilityNames,
+  roomLayoutNames,
+} from '../../venues/helpers/venue-options.js';
 
 export const FACILITIES = [...facilityNames];
 export const ACCESSIBILITY = [...accessibilityLabels];
-export const LAYOUTS = [
-  'Theatre',
-  'Classroom',
-  'Banquet',
-  'Boardroom',
-  'U-shape',
-  'Standing',
-];
+// Room layouts follow the venue schema, like facilities and accessibility, so an event can
+// request any layout a venue offers and the Create Event form's choices are all accepted.
+export const LAYOUTS = [...roomLayoutNames];
 export interface EventInput {
   name: string;
   purpose: string;
