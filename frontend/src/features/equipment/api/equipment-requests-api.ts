@@ -13,7 +13,7 @@ export interface EquipmentRequestRecord {
   eventStatus: 'Approved' | 'Planning' | 'Confirmed' | 'Cancelled' | 'Rejected';
   status: 'Pending Review' | 'Reserved' | 'Unavailable' | 'Cancelled';
   requestedBy: string; coordinatorName: string | null; createdAt: string;
-  items: (EquipmentRequestItemInput & { id: string })[];
+  items: (EquipmentRequestItemInput & { id: string; availableQuantity?: number; sufficient?: boolean })[];
 }
 export interface EquipmentRequestSubmission {
   kind: 'created'; id: string; requestReference: string;
@@ -27,6 +27,7 @@ export type EquipmentRequestEvent = Pick<EventRecord,
 
 export const getMyEquipmentRequests = () => api<EquipmentRequestRecord[]>('/equipment/requests');
 export const getEquipmentRequestQueue = () => api<EquipmentRequestRecord[]>('/equipment/requests/review-queue');
+export const reserveEquipmentRequest = (requestId: string) => api<{ kind: 'reserved'; id: string; requestReference: string }>(`/equipment/requests/${requestId}/reserve`, { method: 'PATCH' });
 export const submitEquipmentRequest = (input: EquipmentRequestInput) => api<EquipmentRequestSubmission>('/equipment/requests', {
   method: 'POST', body: JSON.stringify(input),
 });

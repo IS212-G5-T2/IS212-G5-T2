@@ -27,8 +27,8 @@ function setup(status = 'Approved', updateRows = 1) {
 beforeEach(() => setup());
 
 describe('SPM-57 equipment request persistence', () => {
-  /** SPM-113: reserving a pending request updates the request and each linked placeholder in one transaction. */
-  it('marks a pending request and its linked reservations Reserved', async () => {
+  /** SPM-58: approving a request without placeholders creates a linked Reserved row per item. */
+  it('creates reservations from request items when placeholders are missing', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
         return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
@@ -44,9 +44,33 @@ describe('SPM-57 equipment request persistence', () => {
     });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'reserved', id: requestId });
     expect(query.mock.calls.map(([sql]) => sql)).toEqual(expect.arrayContaining([
-      expect.stringContaining("status = 'Reserved'"),
-      expect.stringContaining('equipment_request_item_id IN'),
+      expect.stringContaining('INSERT INTO equipment_reservations'),
+      expect.stringContaining('NOT EXISTS (SELECT 1 FROM equipment_reservations linked WHERE linked.equipment_request_item_id = item.id)'),
+      expect.stringContaining('UPDATE equipment_reservations reservation'),
+      expect.stringContaining("UPDATE equipment_requests SET status = 'Reserved'"),
     ]));
+  });
+
+  /** SPM-58: approval does not duplicate a placeholder already linked to the request item. */
+  it('guards reservation insertion with the request-item link and updates its existing row', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 2 }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
+        return { rows: [{ equipment_name: 'Conference microphone', active_quantity: 2, is_available: true }], rowCount: 1 };
+      }
+      if (sql.includes('FROM equipment_reservations r JOIN events e')) return { rows: [], rowCount: 0 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'reserved', id: requestId });
+    const insert = query.mock.calls.find(([sql]) => sql.startsWith('INSERT INTO equipment_reservations'))?.[0] as string;
+    expect(insert).toContain('NOT EXISTS (SELECT 1 FROM equipment_reservations linked');
+    expect(query.mock.calls.some(([sql]) => sql.includes('reservation.equipment_request_item_id = item.id'))).toBe(true);
   });
 
   /** EQUIP-AVAIL-04-BND-1: Under Maintenance units are not convertible into a Reserved request. */
@@ -74,6 +98,13 @@ describe('SPM-57 equipment request persistence', () => {
   it('does not change a non-pending request', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Reserved' }], rowCount: 1 });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'not-pending' });
+    expect(query).toHaveBeenCalledOnce();
+  });
+
+  /** SPM-58: a confirmed event cannot be approved into an equipment reservation. */
+  it('refuses to reserve a pending request once its event is Confirmed', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, event_status: 'Confirmed' }], rowCount: 1 });
+    await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'event-confirmed' });
     expect(query).toHaveBeenCalledOnce();
   });
 
@@ -201,12 +232,15 @@ describe('SPM-57 equipment request persistence', () => {
   /** EQUIP-REQUEST-06-A: coordinator and Technical Support lists expose grouped event and item information. */
   it('groups request items for the coordinator list and review queue', async () => {
     query = vi.fn().mockResolvedValue({ rows: [
-      { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time, expected_attendance: 20, status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator', created_at: event.start_date_time, item_id: 'item-1', equipment_name: 'Conference microphone', equipment_type: 'Audio', quantity: 2 },
-      { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time, expected_attendance: 20, status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator', created_at: event.start_date_time, item_id: 'item-2', equipment_name: 'Display screen', equipment_type: 'Visual', quantity: 1 },
+      { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time, expected_attendance: 20, status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator', created_at: event.start_date_time, item_id: 'item-1', equipment_name: 'Conference microphone', equipment_type: 'Audio', quantity: 2, available_quantity: 3 },
+      { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time, expected_attendance: 20, status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator', created_at: event.start_date_time, item_id: 'item-2', equipment_name: 'Display screen', equipment_type: 'Visual', quantity: 1, available_quantity: 0 },
     ], rowCount: 2 });
     const database = { query };
     repository = new EquipmentRequestsRepository(database as unknown as DatabaseService);
-    await expect(repository.listMine(coordinatorId)).resolves.toMatchObject([{ status: 'Pending Review', items: [{ equipmentName: 'Conference microphone', equipmentType: 'Audio' }, { equipmentName: 'Display screen', equipmentType: 'Visual' }] }]);
+    await expect(repository.listMine(coordinatorId)).resolves.toMatchObject([{ status: 'Pending Review', items: [
+      { equipmentName: 'Conference microphone', equipmentType: 'Audio', availableQuantity: 3, sufficient: true },
+      { equipmentName: 'Display screen', equipmentType: 'Visual', availableQuantity: 0, sufficient: false },
+    ] }]);
     expect(query).toHaveBeenNthCalledWith(1, expect.stringContaining("WHERE e.coordinator_id = $1::text AND e.status NOT IN ('Cancelled', 'Rejected')"), [coordinatorId]);
     await expect(repository.listQueue()).resolves.toMatchObject([{ reference: 'ER-00000000', requestedBy: coordinatorId }]);
     expect(query).toHaveBeenNthCalledWith(2, expect.stringContaining("WHERE r.status = 'Pending Review' AND e.status NOT IN ('Cancelled', 'Rejected')"), []);
@@ -217,5 +251,39 @@ describe('SPM-57 equipment request persistence', () => {
     query = vi.fn().mockResolvedValue({ rows: [], rowCount: 0 });
     repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
     await expect(repository.listQueue()).resolves.toEqual([]);
+  });
+
+  /** EQUIP-RESERVE-07-A: the reservations view reads only persisted Reserved rows and includes event context. */
+  it('lists Reserved equipment with the event it belongs to', async () => {
+    query = vi.fn().mockResolvedValue({ rows: [{
+      id: 'reservation-1', event_id: eventId, event_name: 'Workshop',
+      start_date_time: event.start_date_time, end_date_time: event.end_date_time,
+      equipment_name: 'Conference microphone', equipment_type: 'Audio', quantity: 2, status: 'Reserved',
+      coordinator_email: 'coordinator@example.com',
+    }], rowCount: 1 });
+    repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
+
+    await expect(repository.listReservations()).resolves.toEqual([{
+      id: 'reservation-1', eventId, eventName: 'Workshop',
+      eventStart: '2030-01-12T04:00:00.000Z', eventEnd: '2030-01-12T05:00:00.000Z',
+      equipmentName: 'Conference microphone', equipmentType: 'Audio', quantity: 2, status: 'Reserved',
+      coordinatorEmail: 'coordinator@example.com',
+    }]);
+    expect(query).toHaveBeenCalledWith(expect.stringMatching(/FROM equipment_reservations r[\s\S]*LEFT JOIN users u ON u.id::text = e.coordinator_id[\s\S]*WHERE r.status = 'Reserved'/i));
+  });
+
+  /** EQUIP-RESERVE-07-A: a reservation whose event has no assigned coordinator falls back to a placeholder email. */
+  it('falls back to a placeholder when the owning event has no coordinator', async () => {
+    query = vi.fn().mockResolvedValue({ rows: [{
+      id: 'reservation-1', event_id: eventId, event_name: 'Workshop',
+      start_date_time: event.start_date_time, end_date_time: event.end_date_time,
+      equipment_name: 'Conference microphone', equipment_type: 'Audio', quantity: 2, status: 'Reserved',
+      coordinator_email: null,
+    }], rowCount: 1 });
+    repository = new EquipmentRequestsRepository({ query } as unknown as DatabaseService);
+
+    await expect(repository.listReservations()).resolves.toEqual([
+      expect.objectContaining({ coordinatorEmail: '—' }),
+    ]);
   });
 });

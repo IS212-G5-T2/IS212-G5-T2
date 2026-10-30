@@ -10,10 +10,11 @@ const coordinator: AuthenticatedUser = { uid: '00000000-0000-4000-8000-000000000
 const submit = vi.fn();
 const listMine = vi.fn();
 const listQueue = vi.fn();
+const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
 const reserve = vi.fn();
-const service = new EquipmentRequestsService({ submit, update, reserve, listMine, listQueue, listEligibleEvents } as unknown as EquipmentRequestsRepository);
+const service = new EquipmentRequestsService({ submit, update, reserve, listMine, listQueue, listReservations, listEligibleEvents } as unknown as EquipmentRequestsRepository);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -30,6 +31,13 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.reserve(coordinator, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ForbiddenException);
     reserve.mockResolvedValue({ kind: 'not-pending' });
     await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  /** SPM-58: Technical Support receives a conflict when approving equipment after event confirmation. */
+  it('refuses to approve requests after their event is Confirmed', async () => {
+    reserve.mockResolvedValue({ kind: 'event-confirmed' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .rejects.toThrow('Equipment requests cannot be changed after the event is confirmed.');
   });
 
   /** EQUIP-AVAIL-04-BND-1: Technical Support cannot reserve maintenance or already-reserved units. */
@@ -134,5 +142,16 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.listQueue({ uid: 'tech', roles: ['TECH_SUPPORT'] })).resolves.toEqual([]);
     await expect(service.listQueue({ uid: 'coordinator', roles: ['COORDINATOR'] })).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.listQueue(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  /** EQUIP-RESERVE-07-A: Technical Support can read persisted reservations and their owning events. */
+  it('returns reservation rows only to Technical Support', async () => {
+    listReservations.mockResolvedValue([{ equipmentName: 'Stage lighting', eventName: 'Open Day' }]);
+    await expect(service.listReservations({ uid: 'tech', roles: ['TECH_SUPPORT'] })).resolves.toEqual([
+      { equipmentName: 'Stage lighting', eventName: 'Open Day' },
+    ]);
+    await expect(service.listReservations(coordinator)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.listReservations(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(listReservations).toHaveBeenCalledTimes(1);
   });
 });

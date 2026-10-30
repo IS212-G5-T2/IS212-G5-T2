@@ -43,18 +43,27 @@ export class EquipmentRequestsService {
     return this.repository.listQueue();
   }
 
+  /** SPM-58 AC7: the technical-support reservation view is not browser-local state. */
+  async listReservations(user: AuthenticatedUser | undefined) {
+    if (!user?.uid) throw new UnauthorizedException('Authentication required.');
+    if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
+    return this.repository.listReservations();
+  }
+
   /** SPM-113: only Technical Support can approve/reserve a pending request. */
   async reserve(user: AuthenticatedUser | undefined, requestId: string) {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
     if (!user.roles.includes('TECH_SUPPORT')) throw new ForbiddenException('Technical Support access required.');
     const result = await this.repository.reserve(requestId);
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
+    if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be changed after the event is confirmed.');
     if (result.kind === 'not-pending') throw new ConflictException('Only Pending Review equipment requests can be reserved.');
     if (result.kind === 'insufficient-active-stock') {
       throw new ConflictException(`Not enough active equipment is available to reserve ${result.equipmentName}.`);
     }
     return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
   }
+
 
   private coordinator(user: AuthenticatedUser | undefined): AuthenticatedUser {
     if (!user?.uid) throw new UnauthorizedException('Authentication required.');
