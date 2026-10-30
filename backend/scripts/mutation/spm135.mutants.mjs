@@ -73,7 +73,6 @@ export const SUITES = {
   },
 };
 
-const READER = 'src/events/status/arrangements.reader.ts';
 const READINESS = 'src/events/status/readiness.ts';
 const SERVICE = 'src/events/status/status.service.ts';
 const CHECKLIST = 'src/events/status/checklist.ts';

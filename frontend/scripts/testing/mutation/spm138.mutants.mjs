@@ -390,31 +390,25 @@ MUTANTS.push(
   { id: "AV-DATE-SPAN", name: "a multi-day event shown with its first date only", file: "src/features/events/pages/detail/AttendeeEventView.tsx", suites,
     edits: [[": `${formatAttendeeDate(start)} to ${formatAttendeeDate(end)}`;", ": formatAttendeeDate(start);"]],
     testMappings: [{ suite: 'spm138', file: AV_TEST, title: "shows both dates when the event runs over more than one day" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the AttendeeEventView register footer and its tests; attendeeAction() in attendeeEventView.ts is now unused); kept for the record, not run:
+  // retired: SPM-139 removed the AttendeeEventView register footer, register box and coordinator sentence; the entries below are kept for the record, not run.
   // { id: "AV-BUTTON-ENABLED-AFTER-DEADLINE", name: "register button enabled after the deadline", file: "src/features/events/lib/attendeeEventView.ts", suites,
   // edits: [["if (state === \"closed\" || state === \"disabled\") {", "if (state === \"disabled\") {"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "shows Registration closed and disables the button once the deadline has passed" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the AttendeeEventView register footer and its tests; attendeeAction() in attendeeEventView.ts is now unused); kept for the record, not run:
   // { id: "AV-REGISTER-ENABLED-WHEN-FULL", name: "a full event leaves the register button enabled", file: "src/features/events/lib/attendeeEventView.ts", suites,
   // edits: [["if (state === \"full\" || event.isFull) {", "if (false) {"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "disables the register button with a reason when the event is full" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the register box, waitlist button and coordinator sentence from AttendeeEventView.tsx and their tests); kept for the record, not run:
   // { id: "AV-FULL-NO-WAITLIST-BUTTON", name: "Join waitlist hidden on a full event with a waitlist", file: "src/features/events/pages/detail/AttendeeEventView.tsx", suites,
   // edits: [["{action.kind === \"disabled\" && action.waitlistAvailable && (", "{false && ("]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "offers Join waitlist on a full event whose waitlist is available, and calls onJoinWaitlist" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the AttendeeEventView register footer and its tests; attendeeAction() in attendeeEventView.ts is now unused); kept for the record, not run:
   // { id: "AV-NOT-YET-OPEN-REASON", name: "helper text omits the opening time", file: "src/features/events/lib/attendeeEventView.ts", suites,
   // edits: [["reason: `Registration opens ${formatDeadline(event.registrationOpensAt)}`,", "reason: \"Registration closed\","]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "disables the button and gives the opening time as the reason before registration opens" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the register box, waitlist button and coordinator sentence from AttendeeEventView.tsx and their tests); kept for the record, not run:
   // { id: "AV-REGISTER-NOT-WIRED", name: "register button does nothing when clicked", file: "src/features/events/pages/detail/AttendeeEventView.tsx", suites,
   // edits: [["<Button onClick={onRegister} disabled={action.kind === \"disabled\"}>", "<Button disabled={action.kind === \"disabled\"}>"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "calls onRegister when the register button is clicked on an open event" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the AttendeeEventView register footer and its tests; attendeeAction() in attendeeEventView.ts is now unused); kept for the record, not run:
   // { id: "AV-REGISTER-SHOWN-REGISTERED", name: "footer shown to a registered attendee", file: "src/features/events/lib/attendeeEventView.ts", suites,
   // edits: [["if (registration && HIDDEN_FOR.has(registration.status)) return { kind: \"hidden\" };", "if (registration && HIDDEN_FOR.has(registration.status) && false) return { kind: \"hidden\" };"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "hides the footer and the register button for an attendee who is already registered" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the AttendeeEventView register footer and its tests; attendeeAction() in attendeeEventView.ts is now unused); kept for the record, not run:
   // { id: "AV-REGISTRATION-OFF-FOOTER", name: "footer leads into registration that is switched off", file: "src/features/events/lib/attendeeEventView.ts", suites,
   // edits: [["if (!event.registrationEnabled) return { kind: \"hidden\" };", "if (!event.registrationEnabled) return { kind: \"register\" };"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "shows no footer when registration through the website is not enabled" }] },
@@ -433,7 +427,6 @@ MUTANTS.push(
   { id: "AV-ATTACHMENTS-HIDDEN", name: "event programme not listed", file: "src/features/events/pages/detail/AttendeeEventView.tsx", suites,
     edits: [["{attachments.length > 0 && (", "{false && ("]],
     testMappings: [{ suite: 'spm138', file: AV_TEST, title: "lists the event programme with View and Download when attachments exist, and calls onViewAttachment" }] },
-  // OBSOLETE (SPM-139 c2d1863 removed the register box, waitlist button and coordinator sentence from AttendeeEventView.tsx and their tests); kept for the record, not run:
   // { id: "AV-FOOTER-COORDINATOR", name: "coordinator sentence shown with no coordinator", file: "src/features/events/pages/detail/AttendeeEventView.tsx", suites,
   // edits: [["{event.coordinatorName ? ` Questions go to ${event.coordinatorName}.` : \"\"}", "{` Questions go to ${event.coordinatorName ?? \"nobody\"}.`}"]],
   // testMappings: [{ suite: 'spm138', file: AV_TEST, title: "omits the coordinator sentence when no coordinator is assigned" }] },

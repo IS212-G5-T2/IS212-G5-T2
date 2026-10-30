@@ -433,7 +433,7 @@ describe("EventListPage", () => {
   // VIEW-REG-DET-02-A (status badge beside the event status)
   // SPM-61: attendees get Upcoming/Registered/Past/Cancelled filters, see
   // "Confirmed" for Approved events, and a Registered badge beside the status.
-  // Kills: BADGE-M1, BADGE-M2, BADGE-M4, F13
+  // Kills: BADGE-M2, BADGE-M4
   it("gives attendees personal filters and a Registered badge", async () => {
     const user = userEvent.setup();
     const future = new Date(T0.getTime() + 7 * 86_400_000);
@@ -654,7 +654,7 @@ describe("EventListPage: the chosen filter survives leaving and returning to the
 });
 
 describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry reads Waitlisted (AC3)", () => {
-  // Kills: BADGE-M1, BADGE-M4, F12, F15
+  // Kills: BADGE-M4, F12, F15
   it("JOIN-WAITLIST-03-A-FE-LIST: the Waitlisted badge appears in the waiting event's card and not in the others", async () => {
     const future = new Date(T0.getTime() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);
@@ -688,7 +688,7 @@ describe("JOIN-WAITLIST-03-A-FE-LIST: the dashboard card for a waiting entry rea
  * Confirmed badge. Kills CARD-M5 (the list stops passing the withdrawn status to the card).
  */
 describe("CARD-BADGE-05-A-STATE: the list shows a withdrawn registration as Withdrawn", () => {
-  // Kills: BADGE-M1, BADGE-M4, LIST-M5
+  // Kills: BADGE-M4, LIST-M5
   it("CARD-BADGE-05-A-STATE: a withdrawn event card reads Withdrawn and no Confirmed", async () => {
     const future = new Date(T0.getTime() + 7 * 86_400_000);
     const futureEnd = new Date(future.getTime() + 3 * 3_600_000);

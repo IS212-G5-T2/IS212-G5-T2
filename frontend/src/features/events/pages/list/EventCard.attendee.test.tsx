@@ -31,7 +31,7 @@ describe("CARD-BADGE-09: a registration on a cancelled event shows the red Cance
 });
 
 describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a registration", () => {
-  // Kills: BADGE-M1. The event's own label is "Event confirmed", never the registration's "Confirmed".
+  // The event's own label is "Event confirmed", never the registration's "Confirmed".
   it("CARD-BADGE-01-A-STATE: an unregistered attendee sees a registration label, and no event status, on a Confirmed event", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true });
 
@@ -48,7 +48,7 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
     expect(screen.queryByText("Approved")).not.toBeInTheDocument();
   });
 
-  // Kills: BADGE-M1, BADGE-M4, F13
+  // Kills: BADGE-M4
   it("CARD-BADGE-02-A-STATE: a registered attendee sees no Confirmed label", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "registered" });
 
@@ -56,7 +56,7 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
     expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
-  // Kills: BADGE-M1, BADGE-M4, F12
+  // Kills: BADGE-M4, F12
   it("CARD-BADGE-03-A-STATE: a waitlisted attendee sees Waitlisted and no Confirmed badge", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "waitlisted" });
 
@@ -64,7 +64,7 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
     expect(screen.queryByText("Confirmed")).not.toBeInTheDocument();
   });
 
-  // Kills: BADGE-M1, BADGE-M4
+  // Kills: BADGE-M4
   it("CARD-BADGE-04-A-STATE: a withdrawn attendee sees Withdrawn and no Confirmed badge", () => {
     renderCard(buildGala({ status: "confirmed" }), { attendeeView: true, registrationStatus: "withdrawn" });
 
@@ -74,7 +74,7 @@ describe("CARD-BADGE-01 to 04: the attendee card shows Confirmed only for a regi
 });
 
 describe("CARD-BADGE-05 to 07: the attendee card keeps the Completed and Cancelled event badges", () => {
-  // Kills: BADGE-M2, BADGE-M4, F13
+  // Kills: BADGE-M2, BADGE-M4
   it("CARD-BADGE-06-A-STATE: a completed event keeps its Completed badge for an attendee", () => {
     renderCard(buildGala({ status: "completed" }), { attendeeView: true, registrationStatus: "registered" });
 
