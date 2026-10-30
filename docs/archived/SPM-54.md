@@ -78,9 +78,7 @@ Historical AI-assisted work associated with SPM-54.
 ## 2026-10-19
 
 - swr - test data - SPM-54 - Seed manual suitability fixtures: Added four local venues with isolated capacity, facility, accessibility, and layout mismatches, a capacity-24 boundary venue for VEN-BKG-01-BND-1, and an accessibility-specific event clone; documented the idempotent seed script. Updated Confluence VEN-BKG-01-BND-1 to use VEN-329 and the filter step. Not applied to a database yet.
-
 - swr - fix - SPM-54 - Align Planning transition E2E with booking lifecycle: Updated SPM-148 transition fixtures and expectations for fixed event-scheduled times and SPM-54 active duplicate protection; retry now deletes its directly seeded blocker to work across venue-booking status/kind constraints. Targeted transition E2E passed: 40/40 tests.
-
 - swr - test evidence update - SPM-54 - Confluence case status reconciliation: Cycle 20 has passing assertions for all 33 matrix IDs (G1–G7 PASS, 339/339 tests across three timezones, 31/31 mapped mutants killed); updated all case pages to Pass with per-file evidence. Manual UI procedures were not separately run, and cycle metrics remain AMBER for coverage-floor and tier gaps. A separate localhost UI attempt rendered blank; EVT-201 was restored to Confirmed and existing booking rows were unchanged.
 
 ## 2026-10-20
@@ -90,19 +88,11 @@ Historical AI-assisted work associated with SPM-54.
 ## 2026-10-21
 
 - swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch vulnerable frontend Vite dependency: Updated Vite from 8.3.0 to 8.3.5 to resolve reported launch-editor advisories. `npm audit --audit-level=high` found 0 vulnerabilities; frontend coverage tests (1,723 passed, 1 skipped, 1 todo), build, and lint passed (12 existing warnings). No commit, push, or PR.
-
 - swr - security fix - feature/SPM-54-Submit-a-Venue-Booking-Request - Patch backend's transitive Vite audit finding: Updated the lockfile resolution from 8.3.0 to 8.3.5 via Vitest 5.0.0 without changing direct dependencies. Backend `npm audit --audit-level=high` found 0 vulnerabilities; `npm run test:cov` passed (1,693 tests), build passed, lint passed with two existing warnings. Frontend audit, coverage tests, build, and lint also passed. No commit, push, or PR.
-
 - swr - implementation correction - SPM-54 - Add AC6 buffered blockout negative and boundary coverage: Added outside-window and exact setup-buffer adjacency cases and the corresponding My Bookings intersection/inclusive mutants; marked AC6 Boundary PRESENT and refreshed generated test records. Backend E2E was not executed because DATABASE_URL is unavailable. No behavior change, commit, push, PR, or Jira transition.
-
 - swr - implementation correction - SPM-54 - Refresh cycle-35 AC6 evidence: Updated current branch-location references and marked both added AC6 E2E records deterministic and PASS from retry evidence (419/419 tests in UTC, Asia/Singapore, and America/Los_Angeles). No manual Confluence cases were marked executed; no behavior change, commit, push, PR, or Jira transition.
-
 - swr - implementation correction - SPM-54 - Assert event-linked calendar selection is disabled: Captured FullCalendar props in the page test and asserted `selectable` is false and `select` is undefined; clarified that generic selection remains testable in standalone SPM-51 tests outside this SPM-54 coverage scope. No behavior change.
-
 - swr - implementation correction - SPM-54 - Refresh cycle-36 coverage residuals: Removed stale VenueRecordDetailPage uncovered-line and PlanningInformationPanel branch references, retained current PlanningInformationPage/VenueRecordDetailPage misses, and documented StatusLabels nullish fallback branches 66 and 73. No source or test changes.
-
 - swr - implementation correction - SPM-54 - Close cycle-tcr-pr79b boundary probes: Added My Bookings turnaround-edge adjacency coverage and split setup/turnaround inclusive mutants; added AC11 planning setup/turnaround adjacency cases and corresponding one-sided mutants; removed duplicated coverage residual table header and VenueScheduleCalendar row. Records updated for new cases. PostgreSQL E2E and mutation execution not run in this implementation pass; no behavior change.
-
 - swr - implementation correction - SPM-54 - Refresh cycle-37 test records: Marked the My Bookings turnaround adjacency and AC11 setup/turnaround adjacency E2E records PASS from cycle 37 G3 and G6 evidence (all three cases passed; all four one-sided inclusive mutants were killed). No behavior or test changes.
-
 - swr - implementation correction - SPM-54 - Refresh cycle-38 mutation links: Updated all 14 maintained bookingE2E suite links in the SPM-54 CSV from 14 to 15 mutants, matching the current mutation suite and cycle-38 generated records. No behavior or test changes.

@@ -551,11 +551,21 @@ export type PendingChange = FlaggedChange | ReplacementRequired;
 
 export interface ChangeHistoryEntry {
   id: string;
+  /**
+   * SPM-156: "direct_update" for a change applied immediately (SPM-49 AC3/AC5),
+   * "change_request" for a change applied by approving an organiser's change
+   * request (SPM-65 AC4), "booking_conflict" for a flagged change that was
+   * confirmed or rejected (SPM-85 AC6). Absent from older responses; treat as
+   * "booking_conflict".
+   */
+  kind?: "booking_conflict" | "direct_update" | "change_request";
   field: string;
   originalValue: unknown;
   proposedValue: unknown;
   /** The value the event ended up with: proposed if Applied, original if Rejected. */
   resolvedValue: unknown;
+  /** Who asked for the change: the coordinator, or the organiser for a change request (SPM-156). */
+  proposedBy?: string;
   resolvedBy: string;
   resolvedAt: string;
   status: "Applied" | "Rejected";

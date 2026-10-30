@@ -177,8 +177,13 @@ function setup(script: Script = {}) {
     listVenueBookings: vi.fn(async () => script.bookings ?? []),
     listEquipmentArrangements: vi.fn(async () => []),
     safetyCheckExists: vi.fn(async () => safety.shift() ?? false),
-    applyFields: vi.fn(async () => {
+    applyFields: vi.fn(async (_id: string, patch: Record<string, unknown>) => {
       if (script.failOn === 'applyFields') throw new Error('injected fault');
+      return { ...(script.event ?? eventRow()), ...patch };
+    }),
+    recordAppliedChanges: vi.fn(async (..._args: unknown[]) => {
+      if (script.failOn === 'recordAppliedChanges')
+        throw new Error('injected fault');
     }),
     query,
   };
@@ -617,6 +622,7 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
 
   it.each([
     ['applyFields'],
+    ['recordAppliedChanges'],
     ['UPDATE event_safety_resets'],
     ["SET status = 'Planning'"],
     ["SET status = 'Approved'"],
@@ -636,6 +642,88 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
       expect(committed).toEqual([]);
     },
   );
+});
+
+describe('ChangeRequestReviewService.approve change history (SPM-156)', () => {
+  /**
+   * EVENT-UPDATE-07-E: the history entries are written in the approval's transaction, so a failed
+   * history write fails the approval and commits nothing (no event change, no decision, no notice).
+   */
+  it('EVENT-UPDATE-07-E fails the approval and commits nothing when the history write fails', async () => {
+    const { svc, committed } = setup({ failOn: 'recordAppliedChanges' });
+    await expect(
+      svc.approve(coordinator, EVENT_ID, REQUEST_ID, {}),
+    ).rejects.toThrow('injected fault');
+    expect(committed).toEqual([]);
+  });
+
+  // EVENT-UPDATE-07-E: each requested field whose value changes is recorded as
+  // an Applied 'change_request' entry, proposed by the organiser, applied by
+  // the coordinator, at the decision time.
+  it('EVENT-UPDATE-07-E records each changed field in the event change history', async () => {
+    const { svc, repository } = setup({
+      request: requestRow({
+        changes: [
+          {
+            field: 'expectedAttendance',
+            originalValue: 80,
+            proposedValue: 120,
+          },
+          { field: 'description', originalValue: 'd', proposedValue: 'New' },
+        ],
+      }),
+    });
+    await svc.approve(coordinator, EVENT_ID, REQUEST_ID, undefined);
+    expect(repository.recordAppliedChanges).toHaveBeenCalledTimes(1);
+    expect(repository.recordAppliedChanges).toHaveBeenCalledWith(
+      EVENT_ID,
+      // In validated field order, not request order.
+      [
+        { field: 'description', originalValue: 'd', newValue: 'New' },
+        { field: 'expectedAttendance', originalValue: 80, newValue: 120 },
+      ],
+      {
+        kind: 'change_request',
+        appliedBy: { name: 'Coordinator 1', id: 'coord-1' },
+        proposedBy: { name: 'Organiser 1', id: 'org-1' },
+      },
+      NOW,
+    );
+  });
+
+  // EVENT-UPDATE-07-E: a requested value equal to the current one is not a change.
+  it('EVENT-UPDATE-07-E leaves out requested values the event already has', async () => {
+    const { svc, repository } = setup({
+      request: requestRow({
+        changes: [
+          { field: 'expectedAttendance', originalValue: 80, proposedValue: 80 },
+          {
+            field: 'facilities',
+            originalValue: ['Catering'],
+            proposedValue: ['Catering'],
+          },
+          {
+            field: 'layout',
+            originalValue: 'Banquet',
+            proposedValue: 'Theatre',
+          },
+        ],
+      }),
+    });
+    await svc.approve(coordinator, EVENT_ID, REQUEST_ID, undefined);
+    expect(repository.recordAppliedChanges.mock.calls[0][1]).toEqual([
+      { field: 'layout', originalValue: 'Banquet', newValue: 'Theatre' },
+    ]);
+  });
+
+  // EVENT-UPDATE-07-E: a denied request changes nothing, so nothing is recorded.
+  it('EVENT-UPDATE-07-E records nothing when the request is denied', async () => {
+    const { svc, repository } = setup();
+    await svc.deny(coordinator, EVENT_ID, REQUEST_ID, {
+      reason: 'The venue cannot fit them.',
+    });
+    expect(repository.recordAppliedChanges).not.toHaveBeenCalled();
+  });
 });
 
 describe('ChangeRequestReviewService.deny (AC5, AC6, AC10)', () => {

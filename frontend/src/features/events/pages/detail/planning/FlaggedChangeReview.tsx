@@ -11,13 +11,14 @@
  * Per-booking semantics (agreed interpretation of AC7, confirm with the team):
  * the server records each booking's decision independently and closes the
  * change once every impacted booking is decided — Applied if all confirmed,
- * Rejected otherwise. The change history (AC5) lists resolved changes.
+ * Rejected otherwise. The change history (AC6) lists resolved changes and,
+ * since SPM-156, changes applied immediately (ChangeHistoryList).
  */
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import type { BookingImpact, ChangeHistoryEntry, FlaggedChange, ResolveChangeRequest } from "@/types";
-import { formatSgtDateTime } from "@/utils/sgtDate";
 import { fieldLabel, formatFieldValue } from "@/utils/planning";
+import { ChangeHistoryList } from "./ChangeHistoryList";
 
 interface Props {
   changes: FlaggedChange[];
@@ -206,29 +207,7 @@ export function FlaggedChangeReview({ changes, history, onResolve }: Props) {
 
       <div>
         <h3 className="mb-2 font-medium text-gray-900 dark:text-gray-100">Change History</h3>
-        {history.length ? (
-          <ul aria-label="Change history" className="space-y-2 text-sm">
-            {history.map((entry) => (
-              <li
-                key={entry.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-gray-200 px-3 py-2 dark:border-gray-700"
-              >
-                <span>
-                  <span className="font-medium text-gray-800 dark:text-gray-200">{fieldLabel(entry.field)}:</span>{" "}
-                  <span>
-                    {formatFieldValue(entry.field, entry.originalValue)} → {formatFieldValue(entry.field, entry.proposedValue)}
-                  </span>
-                </span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
-                  <span className="font-medium">{entry.status}</span> by {entry.resolvedBy} ·{" "}
-                  <time dateTime={entry.resolvedAt}>{formatSgtDateTime(entry.resolvedAt)}</time>
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-sm text-gray-500 dark:text-gray-400">No resolved changes yet.</p>
-        )}
+        <ChangeHistoryList history={history} />
       </div>
     </div>
   );

@@ -7,3 +7,9 @@ archival or asks the agent to create a pull request.
 Add entries under one date per day, using this format:
 
 ```md
+## YYYY-MM-DD
+
+- <user or general> - <type> - <Jira ticket or branch name> - <title>: <concise result>
+```
+
+Where user is the user's github username.

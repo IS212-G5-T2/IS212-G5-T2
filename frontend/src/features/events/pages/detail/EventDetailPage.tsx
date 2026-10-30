@@ -27,6 +27,7 @@ import { PlanningUpdateForm } from "@/features/events/pages/detail/planning/Plan
 import { FlaggedChangeReview } from "@/features/events/pages/detail/planning/FlaggedChangeReview";
 import { PlanningInformationPage } from "@/features/events/pages/detail/planning/PlanningInformationPage";
 import { StatusHistory } from "@/features/events/pages/detail/planning/StatusHistory";
+import { ChangeHistoryList } from "@/features/events/pages/detail/planning/ChangeHistoryList";
 import { ConfirmedArrangementsPanel } from "@/features/events/pages/detail/planning/ConfirmedArrangementsPanel";
 import {
   PLANNING_REFRESH_MS,
@@ -146,6 +147,13 @@ export function EventDetailPage() {
   const [planningView, setPlanningView] = useState<PlanningView | null>(null);
   const [planningError, setPlanningError] = useState("");
   const [changeHistory, setChangeHistory] = useState<ChangeHistoryEntry[]>([]);
+  // SPM-156: only the newest history request may set the list, so a slow reply for the previous
+  // event (or an older poll) never shows up under this one. Changing event clears the list.
+  const historyRequest = useRef(0);
+  useEffect(() => {
+    historyRequest.current += 1;
+    setChangeHistory([]);
+  }, [id]);
   const isPlanningCoordinator =
     hasRole(currentUser, "coordinator") && !!event && event.coordinatorId === currentUser.id;
   const isPlanningOwner =
@@ -172,8 +180,10 @@ export function EventDetailPage() {
 
   const loadHistory = useCallback(async () => {
     if (!id) return;
+    const request = ++historyRequest.current;
     try {
-      setChangeHistory(await fetchChangeHistory(id));
+      const history = await fetchChangeHistory(id);
+      if (request === historyRequest.current) setChangeHistory(history);
     } catch {
       // History is supplementary; the review panel still works without it.
     }
@@ -184,13 +194,18 @@ export function EventDetailPage() {
       setPlanningView(null);
       return;
     }
+    // SPM-156: the owning organiser reads the change history too, and it
+    // refreshes with the planning view so either role sees the other's changes.
     loadPlanning();
-    if (isPlanningCoordinator) loadHistory();
+    loadHistory();
     const timer = setInterval(() => {
-      if (typeof document === "undefined" || document.visibilityState !== "hidden") loadPlanning();
+      if (typeof document === "undefined" || document.visibilityState !== "hidden") {
+        loadPlanning();
+        loadHistory();
+      }
     }, PLANNING_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [planningEnabled, isPlanningCoordinator, loadPlanning, loadHistory]);
+  }, [planningEnabled, loadPlanning, loadHistory]);
 
   const savePlanning = async (patch: PlanningUpdatePatch) => {
     const result = await updatePlanning(id!, patch);
@@ -567,6 +582,19 @@ export function EventDetailPage() {
       )}
             {/* SPM-148 PLAN-STATUS-04-A: Status History for the owner or assigned Coordinator (Approved, Planning, Confirmed). */}
       {planningEnabled && <StatusHistory eventId={event.id} />}
+      {/* SPM-156: change history outside the coordinator's editing view, e.g. for the owning organiser (read-only). */}
+      {planningView &&
+        !(isPlanningCoordinator && !planningView.readOnly && !isCancelled) &&
+        changeHistory.length > 0 && (
+          <Card className="mb-6">
+            <CardHeader>
+              <h2 className="font-semibold text-gray-900 dark:text-gray-100">Change History</h2>
+            </CardHeader>
+            <CardBody>
+              <ChangeHistoryList history={changeHistory} />
+            </CardBody>
+          </Card>
+        )}
       {!planningView && planningEnabled && planningError && (
         <div role="alert" className="mb-4 rounded-lg border border-danger-300 dark:border-danger-700 bg-danger-50 dark:bg-danger-900/20 px-4 py-3 text-sm text-danger-900 dark:text-danger-300">
           {planningError}

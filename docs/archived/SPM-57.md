@@ -1,7 +1,5 @@
 # SPM-57 AI usage archive
 
-Archived from `AI_USAGE.md`; original dates and wording retained.
-
 ## 2026-10-20
 
 - kishorek888 - implementation - SPM-57 - Request equipment for an event: Added coordinator equipment-request creation, event-context prefill, validation, confirmation reference, Pending Review views, Technical Support queue, lifecycle guards, Approved-to-Planning transition, duplicate prevention, and in-place updates. Confluence procedures and matrix traceability were updated. Cycle 29 independently passed G1–G7: 158/158 tests in UTC, Asia/Singapore, and America/Los_Angeles; 100% scoped statement, branch, function, and line coverage; 45/45 mutants killed. No push, PR, or Jira transition.

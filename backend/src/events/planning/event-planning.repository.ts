@@ -104,10 +104,23 @@ export interface StoredBookingImpact extends BookingImpact {
 
 export type FlaggedChangeStatus = 'Needs Review' | 'Applied' | 'Rejected';
 
+/**
+ * 'booking_conflict': a change flagged for review (SPM-85).
+ * 'direct_update': a change applied immediately (SPM-49 AC3/AC5), recorded as
+ * Applied by the coordinator who made it so change history is complete (SPM-156).
+ * 'change_request': a change applied by approving an organiser's change request
+ * (SPM-65 AC4), recorded as Applied: proposed by the organiser, applied by the
+ * approving coordinator (SPM-156).
+ */
+export type ChangeKind = 'booking_conflict' | 'direct_update' | 'change_request';
+
+/** Kinds that are recorded already Applied, never reviewed (SPM-156). */
+export type AppliedChangeKind = Exclude<ChangeKind, 'booking_conflict'>;
+
 export interface FlaggedChangeRow {
   id: string;
   eventId: string;
-  kind: 'booking_conflict';
+  kind: ChangeKind;
   field: EventFieldKey;
   originalValue: unknown;
   proposedValue: unknown;
@@ -140,6 +153,13 @@ export interface ChangeResolution {
   clearImpacts?: boolean;
   /** Record the decision for this one venue booking only (SPM-85 AC7). */
   bookingId?: string;
+}
+
+/** One field applied without review, for the change history (SPM-156). */
+export interface AppliedChange {
+  field: EventFieldKey;
+  originalValue: unknown;
+  newValue: unknown;
 }
 
 /** A time window used to widen the neighbour search to a proposed date. */
@@ -329,7 +349,8 @@ export class EventPlanningRepository {
   /** Every flagged change of the event; the service filters and orders. */
   async listHistory(eventId: string): Promise<FlaggedChangeRow[]> {
     const result = await this.db().query(
-      'SELECT * FROM event_flagged_changes WHERE event_id = $1 ORDER BY created_at DESC',
+      // Entries saved by one update share created_at; field keeps their order stable.
+      'SELECT * FROM event_flagged_changes WHERE event_id = $1 ORDER BY created_at DESC, field',
       [eventId],
     );
     return result.rows.map((row) => this.changeRow(row));
@@ -412,6 +433,54 @@ export class EventPlanningRepository {
         );
       throw error;
     }
+  }
+
+  /**
+   * SPM-156: records each field applied without review as an Applied change
+   * history row, at the same instant the event's updated_at was stamped, so
+   * history and "Last updated" agree.
+   * - 'direct_update' (Update Event Information): proposed and applied by the coordinator.
+   * - 'change_request' (an approved SPM-64 request): proposed by the organiser
+   *   who asked (`proposedBy`), applied by the approving coordinator (`appliedBy`).
+   */
+  async recordAppliedChanges(
+    eventId: string,
+    changes: AppliedChange[],
+    source: {
+      kind: AppliedChangeKind;
+      appliedBy: { name: string; id: string };
+      proposedBy?: { name: string; id: string };
+    },
+    at: Date,
+  ): Promise<void> {
+    if (!changes.length) return;
+    const proposedBy = source.proposedBy ?? source.appliedBy;
+    const values: unknown[] = [
+      eventId,
+      source.kind,
+      proposedBy.name,
+      proposedBy.id,
+      at,
+      source.appliedBy.name,
+      source.appliedBy.id,
+    ];
+    const rows = changes.map((change) => {
+      values.push(
+        randomUUID(),
+        change.field,
+        JSON.stringify(change.originalValue),
+        JSON.stringify(change.newValue),
+      );
+      const n = values.length;
+      return `($${n - 3}, $1, $2, $${n - 2}, $${n - 1}::jsonb, $${n}::jsonb, 'Applied', $3, $4, $5, $6, $7, $5)`;
+    });
+    await this.db().query(
+      `INSERT INTO event_flagged_changes
+         (id, event_id, kind, field, original_value, proposed_value, status,
+          proposed_by, proposed_by_id, created_at, resolved_by, resolved_by_id, resolved_at)
+       VALUES ${rows.join(', ')}`,
+      values,
+    );
   }
 
   /**

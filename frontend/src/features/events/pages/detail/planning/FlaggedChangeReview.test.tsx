@@ -76,7 +76,7 @@ describe("FlaggedChangeReview", () => {
   });
 
   // EVENT-FLAG-07-A: per-booking actions are scoped to that booking and leave the others usable.
-  // NOTE: scoped-resolution semantics are an interpretation of the AC (backend/HANDOVER.md, rule 10); confirm with the team.
+  // NOTE: scoped-resolution semantics are an interpretation of the AC (assumption 5 in docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md); confirm with the team.
   it("EVENT-FLAG-07-A confirming one booking sends only that booking and leaves the others actionable", async () => {
     const user = userEvent.setup();
     const { onResolve, card } = renderReview();
@@ -258,7 +258,7 @@ describe("FlaggedChangeReview: empty states and history values", () => {
   it("EVENT-FLAG-05-A shows empty states for no pending changes and no history", () => {
     render(<FlaggedChangeReview changes={[]} history={[]} onResolve={vi.fn()} />);
     expect(screen.getByText("No changes are awaiting review.")).toBeInTheDocument();
-    expect(screen.getByText("No resolved changes yet.")).toBeInTheDocument();
+    expect(screen.getByText("No changes recorded yet.")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: /change history/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("article")).not.toBeInTheDocument();
   });
