@@ -198,6 +198,69 @@ describe('EventPlanningRepository writes', () => {
     expect(row.name).toBe('Renamed');
   });
 
+  /** SPM-58 AC11: a non-reschedule update never touches the event's equipment. */
+  it('leaves equipment untouched when the date/time is unchanged', async () => {
+    const { repository, poolQuery } = makeDatabase([eventDbRow()]);
+    await repository.applyFields(
+      EVENT_ID,
+      { name: 'Renamed' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    const sqls = poolQuery.mock.calls.map(([sql]) => sql as string);
+    expect(sqls.some((sql) => sql.includes('equipment_requests'))).toBe(false);
+    expect(sqls.some((sql) => sql.includes('equipment_reservations'))).toBe(false);
+  });
+
+  // SPM-58 AC11: routes applyFields' queries by statement so a reschedule can be
+  // asserted (the shared stub returns one fixed result for every call).
+  function rescheduleDatabase(oldWindow: { start: Date; end: Date }, newWindow: { start: Date; end: Date }) {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const query: Query = vi.fn(async (sql: string, params: unknown[] = []) => {
+      calls.push({ sql, params });
+      if (sql.startsWith('SELECT start_date_time')) return { rows: [{ start_date_time: oldWindow.start, end_date_time: oldWindow.end }] };
+      if (sql.startsWith('UPDATE events')) return { rows: [eventDbRow({ start_date_time: newWindow.start, end_date_time: newWindow.end })] };
+      return { rows: [] };
+    });
+    const database = { query, transaction: vi.fn() } as unknown as DatabaseService;
+    return { repository: new EventPlanningRepository(database), calls };
+  }
+
+  /** SPM-58 AC11: a move outside the held window returns requests to review AND releases the reservations. */
+  it('returns equipment to Pending Review and releases reservations when the event moves outside its window', async () => {
+    const { repository, calls } = rescheduleDatabase(
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      { start: new Date('2026-11-10T09:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+    );
+    await repository.applyFields(
+      EVENT_ID,
+      { startDateTime: '2026-11-10T09:00:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    const reqUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_requests'));
+    expect(reqUpdate?.sql).toContain("status = 'Pending Review'");
+    expect(reqUpdate?.sql).toContain("status = 'Reserved'");
+    expect(reqUpdate?.params[0]).toBe(EVENT_ID);
+    const resUpdate = calls.find((call) => call.sql.includes('UPDATE equipment_reservations'));
+    expect(resUpdate?.sql).toContain("status = 'Released'");
+    expect(resUpdate?.sql).toContain("status = 'Reserved'");
+    expect(resUpdate?.params[0]).toBe(EVENT_ID);
+  });
+
+  /** SPM-58 AC11: a move that stays inside the held window re-opens the request but keeps the reservations. */
+  it('returns equipment to Pending Review but keeps reservations when the event stays within its window', async () => {
+    const { repository, calls } = rescheduleDatabase(
+      { start: new Date('2026-11-10T10:00:00.000Z'), end: new Date('2026-11-10T12:00:00.000Z') },
+      { start: new Date('2026-11-10T10:30:00.000Z'), end: new Date('2026-11-10T11:30:00.000Z') },
+    );
+    await repository.applyFields(
+      EVENT_ID,
+      { startDateTime: '2026-11-10T10:30:00.000Z', endDateTime: '2026-11-10T11:30:00.000Z' } as unknown as Parameters<typeof repository.applyFields>[1],
+      new Date('2026-10-05T08:00:00.000Z'),
+    );
+    expect(calls.some((call) => call.sql.includes('UPDATE equipment_requests'))).toBe(true);
+    expect(calls.some((call) => call.sql.includes('UPDATE equipment_reservations'))).toBe(false);
+  });
+
   /**
    * EVENT-UPDATE-07-A (SPM-156): each field applied immediately is inserted as
    * an Applied 'direct_update' history row, proposed and applied by the
