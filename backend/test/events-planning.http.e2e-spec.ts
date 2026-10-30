@@ -274,6 +274,88 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     }
   });
 
+  // SPM-58 AC11: a date/time change within the held window returns the request to
+  // the review queue but keeps the equipment reserved.
+  it('EVENT-UPDATE-HTTP-AC11-within re-opens the request and keeps reservations for an in-window reschedule', async () => {
+    const { requestId } = await seedReservedEquipment();
+    const patched = await request(app.getHttpServer())
+      .patch(planningUrl())
+      .set('Cookie', coordinator.cookie)
+      .send({ startDateTime: '2030-04-14T10:30:00.000Z', endDateTime: '2030-04-14T12:30:00.000Z' })
+      .expect(200);
+    expect(patched.body.applied).toEqual(
+      expect.arrayContaining(['startDateTime', 'endDateTime']),
+    );
+    expect(await equipmentState(requestId)).toEqual({
+      request: 'Pending Review',
+      reservations: ['Reserved'],
+    });
+  });
+
+  // SPM-58 AC11: a date/time change outside the held window is flagged; confirming it
+  // returns the request to review and releases the held equipment.
+  it('EVENT-UPDATE-HTTP-AC11-outside re-opens the request and releases equipment for an out-of-window reschedule', async () => {
+    const { requestId } = await seedReservedEquipment();
+    const flagged = await request(app.getHttpServer())
+      .patch(planningUrl())
+      .set('Cookie', coordinator.cookie)
+      .send({ startDateTime: '2030-04-14T09:00:00.000Z' })
+      .expect(200);
+    expect(flagged.body.flagged).toEqual([
+      expect.objectContaining({ field: 'startDateTime', status: 'Needs Review' }),
+    ]);
+    // Not applied yet, so the equipment is still reserved.
+    expect(await equipmentState(requestId)).toEqual({
+      request: 'Reserved',
+      reservations: ['Reserved'],
+    });
+
+    const changeId = flagged.body.flagged[0].id as string;
+    await request(app.getHttpServer())
+      .post(`${planningUrl()}/changes/${changeId}/resolve`)
+      .set('Cookie', coordinator.cookie)
+      .send({ decision: 'confirm' })
+      .expect(201);
+    expect(await equipmentState(requestId)).toEqual({
+      request: 'Pending Review',
+      reservations: ['Released'],
+    });
+  });
+
+  async function seedReservedEquipment() {
+    const requestId = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO equipment_requests (event_id, requested_by, status) VALUES ($1, $2, 'Reserved') RETURNING id`,
+        [eventId, coordinator.uid],
+      )
+    ).rows[0].id;
+    const itemId = (
+      await pool.query<{ id: string }>(
+        `INSERT INTO equipment_request_items (request_id, equipment_name, equipment_type, quantity)
+         VALUES ($1, 'Stage lighting', 'Lighting', 2) RETURNING id`,
+        [requestId],
+      )
+    ).rows[0].id;
+    await pool.query(
+      `INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status, equipment_request_item_id)
+       VALUES ($1, 'Stage lighting', 2, 'Reserved', $2)`,
+      [eventId, itemId],
+    );
+    return { requestId };
+  }
+
+  async function equipmentState(requestId: string) {
+    const req = await pool.query<{ status: string }>(
+      'SELECT status FROM equipment_requests WHERE id = $1',
+      [requestId],
+    );
+    const res = await pool.query<{ status: string }>(
+      'SELECT status FROM equipment_reservations WHERE event_id = $1 ORDER BY id',
+      [eventId],
+    );
+    return { request: req.rows[0].status, reservations: res.rows.map((r) => r.status) };
+  }
+
   async function storedName(): Promise<string> {
     const result = await pool.query<{ event_name: string }>(
       'SELECT event_name FROM events WHERE id = $1',
