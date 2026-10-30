@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { EquipmentRequestsRepository } from './equipment-requests.repository.js';
@@ -14,7 +14,8 @@ const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
 const reserve = vi.fn();
-const service = new EquipmentRequestsService({ submit, update, reserve, listMine, listQueue, listReservations, listEligibleEvents } as unknown as EquipmentRequestsRepository);
+const markCannotProvide = vi.fn();
+const service = new EquipmentRequestsService({ submit, update, reserve, markCannotProvide, listMine, listQueue, listReservations, listEligibleEvents } as unknown as EquipmentRequestsRepository);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -45,6 +46,35 @@ describe('SPM-57 equipment request service', () => {
     reserve.mockResolvedValue({ kind: 'insufficient-active-stock', equipmentName: 'Stage lighting' });
     await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
       .rejects.toThrow('Not enough active equipment is available to reserve Stage lighting.');
+  });
+
+  /** SPM-58 AC8/AC9: Technical Support marks a request Cannot Provide with a required reason. */
+  it('marks a pending request Cannot Provide with a trimmed reason', async () => {
+    markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id: '00000000-0000-4000-8000-000000000099' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '  Only 8 available; 10 requested.  ' }))
+      .resolves.toMatchObject({ kind: 'cannot-provided', requestReference: 'ER-00000000' });
+    expect(markCannotProvide).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099', 'Only 8 available; 10 requested.');
+  });
+
+  /** SPM-58 AC9: an empty or missing reason is refused before any persistence. */
+  it('requires a non-empty reason to mark Cannot Provide', async () => {
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '   ' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', {}))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(markCannotProvide).not.toHaveBeenCalled();
+  });
+
+  /** SPM-58 AC8: only Technical Support can mark Cannot Provide, and the event-confirmed/not-pending guards surface as conflicts. */
+  it('restricts Cannot Provide to Technical Support and maps repository guards', async () => {
+    await expect(service.markCannotProvide(coordinator, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.markCannotProvide(undefined, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(UnauthorizedException);
+    markCannotProvide.mockResolvedValue({ kind: 'not-pending' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    markCannotProvide.mockResolvedValue({ kind: 'event-confirmed' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    markCannotProvide.mockResolvedValue({ kind: 'request-not-found' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
   /** SPM-113: a reservation cannot be silently replaced by an editable pending request. */

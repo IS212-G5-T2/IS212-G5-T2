@@ -14,6 +14,7 @@ interface RequestRow {
   id: string; event_id: string; event_name: string; start_date_time: Date;
   end_date_time: Date; expected_attendance: number; event_status: string; status: string;
   requested_by: string; coordinator_name: string | null; created_at: Date;
+  decision_reason: string | null;
   item_id: string; equipment_name: string; equipment_type: string; quantity: number;
   available_quantity: number;
 }
@@ -276,11 +277,47 @@ export class EquipmentRequestsRepository {
     });
   }
 
+  /** SPM-58 AC8/AC9: records why a Pending Review request cannot be fulfilled and
+   *  retires its placeholder reservations. The reason is shown to the coordinator. */
+  async markCannotProvide(requestId: string, reason: string) {
+    return this.database.transaction(async (client) => {
+      const found = await client.query<{ id: string; status: string; event_id: string; event_status: string }>(
+        `SELECT r.id, r.status, r.event_id, e.status AS event_status
+           FROM equipment_requests r JOIN events e ON e.id = r.event_id
+          WHERE r.id = $1::uuid FOR UPDATE OF r, e`,
+        [requestId],
+      );
+      const request = found.rows[0];
+      if (!request) return { kind: 'request-not-found' as const };
+      if (request.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
+      if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
+
+      const now = this.clock.now();
+      await client.query(
+        `UPDATE equipment_requests
+            SET status = 'Cannot Provide', decision_reason = $2, updated_at = $3::timestamptz
+          WHERE id = $1::uuid`,
+        [requestId, reason, now],
+      );
+      // The request will not be fulfilled, so its placeholder reservations are retired.
+      await client.query(
+        `UPDATE equipment_reservations reservation
+            SET status = 'Unavailable', updated_at = $2::timestamptz
+           FROM equipment_request_items item
+          WHERE item.request_id = $1::uuid
+            AND reservation.equipment_request_item_id = item.id
+            AND reservation.status = 'Requested'`,
+        [requestId, now],
+      );
+      return { kind: 'cannot-provided' as const, id: request.id };
+    });
+  }
+
   private async readRequests(where: string, params: unknown[]) {
     const result = await this.database.query<RequestRow>(
       `SELECT r.id, r.event_id, e.event_name, e.start_date_time, e.end_date_time,
               e.expected_attendance, e.status AS event_status, r.status, r.requested_by, e.coordinator_name,
-              r.created_at, i.id AS item_id, i.equipment_type, i.quantity,
+              r.created_at, r.decision_reason, i.id AS item_id, i.equipment_type, i.quantity,
               i.equipment_name,
               GREATEST(COALESCE((SELECT CASE WHEN eq.is_available THEN eq.active_quantity ELSE 0 END
                   FROM equipment eq WHERE eq.equipment_name = i.equipment_name LIMIT 1), 0)
@@ -298,7 +335,8 @@ export class EquipmentRequestsRepository {
       id: string; reference: string; eventId: string; eventName: string;
       eventStart: string; eventEnd: string; expectedAttendance: number;
       status: string; eventStatus: RequestRow['event_status']; requestedBy: string; coordinatorName: string | null;
-      createdAt: string; items: { id: string; equipmentName: string; equipmentType: string; quantity: number; availableQuantity: number; sufficient: boolean }[];
+      createdAt: string; decisionReason: string | null;
+      items: { id: string; equipmentName: string; equipmentType: string; quantity: number; availableQuantity: number; sufficient: boolean }[];
     }>();
     for (const row of result.rows) {
       let record = records.get(row.id);
@@ -310,7 +348,7 @@ export class EquipmentRequestsRepository {
           expectedAttendance: row.expected_attendance, eventStatus: row.event_status,
           status: row.status,
           requestedBy: row.requested_by, coordinatorName: row.coordinator_name,
-          createdAt: row.created_at.toISOString(), items: [],
+          createdAt: row.created_at.toISOString(), decisionReason: row.decision_reason, items: [],
         };
         records.set(row.id, record);
       }
