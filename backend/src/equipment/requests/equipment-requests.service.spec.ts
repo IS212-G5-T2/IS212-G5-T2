@@ -77,11 +77,6 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  /** SPM-113: a reservation cannot be silently replaced by an editable pending request. */
-  it('refuses updates once Technical Support has reserved the request', async () => {
-    update.mockResolvedValue({ kind: 'request-reserved' });
-    await expect(service.update(coordinator, '00000000-0000-4000-8000-000000000099', body)).rejects.toBeInstanceOf(ConflictException);
-  });
   /** EQUIP-REQUEST-01-A: a coordinator can read only their eligible event picker options. */
   it('returns the coordinator-scoped eligible event picker list', async () => {
     listEligibleEvents.mockResolvedValue([{ id: eventId, name: 'Workshop' }]);

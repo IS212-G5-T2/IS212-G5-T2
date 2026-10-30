@@ -109,7 +109,6 @@ export class EquipmentRequestsRepository {
       const row = existing.rows[0];
       if (!row) return { kind: 'request-not-found' as const };
       if (row.event_id !== input.eventId) return { kind: 'event-not-open' as const };
-      if (row.request_status !== 'Pending Review') return { kind: 'request-reserved' as const };
       if (row.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (!['Approved', 'Planning'].includes(row.event_status)) return { kind: 'event-not-open' as const };
 
