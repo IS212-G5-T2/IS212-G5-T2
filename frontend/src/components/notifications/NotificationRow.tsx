@@ -3,18 +3,16 @@ import { Link } from "react-router-dom";
 import type { Notification } from "@/types";
 import { formatDateTime, formatDecisionDate, timeAgo } from "@/utils/format";
 
-// Rejections (and SPM-65 change request denials) carry a reason in one combined backend
-// message: `... "<event name>" was rejected: <reason>`. The separator is taken only where it
-// follows the closing quote of the event name, so a name that itself contains " was rejected: "
-// keeps its full text (SPM-88 AC3). Other messages have no separator and stay intact.
-const DECISION_SEPARATOR = /" was (rejected|denied): /;
-function splitRejectionMessage(message: string): { headline: string; reason: string | null } {
-  const match = DECISION_SEPARATOR.exec(message);
-  if (!match) return { headline: message, reason: null };
-  return {
-    headline: `${message.slice(0, match.index + 1)} was ${match[1]}`,
-    reason: message.slice(match.index + match[0].length),
-  };
+// SPM-88 AC3: the bell never shows a reason; it is on the event detail page (AC4). Rejection messages carry none.
+// SPM-65 change request denials still arrive as `Your change request for "<name>" was denied: <reason>` (that
+// backend is unchanged), so the reason is cut off for display. The LAST separator is used so a name that itself
+// contains `" was denied: ` stays whole. Old rejection rows that still hold `was rejected: <reason>` are not
+// stripped: matching that phrase would cut a new rejection whose event name contains it.
+const DENIED_SEPARATOR = '" was denied: ';
+function headlineOf(message: string, type: Notification["type"]): string {
+  if (type !== "change_request_denied") return message;
+  const index = message.lastIndexOf(DENIED_SEPARATOR);
+  return index === -1 ? message : `${message.slice(0, index + 1)} was denied`;
 }
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);
@@ -35,7 +33,7 @@ export function NotificationRow({
 }) {
   // The headline describes this row's repeated "View Request" and "Mark As Read" controls for screen readers.
   const headlineId = useId();
-  const { headline, reason } = splitRejectionMessage(n.message);
+  const headline = headlineOf(n.message, n.type);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
   const decisionDate = formatDecisionDate(n.createdAt);
   return (
@@ -47,11 +45,6 @@ export function NotificationRow({
       />
       <div className="min-w-0 flex-1">
         <p id={headlineId} className="break-words text-sm text-gray-800 dark:text-gray-100">{headline}</p>
-        {reason && (
-          <pre className="mt-2 whitespace-pre-wrap break-words rounded-md border border-gray-200 bg-gray-50 px-3 py-2 font-mono text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200">
-            Reason: {reason}
-          </pre>
-        )}
         {/* An unparseable createdAt shows no time text rather than "NaN" (SPM-88). */}
         {decisionDate && (
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-400 dark:text-gray-500">

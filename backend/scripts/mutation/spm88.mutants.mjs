@@ -1,5 +1,5 @@
 // SPM-88 backend mutants: approval and rejection notifications (transaction, recipient scope, type,
-// decision timestamp, reason trimming and length, read persistence). Each mutant maps to its DECISION-NOTIFY
+// decision timestamp, reason trimming, no reason in the notification, length, read persistence). Each mutant maps to its DECISION-NOTIFY
 // test by ID prefix; the runner matches the prefix by name.
 const UNIT = 'src/events/review/events.approve.spec.ts';
 const E2E = 'test/decision-notifications.e2e-spec.ts';
@@ -53,7 +53,7 @@ export const MUTANTS = [
     file: SERVICE,
     suites: ['backendE2E'],
     testMappings: map('backendE2E', E2E, '01-SEC-1'),
-    edits: [['WHERE n.recipient_id = $1 AND n.type = ANY($2)', 'WHERE n.type = ANY($2)']],
+    edits: [['WHERE n.recipient_id = $1 AND n.type = ANY($2)', 'WHERE $1::text IS NOT NULL AND n.type = ANY($2)']],
   },
   {
     id: 'SPM88-BE-05',
@@ -78,6 +78,14 @@ export const MUTANTS = [
     suites: ['backendE2E'],
     testMappings: map('backendE2E', E2E, '03-B'),
     edits: [['    return trimmed;', '    return raw;']],
+  },
+  {
+    id: 'SPM88-BE-10',
+    name: 'rejection reason added back into the notification message (AC3 amended: reason only on the event)',
+    file: SERVICE,
+    suites: ['backendE2E'],
+    testMappings: map('backendE2E', E2E, '03-B'),
+    edits: [['was rejected`,', 'was rejected: ${reason}`,']],
   },
   {
     id: 'SPM88-BE-08',

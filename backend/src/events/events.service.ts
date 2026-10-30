@@ -391,7 +391,7 @@ export class EventsService {
         [
           randomUUID(),
           event.organiser_id,
-          `Your event request "${event.event_name}" was rejected: ${reason}`,
+          `Your event request "${event.event_name}" was rejected`,
           id,
         ],
       );

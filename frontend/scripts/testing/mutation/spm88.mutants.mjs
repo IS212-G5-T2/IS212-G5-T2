@@ -1,6 +1,6 @@
 // SPM-88 frontend mutants: the organiser's notification bell in the top bar (visible date, View Request mark-read,
-// headline/reason split, unread-only list, badge and 9+ cap, empty state, Esc/outside-click dismissal, links and
-// the approval reason block).
+// headline for change request denials (no reason in the bell), unread-only list, badge and 9+ cap, empty state, Esc/outside-click dismissal, links and
+// the approval reason block). The bell shows no rejection reason (AC3 amended 30 Oct 2026).
 // Each mutant maps to its DECISION-NOTIFY test by ID prefix (the runner matches the prefix by name).
 const NOTIFICATIONS = 'src/components/notifications/NotificationBell.test.tsx';
 const DECISION_DETAIL = 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx';
@@ -38,11 +38,11 @@ export const MUTANTS = [
   },
   {
     id: 'SPM88-FE-03',
-    name: 'reason split at the first " was rejected: " (event name containing it is cut)',
+    name: 'denial reason cut at the first quoted separator (a quoted decision phrase inside the event name cuts the name)',
     file: ROW,
     suites: ['notifications'],
-    testMappings: map('03-INT-1'),
-    edits: [['const DECISION_SEPARATOR = /" was (rejected|denied): /;', 'const DECISION_SEPARATOR = / was (rejected|denied): /;']],
+    testMappings: map('03-INT-2'),
+    edits: [['const index = message.lastIndexOf(DENIED_SEPARATOR);', 'const index = message.indexOf(DENIED_SEPARATOR);']],
   },
   {
     id: 'SPM88-FE-04',
@@ -70,11 +70,11 @@ export const MUTANTS = [
   },
   {
     id: 'SPM88-FE-08',
-    name: 'approval row shows a reason block',
+    name: 'change request denial keeps its reason in the bell headline (no stripping)',
     file: ROW,
     suites: ['notifications'],
-    testMappings: map('02-C'),
-    edits: [['{reason && (', '{(reason ?? (n.type === "approval" ? "approved" : null)) && (']],
+    testMappings: [{ suite: 'notifications', file: NOTIFICATIONS, title: 'REVIEW-CHANGE-05-D ' }, ...map('03-INT-2')],
+    edits: [['  const index = message.lastIndexOf(DENIED_SEPARATOR);\n  return index === -1 ? message :', '  const index = -1;\n  return index === -1 ? message :']],
   },
   {
     id: 'SPM88-FE-09',
@@ -250,7 +250,7 @@ export const MUTANTS = [
     file: RN,
     suites: ['notifications'],
     testMappings: map('05-BND-2'),
-    edits: [['className="max-h-96 divide-y', 'className="divide-y']],
+    edits: [['className="max-h-96 min-h-0 flex-1 divide-y', 'className="min-h-0 flex-1 divide-y']],
   },
   {
     id: 'SPM88-FE-37',
@@ -333,6 +333,38 @@ export const MUTANTS = [
     edits: [['    window.addEventListener("focus", refresh);\n', '']],
   },
   {
+    id: 'SPM88-FE-47',
+    name: 'change request denial cut at the rejected verb instead of the denied verb',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['const DENIED_SEPARATOR = \'" was denied: \';', 'const DENIED_SEPARATOR = \'" was rejected: \';']],
+  },
+  {
+    id: 'SPM88-FE-49',
+    name: 'every notification type cut at the denied separator (a rejection whose name holds the denied phrase loses part of its name)',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['if (type !== "change_request_denied") return message;', 'if (false) return message;']],
+  },
+  {
+    id: 'SPM88-FE-50',
+    name: 'a Reason block is rendered again under the rejection headline',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-A'),
+    edits: [['{headline}</p>\n', '{headline}</p>\n        <pre>Reason: x</pre>\n']],
+  },
+  {
+    id: 'SPM88-FE-48',
+    name: 'dropdown no longer bounded to the viewport (actions fall off short screens)',
+    file: RN,
+    suites: ['notifications'],
+    testMappings: map('05-BND-2'),
+    edits: [['flex max-h-[calc(100dvh-5rem)] flex-col', 'flex flex-col']],
+  },
+  {
     id: 'SPM88-FE-22',
     name: 'Request Decisions panel back on the My Events page (EventListPage)',
     file: LIST_PAGE,
@@ -350,5 +382,13 @@ export const MUTANTS = [
     suites: ['notifications'],
     testMappings: [{ suite: 'notifications', file: SHELL_TEST, title: 'DECISION-NOTIFY-04-E: ' }],
     edits: [['        <NotificationBell />\n', '']],
+  },
+  {
+    id: 'SPM88-FE-51',
+    name: 'denial message without a separator is cut anyway (no-separator guard removed)',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['index === -1 ? message :', 'false ? message :']],
   },
 ];

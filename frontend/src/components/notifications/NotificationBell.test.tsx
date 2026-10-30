@@ -9,7 +9,7 @@ import { deferred } from "@/test/deferred";
 import type { Notification } from "@/types";
 
 /**
- * SPM-83 — AC6: the Organiser is notified of the rejection and can see the reason.
+ * SPM-83 — AC6: the Organiser is notified of the rejection (the reason is on the event page since the SPM-88 AC3 amendment).
  * Confluence: EVENT-REJECT-02-B (organiser visibility). Covers the rendered
  * organiser view of the persisted rejection notifications.
  */
@@ -27,7 +27,7 @@ function rejectionNotification(overrides: Partial<Notification> = {}): Notificat
     audienceRole: "organiser",
     audienceUserId: "organiser-9",
     type: "rejection",
-    message: 'Your event request "Welcome Evening" was rejected: Venue is not available',
+    message: 'Your event request "Welcome Evening" was rejected',
     relatedEventId: "event-1",
     read: false,
     createdAt: "2026-09-14T00:00:00.000Z",
@@ -76,18 +76,17 @@ beforeEach(() => {
 });
 
 describe("NotificationBell (SPM-83 AC6)", () => {
-  // Kills: the rejection headline or reason text dropped, or the 'View Request' link pointing anywhere other than /events/event-1.
-  it("EVENT-REJECT-SUP-01 shows the organiser the rejection with its reason and a link to the request", async () => {
+  // Kills: the rejection headline dropped, a reason shown in the bell, or the 'View Request' link pointing anywhere other than /events/event-1.
+  it("EVENT-REJECT-SUP-01 shows the organiser the rejection without a reason and a link to the request", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([rejectionNotification()]);
 
     renderBell();
 
-    // Headline and the reason are rendered on separate lines.
     expect(
-      await screen.findByText(/Your event request "Welcome Evening" was rejected$/),
+      await screen.findByText('Your event request "Welcome Evening" was rejected'),
     ).toBeTruthy();
-    expect(screen.getByText(/Reason: Venue is not available/)).toBeTruthy();
+    expect(screen.queryByText(/Reason/)).toBeNull();
     expect(apiMock).toHaveBeenCalledWith("/notifications");
     expect(
       screen.getByRole("link", { name: /View Request/i }).getAttribute("href"),
@@ -101,7 +100,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
 
     renderBell();
 
-    await screen.findByText(/Reason: Venue is not available/);
+    await screen.findByText(/Welcome Evening/);
     fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
 
     await waitFor(() =>
@@ -123,7 +122,7 @@ describe("NotificationBell (SPM-83 AC6)", () => {
       rejectionNotification(),
       rejectionNotification({
         id: "notif-read",
-        message: 'Your event request "Past Event" was rejected: Capacity unavailable',
+        message: 'Your event request "Past Event" was rejected',
         read: true,
       }),
     ]);
@@ -230,9 +229,9 @@ describe("NotificationBell (SPM-40 AC4)", () => {
   });
 
   // Parent AC (SUPPORTING): SPM-65 AC not in pasted list (to confirm) (story reassigned on 23 Oct 2026)
-  // Kills: a denial shown without its reason, or the change-request link going to the event page instead of /change-requests.
-  /** SPM-65: change request decisions show with their reason and open the Change Requests page. */
-  it("REVIEW-CHANGE-05-D shows a change request denial with its reason and an approval as a confirmation", async () => {
+  // Kills: a denial shown with its reason, or the change-request link going to the event page instead of /change-requests.
+  /** SPM-65: change request decisions show without the reason (AC3 amendment) and open the Change Requests page. */
+  it("REVIEW-CHANGE-05-D shows a change request denial without its reason and an approval as a confirmation", async () => {
     setUserRole("organiser");
     apiMock.mockResolvedValue([
       rejectionNotification({
@@ -248,7 +247,7 @@ describe("NotificationBell (SPM-40 AC4)", () => {
     ]);
     renderBell();
     expect(await screen.findByText(/Your change request for "Welcome Evening" was denied$/)).toBeTruthy();
-    expect(screen.getByText(/Reason: The hall is too small\./)).toBeTruthy();
+    expect(screen.queryByText(/hall is too small/)).toBeNull();
     expect(screen.getByText('Your change request for "Welcome Evening" was approved.')).toBeTruthy();
     const links = screen.getAllByRole("link", { name: "View Change Request" });
     expect(links).toHaveLength(2);
@@ -283,7 +282,7 @@ describe("NotificationBell (SPM-40 AC4)", () => {
     // The bell badge appears once the held load fills the list; opening it shows the decision.
     await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread"));
     fireEvent.click(bellButton());
-    expect(await screen.findByText(/Reason: Venue is not available/)).toBeTruthy();
+    expect(await screen.findByText(/Welcome Evening/)).toBeTruthy();
   });
 });
 
@@ -301,17 +300,6 @@ function decisionClock() {
 
 function postReadCalls(notificationId: string) {
   return apiMock.mock.calls.filter(([path]) => path === `/notifications/${notificationId}/read`);
-}
-
-function reasonOfLength(n: number): string {
-  const words: string[] = [];
-  let len = 0;
-  while (len < n) {
-    if (words.length) len += 1; // joining space
-    words.push("ab");
-    len += 2;
-  }
-  return words.join(" ").slice(0, n);
 }
 
 function EventMarker() {
@@ -363,12 +351,12 @@ describe("NotificationBell (SPM-88 AC2: approval content)", () => {
 
     expect(await screen.findByText(/Welcome Evening/)).toBeTruthy();
     expect(screen.getByText(/approved/)).toBeTruthy();
-    expect(screen.getByText("28 Oct 2026")).toBeTruthy();
+    expect(screen.getByText("28 Oct 2026")).toBeVisible();
   });
 
   /**
    * DECISION-NOTIFY-02-C: an approval has no reason block.
-   * Kills: approval rendered through the rejection layout with an empty Reason block.
+   * Kills: a Reason block rendered for an approval.
    */
   it("DECISION-NOTIFY-02-C: approval renders no Reason block", async () => {
     setUserRole("organiser");
@@ -436,84 +424,70 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
   });
 
   /**
-   * DECISION-NOTIFY-03-A: a rejection shows the event name, the word rejected, the
-   * visible decision date and the exact reason.
-   * Kills: date missing from the visible text; reason truncated; headline without the name.
+   * DECISION-NOTIFY-03-A: a rejection shows the event name, the word rejected and the visible decision
+   * date, and no reason (AC3 amended 30 Oct 2026; the reason is on the event page, AC4).
+   * Kills: date missing from the visible text; headline without the name; a Reason block in the bell.
    */
-  it("DECISION-NOTIFY-03-A: rejection shows name, 'rejected', visible 28 Oct 2026 and the exact reason", async () => {
+  it("DECISION-NOTIFY-03-A: rejection shows name, 'rejected' and visible 28 Oct 2026, with no reason", async () => {
     setUserRole("organiser");
-    apiMock.mockResolvedValue([
-      rejectionNotification({ createdAt: DECISION_CREATED_AT, message: 'Your event request "Welcome Evening" was rejected: Venue is not available' }),
-    ]);
-
-    renderBell();
-
-    expect(await screen.findByText('Your event request "Welcome Evening" was rejected')).toBeTruthy();
-    expect(screen.getByText("28 Oct 2026")).toBeTruthy();
-    expect(screen.getByText("Reason: Venue is not available")).toBeTruthy();
-  });
-
-  /**
-   * DECISION-NOTIFY-03-BND-1: a 500-character reason (the SPM-83 maximum) is shown in full.
-   * Kills: reason cut at a fixed length; reason limited to a shorter display width.
-   */
-  it("DECISION-NOTIFY-03-BND-1: a 500-character reason is shown in full", async () => {
-    setUserRole("organiser");
-    const reason = reasonOfLength(500);
-    expect(reason).toHaveLength(500); // fixture check: the boundary value itself
-    apiMock.mockResolvedValue([
-      rejectionNotification({ message: `Your event request "Welcome Evening" was rejected: ${reason}` }),
-    ]);
-
-    renderBell();
-
-    expect(await screen.findByText(`Reason: ${reason}`)).toBeTruthy();
-  });
-
-  /**
-   * DECISION-NOTIFY-03-BND-2: a reason with a newline, ": " and markup is rendered as
-   * literal text, and is not split at the colon.
-   * Kills: reason treated as HTML; reason split at ": "; newline collapsed into the headline.
-   */
-  it("DECISION-NOTIFY-03-BND-2: a reason with newline, colon and markup renders literally and unsplit", async () => {
-    setUserRole("organiser");
-    const reason = "Line one: venue\nclashes <b>x</b> today";
-    apiMock.mockResolvedValue([
-      rejectionNotification({ message: `Your event request "Welcome Evening" was rejected: ${reason}` }),
-    ]);
+    apiMock.mockResolvedValue([rejectionNotification({ createdAt: DECISION_CREATED_AT })]);
 
     const { container } = renderBell();
 
-    const reasonBlock = await screen.findByText(
-      (_content, element) =>
-        element?.tagName === "PRE" && element.textContent === `Reason: ${reason}`,
-    );
-    expect(reasonBlock).toBeTruthy();
-    expect(container.querySelector("b")).toBeNull();
-    expect(screen.getByText('Your event request "Welcome Evening" was rejected')).toBeTruthy();
+    expect(await screen.findByText('Your event request "Welcome Evening" was rejected')).toBeTruthy();
+    expect(screen.getByText("28 Oct 2026")).toBeTruthy();
+    expect(screen.queryByText(/Reason/)).toBeNull();
+    expect(container.querySelector("pre")).toBeNull();
+    expect(screen.getByRole("link", { name: "View Request" })).toHaveAttribute("href", "/events/event-1");
   });
 
   /**
-   * DECISION-NOTIFY-03-INT-1: an event name that itself contains " was rejected: " keeps its
-   * full name in the headline, and the reason is the text after the real separator.
-   * Kills: the first-occurrence split of the combined message (the name is cut at its own
-   * " was rejected: " and the reason is taken from inside the name).
+   * DECISION-NOTIFY-03-INT-2: an event name containing quoted decision phrases keeps its full name in the
+   * headline, and no reason appears, for a rejection and for an SPM-65 change request denial (whose backend
+   * message still carries the reason after the last '" was denied: ').
+   * Kills: a split at the first quote-anchored match (name cut at its own '" was denied: ' and part of the
+   * name hidden); a denial reason left in the headline.
    */
-  it("DECISION-NOTIFY-03-INT-1: an event named 'Why it was rejected: a retro' keeps its name and its reason", async () => {
-    setUserRole("organiser");
-    apiMock.mockResolvedValue([
-      rejectionNotification({
-        message: 'Your event request "Why it was rejected: a retro" was rejected: Venue clash on that date',
-      }),
-    ]);
+  it.each([
+    {
+      label: "rejection (name holds the rejected phrase)",
+      type: "rejection" as const,
+      message: 'Your event request "Why it was rejected: a retro" was rejected',
+    },
+    {
+      label: "rejection (name holds both quoted phrases)",
+      type: "rejection" as const,
+      message: 'Your event request "Why" was denied: and" was rejected: a retro" was rejected',
+    },
+    {
+      label: "change request denial (name holds the rejected phrase)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Why" was rejected: a retro" was denied: Dates overlap an existing booking',
+      headline: 'Your change request for "Why" was rejected: a retro" was denied',
+    },
+    {
+      label: "change request denial (name holds the denied phrase)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Why" was denied: a retro" was denied: Dates overlap an existing booking',
+      headline: 'Your change request for "Why" was denied: a retro" was denied',
+    },
+    {
+      label: "change request denial (message has no separator)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied',
+    },
+  ])(
+    "DECISION-NOTIFY-03-INT-2: $label shows the full name and no reason",
+    async ({ type, message, headline }) => {
+      setUserRole("organiser");
+      apiMock.mockResolvedValue([rejectionNotification({ type, message })]);
 
-    renderBell();
+      renderBell();
 
-    expect(
-      await screen.findByText('Your event request "Why it was rejected: a retro" was rejected'),
-    ).toBeTruthy();
-    expect(screen.getByText("Reason: Venue clash on that date")).toBeTruthy();
-  });
+      expect(await screen.findByText(headline ?? message)).toBeVisible();
+      expect(screen.queryByText(/Dates overlap|Reason/)).toBeNull();
+    },
+  );
 });
 
 describe("NotificationBell (SPM-88 AC4: link to the event)", () => {
@@ -565,7 +539,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     Array.from({ length: count }, (_, i) =>
       rejectionNotification({
         id: `notif-${i + 1}`,
-        message: `Your event request "Event ${i + 1}" was rejected: Reason ${i + 1}`,
+        message: `Your event request "Event ${i + 1}" was rejected`,
         createdAt: DECISION_CREATED_AT,
       }),
     );
@@ -575,7 +549,7 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     rejectionNotification({ id: "notif-1", createdAt: DECISION_CREATED_AT }),
     rejectionNotification({
       id: "notif-2",
-      message: 'Your event request "Spring Gala" was rejected: Catering not confirmed',
+      message: 'Your event request "Spring Gala" was rejected',
       createdAt: DECISION_CREATED_AT,
     }),
   ];
@@ -592,12 +566,12 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
       rejectionNotification({ id: "notif-1", createdAt: "2026-10-27T12:00:00.000Z" }),
       rejectionNotification({
         id: "notif-2",
-        message: 'Your event request "Spring Gala" was rejected: Catering not confirmed',
+        message: 'Your event request "Spring Gala" was rejected',
         createdAt: DECISION_CREATED_AT,
       }),
       rejectionNotification({
         id: "notif-3",
-        message: 'Your event request "Past Event" was rejected: Capacity unavailable',
+        message: 'Your event request "Past Event" was rejected',
         read: true,
         createdAt: DECISION_CREATED_AT,
       }),
@@ -890,6 +864,12 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     const region = screen.getByRole("list", { name: "Unread notifications" });
     expect(region.getAttribute("tabindex")).toBe("0");
     expect(region.className).toContain("max-h-96");
+    // The dialog itself is a viewport-bounded flex column, so the list scrolls instead of the actions
+    // falling off a short screen (the browser check is DECISION-NOTIFY-05-VIEWPORT-1).
+    expect(region.className).toContain("min-h-0");
+    expect(region.className).toContain("flex-1");
+    expect(region.closest('[role="dialog"]')?.classList.contains("max-h-[calc(100dvh-5rem)]")).toBe(true);
+    expect(region.closest('[role="dialog"]')?.classList.contains("sm:max-h-[calc(100dvh-6rem)]")).toBe(true);
     expect(region.className).toContain("overflow-y-auto");
     expect(within(region).getAllByRole("listitem")).toHaveLength(6);
     expect(within(region).getByText(/Event 6"/)).toBeTruthy();

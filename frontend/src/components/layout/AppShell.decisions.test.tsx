@@ -30,7 +30,7 @@ const decision: Notification = {
   audienceRole: "organiser",
   audienceUserId: "organiser-9",
   type: "rejection",
-  message: 'Your event request "Welcome Evening" was rejected: Venue is not available',
+  message: 'Your event request "Welcome Evening" was rejected',
   relatedEventId: "event-1",
   read: false,
   createdAt: "2026-10-28T12:00:00.000Z",

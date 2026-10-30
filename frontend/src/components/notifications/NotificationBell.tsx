@@ -79,15 +79,15 @@ export function NotificationBell() {
         <div
           role="dialog"
           aria-labelledby={headingId}
-          className="fixed inset-x-2 top-[4.5rem] z-30 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
+          className="fixed inset-x-2 top-[4.5rem] z-30 flex max-h-[calc(100dvh-5rem)] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:max-h-[calc(100dvh-6rem)] sm:w-96"
         >
-          <h2 id={headingId} className="border-b border-gray-100 px-4 py-3 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
+          <h2 id={headingId} className="shrink-0 border-b border-gray-100 px-4 py-3 font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100">
             Notifications
           </h2>
           {error && (
             <p
               role="alert"
-              className="flex flex-wrap items-center gap-2 border-b border-danger-100 bg-danger-50 px-4 py-2 text-sm text-danger-700 dark:border-danger-900/40 dark:bg-danger-900/20 dark:text-danger-300"
+              className="flex shrink-0 flex-wrap items-center gap-2 border-b border-danger-100 bg-danger-50 px-4 py-2 text-sm text-danger-700 dark:border-danger-900/40 dark:bg-danger-900/20 dark:text-danger-300"
             >
               {error}
               <Button variant="ghost" size="sm" onClick={retry}>
@@ -102,7 +102,7 @@ export function NotificationBell() {
             <ul
               tabIndex={0}
               aria-label="Unread notifications"
-              className="max-h-96 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-700"
+              className="max-h-96 min-h-0 flex-1 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-700"
             >
               {unread.map((n) => (
                 <NotificationRow

@@ -254,12 +254,11 @@ describe('SPM-88 request decision notifications (e2e)', () => {
     });
 
     /**
-     * DECISION-NOTIFY-03-B: a reason with surrounding spaces is trimmed once and
-     * the trimmed value is identical on the event and in the notification.
-     * Kills: reason stored untrimmed; notification built from the raw body;
-     * notification and event carrying different reason text.
+     * DECISION-NOTIFY-03-B: a reason with surrounding spaces is stored trimmed on the event, and the
+     * rejection notification carries only the headline (no reason; AC3 amended 30 Oct 2026).
+     * Kills: reason stored untrimmed; the reason leaking into the notification message.
      */
-    it('DECISION-NOTIFY-03-B: the event and the notification carry the same trimmed reason', async () => {
+    it('DECISION-NOTIFY-03-B: the event stores the trimmed reason and the notification message has no reason', async () => {
       // Arrange
       const organiser = await createDatabaseUser('ORGANISER', 'Priya Nair');
       const coordinator = await createDatabaseUser('COORDINATOR', 'Marcus Lee');
@@ -283,8 +282,9 @@ describe('SPM-88 request decision notifications (e2e)', () => {
         [eventId],
       );
       expect(notification.rows[0].message).toBe(
-        'Your event request "SPM-88 Trim Check" was rejected: Venue clash on that date',
+        'Your event request "SPM-88 Trim Check" was rejected',
       );
+      expect(notification.rows[0].message).not.toContain('Venue clash');
     });
   });
 
