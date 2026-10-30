@@ -423,6 +423,7 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     ]);
     expect(navByRole.tech_support.map((item) => item.to)).toEqual([
       "/equipment/requests",
+      "/equipment/inventory",
       "/equipment/availability",
       "/equipment/audit-trail",
       "/equipment",
@@ -467,6 +468,7 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
     ]);
     expect(navByRole.tech_support.map((item) => item.to)).toEqual([
       "/equipment/requests",
+      "/equipment/inventory",
       "/equipment/availability",
       "/equipment/audit-trail",
       "/equipment",
