@@ -36,8 +36,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.id <> $6::uuid\n              AND b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz',
-        'b.id <> $6::uuid\n              AND b.start_at - make_interval(mins => $4::int)\n                    <= $3::timestamptz',
+        "b.id <> $6::uuid\n              AND ((b.status = 'approved' AND\n                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL\n                  OR b.hold_expires_at > $7::timestamptz)) OR\n                (b.status = 'pending' AND\n                  (b.hold_expires_at > $7::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (\n                    SELECT 1 FROM venue_booking_requests r\n                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id\n                   )))))\n              AND b.start_at - make_interval(mins => $4::int)\n                    < $3::timestamptz",
+        "b.id <> $6::uuid\n              AND ((b.status = 'approved' AND\n                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL\n                  OR b.hold_expires_at > $7::timestamptz)) OR\n                (b.status = 'pending' AND\n                  (b.hold_expires_at > $7::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (\n                    SELECT 1 FROM venue_booking_requests r\n                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id\n                   )))))\n              AND b.start_at - make_interval(mins => $4::int)\n                    <= $3::timestamptz",
       ],
     ],
   },
@@ -51,8 +51,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        'b.id <> $6::uuid\n              AND b.start_at - make_interval(mins => $4::int)',
-        'b.id <> $6::uuid\n              AND b.start_at - make_interval(mins => $5::int)',
+        "b.id <> $6::uuid\n              AND ((b.status = 'approved' AND\n                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL\n                  OR b.hold_expires_at > $7::timestamptz)) OR\n                (b.status = 'pending' AND\n                  (b.hold_expires_at > $7::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (\n                    SELECT 1 FROM venue_booking_requests r\n                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id\n                   )))))\n              AND b.start_at - make_interval(mins => $4::int)",
+        "b.id <> $6::uuid\n              AND ((b.status = 'approved' AND\n                (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL\n                  OR b.hold_expires_at > $7::timestamptz)) OR\n                (b.status = 'pending' AND\n                  (b.hold_expires_at > $7::timestamptz OR\n                   (b.request_kind <> 'tentative_hold' AND EXISTS (\n                    SELECT 1 FROM venue_booking_requests r\n                     WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id\n                   )))))\n              AND b.start_at - make_interval(mins => $5::int)",
       ],
     ],
   },
@@ -62,7 +62,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       ["VALUES ($1::uuid, $2::uuid, 'approved')", 'VALUES ($1::uuid, $2::uuid)'],
@@ -137,7 +137,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -153,12 +153,12 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
-        "rejection_reason`,\n        [bookingId],\n      );\n      await client.query(",
-        "rejection_reason`,\n        [staffId],\n      );\n      await client.query(",
+        "request_kind, hold_expires_at`,\n        [\n          bookingId,\n          new Date(this.clock.now().getTime() + 14 * 24 * 60 * 60 * 1000),",
+        "request_kind, hold_expires_at`,\n        [\n          staffId,\n          new Date(this.clock.now().getTime() + 14 * 24 * 60 * 60 * 1000),",
       ],
     ],
   },
@@ -168,12 +168,12 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
-        "SET status = 'approved'\n          WHERE id = $1::uuid",
-        "SET status = 'approved'\n          WHERE id = id OR id = $1::uuid",
+        "ELSE hold_expires_at\n                END\n          WHERE id = $1::uuid",
+        "ELSE hold_expires_at\n                END\n          WHERE id = id OR id = $1::uuid",
       ],
     ],
   },
@@ -183,7 +183,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
@@ -289,7 +289,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -309,8 +309,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "      if (booking.status !== 'pending')\n        return { kind: 'already-decided' as const, status: booking.status };\n\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'",
-        "      if (booking.status !== 'pending')\n        return { kind: 'already-decided' as const, status: booking.status };\n\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE false AND venue_id = $1::uuid AND status = 'blocked'",
+        "      }\n\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE venue_id = $1::uuid AND status = 'blocked'",
+        "      }\n\n      const conflict = await client.query<{ reason: string }>(\n        `SELECT reason FROM (\n           SELECT COALESCE(reason, 'Venue unavailable') AS reason\n             FROM venue_bookings\n            WHERE false AND venue_id = $1::uuid AND status = 'blocked'",
       ],
     ],
   },
@@ -324,8 +324,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "r.special_request, b.created_at,\n              b.rejection_reason,\n",
-        "r.special_request, b.created_at,\n",
+        "b.special_request, b.created_at,\n              b.rejection_reason,\n",
+        "b.special_request, b.created_at,\n",
       ],
     ],
   },
@@ -335,7 +335,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -355,8 +355,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected')\n        ORDER BY e.start_date_time ASC, b.id`",
-        "WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected', 'cancelled')\n        ORDER BY e.start_date_time ASC, b.id`",
+        "WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected')\n        ORDER BY b.start_at ASC, b.id`",
+        "WHERE v.owner_user_id::text = $1::text AND b.status IN ('pending', 'approved', 'rejected', 'cancelled')\n        ORDER BY b.start_at ASC, b.id`",
       ],
     ],
   },
@@ -381,7 +381,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -421,21 +421,22 @@ export const MUTANTS = [
       ],
     ],
   },
-  {
-    id: 'VEN-REV-M33',
-    name: 'the pending list drops the request-to-venue match, so special requests from other venues can attach',
-    file: REPOSITORY,
-    suites: ['reviewRepository'],
-    kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
-    ],
-    edits: [
-      [
-        'LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id\n        WHERE v.owner_user_id::text',
-        'LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id\n        WHERE v.owner_user_id::text',
-      ],
-    ],
-  },
+  // retired: the pending list no longer joins venue booking requests (it reads venue_bookings directly on dev too), so this mutant has no target.
+  // {
+  // id: 'VEN-REV-M33',
+  // name: 'the pending list drops the request-to-venue match, so special requests from other venues can attach',
+  // file: REPOSITORY,
+  // suites: ['reviewRepository'],
+  // kills: [
+  // `${REPOSITORY_SPEC} :: SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start`,
+  // ],
+  // edits: [
+  // [
+  // 'LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id AND r.venue_id = b.venue_id\n        WHERE v.owner_user_id::text',
+  // 'LEFT JOIN venue_booking_requests r ON r.event_id = b.event_id\n        WHERE v.owner_user_id::text',
+  // ],
+  // ],
+  // },
   {
     id: 'VEN-REV-M34',
     name: "the Venue Staff gate checks the read permission instead of the Venue update permission",
@@ -457,7 +458,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -473,13 +474,13 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
       [
-        'FROM venue_bookings WHERE id = $1::uuid FOR UPDATE',
-        'FROM venue_bookings WHERE id <> $1::uuid FOR UPDATE',
+        'WHERE b.id = $1::uuid FOR UPDATE OF b',
+        'WHERE b.id <> $1::uuid FOR UPDATE OF b',
       ],
     ],
   },
@@ -493,8 +494,8 @@ export const MUTANTS = [
     ],
     edits: [
       [
-        "WHERE b.venue_id = $1::uuid AND b.status = 'approved' AND b.id <> $6::uuid",
-        "WHERE b.venue_id IS NOT NULL AND b.status = 'approved' AND b.id <> $6::uuid",
+        "WHERE b.venue_id = $1::uuid AND b.id <> $6::uuid",
+        "WHERE b.venue_id IS NOT NULL AND b.id <> $6::uuid",
       ],
     ],
   },

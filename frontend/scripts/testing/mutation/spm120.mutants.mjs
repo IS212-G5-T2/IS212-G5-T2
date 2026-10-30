@@ -8,7 +8,8 @@ export const SUITES = {
 
 const D = 'src/features/events/pages/detail/registration';
 const SECTION = `${D}/RegistrationSection.tsx`;
-const DIALOG = `${D}/WithdrawalConfirmation.tsx`;
+// SPM-138 replaced WithdrawalConfirmation.tsx with the shared ConfirmDialog (withdraw and leave-waitlist variants).
+const DIALOG = `${D}/ConfirmDialog.tsx`;
 const STATUS = `${D}/WithdrawnRegistrationStatus.tsx`;
 const VIEW = 'src/features/events/lib/EventView.ts';
 const UTIL = 'src/features/events/lib/registration.ts';
@@ -22,9 +23,9 @@ export const MUTANTS = [
   { id: 'M8-fe', name: 'timestamps formatted in UTC instead of Asia/Singapore', file: 'src/utils/sgtDate.ts', suites,
     edits: [['const SGT_TIME_ZONE = "Asia/Singapore";', 'const SGT_TIME_ZONE = "UTC";']] },
   { id: 'M9a', name: 'Cancel sends the withdrawal request', file: DIALOG, suites,
-    edits: [['<Button ref={cancelRef} variant="secondary" disabled={pending} onClick={onCancel}>', '<Button ref={cancelRef} variant="secondary" disabled={pending} onClick={onConfirm}>']] },
+    edits: [['<Button ref={safeRef} variant="secondary" disabled={pending} onClick={onCancel}>', '<Button ref={safeRef} variant="secondary" disabled={pending} onClick={onConfirm}>']] },
   { id: 'M9b', name: 'a click on the backdrop confirms the withdrawal', file: DIALOG, suites,
-    edits: [['bg-gray-900/50 p-4" role="presentation">', 'bg-gray-900/50 p-4" role="presentation" onClick={onConfirm}>']] },
+    edits: [['bg-black/45 p-4" role="presentation">', 'bg-black/45 p-4" role="presentation" onClick={onConfirm}>']] },
   { id: 'M12', name: 'dialog keyboard handling (focus trap and Escape) removed', file: DIALOG, suites,
     edits: [['document.addEventListener("keydown", onKey);', '/* listener removed */']] },
   { id: 'M13', name: 'a 401 from the withdraw call no longer signs the user out', file: 'src/store/useAppStore.ts', suites,
@@ -69,9 +70,9 @@ export const MUTANTS = [
   { id: 'M39', name: 'Escape cancels the dialog while the withdrawal is still pending', file: DIALOG, suites,
     edits: [['if (!pending) onCancel();', 'onCancel();']] },
   { id: 'M40', name: 'in-flight guard removed: a double activation of Confirm sends two requests', file: SECTION, suites,
-    edits: [['if (!current || withdrawInFlight.current) return;', 'if (!current) return;']] },
+    edits: [['if (!current || !dialogVariant || withdrawInFlight.current) return;', 'if (!current || !dialogVariant) return;']] },
   { id: 'M41', name: 'a rejection that is not an Error is read as one (TypeError)', file: SECTION, suites,
-    edits: [['error instanceof Error ? error.message : "We couldn\'t process your withdrawal. Please try again.",', 'error instanceof Error ? error.message : (error as Error).message,']] },
+    edits: [['error instanceof Error ? error.message : "We couldn\x27t join the waitlist. Please try again.");', '(error as Error).message);']] },
   { id: 'M42', name: 'every failure assumed to be an ApiError (TypeError for an empty rejection)', file: SECTION, suites,
-    edits: [['const code = error instanceof ApiError ? error.code : undefined;', 'const code = (error as ApiError).code;']] },
+    edits: [['const code = error instanceof ApiError ? error.code : undefined;\n      if (code === "event_already_occurred") {', 'const code = (error as ApiError).code;\n      if (code === "event_already_occurred") {']] },
 ];

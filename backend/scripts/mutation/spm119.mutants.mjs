@@ -78,8 +78,8 @@ export const MUTANTS = [
       title: 'SPM-119 returns not found when an availability update targets no equipment record',
     }],
     edits: [[
-      "if (!before) throw new NotFoundException('Equipment record not found.');",
-      'if (false) throw new NotFoundException(\'Equipment record not found.\');',
+      "if (!before) throw new NotFoundException('Equipment record not found.');\n      if (before.is_available === input.isAvailable) {",
+      "if (false) throw new NotFoundException('Equipment record not found.');\n      if (before.is_available === input.isAvailable) {",
     ]],
   },
   {

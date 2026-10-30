@@ -173,7 +173,7 @@ export const MUTANTS = [
       "      if (state !== 'open') {\n        const seats = await client.query<{ count: number }>(\"SELECT COUNT(*)::integer AS count FROM event_registrations WHERE event_id = $1 AND status = 'Registered'\", [eventId]);\n        if (seats.rows[0].count < event.registration_limit) throw this.waitlistNotAvailable();\n      }\n      if (state === 'not_open') throw this.notOpen(event.registration_opens_at);\n      if (state === 'closed') throw this.closed();")]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-01-D-INT-FREE')] },
   { id: 'P-I', name: 'a Cancelled entry is no longer refused with 409 (it falls through to the state check)', file: SERVICE,
-    edits: [["if (status === 'Removed' || status === 'Cancelled') return { refused: this.notWithdrawable() };", "if (status === 'Removed') return { refused: this.notWithdrawable() };"]],
+    edits: [["if (status === 'Cancelled')\n        return { refused: current.event_status === 'Cancelled'", "if (status === 'Cancelled' && current.event_status === 'Cancelled')\n        return { refused: current.event_status === 'Cancelled'"]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-10-F')] },
   { id: 'P-J', name: 'a direct registration no longer reactivates a Removed row', file: SERVICE,
     edits: [["WHERE event_registrations.status IN ('Withdrawn', 'Removed')", "WHERE event_registrations.status IN ('Withdrawn')"]],
@@ -226,7 +226,7 @@ export const MUTANTS = [
     edits: [["      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted', 'EventCancelled'] : []),", "      ...(user.roles.includes('ATTENDEE') ? ['WaitlistPromoted'] : []),"]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-12-C-VIS')] },
   { id: 'X2', name: 'EventCancelled no longer maps to the attendee audience role', file: EVENTS,
-    edits: [["if (type === 'WaitlistPromoted' || type === 'EventCancelled') return 'attendee';", "if (type === 'WaitlistPromoted') return 'attendee';"]],
+    edits: [["if (row.event_coordinator_id === row.recipient_id) return 'coordinator';\n    return 'attendee';", "if (row.event_coordinator_id === row.recipient_id) return 'coordinator';\n    return 'organiser';"]],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-12-C-VIS')] },
   { id: 'X3', name: 'the releaser cancels a second time and notices again (its dedupe on Waitlisted is dropped)', file: 'src/registrations/waitlist/cancel-releaser.ts',
     edits: [["      WHERE event_id = $1 AND status = 'Waitlisted'\n      RETURNING attendee_id", "      WHERE event_id = $1 AND status IN ('Waitlisted', 'Cancelled')\n      RETURNING attendee_id"]],
@@ -245,7 +245,7 @@ export const MUTANTS = [
   // A1-REAL: the realistic pre-lock version: the lookup reads the status and the branch uses that pre-lock value.
   { id: 'A1-REAL', name: 'the withdrawal reads the status before the lock and branches on that value (the stale pre-lock read)', file: SERVICE,
     edits: [
-      ['        `SELECT r.id, e.event_name, e.start_date_time, r.event_id', '        `SELECT r.id, r.status, e.event_name, e.start_date_time, r.event_id'],
+      ['e.status AS event_status, r.event_id\n           FROM event_registrations r JOIN events e', 'e.status AS event_status, r.event_id, r.status\n           FROM event_registrations r JOIN events e'],
       ['      let status = await readStatus();', '      let status = current.status;'],
     ],
     suites: ['e2e'], testMappings: [e2e('JOIN-WAITLIST-10-H')] },
