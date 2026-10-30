@@ -21,7 +21,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     pool = new pg.Pool({ connectionString: databaseUrl });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
-    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql'])
+    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql'])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
@@ -153,6 +153,41 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       [existingRequest.body.id],
     );
     expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
+  });
+
+  /** SPM-58 AC8/AC9/AC10: Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
+  it('records a Cannot Provide decision with its reason, retires placeholders, and shows it to the coordinator', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const eventId = await createEvent(coordinator.id, 'Planning');
+    const submitted = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
+      .send({ eventId, items: [{ equipmentName: 'SPM-58 Cannot Provide Cameras', equipmentType: 'Visual', quantity: 10 }] }).expect(201);
+
+    // AC9: a reason is required.
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: '   ' }).expect(400);
+
+    // AC8: marking Cannot Provide persists the status and reason and retires the placeholder reservations.
+    const decided = await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: '  Only 8 cameras available for this period; 10 requested.  ' }).expect(200);
+    expect(decided.body).toMatchObject({ kind: 'cannot-provided', requestReference: submitted.body.requestReference });
+
+    const persisted = await pool.query('SELECT status, decision_reason FROM equipment_requests WHERE id = $1::uuid', [submitted.body.id]);
+    expect(persisted.rows[0]).toEqual({ status: 'Cannot Provide', decision_reason: 'Only 8 cameras available for this period; 10 requested.' });
+
+    const reservations = await pool.query(
+      'SELECT status FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
+      [submitted.body.id]);
+    expect(reservations.rows).toEqual([{ status: 'Unavailable' }]);
+
+    // AC10: the event coordinator sees the status and reason on their request.
+    const mine = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', coordinator.cookie).expect(200);
+    const own = mine.body.find((row: { id: string }) => row.id === submitted.body.id);
+    expect(own).toMatchObject({ status: 'Cannot Provide', decisionReason: 'Only 8 cameras available for this period; 10 requested.' });
+
+    // A request that is no longer Pending Review cannot be marked again.
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
+      .set('Cookie', support.cookie).send({ reason: 'Still cannot provide.' }).expect(409);
   });
 
   /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */

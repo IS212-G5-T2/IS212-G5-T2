@@ -46,4 +46,10 @@ export class EquipmentRequestsController {
     return this.requests.reserve(request[CURRENT_USER_REQUEST_KEY], requestId);
   }
 
+  /** SPM-58 AC8/AC9: Technical Support marks a request Cannot Provide with a reason. */
+  @Patch(':requestId/cannot-provide')
+  cannotProvide(@Req() request: AuthenticatedRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() body: unknown) {
+    return this.requests.markCannotProvide(request[CURRENT_USER_REQUEST_KEY], requestId, body);
+  }
+
 }

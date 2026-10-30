@@ -108,6 +108,30 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
+  /** SPM-58 AC8/AC9: marking a pending request Cannot Provide stores the reason and retires placeholders. */
+  it('marks a pending request Cannot Provide with its reason and retires placeholder reservations', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, event_status: 'Approved' }], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 1 };
+    });
+    await expect(repository.markCannotProvide(requestId, 'Only 8 available; 10 requested.')).resolves.toEqual({ kind: 'cannot-provided', id: requestId });
+    const update = query.mock.calls.find(([sql]) => sql.includes("status = 'Cannot Provide'") && sql.includes('decision_reason = $2'));
+    expect(update?.[1]).toEqual([requestId, 'Only 8 available; 10 requested.', new Date('2030-01-10T12:00:00Z')]);
+    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'Unavailable'") && sql.includes("reservation.status = 'Requested'"))).toBe(true);
+  });
+
+  /** SPM-58: Cannot Provide only applies to a Pending Review request on a non-Confirmed event. */
+  it('guards Cannot Provide against missing, confirmed, and non-pending requests', async () => {
+    query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+    await expect(repository.markCannotProvide(requestId, 'reason')).resolves.toEqual({ kind: 'request-not-found' });
+    query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Pending Review', event_status: 'Confirmed' }], rowCount: 1 });
+    await expect(repository.markCannotProvide(requestId, 'reason')).resolves.toEqual({ kind: 'event-confirmed' });
+    query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Reserved', event_status: 'Approved' }], rowCount: 1 });
+    await expect(repository.markCannotProvide(requestId, 'reason')).resolves.toEqual({ kind: 'not-pending' });
+  });
+
   /** EQUIP-REQUEST-01-A: the request picker is coordinator-scoped and labels each option from event_name, never venue data. */
   it('lists eligible assigned events by event name', async () => {
     query.mockResolvedValueOnce({ rows: [{ ...event, venue_name: 'Venue that must not be displayed' }], rowCount: 1 });
