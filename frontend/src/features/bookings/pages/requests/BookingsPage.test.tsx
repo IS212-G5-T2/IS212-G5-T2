@@ -543,6 +543,103 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByRole("button", { name: "Submit Decision" })).toBeEnabled();
   });
 
+  /** VEN-CONF-02-A, VEN-CONF-06-A/B/C/D: a conflict keeps approval open and shows each correct full interval and blocker label. */
+  it("VEN-CONF-02-A VEN-CONF-06-A VEN-CONF-06-B VEN-CONF-06-C VEN-CONF-06-D SPM-56 shows and dismisses each conflicting occupied interval", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with Lecture Series. Check availability again before approving.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+        [
+          {
+            id: "approved-1", reason: "Lecture Series", kind: "booking",
+            start: "2030-01-12T03:20:00.000Z", end: "2030-01-12T04:00:00.000Z",
+            occupiedStart: "2030-01-12T02:50:00.000Z", occupiedEnd: "2030-01-12T04:45:00.000Z", status: "approved",
+          },
+          {
+            id: "hold-1", reason: "Tentative Event", kind: "booking",
+            start: "2030-01-12T04:45:00.000Z", end: "2030-01-12T05:45:00.000Z",
+            occupiedStart: "2030-01-12T04:15:00.000Z", occupiedEnd: "2030-01-12T06:30:00.000Z", status: "approved", requestKind: "tentative_hold",
+            holdExpiresAt: "2030-01-12T03:00:00.000Z",
+          },
+          {
+            id: "closure-1", reason: "Maintenance", kind: "unavailable",
+            start: "2030-01-12T06:00:00.000Z", end: "2030-01-12T07:00:00.000Z",
+            occupiedStart: "2030-01-12T06:00:00.000Z", occupiedEnd: "2030-01-12T07:00:00.000Z",
+          },
+        ],
+      ));
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Confirmed booking: Lecture Series; occupied 12 Jan 2030, 10:50 – 12 Jan 2030, 12:45 SGT");
+    expect(alert).toHaveTextContent("Active tentative hold: Tentative Event; occupied 12 Jan 2030, 12:15 – 12 Jan 2030, 14:30 SGT");
+    expect(alert).toHaveTextContent("Unavailable period: 12 Jan 2030, 14:00 – 12 Jan 2030, 15:00 SGT — Maintenance");
+    expect(within(alert).getAllByRole("listitem")).toHaveLength(3);
+    expect(alert).not.toHaveClass("fixed");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await user.click(within(alert).getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  /** VEN-CONF-02-A: the approval alert remains visible if a conflict response has no structured blocker list. */
+  it("VEN-CONF-02-A SPM-56 shows the approval conflict alert when blocker details are unavailable", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with another booking. Check availability again before approving.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+      ));
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("conflicts with another booking");
+    expect(within(alert).queryByRole("listitem")).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  /** VEN-CONF-02-VAR-3: a successful decision after a conflict clears the stale conflict alert. */
+  it("VEN-CONF-02-VAR-3 SPM-56 clears the conflict alert after a subsequent successful decision", async () => {
+    const user = userEvent.setup();
+    setVenueStaff();
+    apiMock
+      .mockResolvedValueOnce([pendingRequest()] as never)
+      .mockRejectedValueOnce(new ApiError(
+        "This slot can no longer be approved because it conflicts with another booking.",
+        undefined,
+        "BOOKING_SLOT_CONFLICT",
+        409,
+      ))
+      .mockResolvedValueOnce({ holdExpiresAt: undefined } as never);
+    render(<BookingsPage />);
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("conflicts with another booking");
+
+    await user.click(await screen.findByRole("button", { name: "Review Details" }));
+    await user.click(screen.getByLabelText(/Approve — accept booking/));
+    await user.click(screen.getByRole("button", { name: "Submit Decision" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+  });
+
   /** VEN-REV-06-B: a reason typed and rejected for one request, with its error, does not carry into the next request's dialog. */
   it("SPM-55 AC6 starts a fresh dialog with no reason or error for another request", async () => {
     const user = userEvent.setup();

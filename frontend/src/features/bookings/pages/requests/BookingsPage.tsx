@@ -5,7 +5,7 @@ import { Select } from "@/components/ui/FormControls";
 import { BookingCard } from "@/features/bookings/pages/requests/BookingCard";
 import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 import { BookingDetailModal } from "@/features/bookings/pages/requests/BookingDetailModal";
-import type { Booking, PendingBookingRequest } from "@/types";
+import type { Booking, PendingBookingRequest, VenueBookingConflict } from "@/types";
 
 import { api, ApiError } from "@/utils/api";
 import { hasRole } from "@/types";
@@ -57,6 +57,7 @@ export function BookingsPage() {
     null,
   );
   const [lastActiveConfirmation, setLastActiveConfirmation] = useState(false);
+  const [conflictAlert, setConflictAlert] = useState<{ message: string; conflicts?: VenueBookingConflict[] } | null>(null);
   const coordinator = hasRole(currentUser, "coordinator");
 
   useEffect(() => {
@@ -154,6 +155,32 @@ export function BookingsPage() {
             : "Track and manage the venue requests you've submitted."
         }
       />
+
+      {conflictAlert && (
+        <div role="alert" className="mb-4 rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-900 shadow dark:border-red-700 dark:bg-red-900/20 dark:text-red-200">
+          <p>{conflictAlert.message}</p>
+          {conflictAlert.conflicts && conflictAlert.conflicts.length > 0 && (
+            <ul className="mt-2 list-disc pl-5 space-y-1">
+              {conflictAlert.conflicts.map((c) => (
+                <li key={c.id}>
+                  {c.kind === "unavailable"
+                    ? `Unavailable period: ${formatSingaporeRange(c.occupiedStart, c.occupiedEnd)} — ${c.reason}`
+                    : c.requestKind === "tentative_hold"
+                      ? `Active tentative hold: ${c.reason}; occupied ${formatSingaporeRange(c.occupiedStart, c.occupiedEnd)}`
+                      : `Confirmed booking: ${c.reason}; occupied ${formatSingaporeRange(c.occupiedStart, c.occupiedEnd)}`}
+                </li>
+              ))}
+            </ul>
+          )}
+          <button
+            type="button"
+            className="mt-3 rounded-md border border-red-300 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/40"
+            onClick={() => setConflictAlert(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {staffError && <p role="alert">{staffError}</p>}
       {coordError && <p role="alert">{coordError}</p>}
@@ -323,7 +350,9 @@ export function BookingsPage() {
         key={selected?.id ?? "none"}
         booking={selected}
         onClose={() => setSelected(null)}
+        onConflict={(message, conflicts) => setConflictAlert({ message, conflicts })}
         onDecided={(outcome) => {
+          setConflictAlert(null);
           setStaffBookings((prev) =>
             prev.map((b) =>
               b.id === outcome.id

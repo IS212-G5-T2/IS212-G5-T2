@@ -350,11 +350,18 @@ describe('SPM-55 venue booking review service', () => {
     },
   );
 
-  /** VEN-REV-02-B: approval re-checks the slot and reports the overlapping booking instead of double-booking. */
-  it('SPM-55 AC2 returns BOOKING_SLOT_CONFLICT when the slot is taken at approval time', async () => {
+  /** VEN-CONF-02-A: approval reports the conflict and returns its occupied interval to the review UI. */
+  it('VEN-CONF-02-A SPM-56 includes conflicting occupied periods in the approval error', async () => {
+    const conflicts = [{
+      id: 'block-1', reason: 'Lecture Series', kind: 'booking' as const,
+      start: '2030-01-12T03:20:00.000Z', end: '2030-01-12T04:00:00.000Z',
+      occupiedStart: '2030-01-12T02:50:00.000Z', occupiedEnd: '2030-01-12T04:45:00.000Z',
+      status: 'approved' as const,
+    }];
     approveBooking.mockResolvedValue({
       kind: 'conflict',
       reason: 'Lecture Series',
+      conflicts,
     });
     const failure = await service
       .approveVenueBooking(staff, bookingId)
@@ -364,6 +371,40 @@ describe('SPM-55 venue booking review service', () => {
       code: 'BOOKING_SLOT_CONFLICT',
       message:
         'This slot can no longer be approved because it conflicts with Lecture Series. Check availability again before approving.',
+      conflicts,
+    });
+  });
+
+  /** VEN-CONF-02-VAR-1: multiple distinct blocker names are joined as "A, B and C" with duplicates removed. */
+  it('VEN-CONF-02-VAR-1 SPM-56 joins multiple distinct blocker names and removes duplicates', async () => {
+    const conflicts = [
+      { id: 'b1', reason: 'Alpha Event', kind: 'booking' as const, start: '2030-01-12T03:00:00.000Z', end: '2030-01-12T04:00:00.000Z', occupiedStart: '2030-01-12T03:00:00.000Z', occupiedEnd: '2030-01-12T04:00:00.000Z', status: 'approved' as const },
+      { id: 'b2', reason: 'Beta Event', kind: 'booking' as const, start: '2030-01-12T03:30:00.000Z', end: '2030-01-12T04:30:00.000Z', occupiedStart: '2030-01-12T03:30:00.000Z', occupiedEnd: '2030-01-12T04:30:00.000Z', status: 'approved' as const },
+      { id: 'b3', reason: 'Alpha Event', kind: 'booking' as const, start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z', occupiedStart: '2030-01-12T04:00:00.000Z', occupiedEnd: '2030-01-12T05:00:00.000Z', status: 'approved' as const },
+    ];
+    approveBooking.mockResolvedValue({ kind: 'conflict', reason: 'Alpha Event', conflicts });
+    const failure = await service
+      .approveVenueBooking(staff, bookingId)
+      .catch((error: unknown) => error);
+    expect((failure as ConflictException).getResponse()).toMatchObject({
+      code: 'BOOKING_SLOT_CONFLICT',
+      message: 'This slot can no longer be approved because it conflicts with Alpha Event and Beta Event. Check availability again before approving.',
+    });
+  });
+
+  /** VEN-CONF-02-VAR-2: when the repository returns no conflict rows the lead-time reason string is used verbatim. */
+  it('VEN-CONF-02-VAR-2 SPM-56 uses the repository reason string when conflicts array is empty', async () => {
+    approveBooking.mockResolvedValue({
+      kind: 'conflict',
+      reason: 'The event is now inside the 336-hour lead-time minimum for a tentative hold.',
+      conflicts: [],
+    });
+    const failure = await service
+      .approveVenueBooking(staff, bookingId)
+      .catch((error: unknown) => error);
+    expect((failure as ConflictException).getResponse()).toMatchObject({
+      code: 'BOOKING_SLOT_CONFLICT',
+      message: 'The event is now inside the 336-hour lead-time minimum for a tentative hold.',
     });
   });
 

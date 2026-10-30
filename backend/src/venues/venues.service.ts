@@ -53,7 +53,7 @@ function validateRejectionReason(body: unknown): string {
   return trimmed;
 }
 
-/** Converts a repository decision outcome into the HTTP result or its SPM-55 error. */
+/** Converts a repository decision outcome into the HTTP result or its SPM-55/SPM-56 error. */
 function decisionOrThrow(
   result: VenueBookingDecisionResult,
 ): VenueBookingDecision {
@@ -64,11 +64,23 @@ function decisionOrThrow(
       code: 'BOOKING_ALREADY_DECIDED',
       message: `This booking request is already ${result.status} and can no longer be approved or rejected.`,
     });
-  if (result.kind === 'conflict')
+  if (result.kind === 'conflict') {
+    const names = [...new Set(result.conflicts.map((c) => c.reason))];
+    let message: string;
+    if (names.length === 0) {
+      message = result.reason;
+    } else {
+      const summary = names.length === 1
+        ? names[0]
+        : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+      message = `This slot can no longer be approved because it conflicts with ${summary}. Check availability again before approving.`;
+    }
     throw new ConflictException({
       code: 'BOOKING_SLOT_CONFLICT',
-      message: `This slot can no longer be approved because it conflicts with ${result.reason}. Check availability again before approving.`,
+      message,
+      conflicts: result.conflicts,
     });
+  }
   return result.booking;
 }
 

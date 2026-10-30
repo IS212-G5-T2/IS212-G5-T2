@@ -1080,6 +1080,40 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | EVENT-UPDATE-HTTP-06 | PRIMARY | SPM-156 | DoD11 | Confluence matrix 38010922, DoD 11 row (SPM-49 case on page 21496341 EVENT-UPDATE-HTTP; expected result updated by SPM-156) | backend/test/events-planning.http.e2e-spec.ts | User approved 2026-10-29 (fix all review findings) | Active |
 | EVENT-FLAG-05-A | PRIMARY | SPM-156 | DoD11 | Confluence matrix 38010922, DoD 11 row (SPM-85 history case; expected result updated by SPM-156) | frontend/src/features/events/pages/detail/planning/FlaggedChangeReview.test.tsx, frontend/src/features/events/pages/detail/planning/PlanningUpdateForm.test.tsx, frontend/src/utils/planning.test.ts | User approved 2026-10-29 (fix all review findings) | Active |
 
+## SPM-56
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| VEN-CONF-01-A | PRIMARY | SPM-56 | AC1 | Confluence matrix SPM-56; case: booking approval blocked by an overlapping approved booking | backend/src/venues/repository/venues.repository.spec.ts, backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-01-B | PRIMARY | SPM-56 | AC1 | Confluence matrix SPM-56; case: a blocker on a different venue does not prevent approval | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-01-BND-1 | PRIMARY | SPM-56 | AC1 | Confluence matrix SPM-56; case: exactly touching occupied endpoints are not conflicts (half-open intervals) | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-01-PERF-1 | PRIMARY | SPM-56 | AC1 | Confluence matrix SPM-56; case: sequential ordinary booking approvals — first succeeds, second is rejected | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-01-SEC-1 | PRIMARY | SPM-56 | AC1 | Confluence matrix SPM-56; case: venue isolation — conflict on a different venue does not block same-venue approval | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-A | PRIMARY | SPM-56 | AC2 | Confluence matrix SPM-56; case: approval reports the conflict and returns occupied interval to the review UI | backend/src/venues/venues.service.spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx, backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-B | PRIMARY | SPM-56 | AC2 | Confluence matrix SPM-56; case: no false warning for free time (pending hold and different-venue booking do not block approval) | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-C | PRIMARY | SPM-56 | AC2 | Confluence matrix SPM-56; case: recheck changes since request was made (fresh conflict detected at approval time) | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-VAR-1 | SUPPORTING | SPM-56 | AC2 | Derived: multiple distinct blocker names are joined as "A, B and C" with duplicates removed | backend/src/venues/venues.service.spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-VAR-2 | SUPPORTING | SPM-56 | AC2 | Derived: when the repository returns no conflict rows the lead-time reason string is used verbatim (e5efc1b7 fix) | backend/src/venues/venues.service.spec.ts | pending (story owner) | Active |
+| VEN-CONF-02-VAR-3 | SUPPORTING | SPM-56 | AC2 | Derived: a successful decision after a conflict clears the stale conflict alert | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
+| VEN-CONF-03-A | PRIMARY | SPM-56 | AC3 | Confluence matrix SPM-56; case: setup-only overlap is detected as a conflict | backend/src/venues/repository/venues.repository.spec.ts, backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-03-B | PRIMARY | SPM-56 | AC3 | Confluence matrix SPM-56; case: turnaround-only overlap is detected as a conflict | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-03-BND-1 | PRIMARY | SPM-56 | AC3 | Confluence matrix SPM-56; case: exactly touching setup/turnaround endpoints are not conflicts | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-03-VAR-1 | PRIMARY | SPM-56 | AC3 | Confluence matrix SPM-56; case: updated setup buffer is applied at approval time | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-04-A | PRIMARY | SPM-56 | AC4 | Confluence matrix SPM-56; case: active unexpired hold blocks approval | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-04-B | PRIMARY | SPM-56 | AC4 | Confluence matrix SPM-56; case: pending hold does not block approval | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-04-C | PRIMARY | SPM-56 | AC4 | Confluence matrix SPM-56; case: pending tentative hold on same venue does not block booking approval | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-04-D | PRIMARY | SPM-56 | AC4 | Confluence matrix SPM-56; case: concurrent overlapping hold approvals are serialized | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-04-PERF-1 | PRIMARY | SPM-56 | AC4 | Confluence matrix SPM-56; case: only one concurrent overlapping hold approval succeeds | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-05-A | PRIMARY | SPM-56 | AC5 | Confluence matrix SPM-56; case: active hold blocks | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-05-B | PRIMARY | SPM-56 | AC5 | Confluence matrix SPM-56; case: expired hold does not block | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-05-BND-1 | PRIMARY | SPM-56 | AC5 | Confluence matrix SPM-56; case: hold exactly at expiry boundary | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-05-C | PRIMARY | SPM-56 | AC5 | Confluence matrix SPM-56; case: ordinary approved booking blocks alongside hold checks | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| VEN-CONF-06-A | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: blocker label for ordinary booking | backend/src/venues/repository/venues.repository.spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
+| VEN-CONF-06-B | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: blocker label for approved hold | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
+| VEN-CONF-06-C | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: full occupied interval (with setup/turnaround) is returned | backend/src/venues/repository/venues.repository.spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
+| VEN-CONF-06-D | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: multiple blocker intervals are all shown | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
+| VEN-CONF-06-E | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: unavailable interval is returned raw for a different-venue non-conflict | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.

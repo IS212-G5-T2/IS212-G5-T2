@@ -317,6 +317,20 @@ export interface PendingBookingRequest {
   reassessmentRequired?: boolean;
 }
 
+/** Full occupied time reported when Venue Staff approval is blocked (SPM-56 AC6). */
+export interface VenueBookingConflict {
+  id: string;
+  reason: string;
+  kind: "booking" | "unavailable";
+  start: string;
+  end: string;
+  occupiedStart: string;
+  occupiedEnd: string;
+  status?: "approved" | "pending";
+  requestKind?: "booking" | "tentative_hold";
+  holdExpiresAt?: string;
+}
+
 export interface EquipmentItem {
   id: string;
   name: string;
