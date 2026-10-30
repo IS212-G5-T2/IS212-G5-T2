@@ -30,6 +30,7 @@ import { SettingsPage } from "@/features/account/pages/settings/SettingsPage";
 import { VenueCreatePage } from "@/features/venues/pages/create/VenueCreatePage";
 import { AssignmentQueuePage } from "@/features/lead/pages/assignment-queue/AssignmentQueuePage";
 import { ReassignmentPage } from "@/features/lead/pages/reassignment/ReassignmentPage";
+import { SafetyEventsPage } from "@/features/safety/pages/SafetyEventsPage";
 import { dashboardPathByRole } from "@/components/layout/navConfig";
 
 function RootRedirect() {
@@ -112,6 +113,10 @@ export default function App() {
         <Route element={<RequireRole allowedRoles={["coordinator_lead"]} />}>
           <Route path="/lead/queue" element={<AssignmentQueuePage />} />
           <Route path="/lead/reassign" element={<ReassignmentPage />} />
+        </Route>
+
+        <Route element={<RequireRole allowedRoles={["safety_officer"]} />}>
+          <Route path="/safety/events" element={<SafetyEventsPage />} />
         </Route>
 
         <Route path="/settings" element={<SettingsPage />} />

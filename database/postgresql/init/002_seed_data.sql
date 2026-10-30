@@ -7,7 +7,8 @@ INSERT INTO roles (id, name, description) VALUES
     (3, 'VENUE_STAFF', 'Manages venue-related information and reviews venue booking requests, including approving or rejecting bookings.'),
     (4, 'TECH_SUPPORT', 'Manages equipment-related requests, checks equipment availability, and handles equipment reservations for events.'),
     (5, 'ATTENDEE', 'Views appropriate event information, registers for events, checks registration status, and withdraws registrations.'),
-    (6, 'COORDINATOR_LEAD', 'Assigns each unassigned event request to an available Event Coordinator based on current workload.')
+    (6, 'COORDINATOR_LEAD', 'Assigns each unassigned event request to an available Event Coordinator based on current workload.'),
+    (7, 'SAFETY_OFFICER', 'Reviews safety arrangements for events that require a safety check before they can proceed.')
 ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
 
 INSERT INTO resources (id, name, description) VALUES
@@ -65,7 +66,8 @@ INSERT INTO role_permissions (role_id, resource_id, "create", "read", "update", 
     (2, 9, false, true, false, false), (5, 9, true, true, false, true), (1, 10, false, true, false, false), (2, 10, false, true, false, false), (3, 10, false, true, false, false),
     (4, 10, false, true, false, false), (5, 10, false, true, false, false),
     (4, 11, true, true, true, false),
-    (6, 1, false, true, true, false), (6, 2, false, true, false, false)
+    (6, 1, false, true, true, false), (6, 2, false, true, false, false),
+    (7, 1, false, true, false, false)
 ON CONFLICT (role_id, resource_id) DO UPDATE SET "create" = EXCLUDED."create", "read" = EXCLUDED."read", "update" = EXCLUDED."update", "delete" = EXCLUDED."delete";
 
 INSERT INTO users (email, display_name, password_hash) VALUES
@@ -75,7 +77,8 @@ INSERT INTO users (email, display_name, password_hash) VALUES
     ('tech_support1@connectsphere.test', 'Tech Support 1', crypt('P@55w0rd', gen_salt('bf', 12))), ('tech_support2@connectsphere.test', 'Tech Support 2', crypt('P@55w0rd', gen_salt('bf', 12))), ('tech_support3@connectsphere.test', 'Tech Support 3', crypt('P@55w0rd', gen_salt('bf', 12))),
     ('attendee1@connectsphere.test', 'Attendee 1', crypt('P@55w0rd', gen_salt('bf', 12))), ('attendee2@connectsphere.test', 'Attendee 2', crypt('P@55w0rd', gen_salt('bf', 12))), ('attendee3@connectsphere.test', 'Attendee 3', crypt('P@55w0rd', gen_salt('bf', 12))),
     ('coordinator_venuestaff@connectsphere.test', 'Coor_Venue', crypt('P@55w0rd', gen_salt('bf', 12))),
-    ('lead@connectsphere.test', 'Coordinator Lead', crypt('P@55w0rd', gen_salt('bf', 12)))
+    ('lead@connectsphere.test', 'Coordinator Lead', crypt('P@55w0rd', gen_salt('bf', 12))),
+    ('safety_officer1@connectsphere.test', 'Safety Officer 1', crypt('P@55w0rd', gen_salt('bf', 12))), ('safety_officer2@connectsphere.test', 'Safety Officer 2', crypt('P@55w0rd', gen_salt('bf', 12))), ('safety_officer3@connectsphere.test', 'Safety Officer 3', crypt('P@55w0rd', gen_salt('bf', 12)))
 ON CONFLICT (email) DO UPDATE SET display_name = EXCLUDED.display_name, is_active = true, updated_at = now();
 
 INSERT INTO user_roles (user_id, role_id)
@@ -86,7 +89,8 @@ SELECT users.id, roles.id FROM (VALUES
     ('tech_support1@connectsphere.test', 'TECH_SUPPORT'), ('tech_support2@connectsphere.test', 'TECH_SUPPORT'), ('tech_support3@connectsphere.test', 'TECH_SUPPORT'),
     ('attendee1@connectsphere.test', 'ATTENDEE'), ('attendee2@connectsphere.test', 'ATTENDEE'), ('attendee3@connectsphere.test', 'ATTENDEE'),
     ('coordinator_venuestaff@connectsphere.test', 'COORDINATOR'), ('coordinator_venuestaff@connectsphere.test', 'VENUE_STAFF'),
-    ('lead@connectsphere.test', 'COORDINATOR_LEAD')
+    ('lead@connectsphere.test', 'COORDINATOR_LEAD'),
+    ('safety_officer1@connectsphere.test', 'SAFETY_OFFICER'), ('safety_officer2@connectsphere.test', 'SAFETY_OFFICER'), ('safety_officer3@connectsphere.test', 'SAFETY_OFFICER')
 ) AS assignments(email, role_name)
 JOIN users ON users.email = assignments.email
 JOIN roles ON roles.name = assignments.role_name

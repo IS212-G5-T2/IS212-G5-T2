@@ -155,4 +155,11 @@ describe("auth", () => {
     // Assert: a signed-in Lead, not an account without a role.
     expect(user).toMatchObject({ role: "coordinator_lead", roles: ["coordinator_lead"] });
   });
+
+  // SPM-128 SPM128-SAFE-LOGIN-01-A: the server's SAFETY_OFFICER role becomes the UI's safety_officer role.
+  it("SPM128-SAFE-LOGIN-01-A recognises the Safety Officer role from the server", () => {
+    const user = toLocalUser({ uid: "safety-1", email: "safety_officer1@connectsphere.test", roles: ["SAFETY_OFFICER"] });
+
+    expect(user).toMatchObject({ role: "safety_officer", roles: ["safety_officer"] });
+  });
 });

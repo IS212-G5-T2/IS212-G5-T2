@@ -322,3 +322,48 @@ describe("SPM-30 to SPM-34 AC2: post-login landing on the Events Dashboard", () 
     },
   );
 });
+
+// SPM-128: Safety Officer login and role-gated view.
+describe("SPM-128 Safety Officer login routing", () => {
+  beforeEach(() => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: {
+        id: "safety-1",
+        name: "Safety Officer 1",
+        email: "safety_officer1@connectsphere.test",
+        role: "safety_officer",
+      },
+      restoreAuthSession: vi.fn(),
+    });
+  });
+
+  // SPM128-SAFE-LOGIN-01-A: A Safety Officer lands on their own view after sign-in.
+  it("SPM128-SAFE-LOGIN-01-A redirects a Safety Officer from root to the safety review page", () => {
+    render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
+  });
+
+  // SPM128-SAFE-LOGIN-01-B: The safety events route is accessible to the Safety Officer role.
+  it("SPM128-SAFE-LOGIN-01-B renders the safety review page at /safety/events", () => {
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
+  });
+
+  // SPM128-SAFE-LOGIN-01-C: Other roles cannot reach the safety events route.
+  it.each([
+    ["coordinator", "coordinator-1"],
+    ["organiser", "organiser-1"],
+    ["attendee", "attendee-1"],
+  ] as const)(
+    "SPM128-SAFE-LOGIN-01-C blocks %s from the safety events route",
+    (role, id) => {
+      useAppStore.setState({
+        currentUser: { id, name: role, email: `${role}@example.test`, role },
+      });
+      render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+      expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+    },
+  );
+});
