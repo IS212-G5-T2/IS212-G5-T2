@@ -35,9 +35,15 @@ export class EquipmentRequestsController {
     return this.requests.listQueue(request[CURRENT_USER_REQUEST_KEY]);
   }
 
+  @Get('reservations')
+  listReservations(@Req() request: AuthenticatedRequest) {
+    return this.requests.listReservations(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
   /** Technical Support turns a submitted request into the reservation used by SPM-113. */
   @Patch(':requestId/reserve')
   reserve(@Req() request: AuthenticatedRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string) {
     return this.requests.reserve(request[CURRENT_USER_REQUEST_KEY], requestId);
   }
+
 }
