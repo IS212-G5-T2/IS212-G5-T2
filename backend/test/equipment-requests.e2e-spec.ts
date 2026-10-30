@@ -613,8 +613,9 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(rows.rows).toEqual([{ id: created.body.id, count: 1 }]);
   });
 
-  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a reviewed request remains updateable while its event is still Planning. */
-  it('updates a Reserved request before event confirmation', async () => {
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a reviewed request remains updateable while its event is still Planning,
+   *  and updating it returns the request to the Technical Support review queue (SPM-58). */
+  it('returns a Reserved request to Pending Review when it is updated before event confirmation', async () => {
     const coordinator = await createUser('COORDINATOR');
     const eventId = await createEvent(coordinator.id, 'Planning');
     const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
@@ -626,7 +627,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       .send({ eventId, items: [{ equipmentName: 'Revised microphone', equipmentType: 'Audio', quantity: 3 }] }).expect(200);
 
     expect(updated.body).toMatchObject({ kind: 'updated', id: created.body.id, requestReference: created.body.requestReference });
-    expect((await pool.query('SELECT status FROM equipment_requests WHERE id = $1', [created.body.id])).rows).toEqual([{ status: 'Reserved' }]);
+    expect((await pool.query('SELECT status FROM equipment_requests WHERE id = $1', [created.body.id])).rows).toEqual([{ status: 'Pending Review' }]);
     expect((await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1', [created.body.id])).rows)
       .toEqual([{ equipment_name: 'Revised microphone', quantity: 3 }]);
     expect((await pool.query("SELECT equipment_name, quantity FROM equipment_reservations WHERE event_id = $1 AND status = 'Requested'", [eventId])).rows)
