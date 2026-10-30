@@ -8,9 +8,10 @@ const request = { [CURRENT_USER_REQUEST_KEY]: identity } as AuthenticatedRequest
 const submit = vi.fn();
 const listMine = vi.fn();
 const listQueue = vi.fn();
+const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
-const controller = new EquipmentRequestsController({ submit, update, listMine, listQueue, listEligibleEvents } as never);
+const controller = new EquipmentRequestsController({ submit, update, listMine, listQueue, listReservations, listEligibleEvents } as never);
 
 beforeEach(() => vi.resetAllMocks());
 
@@ -45,5 +46,11 @@ describe('SPM-57 equipment request controller', () => {
   it('forwards the Technical Support queue read', () => {
     controller.listQueue(request);
     expect(listQueue).toHaveBeenCalledWith(identity);
+  });
+
+  /** EQUIP-RESERVE-07-A: reservation reads forward the verified caller for Technical Support authorization. */
+  it('forwards the reservation read', () => {
+    controller.listReservations(request);
+    expect(listReservations).toHaveBeenCalledWith(identity);
   });
 });

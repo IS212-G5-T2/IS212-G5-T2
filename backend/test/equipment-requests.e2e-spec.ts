@@ -105,6 +105,56 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
   });
 
+  /** SPM-58: approval creates missing reservation rows and reuses existing placeholders without duplication. */
+  it('persists exactly one Reserved row per request item whether placeholders were missing or already present', async () => {
+    const coordinator = await createUser('COORDINATOR');
+    const support = await createUser('TECH_SUPPORT');
+    const equipmentId = randomUUID();
+    equipmentIds.push(equipmentId);
+    await pool.query(
+      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, 'SPM-58 Missing Placeholder Test', 'Audio', 4, 'Active', 4, 0, 0, 'Test Store')`,
+      [equipmentId],
+    );
+
+    const missingEventId = await createEvent(coordinator.id, 'Planning');
+    const missingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
+      .set('Cookie', coordinator.cookie)
+      .send({ eventId: missingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
+      .expect(201);
+    await pool.query(
+      'DELETE FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
+      [missingRequest.body.id],
+    );
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${missingRequest.body.id}/reserve`)
+      .set('Cookie', support.cookie).expect(200);
+    const createdRows = await pool.query(
+      `SELECT reservation.equipment_name, reservation.quantity, reservation.status
+         FROM equipment_reservations reservation
+         JOIN equipment_request_items item ON item.id = reservation.equipment_request_item_id
+        WHERE item.request_id = $1::uuid`, [missingRequest.body.id]);
+    expect(createdRows.rows).toEqual([{ equipment_name: 'SPM-58 Missing Placeholder Test', quantity: 1, status: 'Reserved' }]);
+
+    const existingEventId = await createEvent(coordinator.id, 'Planning');
+    const existingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
+      .set('Cookie', coordinator.cookie)
+      .send({ eventId: existingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
+      .expect(201);
+    const before = await pool.query(
+      'SELECT count(*)::integer AS count FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
+      [existingRequest.body.id],
+    );
+    expect(before.rows[0].count).toBe(1);
+    await request(app.getHttpServer()).patch(`/api/equipment/requests/${existingRequest.body.id}/reserve`)
+      .set('Cookie', support.cookie).expect(200);
+    const existingRows = await pool.query(
+      'SELECT status FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
+      [existingRequest.body.id],
+    );
+    expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
+  });
+
   /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
   it('EQUIP-REQUEST-03-A creates a Pending Review request, exposes it to both lists, and records Approved to Planning', async () => {
     const coordinator = await createUser('COORDINATOR');

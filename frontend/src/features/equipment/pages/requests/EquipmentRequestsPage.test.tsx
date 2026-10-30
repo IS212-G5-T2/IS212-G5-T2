@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { getEquipmentRequestQueue, getMyEquipmentRequests } from '../../api/equipment-requests-api';
+import { getEquipmentRequestQueue, getMyEquipmentRequests, reserveEquipmentRequest } from '../../api/equipment-requests-api';
 import { EquipmentRequestsPage } from './EquipmentRequestsPage';
 
 const mocks = vi.hoisted(() => ({ user: { role: 'coordinator', id: 'coord-1' } }));
@@ -10,14 +10,14 @@ vi.mock('@/store/useAppStore', () => ({
   useAppStore: (selector: (state: { currentUser: typeof mocks.user }) => unknown) => selector({ currentUser: mocks.user }),
 }));
 vi.mock('../../api/equipment-requests-api', () => ({
-  getEquipmentRequestQueue: vi.fn(), getMyEquipmentRequests: vi.fn(),
+  getEquipmentRequestQueue: vi.fn(), getMyEquipmentRequests: vi.fn(), reserveEquipmentRequest: vi.fn(),
 }));
 
 const record = {
   id: 'request-1', reference: 'ER-12345678', eventId: 'event-1', eventName: 'Showcase',
   eventStart: '2030-02-03T10:00:00.000Z', eventEnd: '2030-02-03T12:00:00.000Z', expectedAttendance: 120,
   status: 'Pending Review' as const, eventStatus: 'Planning' as const, requestedBy: 'coord-1', coordinatorName: 'Coordinator', createdAt: '2030-02-03T10:00:00.000Z',
-  items: [{ id: 'item-1', equipmentName: 'Microphone', equipmentType: 'Audio' as const, quantity: 1 }],
+  items: [{ id: 'item-1', equipmentName: 'Microphone', equipmentType: 'Audio' as const, quantity: 1, availableQuantity: 2, sufficient: true }],
 };
 
 function renderPage(path = '/equipment/requests') {
@@ -30,6 +30,7 @@ beforeEach(() => {
   setRole('coordinator');
   vi.mocked(getMyEquipmentRequests).mockResolvedValue([record]);
   vi.mocked(getEquipmentRequestQueue).mockResolvedValue([]);
+  vi.mocked(reserveEquipmentRequest).mockResolvedValue({ kind: 'reserved', id: record.id, requestReference: record.reference });
 });
 
 describe('SPM-57 equipment request list and queue', () => {
@@ -89,11 +90,36 @@ describe('SPM-57 equipment request list and queue', () => {
     renderPage();
     expect(await screen.findByRole('heading', { name: 'Equipment Review Queue' })).toBeInTheDocument();
     expect(await screen.findByText('Pending Review')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Review request' }));
     expect(screen.getByText(/Microphone · Audio × 1/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close review' })).toHaveAttribute('aria-expanded', 'true');
     expect(screen.queryByRole('link', { name: /Create Equipment Request/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Update Event' })).not.toBeInTheDocument();
     expect(getEquipmentRequestQueue).toHaveBeenCalledOnce();
     expect(getMyEquipmentRequests).not.toHaveBeenCalled();
+  });
+
+  /** SPM-58: Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
+  it('opens the request review and approves the request for reservation', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValueOnce([record]).mockResolvedValueOnce([]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+    expect(screen.getByRole('region', { name: 'Technical Support review queue' })).toHaveTextContent('2 available for this event period; 1 requested.');
+    await user.click(screen.getByRole('button', { name: 'Approve & reserve' }));
+    expect(reserveEquipmentRequest).toHaveBeenCalledWith(record.id);
+    expect(await screen.findByText('No equipment requests to display.')).toBeInTheDocument();
+  });
+
+  /** SPM-58: the review screen cannot submit approval when an item exceeds available stock. */
+  it('disables approval when requested quantity exceeds event-period availability', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([{ ...record, items: [{ ...record.items[0], availableQuantity: 0, sufficient: false }] }]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+    expect(screen.getByRole('button', { name: 'Approve & reserve' })).toBeDisabled();
   });
 
   /** EQUIP-REQUEST-06-A: an empty coordinator list gives a useful empty state. */
