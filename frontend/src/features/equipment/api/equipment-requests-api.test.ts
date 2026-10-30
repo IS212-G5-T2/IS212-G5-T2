@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/utils/api';
-import { getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests, submitEquipmentRequest, updateEquipmentRequest } from './equipment-requests-api';
+import { markRequestCannotProvide, getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests, submitEquipmentRequest, updateEquipmentRequest } from './equipment-requests-api';
 
 vi.mock('@/utils/api', () => ({ api: vi.fn() }));
 const apiMock = vi.mocked(api);
@@ -38,5 +38,11 @@ describe('SPM-57 equipment request API', () => {
     const input = { eventId: 'event-57', items: [{ equipmentName: 'Updated microphone', equipmentType: 'Audio' as const, quantity: 2 }] };
     updateEquipmentRequest('request-57', input);
     expect(apiMock).toHaveBeenCalledWith('/equipment/requests/request-57', { method: 'PUT', body: JSON.stringify(input) });
+  });
+
+  /** Cannot provide PATCHes the request-specific endpoint with the reason. */
+  it('sends the Cannot provide reason to the request-specific endpoint', () => {
+    markRequestCannotProvide('request-58', 'Only 8 available');
+    expect(apiMock).toHaveBeenCalledWith('/equipment/requests/request-58/cannot-provide', { method: 'PATCH', body: JSON.stringify({ reason: 'Only 8 available' }) });
   });
 });
