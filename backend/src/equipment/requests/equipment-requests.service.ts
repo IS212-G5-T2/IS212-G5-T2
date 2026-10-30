@@ -23,7 +23,6 @@ export class EquipmentRequestsService {
     const coordinator = this.coordinator(user);
     const result = await this.repository.update(coordinator.uid, requestId, validateEquipmentRequest(body));
     if (result.kind === 'request-not-found') throw new NotFoundException('Equipment request not found.');
-    if (result.kind === 'request-reserved') throw new ConflictException('Reserved equipment requests cannot be updated.');
     if (result.kind === 'event-confirmed') throw new ConflictException('Equipment requests cannot be updated after the event is confirmed.');
     if (result.kind === 'event-not-open') throw new ConflictException('This event is not open for equipment requests.');
     return { ...result, requestReference: `ER-${result.id.replaceAll('-', '').slice(0, 8).toUpperCase()}` };
