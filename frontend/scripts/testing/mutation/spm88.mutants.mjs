@@ -391,4 +391,28 @@ export const MUTANTS = [
     testMappings: map('03-INT-2'),
     edits: [['index === -1 ? message :', 'false ? message :']],
   },
+  {
+    id: 'SPM88-FE-52',
+    name: 'relatedEventName ignored (denial always cut at the last separator)',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['  if (eventName) {', '  if (false) {']],
+  },
+  {
+    id: 'SPM88-FE-53',
+    name: 'known-name prefix not checked (a renamed event still cuts by name)',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['    if (message.startsWith(prefix)) return', '    if (true) return']],
+  },
+  {
+    id: 'SPM88-FE-54',
+    name: 'known-name headline keeps the trailing separator characters (colon and space)',
+    file: ROW,
+    suites: ['notifications'],
+    testMappings: map('03-INT-2'),
+    edits: [['prefix.slice(0, -2)', 'prefix']],
+  },
 ];

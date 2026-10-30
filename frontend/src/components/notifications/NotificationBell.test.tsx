@@ -444,9 +444,11 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
   /**
    * DECISION-NOTIFY-03-INT-2: an event name containing quoted decision phrases keeps its full name in the
    * headline, and no reason appears, for a rejection and for an SPM-65 change request denial (whose backend
-   * message still carries the reason after the last '" was denied: ').
+   * message still carries the reason after the last '" was denied: '). When the API sends relatedEventName,
+   * the cut follows the name, so a reason that holds '" was denied: ' is hidden whole too.
    * Kills: a split at the first quote-anchored match (name cut at its own '" was denied: ' and part of the
-   * name hidden); a denial reason left in the headline.
+   * name hidden); a denial reason left in the headline; a cut at the last separator when the reason holds one
+   * (part of the reason shown); relatedEventName ignored.
    */
   it.each([
     {
@@ -476,16 +478,38 @@ describe("NotificationBell (SPM-88 AC3: rejection content)", () => {
       type: "change_request_denied" as const,
       message: 'Your change request for "Spring Fair" was denied',
     },
+    {
+      label: "change request denial (reason holds the denied phrase, name known)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied: Clashes: the booking" was denied: Dates overlap',
+      relatedEventName: "Spring Fair",
+      headline: 'Your change request for "Spring Fair" was denied',
+    },
+    {
+      label: "change request denial (name and reason both hold the denied phrase, name known)",
+      type: "change_request_denied" as const,
+      message:
+        'Your change request for "Why" was denied: a retro" was denied: Clashes" was denied: Dates overlap',
+      relatedEventName: 'Why" was denied: a retro',
+      headline: 'Your change request for "Why" was denied: a retro" was denied',
+    },
+    {
+      label: "change request denial (event renamed since the notice)",
+      type: "change_request_denied" as const,
+      message: 'Your change request for "Spring Fair" was denied: Dates overlap an existing booking',
+      relatedEventName: "Autumn Fair",
+      headline: 'Your change request for "Spring Fair" was denied',
+    },
   ])(
     "DECISION-NOTIFY-03-INT-2: $label shows the full name and no reason",
-    async ({ type, message, headline }) => {
+    async ({ type, message, headline, relatedEventName }) => {
       setUserRole("organiser");
-      apiMock.mockResolvedValue([rejectionNotification({ type, message })]);
+      apiMock.mockResolvedValue([rejectionNotification({ type, message, relatedEventName })]);
 
       renderBell();
 
       expect(await screen.findByText(headline ?? message)).toBeVisible();
-      expect(screen.queryByText(/Dates overlap|Reason/)).toBeNull();
+      expect(screen.queryByText(/Dates overlap|Clashes|the booking|Reason/)).toBeNull();
     },
   );
 });

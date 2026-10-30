@@ -352,8 +352,8 @@ export class EventsService {
   }
 
   // SPM-83: only the coordinator the Lead assigned (SPM-123) may
-  // reject a still-Submitted request. The decision and organiser notification
-  // share one transaction so a rejection is never persisted without its reason.
+  // reject a still-Submitted request. The status change, the stored
+  // rejection_reason and the organiser notification commit together.
   async reject(id: string, body: unknown, identity?: AuthenticatedUser) {
     const coordinator = this.requireCoordinator(identity);
     this.eventId(id);
@@ -485,7 +485,8 @@ export class EventsService {
   async notifications(identity?: AuthenticatedUser) {
     const { user, types } = this.notificationTypesFor(identity);
     const result = await this.database.query(
-      `SELECT n.*, e.organiser_id AS event_organiser_id, e.coordinator_id AS event_coordinator_id
+      `SELECT n.*, e.organiser_id AS event_organiser_id, e.coordinator_id AS event_coordinator_id,
+              e.event_name AS event_name
          FROM notifications n
          LEFT JOIN events e ON e.id = n.related_event_id
         WHERE n.recipient_id = $1 AND n.type = ANY($2)
@@ -504,6 +505,8 @@ export class EventsService {
       type: row.type,
       message: row.message,
       relatedEventId: row.related_event_id,
+      // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
+      relatedEventName: row.event_name,
       read: row.read,
       createdAt: row.created_at.toISOString(),
     }));

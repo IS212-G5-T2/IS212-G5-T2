@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, parseArgs, parseCsv, parseTables, testIdOf, timezoneStatus, toCsv, worst,
+  REPO_ROOT, executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, missingFromResults, parseArgs, parseCsv, parseTables, playwrightToVitest, testIdOf, timezoneStatus, toCsv, worst,
 } from './lib.mjs';
 
 test('parseArgs reads flags, values, repeats and positionals', () => {
@@ -201,4 +201,31 @@ test('scopedTests keeps a test that carries a story registry id even when its ti
   assert.deepEqual(titles, ['keeps the default calendar date when initialDate is empty', 'SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
   const without = scopedTests({ file, titleMatch: 'SPM54-COVERAGE-ONLY-NO-IDS' }).map((test) => test.title);
   assert.deepEqual(without, ['SPM54-COVERAGE-ONLY-NO-IDS renders the grid']);
+});
+
+test('missingFromResults lists scope files that the runner did not report', () => {
+  const data = { testResults: [{ name: `${REPO_ROOT}/frontend/src/a.test.tsx` }] };
+  assert.deepEqual(missingFromResults(['frontend/src/a.test.tsx', 'frontend/src/b.playwright.spec.ts'], data), ['frontend/src/b.playwright.spec.ts']);
+  assert.deepEqual(missingFromResults(['x.test.ts'], undefined), ['x.test.ts']);
+  assert.deepEqual(missingFromResults([], data), []);
+});
+
+test('playwrightToVitest converts a Playwright report to the vitest json shape', () => {
+  const spec = (title, status) => ({ title, file: 'components/n/B.playwright.spec.ts', tests: [{ status }] });
+  const report = {
+    stats: { startTime: '2026-10-30T00:00:00.000Z', duration: 1500 },
+    suites: [{ file: 'components/n/B.playwright.spec.ts', specs: [spec('P-01 a', 'expected')], suites: [{ specs: [spec('P-02 b', 'unexpected'), spec('P-03 c', 'skipped'), spec('P-04 d', 'flaky')] }] }],
+  };
+  const out = playwrightToVitest(report, ['frontend/src/components/n/B.playwright.spec.ts']);
+  assert.equal(out.numTotalTests, 4);
+  assert.equal(out.numPassedTests, 1);
+  assert.equal(out.numFailedTests, 2);
+  assert.equal(out.numPendingTests, 1);
+  assert.equal(out.startTime, Date.parse('2026-10-30T00:00:00.000Z'));
+  assert.equal(out.testResults.length, 1);
+  assert.equal(out.testResults[0].name, `${REPO_ROOT}/frontend/src/components/n/B.playwright.spec.ts`);
+  assert.equal(out.testResults[0].endTime - out.startTime, 1500);
+  assert.deepEqual(out.testResults[0].assertionResults.map((r) => r.status), ['passed', 'failed', 'pending', 'failed']);
+  assert.deepEqual(missingFromResults(['frontend/src/components/n/B.playwright.spec.ts'], out), []);
+  assert.equal(playwrightToVitest({}, []).numTotalTests, 0);
 });

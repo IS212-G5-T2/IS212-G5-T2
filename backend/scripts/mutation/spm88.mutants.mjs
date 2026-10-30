@@ -103,4 +103,12 @@ export const MUTANTS = [
     testMappings: map('backendE2E', E2E, '05-STATE-2'),
     edits: [['AND type = ANY($3) RETURNING id', 'AND type = ANY($3) AND read = false RETURNING id']],
   },
+  {
+    id: 'SPM88-BE-11',
+    name: 'notification feed drops the related event name (relatedEventName nulled)',
+    file: SERVICE,
+    suites: ['backendE2E'],
+    testMappings: map('backendE2E', E2E, '01-B'),
+    edits: [['relatedEventName: row.event_name,', 'relatedEventName: null,']],
+  },
 ];

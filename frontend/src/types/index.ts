@@ -454,6 +454,8 @@ export interface Notification {
   type: NotificationType;
   message: string;
   relatedEventId?: string;
+  /** The related event's current name (SPM-88); null or absent when there is no event. */
+  relatedEventName?: string | null;
   read: boolean;
   createdAt: string;
 }

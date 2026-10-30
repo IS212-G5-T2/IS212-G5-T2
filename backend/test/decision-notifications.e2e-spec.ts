@@ -104,8 +104,9 @@ describe('SPM-88 request decision notifications (e2e)', () => {
     /**
      * DECISION-NOTIFY-01-B: rejecting a request writes exactly one unread
      * 'rejection' notification for the owning organiser.
+     * The feed also carries the event's current name (relatedEventName) for the bell's headline cut.
      * Kills: rejection notification not written; type approval instead of rejection;
-     * duplicated on reject.
+     * duplicated on reject; relatedEventName dropped or nulled.
      * ASSUMPTION A1: reject returns 201.
      */
     it('DECISION-NOTIFY-01-B: reject gives the owner exactly one unread rejection notification', async () => {
@@ -128,6 +129,7 @@ describe('SPM-88 request decision notifications (e2e)', () => {
           audienceUserId: organiser.uid,
           type: 'rejection',
           relatedEventId: eventId,
+          relatedEventName: 'Welcome Evening',
           read: false,
         }),
       ]);

@@ -35,6 +35,52 @@ export function executionStatus(results) {
   return PASS;
 }
 
+/** Scope-listed files (repo-relative) that a runner's testResults do not mention: they never ran. */
+export function missingFromResults(files, data) {
+  const seen = new Set((data?.testResults ?? []).map((result) => rel(result.name)));
+  return files.filter((file) => !seen.has(file));
+}
+
+const PLAYWRIGHT_STATUS = { expected: 'passed', unexpected: 'failed', flaky: 'failed', skipped: 'pending' };
+
+/**
+ * Converts a Playwright JSON report into the vitest JSON shape that check-records and run-cycle read
+ * (testResults[].assertionResults[{ title, status }] and the num*Tests counts). `files` are the repo-relative scope
+ * files; Playwright names specs relative to its testDir, so each is matched by path suffix. A flaky test (passed only
+ * on retry) counts as failed so a G7 pass is never retry-dependent.
+ */
+export function playwrightToVitest(report, files) {
+  const byFile = new Map();
+  const visit = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      const file = files.find((f) => f === spec.file || f.endsWith(`/${spec.file}`)) ?? spec.file;
+      const list = byFile.get(file) ?? [];
+      for (const test of spec.tests ?? []) list.push({ title: spec.title, status: PLAYWRIGHT_STATUS[test.status] ?? 'failed' });
+      byFile.set(file, list);
+    }
+    for (const child of suite.suites ?? []) visit(child);
+  };
+  for (const suite of report.suites ?? []) visit(suite);
+  const startTime = Date.parse(report.stats?.startTime ?? '') || 0;
+  const testResults = [...byFile].map(([file, assertionResults]) => ({
+    name: abs(file),
+    endTime: startTime + (report.stats?.duration ?? 0),
+    status: assertionResults.some((r) => r.status === 'failed') ? 'failed' : 'passed',
+    assertionResults,
+  }));
+  const all = testResults.flatMap((result) => result.assertionResults);
+  const count = (status) => all.filter((r) => r.status === status).length;
+  return {
+    numTotalTests: all.length,
+    numPassedTests: count('passed'),
+    numFailedTests: count('failed'),
+    numPendingTests: count('pending'),
+    numTodoTests: 0,
+    startTime,
+    testResults,
+  };
+}
+
 /** Timezone evidence blocks when any test failed or was skipped, and is unavailable when a zone did not run. */
 export function timezoneStatus(zones) {
   const totals = Object.values(zones);

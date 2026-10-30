@@ -5,12 +5,18 @@ import { formatDateTime, formatDecisionDate, timeAgo } from "@/utils/format";
 
 // SPM-88 AC3: the bell never shows a reason; it is on the event detail page (AC4). Rejection messages carry none.
 // SPM-65 change request denials still arrive as `Your change request for "<name>" was denied: <reason>` (that
-// backend is unchanged), so the reason is cut off for display. The LAST separator is used so a name that itself
-// contains `" was denied: ` stays whole. Old rejection rows that still hold `was rejected: <reason>` are not
-// stripped: matching that phrase would cut a new rejection whose event name contains it.
+// backend is unchanged), so the reason is cut off for display. Text alone is ambiguous when the name and the
+// reason both contain `" was denied: `, so the event's current name (relatedEventName) fixes the cut point.
+// When it is missing or the event was renamed since the notice, the LAST separator is used instead. Old
+// rejection rows that still hold `was rejected: <reason>` are not stripped: matching that phrase would cut a
+// new rejection whose event name contains it.
 const DENIED_SEPARATOR = '" was denied: ';
-function headlineOf(message: string, type: Notification["type"]): string {
+function headlineOf(message: string, type: Notification["type"], eventName?: string | null): string {
   if (type !== "change_request_denied") return message;
+  if (eventName) {
+    const prefix = `Your change request for "${eventName}" was denied: `;
+    if (message.startsWith(prefix)) return prefix.slice(0, -2);
+  }
   const index = message.lastIndexOf(DENIED_SEPARATOR);
   return index === -1 ? message : `${message.slice(0, index + 1)} was denied`;
 }
@@ -33,7 +39,7 @@ export function NotificationRow({
 }) {
   // The headline describes this row's repeated "View Request" and "Mark As Read" controls for screen readers.
   const headlineId = useId();
-  const headline = headlineOf(n.message, n.type);
+  const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
   const decisionDate = formatDecisionDate(n.createdAt);
   return (
