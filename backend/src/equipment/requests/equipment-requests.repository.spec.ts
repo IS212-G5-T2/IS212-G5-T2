@@ -27,7 +27,7 @@ function setup(status = 'Approved', updateRows = 1) {
 beforeEach(() => setup());
 
 describe('SPM-57 equipment request persistence', () => {
-  /** SPM-58: approving a request without placeholders creates a linked Reserved row per item. */
+  /** approving a request without placeholders creates a linked Reserved row per item. */
   it('creates reservations from request items when placeholders are missing', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
@@ -47,11 +47,11 @@ describe('SPM-57 equipment request persistence', () => {
       expect.stringContaining('INSERT INTO equipment_reservations'),
       expect.stringContaining('NOT EXISTS (SELECT 1 FROM equipment_reservations linked WHERE linked.equipment_request_item_id = item.id)'),
       expect.stringContaining('UPDATE equipment_reservations reservation'),
-      expect.stringContaining("UPDATE equipment_requests SET status = 'Reserved'"),
+      expect.stringContaining("UPDATE equipment_requests SET status = 'Reserved', decision_reason = NULL"),
     ]));
   });
 
-  /** SPM-58: approval does not duplicate a placeholder already linked to the request item. */
+  /** approval does not duplicate a placeholder already linked to the request item. */
   it('guards reservation insertion with the request-item link and updates its existing row', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
@@ -101,14 +101,14 @@ describe('SPM-57 equipment request persistence', () => {
     expect(query).toHaveBeenCalledOnce();
   });
 
-  /** SPM-58: a confirmed event cannot be approved into an equipment reservation. */
+  /** a confirmed event cannot be approved into an equipment reservation. */
   it('refuses to reserve a pending request once its event is Confirmed', async () => {
     query.mockResolvedValueOnce({ rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, event_status: 'Confirmed' }], rowCount: 1 });
     await expect(repository.reserve(requestId)).resolves.toEqual({ kind: 'event-confirmed' });
     expect(query).toHaveBeenCalledOnce();
   });
 
-  /** SPM-58 AC8/AC9: marking a pending request Cannot Provide stores the reason and retires placeholders. */
+  /** EQUIP-RESERVE-08-A: marking a pending request Cannot Provide stores the reason and retires placeholders. */
   it('marks a pending request Cannot Provide with its reason and retires placeholder reservations', async () => {
     query.mockImplementation(async (sql: string) => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
@@ -119,10 +119,26 @@ describe('SPM-57 equipment request persistence', () => {
     await expect(repository.markCannotProvide(requestId, 'Only 8 available; 10 requested.')).resolves.toEqual({ kind: 'cannot-provided', id: requestId });
     const update = query.mock.calls.find(([sql]) => sql.includes("status = 'Cannot Provide'") && sql.includes('decision_reason = $2'));
     expect(update?.[1]).toEqual([requestId, 'Only 8 available; 10 requested.', new Date('2030-01-10T12:00:00Z')]);
-    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'Unavailable'") && sql.includes("reservation.status = 'Requested'"))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'Unavailable'") && sql.includes("reservation.status IN ('Requested', 'Reserved')"))).toBe(true);
   });
 
-  /** SPM-58: Cannot Provide only applies to a Pending Review request on a non-Confirmed event. */
+  /** F1/CQ-1 regression: a Pending Review request reached via an in-window reschedule
+   *  carries an already-held 'Reserved' reservation (not a fresh 'Requested' placeholder).
+   *  Cannot Provide must still retire it so the hold is fully released. */
+  it('retires an already-Reserved reservation when marking a post-reschedule Pending Review request Cannot Provide', async () => {
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e')) {
+        return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, event_status: 'Approved' }], rowCount: 1 };
+      }
+      if (sql.includes("SET status = 'Unavailable'")) return { rows: [], rowCount: 1 };
+      return { rows: [], rowCount: 1 };
+    });
+    await expect(repository.markCannotProvide(requestId, 'Equipment no longer available.')).resolves.toEqual({ kind: 'cannot-provided', id: requestId });
+    const retire = query.mock.calls.find(([sql]) => sql.includes("SET status = 'Unavailable'"));
+    expect(retire?.[0]).toContain("reservation.status IN ('Requested', 'Reserved')");
+  });
+
+  /** Cannot Provide only applies to a Pending Review request on a non-Confirmed event. */
   it('guards Cannot Provide against missing, confirmed, and non-pending requests', async () => {
     query.mockResolvedValueOnce({ rows: [], rowCount: 0 });
     await expect(repository.markCannotProvide(requestId, 'reason')).resolves.toEqual({ kind: 'request-not-found' });
@@ -169,7 +185,7 @@ describe('SPM-57 equipment request persistence', () => {
       expect.stringContaining('FOR UPDATE OF r, e'),
       expect.stringContaining('DELETE FROM equipment_request_items WHERE request_id'),
       expect.stringContaining('INSERT INTO equipment_reservations'),
-      expect.stringContaining("UPDATE equipment_requests SET status = 'Pending Review', updated_at"),
+      expect.stringContaining("UPDATE equipment_requests SET status = 'Pending Review', decision_reason = NULL, updated_at"),
     ]));
     expect(query).toHaveBeenCalledWith(expect.stringContaining('WHERE r.id = $1::uuid AND e.coordinator_id = $2::text'), [requestId, coordinatorId]);
     expect(query.mock.calls.filter(([sql]) => sql.includes('INSERT INTO equipment_reservations')).every(([sql]) => sql.includes('equipment_request_item_id'))).toBe(true);

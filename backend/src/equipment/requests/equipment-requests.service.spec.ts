@@ -34,7 +34,7 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ConflictException);
   });
 
-  /** SPM-58: Technical Support receives a conflict when approving equipment after event confirmation. */
+  /** Technical Support receives a conflict when approving equipment after event confirmation. */
   it('refuses to approve requests after their event is Confirmed', async () => {
     reserve.mockResolvedValue({ kind: 'event-confirmed' });
     await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
@@ -48,7 +48,7 @@ describe('SPM-57 equipment request service', () => {
       .rejects.toThrow('Not enough active equipment is available to reserve Stage lighting.');
   });
 
-  /** SPM-58 AC8/AC9: Technical Support marks a request Cannot Provide with a required reason. */
+  /** EQUIP-RESERVE-08-A: Technical Support marks a request Cannot Provide with a required reason. */
   it('marks a pending request Cannot Provide with a trimmed reason', async () => {
     markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id: '00000000-0000-4000-8000-000000000099' });
     await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '  Only 8 available; 10 requested.  ' }))
@@ -56,7 +56,18 @@ describe('SPM-57 equipment request service', () => {
     expect(markCannotProvide).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099', 'Only 8 available; 10 requested.');
   });
 
-  /** SPM-58 AC9: an empty or missing reason is refused before any persistence. */
+  /** the reason is capped at 500 characters; 500 is accepted, 501 is refused. */
+  it('bounds the Cannot Provide reason to 500 characters', async () => {
+    const id = '00000000-0000-4000-8000-000000000099';
+    const support = { uid: 'support', roles: ['TECH_SUPPORT'] };
+    markCannotProvide.mockClear();
+    await expect(service.markCannotProvide(support, id, { reason: 'x'.repeat(501) })).rejects.toBeInstanceOf(BadRequestException);
+    expect(markCannotProvide).not.toHaveBeenCalled();
+    markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id });
+    await expect(service.markCannotProvide(support, id, { reason: 'x'.repeat(500) })).resolves.toMatchObject({ requestReference: 'ER-00000000' });
+  });
+
+  /** EQUIP-RESERVE-08-B: an empty or missing reason is refused before any persistence. */
   it('requires a non-empty reason to mark Cannot Provide', async () => {
     await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '   ' }))
       .rejects.toBeInstanceOf(BadRequestException);
@@ -65,7 +76,7 @@ describe('SPM-57 equipment request service', () => {
     expect(markCannotProvide).not.toHaveBeenCalled();
   });
 
-  /** SPM-58 AC8: only Technical Support can mark Cannot Provide, and the event-confirmed/not-pending guards surface as conflicts. */
+  /** only Technical Support can mark Cannot Provide, and the event-confirmed/not-pending guards surface as conflicts. */
   it('restricts Cannot Provide to Technical Support and maps repository guards', async () => {
     await expect(service.markCannotProvide(coordinator, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.markCannotProvide(undefined, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(UnauthorizedException);

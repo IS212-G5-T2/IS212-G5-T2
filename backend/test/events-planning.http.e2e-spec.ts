@@ -274,7 +274,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     }
   });
 
-  // SPM-58 AC11: a date/time change within the held window returns the request to
+  // a date/time change within the held window returns the request to
   // the review queue but keeps the equipment reserved.
   it('EVENT-UPDATE-HTTP-AC11-within re-opens the request and keeps reservations for an in-window reschedule', async () => {
     const { requestId } = await seedReservedEquipment();
@@ -292,7 +292,7 @@ describe('SPM-49 event planning over HTTP (e2e)', () => {
     });
   });
 
-  // SPM-58 AC11: a date/time change outside the held window is flagged; confirming it
+  // EQUIP-RESERVE-10-A: a date/time change outside the held window is flagged; confirming it
   // returns the request to review and releases the held equipment.
   it('EVENT-UPDATE-HTTP-AC11-outside re-opens the request and releases equipment for an out-of-window reschedule', async () => {
     const { requestId } = await seedReservedEquipment();

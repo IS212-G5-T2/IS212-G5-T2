@@ -30,7 +30,7 @@ describe("EquipmentPage", () => {
     expect(getEquipmentReservations).toHaveBeenCalledTimes(1);
   });
 
-  /** SPM-58 AC7: all reservations for one event share a row with each equipment type and quantity attached. */
+  /** all reservations for one event share a row with each equipment type and quantity attached. */
   it("groups multiple equipment items into one event row with their own types and quantities", async () => {
     getEquipmentReservations.mockResolvedValue([
       { id: "reservation-1", equipmentName: "Stage lighting", equipmentType: "Lighting", quantity: 4,
@@ -47,7 +47,7 @@ describe("EquipmentPage", () => {
     expect(rows[1]).toHaveTextContent("Wireless microphonesType: Audio · Qty: 6");
   });
 
-  /** SPM-58 AC7: event identity, rather than a repeated event name, determines reservation grouping. */
+  /** event identity, rather than a repeated event name, determines reservation grouping. */
   it("keeps records with identical event names separate when their event IDs differ", async () => {
     getEquipmentReservations.mockResolvedValue([
       { id: "reservation-1", equipmentName: "Projector", equipmentType: "Visual", quantity: 2,

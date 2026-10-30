@@ -415,6 +415,14 @@ export class EventPlanningRepository {
    * would now run outside the window the equipment was held for (a new start earlier,
    * or a new end later), the held reservations are released so that equipment is freed
    * for other events and must be reserved again.
+   *
+   * An IN-window move deliberately leaves those reservations 'Reserved' (equipment
+   * stays held) while the request sits back in Pending Review for re-review — a
+   * documented hold, not a bug, so the request-status/reservation-status mismatch
+   * is intentional. If Technical Support later decides during that re-review that
+   * the equipment cannot be provided after all, markCannotProvide
+   * (equipment-requests.repository.ts) is responsible for releasing that hold,
+   * since it retires both 'Requested' and 'Reserved' reservations linked to the request.
    */
   private async rescheduleEquipment(
     eventId: string,

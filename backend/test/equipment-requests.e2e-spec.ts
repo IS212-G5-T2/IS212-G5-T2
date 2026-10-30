@@ -107,7 +107,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
   });
 
-  /** SPM-58: approval creates missing reservation rows and reuses existing placeholders without duplication. */
+  /** approval creates missing reservation rows and reuses existing placeholders without duplication. */
   it('persists exactly one Reserved row per request item whether placeholders were missing or already present', async () => {
     const coordinator = await createUser('COORDINATOR');
     const support = await createUser('TECH_SUPPORT');
@@ -157,7 +157,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
   });
 
-  /** SPM-58 AC8/AC9/AC10: Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
+  /** EQUIP-RESERVE-08-A / EQUIP-RESERVE-09-A: Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
   it('records a Cannot Provide decision with its reason, retires placeholders, and shows it to the coordinator', async () => {
     const coordinator = await createUser('COORDINATOR');
     const support = await createUser('TECH_SUPPORT');

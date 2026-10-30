@@ -100,7 +100,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(getMyEquipmentRequests).not.toHaveBeenCalled();
   });
 
-  /** SPM-58: Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
+  /** Technical Support opens a request, reviews requested/free quantities, and approves it into reservations. */
   it('opens the request review and approves the request for reservation', async () => {
     const user = userEvent.setup();
     setRole('tech_support');
@@ -113,7 +113,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
-  /** SPM-58 AC8/AC9: Technical Support marks a request Cannot provide, which requires a reason. */
+  /** EQUIP-RESERVE-08-A: Technical Support marks a request Cannot provide, which requires a reason. */
   it('requires a reason before marking a request Cannot provide, then submits it', async () => {
     const user = userEvent.setup();
     setRole('tech_support');
@@ -130,7 +130,35 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(await screen.findByText('No equipment requests to display.')).toBeInTheDocument();
   });
 
-  /** SPM-58 AC10: the event coordinator sees the Cannot Provide status and its reason on their request. */
+  /** cancelling the Cannot provide prompt closes it without submitting. */
+  it('closes the Cannot provide prompt on Cancel without marking the request', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+    await user.click(screen.getByRole('button', { name: 'Cannot provide' }));
+    expect(screen.getByLabelText(/Reason/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByLabelText(/Reason/)).not.toBeInTheDocument();
+    expect(markRequestCannotProvide).not.toHaveBeenCalled();
+  });
+
+  /** a non-Error rejection shows the generic Cannot provide failure message. */
+  it('shows a generic message when Cannot provide rejects with a non-Error value', async () => {
+    const user = userEvent.setup();
+    setRole('tech_support');
+    vi.mocked(getEquipmentRequestQueue).mockResolvedValue([record]);
+    vi.mocked(markRequestCannotProvide).mockRejectedValue('offline');
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: 'Review request' }));
+    await user.click(screen.getByRole('button', { name: 'Cannot provide' }));
+    await user.type(screen.getByLabelText(/Reason/), 'No stock');
+    await user.click(screen.getByRole('button', { name: 'Confirm cannot provide' }));
+    expect(await screen.findByText('Could not mark this request as Cannot provide.')).toBeInTheDocument();
+  });
+
+  /** EQUIP-RESERVE-09-A: the event coordinator sees the Cannot Provide status and its reason on their request. */
   it('shows the Cannot Provide status and reason to the coordinator', async () => {
     vi.mocked(getMyEquipmentRequests).mockResolvedValue([{ ...record, status: 'Cannot Provide', decisionReason: 'Only 8 available; 10 requested.' }]);
     renderPage();
@@ -138,7 +166,7 @@ describe('SPM-57 equipment request list and queue', () => {
     expect(screen.getByText(/Only 8 available; 10 requested\./)).toBeInTheDocument();
   });
 
-  /** SPM-58: the review screen cannot submit approval when an item exceeds available stock. */
+  /** the review screen cannot submit approval when an item exceeds available stock. */
   it('disables approval when requested quantity exceeds event-period availability', async () => {
     const user = userEvent.setup();
     setRole('tech_support');

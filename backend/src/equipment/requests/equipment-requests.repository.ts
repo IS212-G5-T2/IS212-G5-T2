@@ -127,7 +127,7 @@ export class EquipmentRequestsRepository {
       }
       // SPM-58: a changed request must be re-checked, so it returns to the Technical
       // Support review queue (any prior Reserved/Cannot Provide decision no longer applies).
-      await client.query("UPDATE equipment_requests SET status = 'Pending Review', updated_at = $2::timestamptz WHERE id = $1::uuid", [requestId, this.clock.now()]);
+      await client.query("UPDATE equipment_requests SET status = 'Pending Review', decision_reason = NULL, updated_at = $2::timestamptz WHERE id = $1::uuid", [requestId, this.clock.now()]);
       return { kind: 'updated' as const, id: row.id };
     });
   }
@@ -271,7 +271,7 @@ export class EquipmentRequestsRepository {
         [requestId, request.event_id, now],
       );
       await client.query(
-        "UPDATE equipment_requests SET status = 'Reserved', updated_at = $2::timestamptz WHERE id = $1::uuid",
+        "UPDATE equipment_requests SET status = 'Reserved', decision_reason = NULL, updated_at = $2::timestamptz WHERE id = $1::uuid",
         [requestId, now],
       );
       return { kind: 'reserved' as const, id: request.id };
@@ -279,7 +279,12 @@ export class EquipmentRequestsRepository {
   }
 
   /** SPM-58 AC8/AC9: records why a Pending Review request cannot be fulfilled and
-   *  retires its placeholder reservations. The reason is shown to the coordinator. */
+   *  retires its linked reservations. The reason is shown to the coordinator.
+   *  A Pending Review request can carry either a placeholder ('Requested')
+   *  reservation from a fresh submission, or an already-held ('Reserved')
+   *  reservation when it reached Pending Review via an in-window reschedule
+   *  that deliberately kept the hold (see EventPlanningRepository.rescheduleEquipment).
+   *  Both must be released here so Cannot Provide fully frees the equipment. */
   async markCannotProvide(requestId: string, reason: string) {
     return this.database.transaction(async (client) => {
       const found = await client.query<{ id: string; status: string; event_id: string; event_status: string }>(
@@ -300,14 +305,15 @@ export class EquipmentRequestsRepository {
           WHERE id = $1::uuid`,
         [requestId, reason, now],
       );
-      // The request will not be fulfilled, so its placeholder reservations are retired.
+      // The request will not be fulfilled, so its linked reservations are retired:
+      // both placeholder (Requested) and already-held (Reserved) reservations.
       await client.query(
         `UPDATE equipment_reservations reservation
             SET status = 'Unavailable', updated_at = $2::timestamptz
            FROM equipment_request_items item
           WHERE item.request_id = $1::uuid
             AND reservation.equipment_request_item_id = item.id
-            AND reservation.status = 'Requested'`,
+            AND reservation.status IN ('Requested', 'Reserved')`,
         [requestId, now],
       );
       return { kind: 'cannot-provided' as const, id: request.id };

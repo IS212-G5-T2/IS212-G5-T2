@@ -55,7 +55,7 @@ describe('SPM-57 equipment request controller', () => {
     expect(listReservations).toHaveBeenCalledWith(identity);
   });
 
-  /** SPM-58 AC8/AC9: the cannot-provide endpoint forwards the caller, request id, and reason body. */
+  /** the cannot-provide endpoint forwards the caller, request id, and reason body. */
   it('forwards a cannot-provide decision to the service', () => {
     const body = { reason: 'Only 8 available; 10 requested.' };
     controller.cannotProvide(request, 'request-1', body);
