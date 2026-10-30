@@ -328,10 +328,10 @@ export const MUTANTS = [
     edits: [["return typeof value === 'string' ? value : '';", "return typeof value === 'string' ? value : 'Confirmed';"]], suites: actionsOnly },
   { id: 'PLN1', name: 'a planning update never reports a safety-check reset (SAFETY-RESET-UPDATE-01)', file: 'src/events/planning/event-planning.service.ts', suites: ['planning'],
     edits: [['safetyCheckReset: hadSafetyCheck && !(await this.repository.safetyCheckExists(eventId)),', 'safetyCheckReset: false,']] },
-  { id: 'SF1', name: "a re-request is allowed while a feedback item is unresolved (SAFETY-FEEDBACK-02)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF5', name: "a re-request is allowed while a feedback item is unresolved (SAFETY-FEEDBACK-02)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["if (count > 0)","if (false)"]] },
-  { id: 'SF2', name: "unresolving a feedback item leaves it marked handled (SAFETY-FEEDBACK-01)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF6', name: "unresolving a feedback item leaves it marked handled (SAFETY-FEEDBACK-01)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["[feedbackId, event.id, resolved ? now : null],","[feedbackId, event.id, now],"]] },
-  { id: 'SF3', name: "a feedback item can be resolved outside changes-needed (SAFETY-FEEDBACK-03)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
+  { id: 'SF7', name: "a feedback item can be resolved outside changes-needed (SAFETY-FEEDBACK-03)", file: "src/events/status/status.service.ts", suites: ['safetyFeedback', 'e2e'],
     edits: [["if (current?.status !== 'changes_needed')","if (false)"]] },
 ];
