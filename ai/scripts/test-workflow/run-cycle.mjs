@@ -70,17 +70,23 @@ const toCwd = (file, cwd) => (file.startsWith(`${cwd}/`) ? file.slice(cwd.length
 // A suite with "runner": "playwright" runs once (the spec pins its own timezoneId, so the timezone loop does not
 // apply and it adds nothing to the G4tz zone totals). Its JSON report is converted to the vitest shape that
 // check-records reads and saved under test-run/<suite.id>.json.
+const runPlaywrightCli = (suite, args, options = {}) => run(
+  process.execPath,
+  [abs(join(suite.cwd, 'node_modules', '@playwright', 'test', 'cli.js')), ...args],
+  { cwd: suite.cwd, ...options },
+);
+
 function runPlaywright(suite, files, results, runners) {
   const raw = join(cycle, 'playwright', `${suite.id}.raw.json`);
   log(`suite ${suite.id}: Playwright runs once; the spec pins its own timezoneId, so the timezone loop is skipped`);
   if (dryRun) {
-    run('npx', ['playwright', 'test', ...files, '--config', suite.config ?? 'playwright.config.ts'], { cwd: suite.cwd });
+    runPlaywrightCli(suite, ['test', ...files, '--config', suite.config ?? 'playwright.config.ts']);
     return;
   }
-  const version = run('npx', ['playwright', '--version'], { cwd: suite.cwd });
+  const version = runPlaywrightCli(suite, ['--version']);
   runners.push(version.status === 0 ? (version.stdout ?? '').trim().replace(/^Version /, 'playwright ') : 'playwright (version unavailable)');
-  const outcome = run('npx', ['playwright', 'test', ...files, '--config', suite.config ?? 'playwright.config.ts'], {
-    cwd: suite.cwd, env: { PLAYWRIGHT_JSON_OUTPUT_NAME: abs(raw) },
+  const outcome = runPlaywrightCli(suite, ['test', ...files, '--config', suite.config ?? 'playwright.config.ts'], {
+    env: { PLAYWRIGHT_JSON_OUTPUT_NAME: abs(raw) },
   });
   appendFileSync(abs(join(cycle, 'test-run.log')), `\n## ${suite.id} (playwright)\n${outcome.stdout ?? ''}\n${outcome.stderr ?? outcome.error?.message ?? ''}\n`, { flag: 'a' });
   if (!existsSync(abs(raw))) {

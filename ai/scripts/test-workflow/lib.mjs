@@ -38,7 +38,7 @@ export function executionStatus(results) {
 /** Scope-listed files (repo-relative) that a runner's testResults do not mention: they never ran. */
 export function missingFromResults(files, data) {
   const seen = new Set((data?.testResults ?? []).map((result) => rel(result.name)));
-  return files.filter((file) => !seen.has(file));
+  return files.filter((file) => !seen.has(rel(file)));
 }
 
 const PLAYWRIGHT_STATUS = { expected: 'passed', unexpected: 'failed', flaky: 'failed', skipped: 'pending' };
@@ -53,7 +53,8 @@ export function playwrightToVitest(report, files) {
   const byFile = new Map();
   const visit = (suite) => {
     for (const spec of suite.specs ?? []) {
-      const file = files.find((f) => f === spec.file || f.endsWith(`/${spec.file}`)) ?? spec.file;
+      const specFile = spec.file.split('\\').join('/');
+      const file = files.map(rel).find((f) => f === specFile || f.endsWith(`/${specFile}`)) ?? specFile;
       const list = byFile.get(file) ?? [];
       for (const test of spec.tests ?? []) list.push({ title: spec.title, status: PLAYWRIGHT_STATUS[test.status] ?? 'failed' });
       byFile.set(file, list);

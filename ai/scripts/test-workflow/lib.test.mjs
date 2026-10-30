@@ -206,6 +206,7 @@ test('scopedTests keeps a test that carries a story registry id even when its ti
 test('missingFromResults lists scope files that the runner did not report', () => {
   const data = { testResults: [{ name: `${REPO_ROOT}/frontend/src/a.test.tsx` }] };
   assert.deepEqual(missingFromResults(['frontend/src/a.test.tsx', 'frontend/src/b.playwright.spec.ts'], data), ['frontend/src/b.playwright.spec.ts']);
+  assert.deepEqual(missingFromResults(['frontend\\src\\a.test.tsx'], data), []); // Windows join() separators
   assert.deepEqual(missingFromResults(['x.test.ts'], undefined), ['x.test.ts']);
   assert.deepEqual(missingFromResults([], data), []);
 });
@@ -227,5 +228,6 @@ test('playwrightToVitest converts a Playwright report to the vitest json shape',
   assert.equal(out.testResults[0].endTime - out.startTime, 1500);
   assert.deepEqual(out.testResults[0].assertionResults.map((r) => r.status), ['passed', 'failed', 'pending', 'failed']);
   assert.deepEqual(missingFromResults(['frontend/src/components/n/B.playwright.spec.ts'], out), []);
+  assert.deepEqual(missingFromResults(['frontend\\src\\components\\n\\B.playwright.spec.ts'], playwrightToVitest(report, ['frontend\\src\\components\\n\\B.playwright.spec.ts'])), []);
   assert.equal(playwrightToVitest({}, []).numTotalTests, 0);
 });
