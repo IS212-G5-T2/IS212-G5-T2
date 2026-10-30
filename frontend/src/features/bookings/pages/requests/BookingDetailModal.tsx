@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { RadioGroup, TextArea } from "@/components/ui/FormControls";
-import type { PendingBookingRequest } from "@/types";
-import { api } from "@/utils/api";
+import type { PendingBookingRequest, VenueBookingConflict } from "@/types";
+import { api, ApiError } from "@/utils/api";
 import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 
 /**
@@ -14,10 +14,12 @@ export function BookingDetailModal({
   booking,
   onClose,
   onDecided,
+  onConflict,
 }: {
   booking: PendingBookingRequest | null;
   onClose: () => void;
   onDecided: (outcome: { id: string; status: "approved" | "rejected"; reason?: string; holdExpiresAt?: string }) => void;
+  onConflict?: (message: string, conflicts?: VenueBookingConflict[]) => void;
 }) {
   const [decision, setDecision] = useState<"approved" | "rejected" | "">("");
   const [reason, setReason] = useState("");
@@ -53,11 +55,16 @@ export function BookingDetailModal({
       });
       onClose();
     } catch (failure) {
-      setError(
-        failure instanceof Error
-          ? failure.message
-          : "Unable to submit this decision.",
-      );
+      if (failure instanceof ApiError && failure.code === "BOOKING_SLOT_CONFLICT" && onConflict) {
+        onConflict(failure.message, failure.conflicts);
+        onClose();
+      } else {
+        setError(
+          failure instanceof Error
+            ? failure.message
+            : "Unable to submit this decision.",
+        );
+      }
     } finally {
       setSubmitting(false);
     }
