@@ -3,15 +3,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useAppStore } from '@/store/useAppStore';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardBody } from '@/components/ui/Card';
-import { getEquipmentRequestQueue, getMyEquipmentRequests, markRequestCannotProvide, reserveEquipmentRequest, type EquipmentRequestRecord } from '../../api/equipment-requests-api';
+import { getEquipmentRequestQueue, getMyEquipmentRequests, type EquipmentRequestRecord } from '../../api/equipment-requests-api';
 import { EquipmentRequestConfirmationDialog } from './EquipmentRequestConfirmationDialog';
 
 const updatableEventStatuses = new Set(['Approved', 'Planning']);
-function statusBadgeClass(status: EquipmentRequestRecord['status']): string {
-  if (status === 'Reserved') return 'bg-success-100 text-success-800';
-  if (status === 'Cannot Provide' || status === 'Unavailable') return 'bg-danger-100 text-danger-800';
-  return 'bg-warning-100 text-warning-800';
-}
 
 export function EquipmentRequestsPage() {
   const currentUser = useAppStore((s) => s.currentUser);
@@ -20,10 +15,6 @@ export function EquipmentRequestsPage() {
   const [requests, setRequests] = useState<EquipmentRequestRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expandedRequestId, setExpandedRequestId] = useState<string | null>(null);
-  const [cannotProvideFor, setCannotProvideFor] = useState<string | null>(null);
-  const [cannotProvideReason, setCannotProvideReason] = useState('');
-  const [cannotProvideError, setCannotProvideError] = useState('');
   const [confirmation, setConfirmation] = useState(() => {
     const submitted = searchParams.get('submitted');
     const updated = searchParams.get('updated');
@@ -54,36 +45,6 @@ export function EquipmentRequestsPage() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const approveRequest = async (requestId: string) => {
-    setError('');
-    try {
-      await reserveEquipmentRequest(requestId);
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not reserve equipment for this event.');
-    }
-  };
-
-  const openCannotProvide = (requestId: string) => {
-    setCannotProvideFor(requestId);
-    setCannotProvideReason('');
-    setCannotProvideError('');
-  };
-
-  const submitCannotProvide = async (requestId: string) => {
-    const reason = cannotProvideReason.trim();
-    if (!reason) { setCannotProvideError('Enter a reason before marking this request Cannot provide.'); return; }
-    setCannotProvideError('');
-    try {
-      await markRequestCannotProvide(requestId, reason);
-      setCannotProvideFor(null);
-      setCannotProvideReason('');
-      await refresh();
-    } catch (e) {
-      setCannotProvideError(e instanceof Error ? e.message : 'Could not mark this request as Cannot provide.');
-    }
-  };
-
   const createTo = requestedEventId
     ? `/equipment/requests/create?eventId=${encodeURIComponent(requestedEventId)}`
     : '/equipment/requests/create';
@@ -104,60 +65,16 @@ export function EquipmentRequestsPage() {
       {loading ? <p role="status">Loading equipment requests…</p> : requests.length === 0 ? <p className="rounded-lg border border-dashed px-4 py-8 text-center text-sm text-gray-500">No equipment requests to display.</p> :
         <div className="space-y-3">{requests.map((record) => <Card key={record.id}><CardBody>
           <div className="flex items-start justify-between gap-3"><div><h2 className="font-medium">{record.eventName}</h2>
-            <p className="text-sm text-gray-500">Start: {new Date(record.eventStart).toLocaleString()}</p>
-            <p className="text-sm text-gray-500">End: {new Date(record.eventEnd).toLocaleString()}</p>
-            <p className="text-sm text-gray-500">Expected attendance {record.expectedAttendance}</p>
+            <p className="text-sm text-gray-500">{new Date(record.eventStart).toLocaleString()} · Expected attendance {record.expectedAttendance}</p>
             {record.coordinatorName && <p className="text-sm text-gray-500">Coordinator: {record.coordinatorName}</p>}
-          </div><div className="flex items-center gap-2"><span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeClass(record.status)}`}>{record.status}</span>
+          </div><div className="flex items-center gap-2"><span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-800">{record.status}</span>
             {isCoordinator && updatableEventStatuses.has(record.eventStatus) && <Link to={`/equipment/requests/${encodeURIComponent(record.id)}/update`}
               className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700">
               Update Event
             </Link>}
           </div></div>
           <p className="mt-2 text-sm">Request reference: <span className="font-mono">{record.reference}</span></p>
-          {!isCoordinator && <div className="mt-3">
-            {record.eventStatus !== 'Confirmed' && record.status === 'Pending Review' && <button type="button" onClick={() => setExpandedRequestId(expandedRequestId === record.id ? null : record.id)}
-              aria-expanded={expandedRequestId === record.id} aria-controls={`review-details-${record.id}`}
-              className="rounded-md border border-primary-600 px-3 py-1.5 font-medium text-primary-700 hover:bg-primary-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-600">
-              {expandedRequestId === record.id ? 'Close review' : 'Review request'}
-            </button>}
-          </div>}
-          {(!isCoordinator && expandedRequestId === record.id) && <div id={`review-details-${record.id}`} className="mt-3 rounded-md border border-gray-200 p-3">
-            <h3 className="font-medium">Equipment requested</h3>
-          <ul className="mt-2 space-y-3">{record.items.map((item) => {
-            const availableQuantity = item.availableQuantity ?? item.quantity;
-            const sufficient = item.sufficient ?? availableQuantity >= item.quantity;
-            return <li key={item.id} className="text-sm">
-            <div>{item.equipmentName} · {item.equipmentType} × {item.quantity}</div>
-            {!isCoordinator && <p className={sufficient ? 'text-green-700' : 'text-red-700'}>
-              {availableQuantity} available for this event period; {item.quantity} requested.
-            </p>}
-          </li>})}</ul>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <button type="button" disabled={record.items.some((item) => !(item.sufficient ?? (item.availableQuantity ?? item.quantity) >= item.quantity))} onClick={() => void approveRequest(record.id)}
-                className="rounded bg-primary-600 px-4 py-2 font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">Approve &amp; reserve</button>
-              <button type="button" onClick={() => openCannotProvide(record.id)}
-                className="rounded border border-danger-600 px-4 py-2 font-medium text-danger-700 hover:bg-danger-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger-600 dark:text-danger-400 dark:hover:bg-danger-900/20">Cannot provide</button>
-            </div>
-            {cannotProvideFor === record.id && <div className="mt-3 rounded-md border border-danger-200 bg-danger-50 p-3 dark:border-danger-900/40 dark:bg-danger-900/10">
-              <label htmlFor={`cannot-provide-reason-${record.id}`} className="block text-sm font-medium">Reason (shown to the event coordinator)</label>
-              <textarea id={`cannot-provide-reason-${record.id}`} rows={3} value={cannotProvideReason}
-                onChange={(e) => { setCannotProvideReason(e.target.value); if (cannotProvideError) setCannotProvideError(''); }}
-                placeholder="e.g. Only 8 PA speakers available for this period; 10 requested."
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-800" />
-              {cannotProvideError && <p role="alert" className="mt-1 text-sm text-danger-600 dark:text-danger-400">{cannotProvideError}</p>}
-              <div className="mt-2 flex gap-2">
-                <button type="button" onClick={() => void submitCannotProvide(record.id)}
-                  className="rounded bg-danger-600 px-4 py-2 font-medium text-white hover:bg-danger-700">Confirm cannot provide</button>
-                <button type="button" onClick={() => setCannotProvideFor(null)}
-                  className="rounded border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">Cancel</button>
-              </div>
-            </div>}
-          </div>}
-          {isCoordinator && <ul className="mt-2 space-y-1">{record.items.map((item) => <li key={item.id} className="text-sm">{item.equipmentName} · {item.equipmentType} × {item.quantity}</li>)}</ul>}
-          {isCoordinator && record.status === 'Cannot Provide' && record.decisionReason && <p className="mt-2 rounded-md bg-danger-50 px-3 py-2 text-sm text-danger-700 dark:bg-danger-900/10 dark:text-danger-400">
-            <span className="font-medium">Cannot provide:</span> {record.decisionReason}
-          </p>}
+          <ul className="mt-2 space-y-1">{record.items.map((item) => <li key={item.id} className="text-sm">{item.equipmentName} · {item.equipmentType} × {item.quantity}</li>)}</ul>
         </CardBody></Card>)}</div>}
     </section>
   </div>;

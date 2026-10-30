@@ -16,13 +16,12 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
   let pool: pg.Pool;
   const eventIds: string[] = [];
   const userIds: string[] = [];
-  const equipmentIds: string[] = [];
 
   beforeAll(async () => {
     pool = new pg.Pool({ connectionString: databaseUrl });
     await pool.query(await readFile(new URL('../../database/postgresql/init/001_schema.sql', import.meta.url), 'utf8'));
     await pool.query(await readFile(new URL('../../database/postgresql/init/002_seed_data.sql', import.meta.url), 'utf8'));
-    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql', '020_spm58_cannot_provide.sql'])
+    for (const file of ['010_spm135_confirm_event.sql', '012_spm57_equipment_requests.sql', '014_spm57_request_reservations.sql'])
       await pool.query(await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8'));
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication();
@@ -33,7 +32,6 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     await app?.close();
     if (!pool) return;
     if (eventIds.length) await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds]);
-    if (equipmentIds.length) await pool.query('DELETE FROM equipment WHERE id = ANY($1::uuid[])', [equipmentIds]);
     if (userIds.length) await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds]);
     await pool.end();
   });
@@ -105,91 +103,6 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect((await pool.query('SELECT id FROM equipment_requests WHERE event_id = $1', [eventId])).rows).toEqual([]);
     expect((await pool.query('SELECT id FROM equipment_reservations WHERE event_id = $1', [eventId])).rows).toEqual([]);
     expect((await pool.query('SELECT id FROM event_status_history WHERE event_id = $1', [eventId])).rows).toEqual([]);
-  });
-
-  /** SPM-58: approval creates missing reservation rows and reuses existing placeholders without duplication. */
-  it('persists exactly one Reserved row per request item whether placeholders were missing or already present', async () => {
-    const coordinator = await createUser('COORDINATOR');
-    const support = await createUser('TECH_SUPPORT');
-    const equipmentId = randomUUID();
-    equipmentIds.push(equipmentId);
-    await pool.query(
-      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
-                              active_quantity, under_maintenance_quantity, retired_quantity, location)
-       VALUES ($1, 'SPM-58 Missing Placeholder Test', 'Audio', 4, 'Active', 4, 0, 0, 'Test Store')`,
-      [equipmentId],
-    );
-
-    const missingEventId = await createEvent(coordinator.id, 'Planning');
-    const missingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
-      .set('Cookie', coordinator.cookie)
-      .send({ eventId: missingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
-      .expect(201);
-    await pool.query(
-      'DELETE FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
-      [missingRequest.body.id],
-    );
-    await request(app.getHttpServer()).patch(`/api/equipment/requests/${missingRequest.body.id}/reserve`)
-      .set('Cookie', support.cookie).expect(200);
-    const createdRows = await pool.query(
-      `SELECT reservation.equipment_name, reservation.quantity, reservation.status
-         FROM equipment_reservations reservation
-         JOIN equipment_request_items item ON item.id = reservation.equipment_request_item_id
-        WHERE item.request_id = $1::uuid`, [missingRequest.body.id]);
-    expect(createdRows.rows).toEqual([{ equipment_name: 'SPM-58 Missing Placeholder Test', quantity: 1, status: 'Reserved' }]);
-
-    const existingEventId = await createEvent(coordinator.id, 'Planning');
-    const existingRequest = await request(app.getHttpServer()).post('/api/equipment/requests')
-      .set('Cookie', coordinator.cookie)
-      .send({ eventId: existingEventId, items: [{ equipmentName: 'SPM-58 Missing Placeholder Test', equipmentType: 'Audio', quantity: 1 }] })
-      .expect(201);
-    const before = await pool.query(
-      'SELECT count(*)::integer AS count FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
-      [existingRequest.body.id],
-    );
-    expect(before.rows[0].count).toBe(1);
-    await request(app.getHttpServer()).patch(`/api/equipment/requests/${existingRequest.body.id}/reserve`)
-      .set('Cookie', support.cookie).expect(200);
-    const existingRows = await pool.query(
-      'SELECT status FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
-      [existingRequest.body.id],
-    );
-    expect(existingRows.rows).toEqual([{ status: 'Reserved' }]);
-  });
-
-  /** SPM-58 AC8/AC9/AC10: Technical Support marks a request Cannot Provide with a required reason; it persists, retires placeholders, and the coordinator reads it. */
-  it('records a Cannot Provide decision with its reason, retires placeholders, and shows it to the coordinator', async () => {
-    const coordinator = await createUser('COORDINATOR');
-    const support = await createUser('TECH_SUPPORT');
-    const eventId = await createEvent(coordinator.id, 'Planning');
-    const submitted = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
-      .send({ eventId, items: [{ equipmentName: 'SPM-58 Cannot Provide Cameras', equipmentType: 'Visual', quantity: 10 }] }).expect(201);
-
-    // AC9: a reason is required.
-    await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
-      .set('Cookie', support.cookie).send({ reason: '   ' }).expect(400);
-
-    // AC8: marking Cannot Provide persists the status and reason and retires the placeholder reservations.
-    const decided = await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
-      .set('Cookie', support.cookie).send({ reason: '  Only 8 cameras available for this period; 10 requested.  ' }).expect(200);
-    expect(decided.body).toMatchObject({ kind: 'cannot-provided', requestReference: submitted.body.requestReference });
-
-    const persisted = await pool.query('SELECT status, decision_reason FROM equipment_requests WHERE id = $1::uuid', [submitted.body.id]);
-    expect(persisted.rows[0]).toEqual({ status: 'Cannot Provide', decision_reason: 'Only 8 cameras available for this period; 10 requested.' });
-
-    const reservations = await pool.query(
-      'SELECT status FROM equipment_reservations WHERE equipment_request_item_id IN (SELECT id FROM equipment_request_items WHERE request_id = $1::uuid)',
-      [submitted.body.id]);
-    expect(reservations.rows).toEqual([{ status: 'Unavailable' }]);
-
-    // AC10: the event coordinator sees the status and reason on their request.
-    const mine = await request(app.getHttpServer()).get('/api/equipment/requests').set('Cookie', coordinator.cookie).expect(200);
-    const own = mine.body.find((row: { id: string }) => row.id === submitted.body.id);
-    expect(own).toMatchObject({ status: 'Cannot Provide', decisionReason: 'Only 8 cameras available for this period; 10 requested.' });
-
-    // A request that is no longer Pending Review cannot be marked again.
-    await request(app.getHttpServer()).patch(`/api/equipment/requests/${submitted.body.id}/cannot-provide`)
-      .set('Cookie', support.cookie).send({ reason: 'Still cannot provide.' }).expect(409);
   });
 
   /** EQUIP-REQUEST-03-A: a multi-item Approved-event submission is persisted and moves the event to Planning. */
@@ -613,9 +526,8 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
     expect(rows.rows).toEqual([{ id: created.body.id, count: 1 }]);
   });
 
-  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a reviewed request remains updateable while its event is still Planning,
-   *  and updating it returns the request to the Technical Support review queue (SPM-58). */
-  it('returns a Reserved request to Pending Review when it is updated before event confirmation', async () => {
+  /** EQUIP-REQUEST-10-SUP-LIFECYCLE: a reviewed request remains updateable while its event is still Planning. */
+  it('updates a Reserved request before event confirmation', async () => {
     const coordinator = await createUser('COORDINATOR');
     const eventId = await createEvent(coordinator.id, 'Planning');
     const created = await request(app.getHttpServer()).post('/api/equipment/requests').set('Cookie', coordinator.cookie)
@@ -627,7 +539,7 @@ describe.skipIf(!databaseUrl)('SPM-57 equipment request HTTP and PostgreSQL', ()
       .send({ eventId, items: [{ equipmentName: 'Revised microphone', equipmentType: 'Audio', quantity: 3 }] }).expect(200);
 
     expect(updated.body).toMatchObject({ kind: 'updated', id: created.body.id, requestReference: created.body.requestReference });
-    expect((await pool.query('SELECT status FROM equipment_requests WHERE id = $1', [created.body.id])).rows).toEqual([{ status: 'Pending Review' }]);
+    expect((await pool.query('SELECT status FROM equipment_requests WHERE id = $1', [created.body.id])).rows).toEqual([{ status: 'Reserved' }]);
     expect((await pool.query('SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1', [created.body.id])).rows)
       .toEqual([{ equipment_name: 'Revised microphone', quantity: 3 }]);
     expect((await pool.query("SELECT equipment_name, quantity FROM equipment_reservations WHERE event_id = $1 AND status = 'Requested'", [eventId])).rows)
