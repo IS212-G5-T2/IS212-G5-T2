@@ -329,7 +329,7 @@ const searchEvent: EventRecord = {
     minCapacity: 24,
     layout: "Classroom",
     facilities: ["Projector"],
-    accessibility: ["Wheelchair ramps"],
+    accessibility: ["Wheelchair access"],
   },
 };
 

@@ -13,6 +13,12 @@
  * - Blank required fields are caught before sending, and server field errors
  *   are shown beside their field; typed values are never lost on error (AC4).
  * - Shows when the information was last updated (AC6).
+ * - Facility and accessibility choices come from the backend venue schema
+ *   (`useVenueOptions`, the same source as Create Event), never a local list, so
+ *   a retired value is never offered. A stored value the schema no longer has is
+ *   not shown and is dropped from the list sent when the coordinator edits it.
+ * - Every note under a field (its server error, the last change, a pending
+ *   proposal or the field's rule) is stacked in one block so they never overlap.
  *
  * The form always shows the event's authoritative current values. After a
  * save it resets to the event the server returned, so a value that was only
@@ -40,14 +46,14 @@ import type {
 import { ApiError } from "@/utils/api";
 import { formatDateTime } from "@/utils/format";
 import { formatSgtDateTime } from "@/utils/sgtDate";
+import { useVenueOptions } from "@/features/venues/api/venue-options-api";
+import { ROOM_LAYOUT_OPTIONS } from "@/features/venues/lib/venueOptions";
 import {
-  ACCESSIBILITY,
-  FACILITIES,
-  LAYOUTS,
   describeCondition,
   fieldLabel,
   formatFieldValue,
   satisfiesCondition,
+  lastChangeLabel,
 } from "@/utils/planning";
 
 interface Props {
@@ -162,6 +168,8 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
+  const options = useVenueOptions();
+  const supported = { facilities: options.facilities, accessibility: options.accessibility };
 
   // A newer authoritative event arrived from the parent: adopt it for every
   // field the coordinator has not touched (React's "adjust state on prop
@@ -200,33 +208,42 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
     return ok ? "immediate" : "review";
   }
 
-  const field = (key: FieldKey, control: ReactNode) => {
+  /** A field with its badge, control and, in one stacked block below it, every note that applies. */
+  const field = (key: FieldKey, control: ReactNode, alert?: string) => {
     const entry = entries[key];
     const pending = pendingByField[key];
     const outcome = pending ? null : predictedOutcome(key);
+    const hasNotes = !!alert || (!pending && !!lastDecision[key]) || !!pending || !!entry?.condition;
     return (
       <div>
         <div className="mb-1 flex justify-end">
           <PolicyBadge mode={entry?.mode} />
         </div>
         {control}
+        {hasNotes && (
+        <div className="-mt-3 mb-4 space-y-1">
+        {alert && (
+          <p role="alert" className="text-xs text-danger-600">
+            {alert}
+          </p>
+        )}
         {!pending && lastDecision[key] && (
-          <p data-testid={`last-change-${key}`} className="-mt-3 mb-1 text-xs text-gray-500 dark:text-gray-400">
-            Last change {lastDecision[key].status === "Applied" ? "confirmed" : "rejected"} by{" "}
+          <p data-testid={`last-change-${key}`} className="text-xs text-gray-500 dark:text-gray-400">
+            {lastChangeLabel(lastDecision[key])} by{" "}
             {lastDecision[key].resolvedBy} on {formatSgtDateTime(lastDecision[key].resolvedAt)}.
           </p>
         )}
         {pending ? (
           <p
             data-testid={`pending-${key}`}
-            className="-mt-3 mb-4 rounded-md border border-warning-300 bg-warning-50 px-2 py-1 text-xs text-warning-900 dark:border-warning-700 dark:bg-warning-900/20 dark:text-warning-200"
+            className="rounded-md border border-warning-300 bg-warning-50 px-2 py-1 text-xs text-warning-900 dark:border-warning-700 dark:bg-warning-900/20 dark:text-warning-200"
           >
             Awaiting review — proposed: {formatFieldValue(pending.field, pending.proposedValue)}. The value above is
             still current. Confirm or reject it under “Changes awaiting review” before changing this field again.
           </p>
         ) : (
           entry?.condition && (
-            <p className="-mt-3 mb-4 text-xs text-gray-500 dark:text-gray-400">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {describeCondition(entry.condition)}
               {outcome && (
                 <span
@@ -238,9 +255,35 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
             </p>
           )
         )}
+        </div>
+        )}
       </div>
     );
   };
+
+  /** Options for a list field: the supported values, or none while they load or after a failure. */
+  const listControl = (key: "facilities" | "accessibility", label: string) => (
+    <>
+      <CheckboxGroup
+        label={label}
+        options={supported[key]}
+        values={values[key].filter((value) => supported[key].includes(value))}
+        disabled={locked(key) || options.status !== "loaded"}
+        onChange={(v) => set(key, v)}
+      />
+      {options.status === "loading" && (
+        <p className="-mt-3 mb-4 text-xs text-gray-500 dark:text-gray-400">Loading options…</p>
+      )}
+      {options.status === "error" && (
+        <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">
+          Could not load the {label.toLowerCase()} options. {options.error}{" "}
+          <button type="button" className="underline" onClick={options.retry}>
+            Try again
+          </button>
+        </p>
+      )}
+    </>
+  );
 
   /** Client-side checks; the server repeats them (and more) authoritatively. */
   function validate(): Record<string, string> {
@@ -263,8 +306,10 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
       if (values[key] !== baseline[key]) patch[key] = fromLocalInput(values[key]);
     if (values.expectedAttendance.trim() !== baseline.expectedAttendance)
       patch.expectedAttendance = Number(values.expectedAttendance);
+    // A list the coordinator edited is sent with supported values only, so a
+    // retired stored value is dropped rather than refused by the server.
     for (const key of ["facilities", "accessibility"] as const)
-      if (!sameSet(values[key], baseline[key])) patch[key] = values[key];
+      if (!sameSet(values[key], baseline[key])) patch[key] = values[key].filter((v) => supported[key].includes(v));
     return patch;
   }
 
@@ -343,13 +388,11 @@ export function PlanningUpdateForm({ event, editableFields, lastUpdatedAt, pendi
         {field("startDateTime", <TextInput id="planning-start" type="datetime-local" label="Start date & time" required disabled={locked("startDateTime")} value={values.startDateTime} error={errors.startDateTime} onChange={(e) => set("startDateTime", e.target.value)} />)}
         {field("endDateTime", <TextInput id="planning-end" type="datetime-local" label="End date & time" required disabled={locked("endDateTime")} value={values.endDateTime} error={errors.endDateTime} onChange={(e) => set("endDateTime", e.target.value)} />)}
         {field("expectedAttendance", <TextInput id="planning-attendance" type="number" min={1} step={1} label="Expected attendance" required disabled={locked("expectedAttendance")} value={values.expectedAttendance} error={errors.expectedAttendance} onChange={(e) => set("expectedAttendance", e.target.value)} />)}
-        {field("layout", <Select id="planning-layout" label="Room layout" required disabled={locked("layout")} value={values.layout} error={errors.layout} options={LAYOUTS.map((l) => ({ value: l, label: l }))} onChange={(e) => set("layout", e.target.value)} />)}
+        {field("layout", <Select id="planning-layout" label="Room layout" required disabled={locked("layout")} value={values.layout} error={errors.layout} options={ROOM_LAYOUT_OPTIONS.map((l) => ({ value: l, label: l }))} onChange={(e) => set("layout", e.target.value)} />)}
       </div>
       {field("description", <TextArea id="planning-description" label="Description" required value={values.description} error={errors.description} onChange={(e) => set("description", e.target.value)} />)}
-      {field("facilities", <CheckboxGroup label="Required facilities" options={FACILITIES} values={values.facilities} disabled={locked("facilities")} onChange={(v) => set("facilities", v)} />)}
-      {errors.facilities && <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">{errors.facilities}</p>}
-      {field("accessibility", <CheckboxGroup label="Accessibility needs" options={ACCESSIBILITY} values={values.accessibility} onChange={(v) => set("accessibility", v)} />)}
-      {errors.accessibility && <p role="alert" className="-mt-3 mb-4 text-xs text-danger-600">{errors.accessibility}</p>}
+      {field("facilities", listControl("facilities", "Required facilities"), errors.facilities)}
+      {field("accessibility", listControl("accessibility", "Accessibility needs"), errors.accessibility)}
       {field("equipmentNeeds", <TextArea id="planning-equipment" label="Equipment requirements" disabled={locked("equipmentNeeds")} value={values.equipmentNeeds} error={errors.equipmentNeeds} onChange={(e) => set("equipmentNeeds", e.target.value)} />)}
 
       {notice && (

@@ -7,9 +7,11 @@ import {
 } from '@nestjs/common';
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import request from 'supertest';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -140,7 +142,11 @@ describe.skipIf(!database)(
       // DatabaseService reads DATABASE_URL; point it at the same database as this suite.
       process.env.DATABASE_URL = database;
       db = new pg.Pool({ connectionString: database });
-      for (const file of ['001_schema.sql']) {
+      for (const file of [
+        '001_schema.sql',
+        // SPM-156: direct updates are recorded in event_flagged_changes.
+        '026_spm156_direct_update_history.sql',
+      ]) {
         const schemaPath = process.env.SPM51_DATABASE_INIT_DIR
           ? join(process.env.SPM51_DATABASE_INIT_DIR, file)
           : new URL(`../../database/postgresql/init/${file}`, import.meta.url);
@@ -726,6 +732,237 @@ describe.skipIf(!database)(
           eventId,
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    // SPM-156 EVENT-UPDATE-07-A: on an Approved event (nothing booked yet) every
+    // update applies immediately and is stored as an Applied history row.
+    it('EVENT-UPDATE-07-A records an update on an Approved event in change history', async () => {
+      const approved = await insertEvent({ name: 'Approved Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      const result = await service.updateEvent(coordinator, approved, {
+        name: 'Approved Night',
+        accessibility: ['Hearing loop'],
+        expectedAttendance: 90,
+      });
+      expect(result.flagged).toEqual([]);
+
+      const rows = await db.query(
+        `SELECT kind, field, original_value, proposed_value, status, proposed_by_id,
+                resolved_by, resolved_by_id, resolved_at, impacts
+           FROM event_flagged_changes WHERE event_id = $1 ORDER BY field`,
+        [approved],
+      );
+      expect(rows.rows).toHaveLength(3);
+      for (const row of rows.rows)
+        expect(row).toMatchObject({
+          kind: 'direct_update',
+          status: 'Applied',
+          proposed_by_id: coordinator.uid,
+          resolved_by: 'E2E Coordinator',
+          resolved_by_id: coordinator.uid,
+          impacts: [],
+        });
+      // History and "Last updated" (SPM-49 AC6) carry the same instant.
+      expect(rows.rows[0].resolved_at.toISOString()).toBe(result.updatedAt);
+
+      // Both the assigned coordinator and the owning organiser can read it.
+      for (const viewer of [coordinator, organiser]) {
+        const history = await service.changeHistory(viewer, approved);
+        expect(
+          history
+            .map((h) => [h.kind, h.field, h.originalValue, h.resolvedValue])
+            .sort(),
+        ).toEqual(
+          [
+            [
+              'direct_update',
+              'accessibility',
+              ['Wheelchair ramps'],
+              ['Hearing loop'],
+            ],
+            ['direct_update', 'expectedAttendance', 80, 90],
+            ['direct_update', 'name', 'Approved Evening', 'Approved Night'],
+          ].sort(),
+        );
+      }
+      const view = await service.getPlanningView(coordinator, approved);
+      expect(view.lastUpdatedAt).toBe(result.updatedAt);
+    });
+
+    // SPM-156 EVENT-UPDATE-07-B: on a Planning event with bookings, the
+    // compatible change is recorded directly and the flagged one only once
+    // it is resolved.
+    it('EVENT-UPDATE-07-B records direct and reviewed changes on a Planning event', async () => {
+      const { flagged } = await service.updateEvent(coordinator, eventId, {
+        description: 'New description',
+        expectedAttendance: 150,
+      });
+      let history = await service.changeHistory(coordinator, eventId);
+      expect(history.map((h) => [h.kind, h.field, h.status])).toEqual([
+        ['direct_update', 'description', 'Applied'],
+      ]);
+      await service.resolveChange(coordinator, eventId, flagged[0].id, {
+        decision: 'confirm',
+      });
+      history = await service.changeHistory(coordinator, eventId);
+      expect(history.map((h) => [h.kind, h.field, h.status])).toEqual([
+        ['booking_conflict', 'expectedAttendance', 'Applied'],
+        ['direct_update', 'description', 'Applied'],
+      ]);
+    });
+
+    // SPM-156: the database refuses a direct update or change request that is
+    // not Applied, and a flagged change to a field that can never affect a booking.
+    it('EVENT-UPDATE-07-SEC-1 rejects malformed history rows in the database', async () => {
+      const insert = (kind: string, field: string, status: string) =>
+        db.query(
+          `INSERT INTO event_flagged_changes
+             (id, event_id, kind, field, original_value, proposed_value, status, proposed_by, proposed_by_id)
+           VALUES ($1,$2,$3,$4,'1'::jsonb,'2'::jsonb,$5,'X','x')`,
+          [randomUUID(), eventId, kind, field, status],
+        );
+      await expect(
+        insert('direct_update', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('booking_conflict', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('change_request', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+      await expect(
+        insert('other', 'name', 'Needs Review'),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    /**
+     * EVENT-UPDATE-07-A (SPM-156): the direct-update history write runs in the
+     * same transaction as the event update. When the history insert fails, the
+     * event row and its "Last updated" time stay as they were and nothing is recorded.
+     */
+    it('EVENT-UPDATE-07-A rolls the event update back when the history insert fails', async () => {
+      const approved = await insertEvent({ name: 'Rollback Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      const before = await db.query(
+        'SELECT event_name, updated_at FROM events WHERE id = $1',
+        [approved],
+      );
+      // A trigger that refuses history rows for this event only (the real write path fails).
+      const fn = `spm156_refuse_${approved.replace(/-/g, '')}`;
+      await db.query(
+        `CREATE FUNCTION ${fn}() RETURNS trigger LANGUAGE plpgsql AS $$
+           BEGIN
+             IF NEW.event_id = '${approved}'::uuid THEN
+               RAISE EXCEPTION 'history insert refused';
+             END IF;
+             RETURN NEW;
+           END $$`,
+      );
+      await db.query(
+        `CREATE TRIGGER ${fn} BEFORE INSERT ON event_flagged_changes
+           FOR EACH ROW EXECUTE FUNCTION ${fn}()`,
+      );
+      try {
+        await expect(
+          service.updateEvent(coordinator, approved, {
+            name: 'Rollback Night',
+          }),
+        ).rejects.toThrow('history insert refused');
+      } finally {
+        await db.query(`DROP TRIGGER ${fn} ON event_flagged_changes`);
+        await db.query(`DROP FUNCTION ${fn}()`);
+      }
+      const after = await db.query(
+        'SELECT event_name, updated_at FROM events WHERE id = $1',
+        [approved],
+      );
+      expect(after.rows[0]).toEqual(before.rows[0]);
+      expect(after.rows[0].event_name).toBe('Rollback Evening');
+      const history = await db.query(
+        'SELECT count(*)::int AS n FROM event_flagged_changes WHERE event_id = $1',
+        [approved],
+      );
+      expect(history.rows[0].n).toBe(0);
+    });
+
+    /**
+     * EVENT-UPDATE-07-A (SPM-156): entries saved by one update share their time and are
+     * listed by field name. The rows are inserted in editable-field order (name before
+     * description), so only the field tie-break gives description first.
+     */
+    it('EVENT-UPDATE-07-A lists entries saved by one update in a stable field order', async () => {
+      const approved = await insertEvent({ name: 'Order Evening' });
+      await db.query("UPDATE events SET status = 'Approved' WHERE id = $1", [
+        approved,
+      ]);
+      await service.updateEvent(coordinator, approved, {
+        name: 'Order Night',
+        description: 'Order description',
+      });
+      const history = await service.changeHistory(coordinator, approved);
+      expect(history.map((h) => h.field)).toEqual(['description', 'name']);
+    });
+
+    /**
+     * EVENT-UPDATE-07-SEC-1 (SPM-156): migration 026 runs as one transaction. It is applied the
+     * documented way (psql -v ON_ERROR_STOP=1 -f) to a scratch copy of event_flagged_changes holding a
+     * row that only its last constraint rejects; none of its earlier constraint changes may remain.
+     */
+    it('EVENT-UPDATE-07-SEC-1 rolls migration 026 back completely when one step fails', async () => {
+      const schema = `spm156_m026_${randomUUID().replace(/-/g, '').slice(0, 12)}`;
+      await db.query(`CREATE SCHEMA ${schema}`);
+      try {
+        await db.query(
+          `CREATE TABLE ${schema}.event_flagged_changes
+             (LIKE public.event_flagged_changes INCLUDING DEFAULTS)`,
+        );
+        await db.query(
+          `INSERT INTO ${schema}.event_flagged_changes
+             (id, event_id, kind, field, original_value, proposed_value, status, proposed_by, proposed_by_id)
+           VALUES ($1, $2, 'direct_update', 'name', '"a"'::jsonb, '"b"'::jsonb, 'Needs Review', 'X', 'x')`,
+          [randomUUID(), randomUUID()],
+        );
+        const run = spawnSync(
+          'psql',
+          [
+            database!,
+            '-q',
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-f',
+            fileURLToPath(
+              new URL(
+                '../migrations/026_spm156_direct_update_history.sql',
+                import.meta.url,
+              ),
+            ),
+          ],
+          {
+            encoding: 'utf8',
+            env: { ...process.env, PGOPTIONS: `-c search_path=${schema}` },
+          },
+        );
+        expect(
+          run.error,
+          'the psql client must be installed to run this test',
+        ).toBeUndefined();
+        expect(run.status).not.toBe(0);
+        expect(run.stderr).toContain(
+          'event_flagged_changes_direct_update_check',
+        );
+        const constraints = await db.query(
+          `SELECT conname FROM pg_constraint
+            WHERE conrelid = $1::regclass AND contype = 'c' AND conname LIKE 'event_flagged_changes_%_check'`,
+          [`${schema}.event_flagged_changes`],
+        );
+        expect(constraints.rows).toEqual([]);
+      } finally {
+        await db.query(`DROP SCHEMA ${schema} CASCADE`);
+      }
     });
   },
 );

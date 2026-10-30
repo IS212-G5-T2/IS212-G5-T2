@@ -7,6 +7,7 @@
 // FM1 to FM10 are the findings named in TR-10. X1 to X10 are extra mutants for the TR-13 branches.
 // PP1 to PP12 mutate PlanningInformationPage (unavailable-request removal, badges, tab ticks and colours);
 // VT1 to VT4 mutate the venue text shown on the card, the detail page and the edit form.
+// SR1 mutates the safety-reset notice shown after a coordinator saves on Update Event Information.
 export const SUITES = {
   // The SPM-135 frontend specs: the confirm panel, the confirmed-arrangements panel, the client helpers and the page.
   spm135: {
@@ -31,6 +32,10 @@ export const SUITES = {
       'src/features/events/pages/detail/EventDetailPage.test.tsx',
       'src/features/events/pages/detail/EventDetailPage.registration.test.tsx',
     ],
+  },
+  // The coordinator's Update Event Information form (SAFETY-RESET-UPDATE-04).
+  planningUpdate: {
+    args: ['run', 'src/features/events/pages/detail/planning/PlanningUpdateForm.test.tsx'],
   },
 };
 
@@ -160,4 +165,8 @@ export const MUTANTS = [
   // VT4: the edit form shows the fallback even when a venue is booked.
   { id: 'VT4', name: 'edit form Venue field ignores the server value', file: EDIT_FORM, suites: venueSuites,
     edits: [['value={venue || "Not yet booked"}', 'value={"Not yet booked"}']] },
+  // ---- the safety-reset notice after a planning save ----
+  // SR1: the save confirmation never says the safety check was reset.
+  { id: 'SR1', name: 'planning save hides the safety-check reset', file: 'src/features/events/pages/detail/planning/PlanningUpdateForm.tsx', suites: ['planningUpdate'],
+    edits: [['        text: result?.safetyCheckReset', '        text: false']] },
 ];

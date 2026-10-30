@@ -7,6 +7,8 @@
  *   equipment reservations and registrations without writing anything (agreed read-only preview).
  * - AC4/AC7: approve() applies every requested field in one transaction through the planning
  *   repository's applyFields, so the safety-check trigger and the field rules stay in one place.
+ *   Each field whose value changes is also recorded in the event's change history as an Applied
+ *   'change_request' entry (proposed by the organiser, applied by the coordinator) (SPM-156).
  *   The values are validated again at decision time; a field with a change still awaiting review
  *   (SPM-85) blocks approval until that change is resolved.
  * - AC5: deny() requires a reason of 10 to 500 characters and leaves the event unchanged.
@@ -42,8 +44,10 @@ import { CLOCK, systemClock, type Clock } from '../../../common/clock.js';
 import { assertEventNotCancelled } from '../../cancelled-guard.js';
 import {
   validateEventUpdate,
+  type EventFieldKey,
   type EventUpdatePatch,
 } from '../../planning/dto/event-update-input.js';
+import { sameValue } from '../../planning/event-planning.service.js';
 import {
   EventPlanningRepository,
   type PlanningEventRow,
@@ -175,7 +179,29 @@ export class ChangeRequestReviewService {
 
       const now = this.clock.now();
       const hadSafetyCheck = await this.repository.safetyCheckExists(eventId);
-      await this.repository.applyFields(eventId, valid, now);
+      const applied = await this.repository.applyFields(eventId, valid, now);
+      // SPM-156: the event's change history records every requested field whose
+      // value actually changed, proposed by the organiser and applied by this
+      // coordinator, at the same instant as the event's updated_at.
+      await this.repository.recordAppliedChanges(
+        eventId,
+        (Object.keys(valid) as EventFieldKey[])
+          .filter((field) => !sameValue(field, event[field], valid[field]))
+          .map((field) => ({
+            field,
+            originalValue: event[field],
+            newValue: applied[field],
+          })),
+        {
+          kind: 'change_request',
+          appliedBy: { name: displayName(user), id: user.uid },
+          proposedBy: {
+            name: String(request.requested_by),
+            id: String(request.requested_by_id),
+          },
+        },
+        now,
+      );
       const safetyCheckReset =
         hadSafetyCheck && !(await this.repository.safetyCheckExists(eventId));
       if (safetyCheckReset)

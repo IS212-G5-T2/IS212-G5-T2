@@ -643,7 +643,7 @@ describe("PlanningInformationPage", () => {
 
     unmount();
     await act(async () => {
-      load.reject(new ApiError(500, "Server error", "SERVER_ERROR"));
+      load.reject(new ApiError("Server error", undefined, "SERVER_ERROR", 500));
     });
 
     expect(container).toBeEmptyDOMElement();

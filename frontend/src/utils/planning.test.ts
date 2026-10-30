@@ -8,6 +8,8 @@ import {
   fetchPlanningView,
   fieldLabel,
   formatFieldValue,
+  historyOutcome,
+  lastChangeLabel,
   isPlanningView,
   resolvePlanningChange,
   satisfiesCondition,
@@ -136,6 +138,33 @@ describe("planning labels and values", () => {
     expect(formatFieldValue("startDateTime", iso)).toBe("10 Nov 2026, 6:00 pm");
     expect(formatFieldValue("endDateTime", "2026-11-10T16:30:00.000Z")).toBe("11 Nov 2026, 12:30 am");
     expect(formatFieldValue("description", iso)).toBe(iso);
+  });
+});
+
+describe("historyOutcome (SPM-156)", () => {
+  // EVENT-UPDATE-07-C: direct updates read as such; reviewed changes keep their outcome.
+  it("EVENT-UPDATE-07-C names direct updates and review outcomes", () => {
+    expect(historyOutcome({ kind: "direct_update", status: "Applied" })).toBe("Updated directly");
+    expect(historyOutcome({ kind: "booking_conflict", status: "Applied" })).toBe("Applied");
+    expect(historyOutcome({ status: "Rejected" })).toBe("Rejected");
+  });
+
+  // EVENT-UPDATE-07-E: an approved change request reads as such, in the list and under the field.
+  it("EVENT-UPDATE-07-E names an approved change request", () => {
+    expect(historyOutcome({ kind: "change_request", status: "Applied" })).toBe("Change request approved");
+    expect(lastChangeLabel({ kind: "change_request", status: "Applied", proposedBy: "Demo Organiser" })).toBe(
+      "Last changed by Demo Organiser's change request, approved",
+    );
+    expect(lastChangeLabel({ kind: "change_request", status: "Applied" })).toBe(
+      "Last changed by a change request, approved",
+    );
+  });
+
+  // EVENT-UPDATE-07-C: the note under a field for each other kind.
+  it("EVENT-UPDATE-07-C words the per-field note for direct and reviewed changes", () => {
+    expect(lastChangeLabel({ kind: "direct_update", status: "Applied" })).toBe("Last changed");
+    expect(lastChangeLabel({ kind: "booking_conflict", status: "Applied" })).toBe("Last change confirmed");
+    expect(lastChangeLabel({ status: "Rejected" })).toBe("Last change rejected");
   });
 });
 

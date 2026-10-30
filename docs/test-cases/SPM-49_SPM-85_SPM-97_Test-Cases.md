@@ -8,10 +8,10 @@ Case IDs: `EVENT-VIEW-*` = SPM-97, `EVENT-UPDATE-*` = SPM-49, `EVENT-FLAG-*` = S
 
 ```sh
 # Backend unit tests (mocked repository) — no database needed
-cd backend && npx vitest run src/events/event-update-input.spec.ts src/events/event-impact.spec.ts src/events/event-planning.service.spec.ts src/events/event-planning.repository.spec.ts
+cd backend && npx vitest run src/events/planning
 
 # Backend integration tests (real repository, real SQL) — needs a DISPOSABLE PostgreSQL database.
-# The spec applies database/postgresql/init/001_schema.sql and 007_*.sql itself.
+# The spec applies database/postgresql/init/001_schema.sql and 026_spm156_direct_update_history.sql itself.
 # Uses TEST_DATABASE_URL if set, otherwise DATABASE_URL (which the Backend E2E CI job provides).
 cd backend && TEST_DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/events-planning.e2e-spec.ts
 
@@ -21,6 +21,8 @@ cd backend && DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run 
 # Frontend component / page / helper tests
 cd frontend && npx vitest run src/features/events/pages/detail/EventDetailPage.planning.test.tsx src/features/events/pages/detail/planning src/utils/planning.test.ts
 ```
+
+File paths: the backend planning code moved to `backend/src/events/planning/` (`event-planning.service.ts`, `event-planning.repository.ts`, `event-planning.controller.ts`, `dto/event-update-input.ts`, `helpers/event-impact.ts`). Older rows below name the files without that folder.
 
 Locally, with neither `TEST_DATABASE_URL` nor `DATABASE_URL` set, the integration suite is skipped. In CI (`CI` is set) a missing database **fails** the suite instead, so a green pipeline cannot hide these tests being skipped. Both suites run in the Backend E2E Tests job.
 
@@ -134,9 +136,11 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 
 **Left uncovered in the unit run, with reasons**
 
-- `event-planning.service.ts` lines 727 and 750–751, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
-- `event-planning.service.ts` line 93 and `event-planning.repository.ts` line 167: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
-- `EventDetailPage.tsx` lines 138 and 154, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
+Line numbers as of SPM-156 (29 Oct 2026); the same rows are kept in `docs/test-cases/workflow/coverage-line-status.md` and `coverage-exclusions.md`.
+
+- `event-planning.service.ts` lines 802–803, the `default` branch of the editable-field `switch`: unreachable. Direct fields return before the `switch`, and every `review_if_impacting` field has its own `case`.
+- `event-planning.service.ts` line 103 and `event-planning.repository.ts` line 203: the `typeof X === "undefined" ? Object : X` branch the TypeScript compiler emits for decorator parameter metadata on `@Injectable()` classes, not code in the source file.
+- `EventDetailPage.tsx` lines 166 and 182, `if (!id) return` in `loadPlanning` / `loadHistory`: unreachable. The page is only routed at `/events/:id`, and planning is loaded only once the event with that id is found.
 - Other uncovered branches in `EventDetailPage.tsx` belong to other stories and are left to their owners (see SPM-141).
 
 ### HTTP route tests
@@ -150,13 +154,44 @@ Added on 11 Oct 2026 to bring the planning files to 100% line and branch coverag
 | EVENT-UPDATE-HTTP-03 | SPM-97 AC4 | Owning organiser gets a read-only view and 403 on PATCH | PASS |
 | EVENT-UPDATE-HTTP-04 | SPM-49 AC1 | Unassigned coordinator gets 404 on GET and PATCH | PASS |
 | EVENT-UPDATE-HTTP-05 | SPM-49 AC4 | Identity fields in the body are rejected (400); identity comes only from the session | PASS |
-| EVENT-UPDATE-HTTP-06 | SPM-49 AC3/AC5, SPM-85 AC1/AC3/AC5 | Compatible attendance applies despite a booking; incompatible is flagged; resolve route confirms; history records it | PASS |
+| EVENT-UPDATE-HTTP-06 | SPM-49 AC3/AC5, SPM-85 AC1/AC3/AC5 | Compatible attendance applies despite a booking; incompatible is flagged; resolve route confirms; history records both (the direct update since SPM-156) | PASS |
+| EVENT-UPDATE-HTTP-07 | SPM-49 AC5, AC6 (SPM-156) | An update on an Approved event appears in `GET .../history` for the coordinator and the owning organiser, with the same time as `updatedAt` | PASS |
 
 Removing `EventPlanningController` from the authentication middleware's routes fails 5 of these 6 tests.
 
+### Cases added by SPM-156 (change history for every change applied without review)
+
+Defect: an update the coordinator applied immediately was saved but never written to the change history, because history was built only from flagged changes. It showed on every update to an Approved event (nothing is booked yet, so every update applies immediately) and on direct updates to Planning events. Fix: each field applied immediately is recorded as an Applied `direct_update` row in the same transaction (migration 026), the history response carries `kind`, the form and history list say "Updated directly" / "Last changed" instead of "confirmed", and the owning organiser sees the history read-only. A change applied by approving an organiser's change request (SPM-65) is recorded the same way as an Applied `change_request` row, proposed by the organiser and applied by the coordinator; a denied request records nothing.
+
+| Case | Story / AC | Scenario | Automated by |
+| --- | --- | --- | --- |
+| EVENT-UPDATE-07-A | SPM-49 AC3, AC5, AC6 | Update on an Approved event: one Applied history entry per changed field (field, old and new value, coordinator, time equal to `updatedAt`); every AC5 field group; a refused update records nothing; a failed history write fails the whole update; against PostgreSQL a refused history insert rolls the event update back (name and `updated_at` unchanged, no row), and entries saved by one update are listed in field order | `event-planning.service.spec.ts`, `event-planning.repository.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-07-B | SPM-49 AC5, SPM-85 AC6 | Planning event with bookings: the compatible change is recorded directly, the flagged one only once confirmed or rejected; nothing changed or everything flagged writes no direct entry | `event-planning.service.spec.ts`, `events-planning.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-07-C | SPM-49 AC5, SPM-85 AC6 | History tells a direct update ("Updated directly", "Last changed by") from a reviewed change ("Applied"/"Rejected", "Last change confirmed/rejected by") | `event-planning.service.spec.ts`, `ChangeHistoryList.test.tsx`, `PlanningUpdateForm.test.tsx`, `planning.test.ts` |
+| EVENT-UPDATE-07-D | SPM-97 AC2 (SPM-156) | The owning organiser sees the Change History card read-only, including direct updates; no empty card when nothing is recorded; the assigned coordinator sees the same card on a read-only (Confirmed) event, and the history only once while editing; the history refreshes with the planning poll; moving to another event clears the previous event's history and a delayed reply for it is ignored | `EventDetailPage.planning.test.tsx` |
+| EVENT-UPDATE-07-E | SPM-49 AC6, SPM-65 AC4 (SPM-156) | Approving a change request records each field whose value changes as an Applied `change_request` entry (organiser as proposer, coordinator as approver, time equal to `updatedAt`), unchanged values are left out, a failed history write fails the approval, a denial records nothing; the list reads "Change request approved (requested by …)" and the form "Last changed by …'s change request, approved by …" | `change-request-review.service.spec.ts`, `event-planning.service.spec.ts`, `event-planning.repository.spec.ts`, `change-request-review.e2e-spec.ts` (PostgreSQL), `ChangeHistoryList.test.tsx`, `PlanningUpdateForm.test.tsx`, `planning.test.ts` |
+| EVENT-UPDATE-07-SEC-1 | SPM-156 | The database refuses a direct update or change request that is not Applied, a flagged change to a field that cannot affect a booking, and an unknown kind; migration 026 runs as one transaction, so a failure part-way through changes nothing | `events-planning.e2e-spec.ts` (PostgreSQL) |
+
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 026) on 29 Oct 2026: backend unit 1915/1915, frontend 1912 passed (1 skipped, 1 todo), backend E2E 773 passed (19 skipped) with one failure in PLAN-STATUS-03-B (SPM-148, `events-planning-transition.e2e-spec.ts`), which also fails intermittently on unmodified `dev` and passed on rerun. The new 07-A/07-B/07-C service tests and the 07-E approval tests (unit and PostgreSQL) fail before the fix and pass after it. Migration 026 was applied over its earlier version and then re-run, without error.
+
+### Cases added by the SPM-156 follow-up (current option lists in every event form)
+
+Defect: Update Event Information, Request a Change and Edit Event offered facility and accessibility choices from their own old lists, while the server validates against the venue schema. The retired "Wheelchair ramps" was offered and still stored on seed events, so saving accessibility needs was refused with "Choose valid options." and "Wheelchair access" could not be chosen; newer facilities and layouts were missing; and on Update Event Information a list error overlapped the "Last changed" note. Fix: every event form loads choices from `GET /api/venues/options` (`useVenueOptions`); event layouts follow the venue layouts; migration 027 rewrites retired stored values; the venue-search mapping table is removed; notes under a field are stacked in one block.
+
+| Case | Story / AC | Scenario | Automated by |
+| --- | --- | --- | --- |
+| EVENT-UPDATE-08-A | SPM-49 AC1, AC3 (SPM-156) | Migration 027 renames retired values (Wheelchair ramps / Step-free access to Wheelchair access, PA System to AV System), removes others, de-duplicates and keeps order in events, change requests (original and proposed values; free text untouched) and drafts; inactive reference options are removed; submitted drafts, the change request audit log and change history are not changed | `event-options-migration.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-08-SEC-1 | SPM-156 | Migration 027 is idempotent and runs as one transaction, so a failure part-way through changes nothing | `event-options-migration.e2e-spec.ts` (PostgreSQL) |
+| EVENT-UPDATE-08-B | SPM-49 AC1, AC3 (SPM-156) | Every current venue-schema layout, facility and accessibility need is offered and accepted; retired values are refused by the server and never offered | `event-update-input.spec.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx` |
+| EVENT-UPDATE-08-C | SPM-49 AC1, AC3, SPM-64 AC1 (SPM-156) | A retired stored value is not shown; it is not sent while its list is untouched and is dropped when the list is edited (planning, change-request and edit forms) | `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx`, `EventEditForm.test.tsx` |
+| EVENT-UPDATE-08-D | SPM-49 AC1 (SPM-156) | Options come from `GET /api/venues/options`; a malformed reply is refused; while loading or after a failure the lists are disabled and Try again reloads them (in all three forms, including Edit Event); each form offers exactly the loaded lists (not built-in ones); after a retry a stale reply or failure from the earlier request is ignored | `venue-options-api.test.ts`, `PlanningUpdateForm.test.tsx`, `RequestChangeForm.test.tsx`, `EventEditForm.test.tsx` (load error shown; stored values saved unchanged) |
+| EVENT-UPDATE-08-E | SPM-49 AC4 (SPM-156) | A list error and the "Last changed" note are stacked in one block under the field, so they never overlap | `PlanningUpdateForm.test.tsx` (EVENT-UPDATE-04-H updated for the new position) |
+
+Run on a local Linux machine (Node 22, PostgreSQL 16 with init 001 to 027) on 29 Oct 2026: backend unit 1920/1920 and frontend 1937 passed (1 skipped, 1 todo) with `npm run test:cov`, backend E2E 796 passed (the `drafts.e2e-spec.ts` worker abort and the intermittent PLAN-STATUS-03-B also occur on unmodified dev). SPM-156 test-workflow cycle: G1 to G7 PASS, GREEN (scope `docs/test-cases/workflow/scopes/SPM-156.json`). The four new PlanningUpdateForm cases fail against the previous form.
+
 ## Assumptions behind the expected results
 
-The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assumptions". The ones that decide an expected result, and that the team should confirm, are:
+`backend/HANDOVER.md`, which this section used to point to, is not in the repository; the rules below are the authoritative list, with the reasoning kept in the header comments of `backend/src/events/planning/` (`event-planning.service.ts`, `helpers/event-impact.ts`, `dto/event-update-input.ts`). The ones that decide an expected result, and that the team should confirm, are:
 
 1. **Planning phase.** `Approved` and `Planning` events can be viewed and edited; `Confirmed` events can be viewed but nobody can edit them; any other status returns 409.
 2. **Field policy (impact-based).** Event name, purpose, description and accessibility needs always apply immediately. Date/time, attendance, venue requirements (layout + facilities) and equipment requirements apply immediately when the new value stays compatible with every active venue booking and equipment arrangement, and are flagged "Needs Review" only when incompatible with at least one. Compatible means: attendance within each booked capacity; a time inside the window each booking holds (and the event's current window when equipment is reserved); facilities only removed; equipment requirements changed while no equipment is reserved. **Confirm in Jira** that this is the intended reading of "does not affect bookings" (SPM-49 AC3/AC5) rather than "nothing is booked".
@@ -168,7 +203,7 @@ The full list, with the reasoning, is `backend/HANDOVER.md` → "Rules and assum
 7. **One open review per field**, and values identical to the stored value are ignored.
 8. **Privacy.** The organiser sees that a change is pending, but never the impact detail, which names other organisers' events.
 9. **Live updates.** The frontend polls every 15 seconds while the tab is visible; there is no push channel.
-10. **Bookings and placeholders.** Venue bookings come from SPM-124's `venue_bookings` table (statuses mapped as described in `backend/HANDOVER.md`); `equipment_reservations` is still a minimal placeholder until the equipment story lands.
+10. **Bookings and placeholders.** Venue bookings come from SPM-124's `venue_bookings` table (statuses mapped as described in `listVenueBookings` in `backend/src/events/planning/event-planning.repository.ts`); `equipment_reservations` is still a minimal placeholder until the equipment story lands.
 
 ## Not covered by automated tests
 

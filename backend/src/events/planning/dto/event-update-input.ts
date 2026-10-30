@@ -4,7 +4,8 @@
  * the per-field edit policy. No I/O lives here so the rules can be unit tested
  * in isolation (see event-update-input.spec.ts).
  *
- * Assumptions (also recorded in backend/HANDOVER.md):
+ * Assumptions (also listed under "Assumptions behind the expected results" in
+ * docs/test-cases/SPM-49_SPM-85_SPM-97_Test-Cases.md):
  * - An update is a PATCH: only the fields being changed are sent. Omitted
  *   fields keep their stored value.
  * - Field rules mirror event creation (event-input.ts): same max lengths, the
