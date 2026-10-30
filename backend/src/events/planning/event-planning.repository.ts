@@ -386,10 +386,19 @@ export class EventPlanningRepository {
     }
     values.push(now);
     assignments.push(`updated_at = $${values.length}`);
+    // SPM-58 AC11: a date/time change puts the event's equipment back under review.
+    // Read the current window first so we can tell a move that keeps the equipment
+    // valid from one that leaves it (which also frees the held reservations).
+    const reschedules = patch.startDateTime !== undefined || patch.endDateTime !== undefined;
+    const previousWindow = reschedules
+      ? (await this.db().query('SELECT start_date_time, end_date_time FROM events WHERE id = $1', [eventId])).rows[0]
+      : undefined;
     const result = await this.db().query(
       `UPDATE events SET ${assignments.join(', ')} WHERE id = $1 RETURNING *`,
       values,
     );
+    if (reschedules && previousWindow)
+      await this.rescheduleEquipment(eventId, previousWindow, result.rows[0], now);
     const venue = await this.db().query(
       `SELECT ${VENUE_SUMMARY_SQL} FROM events WHERE id = $1`,
       [eventId],
@@ -398,6 +407,41 @@ export class EventPlanningRepository {
       ...result.rows[0],
       venue_summary: venue.rows[0]?.venue_summary,
     });
+  }
+
+  /**
+   * SPM-58 AC11: when an event's date/time changes, its equipment requests return
+   * to the Technical Support review queue (Reserved -> Pending Review). If the event
+   * would now run outside the window the equipment was held for (a new start earlier,
+   * or a new end later), the held reservations are released so that equipment is freed
+   * for other events and must be reserved again.
+   *
+   * An IN-window move deliberately leaves those reservations 'Reserved' (equipment
+   * stays held) while the request sits back in Pending Review for re-review — a
+   * documented hold, not a bug, so the request-status/reservation-status mismatch
+   * is intentional. If Technical Support later decides during that re-review that
+   * the equipment cannot be provided after all, markCannotProvide
+   * (equipment-requests.repository.ts) is responsible for releasing that hold,
+   * since it retires both 'Requested' and 'Reserved' reservations linked to the request.
+   */
+  private async rescheduleEquipment(
+    eventId: string,
+    previous: { start_date_time: Date; end_date_time: Date },
+    updated: { start_date_time: Date; end_date_time: Date },
+    now: Date,
+  ): Promise<void> {
+    await this.db().query(
+      "UPDATE equipment_requests SET status = 'Pending Review', updated_at = $2 WHERE event_id = $1 AND status = 'Reserved'",
+      [eventId, now],
+    );
+    const outsideWindow =
+      updated.start_date_time.getTime() < previous.start_date_time.getTime() ||
+      updated.end_date_time.getTime() > previous.end_date_time.getTime();
+    if (outsideWindow)
+      await this.db().query(
+        "UPDATE equipment_reservations SET status = 'Released', updated_at = $2 WHERE event_id = $1 AND status = 'Reserved'",
+        [eventId, now],
+      );
   }
 
   async createFlaggedChange(

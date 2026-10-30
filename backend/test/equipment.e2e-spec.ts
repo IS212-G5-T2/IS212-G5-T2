@@ -7,6 +7,7 @@
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
@@ -127,6 +128,128 @@ describe('Equipment records (SPM-111 e2e)', () => {
 
     // Assert: the API validation constant and database column agree at their inclusive boundary.
     expect(response.body.equipment.quantity).toBe(2_147_483_647);
+  });
+
+  /** EQUIP-AVAIL-08-A: HTTP create persists the three status counts and derives their total. */
+  it('EQUIP-AVAIL-08-A creates inventory from the status quantity breakdown', async () => {
+    const technicalSupport = await createDatabaseUser(
+      'TECH_SUPPORT',
+      'SPM-113 Breakdown Create Support',
+    );
+    const response = await request(app.getHttpServer())
+      .post('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .send({
+        name: 'SPM-113 Lighting Breakdown',
+        type: 'Lighting',
+        location: 'Integration Test Store',
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+      })
+      .expect(201);
+    createdEquipmentIds.push(response.body.equipment.id);
+    const stored = await pool.query(
+      `SELECT quantity, active_quantity, under_maintenance_quantity, retired_quantity
+       FROM equipment WHERE id = $1`,
+      [response.body.equipment.id],
+    );
+
+    expect(response.body.equipment).toMatchObject({
+      quantity: 50,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      isAvailable: true,
+      maintenanceStatus: null,
+    });
+    expect(stored.rows[0]).toEqual({
+      quantity: 50,
+      active_quantity: 10,
+      under_maintenance_quantity: 30,
+      retired_quantity: 10,
+    });
+
+    const defaultInventory = await request(app.getHttpServer())
+      .get('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .expect(200);
+    expect(defaultInventory.body).toContainEqual(
+      expect.objectContaining({
+        id: response.body.equipment.id,
+        quantity: 50,
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+        isAvailable: true,
+      }),
+    );
+
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${response.body.equipment.id}/availability`)
+      .set('Cookie', technicalSupport.cookie)
+      .send({ isAvailable: true })
+      .expect(409);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${response.body.equipment.id}/availability`)
+      .set('Cookie', technicalSupport.cookie)
+      .send({ isAvailable: false, reason: 'Temporarily withheld for inventory check' })
+      .expect(200);
+    const refreshedDefault = await request(app.getHttpServer())
+      .get('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .expect(200);
+    const includeUnavailable = await request(app.getHttpServer())
+      .get('/api/equipment?includeUnavailable=true')
+      .set('Cookie', technicalSupport.cookie)
+      .expect(200);
+    expect(refreshedDefault.body.some((record: { id: string }) => record.id === response.body.equipment.id)).toBe(false);
+    expect(includeUnavailable.body).toContainEqual(
+      expect.objectContaining({
+        id: response.body.equipment.id,
+        quantity: 50,
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+        isAvailable: false,
+      }),
+    );
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${response.body.equipment.id}/availability`)
+      .set('Cookie', technicalSupport.cookie)
+      .send({ isAvailable: false, reason: 'Duplicate unavailable request' })
+      .expect(409);
+    await request(app.getHttpServer())
+      .patch(`/api/equipment/${response.body.equipment.id}/availability`)
+      .set('Cookie', technicalSupport.cookie)
+      .send({ isAvailable: true })
+      .expect(200);
+    const returnedAfterReactivation = await request(app.getHttpServer())
+      .get('/api/equipment')
+      .set('Cookie', technicalSupport.cookie)
+      .expect(200);
+    expect(returnedAfterReactivation.body).toContainEqual(
+      expect.objectContaining({
+        id: response.body.equipment.id,
+        quantity: 50,
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+        isAvailable: true,
+      }),
+    );
+    const transitions = await pool.query(
+      `SELECT quantity, active_quantity, under_maintenance_quantity, retired_quantity,
+              is_available, change_type, reason
+       FROM equipment_audit_trail WHERE equipment_id = $1
+       AND change_type IN ('Marked unavailable', 'Reactivated')
+       ORDER BY CASE WHEN change_type = 'Marked unavailable' THEN 1 ELSE 2 END`,
+      [response.body.equipment.id],
+    );
+    expect(transitions.rows).toEqual([
+      { quantity: 50, active_quantity: 10, under_maintenance_quantity: 30, retired_quantity: 10, is_available: false, change_type: 'Marked unavailable', reason: 'Temporarily withheld for inventory check' },
+      { quantity: 50, active_quantity: 10, under_maintenance_quantity: 30, retired_quantity: 10, is_available: true, change_type: 'Reactivated', reason: null },
+    ]);
   });
 
   // SPM-111 EQUIP-CRE-02-C: the applied location migration supports distinct alphabetical location lookups.
@@ -261,13 +384,23 @@ describe('Equipment records (SPM-111 e2e)', () => {
     // Arrange: a direct SQL helper bypasses application validation to exercise database constraints.
     const insertDirectly = (overrides: Partial<typeof validEquipment>) =>
       pool.query(
-        `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location)
-         VALUES ($1, $2, $3, $4, $5)`,
+        `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status,
+                                active_quantity, under_maintenance_quantity, retired_quantity, location)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
-          `SPM-111 invalid ${randomUUID()}`,
+          'SPM-111 invalid record',
           overrides.type ?? validEquipment.type,
           overrides.quantity ?? validEquipment.quantity,
           overrides.maintenanceStatus ?? validEquipment.maintenanceStatus,
+          (overrides.maintenanceStatus ?? validEquipment.maintenanceStatus) === 'Active'
+            ? overrides.quantity ?? validEquipment.quantity
+            : 0,
+          (overrides.maintenanceStatus ?? validEquipment.maintenanceStatus) === 'Under Maintenance'
+            ? overrides.quantity ?? validEquipment.quantity
+            : 0,
+          (overrides.maintenanceStatus ?? validEquipment.maintenanceStatus) === 'Retired'
+            ? overrides.quantity ?? validEquipment.quantity
+            : 0,
           overrides.location ?? validEquipment.location,
         ],
       );
@@ -298,6 +431,90 @@ describe('Equipment records (SPM-111 e2e)', () => {
     expect(permission.rows).toEqual([
       { create: true, read: true, update: true, delete: false },
     ]);
+  });
+
+  /** EQUIP-AVAIL-08-D: migration preserves each existing inventory and audit row and backfills its former single status bucket. */
+  it('EQUIP-AVAIL-08-D migrates legacy equipment and audit rows without losing their quantity or history', async () => {
+    const client = await pool.connect();
+    const schema = `spm113_${randomUUID().replaceAll('-', '')}`;
+    try {
+      await client.query(`CREATE SCHEMA "${schema}"`);
+      await client.query(`SET search_path TO "${schema}"`);
+      await client.query(`
+        CREATE TABLE equipment (
+          id uuid PRIMARY KEY,
+          quantity integer NOT NULL,
+          maintenance_status text NOT NULL
+        );
+        CREATE TABLE equipment_audit_trail (
+          id uuid PRIMARY KEY,
+          equipment_id uuid NOT NULL,
+          quantity integer NOT NULL,
+          maintenance_status text NOT NULL
+        );
+      `);
+      const equipmentIds: string[] = [];
+      const auditIds: string[] = [];
+      for (const [maintenanceStatus, quantity] of [
+        ['Active', 50],
+        ['Under Maintenance', 40],
+        ['Retired', 30],
+      ] as const) {
+        const equipmentId = `11111111-1111-4111-8111-${String(equipmentIds.length + 1).padStart(12, '0')}`;
+        const auditId = `22222222-2222-4222-8222-${String(auditIds.length + 1).padStart(12, '0')}`;
+        equipmentIds.push(equipmentId);
+        auditIds.push(auditId);
+        await client.query(
+          `INSERT INTO equipment (id, quantity, maintenance_status) VALUES ($1, $2, $3)`,
+          [equipmentId, quantity, maintenanceStatus],
+        );
+        await client.query(
+          `INSERT INTO equipment_audit_trail (id, equipment_id, quantity, maintenance_status)
+           VALUES ($1, $2, $3, $4)`,
+          [auditId, equipmentId, quantity / 2, maintenanceStatus],
+        );
+      }
+
+      const migration = await readFile(
+        new URL('../migrations/015_spm113_equipment_status_quantities.sql', import.meta.url),
+        'utf8',
+      );
+      await client.query(migration);
+
+      const equipment = await client.query(
+        `SELECT id, quantity, maintenance_status, active_quantity, under_maintenance_quantity, retired_quantity
+         FROM equipment ORDER BY maintenance_status`,
+      );
+      const audit = await client.query(
+        `SELECT id, quantity, maintenance_status, active_quantity, under_maintenance_quantity, retired_quantity
+         FROM equipment_audit_trail ORDER BY maintenance_status`,
+      );
+      expect(equipment.rows).toEqual([
+        { id: equipmentIds[0], quantity: 50, maintenance_status: 'Active', active_quantity: 50, under_maintenance_quantity: 0, retired_quantity: 0 },
+        { id: equipmentIds[2], quantity: 30, maintenance_status: 'Retired', active_quantity: 0, under_maintenance_quantity: 0, retired_quantity: 30 },
+        { id: equipmentIds[1], quantity: 40, maintenance_status: 'Under Maintenance', active_quantity: 0, under_maintenance_quantity: 40, retired_quantity: 0 },
+      ]);
+      expect(audit.rows).toEqual([
+        { id: auditIds[0], quantity: 25, maintenance_status: 'Active', active_quantity: 25, under_maintenance_quantity: 0, retired_quantity: 0 },
+        { id: auditIds[2], quantity: 15, maintenance_status: 'Retired', active_quantity: 0, under_maintenance_quantity: 0, retired_quantity: 15 },
+        { id: auditIds[1], quantity: 20, maintenance_status: 'Under Maintenance', active_quantity: 0, under_maintenance_quantity: 20, retired_quantity: 0 },
+      ]);
+      const equipmentSnapshot = structuredClone(equipment.rows);
+      const auditSnapshot = structuredClone(audit.rows);
+      await client.query(migration);
+      expect((await client.query(`SELECT id, quantity, maintenance_status, active_quantity, under_maintenance_quantity, retired_quantity FROM equipment ORDER BY maintenance_status`)).rows).toEqual(equipmentSnapshot);
+      expect((await client.query(`SELECT id, quantity, maintenance_status, active_quantity, under_maintenance_quantity, retired_quantity FROM equipment_audit_trail ORDER BY maintenance_status`)).rows).toEqual(auditSnapshot);
+      await expect(
+        client.query(
+          `UPDATE equipment SET active_quantity = -1 WHERE id = $1`,
+          [equipmentIds[0]],
+        ),
+      ).rejects.toThrow();
+    } finally {
+      await client.query('RESET search_path');
+      await client.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      client.release();
+    }
   });
 
   async function createDatabaseUser(

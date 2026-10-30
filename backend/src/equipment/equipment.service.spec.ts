@@ -36,6 +36,9 @@ const createdRow = {
   equipment_type: 'Visual',
   quantity: 10,
   maintenance_status: 'Active',
+  active_quantity: 10,
+  under_maintenance_quantity: 0,
+  retired_quantity: 0,
   location: 'Storage Room A',
   created_at: new Date('2026-10-03T00:00:00.000Z'),
   updated_at: new Date('2026-10-03T00:00:00.000Z'),
@@ -55,6 +58,46 @@ beforeEach(async () => {
 });
 
 describe('EquipmentService', () => {
+  /** EQUIP-AVAIL-03-C: overlapping Reserved quantities are subtracted from Active stock only. */
+  it('EQUIP-AVAIL-03-C returns a quantity breakdown and the remaining stock', async () => {
+    database.query.mockResolvedValue({
+      rows: [{ ...createdRow, active_quantity: 10, under_maintenance_quantity: 2, retired_quantity: 1, quantity: 13, is_available: true, reserved_quantity: 4, reserved_until: new Date('2030-01-01T12:00:00.000Z') }],
+    });
+    await expect(service.getAvailability(technicalSupportUser, {
+      startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T11:00:00.000Z', equipmentType: 'Visual',
+    })).resolves.toEqual([expect.objectContaining({
+      name: 'Conference projector', activeQuantity: 10, underMaintenanceQuantity: 2,
+      retiredQuantity: 1, reservedQuantity: 4, availableQuantity: 6, isAvailable: true,
+      reservedUntil: '2030-01-01T12:00:00.000Z', reason: 'Under maintenance; Retired; Reserved',
+    })]);
+    expect(database.query.mock.calls[0][0]).toContain("r.status = 'Reserved'");
+    expect(database.query.mock.calls[0][0]).toContain('ev.start_date_time < $2');
+    expect(database.query.mock.calls[0][0]).toContain('ev.end_date_time > $1');
+  });
+
+  /** EQUIP-AVAIL-01-SEC-1: date-window availability is Technical-Support-only. */
+  it('refuses availability checks before issuing SQL to a non-technical user', async () => {
+    await expect(service.getAvailability(userWithRole('COORDINATOR'), {
+      startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z',
+    })).rejects.toBeInstanceOf(ForbiddenException);
+    expect(database.query).not.toHaveBeenCalled();
+  });
+
+  /** EQUIP-AVAIL-05-B: manual unavailability wins over otherwise Active stock. */
+  it('reports zero available units when a staff member manually disabled a record', async () => {
+    database.query.mockResolvedValue({ rows: [{ ...createdRow, is_available: false, reserved_quantity: 0, reserved_until: null }] });
+    await expect(service.getAvailability(technicalSupportUser, {
+      startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z',
+    })).resolves.toEqual([expect.objectContaining({ availableQuantity: 0, isAvailable: false, reason: 'Manually unavailable' })]);
+  });
+
+  /** EQUIP-AVAIL-05-A: an active record with no reservation stays available without a reason. */
+  it('reports a clean active record as fully available', async () => {
+    database.query.mockResolvedValue({ rows: [{ ...createdRow, is_available: true, reserved_quantity: 0, reserved_until: null }] });
+    await expect(service.getAvailability(technicalSupportUser, {
+      startDateTime: '2030-01-01T10:00:00.000Z', endDateTime: '2030-01-01T10:01:00.000Z',
+    })).resolves.toEqual([expect.objectContaining({ availableQuantity: 10, isAvailable: true, reason: null, reservedUntil: null })]);
+  });
   // SPM-111 EQUIP-CRE-03-C: service validation remains effective even when UI checks are bypassed.
   it.each([
     [
@@ -170,7 +213,7 @@ describe('EquipmentService', () => {
     // Assert: persistence receives all fields and the UI can display confirmation.
     expect(database.query).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO equipment'),
-      ['Conference projector', 'Visual', 10, 'Active', 'Storage Room A'],
+      ['Conference projector', 'Visual', 10, 'Active', 10, 0, 0, 'Storage Room A'],
     );
     expect(result).toMatchObject({
       equipment: {
@@ -183,6 +226,116 @@ describe('EquipmentService', () => {
       },
       message: 'Equipment record created.',
     });
+  });
+
+  /** EQUIP-AVAIL-08-A: creation persists each status count and returns their summed total. */
+  it('EQUIP-AVAIL-08-A creates mixed-status equipment from the three quantity buckets', async () => {
+    const mixed = {
+      ...createdRow,
+      quantity: 50,
+      active_quantity: 10,
+      under_maintenance_quantity: 30,
+      retired_quantity: 10,
+      is_available: true,
+    };
+    database.query.mockResolvedValue({ rows: [mixed] });
+
+    const result = await service.create(technicalSupportUser, {
+      name: 'Conference projector',
+      type: 'Visual',
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      location: 'Storage Room A',
+    });
+
+    expect(database.query).toHaveBeenCalledWith(
+      expect.stringMatching(/active_quantity[\s\S]*under_maintenance_quantity[\s\S]*retired_quantity/i),
+      ['Conference projector', 'Visual', 50, 'Active', 10, 30, 10, 'Storage Room A'],
+    );
+    expect(result.equipment).toMatchObject({
+      quantity: 50,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      isAvailable: true,
+    });
+    expect(result.equipment.maintenanceStatus).toBeNull();
+  });
+
+  /** EQUIP-AVAIL-08-B: edits persist every changed status bucket and record those counts in history. */
+  it('EQUIP-AVAIL-08-B updates retired quantity and includes the status breakdown in the audit snapshot', async () => {
+    const before = { ...createdRow, is_available: false };
+    const after = {
+      ...createdRow,
+      quantity: 50,
+      active_quantity: 10,
+      under_maintenance_quantity: 30,
+      retired_quantity: 10,
+      maintenance_status: 'Active',
+      is_available: false,
+    };
+    const client = {
+      query: vi.fn()
+        .mockResolvedValueOnce({ rows: [before] })
+        .mockResolvedValueOnce({ rows: [after] })
+        .mockResolvedValueOnce({ rows: [] }),
+    };
+    database.transaction.mockImplementation((work) => work(client));
+
+    const result = await service.update(
+      technicalSupportUser,
+      '11111111-1111-4111-8111-111111111118',
+      {
+        name: 'Conference projector',
+        type: 'Visual',
+        location: 'Storage Room A',
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+      },
+    );
+
+    expect(client.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/active_quantity = \$7[\s\S]*under_maintenance_quantity = \$8[\s\S]*retired_quantity = \$9/i),
+      ['11111111-1111-4111-8111-111111111118', 'Conference projector', 'Visual', 'Storage Room A', 'Active', 50, 10, 30, 10],
+    );
+    expect(client.query).toHaveBeenNthCalledWith(
+      3,
+      expect.stringMatching(/active_quantity, under_maintenance_quantity, retired_quantity/i),
+      expect.arrayContaining([50, 10, 30, 10, false, 'Updated fields: Under Maintenance quantity, Retired quantity.']),
+    );
+    expect(result.equipment).toMatchObject({
+      quantity: 50,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      isAvailable: false,
+      maintenanceStatus: null,
+    });
+  });
+
+  /** EQUIP-AVAIL-08-D: pre-migration inventory reads assign legacy totals to exactly their former status bucket. */
+  it('EQUIP-AVAIL-08-D maps each legacy equipment status to its quantity bucket', async () => {
+    const { active_quantity: _active, under_maintenance_quantity: _maintenance, retired_quantity: _retired, ...legacy } = createdRow;
+    database.query.mockResolvedValue({
+      rows: [
+        { ...legacy, id: 'legacy-active', quantity: 5, maintenance_status: 'Active' },
+        { ...legacy, id: 'legacy-maintenance', quantity: 7, maintenance_status: 'Under Maintenance' },
+        { ...legacy, id: 'legacy-retired', quantity: 9, maintenance_status: 'Retired' },
+      ],
+    });
+
+    const inventory = await service.list(technicalSupportUser);
+
+    expect(inventory.map(({ id, activeQuantity, underMaintenanceQuantity, retiredQuantity }) => ({
+      id, activeQuantity, underMaintenanceQuantity, retiredQuantity,
+    }))).toEqual([
+      { id: 'legacy-active', activeQuantity: 5, underMaintenanceQuantity: 0, retiredQuantity: 0 },
+      { id: 'legacy-maintenance', activeQuantity: 0, underMaintenanceQuantity: 7, retiredQuantity: 0 },
+      { id: 'legacy-retired', activeQuantity: 0, underMaintenanceQuantity: 0, retiredQuantity: 9 },
+    ]);
   });
 
   // SPM-111 EQUIP-CRE-05-A: a newly created record is returned by inventory retrieval.
@@ -291,13 +444,16 @@ describe('EquipmentService', () => {
     // Arrange: the database holds one record per supported maintenance status.
     database.query.mockResolvedValue({
       rows: [
-        { ...createdRow, id: 'equipment-active', maintenance_status: 'Active' },
+        { ...createdRow, id: 'equipment-active', maintenance_status: 'Active', active_quantity: 10, under_maintenance_quantity: 0, retired_quantity: 0 },
         {
           ...createdRow,
           id: 'equipment-maintenance',
           maintenance_status: 'Under Maintenance',
+          active_quantity: 0,
+          under_maintenance_quantity: 10,
+          retired_quantity: 0,
         },
-        { ...createdRow, id: 'equipment-retired', maintenance_status: 'Retired' },
+        { ...createdRow, id: 'equipment-retired', maintenance_status: 'Retired', active_quantity: 0, under_maintenance_quantity: 0, retired_quantity: 10 },
       ],
     });
 
@@ -432,6 +588,9 @@ describe('EquipmentService', () => {
         location: 'Storage Room A',
         maintenance_status: 'Under Maintenance',
         quantity: 10,
+        active_quantity: 0,
+        under_maintenance_quantity: 10,
+        retired_quantity: 0,
         is_available: false,
         change_type: 'Marked unavailable',
         reason: 'Lens sent for repair',
@@ -453,6 +612,9 @@ describe('EquipmentService', () => {
       location: 'Storage Room A',
       maintenanceStatus: 'Under Maintenance',
       quantity: 10,
+      activeQuantity: 0,
+      underMaintenanceQuantity: 10,
+      retiredQuantity: 0,
       isAvailable: false,
       changeType: 'Marked unavailable',
       reason: 'Lens sent for repair',
@@ -496,6 +658,9 @@ describe('EquipmentService', () => {
       equipment_name: 'Updated projector',
       equipment_type: 'Audio',
       quantity: 7,
+      active_quantity: 0,
+      under_maintenance_quantity: 7,
+      retired_quantity: 0,
       maintenance_status: 'Under Maintenance',
       location: 'Main Hall',
       is_available: true,
@@ -528,8 +693,8 @@ describe('EquipmentService', () => {
     );
     expect(client.query).toHaveBeenNthCalledWith(
       2,
-      expect.stringMatching(/UPDATE equipment[\s\S]*maintenance_status = \$5, quantity = \$6[\s\S]*RETURNING/i),
-      ['11111111-1111-4111-8111-111111111118', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7],
+      expect.stringMatching(/UPDATE equipment[\s\S]*maintenance_status = \$5, quantity = \$6, active_quantity = \$7[\s\S]*RETURNING/i),
+      ['11111111-1111-4111-8111-111111111118', 'Updated projector', 'Audio', 'Main Hall', 'Under Maintenance', 7, 0, 7, 0],
     );
     expect(client.query).toHaveBeenNthCalledWith(
       3,
@@ -541,8 +706,11 @@ describe('EquipmentService', () => {
         'Main Hall',
         'Under Maintenance',
         7,
+        0,
+        7,
+        0,
         true,
-        'Updated fields: Equipment name, Equipment type, Location, Maintenance status, Quantity available.',
+        'Updated fields: Equipment name, Equipment type, Location, Active quantity, Under Maintenance quantity.',
         'support@example.test',
       ],
     );
@@ -572,7 +740,7 @@ describe('EquipmentService', () => {
     });
 
     expect(client.query).toHaveBeenNthCalledWith(2, expect.stringMatching(/UPDATE equipment[\s\S]*RETURNING/i), [
-      '11111111-1111-4111-8111-111111111118', 'Updated projector', 'Visual', 'Storage Room A', 'Active', 5,
+      '11111111-1111-4111-8111-111111111118', 'Updated projector', 'Visual', 'Storage Room A', 'Active', 5, 5, 0, 0,
     ]);
     expect(JSON.stringify(result)).not.toMatch(/must not persist/);
   });
@@ -640,8 +808,9 @@ describe('EquipmentService', () => {
         name: before.equipment_name,
         type: before.equipment_type,
         location: before.location,
-        quantity: before.quantity,
-        maintenanceStatus: before.maintenance_status,
+        activeQuantity: before.active_quantity,
+        underMaintenanceQuantity: before.under_maintenance_quantity,
+        retiredQuantity: before.retired_quantity,
       },
     );
 
@@ -652,6 +821,9 @@ describe('EquipmentService', () => {
         type: before.equipment_type,
         location: before.location,
         quantity: before.quantity,
+        activeQuantity: before.active_quantity,
+        underMaintenanceQuantity: before.under_maintenance_quantity,
+        retiredQuantity: before.retired_quantity,
         maintenanceStatus: before.maintenance_status,
         isAvailable: true,
         createdAt: before.created_at.toISOString(),

@@ -25,8 +25,7 @@
 //   A3 (whitespace-padded terms are trimmed before matching): EQUIP-VIEW-03-E.
 //   A4 (exact empty-state wording "No equipment records match your search."
 //       distinct from "No equipment records found."): EQUIP-VIEW-03-C.
-//   A5 (maintenance status renders as plain text, not a coloured badge):
-//       EQUIP-VIEW-04-A.
+//   Quantity now reports the three status buckets under SPM-113 AC8.
 //   A6 (each box matches only its own field: type box never reads name or
 //       location, location box never reads name or type): EQUIP-VIEW-03-G, 03-H.
 import { render, screen, within } from "@testing-library/react";
@@ -66,7 +65,9 @@ function makeRecord(overrides: Partial<EquipmentRecord> & { id: string }): Equip
     name: "Conference projector",
     type: "Visual",
     quantity: 10,
-    maintenanceStatus: "Active",
+    activeQuantity: 10,
+    underMaintenanceQuantity: 0,
+    retiredQuantity: 0,
     location: "Storage Room A",
     createdAt: "2026-10-03T00:00:00.000Z",
     updatedAt: "2026-10-03T00:00:00.000Z",
@@ -208,7 +209,9 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
         id: "equipment-2",
         name: "Mixing console",
         type: "Audio",
-        maintenanceStatus: "Under Maintenance",
+        activeQuantity: 0,
+        underMaintenanceQuantity: 3,
+        retiredQuantity: 0,
         location: "Control Room A",
       }),
     ]);
@@ -421,48 +424,98 @@ describe("EquipmentAvailabilityPage: AC3 search by type or location", () => {
   });
 });
 
-describe("EquipmentAvailabilityPage: AC4 view each item's status", () => {
-  // EQUIP-VIEW-04-A. Assumption A5. Record names are deliberately neutral (no
-  // status word in the name itself) so the Active/Retired assertions can only
-  // pass via the actual status column, not the name text. Kills: the status
-  // column rendering a hard-coded or swapped value, or status leaking in from
-  // the name field instead of maintenanceStatus (the original "Active
-  // projector"/"Retired lighting rig" names let this bug hide, since the name
-  // text itself contained the expected substring).
-  it("EQUIP-VIEW-04-A renders Active, Under Maintenance, and Retired statuses", async () => {
-    // Arrange: load one equipment record in each supported maintenance status.
+describe("EquipmentAvailabilityPage: AC8 quantity breakdown", () => {
+  /** EQUIP-AVAIL-08-A: the Quantity column renders all three labelled status buckets and their total. */
+  it("EQUIP-AVAIL-08-A displays Active, Under Maintenance, and Retired quantities", async () => {
+    // Arrange: load the user's 10/30/10 example as one equipment record.
     getEquipment.mockResolvedValue([
-      makeRecord({ id: "equipment-1", name: "Projector unit A", quantity: 3 }),
-      makeRecord({
-        id: "equipment-2",
-        name: "Microphone unit B",
-        type: "Audio",
-        quantity: 25,
-        maintenanceStatus: "Under Maintenance",
-        location: "Workshop",
-      }),
-      makeRecord({
-        id: "equipment-3",
-        name: "Lighting rig unit C",
-        type: "Lighting",
-        quantity: 10,
-        maintenanceStatus: "Retired",
-        location: "Archive",
-      }),
+      makeRecord({ id: "equipment-1", name: "Lighting", type: "Lighting", quantity: 50, activeQuantity: 10, underMaintenanceQuantity: 30, retiredQuantity: 10 }),
     ]);
 
     // Act: load the Technical Support equipment inventory.
     render(<EquipmentAvailabilityPage />);
-    expect(await screen.findByText("Projector unit A")).toBeInTheDocument();
+    expect(await screen.findByRole("row", { name: /Lighting Lighting/ })).toBeInTheDocument();
 
-    // Assert: each record row displays its corresponding maintenance status.
-    const rows = screen.getAllByRole("row");
-    expect(rows[1]).toHaveTextContent("Projector unit A");
-    expect(rows[1]).toHaveTextContent("Active");
-    expect(rows[2]).toHaveTextContent("Microphone unit B");
-    expect(rows[2]).toHaveTextContent("Under Maintenance");
-    expect(rows[3]).toHaveTextContent("Lighting rig unit C");
-    expect(rows[3]).toHaveTextContent("Retired");
+    // Assert: the single Quantity column shows each bucket and the derived total.
+    const row = screen.getByRole("row", { name: /Lighting Lighting/ });
+    expect(row).toHaveTextContent("Active: 10");
+    expect(row).toHaveTextContent("Under Maintenance: 30");
+    expect(row).toHaveTextContent("Retired: 10");
+    expect(row).toHaveTextContent("Total: 50");
+    expect(row).toHaveTextContent("Mixed");
+  });
+
+  /** EQUIP-VIEW-04-A: the retained Maintenance status column summarizes a single populated bucket or reports Mixed. */
+  it("EQUIP-VIEW-04-A derives the maintenance status column from nonzero buckets", async () => {
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      makeRecord({ id: "active", name: "Active item", activeQuantity: 3, underMaintenanceQuantity: 0, retiredQuantity: 0, quantity: 3 }),
+      makeRecord({ id: "maintenance", name: "Maintenance item", activeQuantity: 0, underMaintenanceQuantity: 3, retiredQuantity: 0, quantity: 3 }),
+      makeRecord({ id: "retired", name: "Retired item", activeQuantity: 0, underMaintenanceQuantity: 0, retiredQuantity: 3, quantity: 3 }),
+      makeRecord({ id: "mixed", name: "Mixed item", activeQuantity: 1, underMaintenanceQuantity: 1, retiredQuantity: 0, quantity: 2 }),
+    ]);
+    render(<EquipmentAvailabilityPage />);
+    expect(await screen.findByText("Active item")).toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /show unavailable/i }));
+    expect(screen.getByRole("columnheader", { name: /maintenance status/i })).toBeInTheDocument();
+    expect(screen.getByText("Active", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("Retired", { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText("Mixed", { selector: "td" })).toBeInTheDocument();
+  });
+
+  /** EQUIP-AVAIL-08-E: effective Available is Yes only when Active quantity is positive and the manual flag is true. */
+  it("EQUIP-AVAIL-08-E derives Available from the Active bucket and respects the manual flag", async () => {
+    const user = userEvent.setup();
+    getEquipment
+      .mockResolvedValueOnce([
+        makeRecord({ id: "no-active", name: "All maintenance", activeQuantity: 0, underMaintenanceQuantity: 2, retiredQuantity: 0, quantity: 2 }),
+        makeRecord({ id: "has-active", name: "One active", activeQuantity: 1, underMaintenanceQuantity: 0, retiredQuantity: 0, quantity: 1 }),
+        makeRecord({ id: "manual-off", name: "Manually unavailable", activeQuantity: 4, underMaintenanceQuantity: 0, retiredQuantity: 0, quantity: 4, isAvailable: false }),
+      ])
+      .mockResolvedValueOnce([
+        makeRecord({ id: "no-active", name: "All maintenance", activeQuantity: 0, underMaintenanceQuantity: 2, retiredQuantity: 0, quantity: 2 }),
+        makeRecord({ id: "has-active", name: "One active", activeQuantity: 1, underMaintenanceQuantity: 0, retiredQuantity: 0, quantity: 1 }),
+        makeRecord({ id: "manual-off", name: "Manually unavailable", activeQuantity: 4, underMaintenanceQuantity: 0, retiredQuantity: 0, quantity: 4, isAvailable: false }),
+      ]);
+    render(<EquipmentAvailabilityPage />);
+    await screen.findByText("One active");
+    await user.click(screen.getByRole("checkbox", { name: /show unavailable/i }));
+
+    const noActiveRow = screen.getByText("All maintenance").closest("tr")!;
+    const activeRow = screen.getByText("One active").closest("tr")!;
+    const manualRow = screen.getByText("Manually unavailable").closest("tr")!;
+    expect(noActiveRow).toHaveTextContent("No");
+    expect(activeRow).toHaveTextContent("Yes");
+    expect(manualRow).toHaveTextContent("No");
+    expect(manualRow).toHaveTextContent("Active: 4");
+    expect(manualRow).toHaveTextContent("Retired: 0");
+  });
+
+  /** EQUIP-AVAIL-08-C: quantity buckets do not override the independent SPM-119 manual unavailable flag. */
+  it("EQUIP-AVAIL-08-C keeps a manually unavailable item unavailable despite positive Active quantity", async () => {
+    const user = userEvent.setup();
+    getEquipment.mockResolvedValue([
+      makeRecord({
+        id: "manual-off",
+        name: "Unavailable Lighting",
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+        quantity: 50,
+        isAvailable: false,
+      }),
+    ]);
+
+    render(<EquipmentAvailabilityPage />);
+    await user.click(await screen.findByRole("checkbox", { name: /show unavailable/i }));
+
+    const row = screen.getByText("Unavailable Lighting").closest("tr")!;
+    expect(row).toHaveTextContent("No");
+    expect(row).toHaveTextContent("Active: 10");
+    expect(row).toHaveTextContent("Under Maintenance: 30");
+    expect(row).toHaveTextContent("Retired: 10");
+    expect(row).toHaveTextContent("Reactivate");
   });
 });
 
@@ -487,8 +540,10 @@ describe("EquipmentAvailabilityPage: AC2 see all record fields", () => {
 
     // Assert: the record's value for each field is visible, including the quantity (10).
     expect(screen.getByText("Visual")).toBeInTheDocument();
-    expect(screen.getByText("10")).toBeInTheDocument();
-    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Active: 10")).toBeInTheDocument();
+    expect(screen.getByText("Under Maintenance: 0")).toBeInTheDocument();
+    expect(screen.getByText("Retired: 0")).toBeInTheDocument();
+    expect(screen.getByText("Total: 10")).toBeInTheDocument();
     expect(screen.getByText("Storage Room A")).toBeInTheDocument();
   });
 });
