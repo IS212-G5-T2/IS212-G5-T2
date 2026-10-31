@@ -163,6 +163,20 @@ DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- te
 node scripts/mutation/run.mjs --mutants spm136.mutants.mjs   # scratch copy only; needs DATABASE_URL
 ```
 
+
+## Request cancellation of my event (SPM-155)
+
+The submitting Organiser asks the assigned Coordinator to cancel their event; the request never changes the event.
+
+| Route | Who | Behaviour |
+|---|---|---|
+| `POST /api/events/:id/cancellation-requests` | The submitting Organiser | Body `{ "reason"?: string }` (strict: any other key is 400 `INVALID_REQUEST`). The reason is trimmed, 0 to 500 code points (spaces only is stored as null; more than 500 is 422 `INVALID_REASON`; not text is 400). 201 `{ request, message }` with the MSG-CR-01 text. 403 `FORBIDDEN` for anyone else, 409 `EVENT_NOT_CANCELLABLE` unless the event is Submitted, Approved, Planning or Confirmed (SPM-136's set; a Draft owned by the caller is also 409), 409 `CANCELLATION_REQUEST_PENDING` while one is pending (the event row lock and the unique index on `pending_key` settle simultaneous requests to one). |
+| `GET /api/events/:id/cancellation-requests` | The owner or the assigned Coordinator | Newest first, `Cache-Control: no-store`. Each request has the stored `status` (`pending`, `accepted`, `declined`) and a derived `displayStatus` (a pending request on a Completed or Cancelled event is `closed` with `closedNote`; nothing is written). 403 for anyone else. |
+| `GET /api/cancellation-requests` | Organiser or Coordinator | The caller's latest request on each of their events (the event-list indicator), `no-store`. |
+| `POST /api/cancellation-requests/:id/decision` | The Coordinator assigned now | Body `{ "decision": "accept" \| "decline" }` (400 `INVALID_DECISION`). Order: 403 (an unknown or malformed request id gets the same 403 as another user's request, so ids cannot be probed), 400, 409 `CANCELLATION_REQUEST_DECIDED`, 409 `EVENT_NOT_CANCELLABLE`, then a compare-and-set on `status = 'pending'`. Accept runs the request update and `CancelEventService.cancelInTransaction` (all SPM-136 effects and notifications) in one transaction, so a failure rolls both back; decline changes only the request. No notification is written for a request or a decline. |
+
+Schema: `backend/migrations/028_spm155_cancellation_requests.sql` (the same file is `database/postgresql/init/028_spm155_cancellation_requests.sql` for fresh volumes); idempotent. Tests: `npx vitest run src/events/cancellation-requests src/events/cancel`; `DATABASE_URL=postgresql://spm:spm@localhost:5432/spm_test npm run test:e2e -- test/cancellation-requests.e2e-spec.ts`; fault injection `node scripts/mutation/run.mjs --mutants spm155.mutants.mjs`.
+
 ## Coordinator queue (SPM-48)
 
 `GET /api/coordinator/queue[?status=planning,submitted]` returns the signed-in coordinator's queue: every event assigned to them (the same records as `GET /api/events` for a coordinator, `coordinator_id` = session uid), each with a `queue` object. Unassigned requests stay in the Lead's queue (SPM-123), drafts live in `event_drafts` and never appear, and an event reassigned away leaves the queue (SPM-47 AC6). Coordinator role only: no session 401, any other role 403 "Coordinator access required.". `status` is optional: one status or a comma-separated list of the seven terms, any case; an unknown value (including `Under Review` and `draft`) is 400 "Unknown status filter: <value>.". Served with `Cache-Control: no-store` (AC4).

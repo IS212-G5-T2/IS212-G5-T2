@@ -1,0 +1,141 @@
+{
+  "story": "SPM-155",
+  "title": "Request Cancellation of My Event (Event Organiser)",
+  "note": "Test cases follow docs/specs/SPM-155-test-cases.md v1.0 (27 Oct 2026, 30 cases CANCEL-REQUEST-01-A to 05-D). G1 PRIMARY coverage was checked against the Confluence matrix (page 35848252, 30 ids; saved in cycle-01/confluence-matrix-ids.txt): PASS. Supporting ids (CANCEL-REQUEST-nn-SUP-*) name their parent AC and were approved by the user on 31 Oct 2026. Deviations from the document are in spec-conflicts.md (SC-155-001 to SC-155-007, approved by the user on 31 Oct 2026). Shared files edited by SPM-155 (cancel-event.service.ts, CancelEventDialog.tsx, EventCard.tsx, EventListPage.tsx) are not in `sources`: the scope measures only the story's own files, and a whole-file figure would count lines owned by SPM-136, SPM-61 and SPM-48. Their whole-file coverage in the full unit runs is 100% statements, branches, functions and lines (npm run test:cov in cycle-01 backend-cov.log and frontend-cov.log), including the SPM-155 edits.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-request.input.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-request.status.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/cancellation-requests/cancellation-requests.service.spec.ts"
+      },
+      {
+        "glob": "backend/src/events/cancel/cancel-event.service.spec.ts",
+        "titleMatch": "CANCEL-REQUEST-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/cancellation-requests.e2e-spec.ts"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/features/events/api/cancellation-requests-api.test.ts"
+      },
+      {
+        "glob": "frontend/src/features/events/lib/cancellationRequests.test.ts"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/cancellation-request/CancellationRequestPanel.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/cancellation-request/CancellationDecisionPanel.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/cancellation-request/useCancellationRequests.test.ts"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/cancel/CancelEventDialog.confirm.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.cancellationRequest.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventCard.cancellationRequest.test.tsx"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.cancellationRequest.test.tsx"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/cancellation-requests/cancellation-request.input.ts",
+      "backend/src/events/cancellation-requests/cancellation-request.messages.ts",
+      "backend/src/events/cancellation-requests/cancellation-request.status.ts",
+      "backend/src/events/cancellation-requests/cancellation-requests.service.ts",
+      "backend/src/events/cancellation-requests/cancellation-requests.controller.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/api/cancellation-requests-api.ts",
+      "frontend/src/features/events/lib/cancellationRequests.ts",
+      "frontend/src/features/events/pages/detail/cancellation-request/CancellationRequestPanel.tsx",
+      "frontend/src/features/events/pages/detail/cancellation-request/CancellationDecisionPanel.tsx",
+      "frontend/src/features/events/pages/detail/cancellation-request/useCancellationRequests.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    },
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "./vitest.config.e2e.ts",
+      "coverage": "backend",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-cancellation-requests",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm155.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm155.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-cancellation-requests",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm155.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm155.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

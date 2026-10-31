@@ -24,6 +24,12 @@ vi.mock("@/features/events/api/change-requests-api", () => ({
   fetchNewChangeRequestEventIds: vi.fn(() => Promise.resolve(new Set<string>())),
 }));
 
+// SPM-155 D13b: the organiser's cancellation request indicator loads separately too. These SPM-36 and SPM-94 tests
+// count and queue /events loads through api(), so the indicator's own request is kept out of that queue.
+vi.mock("@/features/events/api/cancellation-requests-api", () => ({
+  fetchMyCancellationRequests: vi.fn(() => Promise.resolve([])),
+}));
+
 const apiMock = vi.mocked(api);
 const pendingRequestsMock = vi.mocked(fetchMyChangeRequests);
 

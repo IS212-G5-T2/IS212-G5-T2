@@ -80,7 +80,10 @@ if (args.includes('--list')) {
 }
 
 const sha = (path) => createHash('sha256').update(readFileSync(path)).digest('hex');
-const originals = new Map([...new Set(selected.map((m) => m.file))].map((f) => [f, sha(join(root, f))]));
+// A mutant may also edit further files (`also: [{ file, edits }]`), for example a migration together with the service
+// that relied on it; every file it touches is hashed here and restored after the run.
+const filesOf = (m) => [m.file, ...(m.also ?? []).map((extra) => extra.file)];
+const originals = new Map([...new Set(selected.flatMap(filesOf))].map((f) => [f, sha(join(root, f))]));
 
 const scratchParent = mkdtempSync(join(tmpdir(), 'spm-venue-mutation-'));
 const scratch = join(scratchParent, 'backend');
@@ -174,6 +177,19 @@ try {
         if (mutated.split(match).length !== 2) applied = false;
         mutated = mutated.replace(match, () => replacement);
       }
+      // Further files of the same mutant: each edit must also apply exactly once.
+      const extraFiles = (m.also ?? []).map((extra) => {
+        const extraPath = join(scratch, extra.file);
+        const extraSource = readFileSync(extraPath, 'utf8');
+        let extraMutated = extraSource;
+        for (const [from, to] of extra.edits) {
+          const match = extraMutated.includes(from) ? from : from.replace(/\n/g, '\r\n');
+          const replacement = match === from ? to : to.replace(/\n/g, '\r\n');
+          if (extraMutated.split(match).length !== 2) applied = false;
+          extraMutated = extraMutated.replace(match, () => replacement);
+        }
+        return { path: extraPath, source: extraSource, mutated: extraMutated };
+      });
       let status;
       let by = [];
       const skippedMappings = [];
@@ -185,6 +201,7 @@ try {
         tally.misapplied += 1;
       } else {
         writeFileSync(path, mutated);
+        for (const extra of extraFiles) writeFileSync(extra.path, extra.mutated);
         const mappings = measureOut ? undefined : mappingsOf(m)?.filter((mapping) => suitesOf(m).includes(mapping.suite));
         if (mappings?.length) {
           for (const mapping of mappings) {
@@ -219,6 +236,7 @@ try {
           skippedMappings.push(...suitesOf(m).filter((s) => skipped(s)).map((s) => `${s} (set ${skipped(s)})`));
         }
         writeFileSync(path, source);
+        for (const extra of extraFiles) writeFileSync(extra.path, extra.source);
         if (emptyMappings.length) {
           status = 'MISAPPLIED';
           tally.misapplied += 1;

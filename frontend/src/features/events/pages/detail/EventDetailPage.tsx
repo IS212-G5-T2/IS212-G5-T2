@@ -39,6 +39,8 @@ import {
 } from "@/utils/planning";
 import { canCancelEvent } from "@/features/events/lib/cancellation";
 import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
+import { CancellationDecisionPanel } from "@/features/events/pages/detail/cancellation-request/CancellationDecisionPanel";
+import { CancellationRequestPanel } from "@/features/events/pages/detail/cancellation-request/CancellationRequestPanel";
 import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
 import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
@@ -378,6 +380,19 @@ export function EventDetailPage() {
           returnFocus={() => cancelledBannerRef.current ?? cancelTriggerRef.current}
           onCancelled={() => setEventStatus(event.id, "cancelled")}
         />
+      )}
+
+      {/* SPM-155: the owning organiser requests cancellation and follows the request (AC1, AC2); the assigned
+          coordinator decides it (AC3 to AC5). Each panel shows itself only to its own role; drafts have no requests. */}
+      {event.status !== "draft" && (
+        <>
+          <CancellationRequestPanel event={event} currentUser={currentUser} />
+          <CancellationDecisionPanel
+            event={event}
+            currentUser={currentUser}
+            onAccepted={() => setEventStatus(event.id, "cancelled")}
+          />
+        </>
       )}
 
       {/* SPM-64 AC5: the owner sees the status of their latest change request.

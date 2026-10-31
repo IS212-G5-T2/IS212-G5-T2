@@ -293,6 +293,69 @@ describe('SPM-136 cancellation lookup and releaser contract', () => {
   });
 });
 
+describe('SPM-155 transactional cancellation entry (D13a: CANCEL-REQUEST-04-SUP-ENTRY, AC4)', () => {
+  // Kills: M10c, M8b
+  /** CANCEL-REQUEST-04-SUP-ENTRY (DERIVED: Gate-1 D2/D13a): the core runs on the caller's client and opens no transaction of its own. */
+  it('CANCEL-REQUEST-04-SUP-ENTRY: cancelInTransaction runs on the supplied client with the actor and instant, and opens no transaction', async () => {
+    // Arrange: a Planning event assigned to COO-01 and a recording releaser
+    const { database, client, statements, releaserRecorder } = transactionalSetup({ recipients: ['att-1'] });
+    const service = new CancelEventService(database as never, { now: () => new Date('2030-01-01T00:00:00.000Z') }, [releaserRecorder]);
+
+    // Act: the request flow calls the core with the assigned coordinator and ITS instant (not the service clock)
+    const result = await service.cancelInTransaction(client as never, coordinator, EVENT, NOW);
+
+    // Assert: the response is the same literal as POST status-change; no second transaction or pool query was used
+    expect(result).toEqual({ eventId: EVENT, status: 'Cancelled', message: 'Annual Gala Dinner has been cancelled.' });
+    expect(database.transaction).not.toHaveBeenCalled();
+    expect(database.query).not.toHaveBeenCalled();
+    // The compare-and-set carries the passed actor and instant; the history row too; the releaser got the same client
+    expect(statements.find((s) => /UPDATE events/.test(s.sql))?.params).toEqual([EVENT, 'coo-01', NOW, ['Submitted', 'Approved', 'Planning', 'Confirmed']]);
+    expect(statements.find((s) => /INSERT INTO event_status_history/.test(s.sql))?.params).toEqual([expect.any(String), EVENT, 'Planning', 'coo-01', NOW]);
+    expect(releaserRecorder.release).toHaveBeenCalledWith(EVENT, client, NOW);
+  });
+
+  // Kills: M36
+  /** CANCEL-REQUEST-04-SUP-ENTRY: the entry re-checks the assigned Coordinator on the locked row, so the requesting Organiser cannot use it. */
+  it.each([
+    ['ORG-01, the requester', organiser],
+    ['COO-02, not assigned', otherCoordinator],
+    ['LEAD-01, not assigned', lead],
+  ])('CANCEL-REQUEST-04-SUP-ENTRY: %s is refused 403 FORBIDDEN and nothing is written', async (_label, actor) => {
+    // Arrange
+    const { database, client, statements } = transactionalSetup({});
+    const service = new CancelEventService(database as never, { now: () => NOW }, []);
+
+    // Act
+    const attempt = service.cancelInTransaction(client as never, actor, EVENT, NOW);
+
+    // Assert: 403 with the SPM-136 literal, and only the locking SELECT was issued
+    await expect(attempt).rejects.toMatchObject({
+      response: { code: 'FORBIDDEN', message: 'You do not have permission to cancel this event.' },
+    });
+    expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
+  });
+
+  // Kills: M37
+  /** CANCEL-REQUEST-04-SUP-ENTRY: the entry refuses a status outside the cancellable set with 409 EVENT_NOT_CANCELLABLE and writes nothing. */
+  it.each(['Completed', 'Cancelled', 'Rejected'])(
+    'CANCEL-REQUEST-04-SUP-ENTRY: a %s event is refused 409 EVENT_NOT_CANCELLABLE and nothing is written',
+    async (status) => {
+      // Arrange
+      const { database, client, statements } = transactionalSetup({ locked: { ...planningRow, status } });
+      const service = new CancelEventService(database as never, { now: () => NOW }, []);
+
+      // Act
+      const attempt = service.cancelInTransaction(client as never, coordinator, EVENT, NOW);
+
+      // Assert
+      await expect(attempt).rejects.toMatchObject({
+        response: { code: 'EVENT_NOT_CANCELLABLE', message: 'This event can no longer be cancelled.' },
+      });
+      expect(statements.some((s) => /UPDATE events|INSERT INTO/.test(s.sql))).toBe(false);
+    },
+  );
+});
+
 /*
  * ASSUMPTION INDEX (SPM-136). Master list: docs/specs/SPM-136-test-results.md, "Assumptions (SPM-136)".
  *   A1 attendee copy of the EventCancelled notice uses the organiser text -> CANCEL-EVENT-03-A

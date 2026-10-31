@@ -16,11 +16,16 @@ interface CancelEventDialogProps {
   onCancelled: (message: string) => void;
   /** Stable element that receives focus when the dialog closes, since the opener may have gone (CQ F2). */
   returnFocus?: () => HTMLElement | null | undefined;
+  /**
+   * What Confirm cancellation does. Default: POST status-change (SPM-136). SPM-155 passes the request's accept
+   * decision, so accepting a cancellation request is confirmed here but recorded through the decision route.
+   */
+  confirm?: () => Promise<{ message: string }>;
 }
 
 const FALLBACK_ERROR = "Could not cancel the event.";
 
-export function CancelEventDialog({ eventId, eventName, onClose, onCancelled, returnFocus }: CancelEventDialogProps) {
+export function CancelEventDialog({ eventId, eventName, onClose, onCancelled, returnFocus, confirm }: CancelEventDialogProps) {
   const titleId = useId();
   const descriptionId = useId();
   // The first button is the safe choice (Keep event, or Close after success); it takes initial focus.
@@ -58,7 +63,7 @@ export function CancelEventDialog({ eventId, eventName, onClose, onCancelled, re
     setPending(true);
     setErrorMessage("");
     try {
-      const result = await cancelEvent(eventId);
+      const result = await (confirm ? confirm() : cancelEvent(eventId));
       setSuccessMessage(result.message);
       onCancelled(result.message);
     } catch (error) {
