@@ -314,7 +314,7 @@ export class VenuesRepository {
     }));
   }
 
-  /** SPM-55 AC1: lists pending requests for venues the Venue Staff member owns, soonest event first. */
+  /** SPM-55 AC1: lists the requests for venues the Venue Staff member owns, by their stored booking slot, soonest first. */
   async listPendingVenueBookings(
     staffId: string,
   ): Promise<PendingVenueBooking[]> {

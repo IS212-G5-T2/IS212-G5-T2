@@ -8,6 +8,7 @@ import {
   type EquipmentFact,
   type ReadinessSnapshot,
   type VenueBookingFact,
+  hasApprovedReplacementForRejectedBooking,
 } from './readiness.js';
 import type { SafetyCheckView } from './safety-check.source.js';
 import { approvedHoldState } from '../venue-unavailable.js';
@@ -103,9 +104,13 @@ function combined(statuses: RequestStatus[]): RequestStatus {
 export function buildChecklist(input: ChecklistInput): PlanningChecklist {
   const { snapshot, equipmentNeeds, equipmentConfirmedAt, safety } = input;
 
-  // Released bookings and individually cancelled requests no longer appear in the active venue checklist.
-  const bookings = snapshot.venueBookings.filter(
+  // Removed requests are history, not current arrangements. Rejected history is non-blocking only when a confirmed
+  // ordinary booking replaces that same venue and overlapping slot, matching Confirm readiness.
+  const activeBookings = snapshot.venueBookings.filter(
     (b) => b.status !== 'released' && b.status !== 'cancelled',
+  );
+  const bookings = activeBookings.filter(
+    (booking) => !(booking.status === 'rejected' && hasApprovedReplacementForRejectedBooking(booking, activeBookings)),
   );
   const venueItems: VenueRequestItem[] = bookings.map((b) => {
     const hold = approvedHoldState(b, input.now);

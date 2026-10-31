@@ -2082,8 +2082,8 @@ describe('SPM-55 venue booking review repository', () => {
     };
   }
 
-  /** VEN-REV-01-A: the staff list covers pending, approved, and rejected requests for owned venues and maps request kind and expiry. */
-  it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by event start', async () => {
+  /** VEN-REV-01-A: the staff list covers pending, approved, and rejected requests for owned venues, soonest booking slot first, and maps request kind and expiry. */
+  it('SPM-55 AC1 lists pending/approved/rejected requests for owned venues ordered by booking start', async () => {
     const { repository, query } = createReviewRepository({
       rows: [
         {
@@ -2169,8 +2169,8 @@ describe('SPM-55 venue booking review repository', () => {
     expect(params).toEqual([staffId]);
   });
 
-  /** SPM-55 AC2 AC5: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
-  it('approves a pending request and writes the audit row with the actor', async () => {
+  /** VEN-REV-02-A SPM-55 AC2 AC5: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
+  it('SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor', async () => {
     const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
       ownedRow,
       venueLockRow,

@@ -11,6 +11,8 @@ vi.mock("@/features/equipment/api/equipment-requests-api", () => ({
   getEquipmentRequestQueue: vi.fn(), submitEquipmentRequest: vi.fn(), updateEquipmentRequest: vi.fn(),
 }));
 
+afterEach(() => vi.unstubAllGlobals());
+
 describe("App venue creation route", () => {
   beforeEach(() => {
     useAppStore.setState({
@@ -230,6 +232,23 @@ describe("App equipment availability route", () => {
 
     expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
   });
+});
+
+describe("SPM-129 Safety Officer application route", () => {
+  /** SAFETY-QUEUE-01: a Safety Officer reaches the real App queue route and sees its navigation link. */
+  it("SAFETY-QUEUE-01 renders the safety queue for a signed-in Safety Officer", async () => {
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "safety-1", name: "Safety Officer", email: "safety@example.test", role: "safety_officer" },
+      restoreAuthSession: vi.fn(),
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify([]), { status: 200 })));
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(await screen.findByRole("heading", { name: "Events Awaiting Safety Check" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Safety Review" })).toHaveAttribute("href", "/safety/events");
+  });
+
 });
 
 describe("App equipment request editor routes", () => {

@@ -18,6 +18,7 @@ export interface OutstandingItem {
 
 export interface VenueBookingFact {
   id: string;
+  venueId: string;
   venueName: string;
   /** released belongs to a cancelled event; cancelled is an individually cancelled venue request. */
   status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
@@ -30,9 +31,9 @@ export interface VenueBookingFact {
   requestKind?: 'booking' | 'tentative_hold';
   /** An approved booking whose venue is flagged unavailable for the window. */
   venueUnavailable: boolean;
-  /** ISO slot times; carried for the organiser view, not used by the rule. */
-  start?: string;
-  end?: string;
+  /** ISO slot times used to identify a replacement for a rejected booking. */
+  start: string;
+  end: string;
   /** ISO time the request was made. */
   requestedAt?: string;
 }
@@ -72,6 +73,32 @@ const INACTIVE_EQUIPMENT = new Set(['Cancelled', 'Released']);
 const VENUE_LABEL = 'Venue booking approval';
 const EQUIPMENT_LABEL = 'Equipment reservation';
 const SAFETY_LABEL = 'Safety Officer approval';
+
+/** A rejected request is resolved only by an available ordinary booking covering its entire slot at the same venue. */
+export function hasApprovedReplacementForRejectedBooking(
+  rejected: VenueBookingFact,
+  bookings: readonly VenueBookingFact[],
+): boolean {
+  const rejectedStart = Date.parse(rejected.start);
+  const rejectedEnd = Date.parse(rejected.end);
+  if (!Number.isFinite(rejectedStart) || !Number.isFinite(rejectedEnd) || rejectedStart >= rejectedEnd)
+    return false;
+
+  return bookings.some((candidate) => {
+    if (
+      candidate.id === rejected.id ||
+      candidate.venueId !== rejected.venueId ||
+      candidate.status !== 'approved' ||
+      candidate.venueUnavailable ||
+      candidate.requestKind === 'tentative_hold'
+    ) return false;
+
+    const candidateStart = Date.parse(candidate.start);
+    const candidateEnd = Date.parse(candidate.end);
+    return Number.isFinite(candidateStart) && Number.isFinite(candidateEnd) &&
+      candidateStart < candidateEnd && candidateStart <= rejectedStart && candidateEnd >= rejectedEnd;
+  });
+}
 
 const byId = <T extends { id: string }>(a: T, b: T) =>
   a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
@@ -199,6 +226,8 @@ export function evaluateReadiness(
     });
   }
   for (const booking of [...activeVenueBookings].sort(byId)) {
+    if (booking.status === 'rejected' && hasApprovedReplacementForRejectedBooking(booking, activeVenueBookings))
+      continue;
     const item = venueItem(booking, now);
     if (item) outstanding.push(item);
   }

@@ -65,6 +65,7 @@ export class ArrangementsReader {
     const lock = options.lock ? ' FOR SHARE OF b' : '';
     const bookings = await db.query<{
       id: string;
+      venue_id: string;
       venue_name: string;
       status: 'pending' | 'approved' | 'rejected' | 'released' | 'cancelled';
       hold_expires_at: Date | null;
@@ -74,7 +75,7 @@ export class ArrangementsReader {
       created_at: Date;
       venue_unavailable: boolean;
     }>(
-      `SELECT b.id, v.name AS venue_name, b.status, b.hold_expires_at, b.request_kind, b.start_at, b.end_at, b.created_at,
+      `SELECT b.id, b.venue_id, v.name AS venue_name, b.status, b.hold_expires_at, b.request_kind, b.start_at, b.end_at, b.created_at,
               ${VENUE_UNAVAILABLE_SQL} AS venue_unavailable
          FROM venue_bookings b
          JOIN venues v ON v.id = b.venue_id
@@ -106,6 +107,7 @@ export class ArrangementsReader {
         confirmation.rows[0]?.equipment_confirmed_at != null,
       venueBookings: bookings.rows.map((row) => ({
         id: row.id,
+        venueId: row.venue_id,
         venueName: row.venue_name,
         status: row.status,
         holdExpiresAt: row.hold_expires_at,

@@ -9,6 +9,8 @@ import { EventRejectionsController } from './events/review/event-rejections.cont
 import { EventsService } from './events/events.service.js';
 import { CoordinatorQueueController } from './events/queue/coordinator-queue.controller.js';
 import { CoordinatorQueueService } from './events/queue/coordinator-queue.service.js';
+import { SafetyOfficerController } from './events/safety-officer/safety-officer.controller.js';
+import { SafetyOfficerService } from './events/safety-officer/safety-officer.service.js';
 import { EventPlanningController } from './events/planning/event-planning.controller.js';
 import { EventPlanningRepository } from './events/planning/event-planning.repository.js';
 import { EventPlanningService } from './events/planning/event-planning.service.js';
@@ -56,6 +58,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     AppController,
     EventsController,
     CoordinatorQueueController,
+    SafetyOfficerController,
     EventRejectionsController,
     EventPlanningController,
     ChangeRequestsController,
@@ -73,6 +76,7 @@ import { DEFAULT_RELEASERS, EVENT_RELEASERS } from './events/cancel/release.regi
     AppService,
     EventsService,
     CoordinatorQueueService,
+    SafetyOfficerService,
     DraftsService,
     RegistrationsService,
     RegistrationSettingsService,
@@ -105,6 +109,7 @@ export class AppModule implements NestModule {
         { path: 'api/auth/me', method: RequestMethod.GET },
         EventsController,
         CoordinatorQueueController,
+        SafetyOfficerController,
         EventRejectionsController,
         EventPlanningController,
         EventPlanningService,

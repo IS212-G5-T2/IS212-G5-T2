@@ -10,6 +10,7 @@ See `ai/docs/test-workflow.md` section 7 (G5).
 
 | File | Kind | Reason |
 | --- | --- | --- |
+| backend/src/events/safety-officer/safety-officer.service.ts:39 | line | This line is the Nest `@Injectable()` class decorator. V8 reports one unreachable generated decorator-metadata arm here; the line has no project conditional and no valid service input can control it. SPM-129 implementation scope. |
 | backend/src/equipment/equipment.controller.ts | ignore-comment | Nest decorator metadata is generated framework metadata, not executable controller behavior; the ignore boundaries are scoped to metadata only and controller behavior is exercised through unit tests and the dedicated HTTP suite. |
 | backend/src/equipment/equipment.service.ts | ignore-comment | Nest injectable decorator metadata is generated framework metadata, not executable service behavior; service behavior remains measured and tested. |
 | backend/src/event-drafts/drafts.service.ts | ignore-comment | Lines 16 and 19 (`/* v8 ignore start/stop */`) wrap the `@Injectable()` class declaration. The ignored branch is the TypeScript `emitDecoratorMetadata` paramtype fallback, which is generated decorator metadata, not project logic, and no behaviour test can reach it. Decided by the user (SPM-150 Sprint 1 closure). **Needs product owner confirmation.** |

@@ -33,6 +33,7 @@ import { CancelEventService } from '../cancel/cancel-event.service.js';
 import { CANCEL_CODES, CANCEL_MESSAGES } from '../cancel/cancel.messages.js';
 import { assertEventNotCancelled } from '../cancelled-guard.js';
 import { STATUS_CODES, STATUS_MESSAGES } from './status.messages.js';
+import { safetyFeedbackCanBeResolved } from './safety-feedback-resolution.js';
 import {
   evaluateReadiness,
   formatOutstanding,
@@ -242,7 +243,7 @@ export class StatusService {
           code: STATUS_CODES.safetyCheckNotRequestable,
           message: STATUS_MESSAGES.safetyCheckApproved,
         });
-      if (current?.status === 'changes_needed') {
+      if (safetyFeedbackCanBeResolved(current?.status)) {
         const unresolved = (
           await client.query<{ count: string }>(
             'SELECT count(*) FROM safety_check_feedback_items WHERE event_id = $1 AND resolved_by_coordinator_at IS NULL',
@@ -360,7 +361,7 @@ export class StatusService {
           [event.id],
         )
       ).rows[0];
-      if (current?.status !== 'changes_needed')
+      if (!safetyFeedbackCanBeResolved(current?.status))
         throw new ConflictException({
           code: STATUS_CODES.safetyCheckNotRequestable,
           message: STATUS_MESSAGES.safetyCheckPending,
