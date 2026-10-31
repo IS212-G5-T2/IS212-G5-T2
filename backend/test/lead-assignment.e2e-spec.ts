@@ -7,6 +7,7 @@
  * SPM-47 (reassignment): LEAD-REASN-01-B, 03-F, 04-B, 05-B, 06-A, 08-D,
  * 09-SEC-3, 09-SEC-6, 10-F.
  * SPM-46 (viewing a reassigned event): REASN-VIEW-01-A, 02-E, 02-J, 03-C, 04-B.
+ * SPM-77 (assignment notification in the bell): ASSIGN-NOTIFY-01-B, 02-B, 03-A, 04-A, 04-B, 05-C, 05-D, 05-E, 05-F.
  */
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
@@ -15,7 +16,7 @@ import pg from 'pg';
 import request from 'supertest';
 import { AppModule } from '../src/app.module.js';
 
-type TestUser = { id: string; name: string; cookie: string };
+type TestUser = { id: string; name: string; cookie: string; email: string; password: string };
 
 describe('Lead assignment (SPM-123 e2e)', () => {
   let app: INestApplication;
@@ -225,11 +226,12 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     const feed = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', coordinator.cookie).expect(200);
 
     // Assert: exactly one unread assignment notification for this request.
+    // (The wording and proposed date moved to SPM-77 ASSIGN-NOTIFY-02-B.)
     const forEvent = feed.body.filter((n: { relatedEventId: string }) => n.relatedEventId === eventId);
     expect(forEvent).toEqual([
       expect.objectContaining({
         type: 'coordinator_assignment',
-        message: 'New event request "Request with notification" is awaiting your review.',
+        message: expect.stringContaining('Request with notification'),
         read: false,
       }),
     ]);
@@ -751,12 +753,257 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     expect(unknown.body.message).toBe('Event not found.');
   });
 
+  // ---- SPM-77: the assignment notification in the coordinator's bell ----
+  // Wording is DECIDED (SC-SPM77-01, user, 31 Oct 2026): "<name>" on <D Mon YYYY> has been assigned to you.
+
+  const assignTo = (lead: TestUser, eventId: string, coordinator: TestUser) =>
+    request(app.getHttpServer())
+      .post(`/api/lead/queue/${eventId}/assign`)
+      .set('Cookie', lead.cookie)
+      .send({ coordinatorId: coordinator.id });
+  const feedOf = async (user: TestUser, eventId: string, cookie = user.cookie) => {
+    const feed = await request(app.getHttpServer()).get('/api/notifications').set('Cookie', cookie).expect(200);
+    return feed.body.filter((n: { relatedEventId: string }) => n.relatedEventId === eventId);
+  };
+
+  /**
+   * ASSIGN-NOTIFY-01-B (SPM-77 AC1): one coordinator_assignment notification for the assignee; another
+   * coordinator and the Lead receive none for the event.
+   * Kills: broadcasting to all coordinators or copying the Lead; duplicate notifications.
+   */
+  it('ASSIGN-NOTIFY-01-B gives the assignee exactly one assignment notification and nobody else any', async () => {
+    // Arrange: a Lead, the assignee, a bystander coordinator and a queued request.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Assignee');
+    const bystander = await createDatabaseUser('COORDINATOR', 'Lead E2E Bystander');
+    const eventId = await seedEvent({ name: 'Notify only the assignee' });
+
+    // Act: assign.
+    await assignTo(lead, eventId, assignee).expect(201);
+
+    // Assert: exactly one for the assignee; none for the bystander in the feed or in the table; none for the Lead.
+    expect((await feedOf(assignee, eventId)).filter((n: { type: string }) => n.type === 'coordinator_assignment')).toHaveLength(1);
+    expect(await feedOf(bystander, eventId)).toEqual([]);
+    const stored = await pool.query('SELECT recipient_id FROM notifications WHERE related_event_id = $1', [eventId]);
+    expect(stored.rows.map((r: { recipient_id: string }) => r.recipient_id)).toEqual([assignee.id]);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-02-B (SPM-77 AC2): through the real API the message names the event, says it was assigned to
+   * the coordinator and gives the proposed date as the Singapore day (start 2027-03-05T16:30Z = 6 Mar 2027).
+   * Kills: old "awaiting your review" wording; missing date; UTC formatting.
+   */
+  it('ASSIGN-NOTIFY-02-B the delivered message names the event, the assignment and the proposed date', async () => {
+    // Arrange: a queued request with a fixed start.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Assignee');
+    const eventId = await seedEvent({ name: 'Dated request', startAt: '2027-03-05T16:30:00.000Z' });
+
+    // Act: assign, then read the feed.
+    await assignTo(lead, eventId, assignee).expect(201);
+
+    // Assert: the delivered message.
+    expect(await feedOf(assignee, eventId)).toEqual([
+      expect.objectContaining({
+        type: 'coordinator_assignment',
+        message: '"Dated request" on 6 Mar 2027 has been assigned to you.',
+      }),
+    ]);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-03-A (SPM-77 AC3): the notification carries the event id the bell links to, and that
+   * event opens for the assignee.
+   * Kills: a missing or wrong relatedEventId; linking an event the assignee cannot open.
+   */
+  it('ASSIGN-NOTIFY-03-A links the notification to the assigned event, which the assignee can open', async () => {
+    // Arrange: a queued request.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Assignee');
+    const eventId = await seedEvent({ name: 'Linked request' });
+
+    // Act: assign, read the feed, open the linked event.
+    await assignTo(lead, eventId, assignee).expect(201);
+    const [notice] = await feedOf(assignee, eventId);
+    const opened = await request(app.getHttpServer()).get(`/api/events/${notice.relatedEventId}`).set('Cookie', assignee.cookie).expect(200);
+
+    // Assert: the link target is this event.
+    expect(notice.relatedEventId).toBe(eventId);
+    expect(opened.body.id).toBe(eventId);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-A (SPM-77 AC4): a new notification is unread; once marked read it stays read after the
+   * coordinator signs out and back in (a fresh session).
+   * Kills: read state held per session instead of stored; a notification created already read.
+   */
+  it('ASSIGN-NOTIFY-04-A starts unread and stays read after signing out and back in', async () => {
+    // Arrange: an assignment is made.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Assignee');
+    const eventId = await seedEvent({ name: 'Read state request' });
+    await assignTo(lead, eventId, assignee).expect(201);
+    const [unread] = await feedOf(assignee, eventId);
+    expect(unread.read).toBe(false);
+
+    // Act: mark it read, sign out, sign in again.
+    await request(app.getHttpServer()).post(`/api/notifications/${unread.id}/read`).set('Cookie', assignee.cookie).expect(201);
+    await request(app.getHttpServer()).post('/api/auth/logout').set('Cookie', assignee.cookie);
+    const login = await request(app.getHttpServer()).post('/api/auth/login').send({ email: assignee.email, password: assignee.password }).expect(201);
+    const setCookie = login.headers['set-cookie'] as unknown as string[];
+    const freshCookie = setCookie.find((value) => value.startsWith('connectsphere_session='))!.split(';', 1)[0];
+
+    // Assert: still read for the new session.
+    expect(await feedOf(assignee, eventId, freshCookie)).toEqual([expect.objectContaining({ id: unread.id, read: true })]);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-B (SPM-77 AC4, isolation): another coordinator cannot mark the assignee's notification read.
+   * Kills: a mark-read that ignores the recipient.
+   */
+  it('ASSIGN-NOTIFY-04-B does not let another coordinator mark the notification read', async () => {
+    // Arrange: an assignment is made.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Assignee');
+    const stranger = await createDatabaseUser('COORDINATOR', 'Lead E2E Stranger');
+    const eventId = await seedEvent({ name: 'Foreign read request' });
+    await assignTo(lead, eventId, assignee).expect(201);
+    const [notice] = await feedOf(assignee, eventId);
+
+    // Act: the stranger tries to mark it read.
+    await request(app.getHttpServer()).post(`/api/notifications/${notice.id}/read`).set('Cookie', stranger.cookie).expect(404);
+
+    // Assert: still unread for the assignee.
+    expect((await feedOf(assignee, eventId))[0].read).toBe(false);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-D (SPM-77 AC5): a coordinator who marked themselves unavailable is refused (409); they
+   * receive no notification and the event stays unassigned.
+   * Kills: notifying before the availability check.
+   */
+  it('ASSIGN-NOTIFY-05-D creates no notification when the coordinator is unavailable', async () => {
+    // Arrange: the coordinator marks themselves unavailable.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const assignee = await createDatabaseUser('COORDINATOR', 'Lead E2E Away');
+    const eventId = await seedEvent({ name: 'Unavailable assignee request' });
+    await request(app.getHttpServer()).put('/api/coordinators/me/availability').set('Cookie', assignee.cookie).send({ available: false }).expect(200);
+
+    // Act: the Lead assigns anyway.
+    await assignTo(lead, eventId, assignee).expect(409);
+
+    // Assert: no notification row for the event, and still unassigned.
+    expect(await feedOf(assignee, eventId)).toEqual([]);
+    expect((await pool.query('SELECT 1 FROM notifications WHERE related_event_id = $1', [eventId])).rowCount).toBe(0);
+    expect((await pool.query('SELECT coordinator_id FROM events WHERE id = $1', [eventId])).rows[0].coordinator_id).toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-E (SPM-77 AC5): assigning an already-assigned request is refused (409); the second
+   * coordinator gets nothing and the first coordinator keeps exactly one notification and the event.
+   * Kills: a notification for a refused second assignment.
+   */
+  it('ASSIGN-NOTIFY-05-E creates no notification for a second, refused assignment', async () => {
+    // Arrange: a request assigned to the first coordinator.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const first = await createDatabaseUser('COORDINATOR', 'Lead E2E First');
+    const second = await createDatabaseUser('COORDINATOR', 'Lead E2E Second');
+    const eventId = await seedEvent({ name: 'Already assigned request' });
+    await assignTo(lead, eventId, first).expect(201);
+
+    // Act: assign it to someone else.
+    await assignTo(lead, eventId, second).expect(409);
+
+    // Assert: no notification for the second; one for the first; the event still belongs to the first.
+    expect(await feedOf(second, eventId)).toEqual([]);
+    expect(await feedOf(first, eventId)).toHaveLength(1);
+    expect((await pool.query('SELECT coordinator_id FROM events WHERE id = $1', [eventId])).rows[0].coordinator_id).toBe(first.id);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-F (SPM-77 AC5): a caller who is not the Lead gets 403, the event stays unassigned and
+   * the named coordinator receives nothing.
+   * Kills: the notification being written without the Lead check.
+   */
+  it('ASSIGN-NOTIFY-05-F creates no notification when a non-Lead tries to assign', async () => {
+    // Arrange: a coordinator tries to assign the request to themselves.
+    const impostor = await createDatabaseUser('COORDINATOR', 'Lead E2E Impostor');
+    const eventId = await seedEvent({ name: 'Non-Lead request' });
+
+    // Act: the attempt.
+    await assignTo(impostor, eventId, impostor).expect(403);
+
+    // Assert: no notification, still unassigned.
+    expect(await feedOf(impostor, eventId)).toEqual([]);
+    expect((await pool.query('SELECT coordinator_id FROM events WHERE id = $1', [eventId])).rows[0].coordinator_id).toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-G (SPM-77 AC5, concurrency): two simultaneous assignments of one request to different
+   * coordinators produce one success, one refusal, and exactly one notification, for the winner.
+   * Kills: notifying both coordinators, or notifying the one whose assignment was refused.
+   */
+  it('ASSIGN-NOTIFY-05-G notifies only the winner when two assignments race', async () => {
+    // Arrange: one queued request and two candidate coordinators.
+    const lead = await createDatabaseUser('COORDINATOR_LEAD', 'Lead E2E Lead');
+    const a = await createDatabaseUser('COORDINATOR', 'Lead E2E Racer A');
+    const b = await createDatabaseUser('COORDINATOR', 'Lead E2E Racer B');
+    const eventId = await seedEvent({ name: 'Raced request' });
+
+    // Act: hold the event row lock from a separate connection, send both assignments, and wait until both
+    // are blocked on that lock. Only a FOR UPDATE select blocks, so a missing row lock is caught here.
+    const holder = await pool.connect();
+    let held = true;
+    const releaseHolder = async () => {
+      if (!held) return;
+      held = false;
+      await holder.query('ROLLBACK');
+      holder.release();
+    };
+    let responses: request.Response[];
+    try {
+      await holder.query('BEGIN');
+      await holder.query('SELECT id FROM events WHERE id = $1 FOR UPDATE', [eventId]);
+      const pending = Promise.all([assignTo(lead, eventId, a), assignTo(lead, eventId, b)]);
+      await waitForLockWaiters(2);
+      await releaseHolder();
+      responses = await pending;
+    } finally {
+      await releaseHolder();
+    }
+    const [ra, rb] = responses;
+
+    // Assert: one 201 and one 409; one notification row, addressed to the stored coordinator.
+    expect([ra.status, rb.status].sort()).toEqual([201, 409]);
+    const owner = (await pool.query('SELECT coordinator_id FROM events WHERE id = $1', [eventId])).rows[0].coordinator_id;
+    const notices = await pool.query('SELECT recipient_id FROM notifications WHERE related_event_id = $1', [eventId]);
+    expect(notices.rows.map((r: { recipient_id: string }) => r.recipient_id)).toEqual([owner]);
+  });
+
+  /**
+   * DOCUMENTED BOUNDED EXCEPTION to the no-sleep rule (DX-SPM77-04): polls pg_stat_activity until `count` requests are
+   * blocked on a FOR UPDATE statement, up to 200 x 50 ms (about 10 s), and throws if they never appear, so a missing
+   * row lock fails loudly. The lock is released only after the waiters are observed. No other sleep may be added here.
+   */
+  async function waitForLockWaiters(count: number) {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const result = await pool.query<{ n: number }>(
+        `SELECT COUNT(*)::integer AS n FROM pg_stat_activity
+          WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%FOR UPDATE%'`,
+      );
+      if (result.rows[0].n >= count) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`expected ${count} requests blocked on the event row lock`);
+  }
+
   async function seedEvent(options: {
     name: string;
     status?: string;
     coordinator?: TestUser;
     createdAt?: string;
     startsInDays?: number;
+    startAt?: string;
   }): Promise<string> {
     const id = randomUUID();
     await pool.query(
@@ -764,7 +1011,8 @@ describe('Lead assignment (SPM-123 e2e)', () => {
          start_date_time, end_date_time, expected_attendance, status, rejection_reason, coordinator_id,
          coordinator_name, submission_key, created_at)
        VALUES ($1, 'lead-e2e-organiser', 'E2E Organiser', 'organiser@example.test', $2, 'Lead assignment test',
-         now() + make_interval(days => $8), now() + make_interval(days => $8, hours => 2), 40, $3, $4, $5, $6, $1,
+         COALESCE($9::timestamptz, now() + make_interval(days => $8)),
+         COALESCE($9::timestamptz, now() + make_interval(days => $8)) + interval '2 hours', 40, $3, $4, $5, $6, $1,
          COALESCE($7::timestamptz, now()))`,
       [
         id,
@@ -776,6 +1024,7 @@ describe('Lead assignment (SPM-123 e2e)', () => {
         options.coordinator?.name ?? null,
         options.createdAt ?? null,
         options.startsInDays ?? 30,
+        options.startAt ?? null,
       ],
     );
     createdEventIds.push(id);
@@ -801,6 +1050,6 @@ describe('Lead assignment (SPM-123 e2e)', () => {
     const setCookie = login.headers['set-cookie'] as unknown as string[] | undefined;
     const cookie = setCookie?.find((value) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a PostgreSQL authentication session cookie');
-    return { id: created.rows[0].id, name, cookie: cookie.split(';', 1)[0] };
+    return { id: created.rows[0].id, name, cookie: cookie.split(';', 1)[0], email, password };
   }
 });

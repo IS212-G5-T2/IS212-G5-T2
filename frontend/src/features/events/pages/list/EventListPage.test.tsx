@@ -218,20 +218,15 @@ describe("EventListPage", () => {
     expect(await screen.findByText("Change requested: Pending")).toBeTruthy();
   });
 
-  // Kills: the pending section placed below Assignment updates, or the New tag missing from unopened requests.
-  /** REVIEW-CHANGE-01-F: the pending list is at the top, above Assignment Updates, and tags unopened requests New. */
+  // Kills: the pending section placed below the events list, or the New tag missing from unopened requests.
+  // SPM-77 removed the Assignment Updates panel, so the ordering is now checked against the events list.
+  /** REVIEW-CHANGE-01-F: the pending list is at the top, above the events list, and tags unopened requests New. */
   it("REVIEW-CHANGE-01-F puts pending change requests first and tags unopened ones New", async () => {
     const event = { ...submittedEvent(), coordinatorId: "coordinator-1" };
     useAppStore.setState({
       currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
     });
-    apiMock.mockImplementation((path: string) =>
-      Promise.resolve(
-        path === "/notifications"
-          ? [{ id: "n1", audienceRole: "coordinator", type: "coordinator_assignment", message: "Assigned to you.", relatedEventId: event.id, read: false, createdAt: "2026-10-01T00:00:00.000Z" }]
-          : [event],
-      ),
-    );
+    apiMock.mockImplementation(() => Promise.resolve([event]));
     vi.mocked(fetchNewChangeRequestEventIds).mockResolvedValue(new Set([event.id]));
     pendingRequestsMock.mockResolvedValue([
       { id: "cr-1", eventId: event.id, eventName: event.name, status: "Pending", changes: [], requiresSafetyCheck: false, recheck: [], safetyCheckReset: false, requestedBy: "Demo Organiser", createdAt: "2026-10-01T00:00:00.000Z" },
@@ -245,8 +240,8 @@ describe("EventListPage", () => {
     );
     const pendingSection = await screen.findByRole("region", { name: "Pending change requests" });
     expect(within(pendingSection).getByText("New")).toBeTruthy();
-    const updates = await screen.findByRole("region", { name: "Assignment updates" });
-    expect(pendingSection.compareDocumentPosition(updates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const eventCard = (await screen.findByText(event.name, { selector: "h2, h3, a" })).closest("article, li, div")!;
+    expect(pendingSection.compareDocumentPosition(eventCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   // Kills: the pending list hidden when the New-tag lookup fails, or a notice shown for it.
@@ -389,30 +384,31 @@ describe("EventListPage", () => {
     expect(screen.queryByText("Welcome Evening")).toBeNull();
   });
 
-  // SPM-123 AC9: the coordinator sees new assignments on the events page itself, not just in the standalone panel.
-  // Kills: the Assignment updates panel missing from the events page, or not showing the assignment message.
-  it("LEAD-ASN-09-M shows the coordinator's new-assignment panel on the events page", async () => {
-    // Arrange: a coordinator whose notifications feed has one unread assignment; the events list is empty.
+  // SPM-77 AC1: the top-bar bell replaces the "Assignment Updates" panel (the SPM-123 panel test is retired).
+  // ASSIGN-NOTIFY-01-F: even with unread assignment, reassignment and unassignment notices in the feed, the
+  // Coordinator's events page renders no Assignment Updates panel and does not load the notifications feed.
+  // Kills: the old panel still mounted on EventListPage, which would duplicate the bell.
+  it("ASSIGN-NOTIFY-01-F no longer shows the Assignment Updates panel on the coordinator's events page", async () => {
+    // Arrange: a coordinator whose feed holds unread assignment notices; the events list is empty.
+    const notice = (id: string, type: string) => ({
+      id,
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type,
+      message: `Notice ${id}`,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: "2026-10-06T09:00:00.000Z",
+    });
     apiMock.mockImplementation((path: string) =>
       Promise.resolve(
         path === "/notifications"
-          ? [
-              {
-                id: "notif-1",
-                audienceRole: "coordinator",
-                audienceUserId: "coordinator-1",
-                type: "coordinator_assignment",
-                message: 'New event request "Welcome Evening" is awaiting your review.',
-                relatedEventId: "event-1",
-                read: false,
-                createdAt: "2026-10-06T09:00:00.000Z",
-              },
-            ]
+          ? [notice("a", "coordinator_assignment"), notice("r", "coordinator_reassignment"), notice("u", "coordinator_unassignment")]
           : [],
       ) as ReturnType<typeof api>,
     );
     useAppStore.setState({
-      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator" },
+      currentUser: { id: "coordinator-1", name: "Coordinator One", email: "coordinator@example.test", role: "coordinator", roles: ["coordinator"] },
       events: [],
     });
 
@@ -425,9 +421,13 @@ describe("EventListPage", () => {
       </MemoryRouter>,
     );
 
-    // Assert: the page includes the "Assignment Updates" panel with the assignment.
-    const panel = await screen.findByRole("region", { name: "Assignment updates" });
-    expect(panel).toHaveTextContent('New event request "Welcome Evening" is awaiting your review.');
+    // Assert: the page settles (events loaded) with no panel, no heading and no notice text.
+    await screen.findByRole("heading", { level: 1 });
+    await act(async () => {}); // let the page's own loads and any feed load settle
+    expect(screen.queryByRole("region", { name: "Assignment updates" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Assignment Updates")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Notice (a|r|u)/)).not.toBeInTheDocument();
+    expect(apiMock).not.toHaveBeenCalledWith("/notifications");
   });
 
   // VIEW-REG-DET-02-A (status badge beside the event status)

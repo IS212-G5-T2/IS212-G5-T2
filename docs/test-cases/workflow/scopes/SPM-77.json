@@ -1,0 +1,111 @@
+{
+  "story": "SPM-77",
+  "title": "Successful Coordinator Assignment Notification",
+  "note": "RED authoring pass (2026-10-31, test-first, no production change): 28 ASSIGN-NOTIFY ids (PRIMARY, proposed; no Confluence SPM-77 matrix exists yet). Shared files use titleMatch ^ASSIGN-NOTIFY- so SPM-123, SPM-47 and SPM-88 tests are not in scope. Implementation pass (2026-10-31): the 14 RED tests are green. SC-SPM77-01..03 were DECIDED by the user (chaw678, 31 Oct 2026). The Assignment Updates panel (AssignmentNotifications.tsx and its test) was deleted; the SPM-123 AC9, SPM-47 AC8 and SPM-46 panel tests in it (LEAD-ASN-09-D, F to L, LEAD-REASN-08-E, REASN-VIEW-01-B and the two REQ-CHANGE-03-A panel checks) are retired with it. Mutants: backend 18 and frontend 18 (spm77.mutants.mjs). Test Code Review iteration 1 corrections (2026-10-31): 05-G now holds the event row lock from a second connection and waits for both assignments to block (DX-SPM77-04), new mutant SPM77-BE-18; new SUPPORTING id 04-F (Coordinator load error and Retry, approval pending) with mutant SPM77-FE-18; messages.ts added to the backend sources.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "linesFrom": "changed-lines",
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      {
+        "glob": "backend/src/lead/lead-assignment.service.spec.ts",
+        "titleMatch": "^ASSIGN-NOTIFY-"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/lead-assignment.e2e-spec.ts",
+        "titleMatch": "^ASSIGN-NOTIFY-"
+      }
+    ],
+    "frontend": [
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "^ASSIGN-NOTIFY-"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/list/EventListPage.test.tsx",
+        "titleMatch": "^ASSIGN-NOTIFY-"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/lead/lead-assignment.service.ts",
+      "backend/src/registrations/helpers/messages.ts"
+    ],
+    "frontend": [
+      "frontend/src/components/notifications/NotificationBell.tsx",
+      "frontend/src/components/notifications/NotificationRow.tsx",
+      "frontend/src/components/notifications/useNotificationFeed.ts",
+      "frontend/src/features/events/pages/list/EventListPage.tsx"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "cwd": "backend",
+      "tests": "backend-e2e",
+      "config": "vitest.config.e2e.ts",
+      "coverage": null,
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "backend-spm77",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm77.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm77.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "DATABASE_URL"
+      ]
+    },
+    {
+      "id": "frontend-spm77",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm77.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm77.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

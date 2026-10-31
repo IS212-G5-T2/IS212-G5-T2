@@ -12,6 +12,7 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
+import { formatSgtDate } from '../registrations/helpers/messages.js';
 import { CHANGE_REQUEST_NOTICE, notifyPendingChangeRequest } from '../events/change-requests/change-request-notice.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
@@ -139,7 +140,7 @@ export class LeadAssignmentService {
 
     return this.database.transaction(async (client) => {
       const selected = await client.query(
-        'SELECT id, event_name, status, coordinator_id FROM events WHERE id = $1 FOR UPDATE',
+        'SELECT id, event_name, status, coordinator_id, start_date_time FROM events WHERE id = $1 FOR UPDATE',
         [eventId],
       );
       const event = selected.rows[0];
@@ -163,7 +164,7 @@ export class LeadAssignmentService {
         [
           randomUUID(),
           coordinator.id,
-          `New event request "${event.event_name}" is awaiting your review.`,
+          `"${event.event_name}" on ${formatSgtDate(new Date(event.start_date_time))} has been assigned to you.`,
           eventId,
         ],
       );

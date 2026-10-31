@@ -1,13 +1,12 @@
 // SPM-46 frontend mutants (View a Reassigned Event), run by run.mjs:
 //   node scripts/testing/mutation/run.mjs --mutants spm46.mutants.mjs
 // Each edit is [from, to]; `from` must occur exactly once in the file. IDs match the Confluence
-// REASN-VIEW pages and the backend spm46.mutants.mjs (B*). F4 (change-requests link) was removed with the link.
+// REASN-VIEW pages and the backend spm46.mutants.mjs (B*). F4 (change-requests link) was removed with the link; F5 (notice link in the events page panel) was removed with the panel in SPM-77.
 export const SUITES = {
   unit: {
     args: [
       'run',
       'src/features/events/pages/list/EventCard.test.tsx',
-      'src/features/events/pages/list/AssignmentNotifications.test.tsx',
       'src/features/events/pages/detail/EventDetailPage.reassignment.test.tsx',
     ],
   },
@@ -15,7 +14,6 @@ export const SUITES = {
 
 const CARD = 'src/features/events/pages/list/EventCard.tsx';
 const PAGE = 'src/features/events/pages/detail/EventDetailPage.tsx';
-const PANEL = 'src/features/events/pages/list/AssignmentNotifications.tsx';
 
 export const MUTANTS = [
   { id: 'F1', name: '"Reassigned" label on every card (kills REASN-VIEW-02-F)', file: CARD,
@@ -24,8 +22,6 @@ export const MUTANTS = [
     edits: [['{isAssignedCoordinator && event.reassignedFrom && (\n        <p role="note"', '{event.reassignedFrom && (\n        <p role="note"']], suites: ['unit'] },
   { id: 'F3', name: 'reassignment banner shown without reassignment data (kills 02-H)', file: PAGE,
     edits: [['{isAssignedCoordinator && event.reassignedFrom && (\n        <p role="note"', '{isAssignedCoordinator && (\n        <p role="note"']], suites: ['unit'] },
-  { id: 'F5', name: 'notice links to the events list instead of the event (kills 01-B)', file: PANEL,
-    edits: [['<Link to={`/events/${notification.relatedEventId}`}', '<Link to={`/events`}']], suites: ['unit'] },
   { id: 'F6', name: 'refusal shown as a generic "Event not found" (kills 04-C)', file: PAGE,
     edits: [['if (loadError) return <div role="alert">{loadError} <Link', 'if (loadError) return <div role="alert">Event not found. <Link']], suites: ['unit'] },
   { id: 'F7', name: 'clarification history not loaded for the coordinator (kills 03-A)', file: PAGE,

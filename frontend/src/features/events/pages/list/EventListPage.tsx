@@ -12,7 +12,6 @@ import { CheckboxGroup, Select } from "@/components/ui/FormControls";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import type { DraftRecord } from "@/features/events/types/draft";
 import { EventCard, type CardRegistrationStatus } from "@/features/events/pages/list/EventCard";
-import { AssignmentNotifications } from "@/features/events/pages/list/AssignmentNotifications";
 import type { EventStatus, RegistrationStatus } from "@/types";
 import {
   ATTENDEE_BROWSE_FILTERS,
@@ -166,8 +165,6 @@ export function EventListPage() {
       {isCoordinator && pendingChangeRequests && (
         <PendingChangeRequests requests={pendingChangeRequests} newEventIds={newChangeRequestEvents} />
       )}
-      {/* SPM-123 AC9: new assignments from the Event Coordinator Lead (coordinators only). */}
-      <AssignmentNotifications />
       <PageHeader
         title={isPlanning ? "Event Planning" : title}
         description={
