@@ -15,6 +15,7 @@ const roleByDatabaseRole: ReadonlyArray<{ databaseRole: string; role: UserRole }
   { databaseRole: "TECH_SUPPORT", role: "tech_support" },
   { databaseRole: "ATTENDEE", role: "attendee" },
   { databaseRole: "COORDINATOR_LEAD", role: "coordinator_lead" },
+  { databaseRole: "SAFETY_OFFICER", role: "safety_officer" },
 ];
 
 /** Converts the server-owned local account identity into the UI user model. */

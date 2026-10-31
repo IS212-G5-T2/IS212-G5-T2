@@ -38,6 +38,9 @@ export const navByRole: Record<UserRole, NavItem[]> = {
     { label: "Assignment Queue", to: "/lead/queue", icon: "🗂️", feature: "Feature 3" },
     { label: "Reassign Events", to: "/lead/reassign", icon: "🔁", feature: "Feature 3" },
   ],
+  safety_officer: [
+    { label: "Safety Review", to: "/safety/events", icon: "🛡️", feature: "SPM-128" },
+  ],
 };
 
 /** Where each role lands after sign-in, and when sent away from a route it can't use. */
@@ -48,6 +51,7 @@ export const homePathByRole: Record<UserRole, string> = {
   venue_staff: "/venue-records",
   tech_support: "/equipment/requests",
   coordinator_lead: "/lead/queue",
+  safety_officer: "/safety/events",
 };
 
 /**
@@ -90,4 +94,5 @@ export const roleLabels: Record<UserRole, string> = {
   tech_support: "Technical Support Staff",
   attendee: "Attendee",
   coordinator_lead: "Event Coordinator Lead",
+  safety_officer: "Safety Officer",
 };

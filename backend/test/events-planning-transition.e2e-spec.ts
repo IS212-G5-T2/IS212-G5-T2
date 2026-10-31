@@ -115,14 +115,15 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     return { id, cookie: cookie.split(';', 1)[0], name };
   }
 
-  async function venue(): Promise<string> {
-    const owner = await account('COORDINATOR', 'SPM-148 venue owner');
+  async function venue(owner?: Account): Promise<string> {
+    const venueOwner =
+      owner ?? (await account('COORDINATOR', 'SPM-148 venue owner'));
     const id = fixedId();
     await pool.query(
       `INSERT INTO venues (id, owner_user_id, name, location, capacity, operating_information,
                            setup_time_minutes, turnaround_time_minutes)
        VALUES ($1, $2, $3, 'SPM-148 Location', 100, 'fixture', 0, 0)`,
-      [id, owner.id, `SPM-148 ${id}`],
+      [id, venueOwner.id, `SPM-148 ${id}`],
     );
     venueIds.push(id);
     return id;
@@ -489,7 +490,8 @@ describe.skipIf(!databaseUrl)('SPM-148 Approved to Planning (HTTP + PostgreSQL)'
     // Oracle: SPEC (prompt 2.6 03-x); 03-D adapted, see results doc
     it('PLAN-STATUS-03-B: requests for five venues give five bookings and exactly one Approved to Planning row', async () => {
       const coordinator = await account('COORDINATOR');
-      const venueIds = await Promise.all(Array.from({ length: 5 }, () => venue()));
+      // One owner is enough for these independent venues; avoid five concurrent auth flows.
+      const venueIds = await Promise.all(Array.from({ length: 5 }, () => venue(coordinator)));
       const eventId = await event('Approved', coordinator);
 
       // Literal oracle: only the first request changes the status.

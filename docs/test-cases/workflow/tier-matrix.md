@@ -2,6 +2,15 @@
 
 One table per story, headed `## <story>`. Every tier cell of every AC is `PRESENT (test ids)`, `N/A (reason)` or `MISSING (reason)`. `PRESENT` ids must be in `test-id-registry.md`. `MISSING` is allowed only with a reason and becomes a gap-list item. The suffix naming (`-BND`, `-INT` and so on) is optional; this matrix is the source of truth for which tier a test serves. See `ai/docs/test-workflow.md` section 4 and gate G2.
 
+## SPM-128
+
+| AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
+|---|---|---|---|---|---|---|---|---|---|
+| AC1 | PRESENT (SAFETY-LOGIN-01-A) | PRESENT (SAFETY-LOGIN-01-B, SAFETY-LOGIN-01-C) | PRESENT (SAFETY-LOGIN-01-D) | PRESENT (SAFETY-LOGIN-01-A) | N/A (no configurable auth parameter) | PRESENT (SAFETY-LOGIN-01-A) | N/A (client auth session is test-scoped) | PRESENT (SAFETY-LOGIN-01-A, SAFETY-LOGIN-01-B) | N/A (no concurrent login specification) |
+| AC2 | PRESENT (SAFETY-LOGIN-02-A, SAFETY-LOGIN-02-B) | N/A (landing access control is under AC4) | N/A (no numeric boundary on route redirection) | PRESENT (SAFETY-LOGIN-02-C) | PRESENT (SAFETY-LOGIN-02-C) | PRESENT (SAFETY-LOGIN-02-A, SAFETY-LOGIN-02-B) | N/A (MemoryRouter renders are isolated) | PRESENT (SAFETY-LOGIN-02-B) | N/A (navigation is synchronous in React Router) |
+| AC3 | N/A (AC3 is an error handling criterion) | PRESENT (SAFETY-LOGIN-03-A, SAFETY-LOGIN-03-B, SAFETY-LOGIN-03-C) | PRESENT (SAFETY-LOGIN-03-B, SAFETY-LOGIN-03-C) | PRESENT (SAFETY-LOGIN-03-A) | N/A (fixed error messages in client) | PRESENT (SAFETY-LOGIN-03-A, SAFETY-LOGIN-03-C) | N/A (mocked fetch calls are isolated) | PRESENT (SAFETY-LOGIN-03-A, SAFETY-LOGIN-03-C) | N/A (no concurrency requirement in AC3) |
+| AC4 | PRESENT (SAFETY-LOGIN-04-A) | PRESENT (SAFETY-LOGIN-04-B, SAFETY-LOGIN-04-C, SAFETY-LOGIN-04-D, SAFETY-LOGIN-04-E) | N/A (no numeric limit on route authorization) | PRESENT (SAFETY-LOGIN-04-B) | N/A (static route guard definitions) | PRESENT (SAFETY-LOGIN-04-A, SAFETY-LOGIN-04-B) | N/A (isolated React Router memory trees) | PRESENT (SAFETY-LOGIN-04-B, SAFETY-LOGIN-04-C, SAFETY-LOGIN-04-D, SAFETY-LOGIN-04-E) | N/A (client routing has no concurrent race conditions) |
+
 ## SPM-144
 
 | AC | Happy | Sad | Boundary | Interaction | Configuration | State | Isolation | Security | Concurrency |
