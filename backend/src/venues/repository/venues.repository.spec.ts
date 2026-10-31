@@ -2170,7 +2170,7 @@ describe('SPM-55 venue booking review repository', () => {
   });
 
   /** VEN-REV-02-A SPM-55 AC2 AC5: approval confirms a pending booking, checks blockouts and approved overlaps, and records the audit row. */
-  it('approves a pending request and writes the audit row with the actor', async () => {
+  it('SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor', async () => {
     const { repository, clientQuery, poolQuery } = createSplitReviewRepository(
       ownedRow,
       venueLockRow,

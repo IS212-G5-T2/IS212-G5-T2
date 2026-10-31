@@ -36,7 +36,6 @@ describe.skipIf(!databaseUrl)(
         '010_remove_venue_operating_schedule.sql',
         '019_spm54_venue_booking_lifecycle.sql',
         '021_spm55_booking_review.sql',
-        '022_spm55_booking_special_request.sql',
         '024_spm159_tentative_hold_requests.sql',
         '025_spm159_approved_hold_expiry.sql',
       ])
@@ -46,6 +45,15 @@ describe.skipIf(!databaseUrl)(
             'utf8',
           ),
         );
+      // Migration 022 adds venue_bookings.special_request and backfills it across every row. Only its schema half
+      // runs here (the init copy has no backfill, as in the CI database), so neither the real backfill nor a mutated
+      // one (VEN-REV-M55) can rewrite other suites' shared rows. VEN-REV-11-A runs the full file in isolation.
+      await pool.query(
+        await readFile(
+          new URL('../../database/postgresql/init/022_spm55_booking_special_request.sql', import.meta.url),
+          'utf8',
+        ),
+      );
 
       const module = await Test.createTestingModule({ imports: [AppModule] })
         .overrideProvider(CLOCK)
@@ -1692,6 +1700,104 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
+    /** SPM-55 AC2: a pending request (with its request row) at a venue, for the VEN-REV-02-B approval checks. */
+    async function addPendingRequest(venueId: string, eventId: string, start: string, end: string) {
+      const row = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'pending') RETURNING id`,
+        [venueId, eventId, new Date(start), new Date(end)],
+      );
+      await pool.query('INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2)', [eventId, venueId]);
+      return row.rows[0].id;
+    }
+
+    /** SPM-55 AC2: approves a booking as the venue owner and returns the response. */
+    function approve(bookingId: string, cookie: string) {
+      return request(app.getHttpServer()).post(`/api/venues/bookings/${bookingId}/approve`).set('Cookie', cookie);
+    }
+
+    /**
+     * VEN-REV-02-B SPM-55 AC2: approval re-checks the slot against real PostgreSQL. A slot that overlaps an approved
+     * booking, or a blockout, at the same venue is refused with BOOKING_SLOT_CONFLICT; the request stays pending and
+     * no audit row is written, so no double-booking is created.
+     */
+    it('VEN-REV-02-B SPM-55 AC2 refuses approval when an approved booking or a blockout overlaps the slot', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const buffers = { setupTimeMinutes: 30, turnaroundTimeMinutes: 45 };
+
+      // An approved booking 10:00-11:00 and a request for 10:30-11:30 at the same venue.
+      const bookedVenue = await createVenue(owner.id, buffers);
+      const held = await createAssignedEvent(coordinator.id, 'VEN-REV-02-B approved booking', '2030-03-04T10:00:00.000Z', '2030-03-04T11:00:00.000Z');
+      await addBooking(bookedVenue, held, { start: '2030-03-04T10:00:00.000Z', end: '2030-03-04T11:00:00.000Z' });
+      const overBooking = await addPendingRequest(
+        bookedVenue,
+        await createAssignedEvent(coordinator.id, 'VEN-REV-02-B overlaps booking'),
+        '2030-03-04T10:30:00.000Z',
+        '2030-03-04T11:30:00.000Z',
+      );
+
+      // A blockout 14:00-15:00 and a request for 14:30-15:30 at another venue owned by the same staff member.
+      const blockedVenue = await createVenue(owner.id, buffers);
+      await addBlockout(blockedVenue, '2030-03-04T14:00:00.000Z', '2030-03-04T15:00:00.000Z', 'VEN-REV-02-B maintenance');
+      const overBlockout = await addPendingRequest(
+        blockedVenue,
+        await createAssignedEvent(coordinator.id, 'VEN-REV-02-B overlaps blockout'),
+        '2030-03-04T14:30:00.000Z',
+        '2030-03-04T15:30:00.000Z',
+      );
+
+      for (const [bookingId, blocker] of [
+        [overBooking, 'VEN-REV-02-B approved booking'],
+        [overBlockout, 'VEN-REV-02-B maintenance'],
+      ]) {
+        const response = await approve(bookingId, owner.cookie).expect(409);
+        expect(response.body).toMatchObject({ code: 'BOOKING_SLOT_CONFLICT' });
+        expect(response.body.conflicts).toEqual([expect.objectContaining({ reason: blocker })]);
+
+        const db = await pool.query<{ status: string }>('SELECT status FROM venue_bookings WHERE id = $1', [bookingId]);
+        expect(db.rows[0].status).toBe('pending');
+        const log = await pool.query('SELECT 1 FROM booking_review_log WHERE booking_id = $1', [bookingId]);
+        expect(log.rowCount).toBe(0);
+      }
+    });
+
+    /**
+     * VEN-REV-02-B SPM-55 AC2 (boundary): the overlap check pads the approved booking with the venue's setup before
+     * its start and turnaround after its end, using strict comparisons, and only compares bookings at the same venue.
+     * With 30 min setup and 45 min turnaround, an approved booking at 10:00 occupies from 09:30, and a request's
+     * turnaround runs 45 min past its end. So a request ending 08:45 just touches it (approvable), one ending 08:40
+     * clears it by 5 minutes (approvable, but conflicts if turnaround were used as the setup pad), and a request
+     * overlapping an approved booking at a different venue is approvable.
+     */
+    it('VEN-REV-02-B SPM-55 AC2 approves a slot that only touches the setup buffer or overlaps a booking at another venue', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const buffers = { setupTimeMinutes: 30, turnaroundTimeMinutes: 45 };
+
+      const withApprovedAt10 = async (label: string) => {
+        const venueId = await createVenue(owner.id, buffers);
+        const eventId = await createAssignedEvent(coordinator.id, `VEN-REV-02-B ${label} booked`, '2030-03-05T10:00:00.000Z', '2030-03-05T11:00:00.000Z');
+        await addBooking(venueId, eventId, { start: '2030-03-05T10:00:00.000Z', end: '2030-03-05T11:00:00.000Z' });
+        return venueId;
+      };
+      const request08 = async (venueId: string, label: string, start: string, end: string) =>
+        addPendingRequest(venueId, await createAssignedEvent(coordinator.id, `VEN-REV-02-B ${label}`), start, end);
+
+      // Ends 08:45: its turnaround reaches 09:30, exactly where the approved booking's setup starts.
+      const touching = await request08(await withApprovedAt10('touching'), 'touching', '2030-03-05T07:45:00.000Z', '2030-03-05T08:45:00.000Z');
+      // Ends 08:40: clears 09:30 by 5 minutes, but would reach past 09:15 (10:00 minus the 45 min turnaround).
+      const nearMiss = await request08(await withApprovedAt10('near miss'), 'near miss', '2030-03-05T07:40:00.000Z', '2030-03-05T08:40:00.000Z');
+      // Overlaps 10:00-11:00 exactly, but the approved booking is at another venue.
+      await withApprovedAt10('other venue');
+      const otherVenue = await request08(await createVenue(owner.id, buffers), 'other venue', '2030-03-05T10:00:00.000Z', '2030-03-05T11:00:00.000Z');
+
+      for (const bookingId of [touching, nearMiss, otherVenue]) {
+        const response = await approve(bookingId, owner.cookie).expect(201);
+        expect(response.body).toMatchObject({ id: bookingId, status: 'approved' });
+      }
+    });
+
     /** VEN-REV-10-A SPM-55 AC2 AC5: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
     it('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row', async () => {
       const owner = await createUser('VENUE_STAFF');
@@ -1777,54 +1883,65 @@ describe.skipIf(!databaseUrl)(
       expect(log.rows[0].reason).toBe('Clashes with scheduled maintenance');
     });
 
-    /** VEN-REV-11-A SPM-55: migration 022 backfill assigns the surviving note only to the most-recent booking attempt. */
+    /**
+     * VEN-REV-11-A SPM-55: migration 022 backfill assigns the surviving note only to the most-recent booking attempt.
+     * The real migration file runs inside a transaction against temporary tables that shadow venue_bookings and
+     * venue_booking_requests, and the transaction is rolled back, so the backfill (or a mutant of it) never touches
+     * the shared tables or other suites' rows.
+     */
     it('VEN-REV-11-A SPM-55 migration backfill does not assign a newer note to an older booking attempt', async () => {
-      const coordinator = await createUser('COORDINATOR');
-      const owner = await createUser('VENUE_STAFF');
-      const venueId = await createVenue(owner.id);
-      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-11-A backfill event');
-
-      // Insert two historical booking attempts with NULL special_request (pre-migration state).
-      const olderRow = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'rejected')
-         RETURNING id`,
-        [venueId, eventId],
+      const migration = await readFile(
+        new URL('../migrations/022_spm55_booking_special_request.sql', import.meta.url),
+        'utf8',
       );
-      const olderId = olderRow.rows[0].id;
+      // Fixed ids: the rows only ever exist in this transaction's temporary tables, so they cannot collide.
+      const eventId = '11a00000-0000-4000-8000-000000000001';
+      const venueId = '11a00000-0000-4000-8000-000000000002';
+      const olderId = '11a00000-0000-4000-8000-000000000003';
+      const newerId = '11a00000-0000-4000-8000-000000000004';
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query('CREATE TEMP TABLE venue_bookings (LIKE public.venue_bookings INCLUDING DEFAULTS)');
+        await client.query(
+          'CREATE TEMP TABLE venue_booking_requests (LIKE public.venue_booking_requests INCLUDING DEFAULTS)',
+        );
+        // Guard: the unqualified names the migration uses must resolve to the temporary copies before it runs.
+        const resolved = await client.query<{ schema: string }>(
+          `SELECT n.nspname AS schema FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE c.oid IN ('venue_bookings'::regclass, 'venue_booking_requests'::regclass)`,
+        );
+        expect(resolved.rows).toHaveLength(2);
+        for (const row of resolved.rows) expect(row.schema).toMatch(/^pg_temp/);
 
-      // Force a slightly later created_at so the newer row wins DISTINCT ON ordering.
-      const newerRow = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status, created_at)
-         VALUES ($1, $2, '2030-01-14T06:00:00.000Z', '2030-01-14T07:00:00.000Z', 'pending',
-                 now() + interval '1 second')
-         RETURNING id`,
-        [venueId, eventId],
-      );
-      const newerId = newerRow.rows[0].id;
+        // Two historical attempts for one event and venue, both without a stored note (pre-migration state);
+        // the newer one is created a second later, so it wins the DISTINCT ON ordering.
+        await client.query(
+          `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status, created_at)
+           VALUES ($1, $3, $4, '2030-01-12T06:00:00.000Z', '2030-01-12T07:00:00.000Z', 'rejected', now()),
+                  ($2, $3, $4, '2030-01-14T06:00:00.000Z', '2030-01-14T07:00:00.000Z', 'pending',
+                   now() + interval '1 second')`,
+          [olderId, newerId, venueId, eventId],
+        );
+        // The shared (event, venue) request row keeps only the latest note.
+        await client.query(
+          `INSERT INTO venue_booking_requests (event_id, venue_id, special_request) VALUES ($1, $2, 'Need a projector')`,
+          [eventId, venueId],
+        );
 
-      // Seed the shared venue_booking_requests row — only the latest note survives.
-      await pool.query(
-        `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
-         VALUES ($1, $2, 'Need a projector')
-         ON CONFLICT (event_id, venue_id) DO UPDATE SET special_request = EXCLUDED.special_request`,
-        [eventId, venueId],
-      );
+        await client.query(migration);
 
-      // Re-run migration 022 itself (idempotent: ADD COLUMN IF NOT EXISTS plus the backfill) against the live test DB,
-      // so a change to the migration's backfill is caught here rather than a copy of its SQL.
-      await pool.query(
-        await readFile(new URL('../migrations/022_spm55_booking_special_request.sql', import.meta.url), 'utf8'),
-      );
-
-      const rows = await pool.query<{ id: string; special_request: string | null }>(
-        'SELECT id, special_request FROM venue_bookings WHERE id = ANY($1::uuid[])',
-        [[olderId, newerId]],
-      );
-      const byId = Object.fromEntries(rows.rows.map((r) => [r.id, r.special_request]));
-
-      expect(byId[olderId]).toBeNull();
-      expect(byId[newerId]).toBe('Need a projector');
+        const rows = await client.query<{ id: string; special_request: string | null }>(
+          'SELECT id, special_request FROM venue_bookings WHERE id = ANY($1::uuid[])',
+          [[olderId, newerId]],
+        );
+        const byId = Object.fromEntries(rows.rows.map((r) => [r.id, r.special_request]));
+        expect(byId[olderId]).toBeNull();
+        expect(byId[newerId]).toBe('Need a projector');
+      } finally {
+        await client.query('ROLLBACK');
+        client.release();
+      }
     });
 
     /** VEN-HOLD-03-BND-1: exactly 336 hours from the setup-adjusted occupied start is eligible. */
@@ -3420,23 +3537,24 @@ describe.skipIf(!databaseUrl)(
     });
 
     /**
-     * VEN-REV-12-B SPM-55 AC1 (review SPM55-REVIEW-003): each booking attempt keeps its own special request. A
-     * rejected request keeps its note after the coordinator resubmits for the same event and venue with a new note,
-     * in both the Venue Staff list and the coordinator's My Bookings.
+     * VEN-REV-12-B/12-C setup: the coordinator submits a request (with firstNote, or none), Venue Staff reject it,
+     * and the coordinator resubmits for the same event, venue and slot with secondNote. Returns both attempts.
      */
-    it('VEN-REV-12-B SPM-55 keeps the special request of each booking attempt after a reject and resubmit', async () => {
+    async function rejectAndResubmit(label: string, day: string, firstNote: string | undefined, secondNote: string, reason: string) {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
       const venueId = await createVenue(owner.id);
-      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-12-B event', '2030-02-14T06:00:00.000Z', '2030-02-14T07:00:00.000Z');
-      const submit = (specialRequest: string) =>
+      const start = `${day}T06:00:00.000Z`;
+      const end = `${day}T07:00:00.000Z`;
+      const eventId = await createAssignedEvent(coordinator.id, `${label} event`, start, end);
+      const submit = (specialRequest: string | undefined) =>
         request(app.getHttpServer())
           .post(`/api/venues/${venueId}/booking-requests`)
           .set('Cookie', coordinator.cookie)
-          .send({ eventId, start: '2030-02-14T06:00:00.000Z', end: '2030-02-14T07:00:00.000Z', specialRequest })
+          .send({ eventId, start, end, ...(specialRequest === undefined ? {} : { specialRequest }) })
           .expect(201);
 
-      await submit('Need microphones');
+      await submit(firstNote);
       const first = await pool.query<{ id: string }>(
         'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
         [venueId, eventId],
@@ -3445,34 +3563,44 @@ describe.skipIf(!databaseUrl)(
       await request(app.getHttpServer())
         .post(`/api/venues/bookings/${bookingA}/reject`)
         .set('Cookie', owner.cookie)
-        .send({ reason: 'Room under maintenance' })
+        .send({ reason })
         .expect(201);
-      await submit('Need wheelchair seating');
+      await submit(secondNote);
       const second = await pool.query<{ id: string }>(
         'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 AND id <> $3',
         [venueId, eventId, bookingA],
       );
-      const bookingB = second.rows[0].id;
+      return { owner, coordinator, bookingA, bookingB: second.rows[0].id };
+    }
 
-      const staff = await request(app.getHttpServer())
-        .get('/api/venues/bookings/pending')
-        .set('Cookie', owner.cookie)
-        .expect(200);
-      const staffNotes = Object.fromEntries(
-        (staff.body as Array<{ id: string; specialRequest?: string }>).map((row) => [row.id, row.specialRequest]),
-      );
-      expect(staffNotes[bookingA]).toBe('Need microphones');
-      expect(staffNotes[bookingB]).toBe('Need wheelchair seating');
+    /** VEN-REV-12-B/12-C: the special request of every row in the Venue Staff list and in My Bookings. */
+    async function notesInBothLists(owner: { cookie: string }, coordinator: { cookie: string }) {
+      const lists = [];
+      for (const [path, cookie] of [
+        ['/api/venues/bookings/pending', owner.cookie],
+        ['/api/venues/bookings/mine', coordinator.cookie],
+      ]) {
+        const response = await request(app.getHttpServer()).get(path).set('Cookie', cookie).expect(200);
+        lists.push(response.body as Array<{ id: string; specialRequest?: string | null }>);
+      }
+      return lists;
+    }
 
-      const mine = await request(app.getHttpServer())
-        .get('/api/venues/bookings/mine')
-        .set('Cookie', coordinator.cookie)
-        .expect(200);
-      const myNotes = Object.fromEntries(
-        (mine.body as Array<{ id: string; specialRequest?: string }>).map((row) => [row.id, row.specialRequest]),
+    /**
+     * VEN-REV-12-B SPM-55 AC1 (review SPM55-REVIEW-003): each booking attempt keeps its own special request. A
+     * rejected request keeps its note after the coordinator resubmits for the same event and venue with a new note,
+     * in both the Venue Staff list and the coordinator's My Bookings.
+     */
+    it('VEN-REV-12-B SPM-55 keeps the special request of each booking attempt after a reject and resubmit', async () => {
+      const { owner, coordinator, bookingA, bookingB } = await rejectAndResubmit(
+        'VEN-REV-12-B', '2030-02-14', 'Need microphones', 'Need wheelchair seating', 'Room under maintenance',
       );
-      expect(myNotes[bookingA]).toBe('Need microphones');
-      expect(myNotes[bookingB]).toBe('Need wheelchair seating');
+
+      for (const rows of await notesInBothLists(owner, coordinator)) {
+        const notes = Object.fromEntries(rows.map((row) => [row.id, row.specialRequest]));
+        expect(notes[bookingA]).toBe('Need microphones');
+        expect(notes[bookingB]).toBe('Need wheelchair seating');
+      }
     });
 
     /**
@@ -3481,44 +3609,11 @@ describe.skipIf(!databaseUrl)(
      * newer attempt's note.
      */
     it('VEN-REV-12-C SPM-55 leaves an attempt without a special request empty after a resubmit with a note', async () => {
-      const owner = await createUser('VENUE_STAFF');
-      const coordinator = await createUser('COORDINATOR');
-      const venueId = await createVenue(owner.id);
-      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-12-C event', '2030-02-16T06:00:00.000Z', '2030-02-16T07:00:00.000Z');
-      const slot = { eventId, start: '2030-02-16T06:00:00.000Z', end: '2030-02-16T07:00:00.000Z' };
-
-      await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
-        .set('Cookie', coordinator.cookie)
-        .send(slot)
-        .expect(201);
-      const first = await pool.query<{ id: string }>(
-        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
-        [venueId, eventId],
+      const { owner, coordinator, bookingA, bookingB } = await rejectAndResubmit(
+        'VEN-REV-12-C', '2030-02-16', undefined, 'Need a ramp', 'Double-booked',
       );
-      const bookingA = first.rows[0].id;
-      await request(app.getHttpServer())
-        .post(`/api/venues/bookings/${bookingA}/reject`)
-        .set('Cookie', owner.cookie)
-        .send({ reason: 'Double-booked' })
-        .expect(201);
-      await request(app.getHttpServer())
-        .post(`/api/venues/${venueId}/booking-requests`)
-        .set('Cookie', coordinator.cookie)
-        .send({ ...slot, specialRequest: 'Need a ramp' })
-        .expect(201);
-      const second = await pool.query<{ id: string }>(
-        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 AND id <> $3',
-        [venueId, eventId, bookingA],
-      );
-      const bookingB = second.rows[0].id;
 
-      for (const [path, cookie] of [
-        ['/api/venues/bookings/pending', owner.cookie],
-        ['/api/venues/bookings/mine', coordinator.cookie],
-      ]) {
-        const response = await request(app.getHttpServer()).get(path).set('Cookie', cookie).expect(200);
-        const rows = response.body as Array<{ id: string; specialRequest?: string | null }>;
+      for (const rows of await notesInBothLists(owner, coordinator)) {
         // The earlier attempt is listed (so an empty note is a real empty note, not a missing row).
         expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining([bookingA, bookingB]));
         // Absent or null both mean "no note"; only a borrowed string is a failure.

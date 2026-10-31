@@ -31,11 +31,15 @@ const MY_BOOKINGS_COLUMNS =
 // The shared (event, venue) note that a resubmission overwrites: the pre-fix source of special_request.
 const SHARED_NOTE =
   '(SELECT r.special_request FROM venue_booking_requests r WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id)';
-const APPROVE_AUDIT_INSERT =
-  "      await client.query(\n        `INSERT INTO booking_review_log (booking_id, actor_user_id, action)\n         VALUES ($1::uuid, $2::uuid, 'approved')`,\n        [bookingId, staffId],\n      );\n";
-const REJECT_AUDIT_INSERT =
-  "      await client.query(\n        `INSERT INTO booking_review_log (booking_id, actor_user_id, action, reason)\n         VALUES ($1::uuid, $2::uuid, 'rejected', $3)`,\n        [bookingId, staffId, reason],\n      );\n";
+// Single-line anchors for the audit inserts: VALUES becomes a SELECT that yields no row, so the INSERT is still valid
+// SQL but writes no audit row. A reformat of the surrounding query does not stop these from applying.
+const APPROVE_AUDIT_VALUES = "VALUES ($1::uuid, $2::uuid, 'approved')`";
+const REJECT_AUDIT_VALUES = "VALUES ($1::uuid, $2::uuid, 'rejected', $3)`";
 const e2eKill = (title) => `${REVIEW_E2E_SPEC} :: ${title}`;
+// VEN-REV-M02, M03, M25 and M37 (approval overlap check) are credited to SPM-55's own VEN-REV-02-B E2E tests, not
+// to SPM-56's retitled repository test, so the SPM-55 kill count only counts SPM-55 evidence.
+const KILL_02B_REFUSE = e2eKill('VEN-REV-02-B SPM-55 AC2 refuses approval when an approved booking or a blockout overlaps the slot');
+const KILL_02B_ALLOW = e2eKill('VEN-REV-02-B SPM-55 AC2 approves a slot that only touches the setup buffer or overlaps a booking at another venue');
 const KILL_12A = e2eKill('VEN-REV-12-A SPM-55 lists each request by its stored booking slot after the event schedule changes');
 const KILL_12B = e2eKill('VEN-REV-12-B SPM-55 keeps the special request of each booking attempt after a reject and resubmit');
 const KILL_12C = e2eKill('VEN-REV-12-C SPM-55 leaves an attempt without a special request empty after a resubmit with a note');
@@ -57,9 +61,9 @@ export const MUTANTS = [
     id: 'VEN-REV-M02',
     name: 'approval conflict uses <= at the approved booking start boundary',
     file: REPOSITORY,
-    suites: ['reviewRepository'],
+    suites: ['reviewE2e'],
     kills: [
-      `${REPOSITORY_SPEC} :: VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals`,
+      KILL_02B_ALLOW,
     ],
     edits: [
       [
@@ -72,9 +76,9 @@ export const MUTANTS = [
     id: 'VEN-REV-M03',
     name: 'approval conflict pads an approved booking start with turnaround minutes instead of setup minutes',
     file: REPOSITORY,
-    suites: ['reviewRepository'],
+    suites: ['reviewE2e'],
     kills: [
-      `${REPOSITORY_SPEC} :: VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals`,
+      KILL_02B_ALLOW,
     ],
     edits: [
       [
@@ -89,7 +93,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       ["VALUES ($1::uuid, $2::uuid, 'approved')", 'VALUES ($1::uuid, $2::uuid)'],
@@ -164,7 +168,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -180,7 +184,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
@@ -195,7 +199,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
@@ -210,7 +214,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
     ],
     edits: [
       [
@@ -316,7 +320,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -330,9 +334,9 @@ export const MUTANTS = [
     id: 'VEN-REV-M25',
     name: 'the approval blockout check drops the venue predicate, so approval ignores venue blockouts',
     file: REPOSITORY,
-    suites: ['reviewRepository'],
+    suites: ['reviewE2e'],
     kills: [
-      `${REPOSITORY_SPEC} :: VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals`,
+      KILL_02B_REFUSE,
     ],
     // SPM-56 rewrote the conflict query to return every overlap; the anchor is the approval query's blockout branch.
     edits: [
@@ -363,7 +367,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -409,7 +413,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -486,7 +490,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -502,7 +506,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewRepository'],
     kills: [
-      `${REPOSITORY_SPEC} :: approves a pending request and writes the audit row with the actor`,
+      `${REPOSITORY_SPEC} :: SPM-55 AC2 AC5 approves a pending request and writes the audit row with the actor`,
       `${REPOSITORY_SPEC} :: SPM-55 AC3 AC5 rejects a pending request, storing the reason and an audit row`,
     ],
     edits: [
@@ -516,9 +520,9 @@ export const MUTANTS = [
     id: 'VEN-REV-M37',
     name: 'the approved-booking conflict check ignores the venue and compares bookings from every venue',
     file: REPOSITORY,
-    suites: ['reviewRepository'],
+    suites: ['reviewE2e'],
     kills: [
-      `${REPOSITORY_SPEC} :: VEN-CONF-01-A VEN-CONF-03-A VEN-CONF-06-A VEN-CONF-06-C SPM-56 returns all overlapping occupied booking intervals`,
+      KILL_02B_ALLOW,
     ],
     edits: [
       [
@@ -626,7 +630,7 @@ export const MUTANTS = [
     edits: [[REVIEW_LIST_ORDER, REVIEW_LIST_ORDER.replace('b.start_at', 'e.start_date_time')]],
   },
   // VEN-REV-M53 to M55 back the kills claimed by VEN-REV-10-A, 10-B and 11-A (PR #81 review): each breaks the path
-  // only that E2E test exercises against real PostgreSQL. M53/M54 delete the audit insert outright (an insert with a
+  // only that E2E test exercises against real PostgreSQL. M53/M54 make the audit insert write no row (an insert with a
   // wrong action or reason would trip booking_review_log's CHECK constraints instead of the test's own assertions).
   {
     id: 'VEN-REV-M53',
@@ -634,7 +638,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewE2e'],
     kills: [e2eKill('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row')],
-    edits: [[APPROVE_AUDIT_INSERT, '']],
+    edits: [[APPROVE_AUDIT_VALUES, "SELECT $1::uuid, $2::uuid, 'approved' WHERE false`"]],
   },
   {
     id: 'VEN-REV-M54',
@@ -642,7 +646,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['reviewE2e'],
     kills: [e2eKill('VEN-REV-10-B SPM-55 rejects a pending booking request with a reason and writes an audit log row')],
-    edits: [[REJECT_AUDIT_INSERT, '']],
+    edits: [[REJECT_AUDIT_VALUES, "SELECT $1::uuid, $2::uuid, 'rejected', $3::text WHERE false`"]],
   },
   {
     id: 'VEN-REV-M55',
