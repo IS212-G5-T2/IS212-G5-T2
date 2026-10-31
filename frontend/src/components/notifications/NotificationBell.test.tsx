@@ -195,9 +195,12 @@ describe("NotificationBell (SPM-83 AC6)", () => {
     expect(screen.queryByRole("button", { name: /mark as read|show all/i })).toBeNull();
   });
 
-  // Kills: the bell rendering for a coordinator, or calling the notifications API for a non-organiser.
-  it("EVENT-REJECT-SUP-03 renders no bell for a non-organiser", () => {
-    setUserRole("coordinator");
+  // Kills: the bell rendering for a role with no notification types, or calling the notifications API for it.
+  // SPM-77 changed this from a coordinator (who now has a bell) to an attendee.
+  it("EVENT-REJECT-SUP-03 renders no bell for a user who is neither an organiser nor a coordinator", () => {
+    useAppStore.setState({
+      currentUser: { id: "attendee-1", name: "Att", email: "a@example.test", role: "attendee", roles: ["attendee"] },
+    });
 
     const { container } = render(
       <MemoryRouter>
@@ -936,5 +939,302 @@ describe("NotificationBell (SPM-88 AC5: unread state and mark as read)", () => {
     await waitFor(() => expect(bellButton().textContent).toBe("9+"));
     expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 10 unread");
     expect(screen.getAllByRole("listitem")).toHaveLength(10);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-77: the Event Coordinator's bell. The assignment, reassignment and unassignment notices (SPM-47 AC8)
+// move from the events page "Assignment Updates" panel into the same top-bar bell as SPM-88.
+// Decisions (SC-SPM77-01..03, DECIDED): message wording is built by the backend; the bell lists only the three
+// assignment types for a Coordinator (change-request and cancellation notices stay where they are shown today).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const ASSIGNED_MESSAGE =
+    '"Welcome Evening" on 10 Jan 2027 has been assigned to you.';
+
+  function setCoordinator(roles: Array<"coordinator" | "venue_staff"> = ["coordinator"]) {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: roles[0], roles },
+    });
+  }
+
+  function coordinatorNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-assign-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "coordinator_assignment",
+      message: ASSIGNED_MESSAGE,
+      relatedEventId: "event-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  /**
+   * ASSIGN-NOTIFY-01-C (SPM-77 AC1): a signed-in Coordinator gets a bell, loads the notifications feed and sees
+   * the assignment in the dropdown with the unread count 1.
+   * Kills: the bell staying organiser-only; the feed not loading for a coordinator.
+   */
+  it("ASSIGN-NOTIFY-01-C shows a Coordinator the assignment in the bell with an unread count of 1", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(apiMock).toHaveBeenCalledWith("/notifications");
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(bellButton().textContent).toBe("1");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-01-D (SPM-77 AC1): a user who is a Coordinator and also holds another role (Venue Staff) still
+   * gets the bell and the assignment.
+   * Kills: checking only the primary role, so a multi-role Coordinator gets no bell.
+   */
+  it("ASSIGN-NOTIFY-01-D shows the bell to a Coordinator who also has the Venue Staff role", async () => {
+    setCoordinator(["venue_staff", "coordinator"]);
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-01-E (SPM-77 AC1, permission): roles that are neither Organiser nor Coordinator get no bell and
+   * never load notifications.
+   * Kills: the bell being opened to every signed-in role.
+   */
+  it.each(["venue_staff", "tech_support", "attendee"] as const)(
+    "ASSIGN-NOTIFY-01-E renders no bell and loads nothing for a %s user",
+    (role) => {
+      useAppStore.setState({ currentUser: { id: "u-1", name: "U", email: "u@example.test", role, roles: [role] } });
+
+      const { container } = render(
+        <MemoryRouter>
+          <NotificationBell />
+        </MemoryRouter>,
+      );
+
+      expect(container).toBeEmptyDOMElement();
+      expect(apiMock).not.toHaveBeenCalled();
+    },
+  );
+
+  /**
+   * ASSIGN-NOTIFY-02-C (SPM-77 AC2 and Note): the row shows the whole message (event name, assignment wording,
+   * proposed date, no time) and the notification's own timestamp as a <time> element; no separate assignment date.
+   * Kills: a row that drops the proposed date, or hides the notification's own time.
+   */
+  it("ASSIGN-NOTIFY-02-C shows the event name, the assignment, the proposed date and the notification time", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice()]);
+
+    renderBell();
+
+    const row = (await screen.findByText(ASSIGNED_MESSAGE)).closest("li")!;
+    expect(row).toHaveTextContent("Welcome Evening");
+    expect(row).toHaveTextContent("has been assigned to you");
+    expect(row).toHaveTextContent("10 Jan 2027");
+    expect(row).not.toHaveTextContent("18:00");
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-03-C (SPM-77 AC3 and AC4): View Request on an assignment links to /events/event-1, marks the
+   * notification read once, opens the event and closes the dropdown.
+   * Kills: a link to the wrong page; opening the event without marking it read.
+   */
+  it("ASSIGN-NOTIFY-03-C View Request opens /events/event-1 and marks the assignment read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-1")).toBeTruthy();
+    expect(postReadCalls("notif-assign-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-A (SPM-77 AC6, SPM-47 AC8): a reassignment notice also links to the event it moved to the
+   * Coordinator and marks itself read on opening.
+   * Kills: reassignment notices staying on the removed panel or rendered without a link.
+   */
+  it("ASSIGN-NOTIFY-06-A shows a reassignment notice in the bell with a link to its event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              coordinatorNotice({
+                id: "notif-reassign-1",
+                type: "coordinator_reassignment",
+                message: 'Event "Gala Night" has been reassigned to you.',
+                relatedEventId: "event-2",
+              }),
+            ],
+      ),
+    );
+
+    renderBellWithEventRoute();
+    const link = await screen.findByRole("link", { name: "View Request" });
+    expect(link).toHaveAttribute("href", "/events/event-2");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Event detail page for event-2")).toBeTruthy();
+    expect(postReadCalls("notif-reassign-1")).toHaveLength(1);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-B (SPM-77 AC6): an unassignment notice has no link (the event now belongs to another
+   * Coordinator) but can still be marked read.
+   * Kills: a link to an event the Coordinator can no longer open.
+   */
+  it("ASSIGN-NOTIFY-06-B shows an unassignment notice with no link and a Mark As Read button", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({
+        id: "notif-unassign-1",
+        type: "coordinator_unassignment",
+        message: 'Event "Gala Night" has been reassigned to Another Coordinator.',
+        relatedEventId: "event-2",
+      }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText('Event "Gala Night" has been reassigned to Another Coordinator.')).toBeTruthy();
+    expect(screen.queryByRole("link")).toBeNull();
+    expect(screen.getByRole("button", { name: "Mark As Read" })).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-C (SPM-77 AC4): the badge counts unread assignment, reassignment and unassignment notices
+   * (3) and ignores one already read.
+   * Kills: counting read notices or only one notice type.
+   */
+  it("ASSIGN-NOTIFY-04-C counts the three unread notice types and leaves out a read one", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({ id: "n-a", createdAt: "2026-10-28T12:00:00.000Z" }),
+      coordinatorNotice({ id: "n-r", type: "coordinator_reassignment", message: 'Event "B" has been reassigned to you.', relatedEventId: "event-2", createdAt: "2026-10-28T13:00:00.000Z" }),
+      coordinatorNotice({ id: "n-u", type: "coordinator_unassignment", message: 'Event "C" has been reassigned to Someone.', relatedEventId: "event-3", createdAt: "2026-10-28T14:00:00.000Z" }),
+      coordinatorNotice({ id: "n-read", message: '"Already Read" on 10 Jan 2027 has been assigned to you.', read: true }),
+    ]);
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread"));
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    expect(screen.queryByText(/Already Read/)).toBeNull();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-D (SPM-77 AC4): Mark As Read posts the read call, drops the row and lowers the count without
+   * following the link.
+   * Kills: Mark As Read that does not call the API or does not update the count.
+   */
+  it("ASSIGN-NOTIFY-04-D Mark As Read marks the assignment read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBell();
+    fireEvent.click(await screen.findByRole("button", { name: "Mark As Read" }));
+
+    await waitFor(() => expect(screen.queryByText(ASSIGNED_MESSAGE)).toBeNull());
+    expect(postReadCalls("notif-assign-1")).toHaveLength(1);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.getByText("You're all caught up")).toBeTruthy();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-E (SPM-77 AC4): a notice the server already holds as read (stays read after sign-out and in)
+   * is not shown or counted on load.
+   * Kills: treating every fetched notice as unread.
+   */
+  it("ASSIGN-NOTIFY-04-E shows nothing and no badge when the only notice is already read", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([coordinatorNotice({ read: true })]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * ASSIGN-NOTIFY-04-F (SPM-77 AC4, SUPPORTING): when the Coordinator's feed fails to load, the bell shows the
+   * assignment-specific load error and Retry brings the notice back.
+   * Kills: the Coordinator seeing the organiser's error text, or Retry not re-fetching the feed.
+   */
+  it("ASSIGN-NOTIFY-04-F shows the Coordinator's load error and recovers on Retry", async () => {
+    setCoordinator();
+    apiMock.mockRejectedValueOnce(new Error("network unavailable")).mockResolvedValueOnce([coordinatorNotice()]);
+
+    renderBell();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Could not load your assignment notifications.");
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+    expect(await screen.findByText(/has been assigned to you/)).toBeInTheDocument();
+    expect(apiMock).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-06-C (SPM-77 AC6, DECIDED SC-SPM77-02): the bell replaces the Assignment Updates panel only, so a
+   * Coordinator's change-request and cancellation notices do not appear in it (the Pending Change Requests section
+   * and the event page show them).
+   * Kills: listing every notification type returned for a Coordinator.
+   */
+  it("ASSIGN-NOTIFY-06-C does not list a Coordinator's change request or cancellation notices", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      coordinatorNotice({ id: "n-cr", type: "coordinator_change_request", message: 'Change request for "X"', relatedEventId: "event-3" }),
+      coordinatorNotice({ id: "n-cancel", type: "EventCancelled", message: 'Event "Y" was cancelled', relatedEventId: "event-4" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * DECISION-NOTIFY-04-F (SPM-88 AC4, regression guard carried into SPM-77): an Organiser's bell is unchanged by the Coordinator work: it
+   * still lists its decisions, counts them and links to the event.
+   * Kills: a role filter that hides organiser decisions or changes their link.
+   */
+  it("DECISION-NOTIFY-04-F keeps the Organiser bell listing decisions with their links", async () => {
+    setUserRole("organiser");
+    apiMock.mockResolvedValue([
+      rejectionNotification({ createdAt: DECISION_CREATED_AT }),
+      approvalNotification({ id: "notif-approval-2", message: 'Your event request "Spring Gala" was approved and can proceed.', relatedEventId: "event-2", createdAt: DECISION_CREATED_AT }),
+    ]);
+
+    renderBell();
+
+    await waitFor(() => expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread"));
+    expect(screen.getAllByRole("link", { name: "View Request" }).map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/events/event-1",
+      "/events/event-2",
+    ]);
   });
 });
