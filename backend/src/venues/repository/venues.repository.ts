@@ -330,8 +330,31 @@ export class VenuesRepository {
       await client.query('DELETE FROM venue_images WHERE venue_id=$1::uuid', [venueId]);
       if (input.image) await this.insertImage(client, venueId, input.image);
 
-      // AC8: find bookings that now conflict under the new timing but did not under the old timing.
+      // AC8: find eligible bookings that overlap an eligible counterpart under
+      // the new timing but did not overlap that same counterpart under the old
+      // timing. Eligibility mirrors the SPM-56 approval conflict check: approved
+      // bookings with non-expired holds, pending bookings with a future hold or
+      // a matching booking request, and unavailability periods (status=blocked).
       const now = this.clock.now();
+      const eligibleBooking = `(
+        (b.status = 'approved' AND (b.request_kind <> 'tentative_hold'
+          OR b.hold_expires_at IS NULL OR b.hold_expires_at > $6::timestamptz))
+        OR (b.status = 'pending' AND (b.hold_expires_at > $6::timestamptz
+          OR (b.request_kind <> 'tentative_hold' AND EXISTS (
+            SELECT 1 FROM venue_booking_requests r
+            WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id))))
+      )`;
+      const eligibleOther = `(
+        o.status = 'blocked'
+        OR (o.status = 'approved' AND (o.request_kind <> 'tentative_hold'
+          OR o.hold_expires_at IS NULL OR o.hold_expires_at > $6::timestamptz))
+        OR (o.status = 'pending' AND (o.hold_expires_at > $6::timestamptz
+          OR (o.request_kind <> 'tentative_hold' AND EXISTS (
+            SELECT 1 FROM venue_booking_requests r
+            WHERE r.event_id = o.event_id AND r.venue_id = o.venue_id))))
+      )`;
+      const setupExpr = (p: string, col: string) =>
+        `CASE WHEN ${col}.status = 'blocked' THEN interval '0' ELSE make_interval(mins => ${p}::int) END`;
       const affected = timingChanged
         ? await client.query<{
             id: string;
@@ -343,33 +366,19 @@ export class VenuesRepository {
             `SELECT DISTINCT b.id, e.event_name, b.start_at, b.end_at, b.status
                FROM venue_bookings b
                JOIN events e ON e.id = b.event_id
+               JOIN venue_bookings o ON o.venue_id = b.venue_id AND o.id <> b.id
               WHERE b.venue_id = $1::uuid
-                AND ((b.status = 'approved' AND
-                  (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
-                    OR b.hold_expires_at > $6::timestamptz)) OR
-                  (b.status = 'pending' AND
-                    (b.hold_expires_at > $6::timestamptz OR
-                     (b.request_kind <> 'tentative_hold' AND EXISTS (
-                      SELECT 1 FROM venue_booking_requests r
-                       WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
-                     )))))
-                AND EXISTS (
-                  SELECT 1 FROM venue_bookings other
-                  WHERE other.venue_id = b.venue_id AND other.id <> b.id
-                    AND other.status IN ('pending','approved','blocked')
-                    AND other.start_at - CASE WHEN other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $2::int) END
-                          < b.end_at + make_interval(mins => $3::int)
-                    AND other.end_at + CASE WHEN other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $3::int) END
-                          > b.start_at - make_interval(mins => $2::int)
-                )
-                AND NOT EXISTS (
-                  SELECT 1 FROM venue_bookings old_other
-                  WHERE old_other.venue_id = b.venue_id AND old_other.id <> b.id
-                    AND old_other.status IN ('pending','approved','blocked')
-                    AND old_other.start_at - CASE WHEN old_other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $4::int) END
-                          < b.end_at + make_interval(mins => $5::int)
-                    AND old_other.end_at + CASE WHEN old_other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $5::int) END
-                          > b.start_at - make_interval(mins => $4::int)
+                AND ${eligibleBooking}
+                AND ${eligibleOther}
+                -- overlaps under new timing
+                AND o.start_at - ${setupExpr('$2', 'o')} < b.end_at + make_interval(mins => $3::int)
+                AND o.end_at + CASE WHEN o.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $3::int) END
+                      > b.start_at - make_interval(mins => $2::int)
+                -- did not overlap under old timing
+                AND NOT (
+                  o.start_at - ${setupExpr('$4', 'o')} < b.end_at + make_interval(mins => $5::int)
+                  AND o.end_at + CASE WHEN o.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $5::int) END
+                        > b.start_at - make_interval(mins => $4::int)
                 )
               ORDER BY b.start_at, b.id`,
             [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes,
