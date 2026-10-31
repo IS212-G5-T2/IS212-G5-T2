@@ -3371,5 +3371,164 @@ describe.skipIf(!databaseUrl)(
         ]),
       );
     });
+
+    /**
+     * VEN-REV-12-A SPM-55 AC1 (review SPM55-REVIEW-002): the Venue Staff review list shows and orders each request
+     * by its stored booking slot, not the event's current schedule or the submission order. Y is submitted first but
+     * booked later than X; moving X's event later must not change X's listed slot or its place before Y. The
+     * coordinator's My Bookings shows the same stored slot.
+     */
+    it('VEN-REV-12-A SPM-55 lists each request by its stored booking slot after the event schedule changes', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventX = await createAssignedEvent(coordinator.id, 'VEN-REV-12-A event X', '2030-02-10T06:00:00.000Z', '2030-02-10T07:00:00.000Z');
+      const eventY = await createAssignedEvent(coordinator.id, 'VEN-REV-12-A event Y', '2030-02-12T06:00:00.000Z', '2030-02-12T07:00:00.000Z');
+      // Y first, so ordering by submission time would put Y before X.
+      for (const [eventId, start, end] of [
+        [eventY, '2030-02-12T06:00:00.000Z', '2030-02-12T07:00:00.000Z'],
+        [eventX, '2030-02-10T06:00:00.000Z', '2030-02-10T07:00:00.000Z'],
+      ])
+        await request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send({ eventId, start, end })
+          .expect(201);
+
+      // The event moves after the request was made; the stored booking slot does not.
+      await pool.query('UPDATE events SET start_date_time = $2, end_date_time = $3 WHERE id = $1', [
+        eventX,
+        new Date('2030-02-20T06:00:00.000Z'),
+        new Date('2030-02-20T07:00:00.000Z'),
+      ]);
+
+      const list = await request(app.getHttpServer())
+        .get('/api/venues/bookings/pending')
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      const rows = (list.body as Array<{ eventId: string; start: string; end: string; eventStart: string }>).filter(
+        (row) => row.eventId === eventX || row.eventId === eventY,
+      );
+      expect(rows.map((row) => row.eventId)).toEqual([eventX, eventY]);
+      expect(rows[0]).toMatchObject({
+        start: '2030-02-10T06:00:00.000Z',
+        end: '2030-02-10T07:00:00.000Z',
+        eventStart: '2030-02-20T06:00:00.000Z',
+      });
+
+      const mine = await request(app.getHttpServer())
+        .get('/api/venues/bookings/mine')
+        .set('Cookie', coordinator.cookie)
+        .expect(200);
+      const myX = (mine.body as Array<{ eventId: string; start: string; end: string }>).find((row) => row.eventId === eventX);
+      expect(myX).toMatchObject({ start: '2030-02-10T06:00:00.000Z', end: '2030-02-10T07:00:00.000Z' });
+    });
+
+    /**
+     * VEN-REV-12-B SPM-55 AC1 (review SPM55-REVIEW-003): each booking attempt keeps its own special request. A
+     * rejected request keeps its note after the coordinator resubmits for the same event and venue with a new note,
+     * in both the Venue Staff list and the coordinator's My Bookings.
+     */
+    it('VEN-REV-12-B SPM-55 keeps the special request of each booking attempt after a reject and resubmit', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-12-B event', '2030-02-14T06:00:00.000Z', '2030-02-14T07:00:00.000Z');
+      const submit = (specialRequest: string) =>
+        request(app.getHttpServer())
+          .post(`/api/venues/${venueId}/booking-requests`)
+          .set('Cookie', coordinator.cookie)
+          .send({ eventId, start: '2030-02-14T06:00:00.000Z', end: '2030-02-14T07:00:00.000Z', specialRequest })
+          .expect(201);
+
+      await submit('Need microphones');
+      const first = await pool.query<{ id: string }>(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, eventId],
+      );
+      const bookingA = first.rows[0].id;
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingA}/reject`)
+        .set('Cookie', owner.cookie)
+        .send({ reason: 'Room under maintenance' })
+        .expect(201);
+      await submit('Need wheelchair seating');
+      const second = await pool.query<{ id: string }>(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 AND id <> $3',
+        [venueId, eventId, bookingA],
+      );
+      const bookingB = second.rows[0].id;
+
+      const staff = await request(app.getHttpServer())
+        .get('/api/venues/bookings/pending')
+        .set('Cookie', owner.cookie)
+        .expect(200);
+      const staffNotes = Object.fromEntries(
+        (staff.body as Array<{ id: string; specialRequest?: string }>).map((row) => [row.id, row.specialRequest]),
+      );
+      expect(staffNotes[bookingA]).toBe('Need microphones');
+      expect(staffNotes[bookingB]).toBe('Need wheelchair seating');
+
+      const mine = await request(app.getHttpServer())
+        .get('/api/venues/bookings/mine')
+        .set('Cookie', coordinator.cookie)
+        .expect(200);
+      const myNotes = Object.fromEntries(
+        (mine.body as Array<{ id: string; specialRequest?: string }>).map((row) => [row.id, row.specialRequest]),
+      );
+      expect(myNotes[bookingA]).toBe('Need microphones');
+      expect(myNotes[bookingB]).toBe('Need wheelchair seating');
+    });
+
+    /**
+     * VEN-REV-12-C SPM-55 AC1 (review SPM55-REVIEW-003): an attempt submitted without a special request stays without
+     * one after the coordinator resubmits with a note, in both the Venue Staff list and My Bookings; it never borrows the
+     * newer attempt's note.
+     */
+    it('VEN-REV-12-C SPM-55 leaves an attempt without a special request empty after a resubmit with a note', async () => {
+      const owner = await createUser('VENUE_STAFF');
+      const coordinator = await createUser('COORDINATOR');
+      const venueId = await createVenue(owner.id);
+      const eventId = await createAssignedEvent(coordinator.id, 'VEN-REV-12-C event', '2030-02-16T06:00:00.000Z', '2030-02-16T07:00:00.000Z');
+      const slot = { eventId, start: '2030-02-16T06:00:00.000Z', end: '2030-02-16T07:00:00.000Z' };
+
+      await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send(slot)
+        .expect(201);
+      const first = await pool.query<{ id: string }>(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2',
+        [venueId, eventId],
+      );
+      const bookingA = first.rows[0].id;
+      await request(app.getHttpServer())
+        .post(`/api/venues/bookings/${bookingA}/reject`)
+        .set('Cookie', owner.cookie)
+        .send({ reason: 'Double-booked' })
+        .expect(201);
+      await request(app.getHttpServer())
+        .post(`/api/venues/${venueId}/booking-requests`)
+        .set('Cookie', coordinator.cookie)
+        .send({ ...slot, specialRequest: 'Need a ramp' })
+        .expect(201);
+      const second = await pool.query<{ id: string }>(
+        'SELECT id FROM venue_bookings WHERE venue_id = $1 AND event_id = $2 AND id <> $3',
+        [venueId, eventId, bookingA],
+      );
+      const bookingB = second.rows[0].id;
+
+      for (const [path, cookie] of [
+        ['/api/venues/bookings/pending', owner.cookie],
+        ['/api/venues/bookings/mine', coordinator.cookie],
+      ]) {
+        const response = await request(app.getHttpServer()).get(path).set('Cookie', cookie).expect(200);
+        const rows = response.body as Array<{ id: string; specialRequest?: string }>;
+        // The earlier attempt is listed (so an empty note is a real empty note, not a missing row).
+        expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining([bookingA, bookingB]));
+        expect(rows.find((row) => row.id === bookingA)?.specialRequest).toBeUndefined();
+        expect(rows.find((row) => row.id === bookingB)?.specialRequest).toBe('Need a ramp');
+      }
+    });
   },
 );
