@@ -277,14 +277,21 @@ export class VenuesRepository {
     | { kind: 'updated'; venue: VenueReadRecord; affectedBookings: AffectedBooking[]; capacityBookings: AffectedBooking[] }
   > {
     return this.database.transaction(async (client) => {
-      const lock = await client.query<{ id: string; owner_user_id: string; capacity: number }>(
-        `SELECT id, owner_user_id, capacity FROM venues WHERE id = $1::uuid FOR UPDATE`,
+      const lock = await client.query<{
+        id: string; owner_user_id: string; capacity: number;
+        setup_time_minutes: number; turnaround_time_minutes: number;
+      }>(
+        `SELECT id, owner_user_id, capacity, setup_time_minutes, turnaround_time_minutes
+         FROM venues WHERE id = $1::uuid FOR UPDATE`,
         [venueId],
       );
       if (!lock.rows[0]) return { kind: 'not-found' as const };
       if (lock.rows[0].owner_user_id !== ownerUserId)
         return { kind: 'forbidden' as const };
       const capacityChanged = lock.rows[0].capacity !== input.capacity;
+      const oldSetup = lock.rows[0].setup_time_minutes;
+      const oldTurnaround = lock.rows[0].turnaround_time_minutes;
+      const timingChanged = oldSetup !== input.setupTimeMinutes || oldTurnaround !== input.turnaroundTimeMinutes;
 
       await client.query(
         `UPDATE venues SET name=$2, location=$3, capacity=$4, operating_information=$5,
@@ -323,29 +330,52 @@ export class VenuesRepository {
       await client.query('DELETE FROM venue_images WHERE venue_id=$1::uuid', [venueId]);
       if (input.image) await this.insertImage(client, venueId, input.image);
 
-      // AC8: find bookings whose widened windows overlap after the timing change.
-      const affected = await client.query<{
-        id: string;
-        event_name: string;
-        start_at: Date;
-        end_at: Date;
-        status: 'pending' | 'approved';
-      }>(
-        `SELECT DISTINCT b1.id, e1.event_name, b1.start_at, b1.end_at, b1.status
-           FROM venue_bookings b1
-           JOIN events e1 ON e1.id = b1.event_id
-           JOIN venue_bookings b2 ON b2.venue_id = b1.venue_id
-                                 AND b2.id <> b1.id
-                                 AND b2.status IN ('pending','approved')
-          WHERE b1.venue_id = $1::uuid
-            AND b1.status IN ('pending','approved')
-            AND b1.start_at - make_interval(mins => $2::int)
-                  < b2.end_at   + make_interval(mins => $3::int)
-            AND b1.end_at   + make_interval(mins => $3::int)
-                  > b2.start_at - make_interval(mins => $2::int)
-          ORDER BY b1.start_at, b1.id`,
-        [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes],
-      );
+      // AC8: find bookings that now conflict under the new timing but did not under the old timing.
+      const now = this.clock.now();
+      const affected = timingChanged
+        ? await client.query<{
+            id: string;
+            event_name: string;
+            start_at: Date;
+            end_at: Date;
+            status: 'pending' | 'approved';
+          }>(
+            `SELECT DISTINCT b.id, e.event_name, b.start_at, b.end_at, b.status
+               FROM venue_bookings b
+               JOIN events e ON e.id = b.event_id
+              WHERE b.venue_id = $1::uuid
+                AND ((b.status = 'approved' AND
+                  (b.request_kind <> 'tentative_hold' OR b.hold_expires_at IS NULL
+                    OR b.hold_expires_at > $6::timestamptz)) OR
+                  (b.status = 'pending' AND
+                    (b.hold_expires_at > $6::timestamptz OR
+                     (b.request_kind <> 'tentative_hold' AND EXISTS (
+                      SELECT 1 FROM venue_booking_requests r
+                       WHERE r.event_id = b.event_id AND r.venue_id = b.venue_id
+                     )))))
+                AND EXISTS (
+                  SELECT 1 FROM venue_bookings other
+                  WHERE other.venue_id = b.venue_id AND other.id <> b.id
+                    AND other.status IN ('pending','approved','blocked')
+                    AND other.start_at - CASE WHEN other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $2::int) END
+                          < b.end_at + make_interval(mins => $3::int)
+                    AND other.end_at + CASE WHEN other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $3::int) END
+                          > b.start_at - make_interval(mins => $2::int)
+                )
+                AND NOT EXISTS (
+                  SELECT 1 FROM venue_bookings old_other
+                  WHERE old_other.venue_id = b.venue_id AND old_other.id <> b.id
+                    AND old_other.status IN ('pending','approved','blocked')
+                    AND old_other.start_at - CASE WHEN old_other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $4::int) END
+                          < b.end_at + make_interval(mins => $5::int)
+                    AND old_other.end_at + CASE WHEN old_other.status = 'blocked' THEN interval '0' ELSE make_interval(mins => $5::int) END
+                          > b.start_at - make_interval(mins => $4::int)
+                )
+              ORDER BY b.start_at, b.id`,
+            [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes,
+             oldSetup, oldTurnaround, now],
+          )
+        : { rows: [] as { id: string; event_name: string; start_at: Date; end_at: Date; status: 'pending' | 'approved' }[] };
 
       // AC9: when capacity changed, list all pending/approved bookings at this venue.
       const capacityRows = capacityChanged
