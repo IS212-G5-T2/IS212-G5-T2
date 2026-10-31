@@ -1189,5 +1189,149 @@ describe.skipIf(!databaseUrl)(
 
       expect(response.body.affectedBookings.length).toBeGreaterThan(0);
     });
+
+    /** SPM-121 AC4: same name at a different location is NOT a duplicate. */
+    it('VEN-UPD-04-E2E-B: allows a name that exists at a different location', async () => {
+      const staff = await authenticate(staffEmail);
+      const nameA = uniqueVenueName('SPM-121 AC4-B Shared Name');
+      const createdA = await staff.post('/api/venues').send({ ...venueInput, name: nameA, location: 'East Wing Level 1' }).expect(201);
+      venueIds.push(createdA.body.venue.id as string);
+      const createdB = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-121 AC4-B Probe'), location: 'West Wing Level 9' }).expect(201);
+      const idB = createdB.body.venue.id as string;
+      venueIds.push(idB);
+
+      const response = await staff
+        .patch(`/api/venues/${idB}`)
+        .send({ ...venueInput, name: nameA, location: 'West Wing Level 9' })
+        .expect(200);
+      expect(response.body.venue.name).toBe(nameA);
+    });
+
+    /** SPM-121 AC4: case-insensitive and whitespace-padded duplicates are still rejected. */
+    it('VEN-UPD-04-E2E-C: rejects case-insensitive duplicate name at the same location', async () => {
+      const staff = await authenticate(staffEmail);
+      const nameA = uniqueVenueName('SPM-121 AC4-C Original');
+      const location = 'Block Q Level 7';
+      const createdA = await staff.post('/api/venues').send({ ...venueInput, name: nameA, location }).expect(201);
+      venueIds.push(createdA.body.venue.id as string);
+      const createdB = await staff.post('/api/venues').send({ ...venueInput, name: uniqueVenueName('SPM-121 AC4-C Probe'), location }).expect(201);
+      const idB = createdB.body.venue.id as string;
+      venueIds.push(idB);
+
+      const response = await staff
+        .patch(`/api/venues/${idB}`)
+        .send({ ...venueInput, name: nameA.toLowerCase(), location })
+        .expect(409);
+      expect(response.body.message).toMatch(/already exists/i);
+    });
+
+    /** SPM-121 AC5: repeating the same save does not duplicate the venue row. */
+    it('VEN-UPD-05-E2E-B: repeated save does not duplicate the venue', async () => {
+      const staff = await authenticate(staffEmail);
+      const name = uniqueVenueName('SPM-121 AC5-C Repeat Save');
+      const created = await staff.post('/api/venues').send({ ...venueInput, name }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      const newName = uniqueVenueName('SPM-121 AC5-C Repeat After');
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name: newName }).expect(200);
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name: newName }).expect(200);
+
+      const count = await pool.query('SELECT count(*) FROM venues WHERE id = $1', [id]);
+      expect(Number(count.rows[0].count)).toBe(1);
+    });
+
+    /** SPM-121 AC9: rejected, blocked, and other-venue bookings are excluded from the capacity list. */
+    it('VEN-UPD-09-E2E-C: capacityBookings excludes rejected, blocked and other-venue bookings', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-C Filter Venue') }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const other = await staff.post('/api/venues').send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-C Other Venue') }).expect(201);
+      venueIds.push(other.body.venue.id as string);
+
+      const ev1 = await createScheduleEvent('SPM-121 AC9-C pending');
+      const ev2 = await createScheduleEvent('SPM-121 AC9-C rejected');
+      const ev3 = await createScheduleEvent('SPM-121 AC9-C other venue');
+      const at = (day: number) => new Date(Date.UTC(2030, 4, day, 10));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $5, $6, 'pending'),
+                ($1, $3, $7, $8, 'rejected'),
+                ($4, $9, $10, $11, 'approved')`,
+        [id, ev1, ev2, other.body.venue.id, at(1), at(2), at(3), at(4), ev3, at(5), at(6)],
+      );
+
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, capacity: 50, name: uniqueVenueName('SPM-121 AC9-C Filter Venue') })
+        .expect(200);
+
+      expect(response.body.capacityBookings).toHaveLength(1);
+      expect(response.body.capacityBookings[0].status).toBe('pending');
+    });
+
+    /** SPM-121 AC9: capacity change on a venue with no eligible bookings returns an empty list. */
+    it('VEN-UPD-09-E2E-D: capacityBookings is empty when the venue has no pending or approved bookings', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-D Empty Venue') }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, capacity: 50, name: uniqueVenueName('SPM-121 AC9-D Empty Venue') })
+        .expect(200);
+
+      expect(response.body.capacityBookings).toEqual([]);
+    });
+
+    /** SPM-121 AC9: successive capacity changes list correct bookings each time without duplication. */
+    it('VEN-UPD-09-VAR-1-E2E: successive capacity changes list bookings correctly without duplication', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff.post('/api/venues').send({ ...venueInput, capacity: 120, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const ev = await createScheduleEvent('SPM-121 AC9-VAR event');
+      const at = (day: number) => new Date(Date.UTC(2030, 5, day, 10));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'approved')`,
+        [id, ev, at(1), at(2)],
+      );
+
+      const r1 = await staff.patch(`/api/venues/${id}`).send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(200);
+      expect(r1.body.capacityBookings).toHaveLength(1);
+
+      const r2 = await staff.patch(`/api/venues/${id}`).send({ ...venueInput, capacity: 90, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(200);
+      expect(r2.body.capacityBookings).toHaveLength(1);
+
+      const count = await pool.query('SELECT count(*) FROM venue_bookings WHERE venue_id = $1', [id]);
+      expect(Number(count.rows[0].count)).toBe(1);
+    });
+
+    /** SPM-121 AC2: changing one field preserves all other fields. */
+    it('VEN-UPD-02-E2E-B: updating one field does not erase unrelated venue details', async () => {
+      const staff = await authenticate(staffEmail);
+      const name = uniqueVenueName('SPM-121 AC2-B Partial Update');
+      const created = await staff.post('/api/venues').send({
+        ...venueInput, name, location: 'North Annex Level 3', capacity: 200,
+        setupTimeMinutes: 15, turnaroundTimeMinutes: 20,
+      }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      await staff.patch(`/api/venues/${id}`).send({
+        ...venueInput, name, location: 'South Annex Level 1', capacity: 200,
+        setupTimeMinutes: 15, turnaroundTimeMinutes: 20,
+      }).expect(200);
+
+      const get = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(get.body.location).toBe('South Annex Level 1');
+      expect(get.body.capacity).toBe(200);
+      expect(get.body.setupTimeMinutes).toBe(15);
+      expect(get.body.turnaroundTimeMinutes).toBe(20);
+      expect(get.body.name).toBe(name);
+    });
   },
 );

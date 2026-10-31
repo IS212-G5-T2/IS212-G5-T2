@@ -641,4 +641,114 @@ describe('SPM-121 venue service update', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(updateFn).not.toHaveBeenCalled();
   });
+
+  /** VEN-UPD-03-C-SVC: AC3 — nonempty invalid capacity values are rejected. */
+  it.each([-1, 1_000_001, 2.5])('VEN-UPD-03-C-SVC rejects capacity %s', async (capacity) => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, capacity }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-02-BND-1-SVC: AC2 — capacity boundaries 1 and 1000000 are accepted through update. */
+  it.each([1, 1_000_000])('VEN-UPD-02-BND-1-SVC accepts boundary capacity %s', async (capacity) => {
+    const result = await service.update(staff, venueId, { ...validBody, capacity });
+    expect(result.message).toBe('Venue updated successfully.');
+    expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({ capacity }));
+  });
+
+  /** VEN-UPD-03-D-SVC: AC3 — negative or fractional durations are rejected. */
+  it.each([
+    { field: 'setupTimeMinutes', value: -1 },
+    { field: 'turnaroundTimeMinutes', value: -1 },
+    { field: 'setupTimeMinutes', value: 1.5 },
+  ])('VEN-UPD-03-D-SVC rejects $field=$value', async ({ field, value }) => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, [field]: value }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-02-BND-2-SVC: AC2 — zero durations are accepted; negative are rejected. */
+  it('VEN-UPD-02-BND-2-SVC accepts zero setup and turnaround', async () => {
+    const result = await service.update(staff, venueId, {
+      ...validBody,
+      setupTimeMinutes: 0,
+      turnaroundTimeMinutes: 0,
+    });
+    expect(result.message).toBe('Venue updated successfully.');
+    expect(updateFn).toHaveBeenCalledWith(
+      staff.uid,
+      venueId,
+      expect.objectContaining({ setupTimeMinutes: 0, turnaroundTimeMinutes: 0 }),
+    );
+  });
+
+  /** VEN-UPD-03-BND-1-SVC: AC3 — whitespace-only required strings are rejected. */
+  it.each(['name', 'location', 'operatingInformation'])(
+    'VEN-UPD-03-BND-1-SVC rejects whitespace-only %s',
+    async (field) => {
+      await expect(
+        service.update(staff, venueId, { ...validBody, [field]: '   ' }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(updateFn).not.toHaveBeenCalled();
+    },
+  );
+
+  /** VEN-UPD-03-BND-2-SVC: AC3 — overlength text fields are rejected. */
+  it.each([
+    { field: 'name', length: 201 },
+    { field: 'location', length: 301 },
+    { field: 'operatingInformation', length: 201 },
+  ])('VEN-UPD-03-BND-2-SVC rejects $field at $length chars', async ({ field, length }) => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, [field]: 'x'.repeat(length) }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-03-IMG-1-SVC: AC3 — invalid image type or oversized image is rejected. */
+  it.each([
+    { desc: 'text/plain type', image: { name: 'notes.txt', type: 'text/plain', size: 4, dataUrl: 'data:text/plain;base64,dGVzdA==' } },
+    { desc: 'oversized PNG', image: { name: 'big.png', type: 'image/png', size: 5 * 1024 * 1024 + 1, dataUrl: 'data:image/png;base64,dGVzdA==' } },
+  ])('VEN-UPD-03-IMG-1-SVC rejects $desc', async ({ image }) => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, image }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-02-A-SVC: AC2 — all ten field groups are forwarded to the repository on update. */
+  it('VEN-UPD-02-A-SVC forwards all venue fields including image to the repository', async () => {
+    const image = { name: 'hall.png', type: 'image/png', size: 4, dataUrl: 'data:image/png;base64,dGVzdA==' };
+    const fullBody = { ...validBody, image };
+    await service.update(staff, venueId, fullBody);
+    expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({
+      name: validBody.name,
+      location: validBody.location,
+      capacity: validBody.capacity,
+      facilities: validBody.facilities,
+      accessibility: validBody.accessibility,
+      layouts: validBody.layouts,
+      operatingInformation: validBody.operatingInformation,
+      setupTimeMinutes: validBody.setupTimeMinutes,
+      turnaroundTimeMinutes: validBody.turnaroundTimeMinutes,
+      image,
+    }));
+  });
+
+  /** VEN-UPD-07-SEC-1-SVC: AC7 — same-role, different-creator API attempt returns 403. */
+  it('VEN-UPD-07-SEC-1-SVC rejects update from a different Venue Staff via API', async () => {
+    updateFn.mockResolvedValueOnce({ kind: 'forbidden' });
+    const otherStaff = { uid: 'other-staff-2', roles: ['VENUE_STAFF'] as string[] };
+    await expect(
+      service.update(otherStaff as AuthenticatedUser, venueId, validBody),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  /** VEN-UPD-05-B-SVC: AC5 — a failed save does not return a success message. */
+  it('VEN-UPD-05-B-SVC throws instead of returning success when the repository errors', async () => {
+    updateFn.mockRejectedValueOnce(new Error('DB connection lost'));
+    await expect(service.update(staff, venueId, validBody)).rejects.toThrow('DB connection lost');
+  });
 });

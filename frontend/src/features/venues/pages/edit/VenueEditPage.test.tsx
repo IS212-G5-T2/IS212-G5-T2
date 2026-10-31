@@ -177,6 +177,33 @@ describe("SPM-121 VenueEditPage", () => {
     );
   });
 
+  /** VEN-UPD-05-UI-B: AC5 — a failed save shows an error, not a success message. */
+  it("VEN-UPD-05-UI-B shows an error message when the save fails", async () => {
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>) // GET
+      .mockRejectedValueOnce(new Error("network"));
+
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(await screen.findByRole("button", { name: /Save changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/Venue updated successfully/i)).toBeNull();
+  });
+
+  /** VEN-UPD-02-C-UI: AC2 — the image field is present on the edit form's second step. */
+  it("VEN-UPD-02-C-UI renders a file input for replacing the venue image", async () => {
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    expect(screen.getByLabelText(/Venue image/i)).toBeInTheDocument();
+  });
+
   /** VEN-UPD-08-UI-A: AC8 — affected bookings list is shown when timing changes. */
   it("VEN-UPD-08-UI-A shows affected bookings when timing change causes new overlaps", async () => {
     const booking: AffectedBooking = {
