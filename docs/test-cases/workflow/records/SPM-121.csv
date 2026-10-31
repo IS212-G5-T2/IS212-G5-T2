@@ -1,0 +1,29 @@
+test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
+VEN-UPD-07-A,backend/src/venues/repository/venues.repository.spec.ts,VEN-UPD-07-A returns forbidden when the caller is not the venue owner,2823,AC7,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-07-B,backend/src/venues/repository/venues.repository.spec.ts,VEN-UPD-07-B returns not-found when the venue does not exist,2835,AC7,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-A,backend/src/venues/repository/venues.repository.spec.ts,VEN-UPD-05-A returns updated venue and empty booking lists when capacity and timing are unchanged,2843,AC5,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-09-A,backend/src/venues/repository/venues.repository.spec.ts,VEN-UPD-09-A runs the capacity booking query when capacity changes,2856,AC9,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-08-A,backend/src/venues/repository/venues.repository.spec.ts,VEN-UPD-08-A returns affectedBookings when setup/turnaround causes an overlap,2893,AC8,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-SVC-A,backend/src/venues/venues.service.spec.ts,VEN-UPD-05-SVC-A returns 401 when no identity is provided,515,AC2,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-SVC-B,backend/src/venues/venues.service.spec.ts,VEN-UPD-05-SVC-B returns 403 when the caller is not Venue Staff,523,AC2,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-03-SVC-A,backend/src/venues/venues.service.spec.ts,VEN-UPD-03-SVC-A returns 404 for a non-UUID venue id,531,AC3,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-04-SVC-A,backend/src/venues/venues.service.spec.ts,VEN-UPD-04-SVC-A maps the duplicate constraint to 409 with field errors,539,AC4,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-07-SVC-A,backend/src/venues/venues.service.spec.ts,VEN-UPD-07-SVC-A returns 403 when the repository says forbidden,552,AC7,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-07-SVC-B,backend/src/venues/venues.service.spec.ts,VEN-UPD-07-SVC-B returns 403 when the hasPermission check fails for a non-venue-staff role,560,AC2,Security,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-03-SVC-B,backend/src/venues/venues.service.spec.ts,VEN-UPD-03-SVC-B returns 404 when the repository says not-found,569,AC3,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-SVC-C,backend/src/venues/venues.service.spec.ts,VEN-UPD-05-SVC-C returns updated venue with affectedBookings and capacityBookings on success,577,AC5,Happy,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-03-A,backend/src/venues/venues.service.spec.ts,VEN-UPD-03-A returns 400 with field errors when a required field is empty,589,AC3,Sad,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-03-B,backend/src/venues/venues.service.spec.ts,VEN-UPD-03-B returns 400 when capacity is zero,597,AC3,Boundary,Present,Unit,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-09-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-A: lists pending and approved bookings when capacity changes and leaves them intact,1014,AC9,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-09-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-B: capacityBookings is empty when capacity is unchanged,1066,AC9,Sad,Present,Integration,SPEC,,,Yes,No,No,NOT RUN
+VEN-UPD-07-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-07-E2E-A: returns 403 when a second Venue Staff tries to PATCH a venue they do not own,1093,AC7,Security,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-04-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-A: returns 409 when PATCH would create a duplicate name+location,1110,AC4,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-06-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-A: GET after PATCH returns the updated venue fields,1132,AC6,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-08-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes,1153,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-01-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-01-UI-A pre-fills the form with current venue values after load,55,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-01-UI-B,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-01-UI-B shows an error when venue load fails,64,AC1,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-05-UI-A calls PATCH and shows success message after submission,73,AC5,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-03-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-03-UI-A shows a validation error when a required field is cleared before Continue,102,AC3,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-09-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-09-UI-A shows affected capacity bookings when returned from server,118,AC9,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-05-STORE-A,frontend/src/store/useAppStore.venues.test.ts,VEN-UPD-05-STORE-A calls PATCH /venues/:id and returns message with booking lists,35,AC5,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+VEN-UPD-09-STORE-A,frontend/src/store/useAppStore.venues.test.ts,VEN-UPD-09-STORE-A passes through capacityBookings returned by the server,56,AC9,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS

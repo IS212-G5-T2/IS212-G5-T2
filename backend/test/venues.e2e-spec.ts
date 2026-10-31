@@ -190,7 +190,7 @@ describe.skipIf(!databaseUrl)(
 
       // Assert the permitted actor receives a complete record with a server-generated UUID.
       expect(created.body).toEqual({
-        venue: { id: expect.stringMatching(uuidPattern), ...venueInput },
+        venue: { id: expect.stringMatching(uuidPattern), ownerId: expect.stringMatching(uuidPattern), ...venueInput },
         message: 'Venue created successfully.',
       });
       const venueId = created.body.venue.id as string;
@@ -1005,6 +1005,183 @@ describe.skipIf(!databaseUrl)(
       ]);
       expect(persisted.rows.find((row) => row.id === first.body.period.id)?.end_at).toEqual(fixedNow);
       expect(persisted.rows.find((row) => row.id === second.body.period.id)?.end_at).toEqual(new Date(at(15)));
+    });
+
+    /**
+     * SPM-121 AC9: changing venue capacity returns all pending/approved bookings in capacityBookings;
+     * the bookings remain recorded and are not removed.
+     */
+    it('VEN-UPD-09-E2E-A: lists pending and approved bookings when capacity changes and leaves them intact', async () => {
+      // Arrange: one venue with one pending and one approved booking, plus one cancelled that must be excluded.
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, capacity: 50, name: uniqueVenueName('SPM-121 AC9 Capacity Venue') })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const pendingEventId = await createScheduleEvent('SPM-121 AC9 pending event');
+      const approvedEventId = await createScheduleEvent('SPM-121 AC9 approved event');
+      const rejectedEventId = await createScheduleEvent('SPM-121 AC9 rejected event');
+      const at = (day: number) => new Date(Date.UTC(2030, 2, day, 10));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $5, $6, 'pending'),
+                ($1, $3, $7, $8, 'approved'),
+                ($1, $4, $9, $10, 'rejected')`,
+        [id, pendingEventId, approvedEventId, rejectedEventId,
+          at(1), at(2), at(3), at(4), at(5), at(6)],
+      );
+
+      // Act: reduce capacity so it changes.
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, capacity: 30, name: uniqueVenueName('SPM-121 AC9 Capacity Venue') })
+        .expect(200);
+
+      // Assert: capacityBookings contains exactly the pending and approved rows (not cancelled).
+      const bookingIds = response.body.capacityBookings.map((b: { bookingId: string }) => b.bookingId);
+      expect(bookingIds).toHaveLength(2);
+
+      const pendingRow = response.body.capacityBookings.find(
+        (b: { bookingId: string; status: string }) => b.status === 'pending',
+      );
+      const approvedRow = response.body.capacityBookings.find(
+        (b: { bookingId: string; status: string }) => b.status === 'approved',
+      );
+      expect(pendingRow).toBeDefined();
+      expect(approvedRow).toBeDefined();
+
+      // Bookings must still exist in the database unchanged.
+      const persisted = await pool.query(
+        'SELECT id, status FROM venue_bookings WHERE venue_id = $1 ORDER BY created_at',
+        [id],
+      );
+      expect(persisted.rows).toHaveLength(3);
+      expect(persisted.rows.map((r: { status: string }) => r.status).sort()).toEqual(
+        ['approved', 'pending', 'rejected'],
+      );
+    });
+
+    it('VEN-UPD-09-E2E-B: capacityBookings is empty when capacity is unchanged', async () => {
+      // Arrange: one venue with a booking.
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, capacity: 80, name: uniqueVenueName('SPM-121 AC9 No-Change Venue') })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const eventId = await createScheduleEvent('SPM-121 AC9 no-change event');
+      const at = (day: number) => new Date(Date.UTC(2030, 3, day, 10));
+      await pool.query(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, 'approved')`,
+        [id, eventId, at(1), at(2)],
+      );
+
+      // Act: update name only — capacity stays at 80.
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, capacity: 80, name: uniqueVenueName('SPM-121 AC9 No-Change Venue Updated') })
+        .expect(200);
+
+      expect(response.body.capacityBookings).toEqual([]);
+    });
+
+    /** SPM-121 AC7: a non-owner Venue Staff member cannot edit another staff member's venue. */
+    it('VEN-UPD-07-E2E-A: returns 403 when a second Venue Staff tries to PATCH a venue they do not own', async () => {
+      const owner = await authenticate(staffEmail);
+      const created = await owner
+        .post('/api/venues')
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC7 Owner Venue') })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      const otherStaff = await authenticate(secondStaffEmail);
+      await otherStaff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC7 Attempted Rename') })
+        .expect(403);
+    });
+
+    /** SPM-121 AC4: updating a venue to a duplicate name+location returns 409. */
+    it('VEN-UPD-04-E2E-A: returns 409 when PATCH would create a duplicate name+location', async () => {
+      const staff = await authenticate(staffEmail);
+      const nameA = uniqueVenueName('SPM-121 AC4 Venue A');
+      const nameB = uniqueVenueName('SPM-121 AC4 Venue B');
+      const location = 'Block Z Level 9';
+
+      const createdA = await staff.post('/api/venues').send({ ...venueInput, name: nameA, location }).expect(201);
+      venueIds.push(createdA.body.venue.id as string);
+      const createdB = await staff.post('/api/venues').send({ ...venueInput, name: nameB, location }).expect(201);
+      const idB = createdB.body.venue.id as string;
+      venueIds.push(idB);
+
+      // Rename B to A's name at the same location → duplicate
+      const response = await staff
+        .patch(`/api/venues/${idB}`)
+        .send({ ...venueInput, name: nameA, location })
+        .expect(409);
+
+      expect(response.body.message).toMatch(/already exists/i);
+    });
+
+    /** SPM-121 AC6: a GET after PATCH reflects the updated venue values. */
+    it('VEN-UPD-06-E2E-A: GET after PATCH returns the updated venue fields', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC6 Before Update') })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      const newName = uniqueVenueName('SPM-121 AC6 After Update');
+      await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, name: newName, capacity: 55 })
+        .expect(200);
+
+      const get = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(get.body.name).toBe(newName);
+      expect(get.body.capacity).toBe(55);
+    });
+
+    /** SPM-121 AC8: changing setup/turnaround time returns affected bookings in affectedBookings. */
+    it('VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8 Timing Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 0 })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      // Insert two consecutive bookings with no gap (they don't conflict with 0/0 timing)
+      const event1Id = await createScheduleEvent('SPM-121 AC8 event 1');
+      const event2Id = await createScheduleEvent('SPM-121 AC8 event 2');
+      const slot1Start = new Date(fixedNow.getTime() + 2 * 24 * 60 * 60 * 1000);
+      const slot1End   = new Date(slot1Start.getTime() + 60 * 60 * 1000);
+      const slot2Start = new Date(slot1End.getTime());                      // starts exactly at slot1 end
+      const slot2End   = new Date(slot2Start.getTime() + 60 * 60 * 1000);
+
+      await pool.query(
+        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending'),
+                (gen_random_uuid(), $1, $5, $6, $7, 'pending')`,
+        [id, event1Id, slot1Start, slot1End, event2Id, slot2Start, slot2End],
+      );
+      eventIds.push(event1Id, event2Id);
+
+      // Increasing turnaround to 90 minutes causes the widened windows to overlap
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8 Timing Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 90 })
+        .expect(200);
+
+      expect(response.body.affectedBookings.length).toBeGreaterThan(0);
     });
   },
 );

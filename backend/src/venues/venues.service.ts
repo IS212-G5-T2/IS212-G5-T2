@@ -25,6 +25,7 @@ import { validateBookingRequest } from './availability/dto/booking-request.js';
 import { validateTentativeHoldRequest } from './availability/dto/tentative-hold-request.js';
 import {
   VenuesRepository,
+  type AffectedBooking,
   type VenueBookingDecision,
   type VenueBookingDecisionResult,
 } from './repository/venues.repository.js';
@@ -84,7 +85,6 @@ function decisionOrThrow(
   return result.booking;
 }
 
-/* v8 ignore start -- SPM-50 venue creation duplicate-key translation is outside SPM-54's booking and browse scope. */
 const VENUE_DUPLICATE_CONSTRAINT = 'venues_name_location_unique';
 /** Identifies the PostgreSQL constraint that protects venue natural-key uniqueness. */
 function isDuplicateVenue(error: unknown): boolean {
@@ -97,7 +97,6 @@ function isDuplicateVenue(error: unknown): boolean {
     error.constraint === VENUE_DUPLICATE_CONSTRAINT
   );
 }
-/* v8 ignore stop */
 
 /* v8 ignore start -- TypeScript decorator metadata emits an unreachable fallback branch. */
 @Injectable()
@@ -179,6 +178,40 @@ export class VenuesService {
     const venue = await this.repository.get(id);
     if (!venue) throw new NotFoundException('Venue not found.');
     return venue;
+  }
+
+  /** SPM-121: updates the owned venue record identified by id. Returns affected bookings for AC8. */
+  async update(
+    user: AuthenticatedUser | undefined,
+    id: string,
+    body: unknown,
+  ): Promise<{ venue: object; affectedBookings: AffectedBooking[]; capacityBookings: AffectedBooking[]; message: string }> {
+    const staff = await this.authorizeStaff(user);
+    if (!UUID.test(id)) throw new NotFoundException('Venue not found.');
+    const input = validateVenue(body);
+    let result;
+    try {
+      result = await this.repository.update(staff.uid, id, input);
+    } catch (error) {
+      if (isDuplicateVenue(error))
+        throw new ConflictException({
+          message: 'A venue with this name and location already exists.',
+          errors: {
+            name: 'Use a different venue name or location.',
+            location: 'Use a different venue name or location.',
+          },
+        });
+      throw error;
+    }
+    if (result.kind === 'not-found') throw new NotFoundException('Venue not found.');
+    if (result.kind === 'forbidden')
+      throw new ForbiddenException('You can only edit venues you created.');
+    return {
+      venue: result.venue,
+      affectedBookings: result.affectedBookings,
+      capacityBookings: result.capacityBookings,
+      message: 'Venue updated successfully.',
+    };
   }
 
   /** Validates and atomically submits a booking request for an event assigned to the caller. */

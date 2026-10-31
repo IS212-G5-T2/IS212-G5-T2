@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select, TextInput } from "@/components/ui/FormControls";
 import { api } from "@/utils/api";
+import { useAppStore } from "@/store/useAppStore";
 import { VenueRecordCard } from "./VenueRecordCard";
 import {
   visibleVenues,
@@ -20,6 +21,7 @@ const sortableColumns: { key: VenueSortKey; label: string }[] = [
 
 export function VenueRecordsPage() {
   const location = useLocation();
+  const currentUserId = useAppStore((state) => state.currentUser.id);
   const [venues, setVenues] = useState<VenueRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -150,7 +152,7 @@ export function VenueRecordsPage() {
           className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3"
         >
           {displayed.map((venue) => (
-            <VenueRecordCard key={venue.id} venue={venue} />
+            <VenueRecordCard key={venue.id} venue={venue} currentUserId={currentUserId ?? undefined} />
           ))}
         </div>
       )}

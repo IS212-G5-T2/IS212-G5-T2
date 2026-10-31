@@ -1,0 +1,55 @@
+{
+  "story": "SPM-121",
+  "title": "Update Venue Records",
+  "note": "SPM-121 AC1-AC9 defines the PATCH /venues/:id endpoint for Venue Staff to update their own venue records. Test IDs VEN-UPD-* cover repository, service, UI and E2E evidence. Confluence matrix page 28770883 (38 test cases) is the authoritative test matrix; all test cases created 2026-10-30. Coverage includes VenueEditPage.tsx, useAppStore.ts (updateVenue), venues.repository.ts (update), venues.service.ts (update). Unrelated SPM-50 create and SPM-124 read paths remain covered by their own stories.",
+  "tz": ["UTC", "Asia/Singapore"],
+  "linesFrom": "changed-lines",
+  "coverageFloor": { "statements": 80, "branches": 80, "functions": 80, "lines": 80 },
+  "tests": {
+    "frontend": [
+      { "glob": "frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx", "titleMatch": "VEN-UPD-" },
+      { "glob": "frontend/src/store/useAppStore.venues.test.ts", "titleMatch": "VEN-UPD-" }
+    ],
+    "backend-unit": [
+      { "glob": "backend/src/venues/repository/venues.repository.spec.ts", "titleMatch": "VEN-UPD-" },
+      { "glob": "backend/src/venues/venues.service.spec.ts", "titleMatch": "VEN-UPD-" }
+    ],
+    "backend-e2e": [
+      { "glob": "backend/test/venues.e2e-spec.ts", "titleMatch": "VEN-UPD-" }
+    ]
+  },
+  "sources": {
+    "frontend": [
+      "frontend/src/features/venues/pages/edit/VenueEditPage.tsx",
+      "frontend/src/store/useAppStore.ts"
+    ],
+    "backend": [
+      "backend/src/venues/repository/venues.repository.ts",
+      "backend/src/venues/venues.service.ts",
+      "backend/src/venues/venues.controller.ts"
+    ]
+  },
+  "suites": [
+    { "id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": [] },
+    { "id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": [] },
+    { "id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "./vitest.config.e2e.ts", "coverage": "backend", "env": ["DATABASE_URL"] }
+  ],
+  "mutation": [
+    {
+      "id": "backend",
+      "cwd": "backend",
+      "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm121.mutants.mjs"],
+      "mutantsFile": "backend/scripts/mutation/spm121.mutants.mjs",
+      "export": "MUTANTS",
+      "env": ["DATABASE_URL"]
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm121.mutants.mjs"],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm121.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

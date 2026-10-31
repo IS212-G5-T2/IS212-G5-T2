@@ -1058,7 +1058,7 @@ describe('VenuesRepository', () => {
     } as unknown as DatabaseService);
 
     await expect(repository.create(ownerUserId, venueInput)).resolves.toEqual(
-      venue,
+      { ...venue, ownerId: ownerUserId },
     );
     expect(transaction).toHaveBeenCalledTimes(1);
     expect(query.mock.calls[0]).toEqual([
@@ -1110,7 +1110,7 @@ describe('VenuesRepository', () => {
 
     await expect(
       repository.create(ownerUserId, { ...venueInput, accessibility: [] }),
-    ).resolves.toEqual({ ...venue, accessibility: [] });
+    ).resolves.toEqual({ ...venue, ownerId: ownerUserId, accessibility: [] });
     expect(query.mock.calls[1]).toEqual([
       expect.stringContaining('INSERT INTO venue_accessibility'),
       [venue.id, []],
@@ -1149,6 +1149,7 @@ describe('VenuesRepository', () => {
       repository.create(ownerUserId, { ...venueInput, image }),
     ).resolves.toEqual({
       ...venue,
+      ownerId: ownerUserId,
       image,
     });
 
@@ -1178,6 +1179,7 @@ describe('SPM-124 venue reads', () => {
   const owner = '00000000-0000-4000-8000-000000000001';
   const row = {
     ...venue,
+    owner_user_id: owner,
     operating_information: venue.operatingInformation,
     setup_time_minutes: venue.setupTimeMinutes,
     turnaround_time_minutes: venue.turnaroundTimeMinutes,
@@ -1339,6 +1341,7 @@ describe('SPM-124 venue reads', () => {
     expect(readQuery.mock.calls[0][1]).toEqual([owner]);
     expect(record).toEqual({
       ...venue,
+      ownerId: owner,
       id,
       availabilityStatus: 'available',
       unavailablePeriods: [],
@@ -1404,6 +1407,7 @@ describe('SPM-124 venue reads', () => {
 
     expect(record).toEqual({
       ...venue,
+      ownerId: owner,
       id,
       availabilityStatus: 'unavailable',
       unavailablePeriods: [
@@ -1622,6 +1626,7 @@ describe('SPM-124 venue reads', () => {
 
     expect(record).toEqual({
       ...venue,
+      ownerId: owner,
       id,
       availabilityStatus: 'available',
       unavailablePeriods: [],
@@ -1629,9 +1634,11 @@ describe('SPM-124 venue reads', () => {
     });
     expect(missing).toBeUndefined();
     expect(readQuery.mock.calls[0][0]).toContain('v.id = $1::uuid');
-    expect(readQuery.mock.calls[0][0]).not.toContain('v.owner_user_id');
+    expect(readQuery.mock.calls[0][0]).toContain('v.owner_user_id');
     expect(readQuery.mock.calls[0][1]).toEqual([id]);
   });
+
+
 
   /** SPM-122: an unavailable period cannot be recorded for a venue that disappeared. */
   it('returns undefined when the venue lock finds no venue', async () => {
@@ -2777,5 +2784,183 @@ describe('SPM-55 venue booking review repository', () => {
       rejectionReason: 'Clashes with maintenance',
     });
     expect(bookings[1].rejectionReason).toBeUndefined();
+  });
+});
+
+describe('SPM-121 repository.update', () => {
+  const venueId = '00000000-0000-4000-8000-000000000124';
+  const ownerUserId = '8ff4073d-8baa-4d32-984e-b93a46cbe49d';
+  const otherUserId = 'aaaaaaaa-aaaa-4000-8000-aaaaaaaaaaaa';
+  const venueInput = {
+    name: 'Updated Hall',
+    location: 'Block B Level 1',
+    capacity: 80,
+    facilities: ['Wi-Fi'],
+    accessibility: [],
+    layouts: ['Theatre'],
+    operatingInformation: 'Open daily',
+    setupTimeMinutes: 30,
+    turnaroundTimeMinutes: 45,
+  };
+  const venueRow = {
+    id: venueId,
+    owner_user_id: ownerUserId,
+    name: venueInput.name,
+    location: venueInput.location,
+    capacity: venueInput.capacity,
+    facilities: venueInput.facilities,
+    accessibility: venueInput.accessibility,
+    layouts: venueInput.layouts,
+    operating_information: venueInput.operatingInformation,
+    setup_time_minutes: venueInput.setupTimeMinutes,
+    turnaround_time_minutes: venueInput.turnaroundTimeMinutes,
+    image_name: null,
+    image_type: null,
+    image_size: null,
+    image_data_url: null,
+  };
+
+  /** Builds a repository mock for update(); txQuery is the client inside the transaction, poolQuery is for withSchedules. */
+  function createUpdateRepository(
+    lockRow: { id: string; owner_user_id: string; capacity: number } | undefined,
+    options: { updatedRow?: typeof venueRow; affectedRows?: unknown[]; capacityRows?: unknown[] } = {},
+  ) {
+    const { updatedRow = venueRow, affectedRows = [], capacityRows = [] } = options;
+    const txQuery = vi.fn();
+    // 1. Lock query
+    txQuery.mockResolvedValueOnce({ rows: lockRow ? [lockRow] : [] });
+    if (lockRow && lockRow.owner_user_id === ownerUserId) {
+      // 2. UPDATE venues
+      txQuery.mockResolvedValueOnce({ rows: [] });
+      // 3–8. DELETE facilities, INSERT facilities, DELETE layouts, INSERT layouts, DELETE accessibility, DELETE image
+      // (6 calls: accessibility=[] so no INSERT; no new image so only DELETE)
+      for (let i = 0; i < 6; i++) txQuery.mockResolvedValueOnce({ rows: [] });
+      // AC8 affected query
+      txQuery.mockResolvedValueOnce({ rows: affectedRows });
+      // AC9 capacity query only when capacity differs from lockRow
+      if (lockRow && lockRow.capacity !== venueInput.capacity) {
+        txQuery.mockResolvedValueOnce({ rows: capacityRows });
+      }
+      // SELECT updated venue
+      txQuery.mockResolvedValueOnce({ rows: [updatedRow] });
+    }
+    // withSchedules uses this.database.query (pool level, outside transaction)
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] })   // unavailable periods
+      .mockResolvedValueOnce({ rows: [] });  // bookings
+    const transaction = vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }));
+    const repository = new VenuesRepository(
+      { transaction, query: poolQuery } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+    return { repository, txQuery, poolQuery, transaction };
+  }
+
+  /** VEN-UPD-07-A: updating a venue owned by another staff member returns forbidden. */
+  it('VEN-UPD-07-A returns forbidden when the caller is not the venue owner', async () => {
+    const { repository } = createUpdateRepository({
+      id: venueId,
+      owner_user_id: otherUserId,
+      capacity: 120,
+    });
+    await expect(
+      repository.update(ownerUserId, venueId, venueInput),
+    ).resolves.toEqual({ kind: 'forbidden' });
+  });
+
+  /** VEN-UPD-07-B: updating a non-existent venue returns not-found. */
+  it('VEN-UPD-07-B returns not-found when the venue does not exist', async () => {
+    const { repository } = createUpdateRepository(undefined);
+    await expect(
+      repository.update(ownerUserId, venueId, venueInput),
+    ).resolves.toEqual({ kind: 'not-found' });
+  });
+
+  /** VEN-UPD-05-A: a successful update returns the updated venue record with empty booking lists when no conflicts or capacity change. */
+  it('VEN-UPD-05-A returns updated venue and empty booking lists when capacity and timing are unchanged', async () => {
+    const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity };
+    const { repository } = createUpdateRepository(lockRow);
+    const result = await repository.update(ownerUserId, venueId, venueInput);
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') {
+      expect(result.venue).toMatchObject({ id: venueId, ownerId: ownerUserId });
+      expect(result.affectedBookings).toEqual([]);
+      expect(result.capacityBookings).toEqual([]);
+    }
+  });
+
+  /** VEN-UPD-09-A: capacity change triggers the AC9 pending/approved booking query. */
+  it('VEN-UPD-09-A runs the capacity booking query when capacity changes', async () => {
+    const capacityBookingRow = {
+      id: 'bk-1',
+      event_name: 'Conference',
+      start_at: new Date('2030-03-01T10:00:00.000Z'),
+      end_at: new Date('2030-03-02T10:00:00.000Z'),
+      status: 'pending' as const,
+    };
+    const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: 120 }; // different from input.capacity=80
+    const txQuery = vi.fn();
+    txQuery.mockResolvedValueOnce({ rows: [lockRow] }); // lock
+    for (let i = 0; i < 7; i++) txQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE + 6 DELETE/INSERT + image DELETE
+    txQuery.mockResolvedValueOnce({ rows: [] }); // AC8 affected
+    txQuery.mockResolvedValueOnce({ rows: [capacityBookingRow] }); // AC9 capacity
+    txQuery.mockResolvedValueOnce({ rows: [venueRow] }); // SELECT updated
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] }) // withSchedules: periods
+      .mockResolvedValueOnce({ rows: [] }); // withSchedules: bookings
+    const transaction = vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }));
+    const repository = new VenuesRepository(
+      { transaction, query: poolQuery } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+    const result = await repository.update(ownerUserId, venueId, venueInput);
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') {
+      expect(result.capacityBookings).toEqual([{
+        bookingId: 'bk-1',
+        eventName: 'Conference',
+        start: '2030-03-01T10:00:00.000Z',
+        end: '2030-03-02T10:00:00.000Z',
+        status: 'pending',
+      }]);
+    }
+  });
+
+  /** VEN-UPD-08-A: timing change populates affectedBookings from the conflict query. */
+  it('VEN-UPD-08-A returns affectedBookings when setup/turnaround causes an overlap', async () => {
+    const conflictRow = {
+      id: 'bk-conflict',
+      event_name: 'Workshop',
+      start_at: new Date('2030-04-01T09:00:00.000Z'),
+      end_at: new Date('2030-04-01T11:00:00.000Z'),
+      status: 'approved' as const,
+    };
+    const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity };
+    const txQuery = vi.fn();
+    txQuery.mockResolvedValueOnce({ rows: [lockRow] }); // lock
+    for (let i = 0; i < 7; i++) txQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE + 6 DELETE/INSERT + image DELETE
+    txQuery.mockResolvedValueOnce({ rows: [conflictRow] }); // AC8 affected
+    // no AC9 query (capacity unchanged)
+    txQuery.mockResolvedValueOnce({ rows: [venueRow] }); // SELECT updated
+    const poolQuery = vi.fn()
+      .mockResolvedValueOnce({ rows: [] }) // withSchedules: periods
+      .mockResolvedValueOnce({ rows: [] }); // withSchedules: bookings
+    const transaction = vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }));
+    const repository = new VenuesRepository(
+      { transaction, query: poolQuery } as unknown as DatabaseService,
+      { now: () => new Date('2030-01-10T12:00:00.000Z') },
+    );
+    const result = await repository.update(ownerUserId, venueId, venueInput);
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') {
+      expect(result.affectedBookings).toEqual([{
+        bookingId: 'bk-conflict',
+        eventName: 'Workshop',
+        start: '2030-04-01T09:00:00.000Z',
+        end: '2030-04-01T11:00:00.000Z',
+        status: 'approved',
+      }]);
+      expect(result.capacityBookings).toEqual([]);
+    }
   });
 });
