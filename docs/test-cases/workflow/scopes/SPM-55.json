@@ -1,7 +1,7 @@
 {
   "story": "SPM-55",
   "title": "Review Booking Requests (Venue Staff approve and reject)",
-  "note": "Primary scope: backend venue service, controller and repository specs for the SPM-55 review endpoints, and the frontend BookingsPage and format specs. Six PostgreSQL HTTP/E2E tests cover the approve/reject happy paths (VEN-REV-10-A, VEN-REV-10-B), migration 022 backfill isolation (VEN-REV-11-A), the stored booking slot after an event schedule change (VEN-REV-12-A) and per-attempt special requests after a reject and resubmit (VEN-REV-12-B, VEN-REV-12-C, in the Venue Staff list and My Bookings); VEN-REV-12-A to 12-C answer PR #78 review findings SPM55-REVIEW-002 and -003 and kill VEN-REV-M46 to M52. Browser automation is not in scope. The SPM-55 Confluence matrix was not verified from this session, so the VEN-REV ids are registered as SUPPORTING with owner approval pending.",
+  "note": "Primary scope: backend venue service, controller and repository specs for the SPM-55 review endpoints, and the frontend BookingsPage and format specs. Six PostgreSQL HTTP/E2E tests cover the approve/reject happy paths (VEN-REV-10-A, VEN-REV-10-B), migration 022 backfill isolation (VEN-REV-11-A), the stored booking slot after an event schedule change (VEN-REV-12-A) and per-attempt special requests after a reject and resubmit (VEN-REV-12-B, VEN-REV-12-C, in the Venue Staff list and My Bookings); VEN-REV-12-A to 12-C answer PR #78 review findings SPM55-REVIEW-002 and -003 and kill VEN-REV-M46 to M52; VEN-REV-M53 to M55 back the kills claimed by VEN-REV-10-A, 10-B and 11-A. The backend-spm55 mutation runner needs no DATABASE_URL as a whole: only its reviewE2e suite does (needsEnv in spm55.mutants.mjs), so without PostgreSQL the 34 unit-level mutants still run and the 10 E2E mutants are reported as skipped. Browser automation is not in scope. The SPM-55 Confluence matrix was not verified from this session, so the VEN-REV ids are registered as SUPPORTING with owner approval pending.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -98,9 +98,7 @@
       ],
       "mutantsFile": "backend/scripts/mutation/spm55.mutants.mjs",
       "export": "MUTANTS",
-      "env": [
-        "DATABASE_URL"
-      ]
+      "env": []
     },
     {
       "id": "frontend-spm55",

@@ -1692,7 +1692,7 @@ describe.skipIf(!databaseUrl)(
       );
     });
 
-    /** VEN-REV-10-A SPM-55 AC2: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
+    /** VEN-REV-10-A SPM-55 AC2 AC5: Venue Staff approve a pending request; the booking moves to approved and an audit row is written. */
     it('VEN-REV-10-A SPM-55 approves a pending booking request and writes an audit log row', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1731,7 +1731,7 @@ describe.skipIf(!databaseUrl)(
       expect(log.rows[0].action).toBe('approved');
     });
 
-    /** VEN-REV-10-B SPM-55 AC3: Venue Staff reject a pending request with a reason; the booking moves to rejected, the reason is stored, and an audit row is written. */
+    /** VEN-REV-10-B SPM-55 AC3 AC5: Venue Staff reject a pending request with a reason; the booking moves to rejected, the reason is stored, and an audit row is written. */
     it('VEN-REV-10-B SPM-55 rejects a pending booking request with a reason and writes an audit log row', async () => {
       const owner = await createUser('VENUE_STAFF');
       const coordinator = await createUser('COORDINATOR');
@@ -1811,23 +1811,11 @@ describe.skipIf(!databaseUrl)(
         [eventId, venueId],
       );
 
-      // Re-run the backfill portion of migration 022 against the live test DB.
-      await pool.query(`
-        UPDATE venue_bookings b
-           SET special_request = r.special_request
-          FROM venue_booking_requests r,
-               (
-                 SELECT DISTINCT ON (event_id, venue_id) id
-                   FROM venue_bookings
-                  WHERE event_id IS NOT NULL
-                  ORDER BY event_id, venue_id, created_at DESC
-               ) latest
-         WHERE latest.id = b.id
-           AND r.event_id = b.event_id
-           AND r.venue_id = b.venue_id
-           AND b.special_request IS NULL
-           AND r.special_request IS NOT NULL
-      `);
+      // Re-run migration 022 itself (idempotent: ADD COLUMN IF NOT EXISTS plus the backfill) against the live test DB,
+      // so a change to the migration's backfill is caught here rather than a copy of its SQL.
+      await pool.query(
+        await readFile(new URL('../migrations/022_spm55_booking_special_request.sql', import.meta.url), 'utf8'),
+      );
 
       const rows = await pool.query<{ id: string; special_request: string | null }>(
         'SELECT id, special_request FROM venue_bookings WHERE id = ANY($1::uuid[])',
@@ -3409,19 +3397,26 @@ describe.skipIf(!databaseUrl)(
       const rows = (list.body as Array<{ eventId: string; start: string; end: string; eventStart: string }>).filter(
         (row) => row.eventId === eventX || row.eventId === eventY,
       );
+      // X is listed before Y by its stored slot, even though its event now starts after Y's.
       expect(rows.map((row) => row.eventId)).toEqual([eventX, eventY]);
       expect(rows[0]).toMatchObject({
         start: '2030-02-10T06:00:00.000Z',
         end: '2030-02-10T07:00:00.000Z',
         eventStart: '2030-02-20T06:00:00.000Z',
       });
+      expect(rows[1]).toMatchObject({
+        start: '2030-02-12T06:00:00.000Z',
+        end: '2030-02-12T07:00:00.000Z',
+        eventStart: '2030-02-12T06:00:00.000Z',
+      });
 
       const mine = await request(app.getHttpServer())
         .get('/api/venues/bookings/mine')
         .set('Cookie', coordinator.cookie)
         .expect(200);
-      const myX = (mine.body as Array<{ eventId: string; start: string; end: string }>).find((row) => row.eventId === eventX);
-      expect(myX).toMatchObject({ start: '2030-02-10T06:00:00.000Z', end: '2030-02-10T07:00:00.000Z' });
+      const myRows = mine.body as Array<{ eventId: string; start: string; end: string }>;
+      expect(myRows.find((row) => row.eventId === eventX)).toMatchObject({ start: '2030-02-10T06:00:00.000Z', end: '2030-02-10T07:00:00.000Z' });
+      expect(myRows.find((row) => row.eventId === eventY)).toMatchObject({ start: '2030-02-12T06:00:00.000Z', end: '2030-02-12T07:00:00.000Z' });
     });
 
     /**
@@ -3523,10 +3518,11 @@ describe.skipIf(!databaseUrl)(
         ['/api/venues/bookings/mine', coordinator.cookie],
       ]) {
         const response = await request(app.getHttpServer()).get(path).set('Cookie', cookie).expect(200);
-        const rows = response.body as Array<{ id: string; specialRequest?: string }>;
+        const rows = response.body as Array<{ id: string; specialRequest?: string | null }>;
         // The earlier attempt is listed (so an empty note is a real empty note, not a missing row).
         expect(rows.map((row) => row.id)).toEqual(expect.arrayContaining([bookingA, bookingB]));
-        expect(rows.find((row) => row.id === bookingA)?.specialRequest).toBeUndefined();
+        // Absent or null both mean "no note"; only a borrowed string is a failure.
+        expect(rows.find((row) => row.id === bookingA)?.specialRequest ?? null).toBeNull();
         expect(rows.find((row) => row.id === bookingB)?.specialRequest).toBe('Need a ramp');
       }
     });
