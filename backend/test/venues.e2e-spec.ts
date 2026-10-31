@@ -1249,6 +1249,72 @@ describe.skipIf(!databaseUrl)(
       }
     });
 
+    /** SPM-121 AC8 VEN-UPD-08-B: increasing turnaround time displays newly affected bookings without removing them. */
+    it('VEN-UPD-08-B-E2E: turnaround increase shows newly affected bookings and preserves them', async () => {
+      const staff = await authenticate(staffEmail);
+      const created = await staff
+        .post('/api/venues')
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8-B Turnaround Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 30 })
+        .expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      const event1Id = await createScheduleEvent('SPM-121 AC8-B event A');
+      const event2Id = await createScheduleEvent('SPM-121 AC8-B event B');
+
+      // A=10:00–12:00, B=12:35–14:00 (future day); with turnaround=30m A occupies 10:00–12:30, gap to B at 12:35
+      const dayOffset = 3 * 24 * 60 * 60 * 1000;
+      const slotAStart = new Date(fixedNow.getTime() + dayOffset);
+      slotAStart.setUTCHours(10, 0, 0, 0);
+      const slotAEnd = new Date(slotAStart.getTime());
+      slotAEnd.setUTCHours(12, 0, 0, 0);
+      const slotBStart = new Date(slotAStart.getTime());
+      slotBStart.setUTCHours(12, 35, 0, 0);
+      const slotBEnd = new Date(slotAStart.getTime());
+      slotBEnd.setUTCHours(14, 0, 0, 0);
+
+      const insertResult = await pool.query(
+        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'approved'),
+                (gen_random_uuid(), $1, $5, $6, $7, 'approved')
+         RETURNING id`,
+        [id, event1Id, slotAStart, slotAEnd, event2Id, slotBStart, slotBEnd],
+      );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id)
+         VALUES ($1, $2), ($3, $2)
+         ON CONFLICT DO NOTHING`,
+        [event1Id, id, event2Id],
+      );
+      eventIds.push(event1Id, event2Id);
+
+      // Increase turnaround from 30m to 40m: A now occupies 10:00–12:40, overlapping B at 12:35
+      const response = await staff
+        .patch(`/api/venues/${id}`)
+        .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8-B Turnaround Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 40 })
+        .expect(200);
+
+      expect(response.body.affectedBookings.length).toBeGreaterThan(0);
+      for (const b of response.body.affectedBookings) {
+        expect(b).toHaveProperty('bookingId');
+        expect(b).toHaveProperty('eventName');
+        expect(b).toHaveProperty('start');
+        expect(b).toHaveProperty('end');
+        expect(b).toHaveProperty('status');
+      }
+
+      // Verify both bookings remain in the database
+      const bookingIds = insertResult.rows.map((r: { id: string }) => r.id);
+      const persisted = await pool.query(
+        `SELECT id, status FROM venue_bookings WHERE id = ANY($1)`,
+        [bookingIds],
+      );
+      expect(persisted.rows).toHaveLength(2);
+      for (const row of persisted.rows) {
+        expect(row.status).toBe('approved');
+      }
+    });
+
     /** SPM-121 AC4: same name at a different location is NOT a duplicate. */
     it('VEN-UPD-04-E2E-B: allows a name that exists at a different location', async () => {
       const staff = await authenticate(staffEmail);
