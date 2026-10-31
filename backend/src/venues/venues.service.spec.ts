@@ -576,7 +576,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-04-SVC-A: duplicate name+location from the DB returns 409. */
+  /** VEN-UPD-04-A VEN-UPD-04-SVC-A: duplicate name+location from the DB returns 409. */
   it('VEN-UPD-04-SVC-A maps the duplicate constraint to 409 with field errors', async () => {
     const pgDup = Object.assign(new Error('duplicate key'), {
       code: '23505',
@@ -646,7 +646,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-03-C-SVC: AC3 — nonempty invalid capacity values are rejected. */
+  /** VEN-UPD-03-C VEN-UPD-03-C-SVC: AC3 — nonempty invalid capacity values are rejected. */
   it.each([0, -1, 1_000_001, 2.5])('VEN-UPD-03-C-SVC rejects capacity %s', async (capacity) => {
     await expect(
       service.update(staff, venueId, { ...validBody, capacity }),
@@ -654,14 +654,14 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-02-BND-1-SVC: AC2 — capacity boundaries 1 and 1000000 are accepted through update. */
+  /** VEN-UPD-02-BND-1 VEN-UPD-02-BND-1-SVC: AC2 — capacity boundaries 1 and 1000000 are accepted through update. */
   it.each([1, 1_000_000])('VEN-UPD-02-BND-1-SVC accepts boundary capacity %s', async (capacity) => {
     const result = await service.update(staff, venueId, { ...validBody, capacity });
     expect(result.message).toBe('Venue updated successfully.');
     expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({ capacity }));
   });
 
-  /** VEN-UPD-03-D-SVC: AC3 — negative or fractional durations are rejected. */
+  /** VEN-UPD-03-D VEN-UPD-03-D-SVC: AC3 — negative or fractional durations are rejected. */
   it.each([
     { field: 'setupTimeMinutes', value: -1 },
     { field: 'turnaroundTimeMinutes', value: -1 },
@@ -673,7 +673,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-02-BND-2-SVC: AC2 — zero durations are accepted; negative are rejected. */
+  /** VEN-UPD-02-BND-2 VEN-UPD-02-BND-2-SVC: AC2 — zero durations are accepted; negative are rejected. */
   it('VEN-UPD-02-BND-2-SVC accepts zero setup and turnaround', async () => {
     const result = await service.update(staff, venueId, {
       ...validBody,
@@ -688,7 +688,7 @@ describe('SPM-121 venue service update', () => {
     );
   });
 
-  /** VEN-UPD-03-BND-1-SVC: AC3 — whitespace-only required strings are rejected. */
+  /** VEN-UPD-03-BND-1 VEN-UPD-03-BND-1-SVC: AC3 — whitespace-only required strings are rejected. */
   it.each(['name', 'location', 'operatingInformation'])(
     'VEN-UPD-03-BND-1-SVC rejects whitespace-only %s',
     async (field) => {
@@ -699,7 +699,7 @@ describe('SPM-121 venue service update', () => {
     },
   );
 
-  /** VEN-UPD-03-BND-2-SVC: AC3 — overlength text fields are rejected. */
+  /** VEN-UPD-03-BND-2 VEN-UPD-03-BND-2-SVC: AC3 — overlength text fields are rejected. */
   it.each([
     { field: 'name', length: 201 },
     { field: 'location', length: 301 },
@@ -711,7 +711,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-03-IMG-1-SVC: AC3 — invalid image type or oversized image is rejected. */
+  /** VEN-UPD-03-IMG-1 VEN-UPD-03-IMG-1-SVC: AC3 — invalid image type or oversized image is rejected. */
   it.each([
     { desc: 'text/plain type', image: { name: 'notes.txt', type: 'text/plain', size: 4, dataUrl: 'data:text/plain;base64,dGVzdA==' } },
     { desc: 'oversized PNG', image: { name: 'big.png', type: 'image/png', size: 5 * 1024 * 1024 + 1, dataUrl: 'data:image/png;base64,dGVzdA==' } },
@@ -722,7 +722,7 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-02-A-SVC: AC2 — all ten field groups are forwarded to the repository on update. */
+  /** VEN-UPD-02-A VEN-UPD-02-A-SVC: AC2 — all ten field groups are forwarded to the repository on update. */
   it('VEN-UPD-02-A-SVC forwards all venue fields including image to the repository', async () => {
     const image = { name: 'hall.png', type: 'image/png', size: 4, dataUrl: 'data:image/png;base64,dGVzdA==' };
     const fullBody = { ...validBody, image };
@@ -741,7 +741,7 @@ describe('SPM-121 venue service update', () => {
     }));
   });
 
-  /** VEN-UPD-07-SEC-1-SVC: AC7 — same-role, different-creator API attempt returns 403. */
+  /** VEN-UPD-07-SEC-1 VEN-UPD-07-SEC-1-SVC: AC7 — same-role, different-creator API attempt returns 403. */
   it('VEN-UPD-07-SEC-1-SVC rejects update from a different Venue Staff via API', async () => {
     updateFn.mockResolvedValueOnce({ kind: 'forbidden' });
     const otherStaff = { uid: 'other-staff-2', roles: ['VENUE_STAFF'] as string[] };
@@ -750,7 +750,7 @@ describe('SPM-121 venue service update', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  /** VEN-UPD-05-B-SVC: AC5 — a failed save does not return a success message. */
+  /** VEN-UPD-05-B VEN-UPD-05-B-SVC: AC5 — a failed save does not return a success message. */
   it('VEN-UPD-05-B-SVC throws instead of returning success when the repository errors', async () => {
     updateFn.mockRejectedValueOnce(new Error('DB connection lost'));
     await expect(service.update(staff, venueId, validBody)).rejects.toThrow('DB connection lost');

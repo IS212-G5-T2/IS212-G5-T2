@@ -52,7 +52,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("SPM-121 VenueEditPage", () => {
-  /** VEN-UPD-01-UI-A: AC1 — the form pre-fills with the current venue values on load. */
+  /** VEN-UPD-01-A VEN-UPD-01-UI-A: AC1 — the form pre-fills with the current venue values on load. */
   it("VEN-UPD-01-UI-A pre-fills the form with current venue values after load", async () => {
     renderEdit();
     await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
@@ -61,7 +61,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect((screen.getByLabelText(/Capacity/i) as HTMLInputElement).value).toBe(String(venue.capacity));
   });
 
-  /** VEN-UPD-01-UI-B: load failure shows an error message. */
+  /** VEN-UPD-01-B VEN-UPD-01-UI-B: load failure shows an error message. */
   it("VEN-UPD-01-UI-B shows an error when venue load fails", async () => {
     apiMock.mockRejectedValueOnce(new Error("network"));
     renderEdit();
@@ -70,7 +70,7 @@ describe("SPM-121 VenueEditPage", () => {
     );
   });
 
-  /** VEN-UPD-05-UI-A: AC5 — submitting the form calls the PATCH endpoint and shows the success message. */
+  /** VEN-UPD-05-A VEN-UPD-05-UI-A: AC5 — submitting the form calls the PATCH endpoint and shows the success message. */
   it("VEN-UPD-05-UI-A calls PATCH and shows success message after submission", async () => {
     apiMock
       .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>) // GET (pre-fill)
@@ -142,10 +142,34 @@ describe("SPM-121 VenueEditPage", () => {
     await waitFor(() => expect(screen.getByText("Tech Conference")).toBeInTheDocument());
   });
 
-  /** VEN-UPD-07-UI-B: AC7 — navigating directly to another staff member's edit URL shows a forbidden message instead of the form. */
+  /** VEN-UPD-07-B VEN-UPD-07-UI-B: AC7 — navigating directly to another staff member's edit URL shows a forbidden message instead of the form. */
   it("VEN-UPD-07-UI-B blocks non-owner from accessing the edit form by URL", async () => {
     const otherVenue = { ...venue, ownerId: "other-staff-99" };
     apiMock.mockResolvedValueOnce(otherVenue as unknown as ReturnType<typeof api>);
+    renderEdit();
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/only edit venues you created/i),
+    );
+    expect(screen.queryByLabelText(/Venue name/i)).toBeNull();
+  });
+
+  /** VEN-UPD-07-A: AC7 — owner sees the editable form; non-owner is denied. */
+  it("VEN-UPD-07-A owner can edit own venue but non-owner is blocked", async () => {
+    // Owner: form fields are rendered
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    expect(screen.getByLabelText(/Venue name/i)).toBeInTheDocument();
+    cleanup();
+
+    // Non-owner: forbidden message, no form
+    vi.resetAllMocks();
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: true,
+      currentUser: { id: "other-staff-99", name: "Venue Staff 2", email: "staff2@example.test", role: "venue_staff" },
+      venues: [],
+    });
+    apiMock.mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>);
     renderEdit();
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/only edit venues you created/i),
@@ -177,7 +201,7 @@ describe("SPM-121 VenueEditPage", () => {
     );
   });
 
-  /** VEN-UPD-05-UI-B: AC5 — a failed save shows an error, not a success message. */
+  /** VEN-UPD-05-B VEN-UPD-05-UI-B: AC5 — a failed save shows an error, not a success message. */
   it("VEN-UPD-05-UI-B shows an error message when the save fails", async () => {
     apiMock
       .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>) // GET
@@ -195,7 +219,7 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.queryByText(/Venue updated successfully/i)).toBeNull();
   });
 
-  /** VEN-UPD-02-C-UI: AC2 — the image field is present on the edit form's second step. */
+  /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — the image field is present on the edit form's second step. */
   it("VEN-UPD-02-C-UI renders a file input for replacing the venue image", async () => {
     const user = userEvent.setup();
     renderEdit();

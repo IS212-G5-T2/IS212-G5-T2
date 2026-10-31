@@ -35,7 +35,8 @@ VEN-UPD-06-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-B: venue list re
 VEN-UPD-06-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-C: Coordinator sees updated setup and turnaround times after Staff edits,1170,AC6,Happy,Present,Integration,SPEC,,,Yes,Yes,No,PASS
 VEN-UPD-06-E2E-D,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-D: Coordinator does not see stale location or timing after update,1186,AC6,Sad,Present,Integration,SPEC,,,Yes,Yes,No,PASS
 VEN-UPD-08-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes,1204,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,PASS
-VEN-UPD-08-B-E2E,backend/test/venues.e2e-spec.ts,VEN-UPD-08-B-E2E: turnaround increase shows newly affected bookings and preserves them,1252,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,PASS
+VEN-UPD-08-B-E2E,backend/test/venues.e2e-spec.ts,VEN-UPD-08-B-E2E: turnaround increase shows newly affected bookings and preserves them,1253,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,PASS
+VEN-UPD-08-C-E2E,backend/test/venues.e2e-spec.ts,VEN-UPD-08-C-E2E: no bookings listed as affected when timing change causes no new overlap,1319,AC8,Sad,Present,Integration,SPEC,,,Yes,Yes,No,PASS
 VEN-UPD-04-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-B: allows a name that exists at a different location,1253,AC4,Happy,Present,Integration,SPEC,,,Yes,Yes,No,PASS
 VEN-UPD-04-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-C: rejects case-insensitive duplicate name at the same location,1270,AC4,Boundary,Present,Integration,SPEC,,,Yes,Yes,No,PASS
 VEN-UPD-05-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-05-E2E-B: repeated save does not duplicate the venue,1288,AC5,Variation,Present,Integration,SPEC,,,Yes,Yes,No,PASS
