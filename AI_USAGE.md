@@ -15,9 +15,8 @@ Add entries under one date per day, using this format:
 Where user is the user's github username.
 
 ## 2026-10-31
+- kishorek888 - review remediation - SPM-128 - Resolve review comments and strengthen test coverage: Merged dev into SPM-128 resolving run.mjs and metrics-history.csv conflicts; strengthened 04-C/D/E negative route redirection tests; removed duplicate login unit tests and added login UI error tests for 03-A and 03-B; updated 02-B to test login redirect; added backend unit test verifying Safety Officer event access restrictions; fixed role string casing in 01-D; updated mutation mappings (14/14 killed); cycle 2 verification passed all gates (G1-G7 GREEN).
 - kishorek888 - CI correction - SPM-128 - Stabilize backend E2E fixture: PLAN-STATUS-03-B created five venues concurrently through five separate account/login flows; changed the fixture to reuse its authenticated coordinator as venue owner. Focused case passed 10 consecutive runs and the complete 40-test SPM-148 transition E2E suite passed locally against PostgreSQL. No commit or push.
-
-## 2026-10-30
 ## 2026-10-28
 - swr - version control - SPM-159 - Prepare authorized correction commit: Included approved-hold state handling, null-expiry migration 025 and query fixes, regression/mutation evidence, test-record matching corrections and template-aligned PR description. Prior verification remains as recorded below; no new test run or independent gate claimed. Claude model/effort configuration changes excluded; no push or PR creation.
 - swr - documentation - SPM-159 - Align PR description with repository template: Rewrote SPM-159-pr-description.md with every template heading and all 100 checklist items; included current backend evidence, uncommitted correction scope, migration 025 and the AC9 decision. Updated existing PR #83 through gh after the connector returned a write-permission error; CLI read-back matches the local draft apart from Jira's automatic reference link. No application changes, commit, push or new PR.

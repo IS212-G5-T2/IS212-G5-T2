@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAssignedEvents, getEquipmentRequestQueue, getMyEquipmentRequests } from "@/features/equipment/api/equipment-requests-api";
 import App from "./App";
 import { useAppStore } from "@/store/useAppStore";
@@ -339,16 +340,74 @@ describe("SPM-128 Safety Officer login routing", () => {
     });
   });
 
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   /** SAFETY-LOGIN-02-A: An authenticated Safety Officer visiting root is automatically redirected to the safety review page. */
   it("SAFETY-LOGIN-02-A redirects a Safety Officer from root to the safety review page", () => {
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
-  /** SAFETY-LOGIN-02-B: Direct navigation to /safety/events renders the safety review page. */
-  it("SAFETY-LOGIN-02-B renders the safety review page at /safety/events", () => {
-    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+  /** SAFETY-LOGIN-02-B: An authenticated Safety Officer visiting login is automatically redirected to the safety review page. */
+  it("SAFETY-LOGIN-02-B redirects an authenticated Safety Officer from login to the safety review page", () => {
+    render(<MemoryRouter initialEntries={["/login"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
+  });
+
+  /** SAFETY-LOGIN-03-A: Wrong password surfaces the server's exact error message on the login screen. */
+  it("SAFETY-LOGIN-03-A wrong password displays the server error message on the login screen", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: "Invalid email or password." }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ));
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: false,
+      currentUser: { id: "", name: "", email: "", role: "attendee" },
+      restoreAuthSession: vi.fn(),
+    });
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/login"]}><App /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText(/email/i), "safety_officer1@connectsphere.test");
+    await user.type(screen.getByLabelText(/password/i), "wrong-password");
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Invalid email or password.");
+    expect(screen.getByRole("button", { name: /log in/i })).toBeTruthy();
+  });
+
+  /** SAFETY-LOGIN-03-B: Non-JSON error body shows generic fallback message on the login screen. */
+  it("SAFETY-LOGIN-03-B non-JSON error body displays generic fallback message on the login screen", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response("Service Unavailable", {
+        status: 503,
+        headers: { "Content-Type": "text/plain" },
+      }),
+    ));
+    useAppStore.setState({
+      authLoading: false,
+      isAuthenticated: false,
+      currentUser: { id: "", name: "", email: "", role: "attendee" },
+      restoreAuthSession: vi.fn(),
+    });
+
+    const user = userEvent.setup();
+    render(<MemoryRouter initialEntries={["/login"]}><App /></MemoryRouter>);
+
+    await user.type(screen.getByLabelText(/email/i), "safety_officer1@connectsphere.test");
+    await user.type(screen.getByLabelText(/password/i), "P@55w0rd");
+    await user.click(screen.getByRole("button", { name: /log in/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("We couldn't sign you in. Please try again.");
+    expect(screen.getByRole("button", { name: /log in/i })).toBeTruthy();
   });
 
   /** SAFETY-LOGIN-04-A: Positive baseline confirming a Safety Officer can access /safety/events before negative cases. */
@@ -364,30 +423,33 @@ describe("SPM-128 Safety Officer login routing", () => {
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
-  /** SAFETY-LOGIN-04-C: An authenticated Coordinator navigating to /safety/events is blocked. */
+  /** SAFETY-LOGIN-04-C: An authenticated Coordinator navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-C blocks coordinator from the safety events route", () => {
     useAppStore.setState({
       currentUser: { id: "coordinator-1", name: "Coordinator 1", email: "coordinator@example.test", role: "coordinator" },
     });
     render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
     expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "All Events" })).toBeTruthy();
   });
 
-  /** SAFETY-LOGIN-04-D: An authenticated Organiser navigating to /safety/events is blocked. */
+  /** SAFETY-LOGIN-04-D: An authenticated Organiser navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-D blocks organiser from the safety events route", () => {
     useAppStore.setState({
       currentUser: { id: "organiser-1", name: "Organiser 1", email: "organiser@example.test", role: "organiser" },
     });
     render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
     expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "My Events" })).toBeTruthy();
   });
 
-  /** SAFETY-LOGIN-04-E: An authenticated Attendee navigating to /safety/events is blocked. */
+  /** SAFETY-LOGIN-04-E: An authenticated Attendee navigating to /safety/events is blocked and redirected to their home page. */
   it("SAFETY-LOGIN-04-E blocks attendee from the safety events route", () => {
     useAppStore.setState({
       currentUser: { id: "attendee-1", name: "Attendee 1", email: "attendee@example.test", role: "attendee" },
     });
     render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
     expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Browse Events" })).toBeTruthy();
   });
 });

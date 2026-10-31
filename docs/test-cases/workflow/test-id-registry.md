@@ -13,8 +13,8 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | SAFETY-LOGIN-02-A | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
 | SAFETY-LOGIN-02-B | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
 | SAFETY-LOGIN-02-C | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/components/layout/navConfig.test.ts | User approved 2026-10-30 | Active |
-| SAFETY-LOGIN-03-A | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
-| SAFETY-LOGIN-03-B | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-03-A | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-03-B | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
 | SAFETY-LOGIN-03-C | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
 | SAFETY-LOGIN-04-A | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
 | SAFETY-LOGIN-04-B | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |

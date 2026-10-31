@@ -59,7 +59,7 @@ export const MUTANTS = [
       {
         suite: 'app',
         file: APP_TEST,
-        title: 'SAFETY-LOGIN-02-B renders the safety review page at /safety/events',
+        title: 'SAFETY-LOGIN-02-B redirects an authenticated Safety Officer from login to the safety review page',
       },
       {
         suite: 'app',
@@ -80,7 +80,7 @@ export const MUTANTS = [
     testMappings: [{
       suite: 'app',
       file: APP_TEST,
-      title: 'SAFETY-LOGIN-02-B renders the safety review page at /safety/events',
+      title: 'SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page',
     }],
     edits: [[
       '<Route path="/safety/events" element={<SafetyEventsPage />} />',
@@ -143,11 +143,6 @@ export const MUTANTS = [
         file: AUTH_TEST,
         title: 'SAFETY-LOGIN-01-B wrong password returns AuthError with status 401',
       },
-      {
-        suite: 'auth',
-        file: AUTH_TEST,
-        title: 'SAFETY-LOGIN-03-A wrong password surfaces server error message',
-      },
     ],
     edits: [[
       '  const body = await readBody(response);\n  if (!response.ok) throw new AuthError(response.status, body.message);\n  const user = toLocalUser',
@@ -164,11 +159,6 @@ export const MUTANTS = [
         suite: 'auth',
         file: AUTH_TEST,
         title: 'SAFETY-LOGIN-01-C non-JSON error body falls back to generic message',
-      },
-      {
-        suite: 'auth',
-        file: AUTH_TEST,
-        title: 'SAFETY-LOGIN-03-B non-JSON error body shows generic fallback message',
       },
     ],
     edits: [[

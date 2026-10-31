@@ -1,16 +1,16 @@
 test_id,file,title,line,ac,tier,tier_status,level,oracle_class,assumption_ref,kills,explained,comment_present,deterministic,result
-SAFETY-LOGIN-02-A,frontend/src/app/App.test.tsx,SAFETY-LOGIN-02-A redirects a Safety Officer from root to the safety review page,327,AC2,Happy,Present,Frontend,SPEC,,mutants:FE-128-02,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-02-B,frontend/src/app/App.test.tsx,SAFETY-LOGIN-02-B renders the safety review page at /safety/events,333,AC2,Happy,Present,Frontend,SPEC,,"mutants:FE-128-03,FE-128-04",Yes,Yes,Yes,PASS
-SAFETY-LOGIN-04-A,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page,339,AC4,Happy,Present,Frontend,SPEC,,mutants:FE-128-03,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-04-B,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-B Safety Officer at /events is redirected to own page,345,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-07,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-04-C,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-C blocks coordinator from the safety events route,352,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-12,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-04-D,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-D blocks organiser from the safety events route,361,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-13,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-04-E,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-E blocks attendee from the safety events route,370,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-14,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-02-C,frontend/src/components/layout/navConfig.test.ts,SAFETY-LOGIN-02-C navigation sidebar shows exactly Safety Review -> /safety/events,74,AC2,Interaction,Present,Frontend,SPEC,,"mutants:FE-128-05,FE-128-06",Yes,Yes,Yes,PASS
+SAFETY-LOGIN-02-A,frontend/src/app/App.test.tsx,SAFETY-LOGIN-02-A redirects a Safety Officer from root to the safety review page,348,AC2,Happy,Present,Frontend,SPEC,,mutants:FE-128-02,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-02-B,frontend/src/app/App.test.tsx,SAFETY-LOGIN-02-B redirects an authenticated Safety Officer from login to the safety review page,354,AC2,Happy,Present,Frontend,SPEC,,mutants:FE-128-03,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-04-A,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page,414,AC4,Happy,Present,Frontend,SPEC,,"mutants:FE-128-03,FE-128-04",Yes,Yes,Yes,PASS
+SAFETY-LOGIN-04-B,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-B Safety Officer at /events is redirected to own page,420,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-07,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-04-C,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-C blocks coordinator from the safety events route,427,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-12,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-04-D,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-D blocks organiser from the safety events route,437,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-13,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-04-E,frontend/src/app/App.test.tsx,SAFETY-LOGIN-04-E blocks attendee from the safety events route,447,AC4,Sad,Present,Frontend,SPEC,,mutants:FE-128-14,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-02-C,frontend/src/components/layout/navConfig.test.ts,SAFETY-LOGIN-02-C navigation sidebar shows exactly Safety Review -> /safety/events,82,AC2,Interaction,Present,Frontend,SPEC,,"mutants:FE-128-05,FE-128-06",Yes,Yes,Yes,PASS
 SAFETY-LOGIN-01-A,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-01-A recognises the Safety Officer role from the server,162,AC1,Happy,Present,Frontend,SPEC,,mutants:FE-128-01,Yes,Yes,Yes,PASS
 SAFETY-LOGIN-01-B,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-01-B wrong password returns AuthError with status 401,177,AC1,Sad,Present,Frontend,SPEC,,mutants:FE-128-08,Yes,Yes,Yes,PASS
 SAFETY-LOGIN-01-C,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-01-C non-JSON error body falls back to generic message,187,AC1,Sad,Present,Frontend,SPEC,,mutants:FE-128-09,Yes,Yes,Yes,PASS
 SAFETY-LOGIN-01-D,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-01-D mixed-case or whitespace-padded role is still recognised,197,AC1,Boundary,Present,Frontend,SPEC,,mutants:FE-128-10,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-03-A,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-03-A wrong password surfaces server error message,209,AC3,Sad,Present,Frontend,SPEC,,mutants:FE-128-08,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-03-B,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-03-B non-JSON error body shows generic fallback message,221,AC3,Sad,Present,Frontend,SPEC,,mutants:FE-128-09,Yes,Yes,Yes,PASS
-SAFETY-LOGIN-03-C,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-03-C valid HTTP 200 but no supported role denies access,233,AC3,Sad,Present,Frontend,SPEC,,mutants:FE-128-11,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-03-A,frontend/src/app/App.test.tsx,SAFETY-LOGIN-03-A wrong password displays the server error message on the login screen,360,AC3,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-03-B,frontend/src/app/App.test.tsx,SAFETY-LOGIN-03-B non-JSON error body displays generic fallback message on the login screen,387,AC3,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
+SAFETY-LOGIN-03-C,frontend/src/lib/auth.test.ts,SAFETY-LOGIN-03-C valid HTTP 200 but no supported role denies access,209,AC3,Sad,Present,Frontend,SPEC,,mutants:FE-128-11,Yes,Yes,Yes,PASS
