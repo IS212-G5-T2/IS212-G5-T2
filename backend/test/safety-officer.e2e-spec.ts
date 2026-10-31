@@ -26,9 +26,10 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   let venue: { id: string };
   let eligible: Seeded;
   let venuePending: Seeded;
-  let equipmentUnconfirmed: Seeded;
+  let reservedEquipmentWithoutNoneConfirmation: Seeded;
   let equipmentRequested: Seeded;
   let tentativeHoldOnly: Seeded;
+  let expiredTentativeHoldOnly: Seeded;
   let mixedVenueBookings: Seeded;
   const userIds: string[] = [];
   const eventIds: string[] = [];
@@ -51,9 +52,16 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     venue = await createVenue(officer.uid);
     eligible = await createSafetyEvent('Eligible Safety Event', true, 'approved', 'Reserved');
     venuePending = await createSafetyEvent('Venue Still Pending', true, 'pending', 'Reserved');
-    equipmentUnconfirmed = await createSafetyEvent('Equipment Not Confirmed', false, 'approved', 'Reserved');
+    reservedEquipmentWithoutNoneConfirmation = await createSafetyEvent('Reserved Equipment Needs No None Confirmation', false, 'approved', 'Reserved');
     equipmentRequested = await createSafetyEvent('Equipment Still Requested', true, 'approved', 'Requested');
     tentativeHoldOnly = await createSafetyEvent('Tentative Hold Is Not A Booking', true, 'approved', 'Reserved', 'tentative_hold');
+    expiredTentativeHoldOnly = await createSafetyEvent('Expired Tentative Hold Is Not A Booking', true, 'approved', 'Reserved', 'tentative_hold');
+    await pool.query("UPDATE venue_bookings SET hold_expires_at = '2000-01-01T00:00:00Z' WHERE event_id = $1", [expiredTentativeHoldOnly.eventId]);
+    await pool.query(
+      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by)
+       VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')`,
+      [expiredTentativeHoldOnly.eventId],
+    );
     mixedVenueBookings = await createSafetyEvent('Approved And Pending Venue Requests', true, 'approved', 'Reserved', 'booking', 'pending');
   });
 
@@ -154,7 +162,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(result.body).toMatchObject({
       expectedAttendance: 80,
       venueRequirements: { layout: 'Theatre', facilities: ['AV System'], accessibility: ['Wheelchair access'] },
-      venues: [{ name: expect.stringMatching(/^SPM-129 Hall/), location: 'Level 2', capacity: 120, layouts: ['Theatre'], accessibility: ['Wheelchair access'] }],
+      venues: [{ id: expect.any(String), name: expect.stringMatching(/^SPM-129 Hall/), location: 'Level 2', capacity: 120, layouts: ['Theatre'], accessibility: ['Wheelchair access'] }],
     });
   });
 
@@ -170,18 +178,27 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(result.body.venues[0]).toMatchObject({ restrictions: 'No open flames', facilities: ['AV System'] });
   });
 
-  /** SAFETY-QUEUE-06: a pending venue booking, missing technical confirmation, or requested equipment each excludes its event. */
+  /** SAFETY-QUEUE-06: pending venue and requested equipment are excluded, while a Reserved equipment line is itself confirmation. */
   it('SAFETY-QUEUE-06 excludes each event with incomplete venue or technical arrangements', async () => {
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
     const ids = result.body.map((row: { id: string }) => row.id);
     expect(ids).toContain(eligible.eventId);
+    expect(ids).toContain(reservedEquipmentWithoutNoneConfirmation.eventId);
     expect(ids).not.toContain(venuePending.eventId);
-    expect(ids).not.toContain(equipmentUnconfirmed.eventId);
     expect(ids).not.toContain(equipmentRequested.eventId);
     expect(ids).not.toContain(tentativeHoldOnly.eventId);
+    expect(ids).not.toContain(expiredTentativeHoldOnly.eventId);
     expect(ids).not.toContain(mixedVenueBookings.eventId);
     await http().get(`/api/safety-officer/queue/${venuePending.eventId}`).set('Cookie', officer.cookie).expect(404);
-    await http().get(`/api/safety-officer/queue/${equipmentUnconfirmed.eventId}`).set('Cookie', officer.cookie).expect(404);
+    await http().get(`/api/safety-officer/queue/${reservedEquipmentWithoutNoneConfirmation.eventId}`).set('Cookie', officer.cookie).expect(200);
+  });
+
+  /** SAFETY-QUEUE-06-SUP-HISTORY: a confirmed replacement remains eligible beside rejected, released, or cancelled booking history. */
+  it.each(['rejected', 'released', 'cancelled'] as const)('SAFETY-QUEUE-06 keeps a confirmed replacement eligible beside %s venue history', async (historyStatus) => {
+    const replacement = await createSafetyEvent(`Replacement with ${historyStatus} history`, true, 'approved', 'Reserved', 'booking', historyStatus);
+    const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
+    expect(queue.body.map((row: { id: string }) => row.id)).toContain(replacement.eventId);
+    await http().get(`/api/safety-officer/queue/${replacement.eventId}`).set('Cookie', officer.cookie).expect(200);
   });
 
   /** SAFETY-QUEUE-06: an approved tentative hold without an ordinary booking does not confirm an event venue. */
@@ -189,7 +206,9 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     const result = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
     expect(result.body.map((row: { id: string }) => row.id)).toContain(eligible.eventId);
     expect(result.body.map((row: { id: string }) => row.id)).not.toContain(tentativeHoldOnly.eventId);
+    expect(result.body.map((row: { id: string }) => row.id)).not.toContain(expiredTentativeHoldOnly.eventId);
     await http().get(`/api/safety-officer/queue/${tentativeHoldOnly.eventId}`).set('Cookie', officer.cookie).expect(404);
+    await http().get(`/api/safety-officer/queue/${expiredTentativeHoldOnly.eventId}`).set('Cookie', officer.cookie).expect(404);
   });
 
   /** SAFETY-QUEUE-06: an additional pending booking makes an otherwise approved venue arrangement incomplete. */
@@ -246,5 +265,20 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       'SELECT status, approver_name, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId],
     );
     expect(stored.rows[0]).toEqual({ status: 'pending', approver_name: null, decided_at: null });
+  });
+
+  /** SAFETY-QUEUE-05: current venue availability is rechecked before a pending safety response can be persisted. */
+  it('SAFETY-QUEUE-05 refuses a decision when a confirmed venue later becomes unavailable', async () => {
+    await pool.query(
+      `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+       VALUES ($1, $2, $3, 'blocked', 'Maintenance')`,
+      [eligible.venueId, SLOT_START, SLOT_END],
+    );
+    const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
+    expect(queue.body.map((row: { id: string }) => row.id)).not.toContain(eligible.eventId);
+    await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(404);
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(409);
+    const stored = await pool.query<{ status: string }>('SELECT status FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]);
+    expect(stored.rows[0].status).toBe('pending');
   });
 });

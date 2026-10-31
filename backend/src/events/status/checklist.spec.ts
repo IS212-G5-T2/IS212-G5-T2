@@ -284,3 +284,18 @@ describe('buildChecklist: VEN-HOLD-04-SUP-EVENTS approved tentative holds', () =
     expect(result.venue.items[0]).not.toHaveProperty('holdState');
   });
 });
+
+describe('buildChecklist: SAFETY-QUEUE-06 venue replacement history', () => {
+  /** SAFETY-QUEUE-06-SUP-HISTORY: rejected, released, and cancelled historical venue rows do not block a confirmed replacement; without a confirmed replacement the event remains blocked. */
+  it.each(['rejected', 'released', 'cancelled'] as const)('ignores %s venue history only after a confirmed replacement', (status) => {
+    const history = booking({ id: `history-${status}`, status });
+    const replacement = booking({ id: 'replacement', venueName: 'Replacement Hall' });
+    const withReplacement = build([history, replacement], [line()]);
+    expect(withReplacement.venue.status).toBe('confirmed');
+    expect(withReplacement.canRequestSafetyCheck).toBe(true);
+
+    const withoutReplacement = build([history], [line()]);
+    expect(withoutReplacement.venue.status).not.toBe('confirmed');
+    expect(withoutReplacement.canRequestSafetyCheck).toBe(false);
+  });
+});

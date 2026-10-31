@@ -239,4 +239,4 @@ The fixed fixture IDs make rerunning safe. The pending demo request is for
 from 10:00 to 13:00 Singapore time. The linked blocker events are seeded with
 matching event and booking intervals so the staff review shows consistent times.
 
-SPM-129 adds the `SAFETY_OFFICER` role with read-only Event permission and a local `safety_officer@connectsphere.test` account (`P@55w0rd`). Fresh databases receive these from `002_seed_data.sql`; apply `backend/migrations/028_spm128_safety_officer_role.sql` once to an existing database.
+SPM-128 provisions the `SAFETY_OFFICER` role with read-only Event permission and a local `safety_officer@connectsphere.test` account (`P@55w0rd`). Fresh databases receive these from `002_seed_data.sql`; apply `backend/migrations/028_spm128_safety_officer_role.sql` once to an existing database. SPM-129 uses this role for its safety-check queue.

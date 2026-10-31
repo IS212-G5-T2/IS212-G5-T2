@@ -15,7 +15,11 @@
   },
   "tests": {
     "backend-unit": [
-      "backend/src/events/safety-officer/safety-officer.service.spec.ts"
+      "backend/src/events/safety-officer/safety-officer.service.spec.ts",
+      {
+        "glob": "backend/src/events/status/checklist.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      }
     ],
     "frontend": [
       "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx",
@@ -38,7 +42,8 @@
   "sources": {
     "backend": [
       "backend/src/events/safety-officer/safety-officer.service.ts",
-      "backend/src/events/safety-officer/safety-officer.controller.ts"
+      "backend/src/events/safety-officer/safety-officer.controller.ts",
+      "backend/src/events/status/checklist.ts"
     ],
     "frontend": [
       "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",

@@ -1,12 +1,14 @@
 export const SUITES = {
-  unit: { args: ['run', 'src/events/safety-officer/safety-officer.service.spec.ts'] },
+  unit: { args: ['run', 'src/events/safety-officer/safety-officer.service.spec.ts', 'src/events/status/checklist.spec.ts'] },
   e2e: { args: ['run', '--config', './vitest.config.e2e.ts', 'test/safety-officer.e2e-spec.ts'] },
 };
 
 const SERVICE = 'src/events/safety-officer/safety-officer.service.ts';
 const E2E = 'test/safety-officer.e2e-spec.ts';
 const UNIT = 'src/events/safety-officer/safety-officer.service.spec.ts';
+const CHECKLIST = 'src/events/status/checklist.spec.ts';
 const unit = (title) => ({ suite: 'unit', file: UNIT, title });
+const checklistUnit = (title) => ({ suite: 'unit', file: CHECKLIST, title });
 const e2e = (title) => ({ suite: 'e2e', file: E2E, title });
 
 export const MUTANTS = [
@@ -17,12 +19,12 @@ export const MUTANTS = [
   },
   {
     id: 'S129-02', name: 'the queue includes an event with an unconfirmed venue (SAFETY-QUEUE-06)', file: SERVICE, suites: ['e2e'],
-    edits: [["   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking')", "   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'pending' AND b.request_kind = 'booking')"]],
+    edits: [['return checklist.canRequestSafetyCheck;', "return checklist.canRequestSafetyCheck || checklist.blocking.includes('venue');"]],
     testMappings: [e2e('SAFETY-QUEUE-06 excludes each event with incomplete venue or technical arrangements')],
   },
   {
     id: 'S129-03', name: 'the queue includes an event without technical confirmation (SAFETY-QUEUE-06)', file: SERVICE, suites: ['e2e'],
-    edits: [["   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n", "   WHERE e.status = 'Planning'\n"]],
+    edits: [['return checklist.canRequestSafetyCheck;', "return checklist.canRequestSafetyCheck || checklist.blocking.includes('equipment');"]],
     testMappings: [e2e('SAFETY-QUEUE-06 excludes each event with incomplete venue or technical arrangements')],
   },
   {
@@ -47,17 +49,17 @@ export const MUTANTS = [
   },
   {
     id: 'S129-08', name: 'a stale pending check can receive a decision after its venue becomes unconfirmed (SAFETY-QUEUE-05)', file: SERVICE, suites: ['e2e'],
-    edits: [["            AND e.equipment_confirmed_at IS NOT NULL\n            AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking')\n            AND NOT EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status <> 'approved')", "            AND e.equipment_confirmed_at IS NOT NULL\n            AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id)"]],
+    edits: [["      if (!checklist.canRequestSafetyCheck)\n        throw new ConflictException", "      if (false)\n        throw new ConflictException"]],
     testMappings: [e2e('SAFETY-QUEUE-05 refuses a response when the venue is no longer confirmed')],
   },
   {
     id: 'S129-09', name: 'an approved tentative hold qualifies as a confirmed venue (SAFETY-QUEUE-06)', file: SERVICE, suites: ['e2e'],
-    edits: [["   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking')", "   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved')"]],
+    edits: [['return checklist.canRequestSafetyCheck;', "return checklist.canRequestSafetyCheck || snapshot.venueBookings.some((booking) => booking.status === 'approved' && booking.requestKind === 'tentative_hold');"]],
     testMappings: [e2e('SAFETY-QUEUE-06 excludes an approved tentative hold without a confirmed booking')],
   },
   {
     id: 'S129-10', name: 'an incomplete extra venue booking does not block queue eligibility (SAFETY-QUEUE-06)', file: SERVICE, suites: ['e2e'],
-    edits: [["   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking')\n     AND NOT EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status <> 'approved')", "   WHERE e.status = 'Planning'\n     AND e.equipment_confirmed_at IS NOT NULL\n     AND EXISTS (SELECT 1 FROM venue_bookings b WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking')"]],
+    edits: [['return checklist.canRequestSafetyCheck;', "return checklist.canRequestSafetyCheck || snapshot.venueBookings.some((booking) => booking.status === 'pending');"]],
     testMappings: [e2e('SAFETY-QUEUE-06 excludes an event with approved and pending venue bookings')],
   },
   {
@@ -69,5 +71,64 @@ export const MUTANTS = [
     id: 'S129-12', name: 'reserved equipment is omitted from Safety Officer event details (SAFETY-QUEUE-03)', file: SERVICE, suites: ['e2e'],
     edits: [["WHERE r.event_id = e.id AND r.status = 'Reserved'", "WHERE r.event_id = e.id AND r.status = 'Requested'"]],
     testMappings: [e2e('SAFETY-QUEUE-03 returns technical arrangements and reserved equipment from PostgreSQL')],
+  },
+  {
+    id: 'S129-13', name: 'a Reserved equipment line is incorrectly required to have a no-equipment confirmation timestamp (SAFETY-QUEUE-06)', file: SERVICE, suites: ['e2e'],
+    edits: [['return checklist.canRequestSafetyCheck;', 'return checklist.canRequestSafetyCheck && event.equipment_confirmed_at !== null;']],
+    testMappings: [e2e('SAFETY-QUEUE-06 excludes each event with incomplete venue or technical arrangements')],
+  },
+  {
+    id: 'S129-14', name: 'a venue flagged unavailable is accepted by the shared checklist for a safety decision (SAFETY-QUEUE-05)', file: 'src/events/status/checklist.ts', suites: ['e2e'],
+    edits: [["return booking.venueUnavailable ? 'unavailable' : 'confirmed';", "return 'confirmed';"]],
+    testMappings: [e2e('SAFETY-QUEUE-05 refuses a decision when a confirmed venue later becomes unavailable')],
+  },
+  {
+    id: 'S129-15', name: 'rejected booking history blocks a confirmed replacement (SAFETY-QUEUE-06)', file: 'src/events/status/checklist.ts', suites: ['unit'],
+    edits: [['!(hasConfirmedReplacement && booking.status === \'rejected\')', 'true']],
+    testMappings: [checklistUnit('ignores %s venue history only after a confirmed replacement')],
+  },
+  {
+    id: 'S129-16', name: 'released booking history blocks a confirmed replacement (SAFETY-QUEUE-06)', file: 'src/events/status/checklist.ts', suites: ['unit'],
+    edits: [["(b) => b.status !== 'released' && b.status !== 'cancelled'", "(b) => b.status !== 'cancelled'"]],
+    testMappings: [checklistUnit('ignores %s venue history only after a confirmed replacement')],
+  },
+  {
+    id: 'S129-17', name: 'cancelled booking history blocks a confirmed replacement (SAFETY-QUEUE-06)', file: 'src/events/status/checklist.ts', suites: ['unit'],
+    edits: [["(b) => b.status !== 'released' && b.status !== 'cancelled'", "(b) => b.status !== 'released'"]],
+    testMappings: [checklistUnit('ignores %s venue history only after a confirmed replacement')],
+  },
+  {
+    id: 'S129-18', name: 'arrangements are locked after the safety-check row (SAFETY-QUEUE-05)', file: SERVICE, suites: ['unit'],
+    edits: [[
+      `      const snapshot = await this.arrangements.read(client, eventId, { lock: true });
+      const checklist = buildChecklist({
+        snapshot,
+        equipmentNeeds: event.rows[0].equipment_needs,
+        equipmentConfirmedAt: event.rows[0].equipment_confirmed_at,
+        safety: { status: 'pending' },
+        now: this.clock.now(),
+      });
+      if (!checklist.canRequestSafetyCheck)
+        throw new ConflictException('This event is no longer awaiting a safety check.');
+      const pending = await client.query<{ event_id: string }>(
+        \`SELECT event_id FROM event_safety_checks WHERE event_id = $1 AND status = 'pending' FOR UPDATE\`, [eventId],
+      );
+      if (!pending.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');`,
+      `      const pending = await client.query<{ event_id: string }>(
+        \`SELECT event_id FROM event_safety_checks WHERE event_id = $1 AND status = 'pending' FOR UPDATE\`, [eventId],
+      );
+      if (!pending.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');
+      const snapshot = await this.arrangements.read(client, eventId, { lock: true });
+      const checklist = buildChecklist({
+        snapshot,
+        equipmentNeeds: event.rows[0].equipment_needs,
+        equipmentConfirmedAt: event.rows[0].equipment_confirmed_at,
+        safety: { status: 'pending' },
+        now: this.clock.now(),
+      });
+      if (!checklist.canRequestSafetyCheck)
+        throw new ConflictException('This event is no longer awaiting a safety check.');`,
+    ]],
+    testMappings: [unit('uses the shared event, arrangements, safety-check lock order')],
   },
 ];

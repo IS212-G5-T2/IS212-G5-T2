@@ -13,7 +13,7 @@ interface QueueEvent {
 interface SafetyDetails extends QueueEvent {
   endDateTime: string;
   equipmentNeeds: string;
-  venues: Array<{ name: string; location: string; capacity: number; restrictions: string; facilities: string[]; accessibility: string[]; layouts: string[] }>;
+  venues: Array<{ id: string; name: string; location: string; capacity: number; restrictions: string; facilities: string[]; accessibility: string[]; layouts: string[] }>;
   equipment: Array<{ name: string; quantity: number }>;
 }
 
@@ -61,6 +61,11 @@ export function SafetyCheckQueuePage() {
       setReason("");
       await refresh();
     } catch (cause) {
+      if (cause instanceof ApiError && (cause.status === 404 || cause.status === 409)) {
+        setSelected(null);
+        setReason("");
+        await refresh();
+      }
       setError(cause instanceof ApiError ? cause.message : "Unable to submit the safety decision.");
     } finally {
       setSubmitting(false);
@@ -80,7 +85,7 @@ export function SafetyCheckQueuePage() {
       <p>Accessibility requirements: {selected.venueRequirements.accessibility.join(", ") || "None specified"}</p>
       <p>Required facilities: {selected.venueRequirements.facilities.join(", ") || "None specified"}</p>
       <h3 className="font-semibold">Venue and known restrictions</h3>
-      {selected.venues.map((venue) => <div key={`${venue.name}-${venue.location}`} className="rounded border p-3">
+      {selected.venues.map((venue) => <div key={venue.id} className="rounded border p-3">
         <p className="font-medium">{venue.name} · {venue.location}</p><p>Capacity: {venue.capacity}</p>
         <p>Restrictions: {venue.restrictions}</p><p>Facilities: {venue.facilities.join(", ") || "None listed"}</p>
         <p>Accessibility: {venue.accessibility.join(", ") || "None listed"}</p><p>Layouts: {venue.layouts.join(", ") || "None listed"}</p>

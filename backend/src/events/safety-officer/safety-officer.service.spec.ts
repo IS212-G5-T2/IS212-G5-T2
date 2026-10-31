@@ -11,14 +11,25 @@ const LIST_ROW = {
   id: 'event-1', event_name: 'Welcome Evening', start_date_time: new Date('2026-12-12T10:00:00Z'),
   end_date_time: new Date('2026-12-12T13:00:00Z'), expected_attendance: 80,
   preferred_room_layout: 'Theatre', required_facilities: ['AV System'], accessibility_needs: ['Wheelchair access'],
+  equipment_needs: 'Wireless microphone', equipment_confirmed_at: null,
   requested_at: new Date('2026-11-01T00:00:00Z'),
 };
 
-function setup(queryRows: unknown[] = [], transactionRows: unknown[] = []) {
-  const query = vi.fn().mockResolvedValue({ rows: queryRows });
-  const clientQuery = vi.fn().mockImplementation((sql: string) => Promise.resolve({ rows: sql.startsWith('SELECT') ? transactionRows : [] }));
+const CONFIRMED_SNAPSHOT = {
+  venueBookings: [{ id: 'booking-1', venueName: 'Main Hall', status: 'approved', holdExpiresAt: null, requestKind: 'booking', venueUnavailable: false }],
+  equipment: [{ id: 'equipment-1', name: 'Microphone', quantity: 1, status: 'Reserved' }],
+  equipmentNoneConfirmed: false,
+};
+
+function setup(queryRows: unknown[] = [], transactionRows: unknown[] = [], snapshot = CONFIRMED_SNAPSHOT, eventFound = true, detailRows = queryRows) {
+  const candidateRows = queryRows;
+  const query = vi.fn().mockImplementation((sql: string) => Promise.resolve({ rows: sql.includes('AS venues') ? detailRows : candidateRows }));
+  const clientQuery = vi.fn().mockImplementation((sql: string) => Promise.resolve({ rows:
+    sql.includes('FROM events') ? (eventFound ? [{ id: 'event-1', event_name: 'Welcome Evening', equipment_needs: 'Wireless microphone', equipment_confirmed_at: null }] : [])
+      : sql.includes('FROM event_safety_checks') ? transactionRows : [] }));
   const transaction = vi.fn(async (work: (client: { query: typeof clientQuery }) => Promise<unknown>) => work({ query: clientQuery }));
-  return { service: new SafetyOfficerService({ query, transaction } as unknown as DatabaseService), query, transaction, clientQuery };
+  const arrangements = { read: vi.fn().mockResolvedValue(snapshot) };
+  return { service: new SafetyOfficerService({ query, transaction } as unknown as DatabaseService, arrangements as never), query, transaction, clientQuery, arrangements };
 }
 
 describe('SPM-129 SafetyOfficerService', () => {
@@ -43,6 +54,13 @@ describe('SPM-129 SafetyOfficerService', () => {
   /** SAFETY-QUEUE-01: a queue with no eligible pending events is returned as an empty list. */
   it('returns an empty queue when no event is eligible', async () => {
     const { service } = setup([]);
+    await expect(service.queue(OFFICER)).resolves.toEqual([]);
+  });
+
+  /** SAFETY-QUEUE-06: a pending record is omitted when the shared checklist finds an incomplete venue arrangement. */
+  it('SAFETY-QUEUE-06 filters a pending event with incomplete arrangements from the queue', async () => {
+    const incomplete = { ...CONFIRMED_SNAPSHOT, venueBookings: [{ ...CONFIRMED_SNAPSHOT.venueBookings[0], status: 'pending' }] };
+    const { service } = setup([LIST_ROW], [], incomplete);
     await expect(service.queue(OFFICER)).resolves.toEqual([]);
   });
 
@@ -73,11 +91,36 @@ describe('SPM-129 SafetyOfficerService', () => {
     await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  /** SAFETY-QUEUE-05: details are refused when the event has no pending safety-check row. */
+  it('SAFETY-QUEUE-05 hides details when no pending event candidate exists', async () => {
+    const { service } = setup([]);
+    await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  /** SAFETY-QUEUE-05: details fail closed if the pending row disappears between candidate validation and projection. */
+  it('SAFETY-QUEUE-05 hides details when the detail projection is no longer present', async () => {
+    const { service } = setup([LIST_ROW], [], CONFIRMED_SNAPSHOT, true, []);
+    await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   /** SAFETY-QUEUE-05: a valid approval is recorded against the still-pending event. */
   it('records an approval and leaves the response in a non-pending state', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
     await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).resolves.toEqual({ eventId: 'event-1', status: 'approved' });
-    expect(clientQuery).toHaveBeenCalledTimes(2);
+    expect(clientQuery).toHaveBeenCalledTimes(3);
+  });
+
+  /** SAFETY-QUEUE-05: response transactions lock the event before arrangement rows and the safety-check row, matching status mutations. */
+  it('uses the shared event, arrangements, safety-check lock order', async () => {
+    const { service, clientQuery, arrangements } = setup([], [{ event_id: 'event-1' }]);
+    await service.respond(OFFICER, 'event-1', { decision: 'approved' });
+    expect(clientQuery.mock.calls[0][0]).toContain('FROM events');
+    expect(clientQuery.mock.calls[0][0]).toContain('FOR UPDATE');
+    expect(arrangements.read).toHaveBeenCalledWith(expect.anything(), 'event-1', { lock: true });
+    expect(clientQuery.mock.calls[1][0]).toContain('FROM event_safety_checks');
+    expect(clientQuery.mock.calls[1][0]).toContain('FOR UPDATE');
+    expect(clientQuery.mock.invocationCallOrder[0]).toBeLessThan(arrangements.read.mock.invocationCallOrder[0]);
+    expect(arrangements.read.mock.invocationCallOrder[0]).toBeLessThan(clientQuery.mock.invocationCallOrder[1]);
   });
 
   /** SAFETY-QUEUE-05: a response is still attributable when the session has no display name. */
@@ -113,7 +156,24 @@ describe('SPM-129 SafetyOfficerService', () => {
   it('refuses a response after the event has left the pending queue', async () => {
     const { service, clientQuery } = setup([], []);
     await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).rejects.toBeInstanceOf(ConflictException);
+    expect(clientQuery).toHaveBeenCalledTimes(2);
+  });
+
+  /** SAFETY-QUEUE-05: a deleted or non-Planning event is refused before arrangements or safety-row locks. */
+  it('SAFETY-QUEUE-05 refuses a response when the Planning event row is gone', async () => {
+    const { service, clientQuery, arrangements } = setup([], [], CONFIRMED_SNAPSHOT, false);
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).rejects.toBeInstanceOf(ConflictException);
     expect(clientQuery).toHaveBeenCalledTimes(1);
+    expect(arrangements.read).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-QUEUE-05: response is refused without a state change if shared checklist prerequisites are no longer met. */
+  it('SAFETY-QUEUE-05 refuses a response after the venue becomes pending', async () => {
+    const incomplete = { ...CONFIRMED_SNAPSHOT, venueBookings: [{ ...CONFIRMED_SNAPSHOT.venueBookings[0], status: 'pending' }] };
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }], incomplete);
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).rejects.toBeInstanceOf(ConflictException);
+    expect(clientQuery).toHaveBeenCalledTimes(1);
+    expect(clientQuery.mock.calls[0][0]).toContain('FOR UPDATE');
   });
 });
 

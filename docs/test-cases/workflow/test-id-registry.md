@@ -943,7 +943,8 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | SAFETY-QUEUE-03 | PRIMARY | SPM-129 | AC3 | Confluence matrix 36831243; case page 36700233 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
 | SAFETY-QUEUE-04 | PRIMARY | SPM-129 | AC4 | Confluence matrix 36831243; case page 36700251 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
 | SAFETY-QUEUE-05 | PRIMARY | SPM-129 | AC5 | Confluence matrix 36831243; case page 36700269 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
-| SAFETY-QUEUE-06 | PRIMARY | SPM-129 | AC6 | Confluence matrix 36831243; case page 36798562 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-06 | PRIMARY | SPM-129 | AC6 | Confluence matrix 36831243; case page 36798562 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/src/events/status/checklist.spec.ts, backend/test/safety-officer.e2e-spec.ts | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-06-SUP-HISTORY | SUPPORTING | SPM-129 | AC6 | Orchestrator instruction 2026-10-31: non-blocking rejected, released, and cancelled venue history cannot disqualify a confirmed replacement; without one, venue readiness remains blocked. Not a Confluence matrix row. | backend/src/events/status/checklist.spec.ts, backend/test/safety-officer.e2e-spec.ts | User approved 2026-10-31 | Active |
 
 ## Notes
 

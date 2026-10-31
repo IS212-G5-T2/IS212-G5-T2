@@ -155,4 +155,20 @@ export const MUTANTS = [
     edits: [['{item.name}: {item.quantity}', '{item.name}: 0']],
     testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
   },
+  {
+    id: 'S129-FE-20',
+    name: 'Safety Officer stale decision refusal leaves invalidated detail open without refreshing (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['        setSelected(null);\n        setReason("");\n        await refresh();', '        setSelected(null);\n        setReason("");']],
+    testMappings: [tm(QUEUE_TEST, 'refreshes and closes stale details after a %s response refusal')],
+  },
+  {
+    id: 'S129-FE-21',
+    name: 'Safety Officer venue cards use a duplicate display label instead of booking identity (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['key={venue.id}', 'key={`${venue.name}-${venue.location}`}']],
+    testMappings: [tm(QUEUE_TEST, 'uses unique booking identity for venue cards with duplicate names and locations')],
+  },
 ];

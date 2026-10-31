@@ -4,7 +4,7 @@ import * as apiModule from "@/utils/api";
 import { SafetyCheckQueuePage } from "./SafetyCheckQueuePage";
 
 const event = { id: "e1", name: "Welcome Evening", startDateTime: "2026-12-12T10:00:00Z", endDateTime: "2026-12-12T13:00:00Z", expectedAttendance: 80, venueRequirements: { layout: "Theatre", facilities: ["AV System"], accessibility: ["Wheelchair access"] } };
-const details = { ...event, equipmentNeeds: "Wireless microphone", venues: [{ name: "Main Hall", location: "Level 2", capacity: 120, restrictions: "No open flames", facilities: ["AV System"], accessibility: ["Wheelchair access"], layouts: ["Theatre"] }], equipment: [{ name: "Microphone", quantity: 1 }] };
+const details = { ...event, equipmentNeeds: "Wireless microphone", venues: [{ id: "booking-1", name: "Main Hall", location: "Level 2", capacity: 120, restrictions: "No open flames", facilities: ["AV System"], accessibility: ["Wheelchair access"], layouts: ["Theatre"] }], equipment: [{ name: "Microphone", quantity: 1 }] };
 
 function response(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
@@ -72,6 +72,34 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Approve arrangement" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
     expect(screen.getByRole("button", { name: "Approve arrangement" })).toBeEnabled();
+  });
+
+  /** SAFETY-QUEUE-05: stale decisions refresh the queue and close invalidated details after 404 or 409. */
+  it.each([404, 409])("refreshes and closes stale details after a %s response refusal", async (status) => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ message: "This event is no longer awaiting a safety check." }, status))
+      .mockImplementationOnce(() => response([]));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Approve arrangement" }));
+    expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("This event is no longer awaiting a safety check.");
+    expect(screen.queryByText("Expected attendance: 80")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(4);
+  });
+
+  /** SAFETY-QUEUE-02: venue arrangements use booking identity even when multiple bookings share a display label. */
+  it("uses unique booking identity for venue cards with duplicate names and locations", async () => {
+    const duplicateVenue = { ...details.venues[0], id: "booking-2" };
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response({ ...details, venues: [...details.venues, duplicateVenue] }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    expect(await screen.findAllByText("Main Hall · Level 2")).toHaveLength(2);
+    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
   });
 
   /** SAFETY-QUEUE-05: rejection with a reason is recorded and the event leaves the queue. */
