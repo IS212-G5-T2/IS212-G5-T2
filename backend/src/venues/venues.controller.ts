@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
 import { CURRENT_USER_REQUEST_KEY } from '../auth/types/auth.models.js';
 import type { AuthenticatedRequest } from '../auth/types/authenticated-request.js';
 import { VenuesService } from './venues.service.js';
@@ -117,6 +117,16 @@ export class VenuesController {
    */
   @Post() create(@Req() request: AuthenticatedRequest, @Body() body: unknown) {
     return this.venues.create(request[CURRENT_USER_REQUEST_KEY], body);
+  }
+
+  /** SPM-121: updates an owned venue record. */
+  @Patch(':id')
+  update(
+    @Req() request: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.venues.update(request[CURRENT_USER_REQUEST_KEY], id, body);
   }
 
   @Post(':id/unavailable-periods')

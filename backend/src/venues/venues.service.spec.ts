@@ -519,3 +519,126 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).not.toHaveBeenCalled();
   });
 });
+
+describe('SPM-121 venue service update', () => {
+  const updateFn = vi.fn();
+  const hasPermission = vi.fn();
+  const venueId = 'b9c6f700-85b1-4a79-96d8-5f5c3fd616fb';
+  const validBody = {
+    name: 'Updated Hall',
+    location: 'Block B Level 1',
+    capacity: 80,
+    facilities: ['Wi-Fi'],
+    accessibility: [],
+    layouts: ['Theatre'],
+    operatingInformation: 'Open daily',
+    setupTimeMinutes: 30,
+    turnaroundTimeMinutes: 45,
+  };
+  const updatedVenue = { id: venueId, ...validBody, ownerId: staff.uid };
+  const service = new VenuesService(
+    { update: updateFn } as unknown as VenuesRepository,
+    { hasPermission } as unknown as RbacRepository,
+  );
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+    hasPermission.mockResolvedValue(true);
+    updateFn.mockResolvedValue({
+      kind: 'updated',
+      venue: updatedVenue,
+      affectedBookings: [],
+      capacityBookings: [],
+    });
+  });
+
+  /** VEN-UPD-05-SVC-A: unauthenticated caller gets 401. */
+  it('VEN-UPD-05-SVC-A returns 401 when no identity is provided', async () => {
+    await expect(service.update(undefined, venueId, validBody)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-05-SVC-B: non-staff role gets 403. */
+  it('VEN-UPD-05-SVC-B returns 403 when the caller is not Venue Staff', async () => {
+    await expect(service.update(coordinator, venueId, validBody)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-03-SVC-A: invalid venue UUID returns 404 before the repository is called. */
+  it('VEN-UPD-03-SVC-A returns 404 for a non-UUID venue id', async () => {
+    await expect(service.update(staff, 'not-a-uuid', validBody)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-04-SVC-A: duplicate name+location from the DB returns 409. */
+  it('VEN-UPD-04-SVC-A maps the duplicate constraint to 409 with field errors', async () => {
+    const pgDup = Object.assign(new Error('duplicate key'), {
+      code: '23505',
+      constraint: 'venues_name_location_unique',
+    });
+    updateFn.mockRejectedValueOnce(pgDup);
+    await expect(service.update(staff, venueId, validBody)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    expect(updateFn).toHaveBeenCalledOnce();
+  });
+
+  /** VEN-UPD-07-SVC-A: repository returning forbidden maps to 403. */
+  it('VEN-UPD-07-SVC-A returns 403 when the repository says forbidden', async () => {
+    updateFn.mockResolvedValueOnce({ kind: 'forbidden' });
+    await expect(service.update(staff, venueId, validBody)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+  });
+
+  /** VEN-UPD-07-SVC-B: AC2 — a non-venue-staff role (e.g. coordinator) cannot edit any venue. */
+  it('VEN-UPD-07-SVC-B returns 403 when the hasPermission check fails for a non-venue-staff role', async () => {
+    hasPermission.mockResolvedValueOnce(false);
+    await expect(service.update(staff, venueId, validBody)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-03-SVC-B: repository returning not-found maps to 404. */
+  it('VEN-UPD-03-SVC-B returns 404 when the repository says not-found', async () => {
+    updateFn.mockResolvedValueOnce({ kind: 'not-found' });
+    await expect(service.update(staff, venueId, validBody)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  /** VEN-UPD-05-SVC-C: successful update returns venue + booking lists + message. */
+  it('VEN-UPD-05-SVC-C returns updated venue with affectedBookings and capacityBookings on success', async () => {
+    const result = await service.update(staff, venueId, validBody);
+    expect(result).toEqual({
+      venue: updatedVenue,
+      affectedBookings: [],
+      capacityBookings: [],
+      message: 'Venue updated successfully.',
+    });
+    expect(updateFn).toHaveBeenCalledWith(staff.uid, venueId, expect.objectContaining({ name: validBody.name }));
+  });
+
+  /** VEN-UPD-03-A: AC3 — submitting a body with an empty required field returns 400 before the repository is called. */
+  it('VEN-UPD-03-A returns 400 with field errors when a required field is empty', async () => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, name: '' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-03-B: AC3 — capacity outside the valid range returns 400 before the repository is called. */
+  it('VEN-UPD-03-B returns 400 when capacity is zero', async () => {
+    await expect(
+      service.update(staff, venueId, { ...validBody, capacity: 0 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(updateFn).not.toHaveBeenCalled();
+  });
+});

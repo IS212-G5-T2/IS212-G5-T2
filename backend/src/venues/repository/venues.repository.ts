@@ -19,6 +19,7 @@ import type { TentativeHoldRequestInput } from '../availability/dto/tentative-ho
 /** A persisted, catalogue-ready venue record. */
 export interface VenueRecord {
   id: string;
+  ownerId: string;
   name: string;
   location: string;
   capacity: number;
@@ -29,6 +30,15 @@ export interface VenueRecord {
   setupTimeMinutes: number;
   turnaroundTimeMinutes: number;
   image?: VenueImageInput;
+}
+
+/** One booking that now conflicts after a venue timing change (SPM-121 AC8). */
+export interface AffectedBooking {
+  bookingId: string;
+  eventName: string;
+  start: string;
+  end: string;
+  status: 'pending' | 'approved';
 }
 
 export interface VenueReadRecord extends VenueRecord {
@@ -149,8 +159,9 @@ function toDecisionRecord(row: BookingDecisionRow): VenueBookingDecision {
 type Queryable = Pick<pg.PoolClient, 'query'>;
 type VenueRow = Omit<
   VenueRecord,
-  'operatingInformation' | 'setupTimeMinutes' | 'turnaroundTimeMinutes'
+  'ownerId' | 'operatingInformation' | 'setupTimeMinutes' | 'turnaroundTimeMinutes'
 > & {
+  owner_user_id: string;
   operating_information: string;
   setup_time_minutes: number;
   turnaround_time_minutes: number;
@@ -183,7 +194,7 @@ interface BookingRow {
 }
 
 const venueSelect = `
-  SELECT v.id, v.name, v.location, v.capacity, v.operating_information,
+  SELECT v.id, v.owner_user_id, v.name, v.location, v.capacity, v.operating_information,
     v.setup_time_minutes, v.turnaround_time_minutes,
     COALESCE((SELECT array_agg(f.name ORDER BY f.name)
       FROM venue_facilities vf JOIN facilities f ON f.id = vf.facility_id
@@ -227,6 +238,7 @@ export class VenuesRepository {
 
     return this.toRecord({
       ...created,
+      owner_user_id: ownerUserId,
       accessibility: venue.accessibility,
       facilities: venue.facilities,
       layouts: venue.layouts,
@@ -252,6 +264,131 @@ export class VenuesRepository {
     );
     if (!result.rows[0]) return undefined;
     return (await this.withSchedules([this.toReadRecord(result.rows[0])]))[0];
+  }
+
+  /** SPM-121: updates an owned venue record and returns the new state plus any newly conflicting bookings. */
+  async update(
+    ownerUserId: string,
+    venueId: string,
+    input: VenueInput,
+  ): Promise<
+    | { kind: 'not-found' }
+    | { kind: 'forbidden' }
+    | { kind: 'updated'; venue: VenueReadRecord; affectedBookings: AffectedBooking[]; capacityBookings: AffectedBooking[] }
+  > {
+    return this.database.transaction(async (client) => {
+      const lock = await client.query<{ id: string; owner_user_id: string; capacity: number }>(
+        `SELECT id, owner_user_id, capacity FROM venues WHERE id = $1::uuid FOR UPDATE`,
+        [venueId],
+      );
+      if (!lock.rows[0]) return { kind: 'not-found' as const };
+      if (lock.rows[0].owner_user_id !== ownerUserId)
+        return { kind: 'forbidden' as const };
+      const capacityChanged = lock.rows[0].capacity !== input.capacity;
+
+      await client.query(
+        `UPDATE venues SET name=$2, location=$3, capacity=$4, operating_information=$5,
+           setup_time_minutes=$6, turnaround_time_minutes=$7
+         WHERE id=$1::uuid`,
+        [
+          venueId,
+          input.name,
+          input.location,
+          input.capacity,
+          input.operatingInformation,
+          input.setupTimeMinutes,
+          input.turnaroundTimeMinutes,
+        ],
+      );
+
+      await client.query('DELETE FROM venue_facilities WHERE venue_id=$1::uuid', [venueId]);
+      if (input.facilities.length)
+        await client.query(
+          'INSERT INTO venue_facilities (venue_id, facility_id) SELECT $1, id FROM facilities WHERE name = ANY($2::text[])',
+          [venueId, input.facilities],
+        );
+
+      await client.query('DELETE FROM venue_layouts WHERE venue_id=$1::uuid', [venueId]);
+      if (input.layouts.length)
+        await client.query(
+          'INSERT INTO venue_layouts (venue_id, layout_id) SELECT $1, id FROM room_layouts WHERE name = ANY($2::text[])',
+          [venueId, input.layouts],
+        );
+
+      await client.query('DELETE FROM venue_accessibility WHERE venue_id=$1::uuid', [venueId]);
+      if (input.accessibility.length)
+        await this.insertAccessibility(client, venueId, input.accessibility);
+
+      // Always clear the existing image so removal (no input.image) is persisted.
+      await client.query('DELETE FROM venue_images WHERE venue_id=$1::uuid', [venueId]);
+      if (input.image) await this.insertImage(client, venueId, input.image);
+
+      // AC8: find bookings whose widened windows overlap after the timing change.
+      const affected = await client.query<{
+        id: string;
+        event_name: string;
+        start_at: Date;
+        end_at: Date;
+        status: 'pending' | 'approved';
+      }>(
+        `SELECT DISTINCT b1.id, e1.event_name, b1.start_at, b1.end_at, b1.status
+           FROM venue_bookings b1
+           JOIN events e1 ON e1.id = b1.event_id
+           JOIN venue_bookings b2 ON b2.venue_id = b1.venue_id
+                                 AND b2.id <> b1.id
+                                 AND b2.status IN ('pending','approved')
+          WHERE b1.venue_id = $1::uuid
+            AND b1.status IN ('pending','approved')
+            AND b1.start_at - make_interval(mins => $2::int)
+                  < b2.end_at   + make_interval(mins => $3::int)
+            AND b1.end_at   + make_interval(mins => $3::int)
+                  > b2.start_at - make_interval(mins => $2::int)
+          ORDER BY b1.start_at, b1.id`,
+        [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes],
+      );
+
+      // AC9: when capacity changed, list all pending/approved bookings at this venue.
+      const capacityRows = capacityChanged
+        ? await client.query<{
+            id: string;
+            event_name: string;
+            start_at: Date;
+            end_at: Date;
+            status: 'pending' | 'approved';
+          }>(
+            `SELECT b.id, e.event_name, b.start_at, b.end_at, b.status
+               FROM venue_bookings b
+               JOIN events e ON e.id = b.event_id
+              WHERE b.venue_id = $1::uuid
+                AND b.status IN ('pending', 'approved')
+              ORDER BY b.start_at, b.id`,
+            [venueId],
+          )
+        : { rows: [] as { id: string; event_name: string; start_at: Date; end_at: Date; status: 'pending' | 'approved' }[] };
+
+      const updated = await client.query<VenueRow>(
+        `${venueSelect} WHERE v.id = $1::uuid`,
+        [venueId],
+      );
+      if (!updated.rows[0]) return { kind: 'not-found' as const };
+
+      const venue = (await this.withSchedules([this.toReadRecord(updated.rows[0])]))[0];
+      const affectedBookings: AffectedBooking[] = affected.rows.map((r) => ({
+        bookingId: r.id,
+        eventName: r.event_name,
+        start: r.start_at.toISOString(),
+        end: r.end_at.toISOString(),
+        status: r.status,
+      }));
+      const capacityBookings: AffectedBooking[] = capacityRows.rows.map((r) => ({
+        bookingId: r.id,
+        eventName: r.event_name,
+        start: r.start_at.toISOString(),
+        end: r.end_at.toISOString(),
+        status: r.status,
+      }));
+      return { kind: 'updated' as const, venue, affectedBookings, capacityBookings };
+    });
   }
 
   /** Lists the caller's event venue requests, retaining their current lifecycle status. */
@@ -1080,6 +1217,7 @@ export class VenuesRepository {
   private toRecord(row: VenueRow): VenueRecord {
     return {
       id: row.id,
+      ownerId: row.owner_user_id,
       name: row.name,
       location: row.location,
       capacity: row.capacity,
