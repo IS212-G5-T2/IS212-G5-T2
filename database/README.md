@@ -72,7 +72,7 @@ SELECT count(*) FROM resources;
 SELECT count(*) FROM role_permissions;
 ```
 
-The expected counts are 6 roles, 11 resources, and 30 role permission rows.
+The expected counts are 7 roles, 11 resources, and 31 role permission rows.
 
 ## Local login data
 
@@ -89,9 +89,10 @@ account uses password `P@55w0rd`:
 | Attendee | `attendee1@connectsphere.test` |
 | Coordinator + Venue Staff | `coordinator_venuestaff@connectsphere.test` |
 | Event Coordinator Lead | `lead@connectsphere.test` |
+| Safety Officer | `safety_officer@connectsphere.test` |
 
 Accounts 2 and 3 of each role (e.g. `organiser2@connectsphere.test`) are also
-seeded, except for the single Lead. `coordinator_venuestaff` is the one
+seeded, except for the single Lead and Safety Officer. `coordinator_venuestaff` is the one
 multi-role account. No account may hold both Organiser and Coordinator, and the
 Lead never also holds Coordinator.
 
@@ -237,3 +238,5 @@ The fixed fixture IDs make rerunning safe. The pending demo request is for
 `Accessible hybrid seminar` on the 21st day after the database's current date,
 from 10:00 to 13:00 Singapore time. The linked blocker events are seeded with
 matching event and booking intervals so the staff review shows consistent times.
+
+SPM-129 adds the `SAFETY_OFFICER` role with read-only Event permission and a local `safety_officer@connectsphere.test` account (`P@55w0rd`). Fresh databases receive these from `002_seed_data.sql`; apply `backend/migrations/028_spm128_safety_officer_role.sql` once to an existing database.

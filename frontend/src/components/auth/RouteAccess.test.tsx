@@ -116,6 +116,9 @@ function renderRoutes(initialEntry: string) {
           <Route path="/lead/queue" element={<p>Assignment queue</p>} />
           <Route path="/lead/reassign" element={<p>Reassign events</p>} />
         </Route>
+        <Route element={<RequireRole allowedRoles={["safety_officer"]} />}>
+          <Route path="/safety/events" element={<p>Safety check queue</p>} />
+        </Route>
       </Routes>
     </MemoryRouter>,
   );
@@ -474,5 +477,21 @@ describe("SPM-123 AC11: the Assignment Queue is Lead-only", () => {
       "/equipment",
     ]);
     expect(navByRole.attendee.map((item) => item.to)).toEqual(["/events"]);
+  });
+});
+
+describe("SPM-129 Safety Officer route authorization", () => {
+  /** SAFETY-QUEUE-01: Safety Officers can enter the queue route and other signed-in roles are redirected home. */
+  it("SAFETY-QUEUE-01 restricts the queue route to the Safety Officer role", () => {
+    const safetyOfficer = { ...organiser, id: "safety-1", role: "safety_officer" as const, roles: ["safety_officer" as const] };
+    useAppStore.setState({ currentUser: safetyOfficer });
+    const { unmount } = renderRoutes("/safety/events");
+    expect(screen.getByText("Safety check queue")).toBeInTheDocument();
+    unmount();
+
+    useAppStore.setState({ currentUser: coordinator });
+    renderRoutes("/safety/events");
+    expect(screen.queryByText("Safety check queue")).not.toBeInTheDocument();
+    expect(screen.getByText("Events dashboard")).toBeInTheDocument();
   });
 });

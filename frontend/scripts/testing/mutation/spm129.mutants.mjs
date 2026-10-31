@@ -1,0 +1,158 @@
+export const SUITES = {
+  unit: {
+    args: [
+      'run',
+      'src/app/App.test.tsx',
+      'src/components/auth/RouteAccess.test.tsx',
+      'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx',
+    ],
+  },
+};
+
+const APP_TEST = 'src/app/App.test.tsx';
+const QUEUE_PAGE = 'src/features/events/pages/safety/SafetyCheckQueuePage.tsx';
+const QUEUE_TEST = 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx';
+const tm = (file, title) => ({ suite: 'unit', file, title });
+
+// S129-FE-01 and S129-FE-02 retired post-rebase: Safety Officer role mapping and navigation link are owned and tested by SPM-128.
+export const MUTANTS = [
+  {
+    id: 'S129-FE-03',
+    name: 'Safety Officer route is missing from the real App route tree (SAFETY-QUEUE-01)',
+    file: 'src/app/App.tsx',
+    suites: ['unit'],
+    edits: [['<Route path="/safety/events" element={<SafetyCheckQueuePage />} />', '<Route path="/safety/events-unavailable" element={<SafetyCheckQueuePage />} />']],
+    testMappings: [tm(APP_TEST, 'SAFETY-QUEUE-01 renders the safety queue for a signed-in Safety Officer')],
+  },
+  {
+    id: 'S129-FE-04',
+    name: 'Safety Officer route is granted to Coordinators instead of Safety Officers (SAFETY-QUEUE-01)',
+    file: 'src/app/App.tsx',
+    suites: ['unit'],
+    edits: [['<RequireRole allowedRoles={["safety_officer"]} />', '<RequireRole allowedRoles={["coordinator"]} />']],
+    testMappings: [
+      tm(APP_TEST, 'SAFETY-QUEUE-01 renders the safety queue for a signed-in Safety Officer'),
+      tm('src/components/auth/RouteAccess.test.tsx', 'SAFETY-QUEUE-01 restricts the queue route to the Safety Officer role'),
+    ],
+  },
+  {
+    id: 'S129-FE-05',
+    name: 'Safety Officer details hide the technical requirements (SAFETY-QUEUE-03)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['Technical requirements: {selected.equipmentNeeds || "None specified"}', 'Technical requirements: None specified']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-06',
+    name: 'Safety Officer decisions post to the wrong endpoint (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['/safety-officer/queue/${selected!.id}/decision', '/safety-officer/queue/${selected!.id}/decisions']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-05 records an approval and refreshes the queue')],
+  },
+  {
+    id: 'S129-FE-07',
+    name: 'Safety Officer decisions send the wrong decision value (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['{ decision, reason }', '{ decision: "changes_needed", reason }']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-05 records an approval and refreshes the queue')],
+  },
+  {
+    id: 'S129-FE-08',
+    name: 'Safety Officer decisions omit the supplied reason (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['{ decision, reason }', '{ decision }']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-05 records a rejection with its reason')],
+  },
+  {
+    id: 'S129-FE-09',
+    name: 'Safety Officer page does not refresh after a successful response (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['      setReason("");\n      await refresh();\n    } catch (cause) {', '      setReason("");\n    } catch (cause) {']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-05 records an approval and refreshes the queue')],
+  },
+  {
+    id: 'S129-FE-10',
+    name: 'Safety Officer detail omits expected attendance (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['Expected attendance: {selected.expectedAttendance}', 'Expected attendance: 0']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-11',
+    name: 'Safety Officer detail omits the requested layout (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['Requested layout: {selected.venueRequirements.layout || "None specified"}', 'Requested layout: None specified']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-12',
+    name: 'Safety Officer detail omits event accessibility requirements (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['selected.venueRequirements.accessibility.join(", ") || "None specified"', '"None specified"']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-13',
+    name: 'Safety Officer detail omits required event facilities (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['selected.venueRequirements.facilities.join(", ") || "None specified"', '"None specified"']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-14',
+    name: 'Safety Officer detail corrupts venue capacity (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<p>Capacity: {venue.capacity}</p>', '<p>Capacity: 0</p>']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-15',
+    name: 'Safety Officer detail omits venue facilities (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<p>Facilities: {venue.facilities.join(", ") || "None listed"}</p>', '<p>Facilities: None listed</p>']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-16',
+    name: 'Safety Officer detail omits venue accessibility (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<p>Accessibility: {venue.accessibility.join(", ") || "None listed"}</p>', '<p>Accessibility: None listed</p>']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-17',
+    name: 'Safety Officer detail omits venue layouts (SAFETY-QUEUE-02)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<p>Layouts: {venue.layouts.join(", ") || "None listed"}</p>', '<p>Layouts: None listed</p>']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-18',
+    name: 'Safety Officer detail omits reserved equipment names (SAFETY-QUEUE-03)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<li key={item.name}>{item.name}: {item.quantity}</li>', '<li key={item.name}>Equipment</li>']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+  {
+    id: 'S129-FE-19',
+    name: 'Safety Officer detail corrupts reserved equipment quantities (SAFETY-QUEUE-03)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['{item.name}: {item.quantity}', '{item.name}: 0']],
+    testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
+  },
+];

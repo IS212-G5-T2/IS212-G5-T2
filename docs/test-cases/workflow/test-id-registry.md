@@ -934,6 +934,17 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-CONF-06-D | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: multiple blocker intervals are all shown | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
 | VEN-CONF-06-E | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: unavailable interval is returned raw for a different-venue non-conflict | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
 
+## SPM-129
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| SAFETY-QUEUE-01 | PRIMARY | SPM-129 | AC1 | Confluence matrix 36831243; case page 36896816 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx, frontend/src/components/auth/RouteAccess.test.tsx, frontend/src/app/App.test.tsx | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-02 | PRIMARY | SPM-129 | AC2 | Confluence matrix 36831243; case page 36732990 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-03 | PRIMARY | SPM-129 | AC3 | Confluence matrix 36831243; case page 36700233 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-04 | PRIMARY | SPM-129 | AC4 | Confluence matrix 36831243; case page 36700251 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-05 | PRIMARY | SPM-129 | AC5 | Confluence matrix 36831243; case page 36700269 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-31 | Active |
+| SAFETY-QUEUE-06 | PRIMARY | SPM-129 | AC6 | Confluence matrix 36831243; case page 36798562 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts | User approved 2026-10-31 | Active |
+
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.

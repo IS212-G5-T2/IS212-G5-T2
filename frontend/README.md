@@ -199,6 +199,8 @@ Set `VITE_API_BASE_URL` to the backend origin when it is not
 `http://localhost:8080`. Login tests mock HTTP calls, not an external identity
 provider.
 
+Safety Officers land on `/safety/events`, where the page reads the protected SPM-129 queue and event arrangement details from the backend before showing response controls.
+
 Coordinator assignment is managed through the Lead's assignment queue;
 submitting an event leaves it unassigned until the Lead assigns it.
 
