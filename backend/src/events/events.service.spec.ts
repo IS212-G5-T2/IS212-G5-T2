@@ -52,6 +52,16 @@ function attendeeUser(overrides: Partial<AuthenticatedUser> = {}): Authenticated
   };
 }
 
+function safetyOfficerUser(overrides: Partial<AuthenticatedUser> = {}): AuthenticatedUser {
+  return {
+    uid: 'safety-1',
+    roles: ['SAFETY_OFFICER'],
+    email: 'safety_officer1@connectsphere.test',
+    name: 'Safety Officer One',
+    ...overrides,
+  };
+}
+
 function futureIso(daysFromNow: number, hour: number): string {
   const date = new Date();
   date.setDate(date.getDate() + daysFromNow);
@@ -968,3 +978,21 @@ describe('SPM-138 capacity fields on the event read (AC2)', () => {
   });
 
 });
+
+/**
+ * SPM-128 AC4: Safety Officer access control on events service.
+ * Listing events as a Safety Officer returns nothing, and creating an event is refused.
+ */
+describe('SPM-128 AC4: Safety Officer access control', () => {
+  it('listing events as a Safety Officer returns an empty list', async () => {
+    const events = await service.list(safetyOfficerUser());
+    expect(events).toEqual([]);
+  });
+
+  it('creating an event as a Safety Officer is refused with ForbiddenException', async () => {
+    await expect(
+      service.create(safetyOfficerUser(), validEventRequest()),
+    ).rejects.toThrow(ForbiddenException);
+  });
+});
+

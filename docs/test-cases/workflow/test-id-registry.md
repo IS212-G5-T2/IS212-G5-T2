@@ -6,6 +6,21 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 
 | ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
 |---|---|---|---|---|---|---|---|
+| SAFETY-LOGIN-01-A | PRIMARY | SPM-128 | AC1 | Confluence matrix 36896780; case page 36700215 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-01-B | PRIMARY | SPM-128 | AC1 | Confluence matrix 36896780; case page 36700215 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-01-C | PRIMARY | SPM-128 | AC1 | Confluence matrix 36896780; case page 36700215 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-01-D | PRIMARY | SPM-128 | AC1 | Confluence matrix 36896780; case page 36700215 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-02-A | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-02-B | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-02-C | PRIMARY | SPM-128 | AC2 | Confluence matrix 36896780; case page 36732954 | frontend/src/components/layout/navConfig.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-03-A | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-03-B | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-03-C | PRIMARY | SPM-128 | AC3 | Confluence matrix 36896780; case page 36896798 | frontend/src/lib/auth.test.ts | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-04-A | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-04-B | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-04-C | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-04-D | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
+| SAFETY-LOGIN-04-E | PRIMARY | SPM-128 | AC4 | Confluence matrix 36896780; case page 36732972 | frontend/src/app/App.test.tsx | User approved 2026-10-30 | Active |
 | EQUIP-REQUEST-01-A | PRIMARY | SPM-57 | AC1 | Confluence matrix 28868989; case page 28180612 | frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx, frontend/src/features/equipment/pages/requests/EquipmentRequestsPage.test.tsx | User approved 2026-10-16 | Active |
 | EQUIP-REQUEST-01-SUP-LOAD | SUPPORTING | SPM-57 | AC1 | Derived event-list loading and late-response handling for the create editor | frontend/src/features/equipment/pages/requests/EquipmentRequestEditorPage.test.tsx | Orchestrator-approved G3 record correction, cycle 25 | Active |
 | EQUIP-REQUEST-02-A | PRIMARY | SPM-57 | AC2 | Confluence matrix 28868989; case page 28180629 | frontend/src/features/equipment/api/equipment-requests-api.test.ts, frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx | User approved 2026-10-16 | Active |

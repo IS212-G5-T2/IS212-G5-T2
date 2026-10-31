@@ -9,7 +9,9 @@ export type UserRole =
   | 'TECH_SUPPORT'
   | 'ATTENDEE'
   // SPM-123: the single Event Coordinator Lead, never also a Coordinator.
-  | 'COORDINATOR_LEAD';
+  | 'COORDINATOR_LEAD'
+  // SPM-128: reviews safety arrangements for events awaiting a safety check.
+  | 'SAFETY_OFFICER';
 
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete';
 

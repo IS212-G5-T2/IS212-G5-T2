@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { navByRole, navigationForUser } from "./navConfig";
+import { homePathByRole, navByRole, navigationForUser, roleLabels } from "./navConfig";
 
 describe("organiser navigation", () => {
   // The requests route is presented as My Drafts after submitted items move to My Events.
@@ -74,5 +74,19 @@ describe("technical support navigation", () => {
         to: "/equipment/availability",
       }),
     );
+  });
+});
+
+describe("safety officer navigation", () => {
+  /** SAFETY-LOGIN-02-C: Navigation sidebar exposes exactly Safety Review -> /safety/events for Safety Officer. */
+  it("SAFETY-LOGIN-02-C navigation sidebar shows exactly Safety Review -> /safety/events", () => {
+    const items = navByRole.safety_officer;
+    expect(items).toContainEqual(
+      expect.objectContaining({ label: "Safety Review", to: "/safety/events" }),
+    );
+    const destinations = items.map((item) => item.to);
+    expect(destinations).toEqual(["/safety/events"]);
+    expect(homePathByRole.safety_officer).toBe("/safety/events");
+    expect(roleLabels.safety_officer).toBe("Safety Officer");
   });
 });
