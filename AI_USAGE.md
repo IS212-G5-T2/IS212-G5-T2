@@ -15,8 +15,6 @@ Add entries under one date per day, using this format:
 Where user is the user's github username.
 
 ## 2026-10-30
-- swr - implementation - SPM-128 - Safety Officer login: Added SAFETY_OFFICER to backend and frontend UserRole types, auth role mapping, navConfig, homePathByRole, dashboardPathByRole, roleLabels; created SafetyEventsPage at /safety/events guarded by RequireRole; added role id=7, read-on-Event permission, and three seed users to 002_seed_data.sql; created migration 028 and its init counterpart; added SPM128-SAFE-LOGIN-01-A/B/C route tests in App.test.tsx and role-mapping test in auth.test.ts.
-
 ## 2026-10-28
 - swr - version control - SPM-159 - Prepare authorized correction commit: Included approved-hold state handling, null-expiry migration 025 and query fixes, regression/mutation evidence, test-record matching corrections and template-aligned PR description. Prior verification remains as recorded below; no new test run or independent gate claimed. Claude model/effort configuration changes excluded; no push or PR creation.
 - swr - documentation - SPM-159 - Align PR description with repository template: Rewrote SPM-159-pr-description.md with every template heading and all 100 checklist items; included current backend evidence, uncommitted correction scope, migration 025 and the AC9 decision. Updated existing PR #83 through gh after the connector returned a write-permission error; CLI read-back matches the local draft apart from Jira's automatic reference link. No application changes, commit, push or new PR.

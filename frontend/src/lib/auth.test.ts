@@ -156,10 +156,87 @@ describe("auth", () => {
     expect(user).toMatchObject({ role: "coordinator_lead", roles: ["coordinator_lead"] });
   });
 
-  // SPM-128 SPM128-SAFE-LOGIN-01-A: the server's SAFETY_OFFICER role becomes the UI's safety_officer role.
-  it("SPM128-SAFE-LOGIN-01-A recognises the Safety Officer role from the server", () => {
-    const user = toLocalUser({ uid: "safety-1", email: "safety_officer1@connectsphere.test", roles: ["SAFETY_OFFICER"] });
+  // SPM-128: Safety Officer authentication (Confluence matrix 36896780).
+  describe("SPM-128 Safety Officer authentication", () => {
+    /** SAFETY-LOGIN-01-A: Valid credentials map the server's SAFETY_OFFICER role to safety_officer in the UI user model. */
+    it("SAFETY-LOGIN-01-A recognises the Safety Officer role from the server", () => {
+      const user = toLocalUser({
+        uid: "safety-1",
+        email: "safety_officer1@connectsphere.test",
+        roles: ["SAFETY_OFFICER"],
+      });
 
-    expect(user).toMatchObject({ role: "safety_officer", roles: ["safety_officer"] });
+      expect(user).toBeDefined();
+      expect(user?.role).toBe("safety_officer");
+      expect(user?.roles).toEqual(["safety_officer"]);
+      expect(user?.id).toBe("safety-1");
+      expect(user?.email).toBe("safety_officer1@connectsphere.test");
+    });
+
+    /** SAFETY-LOGIN-01-B: Submitting an incorrect password rejects login with a 401 AuthError. */
+    it("SAFETY-LOGIN-01-B wrong password returns AuthError with status 401", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: "Invalid email or password." }), { status: 401 }),
+      ));
+
+      await expect(login("safety_officer1@connectsphere.test", "wrong-password"))
+        .rejects.toMatchObject({ name: "Error", status: 401, message: "Invalid email or password." });
+    });
+
+    /** SAFETY-LOGIN-01-C: A non-JSON login error body falls back to the safe generic message. */
+    it("SAFETY-LOGIN-01-C non-JSON error body falls back to generic message", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        new Response("unavailable", { status: 503 }),
+      ));
+
+      await expect(login("safety_officer1@connectsphere.test", "P@55w0rd"))
+        .rejects.toMatchObject({ status: 503, message: "We couldn't sign you in. Please try again." });
+    });
+
+    /** SAFETY-LOGIN-01-D: Mixed-case or whitespace-padded role string is normalised and recognised. */
+    it("SAFETY-LOGIN-01-D mixed-case or whitespace-padded role is still recognised", () => {
+      const user = toLocalUser({
+        uid: "safety-2",
+        email: "s@test.test",
+        roles: [" safety_officer "],
+      });
+
+      expect(user).toBeDefined();
+      expect(user?.role).toBe("safety_officer");
+    });
+
+    /** SAFETY-LOGIN-03-A: Wrong password surfaces the server's exact error message. */
+    it("SAFETY-LOGIN-03-A wrong password surfaces server error message", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ message: "Invalid email or password." }), { status: 401 }),
+      ));
+
+      const promise = login("safety_officer1@connectsphere.test", "wrong");
+      await expect(promise).rejects.toSatisfy(
+        (err: unknown) => err instanceof AuthError && err.status === 401 && err.message === "Invalid email or password.",
+      );
+    });
+
+    /** SAFETY-LOGIN-03-B: Non-JSON error body shows generic fallback message instead of raw parse error. */
+    it("SAFETY-LOGIN-03-B non-JSON error body shows generic fallback message", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        new Response("unavailable", { status: 503 }),
+      ));
+
+      const promise = login("safety_officer1@connectsphere.test", "P@55w0rd");
+      await expect(promise).rejects.toSatisfy(
+        (err: unknown) => err instanceof AuthError && err.status === 503 && err.message === "We couldn't sign you in. Please try again.",
+      );
+    });
+
+    /** SAFETY-LOGIN-03-C: A 200 response with no supported role denies login with a 403 error. */
+    it("SAFETY-LOGIN-03-C valid HTTP 200 but no supported role denies access", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ uid: "safety-1", roles: [] }), { status: 200 }),
+      ));
+
+      await expect(login("safety_officer1@connectsphere.test", "P@55w0rd"))
+        .rejects.toMatchObject({ status: 403, message: "This account does not have a supported ConnectSphere role." });
+    });
   });
 });

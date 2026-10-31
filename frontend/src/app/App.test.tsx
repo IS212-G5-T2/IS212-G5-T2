@@ -323,7 +323,7 @@ describe("SPM-30 to SPM-34 AC2: post-login landing on the Events Dashboard", () 
   );
 });
 
-// SPM-128: Safety Officer login and role-gated view.
+// SPM-128: Safety Officer login and role-gated view (Confluence matrix 36896780).
 describe("SPM-128 Safety Officer login routing", () => {
   beforeEach(() => {
     useAppStore.setState({
@@ -339,31 +339,55 @@ describe("SPM-128 Safety Officer login routing", () => {
     });
   });
 
-  // SPM128-SAFE-LOGIN-01-A: A Safety Officer lands on their own view after sign-in.
-  it("SPM128-SAFE-LOGIN-01-A redirects a Safety Officer from root to the safety review page", () => {
+  /** SAFETY-LOGIN-02-A: An authenticated Safety Officer visiting root is automatically redirected to the safety review page. */
+  it("SAFETY-LOGIN-02-A redirects a Safety Officer from root to the safety review page", () => {
     render(<MemoryRouter initialEntries={["/"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
-  // SPM128-SAFE-LOGIN-01-B: The safety events route is accessible to the Safety Officer role.
-  it("SPM128-SAFE-LOGIN-01-B renders the safety review page at /safety/events", () => {
+  /** SAFETY-LOGIN-02-B: Direct navigation to /safety/events renders the safety review page. */
+  it("SAFETY-LOGIN-02-B renders the safety review page at /safety/events", () => {
     render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
     expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
   });
 
-  // SPM128-SAFE-LOGIN-01-C: Other roles cannot reach the safety events route.
-  it.each([
-    ["coordinator", "coordinator-1"],
-    ["organiser", "organiser-1"],
-    ["attendee", "attendee-1"],
-  ] as const)(
-    "SPM128-SAFE-LOGIN-01-C blocks %s from the safety events route",
-    (role, id) => {
-      useAppStore.setState({
-        currentUser: { id, name: role, email: `${role}@example.test`, role },
-      });
-      render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
-      expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
-    },
-  );
+  /** SAFETY-LOGIN-04-A: Positive baseline confirming a Safety Officer can access /safety/events before negative cases. */
+  it("SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page", () => {
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
+  });
+
+  /** SAFETY-LOGIN-04-B: A Safety Officer navigating to /events is redirected away to their own safety review page. */
+  it("SAFETY-LOGIN-04-B Safety Officer at /events is redirected to own page", () => {
+    render(<MemoryRouter initialEntries={["/events"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "All Events" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "Events Awaiting Safety Check" })).toBeTruthy();
+  });
+
+  /** SAFETY-LOGIN-04-C: An authenticated Coordinator navigating to /safety/events is blocked. */
+  it("SAFETY-LOGIN-04-C blocks coordinator from the safety events route", () => {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coordinator 1", email: "coordinator@example.test", role: "coordinator" },
+    });
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+  });
+
+  /** SAFETY-LOGIN-04-D: An authenticated Organiser navigating to /safety/events is blocked. */
+  it("SAFETY-LOGIN-04-D blocks organiser from the safety events route", () => {
+    useAppStore.setState({
+      currentUser: { id: "organiser-1", name: "Organiser 1", email: "organiser@example.test", role: "organiser" },
+    });
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+  });
+
+  /** SAFETY-LOGIN-04-E: An authenticated Attendee navigating to /safety/events is blocked. */
+  it("SAFETY-LOGIN-04-E blocks attendee from the safety events route", () => {
+    useAppStore.setState({
+      currentUser: { id: "attendee-1", name: "Attendee 1", email: "attendee@example.test", role: "attendee" },
+    });
+    render(<MemoryRouter initialEntries={["/safety/events"]}><App /></MemoryRouter>);
+    expect(screen.queryByRole("heading", { name: "Events Awaiting Safety Check" })).toBeNull();
+  });
 });
