@@ -1,0 +1,143 @@
+{
+  "story": "SPM-129",
+  "title": "View events awaiting safety check (Safety Officer)",
+  "note": "Jira SPM-129 AC1-AC6 and current Confluence matrix page 36831243 / case pages 36896816, 36732990, 36700233, 36700251, 36700269, 36798562 are authoritative. SPM-128's cancelled-ticket comment says its four login ACs were merged into SPM-129, but the current SPM-129 description and matrix contain only the six queue ACs; SC-SPM129-01 records the discrepancy. Orchestrator authorized the minimum SAFETY_OFFICER role/account foundation and response mechanism required by SPM-129's cases; SPM-128 login ACs are not separately traced. Queue eligibility requires Planning, a pending safety check, confirmed equipment, an approved ordinary venue booking, and no incomplete venue/equipment requests. A pending safety check is invalidated by arrangement changes through existing triggers.",
+  "tz": [
+    "UTC",
+    "Asia/Singapore",
+    "America/Los_Angeles"
+  ],
+  "coverageFloor": {
+    "statements": 100,
+    "branches": 100,
+    "functions": 100,
+    "lines": 100
+  },
+  "tests": {
+    "backend-unit": [
+      "backend/src/events/safety-officer/safety-officer.service.spec.ts",
+      {
+        "glob": "backend/src/events/status/arrangements.reader.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
+        "glob": "backend/src/events/status/checklist.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
+        "glob": "backend/src/events/status/readiness.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
+        "glob": "backend/src/events/status/safety-feedback-resolution.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
+      }
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx",
+      {
+        "glob": "frontend/src/components/auth/RouteAccess.test.tsx",
+        "titleMatch": "SAFETY-QUEUE"
+      },
+      {
+        "glob": "frontend/src/app/App.test.tsx",
+        "titleMatch": "SAFETY-QUEUE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/safetyFeedbackVisibility.test.ts",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "SPM129-SUP-REJECT-RESOLUTION"
+      }
+    ],
+    "backend-e2e": [
+      {
+        "glob": "backend/test/safety-officer.e2e-spec.ts",
+        "titleMatch": "SAFETY-QUEUE"
+      },
+      {
+        "glob": "backend/test/events-safety-feedback.e2e-spec.ts",
+        "titleMatch": "SPM129-SUP-REJECT-RESOLUTION"
+      }
+    ]
+  },
+  "sources": {
+    "backend": [
+      "backend/src/events/safety-officer/safety-officer.service.ts",
+      "backend/src/events/safety-officer/safety-officer.controller.ts",
+      "backend/src/events/status/checklist.ts",
+      "backend/src/events/status/readiness.ts",
+      "backend/src/events/status/safety-feedback-resolution.ts",
+      "backend/src/events/status/arrangements.reader.ts"
+    ],
+    "frontend": [
+      "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
+      "frontend/src/app/App.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx",
+      "frontend/src/features/events/pages/detail/planning/safetyFeedbackVisibility.ts"
+    ]
+  },
+  "suites": [
+    {
+      "id": "backend-unit",
+      "cwd": "backend",
+      "tests": "backend-unit",
+      "config": null,
+      "coverage": "backend",
+      "env": []
+    },
+    {
+      "id": "backend-e2e",
+      "tests": "backend-e2e",
+      "env": [
+        "TEST_DATABASE_URL"
+      ],
+      "config": "vitest.config.e2e.ts",
+      "cwd": "backend"
+    },
+    {
+      "id": "frontend",
+      "cwd": "frontend",
+      "tests": "frontend",
+      "config": null,
+      "coverage": "frontend",
+      "env": []
+    }
+  ],
+  "mutation": [
+    {
+      "id": "safety-officer",
+      "cwd": "backend",
+      "command": [
+        "node",
+        "scripts/mutation/run.mjs",
+        "--mutants",
+        "spm129.mutants.mjs"
+      ],
+      "mutantsFile": "backend/scripts/mutation/spm129.mutants.mjs",
+      "export": "MUTANTS",
+      "env": [
+        "TEST_DATABASE_URL"
+      ]
+    },
+    {
+      "id": "safety-officer-frontend",
+      "cwd": "frontend",
+      "command": [
+        "node",
+        "scripts/testing/mutation/run.mjs",
+        "--mutants",
+        "spm129.mutants.mjs"
+      ],
+      "mutantsFile": "frontend/scripts/testing/mutation/spm129.mutants.mjs",
+      "export": "MUTANTS",
+      "env": []
+    }
+  ]
+}

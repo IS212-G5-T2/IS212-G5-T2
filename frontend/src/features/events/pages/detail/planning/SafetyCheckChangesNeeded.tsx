@@ -11,6 +11,7 @@ import {
 
 interface Props {
   eventId: string;
+  status: "changes_needed" | "rejected";
   feedback: SafetyCheckFeedback[];
   canRequestSafetyCheck: boolean;
   onRefresh: () => Promise<void>;
@@ -20,6 +21,7 @@ interface Props {
 
 export function SafetyCheckChangesNeeded({
   eventId,
+  status,
   feedback,
   canRequestSafetyCheck,
   onRefresh,
@@ -69,7 +71,7 @@ export function SafetyCheckChangesNeeded({
     <div className="space-y-4">
       <p className="flex items-center gap-2 text-sm">
         <span className="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-800 dark:bg-danger-900/30 dark:text-danger-300">
-          Changes needed
+          {status === "rejected" ? "Rejected" : "Changes needed"}
         </span>
       </p>
 

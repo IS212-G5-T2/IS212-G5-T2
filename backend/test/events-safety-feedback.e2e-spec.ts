@@ -176,13 +176,40 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(left.rows[0].n).toBe(0);
   });
 
+  /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: rejected feedback remains durable and blocks re-request until coordinator resolution. */
+  it('SPM129-SUP-REJECT-RESOLUTION preserves a rejected reason until it is resolved', async () => {
+    const { id } = await seedApprovedEvent();
+    const feedbackId = randomUUID();
+    await pool.query("UPDATE event_safety_checks SET status = 'rejected', feedback = 'Add a fire exit plan.' WHERE event_id = $1", [id]);
+    await pool.query(
+      `INSERT INTO safety_check_feedback_items (id, event_id, feedback_text, requested_at)
+       VALUES ($1, $2, 'Add a fire exit plan.', now())`,
+      [feedbackId, id],
+    );
+
+    const refused = await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(422);
+    expect(refused.body.code).toBe('SAFETY_FEEDBACK_UNRESOLVED');
+    expect(await pool.query('SELECT status, feedback FROM event_safety_checks WHERE event_id = $1', [id]).then((result) => result.rows[0]))
+      .toEqual({ status: 'rejected', feedback: 'Add a fire exit plan.' });
+    expect(await pool.query('SELECT resolved_by_coordinator_at FROM safety_check_feedback_items WHERE id = $1', [feedbackId]).then((result) => result.rows[0].resolved_by_coordinator_at))
+      .toBeNull();
+
+    await http().post(`/api/events/${id}/safety-check/feedback/${feedbackId}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+    const accepted = await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
+    expect(accepted.body.status).toBe('pending');
+    expect(await pool.query('SELECT status, feedback FROM event_safety_checks WHERE event_id = $1', [id]).then((result) => result.rows[0]))
+      .toMatchObject({ status: 'pending', feedback: null });
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1', [id]).then((result) => result.rows[0].count))
+      .toBe(0);
+  });
+
   /** An unknown feedback item is reported as not found, and resolving while the check is not in changes-needed is refused. */
   it('SAFETY-FEEDBACK-03: an unknown item is not found, and resolving outside changes-needed is refused', async () => {
     // Arrange
     const { id, itemIds } = await seedChangesNeededEvent();
 
     // Act + Assert: an item id that is not on this event
-    await http().post(`/api/events/${id}/safety-check/feedback/${randomUUID()}/resolve`).set('Cookie', coordinator.cookie).expect(404);
+    await http().post(`/api/events/${id}/safety-check/feedback/00000000-0000-4000-8000-000000000999/resolve`).set('Cookie', coordinator.cookie).expect(404);
 
     // Arrange: the check is approved, not changes-needed
     await pool.query("UPDATE event_safety_checks SET status = 'approved' WHERE event_id = $1", [id]);

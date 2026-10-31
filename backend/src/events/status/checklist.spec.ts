@@ -5,10 +5,13 @@ import type { EquipmentFact, VenueBookingFact } from './readiness.js';
 const now = new Date('2026-10-13T00:00:00Z');
 const booking = (over: Partial<VenueBookingFact> = {}): VenueBookingFact => ({
   id: 'b1',
+  venueId: 'venue-1',
   venueName: 'Main Hall',
   status: 'approved',
   holdExpiresAt: null,
   venueUnavailable: false,
+  start: '2026-10-20T02:00:00.000Z',
+  end: '2026-10-20T04:00:00.000Z',
   requestedAt: '2026-10-10T00:00:00.000Z',
   ...over,
 });
@@ -282,5 +285,35 @@ describe('buildChecklist: VEN-HOLD-04-SUP-EVENTS approved tentative holds', () =
 
     expect(result.venue.status).toBe('confirmed');
     expect(result.venue.items[0]).not.toHaveProperty('holdState');
+  });
+});
+
+describe('buildChecklist: SAFETY-QUEUE-06 venue replacement history', () => {
+  /** SAFETY-QUEUE-06-SUP-HISTORY: rejected, released, and cancelled historical venue rows do not block a confirmed replacement; without a confirmed replacement the event remains blocked. */
+  it.each(['rejected', 'released', 'cancelled'] as const)('ignores %s venue history only after a confirmed replacement', (status) => {
+    const history = booking({ id: `history-${status}`, status });
+    const replacement = booking({ id: 'replacement', venueName: 'Main Hall' });
+    const withReplacement = build([history, replacement], [line()]);
+    expect(withReplacement.venue.status).toBe('confirmed');
+    expect(withReplacement.canRequestSafetyCheck).toBe(true);
+
+    const withoutReplacement = build([history], [line()]);
+    expect(withoutReplacement.venue.status).not.toBe('confirmed');
+    expect(withoutReplacement.canRequestSafetyCheck).toBe(false);
+  });
+
+  /** SAFETY-QUEUE-06: a replacement must cover the entire rejected slot at the same venue, including both boundaries. */
+  it('SAFETY-QUEUE-06 leaves rejected history blocking for another venue or incomplete slot coverage', () => {
+    const rejected = booking({ id: 'rejected', status: 'rejected', venueId: 'venue-main' });
+    const otherVenue = booking({ id: 'other-venue', venueId: 'venue-annex' });
+    const laterSlot = booking({ id: 'later-slot', venueId: 'venue-main', start: '2026-10-20T04:00:00.000Z', end: '2026-10-20T05:00:00.000Z' });
+    const overlappingSlot = booking({ id: 'overlap', venueId: 'venue-main', start: '2026-10-20T03:00:00.000Z', end: '2026-10-20T05:00:00.000Z' });
+
+    expect(build([rejected, otherVenue], [line()]).canRequestSafetyCheck).toBe(false);
+    expect(build([rejected, laterSlot], [line()]).canRequestSafetyCheck).toBe(false);
+    expect(build([rejected, overlappingSlot], [line()]).canRequestSafetyCheck).toBe(false);
+    expect(build([rejected, { ...overlappingSlot, start: rejected.start, end: '2026-10-20T03:00:00.000Z' }], [line()]).canRequestSafetyCheck).toBe(false);
+    expect(build([rejected, { ...overlappingSlot, start: rejected.start, end: rejected.end }], [line()]).canRequestSafetyCheck).toBe(true);
+    expect(build([rejected, { ...overlappingSlot, start: '2026-10-20T01:00:00.000Z' }], [line()]).canRequestSafetyCheck).toBe(true);
   });
 });

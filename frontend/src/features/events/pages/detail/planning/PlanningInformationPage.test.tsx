@@ -1099,6 +1099,26 @@ describe("PlanningInformationPage", () => {
     ).toBeDisabled();
   });
 
+  /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: rejection feedback stays visible and coordinator-resolvable until handled. */
+  it("SPM129-SUP-REJECT-RESOLUTION keeps rejected feedback visible for coordinator resolution", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: {
+        status: "rejected",
+        feedback: [{ id: "rejection-1", text: "Add a fire exit plan.", requestedAt: "2026-10-11T07:00:00.000Z" }],
+      },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+
+    expect(await screen.findAllByText("Rejected")).toHaveLength(2);
+    expect(screen.getByText("Add a fire exit plan.")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox")).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
+  });
+
   /** Ticking a feedback item resolves it, and re-request becomes available once every item is ticked. */
   it("resolves a feedback item when its checkbox is ticked, and enables re-request once all are ticked", async () => {
     const items = [
@@ -1387,7 +1407,7 @@ describe("PlanningInformationPage", () => {
 
     const notice = await screen.findByText("Re-request needed.");
     expect(notice.closest("p")).toHaveTextContent(
-      /Re-request needed\. Venue change on \w{3} \d{1,2}, 2026, [^,]+, so the earlier safety check no longer applies\./,
+      /Re-request needed\. Venue change on (?:\w{3} \d{1,2}, 2026|\d{1,2} \w{3} 2026), [^,]+, so the earlier safety check no longer applies\./,
     );
     expect(
       screen.getByRole("button", { name: "Re-Request For Safety Check" }),

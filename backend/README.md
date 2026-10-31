@@ -39,6 +39,8 @@ and venue routes. When the middleware is applied to a controller, it:
 
 `RbacRepository` reads PostgreSQL `roles`, `resources`, and `role_permissions` rows and builds composable permission predicates for resource queries. Protected resource repositories should include the predicate and ownership condition in the same `SELECT`, `INSERT`, `UPDATE`, or `DELETE` statement.
 
+SPM-128 provisions the `SAFETY_OFFICER` role and local account through migration `028_spm128_safety_officer_role.sql`; SPM-129 uses that role for the authenticated `GET /api/safety-officer/queue`, `GET /api/safety-officer/queue/:eventId`, and `POST /api/safety-officer/queue/:eventId/decision` routes. The queue contains Planning events with a pending safety check and arrangements that pass the shared planning checklist. Event detail includes venue capacity and known restrictions, event requirements, and reserved equipment. Decisions are `approved`, `rejected`, or `changes_needed`; the latter two require a reason. Fresh databases receive the role/account from `database/postgresql/init/002_seed_data.sql`.
+
 Auth code is organized by responsibility:
 
 | Path | Purpose |

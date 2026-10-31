@@ -18,17 +18,20 @@ const PAST_HOLD = new Date('2026-10-12T03:00:00Z'); // 1 h before NOW: hold expi
 
 const approvedVenue = (id: string, venueName: string, unavailable = false) => ({
   id,
+  venueId: 'venue-1',
   venueName,
   status: 'approved' as const,
   holdExpiresAt: null,
   venueUnavailable: unavailable,
+  start: '2030-01-12T04:00:00.000Z',
+  end: '2030-01-12T05:00:00.000Z',
 });
 const venue = (
   id: string,
   venueName: string,
   status: 'pending' | 'rejected',
   holdExpiresAt: Date | null = null,
-) => ({ id, venueName, status, holdExpiresAt, venueUnavailable: false });
+) => ({ id, venueId: 'venue-1', venueName, status, holdExpiresAt, venueUnavailable: false, start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z' });
 const reserved = (id: string, name: string, quantity: number) => ({
   id,
   name,
@@ -85,6 +88,40 @@ describe('SPM-135 AC1: a fully arranged event is ready', () => {
 
     // Assert
     expect(result).toEqual({ ready: true, outstanding: [] });
+  });
+});
+
+describe('SPM-129 SAFETY-QUEUE-06: rejected venue history and Confirm readiness agree', () => {
+  /** SAFETY-QUEUE-06: Confirm requires an approved booking covering the entire rejected slot at the same venue. */
+  it('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement', () => {
+    const rejected = { ...venue('rejected', 'Main Hall', 'rejected'), venueId: 'venue-main' };
+    const otherVenue = { ...approvedVenue('other-venue', 'Annex'), venueId: 'venue-annex' };
+    const laterSlot = { ...approvedVenue('later-slot', 'Main Hall'), venueId: 'venue-main', start: '2030-01-12T05:00:00.000Z', end: '2030-01-12T06:00:00.000Z' };
+    const coveringSlot = { ...approvedVenue('covering', 'Main Hall'), venueId: 'venue-main' };
+    const overlappingSlot = { ...coveringSlot, start: '2030-01-12T04:30:00.000Z', end: '2030-01-12T05:30:00.000Z' };
+    const sameId = { ...overlappingSlot, id: rejected.id };
+    const pending = { ...overlappingSlot, status: 'pending' as const };
+    const unavailable = { ...overlappingSlot, venueUnavailable: true };
+    const tentative = { ...overlappingSlot, requestKind: 'tentative_hold' as const };
+
+    const mismatch = (replacement: typeof otherVenue) => evaluateReadiness(ready({ venueBookings: [rejected, replacement] }), NOW);
+    expect(mismatch(otherVenue).ready).toBe(false);
+    expect(mismatch(laterSlot).outstanding).toContainEqual(expect.objectContaining({ detail: 'Main Hall (Rejected)' }));
+    expect(mismatch(overlappingSlot).ready).toBe(false);
+    expect(mismatch({ ...coveringSlot, end: '2030-01-12T04:30:00.000Z' }).ready).toBe(false);
+    expect(mismatch(coveringSlot)).toEqual({ ready: true, outstanding: [] });
+    expect(mismatch({ ...coveringSlot, start: '2030-01-12T03:00:00.000Z', end: '2030-01-12T06:00:00.000Z' }).ready).toBe(true);
+    // Legacy snapshots omit requestKind: an expiry alone does not turn an ordinary approved booking into a hold.
+    expect(mismatch({ ...coveringSlot, holdExpiresAt: FUTURE_HOLD }).ready).toBe(true);
+    expect(mismatch(sameId).ready).toBe(false);
+    expect(mismatch(pending).ready).toBe(false);
+    expect(mismatch(unavailable).ready).toBe(false);
+    expect(mismatch(tentative).ready).toBe(false);
+    expect(mismatch({ ...overlappingSlot, start: 'not-a-date' }).ready).toBe(false);
+    expect(mismatch({ ...overlappingSlot, end: 'not-a-date' }).ready).toBe(false);
+    expect(mismatch({ ...overlappingSlot, start: '2030-01-12T06:00:00.000Z', end: '2030-01-12T05:00:00.000Z' }).ready).toBe(false);
+    expect(evaluateReadiness(ready({ venueBookings: [{ ...rejected, start: 'not-a-date' }, overlappingSlot] }), NOW).ready).toBe(false);
+    expect(evaluateReadiness(ready({ venueBookings: [{ ...rejected, end: rejected.start }, overlappingSlot] }), NOW).ready).toBe(false);
   });
 });
 
