@@ -38,10 +38,12 @@ const labels: Record<Field, string> = {
 export function VenueEditPage() {
   const { id } = useParams<{ id: string }>();
   const updateVenue = useAppStore((state) => state.updateVenue);
+  const currentUser = useAppStore((state) => state.currentUser);
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
+  const [forbidden, setForbidden] = useState(false);
   const [step, setStep] = useState(0);
   const [values, setValues] = useState<Record<Field, string>>({
     name: "",
@@ -66,12 +68,17 @@ export function VenueEditPage() {
   useEffect(() => {
     if (!id) { setLoadError(true); setLoading(false); return; }
     api<{
-      id: string; name: string; location: string; capacity: number;
+      id: string; ownerId: string; name: string; location: string; capacity: number;
       facilities: string[]; accessibility: string[]; layouts: string[];
       operatingInformation: string; setupTimeMinutes: number;
       turnaroundTimeMinutes: number; image?: VenueImage;
     }>(`/venues/${id}`).then(
       (venue) => {
+        if (currentUser && venue.ownerId !== currentUser.id) {
+          setForbidden(true);
+          setLoading(false);
+          return;
+        }
         setValues({
           name: venue.name,
           location: venue.location,
@@ -88,7 +95,7 @@ export function VenueEditPage() {
       },
       () => { setLoadError(true); setLoading(false); },
     );
-  }, [id]);
+  }, [id, currentUser]);
 
   function change(field: Field, value: string): void {
     setValues((old) => ({ ...old, [field]: value }));
@@ -173,7 +180,9 @@ export function VenueEditPage() {
       setCapacityBookings(result.capacityBookings);
     } catch (error) {
       if (error instanceof ApiError) {
-        const apiErrors = error.errors ?? { form: error.message };
+        const apiErrors: Record<string, string> = error.errors
+          ? { ...error.errors, form: error.message }
+          : { form: error.message };
         setErrors(apiErrors);
         if (Object.keys(apiErrors).some((field) => [...Object.keys(labels), "accessibility"].includes(field)))
           setStep(0);
@@ -186,6 +195,7 @@ export function VenueEditPage() {
   }
 
   if (loading) return <p className="p-6 text-gray-500">Loading venue…</p>;
+  if (forbidden) return <p role="alert" className="p-6 text-danger-600">You can only edit venues you created.</p>;
   if (loadError) return <p role="alert" className="p-6 text-danger-600">Venue not found or could not be loaded.</p>;
 
   return (

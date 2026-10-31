@@ -1173,6 +1173,12 @@ describe.skipIf(!databaseUrl)(
                 (gen_random_uuid(), $1, $5, $6, $7, 'pending')`,
         [id, event1Id, slot1Start, slot1End, event2Id, slot2Start, slot2End],
       );
+      await pool.query(
+        `INSERT INTO venue_booking_requests (event_id, venue_id)
+         VALUES ($1, $2), ($3, $2)
+         ON CONFLICT DO NOTHING`,
+        [event1Id, id, event2Id],
+      );
       eventIds.push(event1Id, event2Id);
 
       // Increasing turnaround to 90 minutes causes the widened windows to overlap

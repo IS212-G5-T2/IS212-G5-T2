@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { VenueEditPage } from "./VenueEditPage";
-import { api, ApiError } from "@/utils/api";
+import { api } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { Venue, AffectedBooking } from "@/types";
 
@@ -16,6 +16,7 @@ const apiMock = vi.mocked(api);
 
 const venue: Venue = {
   id: "b9c6f700-85b1-4a79-96d8-5f5c3fd616fb",
+  ownerId: "staff-1",
   name: "Orchid Hall",
   location: "Block A Level 2",
   capacity: 120,
