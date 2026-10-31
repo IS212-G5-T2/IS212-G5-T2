@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import {
-  REPO_ROOT, executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, missingFromResults, parseArgs, parseCsv, parseTables, playwrightToVitest, testIdOf, timezoneStatus, toCsv, worst,
+  REPO_ROOT, executionStatus, extractTests, globToRegExp, idFamily, idsIn, isMain, levelOf, missingFromResults, parseArgs, parseCsv, parseTables, playwrightRunProblem, playwrightToVitest, testIdOf, timezoneStatus, toCsv, worst,
 } from './lib.mjs';
 
 test('parseArgs reads flags, values, repeats and positionals', () => {
@@ -204,7 +205,7 @@ test('scopedTests keeps a test that carries a story registry id even when its ti
 });
 
 test('missingFromResults lists scope files that the runner did not report', () => {
-  const data = { testResults: [{ name: `${REPO_ROOT}/frontend/src/a.test.tsx` }] };
+  const data = { testResults: [{ name: join(REPO_ROOT, 'frontend', 'src', 'a.test.tsx') }] };
   assert.deepEqual(missingFromResults(['frontend/src/a.test.tsx', 'frontend/src/b.playwright.spec.ts'], data), ['frontend/src/b.playwright.spec.ts']);
   assert.deepEqual(missingFromResults(['frontend\\src\\a.test.tsx'], data), []); // Windows join() separators
   assert.deepEqual(missingFromResults(['x.test.ts'], undefined), ['x.test.ts']);
@@ -224,10 +225,27 @@ test('playwrightToVitest converts a Playwright report to the vitest json shape',
   assert.equal(out.numPendingTests, 1);
   assert.equal(out.startTime, Date.parse('2026-10-30T00:00:00.000Z'));
   assert.equal(out.testResults.length, 1);
-  assert.equal(out.testResults[0].name, `${REPO_ROOT}/frontend/src/components/n/B.playwright.spec.ts`);
+  assert.equal(out.testResults[0].name, join(REPO_ROOT, 'frontend', 'src', 'components', 'n', 'B.playwright.spec.ts'));
   assert.equal(out.testResults[0].endTime - out.startTime, 1500);
   assert.deepEqual(out.testResults[0].assertionResults.map((r) => r.status), ['passed', 'failed', 'pending', 'failed']);
   assert.deepEqual(missingFromResults(['frontend/src/components/n/B.playwright.spec.ts'], out), []);
   assert.deepEqual(missingFromResults(['frontend\\src\\components\\n\\B.playwright.spec.ts'], playwrightToVitest(report, ['frontend\\src\\components\\n\\B.playwright.spec.ts'])), []);
   assert.equal(playwrightToVitest({}, []).numTotalTests, 0);
+});
+
+test('playwrightRunProblem fails a run with report-level errors or a nonzero exit status', () => {
+  const teardown = playwrightRunProblem({ errors: [{ message: 'globalTeardown failed\n  at x' }] }, 1);
+  assert.match(teardown, /1 report-level error\(s\): globalTeardown failed/);
+  assert.match(teardown, /exited with status 1/);
+  assert.match(playwrightRunProblem({ errors: [] }, 1), /exited with status 1/);
+  assert.match(playwrightRunProblem({}, null), /unknown/);
+  assert.match(playwrightRunProblem({ errors: [{ message: 'boom' }] }, 0), /boom/);
+  assert.equal(playwrightRunProblem({ errors: [] }, 0), null);
+  assert.equal(playwrightRunProblem({}, 0), null);
+});
+
+test('executionStatus blocks a suite that ran with an error even when all tests passed', () => {
+  const clean = { id: 's', ran: true, total: 2, passed: 2, failed: 0, skipped: 0 };
+  assert.equal(executionStatus([clean]), 'PASS');
+  assert.equal(executionStatus([{ ...clean, error: 'globalTeardown failed' }]), 'BLOCKED');
 });

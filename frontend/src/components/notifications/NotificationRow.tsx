@@ -7,7 +7,8 @@ import { formatDateTime, formatDecisionDate, timeAgo } from "@/utils/format";
 // SPM-65 change request denials still arrive as `Your change request for "<name>" was denied: <reason>` (that
 // backend is unchanged), so the reason is cut off for display. Text alone is ambiguous when the name and the
 // reason both contain `" was denied: `, so the event's current name (relatedEventName) fixes the cut point.
-// When it is missing or the event was renamed since the notice, the LAST separator is used instead. Old
+// When it is missing or the event was renamed since the notice, no cut can be trusted: a message with a
+// separator gets a generic headline (SC-SPM88-11), one without is shown as is. Old
 // rejection rows that still hold `was rejected: <reason>` are not stripped: matching that phrase would cut a
 // new rejection whose event name contains it.
 const DENIED_SEPARATOR = '" was denied: ';
@@ -17,8 +18,7 @@ function headlineOf(message: string, type: Notification["type"], eventName?: str
     const prefix = `Your change request for "${eventName}" was denied: `;
     if (message.startsWith(prefix)) return prefix.slice(0, -2);
   }
-  const index = message.lastIndexOf(DENIED_SEPARATOR);
-  return index === -1 ? message : `${message.slice(0, index + 1)} was denied`;
+  return message.includes(DENIED_SEPARATOR) ? "Your change request was denied" : message;
 }
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);

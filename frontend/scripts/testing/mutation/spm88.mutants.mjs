@@ -38,11 +38,11 @@ export const MUTANTS = [
   },
   {
     id: 'SPM88-FE-03',
-    name: 'denial reason cut at the first quoted separator (a quoted decision phrase inside the event name cuts the name)',
+    name: 'unknown or renamed event falls back to a cut at the last separator (reason text can leak, SC-SPM88-11)',
     file: ROW,
     suites: ['notifications'],
     testMappings: map('03-INT-2'),
-    edits: [['const index = message.lastIndexOf(DENIED_SEPARATOR);', 'const index = message.indexOf(DENIED_SEPARATOR);']],
+    edits: [['return message.includes(DENIED_SEPARATOR) ? "Your change request was denied" : message;', 'return message.includes(DENIED_SEPARATOR) ? `${message.slice(0, message.lastIndexOf(DENIED_SEPARATOR) + 1)} was denied` : message;']],
   },
   {
     id: 'SPM88-FE-04',
@@ -74,7 +74,7 @@ export const MUTANTS = [
     file: ROW,
     suites: ['notifications'],
     testMappings: [{ suite: 'notifications', file: NOTIFICATIONS, title: 'REVIEW-CHANGE-05-D ' }, ...map('03-INT-2')],
-    edits: [['  const index = message.lastIndexOf(DENIED_SEPARATOR);\n  return index === -1 ? message :', '  const index = -1;\n  return index === -1 ? message :']],
+    edits: [['return message.includes(DENIED_SEPARATOR) ? "Your change request was denied" : message;', 'return message;']],
   },
   {
     id: 'SPM88-FE-09',
@@ -389,11 +389,11 @@ export const MUTANTS = [
     file: ROW,
     suites: ['notifications'],
     testMappings: map('03-INT-2'),
-    edits: [['index === -1 ? message :', 'false ? message :']],
+    edits: [['message.includes(DENIED_SEPARATOR) ?', 'true ?']],
   },
   {
     id: 'SPM88-FE-52',
-    name: 'relatedEventName ignored (denial always cut at the last separator)',
+    name: 'relatedEventName ignored (a denial with the current name is not cut by name)',
     file: ROW,
     suites: ['notifications'],
     testMappings: map('03-INT-2'),

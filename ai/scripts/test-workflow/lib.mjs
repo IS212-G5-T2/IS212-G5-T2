@@ -31,8 +31,20 @@ export function worst(statuses) {
 /** A suite with skipped tests did not fully execute and cannot pass G7. */
 export function executionStatus(results) {
   if (results.some((result) => !result.ran)) return UNABLE;
-  if (results.some((result) => result.failed > 0 || result.skipped > 0)) return BLOCKED;
+  if (results.some((result) => result.failed > 0 || result.skipped > 0 || result.error)) return BLOCKED;
   return PASS;
+}
+
+/**
+ * Why a Playwright run cannot count as passing even when every reported test passed: a nonzero exit status, or
+ * report-level errors (for example a failing globalTeardown). Returns a reason string, or null for a clean run.
+ */
+export function playwrightRunProblem(report, exitStatus) {
+  const problems = [];
+  const errors = Array.isArray(report?.errors) ? report.errors : [];
+  if (errors.length) problems.push(`${errors.length} report-level error(s): ${errors.map((e) => String(e?.message ?? e).split('\n')[0]).join('; ')}`);
+  if (exitStatus !== 0) problems.push(`playwright exited with status ${exitStatus ?? 'unknown (no exit status)'}`);
+  return problems.length ? problems.join('; ') : null;
 }
 
 /** Scope-listed files (repo-relative) that a runner's testResults do not mention: they never ran. */

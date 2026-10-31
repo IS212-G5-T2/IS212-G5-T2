@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, missingFromResults, parseArgs, parseCsv, playwrightToVitest, readJson, readText, scopeTests, timezoneStatus,
+  REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, missingFromResults, parseArgs, parseCsv, playwrightRunProblem, playwrightToVitest, readJson, readText, scopeTests, timezoneStatus,
   usesChangedLines, writeGate, writeText,
 } from './lib.mjs';
 
@@ -95,8 +95,10 @@ function runPlaywright(suite, files, results, runners) {
     return;
   }
   let data;
+  let report;
   try {
-    data = playwrightToVitest(readJson(raw), files.map((file) => join(suite.cwd, file)));
+    report = readJson(raw);
+    data = playwrightToVitest(report, files.map((file) => join(suite.cwd, file)));
   } catch {
     log(`NOT RUN suite ${suite.id}: unreadable playwright json`);
     results.push({ id: suite.id, ran: false, reason: 'unreadable playwright json' });
@@ -109,7 +111,10 @@ function runPlaywright(suite, files, results, runners) {
     results.push({ id: suite.id, ran: false, reason: `scope files not run by playwright: ${unreported.join(', ')}` });
     return;
   }
+  const problem = playwrightRunProblem(report, outcome.status);
+  if (problem) log(`suite ${suite.id} FAILED: ${problem}`);
   results.push({
+    ...(problem ? { error: problem } : {}),
     id: suite.id, ran: true, total: data.numTotalTests, passed: data.numPassedTests, failed: data.numFailedTests,
     skipped: data.numPendingTests, durationSeconds: Math.round(((data.testResults[0]?.endTime ?? data.startTime) - data.startTime) / 100) / 10,
   });
@@ -179,6 +184,7 @@ function runSuites() {
     summary: { total: sum('total'), passed: sum('passed'), failed: sum('failed'), skipped: sum('skipped'), durationSeconds: Math.round(sum('durationSeconds') * 10) / 10, runner: runners.join(', '), suites: results },
     findings: results.filter((r) => !r.ran).map((r) => `suite ${r.id} NOT RUN: ${r.reason}`)
       .concat(ran.flatMap((r) => [
+        ...(r.error ? [`suite ${r.id} FAILED: ${r.error}`] : []),
         ...(r.failed ? [`suite ${r.id}: ${r.failed} failed`] : []),
         ...(r.skipped ? [`suite ${r.id}: ${r.skipped} skipped`] : []),
       ])),
