@@ -31,6 +31,18 @@ const SGT_FORMAT = new Intl.DateTimeFormat('en-GB', {
   hourCycle: 'h23',
 });
 
+const SGT_DATE_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Singapore',
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+});
+
+/** Formats an instant as its Singapore calendar date, no time (for example 10 Jan 2027). */
+export function formatSgtDate(value: Date): string {
+  return SGT_DATE_FORMAT.format(value);
+}
+
 /** Formats an instant in Singapore time for user-facing messages. */
 export function formatSgt(value: Date): string {
   return `${SGT_FORMAT.format(value)} SGT`;
