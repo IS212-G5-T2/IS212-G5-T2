@@ -116,7 +116,8 @@ const failingTests = (jsonFile) => {
 };
 const killsOut = {};
 const skipped = (suite) => SUITES[suite].needsEnv?.find((name) => !process.env[name]);
-const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+// Strip ANSI colour codes (FORCE_COLOR / CI terminals) so summary parsing matches.
+const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
 const hasExecutedTests = (result) => /\bTests\s+\d+\s+(?:passed|failed)\b/i.test(outputOf(result));
 
 let exitCode = 0;

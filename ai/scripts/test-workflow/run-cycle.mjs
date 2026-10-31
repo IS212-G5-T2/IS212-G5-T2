@@ -12,7 +12,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, parseArgs, parseCsv, readJson, readText, scopeTests, timezoneStatus,
+  REPO_ROOT, WORKFLOW_DIR, abs, asList, executionStatus, fileExists, loadScope, missingFromResults, parseArgs, parseCsv, playwrightRunProblem, playwrightToVitest, readJson, readText, scopeTests, timezoneStatus,
   usesChangedLines, writeGate, writeText,
 } from './lib.mjs';
 
@@ -67,22 +67,79 @@ const script = (name, extra = []) => {
 const missingEnv = (names) => names.filter((name) => !process.env[name]);
 const toCwd = (file, cwd) => (file.startsWith(`${cwd}/`) ? file.slice(cwd.length + 1) : file);
 
+// A suite with "runner": "playwright" runs once (the spec pins its own timezoneId, so the timezone loop does not
+// apply and it adds nothing to the G4tz zone totals). Its JSON report is converted to the vitest shape that
+// check-records reads and saved under test-run/<suite.id>.json.
+const runPlaywrightCli = (suite, args, options = {}) => run(
+  process.execPath,
+  [abs(join(suite.cwd, 'node_modules', '@playwright', 'test', 'cli.js')), ...args],
+  { cwd: suite.cwd, ...options },
+);
+
+function runPlaywright(suite, files, results, runners) {
+  const raw = join(cycle, 'playwright', `${suite.id}.raw.json`);
+  log(`suite ${suite.id}: Playwright runs once; the spec pins its own timezoneId, so the timezone loop is skipped`);
+  if (dryRun) {
+    runPlaywrightCli(suite, ['test', ...files, '--config', suite.config ?? 'playwright.config.ts']);
+    return;
+  }
+  const version = runPlaywrightCli(suite, ['--version']);
+  runners.push(version.status === 0 ? (version.stdout ?? '').trim().replace(/^Version /, 'playwright ') : 'playwright (version unavailable)');
+  const outcome = runPlaywrightCli(suite, ['test', ...files, '--config', suite.config ?? 'playwright.config.ts'], {
+    env: { PLAYWRIGHT_JSON_OUTPUT_NAME: abs(raw) },
+  });
+  appendFileSync(abs(join(cycle, 'test-run.log')), `\n## ${suite.id} (playwright)\n${outcome.stdout ?? ''}\n${outcome.stderr ?? outcome.error?.message ?? ''}\n`, { flag: 'a' });
+  if (!existsSync(abs(raw))) {
+    log(`NOT RUN suite ${suite.id}: no playwright json output`);
+    results.push({ id: suite.id, ran: false, reason: 'no playwright json output' });
+    return;
+  }
+  let data;
+  let report;
+  try {
+    report = readJson(raw);
+    data = playwrightToVitest(report, files.map((file) => join(suite.cwd, file)));
+  } catch {
+    log(`NOT RUN suite ${suite.id}: unreadable playwright json`);
+    results.push({ id: suite.id, ran: false, reason: 'unreadable playwright json' });
+    return;
+  }
+  writeText(join(cycle, 'test-run', `${suite.id}.json`), `${JSON.stringify(data, null, 2)}\n`);
+  const unreported = missingFromResults(files.map((file) => join(suite.cwd, file)), data);
+  if (unreported.length) {
+    log(`NOT RUN suite ${suite.id}: playwright did not report ${unreported.join(', ')}`);
+    results.push({ id: suite.id, ran: false, reason: `scope files not run by playwright: ${unreported.join(', ')}` });
+    return;
+  }
+  const problem = playwrightRunProblem(report, outcome.status);
+  if (problem) log(`suite ${suite.id} FAILED: ${problem}`);
+  results.push({
+    ...(problem ? { error: problem } : {}),
+    id: suite.id, ran: true, total: data.numTotalTests, passed: data.numPassedTests, failed: data.numFailedTests,
+    skipped: data.numPendingTests, durationSeconds: Math.round(((data.testResults[0]?.endTime ?? data.startTime) - data.startTime) / 100) / 10,
+  });
+}
+
 function runSuites() {
   const results = [];
   const zoneTotals = Object.fromEntries(zones.map((zone) => [zone, { total: 0, passed: 0, failed: 0, skipped: 0, notRun: 0 }]));
-  let runner = '';
+  const runners = [];
   for (const suite of scope.suites ?? []) {
     const files = scopeTests(scope).filter((entry) => entry.suite === suite.tests).map((entry) => toCwd(entry.file, suite.cwd));
     const missing = missingEnv(suite.env ?? []);
     if (missing.length) {
       log(`NOT RUN suite ${suite.id}: set ${missing.join(', ')}`);
       results.push({ id: suite.id, ran: false, reason: `missing ${missing.join(', ')}` });
-      for (const zone of zones) zoneTotals[zone].notRun += 1;
+      if (suite.runner !== 'playwright') for (const zone of zones) zoneTotals[zone].notRun += 1;
       continue;
     }
-    if (!runner && !dryRun) {
+    if (suite.runner === 'playwright') {
+      runPlaywright(suite, files, results, runners);
+      continue;
+    }
+    if (!runners.some((r) => r.startsWith('vitest')) && !dryRun) {
       const version = runVitest(suite, ['--version']);
-      runner = version.status === 0 ? `vitest ${(version.stdout ?? '').trim().replace(/^vitest\//, '')}` : 'vitest (version unavailable)';
+      runners.push(version.status === 0 ? `vitest ${(version.stdout ?? '').trim().replace(/^vitest\//, '')}` : 'vitest (version unavailable)');
     }
     zones.forEach((zone, index) => {
       const jsonPath = join(cycle, index === 0 ? 'test-run' : join('tz-runs', zone.replace(/\//g, '_')), `${suite.id}.json`);
@@ -100,12 +157,18 @@ function runSuites() {
           if (index === 0) results.push({ id: suite.id, ran: false, reason: 'no vitest json output' });
           return;
         }
+        // A scope-listed file that vitest never reported (for example one its config excludes) did not run.
+        const unreported = missingFromResults(files.map((file) => join(suite.cwd, file)), data);
+        if (unreported.length) zoneTotals[zone].notRun += 1;
         const skipped = (data.numPendingTests ?? 0) + (data.numTodoTests ?? 0);
         zoneTotals[zone].total += data.numTotalTests;
         zoneTotals[zone].passed += data.numPassedTests;
         zoneTotals[zone].failed += data.numFailedTests;
         zoneTotals[zone].skipped += skipped;
-        if (index === 0) {
+        if (index === 0 && unreported.length) {
+          log(`NOT RUN suite ${suite.id}: vitest did not report ${unreported.join(', ')}`);
+          results.push({ id: suite.id, ran: false, reason: `scope files not run by vitest: ${unreported.join(', ')}` });
+        } else if (index === 0) {
           const end = Math.max(...(data.testResults ?? []).map((r) => r.endTime ?? 0), data.startTime);
           results.push({ id: suite.id, ran: true, total: data.numTotalTests, passed: data.numPassedTests, failed: data.numFailedTests, skipped, durationSeconds: Math.round((end - data.startTime) / 100) / 10 });
         }
@@ -118,9 +181,10 @@ function runSuites() {
   const g7Status = executionStatus(results);
   writeGate(cycle, {
     gate: 'G7', name: 'Execution', status: g7Status,
-    summary: { total: sum('total'), passed: sum('passed'), failed: sum('failed'), skipped: sum('skipped'), durationSeconds: Math.round(sum('durationSeconds') * 10) / 10, runner, suites: results },
+    summary: { total: sum('total'), passed: sum('passed'), failed: sum('failed'), skipped: sum('skipped'), durationSeconds: Math.round(sum('durationSeconds') * 10) / 10, runner: runners.join(', '), suites: results },
     findings: results.filter((r) => !r.ran).map((r) => `suite ${r.id} NOT RUN: ${r.reason}`)
       .concat(ran.flatMap((r) => [
+        ...(r.error ? [`suite ${r.id} FAILED: ${r.error}`] : []),
         ...(r.failed ? [`suite ${r.id}: ${r.failed} failed`] : []),
         ...(r.skipped ? [`suite ${r.id}: ${r.skipped} skipped`] : []),
       ])),

@@ -31,8 +31,67 @@ export function worst(statuses) {
 /** A suite with skipped tests did not fully execute and cannot pass G7. */
 export function executionStatus(results) {
   if (results.some((result) => !result.ran)) return UNABLE;
-  if (results.some((result) => result.failed > 0 || result.skipped > 0)) return BLOCKED;
+  if (results.some((result) => result.failed > 0 || result.skipped > 0 || result.error)) return BLOCKED;
   return PASS;
+}
+
+/**
+ * Why a Playwright run cannot count as passing even when every reported test passed: a nonzero exit status, or
+ * report-level errors (for example a failing globalTeardown). Returns a reason string, or null for a clean run.
+ */
+export function playwrightRunProblem(report, exitStatus) {
+  const problems = [];
+  const errors = Array.isArray(report?.errors) ? report.errors : [];
+  if (errors.length) problems.push(`${errors.length} report-level error(s): ${errors.map((e) => String(e?.message ?? e).split('\n')[0]).join('; ')}`);
+  if (exitStatus !== 0) problems.push(`playwright exited with status ${exitStatus ?? 'unknown (no exit status)'}`);
+  return problems.length ? problems.join('; ') : null;
+}
+
+/** Scope-listed files (repo-relative) that a runner's testResults do not mention: they never ran. */
+export function missingFromResults(files, data) {
+  const seen = new Set((data?.testResults ?? []).map((result) => rel(result.name)));
+  return files.filter((file) => !seen.has(rel(file)));
+}
+
+const PLAYWRIGHT_STATUS = { expected: 'passed', unexpected: 'failed', flaky: 'failed', skipped: 'pending' };
+
+/**
+ * Converts a Playwright JSON report into the vitest JSON shape that check-records and run-cycle read
+ * (testResults[].assertionResults[{ title, status }] and the num*Tests counts). `files` are the repo-relative scope
+ * files; Playwright names specs relative to its testDir, so each is matched by path suffix. A flaky test (passed only
+ * on retry) counts as failed so a G7 pass is never retry-dependent.
+ */
+export function playwrightToVitest(report, files) {
+  const byFile = new Map();
+  const visit = (suite) => {
+    for (const spec of suite.specs ?? []) {
+      const specFile = spec.file.split('\\').join('/');
+      const file = files.map(rel).find((f) => f === specFile || f.endsWith(`/${specFile}`)) ?? specFile;
+      const list = byFile.get(file) ?? [];
+      for (const test of spec.tests ?? []) list.push({ title: spec.title, status: PLAYWRIGHT_STATUS[test.status] ?? 'failed' });
+      byFile.set(file, list);
+    }
+    for (const child of suite.suites ?? []) visit(child);
+  };
+  for (const suite of report.suites ?? []) visit(suite);
+  const startTime = Date.parse(report.stats?.startTime ?? '') || 0;
+  const testResults = [...byFile].map(([file, assertionResults]) => ({
+    name: abs(file),
+    endTime: startTime + (report.stats?.duration ?? 0),
+    status: assertionResults.some((r) => r.status === 'failed') ? 'failed' : 'passed',
+    assertionResults,
+  }));
+  const all = testResults.flatMap((result) => result.assertionResults);
+  const count = (status) => all.filter((r) => r.status === status).length;
+  return {
+    numTotalTests: all.length,
+    numPassedTests: count('passed'),
+    numFailedTests: count('failed'),
+    numPendingTests: count('pending'),
+    numTodoTests: 0,
+    startTime,
+    testResults,
+  };
 }
 
 /** Timezone evidence blocks when any test failed or was skipped, and is unavailable when a zone did not run. */

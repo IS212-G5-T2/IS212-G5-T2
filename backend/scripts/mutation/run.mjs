@@ -115,7 +115,8 @@ const run = (suite, mapping, extra = []) =>
     encoding: 'utf8',
     timeout: 180_000,
   });
-const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
+// Strip ANSI colour codes (FORCE_COLOR / CI terminals) so summary parsing matches.
+const outputOf = (result) => `${result.stdout ?? ''}\n${result.stderr ?? ''}`.replace(/\u001b\[[0-9;]*[A-Za-z]/g, '');
 // Vitest's summary proves that at least one test body ran. Exit status alone
 // can be zero when discovery/configuration selects no tests.
 const executedTests = (result) => {

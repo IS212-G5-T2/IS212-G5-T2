@@ -2,19 +2,19 @@
   {
     "story": "SPM-38",
     "file": "backend/src/events/events.service.ts",
-    "lines": "96",
+    "lines": "105",
     "reason": "requireOrganiser name fallback used by event creation (SPM-36); covered by EVE-CRE-06-BND-2"
   },
   {
     "story": "SPM-40",
     "file": "backend/src/events/events.service.ts",
-    "lines": "96",
+    "lines": "105",
     "reason": "requireOrganiser name fallback used by event creation (SPM-36); covered by EVE-CRE-06-BND-2"
   },
   {
     "story": "SPM-83",
     "file": "backend/src/events/events.service.ts",
-    "lines": "96",
+    "lines": "105",
     "reason": "requireOrganiser name fallback used by event creation (SPM-36); covered by EVE-CRE-06-BND-2"
   }
 ]

@@ -1,3 +1,4 @@
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { ProfileMenu } from "./ProfileMenu";
 
 export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
@@ -10,7 +11,9 @@ export function TopNav({ onMenuClick }: { onMenuClick: () => void }) {
       >
         ☰
       </button>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-2">
+        {/* SPM-88 (SC-SPM88-10): organiser request decisions live in the top-bar bell, on every page. */}
+        <NotificationBell />
         <ProfileMenu />
       </div>
     </header>

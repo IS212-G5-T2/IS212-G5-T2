@@ -595,3 +595,39 @@ describe("EventDetailPage — decision failures (SPM-40, SPM-83)", () => {
     expect(await screen.findByText("Failed to reject event.")).toBeTruthy();
   });
 });
+
+describe("EventDetailPage — decision shown to the organiser (SPM-88 AC4)", () => {
+  /**
+   * DECISION-NOTIFY-04-C: the organiser who owns a rejected request sees the rejected status
+   * and the reason as "Rejected: <reason>".
+   * Kills: rejected request showing no status; reason not rendered for the owner.
+   */
+  it("DECISION-NOTIFY-04-C: organiser viewing a rejected event sees status rejected and 'Rejected: <reason>'", async () => {
+    setUser("organiser", "organiser-9");
+    renderDetail(assignedEvent({ status: "rejected", rejectionReason: "Venue is not available" }));
+
+    const timeline = await screen.findByRole("list", { name: /Event status timeline/i });
+    expect(within(timeline).getByText("rejected")).toBeTruthy();
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName === "DIV" && element.textContent === "Rejected: Venue is not available",
+      ),
+    ).toBeTruthy();
+  });
+
+  /**
+   * DECISION-NOTIFY-04-D: the organiser who owns an approved request sees approved and no
+   * rejection block.
+   * Kills: a rejection block shown for an approved request; approved status missing for the owner.
+   */
+  it("DECISION-NOTIFY-04-D: organiser viewing an approved event sees approved and no rejection block", async () => {
+    setUser("organiser", "organiser-9");
+    renderDetail(assignedEvent({ status: "approved" }));
+
+    const timeline = await screen.findByRole("list", { name: /Event status timeline/i });
+    expect(within(timeline).getByText("approved")).toBeTruthy();
+    expect(within(timeline).queryByText("rejected")).toBeNull();
+    expect(screen.queryByText(/Rejected:/)).toBeNull();
+  });
+});

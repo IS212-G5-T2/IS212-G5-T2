@@ -1,3 +1,7 @@
+// Explicit 3-letter months so the abbreviation is stable ("Sep", not the
+// locale-dependent "Sept" some environments produce).
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
 export function formatDateRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
@@ -18,9 +22,6 @@ export function formatDateRange(start: string, end: string): string {
 export function formatDateTimeRange(start: string, end: string): string {
   const s = new Date(start);
   const e = new Date(end);
-  // Explicit 3-letter months so the abbreviation is stable ("Sep", not the
-  // locale-dependent "Sept" some environments produce).
-  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const fmtDate = (d: Date) => `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
   const fmtTime = (d: Date) =>
     d
@@ -42,6 +43,15 @@ export function formatDateTime(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+// Visible decision date for notifications (SPM-88 A1): day, 3-letter month and year in the
+// viewer's local time, e.g. "28 Oct 2026" or "5 Oct 2026" (day not zero-padded, matching
+// formatDateTimeRange). Returns null for an unparseable timestamp so no "NaN" text is shown.
+export function formatDecisionDate(value: string): string | null {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 export function timeAgo(value: string): string {
