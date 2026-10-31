@@ -2865,8 +2865,8 @@ describe('SPM-121 repository.update', () => {
     return { repository, txQuery, poolQuery, transaction };
   }
 
-  /** VEN-UPD-07-A: updating a venue owned by another staff member returns forbidden. */
-  it('VEN-UPD-07-A returns forbidden when the caller is not the venue owner', async () => {
+  /** VEN-UPD-07-A-REPO: updating a venue owned by another staff member returns forbidden. */
+  it('VEN-UPD-07-A-REPO returns forbidden when the caller is not the venue owner', async () => {
     const { repository } = createUpdateRepository({
       id: venueId,
       owner_user_id: otherUserId,
@@ -2877,16 +2877,16 @@ describe('SPM-121 repository.update', () => {
     ).resolves.toEqual({ kind: 'forbidden' });
   });
 
-  /** VEN-UPD-07-B: updating a non-existent venue returns not-found. */
-  it('VEN-UPD-07-B returns not-found when the venue does not exist', async () => {
+  /** VEN-UPD-07-B-REPO: updating a non-existent venue returns not-found. */
+  it('VEN-UPD-07-B-REPO returns not-found when the venue does not exist', async () => {
     const { repository } = createUpdateRepository(undefined);
     await expect(
       repository.update(ownerUserId, venueId, venueInput),
     ).resolves.toEqual({ kind: 'not-found' });
   });
 
-  /** VEN-UPD-05-A: a successful update returns the updated venue record with empty booking lists when no conflicts or capacity change. */
-  it('VEN-UPD-05-A returns updated venue and empty booking lists when capacity and timing are unchanged', async () => {
+  /** VEN-UPD-05-A-REPO: a successful update returns the updated venue record with empty booking lists when no conflicts or capacity change. */
+  it('VEN-UPD-05-A-REPO returns updated venue and empty booking lists when capacity and timing are unchanged', async () => {
     const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity };
     const { repository } = createUpdateRepository(lockRow);
     const result = await repository.update(ownerUserId, venueId, venueInput);
@@ -2898,8 +2898,8 @@ describe('SPM-121 repository.update', () => {
     }
   });
 
-  /** VEN-UPD-09-A: capacity change triggers the AC9 pending/approved booking query. */
-  it('VEN-UPD-09-A runs the capacity booking query when capacity changes', async () => {
+  /** VEN-UPD-09-A-REPO: capacity change triggers the AC9 pending/approved booking query. */
+  it('VEN-UPD-09-A-REPO runs the capacity booking query when capacity changes', async () => {
     const capacityBookingRow = {
       id: 'bk-1',
       event_name: 'Conference',
@@ -2971,8 +2971,8 @@ describe('SPM-121 repository.update', () => {
     expect(sqlCalls.some((s: string) => s.includes('venue_booking_requests'))).toBe(false);
   });
 
-  /** VEN-UPD-08-C: when only setup changes, timing is treated as changed. */
-  it('VEN-UPD-08-C runs the AC8 query when only setup time changes', async () => {
+  /** VEN-UPD-08-C-REPO: when only setup changes, timing is treated as changed. */
+  it('VEN-UPD-08-C-REPO runs the AC8 query when only setup time changes', async () => {
     const lockRow = {
       id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity,
       setup_time_minutes: 0,
