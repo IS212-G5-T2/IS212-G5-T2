@@ -32,7 +32,7 @@
         "titleMatch": "EVENT-APPROVE"
       },
       {
-        "glob": "frontend/src/components/notifications/RejectionNotifications.test.tsx",
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
         "titleMatch": "EVENT-APPROVE"
       }
     ]

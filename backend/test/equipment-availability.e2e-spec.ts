@@ -704,8 +704,21 @@ describe('SPM-119 equipment availability (e2e)', () => {
       quantity = 1,
     } = overrides;
     const result = await pool.query<{ id: string }>(
-      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location, is_available) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [name, type, quantity, maintenanceStatus, location, isAvailable],
+      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status,
+                              active_quantity, under_maintenance_quantity, retired_quantity,
+                              location, is_available)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+      [
+        name,
+        type,
+        quantity,
+        maintenanceStatus,
+        maintenanceStatus === 'Active' ? quantity : 0,
+        maintenanceStatus === 'Under Maintenance' ? quantity : 0,
+        maintenanceStatus === 'Retired' ? quantity : 0,
+        location,
+        isAvailable,
+      ],
     );
     equipmentIds.push(result.rows[0].id);
     return result.rows[0].id;

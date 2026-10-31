@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticatedUser } from '../../auth/types/auth.models.js';
 import { EquipmentRequestsRepository } from './equipment-requests.repository.js';
@@ -10,13 +10,84 @@ const coordinator: AuthenticatedUser = { uid: '00000000-0000-4000-8000-000000000
 const submit = vi.fn();
 const listMine = vi.fn();
 const listQueue = vi.fn();
+const listReservations = vi.fn();
 const listEligibleEvents = vi.fn();
 const update = vi.fn();
-const service = new EquipmentRequestsService({ submit, update, listMine, listQueue, listEligibleEvents } as unknown as EquipmentRequestsRepository);
+const reserve = vi.fn();
+const markCannotProvide = vi.fn();
+const service = new EquipmentRequestsService({ submit, update, reserve, markCannotProvide, listMine, listQueue, listReservations, listEligibleEvents } as unknown as EquipmentRequestsRepository);
 
 beforeEach(() => vi.resetAllMocks());
 
 describe('SPM-57 equipment request service', () => {
+  /** SPM-113: Technical Support can make a pending request consume stock. */
+  it('reserves a pending equipment request for availability calculations', async () => {
+    reserve.mockResolvedValue({ kind: 'reserved', id: '00000000-0000-4000-8000-000000000099' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .resolves.toMatchObject({ kind: 'reserved', requestReference: 'ER-00000000' });
+    expect(reserve).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099');
+  });
+
+  it('refuses coordinators and non-pending request transitions', async () => {
+    await expect(service.reserve(coordinator, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ForbiddenException);
+    reserve.mockResolvedValue({ kind: 'not-pending' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099')).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  /** Technical Support receives a conflict when approving equipment after event confirmation. */
+  it('refuses to approve requests after their event is Confirmed', async () => {
+    reserve.mockResolvedValue({ kind: 'event-confirmed' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .rejects.toThrow('Equipment requests cannot be changed after the event is confirmed.');
+  });
+
+  /** EQUIP-AVAIL-04-BND-1: Technical Support cannot reserve maintenance or already-reserved units. */
+  it('refuses a reservation when its requested units are not active and free', async () => {
+    reserve.mockResolvedValue({ kind: 'insufficient-active-stock', equipmentName: 'Stage lighting' });
+    await expect(service.reserve({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099'))
+      .rejects.toThrow('Not enough active equipment is available to reserve Stage lighting.');
+  });
+
+  /** EQUIP-RESERVE-08-A: Technical Support marks a request Cannot Provide with a required reason. */
+  it('marks a pending request Cannot Provide with a trimmed reason', async () => {
+    markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id: '00000000-0000-4000-8000-000000000099' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '  Only 8 available; 10 requested.  ' }))
+      .resolves.toMatchObject({ kind: 'cannot-provided', requestReference: 'ER-00000000' });
+    expect(markCannotProvide).toHaveBeenCalledWith('00000000-0000-4000-8000-000000000099', 'Only 8 available; 10 requested.');
+  });
+
+  /** the reason is capped at 500 characters; 500 is accepted, 501 is refused. */
+  it('bounds the Cannot Provide reason to 500 characters', async () => {
+    const id = '00000000-0000-4000-8000-000000000099';
+    const support = { uid: 'support', roles: ['TECH_SUPPORT'] };
+    markCannotProvide.mockClear();
+    await expect(service.markCannotProvide(support, id, { reason: 'x'.repeat(501) })).rejects.toBeInstanceOf(BadRequestException);
+    expect(markCannotProvide).not.toHaveBeenCalled();
+    markCannotProvide.mockResolvedValue({ kind: 'cannot-provided', id });
+    await expect(service.markCannotProvide(support, id, { reason: 'x'.repeat(500) })).resolves.toMatchObject({ requestReference: 'ER-00000000' });
+  });
+
+  /** EQUIP-RESERVE-08-B: an empty or missing reason is refused before any persistence. */
+  it('requires a non-empty reason to mark Cannot Provide', async () => {
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: '   ' }))
+      .rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', {}))
+      .rejects.toBeInstanceOf(BadRequestException);
+    expect(markCannotProvide).not.toHaveBeenCalled();
+  });
+
+  /** only Technical Support can mark Cannot Provide, and the event-confirmed/not-pending guards surface as conflicts. */
+  it('restricts Cannot Provide to Technical Support and maps repository guards', async () => {
+    await expect(service.markCannotProvide(coordinator, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.markCannotProvide(undefined, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(UnauthorizedException);
+    markCannotProvide.mockResolvedValue({ kind: 'not-pending' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    markCannotProvide.mockResolvedValue({ kind: 'event-confirmed' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(ConflictException);
+    markCannotProvide.mockResolvedValue({ kind: 'request-not-found' });
+    await expect(service.markCannotProvide({ uid: 'support', roles: ['TECH_SUPPORT'] }, '00000000-0000-4000-8000-000000000099', { reason: 'x' })).rejects.toBeInstanceOf(NotFoundException);
+  });
+
   /** EQUIP-REQUEST-01-A: a coordinator can read only their eligible event picker options. */
   it('returns the coordinator-scoped eligible event picker list', async () => {
     listEligibleEvents.mockResolvedValue([{ id: eventId, name: 'Workshop' }]);
@@ -107,5 +178,16 @@ describe('SPM-57 equipment request service', () => {
     await expect(service.listQueue({ uid: 'tech', roles: ['TECH_SUPPORT'] })).resolves.toEqual([]);
     await expect(service.listQueue({ uid: 'coordinator', roles: ['COORDINATOR'] })).rejects.toBeInstanceOf(ForbiddenException);
     await expect(service.listQueue(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  /** EQUIP-RESERVE-07-A: Technical Support can read persisted reservations and their owning events. */
+  it('returns reservation rows only to Technical Support', async () => {
+    listReservations.mockResolvedValue([{ equipmentName: 'Stage lighting', eventName: 'Open Day' }]);
+    await expect(service.listReservations({ uid: 'tech', roles: ['TECH_SUPPORT'] })).resolves.toEqual([
+      { equipmentName: 'Stage lighting', eventName: 'Open Day' },
+    ]);
+    await expect(service.listReservations(coordinator)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.listReservations(undefined)).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(listReservations).toHaveBeenCalledTimes(1);
   });
 });

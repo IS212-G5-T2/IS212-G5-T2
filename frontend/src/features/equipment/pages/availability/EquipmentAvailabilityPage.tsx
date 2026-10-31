@@ -9,7 +9,20 @@ import type { EquipmentRecord } from "@/types";
 import { getEquipment, updateEquipmentAvailability } from "@/features/equipment/api/equipment-api";
 
 function isRecordAvailable(record: EquipmentRecord): boolean {
+  return record.activeQuantity > 0 && record.isAvailable !== false;
+}
+
+function isManuallyAvailable(record: EquipmentRecord): boolean {
   return record.isAvailable !== false;
+}
+
+function maintenanceStatusSummary(record: EquipmentRecord): string {
+  const statuses = [
+    record.activeQuantity > 0 ? "Active" : null,
+    record.underMaintenanceQuantity > 0 ? "Under Maintenance" : null,
+    record.retiredQuantity > 0 ? "Retired" : null,
+  ].filter((status): status is string => status !== null);
+  return statuses.length === 1 ? statuses[0] : "Mixed";
 }
 
 /**
@@ -67,7 +80,7 @@ function MarkUnavailableDialog({ record, onConfirm, onCancel }: MarkUnavailableD
             <DetailRow label="Name" value={record.name} />
             <DetailRow label="Type" value={record.type} />
             <DetailRow label="Location" value={record.location} />
-            <DetailRow label="Status" value={record.maintenanceStatus} />
+            <DetailRow label="Active quantity" value={String(record.activeQuantity)} />
           </div>
           <p className="mt-3 text-sm text-gray-600 dark:text-gray-400">
             This equipment will be hidden from equipment search and lists.
@@ -256,11 +269,18 @@ export function EquipmentAvailabilityPage() {
     },
     {
       header: "Maintenance status",
-      render: (record) => record.maintenanceStatus,
+      render: (record) => maintenanceStatusSummary(record),
     },
     {
       header: "Quantity",
-      render: (record) => record.quantity,
+      render: (record) => (
+        <div aria-label={`Quantity breakdown: Active ${record.activeQuantity}, Under Maintenance ${record.underMaintenanceQuantity}, Retired ${record.retiredQuantity}`} className="space-y-1">
+          <p>Active: {record.activeQuantity}</p>
+          <p>Under Maintenance: {record.underMaintenanceQuantity}</p>
+          <p>Retired: {record.retiredQuantity}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">Total: {record.quantity}</p>
+        </div>
+      ),
     },
     {
       header: "Available",
@@ -277,7 +297,7 @@ export function EquipmentAvailabilityPage() {
           >
             Edit
           </Button>
-          {isRecordAvailable(record) ? (
+          {isManuallyAvailable(record) ? (
             <Button
               variant="secondary"
               size="sm"
@@ -303,7 +323,7 @@ export function EquipmentAvailabilityPage() {
     <div>
       <div aria-hidden={dialog !== null || undefined}>
         <PageHeader
-          title="Equipment Availability"
+          title="Equipment Inventory"
           description="Technical Support inventory records."
           actions={
             <Button onClick={() => navigate("/equipment/create")}>

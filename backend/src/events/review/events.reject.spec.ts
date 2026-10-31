@@ -137,14 +137,14 @@ describe('EventsService.reject (SPM-83)', () => {
     // AC5: the status + reason update carries the trimmed reason.
     const update = db.transaction.mock.calls.find((c) => String(c[0]).trim().startsWith('UPDATE'))!;
     expect(update[1]).toEqual([VALID_UUID, VALID_REASON]);
-    // AC6: the notification targets the organiser and embeds the reason.
+    // AC6: the notification targets the organiser; its message carries the event name but not the reason (SPM-88 AC3).
     const insert = db.transaction.mock.calls.find((c) =>
       String(c[0]).trim().startsWith('INSERT INTO notifications'),
     )!;
     expect(insert[1]).toEqual([
       expect.any(String),
       'organiser-9',
-      expect.stringContaining(VALID_REASON),
+      expect.not.stringContaining(VALID_REASON),
       VALID_UUID,
     ]);
   });
@@ -365,15 +365,15 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
     id: 'notif-1',
     recipient_id: 'current-user',
     type: 'rejection',
-    message: `Your event request "Welcome Evening" was rejected: ${VALID_REASON}`,
+    message: `Your event request "Welcome Evening" was rejected`,
     related_event_id: VALID_UUID,
     read: false,
     created_at: new Date('2026-09-14T00:00:00.000Z'),
   };
 
-  // Kills: notifications() dropping the rejection type, reason text, audience or read flag, or querying the wrong notification types.
-  /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification and reason. */
-  it("returns the organiser's rejection notifications including the reason", async () => {
+  // Kills: notifications() dropping the rejection type, the headline, audience or read flag, or querying the wrong notification types.
+  /** EVENT-REJECT-03-I step 1–2: the organiser retrieves their rejection notification (the reason is on the event, SPM-88 AC3). */
+  it("returns the organiser's rejection notifications without the reason in the message", async () => {
     db.query.mockResolvedValue({ rows: [notificationRow] });
 
     const result = await service.notifications(organiser());
@@ -384,7 +384,8 @@ describe('EventsService rejection notifications (AC6 / EVENT-REJECT-02-B)', () =
       relatedEventId: VALID_UUID,
       read: false,
     });
-    expect(result[0].message).toContain(VALID_REASON);
+    expect(result[0].message).toBe('Your event request "Welcome Evening" was rejected');
+    expect(result[0].message).not.toContain(VALID_REASON);
     // The organiser's query asks only for their decision notification types.
     expect(db.query.mock.calls[0][1]).toEqual(['current-user', ['rejection', 'approval', 'EventConfirmed', 'EventCancelled', 'change_request_approved', 'change_request_denied']]);
   });

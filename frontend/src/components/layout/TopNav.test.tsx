@@ -13,6 +13,11 @@ import { TopNav } from "./TopNav";
 
 const { getMyAvailability } = vi.hoisted(() => ({ getMyAvailability: vi.fn() }));
 
+// The organiser top bar mounts the notification bell, which reads /notifications; none are needed here.
+vi.mock("@/utils/api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  api: vi.fn().mockResolvedValue([]),
+}));
 vi.mock("@/features/account/api/availability-api", () => ({ getMyAvailability, saveMyAvailability: vi.fn() }));
 
 const coordinator: User = {

@@ -217,8 +217,9 @@ describe.skipIf(!database)('SPM-136 Cancel an Event over HTTP (e2e)', () => {
   /** Equipment inventory row (the stock the reservations draw on). */
   async function seedInventory(name: string, type: string, quantity: number) {
     const result = await pool.query<{ id: string }>(
-      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status, location, is_available)
-       VALUES ($1,$2,$3,'Active','Storage Room A',true) RETURNING id`,
+      `INSERT INTO equipment (equipment_name, equipment_type, quantity, maintenance_status,
+         active_quantity, under_maintenance_quantity, retired_quantity, location, is_available)
+       VALUES ($1,$2,$3,'Active',$3,0,0,'Storage Room A',true) RETURNING id`,
       [name, type, quantity],
     );
     createdEquipmentIds.push(result.rows[0].id);

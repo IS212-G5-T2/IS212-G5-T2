@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Req } from '@nestjs/common';
 import { CURRENT_USER_REQUEST_KEY } from '../../auth/types/auth.models.js';
 import type { AuthenticatedRequest } from '../../auth/types/authenticated-request.js';
 import { EquipmentRequestsService } from './equipment-requests.service.js';
@@ -34,4 +34,22 @@ export class EquipmentRequestsController {
   listQueue(@Req() request: AuthenticatedRequest) {
     return this.requests.listQueue(request[CURRENT_USER_REQUEST_KEY]);
   }
+
+  @Get('reservations')
+  listReservations(@Req() request: AuthenticatedRequest) {
+    return this.requests.listReservations(request[CURRENT_USER_REQUEST_KEY]);
+  }
+
+  /** Technical Support turns a submitted request into the reservation used by SPM-113. */
+  @Patch(':requestId/reserve')
+  reserve(@Req() request: AuthenticatedRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string) {
+    return this.requests.reserve(request[CURRENT_USER_REQUEST_KEY], requestId);
+  }
+
+  /** SPM-58 AC8/AC9: Technical Support marks a request Cannot Provide with a reason. */
+  @Patch(':requestId/cannot-provide')
+  cannotProvide(@Req() request: AuthenticatedRequest, @Param('requestId', new ParseUUIDPipe()) requestId: string, @Body() body: unknown) {
+    return this.requests.markCannotProvide(request[CURRENT_USER_REQUEST_KEY], requestId, body);
+  }
+
 }

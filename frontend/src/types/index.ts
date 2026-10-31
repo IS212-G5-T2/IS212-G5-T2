@@ -339,14 +339,19 @@ export interface EquipmentItem {
 }
 
 /** A persisted inventory record created by Technical Support (SPM-111). */
+export type EquipmentMaintenanceStatus = "Active" | "Under Maintenance" | "Retired";
+
 export interface EquipmentRecord {
   id: string;
   name: string;
   type: "Audio" | "Visual" | "Furniture" | "Lighting" | "Other";
+  activeQuantity: number;
+  underMaintenanceQuantity: number;
+  retiredQuantity: number;
+  /** Derived total across all three maintenance-status buckets. */
   quantity: number;
-  maintenanceStatus: "Active" | "Under Maintenance" | "Retired";
   location: string;
-  /** SPM-119: booking availability, independent of maintenanceStatus. Defaults to true. */
+  /** SPM-119: manual availability flag, independent of the status quantities. Defaults to true. */
   isAvailable?: boolean;
   createdAt: string;
   updatedAt: string;
@@ -359,7 +364,10 @@ export interface EquipmentAuditEntry {
   equipmentName: string;
   equipmentType: EquipmentRecord["type"];
   location: string;
-  maintenanceStatus: EquipmentRecord["maintenanceStatus"];
+  maintenanceStatus: EquipmentMaintenanceStatus;
+  activeQuantity: number;
+  underMaintenanceQuantity: number;
+  retiredQuantity: number;
   quantity: number;
   isAvailable: boolean;
   changeType: "Marked unavailable" | "Reactivated" | "Equipment record updated";
@@ -446,6 +454,8 @@ export interface Notification {
   type: NotificationType;
   message: string;
   relatedEventId?: string;
+  /** The related event's current name (SPM-88); null or absent when there is no event. */
+  relatedEventName?: string | null;
   read: boolean;
   createdAt: string;
 }

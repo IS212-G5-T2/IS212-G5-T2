@@ -1,20 +1,22 @@
 // SPM-83 frontend mutants (reject a request with a clear reason), run by the frontend runner:
 //   node scripts/testing/mutation/run.mjs --mutants spm83.mutants.mjs            # every mutant
 // Each edit is [from, to]; `from` must occur exactly once in the file (the runner reports MISAPPLIED otherwise).
-// FE-83-01 is the notifications toggle. RF1 to RF4 come from the SPM-150 cycle-01 test review (review/mutation).
+// SPM-83's Show all / Show unread toggle (FE-83-01) was retired when the in-page Request Decisions panel became the
+// top-bar notification bell (SPM-88, SC-SPM88-10): only unread decisions are listed and no toggle exists, so that
+// mutant has no behaviour left to probe; FE-83-02 replaces it for the bell. RF1 to RF4 come from the SPM-150 cycle-01
+// test review (review/mutation).
 export const SUITES = {
-  notifications: { args: ['run', 'src/components/notifications/RejectionNotifications.test.tsx'] },
+  notifications: { args: ['run', 'src/components/notifications/NotificationBell.test.tsx'] },
   decision: { args: ['run', 'src/features/events/pages/detail/EventDetailPage.decision.test.tsx', 'src/store/useAppStore.decisions.test.ts', 'src/features/events/pages/list/EventListPage.test.tsx'] },
 };
 
-const NOTIFICATIONS = 'src/components/notifications/RejectionNotifications.tsx';
 const DETAIL = 'src/features/events/pages/detail/EventDetailPage.tsx';
 
 export const MUTANTS = [{
-  id: 'FE-83-01', name: 'Show all continues to display only unread decisions',
-  file: NOTIFICATIONS, suites: ['notifications'],
-  testMappings: [{ suite: 'notifications', file: 'src/components/notifications/RejectionNotifications.test.tsx', title: 'SPM-83 toggles between unread and all rejection decisions' }],
-  edits: [['const visible = expanded ? notifications : unread;', 'const visible = expanded ? unread : unread;']],
+  id: 'FE-83-02', name: 'read rejection decisions are listed in the bell (only unread should be)',
+  file: 'src/components/notifications/NotificationBell.tsx', suites: ['notifications'],
+  testMappings: [{ suite: 'notifications', file: 'src/components/notifications/NotificationBell.test.tsx', title: 'SPM-83 lists only unread rejection decisions' }],
+  edits: [['.filter((n) => !n.read)', '.filter(() => true)']],
 }, {
   id: 'RF1', name: 'the page sends a truncated reason (first 499 characters), so a 500-character reason is not sent in full (EVENT-REJECT-01-E)',
   file: DETAIL, suites: ['decision'],

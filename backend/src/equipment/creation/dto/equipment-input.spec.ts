@@ -4,6 +4,7 @@ import {
   EQUIPMENT_MAINTENANCE_STATUSES,
   EQUIPMENT_TYPES,
   MAX_EQUIPMENT_QUANTITY,
+  getLegacyMaintenanceStatus,
   validateEquipmentInput,
 } from './equipment-input.js';
 
@@ -59,7 +60,7 @@ describe('validateEquipmentInput', () => {
     const result = validateEquipmentInput(input);
 
     // Assert: all fields are retained exactly as submitted.
-    expect(result).toEqual(input);
+    expect(result).toMatchObject({ ...input, activeQuantity: 5, underMaintenanceQuantity: 0, retiredQuantity: 0 });
   });
 
   // EQUIP-CRE-03-E: unsupported client-controlled properties are discarded at the API boundary.
@@ -68,7 +69,7 @@ describe('validateEquipmentInput', () => {
     const result = validateEquipmentInput({ ...validInput, id: 'forged-id' });
 
     // Assert: only the five API fields can reach persistence.
-    expect(result).toEqual(validInput);
+    expect(result).toMatchObject({ ...validInput, activeQuantity: 5, underMaintenanceQuantity: 0, retiredQuantity: 0 });
   });
 
   // SPM-111 EQUIP-CRE-03-A/C: the original required fields are enforced by the API.
@@ -247,6 +248,143 @@ describe('validateEquipmentInput', () => {
       { ...validInput, maintenanceStatus: 'Broken' },
       'maintenanceStatus',
       'Maintenance status must be from the predefined list.',
+    );
+  });
+});
+
+describe('getLegacyMaintenanceStatus', () => {
+  /** EQUIP-AVAIL-08-B: the legacy summary remains available only for single-status records. */
+  it('EQUIP-AVAIL-08-B maps each legacy status summary to its matching label', () => {
+    const cases = [
+      [{ activeQuantity: 3, underMaintenanceQuantity: 0, retiredQuantity: 0 }, 'Active'],
+      [{ activeQuantity: 0, underMaintenanceQuantity: 3, retiredQuantity: 0 }, 'Under Maintenance'],
+      [{ activeQuantity: 0, underMaintenanceQuantity: 0, retiredQuantity: 3 }, 'Retired'],
+    ] as const;
+    for (const [counts, expected] of cases) {
+      expect(getLegacyMaintenanceStatus(counts)).toBe(expected);
+    }
+  });
+});
+
+describe('SPM-113 AC8 status-quantity validation', () => {
+  /** EQUIP-AVAIL-08-A: create and edit accept a mixed status breakdown and derive the total quantity. */
+  it('EQUIP-AVAIL-08-A stores the 10 Active, 30 Under Maintenance, and 10 Retired breakdown as total 50', () => {
+    expect(
+      validateEquipmentInput({
+        name: 'Lighting',
+        type: 'Lighting',
+        location: 'Store A',
+        activeQuantity: 10,
+        underMaintenanceQuantity: 30,
+        retiredQuantity: 10,
+      }),
+    ).toMatchObject({
+      quantity: 50,
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+    });
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: reject ambiguous requests combining both quantity contracts. */
+  it('EQUIP-AVAIL-08-BND-1 rejects a request combining breakdown counts with legacy total or status fields', () => {
+    const input = {
+      name: 'Lighting',
+      type: 'Lighting',
+      location: 'Store A',
+      activeQuantity: 10,
+      underMaintenanceQuantity: 30,
+      retiredQuantity: 10,
+      quantity: 50,
+      maintenanceStatus: 'Active',
+    };
+
+    expectFieldError(input, 'quantity');
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: each status count is required and may be zero. */
+  it('EQUIP-AVAIL-08-BND-1 accepts zero in each status bucket while the total remains positive', () => {
+    const zeroCases = [
+    ['activeQuantity', 0, 1, 0],
+    ['underMaintenanceQuantity', 1, 0, 0],
+    ['retiredQuantity', 1, 0, 0],
+    ] as const;
+    for (const [field, active, maintenance, retired] of zeroCases) {
+      const input = {
+        name: 'Lighting',
+        type: 'Lighting',
+        location: 'Store A',
+        activeQuantity: active,
+        underMaintenanceQuantity: maintenance,
+        retiredQuantity: retired,
+      };
+      expect(validateEquipmentInput(input).quantity).toBe(active + maintenance + retired);
+      const missing = { ...input } as Record<string, unknown>;
+      delete missing[field];
+      expectFieldError(missing, field);
+    }
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: status counts reject negative, fractional, non-number, and out-of-range values. */
+  it('EQUIP-AVAIL-08-BND-1 rejects negative, fractional, non-number, and out-of-range bucket values', () => {
+    const invalidValues = [
+      ['activeQuantity', -1],
+      ['activeQuantity', 1.5],
+      ['activeQuantity', '1'],
+      ['activeQuantity', MAX_EQUIPMENT_QUANTITY + 1],
+      ['underMaintenanceQuantity', -1],
+      ['underMaintenanceQuantity', 1.5],
+      ['underMaintenanceQuantity', '1'],
+      ['underMaintenanceQuantity', MAX_EQUIPMENT_QUANTITY + 1],
+      ['retiredQuantity', -1],
+      ['retiredQuantity', 1.5],
+      ['retiredQuantity', '1'],
+      ['retiredQuantity', MAX_EQUIPMENT_QUANTITY + 1],
+    ] as const;
+
+    for (const [field, invalid] of invalidValues) {
+      expectFieldError(
+        {
+          name: 'Lighting',
+          type: 'Lighting',
+          location: 'Store A',
+          activeQuantity: 1,
+          underMaintenanceQuantity: 0,
+          retiredQuantity: 0,
+          [field]: invalid,
+        },
+        field,
+      );
+    }
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: a record cannot be saved when every status bucket is zero. */
+  it('EQUIP-AVAIL-08-BND-1 rejects an all-zero total', () => {
+    expectFieldError(
+      {
+        name: 'Lighting',
+        type: 'Lighting',
+        location: 'Store A',
+        activeQuantity: 0,
+        underMaintenanceQuantity: 0,
+        retiredQuantity: 0,
+      },
+      'activeQuantity',
+    );
+  });
+
+  /** EQUIP-AVAIL-08-BND-1: the summed quantity may not exceed the existing PostgreSQL integer limit. */
+  it('EQUIP-AVAIL-08-BND-1 rejects a bucket sum beyond the PostgreSQL integer maximum', () => {
+    expectFieldError(
+      {
+        name: 'Lighting',
+        type: 'Lighting',
+        location: 'Store A',
+        activeQuantity: MAX_EQUIPMENT_QUANTITY,
+        underMaintenanceQuantity: 1,
+        retiredQuantity: 0,
+      },
+      'activeQuantity',
     );
   });
 });

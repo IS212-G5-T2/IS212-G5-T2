@@ -151,9 +151,11 @@ node ai/scripts/test-workflow/run-cycle.mjs --scope ... --skip mutation --dry-ru
 node ai/scripts/test-workflow/check-records.mjs --scope ... --cycle <dir> --scaffold
 ```
 
+**Suite runners.** A suite in a scope runs under vitest by default. `"runner": "playwright"` runs `npx playwright test <files> --config <config>` once (not per timezone: the spec pins its own `timezoneId`, and it adds nothing to the G4tz zone totals), converts the Playwright JSON report to the vitest shape under `test-run/<suite>.json`, and counts in G7 (a flaky Playwright test, one that passed only on retry, counts as failed). Declare the dev server URL in `env` (`PLAYWRIGHT_BASE_URL`) so a missing server is NOT RUN and G7 is `UNABLE_TO_VERIFY`. For every suite, a scope-listed test file that the runner's report does not contain (for example a `*.playwright.spec.ts` that vitest excludes) marks the suite NOT RUN, so G7 cannot pass without it.
+
 Order of work (`run-cycle.mjs` follows it): spec conflicts and IDs first (G1, G2), then the determinism scan, the suite and timezone runs with coverage (G4, G7, G5), the mutation runs (G6), the records (G3) and the report. If any gate fails, stop and report it; the cycle is not complete.
 
-Cycle folder: `ids-in-code.txt`, `ids-in-registry.txt`, `confluence-matrix-ids.txt`, `determinism-scan.txt`, `test-run/`, `tz-runs/`, `coverage/<suite>/`, `mutation/<entry>.log`, `mutation-report.md`, `test-records.csv`, `gates/*.json`, `gap-list.md`, `metrics.md`, `cycle.log`, `test-run.log`.
+Cycle folder: `ids-in-code.txt`, `ids-in-registry.txt`, `confluence-matrix-ids.txt`, `determinism-scan.txt`, `test-run/`, `tz-runs/`, `playwright/` (raw reports), `coverage/<suite>/`, `mutation/<entry>.log`, `mutation-report.md`, `test-records.csv`, `gates/*.json`, `gap-list.md`, `metrics.md`, `cycle.log`, `test-run.log`.
 
 The scripts have their own tests: `node --test "ai/scripts/test-workflow/*.test.mjs"`.
 
