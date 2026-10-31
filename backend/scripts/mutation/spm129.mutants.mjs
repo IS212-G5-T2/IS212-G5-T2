@@ -1,15 +1,22 @@
 export const SUITES = {
-  unit: { args: ['run', 'src/events/safety-officer/safety-officer.service.spec.ts', 'src/events/status/checklist.spec.ts'] },
+  unit: { args: ['run', 'src/events/safety-officer/safety-officer.service.spec.ts', 'src/events/status/checklist.spec.ts', 'src/events/status/readiness.spec.ts', 'src/events/status/safety-feedback-resolution.spec.ts', 'src/events/status/arrangements.reader.spec.ts'] },
   e2e: { args: ['run', '--config', './vitest.config.e2e.ts', 'test/safety-officer.e2e-spec.ts'] },
+  feedback: { args: ['run', '--config', './vitest.config.e2e.ts', 'test/events-safety-feedback.e2e-spec.ts'] },
 };
 
 const SERVICE = 'src/events/safety-officer/safety-officer.service.ts';
 const E2E = 'test/safety-officer.e2e-spec.ts';
 const UNIT = 'src/events/safety-officer/safety-officer.service.spec.ts';
 const CHECKLIST = 'src/events/status/checklist.spec.ts';
+const READINESS = 'src/events/status/readiness.spec.ts';
+const FEEDBACK_RESOLUTION = 'src/events/status/safety-feedback-resolution.spec.ts';
 const unit = (title) => ({ suite: 'unit', file: UNIT, title });
 const checklistUnit = (title) => ({ suite: 'unit', file: CHECKLIST, title });
+const readinessUnit = (title) => ({ suite: 'unit', file: READINESS, title });
+const feedbackUnit = (title) => ({ suite: 'unit', file: FEEDBACK_RESOLUTION, title });
+const readerUnit = (title) => ({ suite: 'unit', file: 'src/events/status/arrangements.reader.spec.ts', title });
 const e2e = (title) => ({ suite: 'e2e', file: E2E, title });
+const feedbackE2e = (title) => ({ suite: 'feedback', file: 'test/events-safety-feedback.e2e-spec.ts', title });
 
 export const MUTANTS = [
   {
@@ -49,7 +56,7 @@ export const MUTANTS = [
   },
   {
     id: 'S129-08', name: 'a stale pending check can receive a decision after its venue becomes unconfirmed (SAFETY-QUEUE-05)', file: SERVICE, suites: ['e2e'],
-    edits: [["      if (!checklist.canRequestSafetyCheck)\n        throw new ConflictException", "      if (false)\n        throw new ConflictException"]],
+    edits: [["    return checklist.canRequestSafetyCheck;", "    return true;"]],
     testMappings: [e2e('SAFETY-QUEUE-05 refuses a response when the venue is no longer confirmed')],
   },
   {
@@ -83,9 +90,9 @@ export const MUTANTS = [
     testMappings: [e2e('SAFETY-QUEUE-05 refuses a decision when a confirmed venue later becomes unavailable')],
   },
   {
-    id: 'S129-15', name: 'rejected booking history blocks a confirmed replacement (SAFETY-QUEUE-06)', file: 'src/events/status/checklist.ts', suites: ['unit'],
-    edits: [['!(hasConfirmedReplacement && booking.status === \'rejected\')', 'true']],
-    testMappings: [checklistUnit('ignores %s venue history only after a confirmed replacement')],
+    id: 'S129-15', name: 'matching approved replacement fails to resolve rejected booking history (SAFETY-QUEUE-06)', file: 'src/events/status/readiness.ts', suites: ['unit'],
+    edits: [['return bookings.some((candidate) => {', 'return false && bookings.some((candidate) => {']],
+    testMappings: [readinessUnit('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement')],
   },
   {
     id: 'S129-16', name: 'released booking history blocks a confirmed replacement (SAFETY-QUEUE-06)', file: 'src/events/status/checklist.ts', suites: ['unit'],
@@ -101,14 +108,7 @@ export const MUTANTS = [
     id: 'S129-18', name: 'arrangements are locked after the safety-check row (SAFETY-QUEUE-05)', file: SERVICE, suites: ['unit'],
     edits: [[
       `      const snapshot = await this.arrangements.read(client, eventId, { lock: true });
-      const checklist = buildChecklist({
-        snapshot,
-        equipmentNeeds: event.rows[0].equipment_needs,
-        equipmentConfirmedAt: event.rows[0].equipment_confirmed_at,
-        safety: { status: 'pending' },
-        now: this.clock.now(),
-      });
-      if (!checklist.canRequestSafetyCheck)
+      if (!this.hasConfirmedChecklist(event.rows[0], snapshot))
         throw new ConflictException('This event is no longer awaiting a safety check.');
       const pending = await client.query<{ event_id: string }>(
         \`SELECT event_id FROM event_safety_checks WHERE event_id = $1 AND status = 'pending' FOR UPDATE\`, [eventId],
@@ -119,16 +119,62 @@ export const MUTANTS = [
       );
       if (!pending.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');
       const snapshot = await this.arrangements.read(client, eventId, { lock: true });
-      const checklist = buildChecklist({
-        snapshot,
-        equipmentNeeds: event.rows[0].equipment_needs,
-        equipmentConfirmedAt: event.rows[0].equipment_confirmed_at,
-        safety: { status: 'pending' },
-        now: this.clock.now(),
-      });
-      if (!checklist.canRequestSafetyCheck)
+      if (!this.hasConfirmedChecklist(event.rows[0], snapshot))
         throw new ConflictException('This event is no longer awaiting a safety check.');`,
     ]],
     testMappings: [unit('uses the shared event, arrangements, safety-check lock order')],
+  },
+  {
+    id: 'S129-19', name: 'approval stores response reason as rejection feedback (SAFETY-QUEUE-05)', file: SERVICE, suites: ['e2e'],
+    edits: [["const feedback = decision === 'approved' ? null : reason;", 'const feedback = reason;']],
+    testMappings: [e2e('SAFETY-QUEUE-05 persists an approval without feedback')],
+  },
+  {
+    id: 'S129-20', name: 'rejected feedback can be re-requested before coordinator resolution (SAFETY-QUEUE-05)', file: 'src/events/status/safety-feedback-resolution.ts', suites: ['unit', 'feedback'],
+    edits: [["return status === 'changes_needed' || status === 'rejected';", "return status === 'changes_needed';"]],
+    testMappings: [feedbackUnit('allows resolution for rejected and changes-needed outcomes, but not other safety states'), feedbackE2e('SPM129-SUP-REJECT-RESOLUTION preserves a rejected reason until it is resolved')],
+  },
+  {
+    id: 'S129-21', name: 'another venue resolves rejected booking history (SAFETY-QUEUE-06)', file: 'src/events/status/readiness.ts', suites: ['unit'],
+    edits: [['candidate.venueId !== rejected.venueId ||', 'false ||']],
+    testMappings: [readinessUnit('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement'), checklistUnit('SAFETY-QUEUE-06 leaves rejected history blocking for another venue or incomplete slot coverage')],
+  },
+  {
+    id: 'S129-22', name: 'an incompletely covered slot resolves rejected booking history (SAFETY-QUEUE-06)', file: 'src/events/status/readiness.ts', suites: ['unit'],
+    edits: [['candidateStart <= rejectedStart && candidateEnd >= rejectedEnd', 'true']],
+    testMappings: [readinessUnit('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement'), checklistUnit('SAFETY-QUEUE-06 leaves rejected history blocking for another venue or incomplete slot coverage')],
+  },
+  {
+    id: 'S129-25', name: 'partial overlap resolves a rejected full booking slot (SAFETY-QUEUE-06)', file: 'src/events/status/readiness.ts', suites: ['unit'],
+    edits: [['candidateStart <= rejectedStart && candidateEnd >= rejectedEnd', 'candidateStart < rejectedEnd && candidateEnd > rejectedStart']],
+    testMappings: [readinessUnit('SAFETY-QUEUE-06-SUP-HISTORY confirms Confirm is blocked without a same-venue full-slot replacement'), checklistUnit('SAFETY-QUEUE-06 leaves rejected history blocking for another venue or incomplete slot coverage')],
+  },
+  {
+    id: 'S129-23', name: 'queue eligibility reads are serial for a multi-event queue (SAFETY-QUEUE-01)', file: SERVICE, suites: ['unit'],
+    edits: [[
+      'const eligibility = await Promise.all(candidates.rows.map((candidate) => this.hasConfirmedArrangements(this.database, candidate)));',
+      'const eligibility: boolean[] = [];\n    for (const candidate of candidates.rows) eligibility.push(await this.hasConfirmedArrangements(this.database, candidate));',
+    ]],
+    testMappings: [unit('SAFETY-QUEUE-01 checks many eligible events concurrently without reordering them')],
+  },
+  {
+    id: 'S129-24', name: 'Safety Officer details response can be cached (SAFETY-QUEUE-02)', file: 'src/events/safety-officer/safety-officer.controller.ts', suites: ['unit', 'e2e'],
+    edits: [["  @Get('queue/:eventId')\n  @Header('Cache-Control', 'no-store')\n", "  @Get('queue/:eventId')\n"]],
+    testMappings: [unit('passes the session identity to queue, detail, and decision operations'), e2e('SAFETY-QUEUE-02 reads attendance, capacity, layout, and accessibility from linked database rows')],
+  },
+  {
+    id: 'S129-26', name: 'the venue fact mapper collapses distinct venues into their request kind (SAFETY-QUEUE-06)', file: 'src/events/status/arrangements.reader.ts', suites: ['unit', 'e2e'],
+    edits: [['venueId: row.venue_id,', 'venueId: row.request_kind,']],
+    testMappings: [readerUnit('SAFETY-QUEUE-06-SUP-HISTORY preserves distinct venue identities and slot boundaries from PostgreSQL rows'), e2e('SAFETY-QUEUE-06-SUP-HISTORY blocks %s replacement through queue, detail, decision and Confirm')],
+  },
+  {
+    id: 'S129-27', name: 'the venue fact mapper substitutes request time for the booking start (SAFETY-QUEUE-06)', file: 'src/events/status/arrangements.reader.ts', suites: ['unit', 'e2e'],
+    edits: [['start: row.start_at.toISOString(),', 'start: row.created_at.toISOString(),']],
+    testMappings: [readerUnit('SAFETY-QUEUE-06-SUP-HISTORY preserves distinct venue identities and slot boundaries from PostgreSQL rows'), e2e('SAFETY-QUEUE-06-SUP-HISTORY blocks %s replacement through queue, detail, decision and Confirm')],
+  },
+  {
+    id: 'S129-28', name: 'the venue fact mapper substitutes the booking start for its end (SAFETY-QUEUE-06)', file: 'src/events/status/arrangements.reader.ts', suites: ['unit', 'e2e'],
+    edits: [['end: row.end_at.toISOString(),', 'end: row.start_at.toISOString(),']],
+    testMappings: [readerUnit('SAFETY-QUEUE-06-SUP-HISTORY preserves distinct venue identities and slot boundaries from PostgreSQL rows'), e2e('SAFETY-QUEUE-06-SUP-HISTORY accepts a same-venue full-slot replacement through queue, decision and Confirm')],
   },
 ];

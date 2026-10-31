@@ -33,6 +33,7 @@ import {
 import { EventInformationList } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
 import { SafetyCheckChangesNeeded } from "@/features/events/pages/detail/planning/SafetyCheckChangesNeeded";
+import { shouldShowSafetyFeedback } from "@/features/events/pages/detail/planning/safetyFeedbackVisibility";
 import { activeVenueRequests } from "@/features/events/pages/detail/planning/activeVenueRequests";
 import {
   StateLabel,
@@ -744,17 +745,18 @@ export function PlanningInformationPage({
                 Requested {date(safety.requestedDate)}
               </p>
             )}
-            {safety.status === "changes_needed" &&
+            {shouldShowSafetyFeedback(safety.status, safety.feedback) &&
               (Array.isArray(safety.feedback) && safety.feedback.length > 0 ? (
                 <SafetyCheckChangesNeeded
                   eventId={eventId}
+                  status={safety.status}
                   feedback={safety.feedback}
                   canRequestSafetyCheck={checklist.canRequestSafetyCheck}
                   onRefresh={load}
                   pending={pending}
                   onError={setActionError}
                 />
-              ) : (
+              ) : safety.status === "changes_needed" ? (
                 <div className="space-y-2">
                   <p className="flex items-center gap-2 text-sm">
                     <span className="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-800 dark:bg-danger-900/30 dark:text-danger-300">
@@ -774,9 +776,9 @@ export function PlanningInformationPage({
                     Re-Request Safety Check
                   </Button>
                 </div>
-              ))}
+              ) : null)}
             {/* SPM-48 AC7: a rejected arrangement can be revised and requested again (SPM-131 AC6). */}
-            {safety.status === "rejected" && (
+            {safety.status === "rejected" && (!Array.isArray(safety.feedback) || safety.feedback.length === 0) && (
               <Button
                 onClick={() =>
                   act(

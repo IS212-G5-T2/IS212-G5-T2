@@ -14,6 +14,7 @@ export class SafetyOfficerController {
   }
 
   @Get('queue/:eventId')
+  @Header('Cache-Control', 'no-store')
   details(@Param('eventId', new ParseUUIDPipe()) eventId: string, @Req() request: AuthenticatedRequest) {
     return this.safety.details(request[CURRENT_USER_REQUEST_KEY], eventId);
   }

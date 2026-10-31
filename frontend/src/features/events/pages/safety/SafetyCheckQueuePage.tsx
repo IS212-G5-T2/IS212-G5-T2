@@ -14,7 +14,7 @@ interface SafetyDetails extends QueueEvent {
   endDateTime: string;
   equipmentNeeds: string;
   venues: Array<{ id: string; name: string; location: string; capacity: number; restrictions: string; facilities: string[]; accessibility: string[]; layouts: string[] }>;
-  equipment: Array<{ name: string; quantity: number }>;
+  equipment: Array<{ id: string; name: string; quantity: number }>;
 }
 
 const dateTime = (value: string) => new Date(value).toLocaleString("en-SG", { timeZone: "Asia/Singapore" });
@@ -72,12 +72,18 @@ export function SafetyCheckQueuePage() {
     }
   }
 
+  async function backToQueue() {
+    setSelected(null);
+    setReason("");
+    await refresh();
+  }
+
   return <section className="space-y-5">
     <header><h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Events Awaiting Safety Check</h1>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">Review confirmed event arrangements and record your decision.</p></header>
     {error && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-danger-800 dark:bg-danger-900/30 dark:text-danger-300">{error}</p>}
     {selected ? <Card><CardBody className="space-y-4">
-      <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{selected.name}</h2><Button variant="secondary" onClick={() => setSelected(null)}>Back to queue</Button></div>
+      <div className="flex items-center justify-between"><h2 className="text-xl font-semibold">{selected.name}</h2><Button variant="secondary" onClick={() => void backToQueue()}>Back to queue</Button></div>
       <p>{dateTime(selected.startDateTime)} – {dateTime(selected.endDateTime)}</p>
       <h3 className="font-semibold">Event requirements</h3>
       <p>Expected attendance: {selected.expectedAttendance}</p>
@@ -92,7 +98,7 @@ export function SafetyCheckQueuePage() {
       </div>)}
       <h3 className="font-semibold">Equipment and technical arrangements</h3>
       <p>Technical requirements: {selected.equipmentNeeds || "None specified"}</p>
-      {selected.equipment.length ? <ul>{selected.equipment.map((item) => <li key={item.name}>{item.name}: {item.quantity}</li>)}</ul> : <p>No equipment requested.</p>}
+      {selected.equipment.length ? <ul>{selected.equipment.map((item) => <li key={item.id}>{item.name}: {item.quantity}</li>)}</ul> : <p>No equipment requested.</p>}
       <label className="block">Reason for rejection or requested changes
         <textarea className="mt-1 block w-full rounded border p-2" value={reason} onChange={(event) => setReason(event.target.value)} />
       </label>

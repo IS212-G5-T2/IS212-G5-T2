@@ -17,8 +17,20 @@
     "backend-unit": [
       "backend/src/events/safety-officer/safety-officer.service.spec.ts",
       {
+        "glob": "backend/src/events/status/arrangements.reader.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
         "glob": "backend/src/events/status/checklist.spec.ts",
         "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
+        "glob": "backend/src/events/status/readiness.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-06-SUP-HISTORY"
+      },
+      {
+        "glob": "backend/src/events/status/safety-feedback-resolution.spec.ts",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
       }
     ],
     "frontend": [
@@ -30,12 +42,28 @@
       {
         "glob": "frontend/src/app/App.test.tsx",
         "titleMatch": "SAFETY-QUEUE"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/safetyFeedbackVisibility.test.ts",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx",
+        "titleMatch": "SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
+        "titleMatch": "SPM129-SUP-REJECT-RESOLUTION"
       }
     ],
     "backend-e2e": [
       {
         "glob": "backend/test/safety-officer.e2e-spec.ts",
         "titleMatch": "SAFETY-QUEUE"
+      },
+      {
+        "glob": "backend/test/events-safety-feedback.e2e-spec.ts",
+        "titleMatch": "SPM129-SUP-REJECT-RESOLUTION"
       }
     ]
   },
@@ -43,11 +71,16 @@
     "backend": [
       "backend/src/events/safety-officer/safety-officer.service.ts",
       "backend/src/events/safety-officer/safety-officer.controller.ts",
-      "backend/src/events/status/checklist.ts"
+      "backend/src/events/status/checklist.ts",
+      "backend/src/events/status/readiness.ts",
+      "backend/src/events/status/safety-feedback-resolution.ts",
+      "backend/src/events/status/arrangements.reader.ts"
     ],
     "frontend": [
       "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
-      "frontend/src/app/App.tsx"
+      "frontend/src/app/App.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx",
+      "frontend/src/features/events/pages/detail/planning/safetyFeedbackVisibility.ts"
     ]
   },
   "suites": [

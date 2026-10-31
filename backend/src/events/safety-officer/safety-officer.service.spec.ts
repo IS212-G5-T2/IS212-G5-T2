@@ -16,7 +16,7 @@ const LIST_ROW = {
 };
 
 const CONFIRMED_SNAPSHOT = {
-  venueBookings: [{ id: 'booking-1', venueName: 'Main Hall', status: 'approved', holdExpiresAt: null, requestKind: 'booking', venueUnavailable: false }],
+  venueBookings: [{ id: 'booking-1', venueId: 'venue-1', venueName: 'Main Hall', status: 'approved', holdExpiresAt: null, requestKind: 'booking', venueUnavailable: false, start: '2026-12-12T10:00:00.000Z', end: '2026-12-12T13:00:00.000Z' }],
   equipment: [{ id: 'equipment-1', name: 'Microphone', quantity: 1, status: 'Reserved' }],
   equipmentNoneConfirmed: false,
 };
@@ -62,6 +62,26 @@ describe('SPM-129 SafetyOfficerService', () => {
     const incomplete = { ...CONFIRMED_SNAPSHOT, venueBookings: [{ ...CONFIRMED_SNAPSHOT.venueBookings[0], status: 'pending' }] };
     const { service } = setup([LIST_ROW], [], incomplete);
     await expect(service.queue(OFFICER)).resolves.toEqual([]);
+  });
+
+  /** SAFETY-QUEUE-01: candidate arrangement reads run concurrently and retain queue ordering for larger queues. */
+  it('SAFETY-QUEUE-01 checks many eligible events concurrently without reordering them', async () => {
+    let releaseReads!: (snapshot: typeof CONFIRMED_SNAPSHOT) => void;
+    const readsBlocked = new Promise<typeof CONFIRMED_SNAPSHOT>((resolve) => { releaseReads = resolve; });
+    const rows = [
+      { ...LIST_ROW, id: 'event-1' },
+      { ...LIST_ROW, id: 'event-2' },
+      { ...LIST_ROW, id: 'event-3' },
+    ];
+    const { service, arrangements } = setup(rows);
+    arrangements.read.mockImplementation(() => readsBlocked);
+
+    const queue = service.queue(OFFICER);
+    await Promise.resolve();
+    expect(arrangements.read).toHaveBeenCalledTimes(3);
+    releaseReads(CONFIRMED_SNAPSHOT);
+
+    await expect(queue).resolves.toMatchObject([{ id: 'event-1' }, { id: 'event-2' }, { id: 'event-3' }]);
   });
 
   /** SAFETY-QUEUE-02: detail shows expected attendance, venue capacity, layout, and accessibility requirements. */
@@ -191,6 +211,7 @@ describe('SPM-129 SafetyOfficerController', () => {
     expect(queue).toHaveBeenCalledWith(OFFICER);
     expect(details).toHaveBeenCalledWith(OFFICER, 'event-1');
     expect(respond).toHaveBeenCalledWith(OFFICER, 'event-1', { decision: 'approved' });
-    expect(Reflect.getMetadata('__headers__', SafetyOfficerController.prototype.queue)).toBeDefined();
+    expect(Reflect.getMetadata('__headers__', SafetyOfficerController.prototype.queue)).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
+    expect(Reflect.getMetadata('__headers__', SafetyOfficerController.prototype.details)).toContainEqual({ name: 'Cache-Control', value: 'no-store' });
   });
 });

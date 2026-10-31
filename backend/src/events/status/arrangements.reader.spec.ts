@@ -6,6 +6,45 @@ import {
 } from './arrangements.reader.js';
 
 describe('ArrangementsReader', () => {
+  /** SAFETY-QUEUE-06-SUP-HISTORY: the replacement rule receives the exact venue identity and interval from each distinct SQL row. */
+  it('SAFETY-QUEUE-06-SUP-HISTORY preserves distinct venue identities and slot boundaries from PostgreSQL rows', async () => {
+    const query = vi.fn()
+      .mockResolvedValueOnce({ rows: [
+        {
+          id: 'rejected-booking', venue_id: 'venue-main', venue_name: 'Main Hall', status: 'rejected',
+          request_kind: 'booking', hold_expires_at: null, venue_unavailable: false,
+          start_at: new Date('2031-06-10T02:00:00.000Z'), end_at: new Date('2031-06-10T04:00:00.000Z'),
+          created_at: new Date('2031-06-01T00:00:00.000Z'),
+        },
+        {
+          id: 'approved-booking', venue_id: 'venue-annex', venue_name: 'Annex', status: 'approved',
+          request_kind: 'booking', hold_expires_at: null, venue_unavailable: false,
+          start_at: new Date('2031-06-10T03:00:00.000Z'), end_at: new Date('2031-06-10T05:00:00.000Z'),
+          created_at: new Date('2031-06-02T00:00:00.000Z'),
+        },
+      ] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] });
+    const reader = new ArrangementsReader(new NoSafetyRecordSource());
+
+    const result = await reader.read({ query } as unknown as Queryable, 'event-replacement', { lock: false });
+
+    expect(query.mock.calls[0][0]).toContain('b.venue_id');
+    expect(query.mock.calls[0][1]).toEqual(['event-replacement']);
+    expect(result.venueBookings).toEqual([
+      {
+        id: 'rejected-booking', venueId: 'venue-main', venueName: 'Main Hall', status: 'rejected',
+        requestKind: 'booking', holdExpiresAt: null, venueUnavailable: false,
+        start: '2031-06-10T02:00:00.000Z', end: '2031-06-10T04:00:00.000Z', requestedAt: '2031-06-01T00:00:00.000Z',
+      },
+      {
+        id: 'approved-booking', venueId: 'venue-annex', venueName: 'Annex', status: 'approved',
+        requestKind: 'booking', holdExpiresAt: null, venueUnavailable: false,
+        start: '2031-06-10T03:00:00.000Z', end: '2031-06-10T05:00:00.000Z', requestedAt: '2031-06-02T00:00:00.000Z',
+      },
+    ]);
+  });
+
   // Kills: SPM54-BE-ARRANGEMENTS-CANCELLED-HISTORY (cancelled venue bookings dropped from the arrangements read model).
   /** VEN-BKG-09-A: event status reads preserve cancelled booking history and request timing. */
   it('maps venue, equipment, and confirmation rows while using shared locks when requested', async () => {
@@ -15,6 +54,7 @@ describe('ArrangementsReader', () => {
         rows: [
           {
             id: 'booking-1',
+            venue_id: 'venue-1',
             venue_name: 'Main Hall',
             status: 'cancelled',
             hold_expires_at: null,
@@ -71,6 +111,7 @@ describe('ArrangementsReader: VEN-HOLD-04-SUP-EVENTS approved holds', () => {
   it('VEN-HOLD-04-SUP-EVENTS selects and surfaces the request kind and hold expiry of each booking', async () => {
     const row = (id: string, kind: string, expires: Date | null) => ({
       id,
+      venue_id: 'venue-1',
       venue_name: 'Main Hall',
       status: 'approved',
       hold_expires_at: expires,

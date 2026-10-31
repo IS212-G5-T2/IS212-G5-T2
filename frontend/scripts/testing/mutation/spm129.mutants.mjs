@@ -5,6 +5,9 @@ export const SUITES = {
       'src/app/App.test.tsx',
       'src/components/auth/RouteAccess.test.tsx',
       'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx',
+      'src/features/events/pages/detail/planning/safetyFeedbackVisibility.test.ts',
+      'src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx',
+      'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx',
     ],
   },
 };
@@ -144,7 +147,7 @@ export const MUTANTS = [
     name: 'Safety Officer detail omits reserved equipment names (SAFETY-QUEUE-03)',
     file: QUEUE_PAGE,
     suites: ['unit'],
-    edits: [['<li key={item.name}>{item.name}: {item.quantity}</li>', '<li key={item.name}>Equipment</li>']],
+    edits: [['<li key={item.id}>{item.name}: {item.quantity}</li>', '<li key={item.id}>Equipment</li>']],
     testMappings: [tm(QUEUE_TEST, 'SAFETY-QUEUE-01 lists an eligible event and opens its details')],
   },
   {
@@ -170,5 +173,35 @@ export const MUTANTS = [
     suites: ['unit'],
     edits: [['key={venue.id}', 'key={`${venue.name}-${venue.location}`}']],
     testMappings: [tm(QUEUE_TEST, 'uses unique booking identity for venue cards with duplicate names and locations')],
+  },
+  {
+    id: 'S129-FE-22',
+    name: 'Safety Officer equipment rows use duplicate display names as keys instead of reservation identity (SAFETY-QUEUE-03)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['<li key={item.id}>', '<li key={item.name}>']],
+    testMappings: [tm(QUEUE_TEST, 'uses reservation IDs for equipment rows with duplicate names')],
+  },
+  {
+    id: 'S129-FE-23',
+    name: 'Back to queue returns without refreshing the current decision list (SAFETY-QUEUE-05)',
+    file: QUEUE_PAGE,
+    suites: ['unit'],
+    edits: [['onClick={() => void backToQueue()}', 'onClick={() => setSelected(null)}']],
+    testMappings: [tm(QUEUE_TEST, 'refreshes the queue when returning from details after a concurrent decision')],
+  },
+  {
+    id: 'S129-FE-24',
+    name: 'a coordinator cannot resolve feedback after a rejected safety outcome (SAFETY-QUEUE-05)',
+    file: 'src/features/events/pages/detail/planning/safetyFeedbackVisibility.ts',
+    suites: ['unit'],
+    edits: [[
+      'return status === "changes_needed" || (status === "rejected" && !!feedback?.length);',
+      'return status === "changes_needed";',
+    ]],
+    testMappings: [
+      tm('src/features/events/pages/detail/planning/safetyFeedbackVisibility.test.ts', 'SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION shows rejected feedback until coordinator resolution'),
+      tm('src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', 'SPM129-SUP-REJECT-RESOLUTION keeps rejected feedback visible for coordinator resolution'),
+    ],
   },
 ];

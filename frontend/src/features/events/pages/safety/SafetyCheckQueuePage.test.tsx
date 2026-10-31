@@ -4,7 +4,7 @@ import * as apiModule from "@/utils/api";
 import { SafetyCheckQueuePage } from "./SafetyCheckQueuePage";
 
 const event = { id: "e1", name: "Welcome Evening", startDateTime: "2026-12-12T10:00:00Z", endDateTime: "2026-12-12T13:00:00Z", expectedAttendance: 80, venueRequirements: { layout: "Theatre", facilities: ["AV System"], accessibility: ["Wheelchair access"] } };
-const details = { ...event, equipmentNeeds: "Wireless microphone", venues: [{ id: "booking-1", name: "Main Hall", location: "Level 2", capacity: 120, restrictions: "No open flames", facilities: ["AV System"], accessibility: ["Wheelchair access"], layouts: ["Theatre"] }], equipment: [{ name: "Microphone", quantity: 1 }] };
+const details = { ...event, equipmentNeeds: "Wireless microphone", venues: [{ id: "booking-1", name: "Main Hall", location: "Level 2", capacity: 120, restrictions: "No open flames", facilities: ["AV System"], accessibility: ["Wheelchair access"], layouts: ["Theatre"] }], equipment: [{ id: "equipment-1", name: "Microphone", quantity: 1 }] };
 
 function response(value: unknown, status = 200) {
   return Promise.resolve(new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json" } }));
@@ -102,6 +102,38 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
   });
 
+  /** SAFETY-QUEUE-03: equipment rows use reservation identity when names repeat. */
+  it("uses reservation IDs for equipment rows with duplicate names", async () => {
+    const duplicateEquipment = [
+      { id: "reservation-1", name: "Microphone", quantity: 1 },
+      { id: "reservation-2", name: "Microphone", quantity: 2 },
+    ];
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response({ ...details, equipment: duplicateEquipment }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+
+    expect(await screen.findByText("Microphone: 1")).toBeInTheDocument();
+    expect(screen.getByText("Microphone: 2")).toBeInTheDocument();
+    expect(consoleError).not.toHaveBeenCalledWith(expect.stringContaining("same key"), expect.anything());
+  });
+
+  /** SAFETY-QUEUE-05: returning to the queue refreshes it so decisions made elsewhere disappear. */
+  it("refreshes the queue when returning from details after a concurrent decision", async () => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response([]));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back to queue" }));
+
+    expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
+    expect(screen.queryByText("Welcome Evening")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   /** SAFETY-QUEUE-05: rejection with a reason is recorded and the event leaves the queue. */
   it("SAFETY-QUEUE-05 records a rejection with its reason", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
@@ -143,7 +175,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
   /** SAFETY-QUEUE-02, SAFETY-QUEUE-03, SAFETY-QUEUE-04: empty optional venue and equipment details have readable fallbacks. */
   it("SAFETY-QUEUE-02 shows empty arrangement values explicitly", async () => {
     const sparse = { ...details, equipmentNeeds: "", venues: [{ ...details.venues[0], facilities: [], accessibility: [], layouts: [] }], equipment: [], venueRequirements: { layout: "", facilities: [], accessibility: [] } };
-    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(sparse));
+    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(sparse)).mockImplementationOnce(() => response([event]));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
     expect(await screen.findByText("Requested layout: None specified")).toBeInTheDocument();
@@ -155,7 +187,7 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(screen.getByText("Accessibility: None listed")).toBeInTheDocument();
     expect(screen.getByText("Layouts: None listed")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Back to queue" }));
-    expect(screen.getByText("Welcome Evening")).toBeInTheDocument();
+    expect(await screen.findByText("Welcome Evening")).toBeInTheDocument();
   });
 
   /** SAFETY-QUEUE-01: a successful read with no eligible events shows an empty queue. */

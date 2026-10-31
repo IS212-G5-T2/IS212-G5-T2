@@ -26,12 +26,12 @@ const DETAILS_SQL = `
          ) ORDER BY b.start_at, b.id)
            FROM venue_bookings b JOIN venues v ON v.id = b.venue_id
           WHERE b.event_id = e.id AND b.status = 'approved' AND b.request_kind = 'booking'), '[]'::json) AS venues,
-         COALESCE((SELECT json_agg(json_build_object('name', r.equipment_name, 'quantity', r.quantity) ORDER BY r.id)
+         COALESCE((SELECT json_agg(json_build_object('id', r.id, 'name', r.equipment_name, 'quantity', r.quantity) ORDER BY r.id)
                      FROM equipment_reservations r WHERE r.event_id = e.id AND r.status = 'Reserved'), '[]'::json) AS equipment
     FROM events e
    WHERE e.id = $1 AND e.status = 'Planning'`;
 
-interface PendingEventRow extends pg.QueryResultRow {
+interface EventSummaryRow extends pg.QueryResultRow {
   id: string;
   event_name: string;
   start_date_time: Date;
@@ -40,23 +40,33 @@ interface PendingEventRow extends pg.QueryResultRow {
   preferred_room_layout: string;
   required_facilities: string[];
   accessibility_needs: string[];
+}
+
+interface PendingEventRow extends EventSummaryRow {
   equipment_needs: string;
   equipment_confirmed_at: Date | null;
   requested_at: Date;
 }
 
-interface DetailRow extends pg.QueryResultRow {
-  id: string;
-  event_name: string;
-  start_date_time: Date;
-  end_date_time: Date;
-  expected_attendance: number;
-  preferred_room_layout: string;
-  required_facilities: string[];
-  accessibility_needs: string[];
+interface DetailRow extends EventSummaryRow {
   equipment_needs: string;
   venues: unknown[];
-  equipment: unknown[];
+  equipment: Array<{ id: string; name: string; quantity: number }>;
+}
+
+function eventSummary(row: EventSummaryRow) {
+  return {
+    id: row.id,
+    name: row.event_name,
+    startDateTime: row.start_date_time.toISOString(),
+    endDateTime: row.end_date_time.toISOString(),
+    expectedAttendance: row.expected_attendance,
+    venueRequirements: {
+      layout: row.preferred_room_layout,
+      facilities: row.required_facilities,
+      accessibility: row.accessibility_needs,
+    },
+  };
 }
 
 @Injectable()
@@ -70,21 +80,11 @@ export class SafetyOfficerService {
   async queue(identity: AuthenticatedUser | undefined) {
     this.requireSafetyOfficer(identity);
     const candidates = await this.database.query<PendingEventRow>(`${PENDING_EVENTS_SQL} ORDER BY s.requested_at, e.id`);
-    const eligible: PendingEventRow[] = [];
-    for (const candidate of candidates.rows) {
-      if (await this.hasConfirmedArrangements(this.database, candidate)) eligible.push(candidate);
-    }
+    // Each candidate is an independent read-only arrangement check; run them concurrently while preserving query order.
+    const eligibility = await Promise.all(candidates.rows.map((candidate) => this.hasConfirmedArrangements(this.database, candidate)));
+    const eligible = candidates.rows.filter((_candidate, index) => eligibility[index]);
     return eligible.map((row) => ({
-      id: row.id,
-      name: row.event_name,
-      startDateTime: row.start_date_time.toISOString(),
-      endDateTime: row.end_date_time.toISOString(),
-      expectedAttendance: row.expected_attendance,
-      venueRequirements: {
-        layout: row.preferred_room_layout,
-        facilities: row.required_facilities,
-        accessibility: row.accessibility_needs,
-      },
+      ...eventSummary(row),
       requestedAt: row.requested_at.toISOString(),
     }));
   }
@@ -98,16 +98,7 @@ export class SafetyOfficerService {
     const row = result.rows[0];
     if (!row) throw new NotFoundException('This event is not awaiting a safety check.');
     return {
-      id: row.id,
-      name: row.event_name,
-      startDateTime: row.start_date_time.toISOString(),
-      endDateTime: row.end_date_time.toISOString(),
-      expectedAttendance: row.expected_attendance,
-      venueRequirements: {
-        layout: row.preferred_room_layout,
-        facilities: row.required_facilities,
-        accessibility: row.accessibility_needs,
-      },
+      ...eventSummary(row),
       equipmentNeeds: row.equipment_needs,
       venues: row.venues,
       equipment: row.equipment,
@@ -132,14 +123,7 @@ export class SafetyOfficerService {
       );
       if (!event.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');
       const snapshot = await this.arrangements.read(client, eventId, { lock: true });
-      const checklist = buildChecklist({
-        snapshot,
-        equipmentNeeds: event.rows[0].equipment_needs,
-        equipmentConfirmedAt: event.rows[0].equipment_confirmed_at,
-        safety: { status: 'pending' },
-        now: this.clock.now(),
-      });
-      if (!checklist.canRequestSafetyCheck)
+      if (!this.hasConfirmedChecklist(event.rows[0], snapshot))
         throw new ConflictException('This event is no longer awaiting a safety check.');
       const pending = await client.query<{ event_id: string }>(
         `SELECT event_id FROM event_safety_checks WHERE event_id = $1 AND status = 'pending' FOR UPDATE`, [eventId],
@@ -147,9 +131,11 @@ export class SafetyOfficerService {
       if (!pending.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');
 
       const name = user.name?.trim() || user.email?.trim() || 'Safety Officer';
+      // A non-approval reason is validated above; approved decisions intentionally clear prior feedback.
+      const feedback = decision === 'approved' ? null : reason;
       await client.query(
         `UPDATE event_safety_checks SET status = $2, approver_name = $3, feedback = $4, decided_at = now() WHERE event_id = $1`,
-        [eventId, decision, name, reason || null],
+        [eventId, decision, name, feedback],
       );
       if (decision !== 'approved') {
         await client.query(
@@ -166,8 +152,12 @@ export class SafetyOfficerService {
     return result.rows[0];
   }
 
-  private async hasConfirmedArrangements(db: Queryable, event: PendingEventRow, lock = false) {
-    const snapshot = await this.arrangements.read(db, event.id, { lock });
+  private async hasConfirmedArrangements(db: Queryable, event: PendingEventRow) {
+    const snapshot = await this.arrangements.read(db, event.id, { lock: false });
+    return this.hasConfirmedChecklist(event, snapshot);
+  }
+
+  private hasConfirmedChecklist(event: Pick<PendingEventRow, 'equipment_needs' | 'equipment_confirmed_at'>, snapshot: Awaited<ReturnType<ArrangementsReader['read']>>) {
     const checklist = buildChecklist({
       snapshot,
       equipmentNeeds: event.equipment_needs,

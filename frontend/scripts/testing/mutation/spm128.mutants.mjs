@@ -83,8 +83,8 @@ export const MUTANTS = [
       title: 'SAFETY-LOGIN-04-A Safety Officer at own route renders the safety review page',
     }],
     edits: [[
-      '<Route path="/safety/events" element={<SafetyEventsPage />} />',
-      '<Route path="/safety/review" element={<SafetyEventsPage />} />',
+      '<Route path="/safety/events" element={<SafetyCheckQueuePage />} />',
+      '<Route path="/safety/review" element={<SafetyCheckQueuePage />} />',
     ]],
   },
   {

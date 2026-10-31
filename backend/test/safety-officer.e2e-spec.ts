@@ -33,6 +33,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   let mixedVenueBookings: Seeded;
   const userIds: string[] = [];
   const eventIds: string[] = [];
+  const venueIds: string[] = [];
 
   beforeAll(() => {
     process.env.DATABASE_URL = database;
@@ -67,8 +68,11 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
 
   afterEach(async () => {
     await app?.close();
-    if (eventIds.length) await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds.splice(0)]);
-    if (venue?.id) await pool.query('DELETE FROM venues WHERE id = $1', [venue.id]);
+    if (eventIds.length) {
+      await pool.query('DELETE FROM notifications WHERE related_event_id = ANY($1::uuid[])', [eventIds]);
+      await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [eventIds.splice(0)]);
+    }
+    if (venueIds.length) await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [venueIds.splice(0)]);
     if (userIds.length) await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [userIds.splice(0)]);
   });
 
@@ -97,6 +101,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
       [ownerId, `SPM-129 Hall ${randomUUID()}`],
     );
     const id = inserted.rows[0].id;
+    venueIds.push(id);
     await pool.query('INSERT INTO venue_facilities (venue_id, facility_id) SELECT $1, id FROM facilities WHERE name = $2', [id, 'AV System']);
     await pool.query('INSERT INTO venue_accessibility (venue_id, accessibility_id) SELECT $1, id FROM accessibility_features WHERE label = $2', [id, 'Wheelchair access']);
     await pool.query('INSERT INTO venue_layouts (venue_id, layout_id) SELECT $1, id FROM room_layouts WHERE name = $2', [id, 'Theatre']);
@@ -158,7 +163,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
 
   /** SAFETY-QUEUE-02: event attendance and requirements, venue capacity and layout, and accessibility map from PostgreSQL rows. */
   it('SAFETY-QUEUE-02 reads attendance, capacity, layout, and accessibility from linked database rows', async () => {
-    const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200);
+    const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200).expect('Cache-Control', 'no-store');
     expect(result.body).toMatchObject({
       expectedAttendance: 80,
       venueRequirements: { layout: 'Theatre', facilities: ['AV System'], accessibility: ['Wheelchair access'] },
@@ -169,7 +174,7 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   /** SAFETY-QUEUE-03: technical requirements and reserved equipment are projected from their database rows. */
   it('SAFETY-QUEUE-03 returns technical arrangements and reserved equipment from PostgreSQL', async () => {
     const result = await http().get(`/api/safety-officer/queue/${eligible.eventId}`).set('Cookie', officer.cookie).expect(200);
-    expect(result.body).toMatchObject({ equipmentNeeds: 'Wireless microphone', equipment: [{ name: 'Microphone', quantity: 2 }] });
+    expect(result.body).toMatchObject({ equipmentNeeds: 'Wireless microphone', equipment: [{ id: expect.any(String), name: 'Microphone', quantity: 2 }] });
   });
 
   /** SAFETY-QUEUE-04: configured venue operating restrictions are visible in event details. */
@@ -199,6 +204,63 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
     expect(queue.body.map((row: { id: string }) => row.id)).toContain(replacement.eventId);
     await http().get(`/api/safety-officer/queue/${replacement.eventId}`).set('Cookie', officer.cookie).expect(200);
+  });
+
+  /** SAFETY-QUEUE-06-SUP-HISTORY: the same persisted full-slot replacement is eligible for officer approval and coordinator Confirm. */
+  it('SAFETY-QUEUE-06-SUP-HISTORY accepts a same-venue full-slot replacement through queue, decision and Confirm', async () => {
+    const replacement = await createSafetyEvent('Full-slot venue replacement', true, 'approved', 'Reserved', 'booking', 'rejected');
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [replacement.eventId, coordinator.uid]);
+
+    const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
+    expect(queue.body.map((row: { id: string }) => row.id)).toContain(replacement.eventId);
+    await http().get(`/api/safety-officer/queue/${replacement.eventId}`).set('Cookie', officer.cookie).expect(200);
+    await http().post(`/api/safety-officer/queue/${replacement.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(201);
+
+    const readiness = await http().get(`/api/events/${replacement.eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(readiness.body).toMatchObject({ ready: true, outstanding: [], checklist: { venue: { status: 'confirmed' } } });
+    await http().post(`/api/events/${replacement.eventId}/status-change`).set('Cookie', coordinator.cookie).send({ targetStatus: 'Confirmed' }).expect(200);
+    expect((await pool.query('SELECT status FROM events WHERE id = $1', [replacement.eventId])).rows).toEqual([{ status: 'Confirmed' }]);
+    expect((await pool.query('SELECT from_status, to_status, actor_id FROM event_status_history WHERE event_id = $1', [replacement.eventId])).rows)
+      .toEqual([{ from_status: 'Planning', to_status: 'Confirmed', actor_id: coordinator.uid }]);
+  });
+
+  /** SAFETY-QUEUE-06-SUP-HISTORY: SQL-derived identity and both interval boundaries prevent unrelated or incomplete replacements from clearing rejection. */
+  it.each([
+    ['another venue', SLOT_START, SLOT_END, true],
+    ['a partial start', '2031-06-10T03:00:00.000Z', SLOT_END, false],
+    ['a partial end', SLOT_START, '2031-06-10T03:00:00.000Z', false],
+    ['an adjacent slot', SLOT_END, '2031-06-10T05:00:00.000Z', false],
+  ] as const)('SAFETY-QUEUE-06-SUP-HISTORY blocks %s replacement through queue, detail, decision and Confirm', async (_label, start, end, anotherVenue) => {
+    const replacement = await createSafetyEvent('Unresolved rejected venue slot', true, 'approved', 'Reserved', 'booking', 'rejected');
+    const replacementVenue = anotherVenue ? await createVenue(officer.uid) : venue;
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [replacement.eventId, coordinator.uid]);
+    await pool.query(
+      "UPDATE venue_bookings SET venue_id = $2, start_at = $3, end_at = $4 WHERE event_id = $1 AND status = 'approved'",
+      [replacement.eventId, replacementVenue.id, start, end],
+    );
+    // Arrangement changes invalidate the check. Restore a stale pending request to exercise each endpoint's own gate.
+    await pool.query(
+      `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by)
+       VALUES ($1, 'pending', '2031-06-02T00:00:00.000Z', 'spm129-coordinator')`,
+      [replacement.eventId],
+    );
+
+    const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
+    expect(queue.body.map((row: { id: string }) => row.id)).not.toContain(replacement.eventId);
+    await http().get(`/api/safety-officer/queue/${replacement.eventId}`).set('Cookie', officer.cookie).expect(404);
+    await http().post(`/api/safety-officer/queue/${replacement.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(409);
+    expect((await pool.query('SELECT status, approver_name, decided_at FROM event_safety_checks WHERE event_id = $1', [replacement.eventId])).rows)
+      .toEqual([{ status: 'pending', approver_name: null, decided_at: null }]);
+
+    // Isolate Confirm's venue gate from the intentionally pending safety outcome after verifying the refusal did not change it.
+    await pool.query("UPDATE event_safety_checks SET status = 'approved' WHERE event_id = $1", [replacement.eventId]);
+    const readiness = await http().get(`/api/events/${replacement.eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(readiness.body).toMatchObject({ ready: false, checklist: { venue: { status: 'unavailable' } } });
+    expect(readiness.body.outstanding).toContainEqual(expect.objectContaining({ type: 'venue', state: 'Rejected' }));
+    const confirm = await http().post(`/api/events/${replacement.eventId}/status-change`).set('Cookie', coordinator.cookie).send({ targetStatus: 'Confirmed' }).expect(422);
+    expect(confirm.body).toMatchObject({ code: 'CONFIRM_BLOCKED', outstanding: expect.arrayContaining([expect.objectContaining({ type: 'venue', state: 'Rejected' })]) });
+    expect((await pool.query('SELECT status FROM events WHERE id = $1', [replacement.eventId])).rows).toEqual([{ status: 'Planning' }]);
+    expect((await pool.query('SELECT event_id FROM event_status_history WHERE event_id = $1', [replacement.eventId])).rows).toEqual([]);
   });
 
   /** SAFETY-QUEUE-06: an approved tentative hold without an ordinary booking does not confirm an event venue. */
@@ -241,12 +303,13 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   /** SAFETY-QUEUE-05: approval persists, exits the pending queue, and creates no feedback item. */
   it('SAFETY-QUEUE-05 persists an approval without feedback', async () => {
     const next = await createSafetyEvent('Approval Response Event', true, 'approved', 'Reserved');
-    await http().post(`/api/safety-officer/queue/${next.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(201);
+    await http().post(`/api/safety-officer/queue/${next.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved', reason: 'Stale rejection reason' }).expect(201);
     const stored = await pool.query<{ status: string; approver_name: string; feedback: string | null; decided_at: Date }>(
       'SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [next.eventId],
     );
     expect(stored.rows[0]).toMatchObject({ status: 'approved', approver_name: 'SPM-129 Safety Officer', feedback: null });
     expect(stored.rows[0].decided_at).toBeInstanceOf(Date);
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1', [next.eventId]).then((result) => result.rows[0].count)).toBe(0);
     expect((await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200)).body.map((row: { id: string }) => row.id)).not.toContain(next.eventId);
   });
 
