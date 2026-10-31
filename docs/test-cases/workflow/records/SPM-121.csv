@@ -31,14 +31,17 @@ VEN-UPD-09-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-B: capacityBooki
 VEN-UPD-07-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-07-E2E-A: returns 403 when a second Venue Staff tries to PATCH a venue they do not own,1093,AC7,Security,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
 VEN-UPD-04-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-A: returns 409 when PATCH would create a duplicate name+location,1110,AC4,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
 VEN-UPD-06-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-A: GET after PATCH returns the updated venue fields,1132,AC6,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-08-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes,1153,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-04-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-B: allows a name that exists at a different location,1194,AC4,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-04-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-C: rejects case-insensitive duplicate name at the same location,1211,AC4,Boundary,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-05-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-05-E2E-B: repeated save does not duplicate the venue,1229,AC5,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-09-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-C: capacityBookings excludes rejected and blocked and other-venue bookings,1245,AC9,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-09-E2E-D,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-D: capacityBookings is empty when the venue has no pending or approved bookings,1275,AC9,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-09-VAR-1-E2E,backend/test/venues.e2e-spec.ts,VEN-UPD-09-VAR-1-E2E: successive capacity changes list bookings correctly without duplication,1290,AC9,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
-VEN-UPD-02-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-02-E2E-B: updating one field does not erase unrelated venue details,1314,AC2,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-06-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-B: venue list reflects updated location and not the old one,1153,AC6,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-06-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-C: Coordinator sees updated setup and turnaround times after Staff edits,1170,AC6,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-06-E2E-D,backend/test/venues.e2e-spec.ts,VEN-UPD-06-E2E-D: Coordinator does not see stale location or timing after update,1186,AC6,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-08-E2E-A,backend/test/venues.e2e-spec.ts,VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes,1204,AC8,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-04-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-B: allows a name that exists at a different location,1245,AC4,Happy,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-04-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-04-E2E-C: rejects case-insensitive duplicate name at the same location,1262,AC4,Boundary,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-05-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-05-E2E-B: repeated save does not duplicate the venue,1280,AC5,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-09-E2E-C,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-C: capacityBookings excludes rejected and blocked and other-venue bookings,1296,AC9,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-09-E2E-D,backend/test/venues.e2e-spec.ts,VEN-UPD-09-E2E-D: capacityBookings is empty when the venue has no pending or approved bookings,1326,AC9,Sad,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-09-VAR-1-E2E,backend/test/venues.e2e-spec.ts,VEN-UPD-09-VAR-1-E2E: successive capacity changes list bookings correctly without duplication,1341,AC9,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
+VEN-UPD-02-E2E-B,backend/test/venues.e2e-spec.ts,VEN-UPD-02-E2E-B: updating one field does not erase unrelated venue details,1365,AC2,Variation,Present,Integration,SPEC,,,Yes,Yes,No,NOT RUN
 VEN-UPD-01-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-01-UI-A pre-fills the form with current venue values after load,56,AC1,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
 VEN-UPD-01-UI-B,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-01-UI-B shows an error when venue load fails,65,AC1,Sad,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
 VEN-UPD-05-UI-A,frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx,VEN-UPD-05-UI-A calls PATCH and shows success message after submission,74,AC5,Happy,Present,Frontend,SPEC,,,Yes,Yes,Yes,PASS
