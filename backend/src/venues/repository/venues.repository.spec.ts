@@ -2822,23 +2822,32 @@ describe('SPM-121 repository.update', () => {
 
   /** Builds a repository mock for update(); txQuery is the client inside the transaction, poolQuery is for withSchedules. */
   function createUpdateRepository(
-    lockRow: { id: string; owner_user_id: string; capacity: number } | undefined,
-    options: { updatedRow?: typeof venueRow; affectedRows?: unknown[]; capacityRows?: unknown[] } = {},
+    lockRow: { id: string; owner_user_id: string; capacity: number; setup_time_minutes?: number; turnaround_time_minutes?: number } | undefined,
+    options: { updatedRow?: typeof venueRow; affectedRows?: unknown[]; capacityRows?: unknown[]; input?: typeof venueInput } = {},
   ) {
-    const { updatedRow = venueRow, affectedRows = [], capacityRows = [] } = options;
+    const { updatedRow = venueRow, affectedRows = [], capacityRows = [], input = venueInput } = options;
     const txQuery = vi.fn();
-    // 1. Lock query
-    txQuery.mockResolvedValueOnce({ rows: lockRow ? [lockRow] : [] });
-    if (lockRow && lockRow.owner_user_id === ownerUserId) {
+    // 1. Lock query (now includes setup/turnaround)
+    const fullLock = lockRow ? {
+      ...lockRow,
+      setup_time_minutes: lockRow.setup_time_minutes ?? input.setupTimeMinutes,
+      turnaround_time_minutes: lockRow.turnaround_time_minutes ?? input.turnaroundTimeMinutes,
+    } : undefined;
+    txQuery.mockResolvedValueOnce({ rows: fullLock ? [fullLock] : [] });
+    if (fullLock && fullLock.owner_user_id === ownerUserId) {
       // 2. UPDATE venues
       txQuery.mockResolvedValueOnce({ rows: [] });
       // 3–8. DELETE facilities, INSERT facilities, DELETE layouts, INSERT layouts, DELETE accessibility, DELETE image
       // (6 calls: accessibility=[] so no INSERT; no new image so only DELETE)
       for (let i = 0; i < 6; i++) txQuery.mockResolvedValueOnce({ rows: [] });
-      // AC8 affected query
-      txQuery.mockResolvedValueOnce({ rows: affectedRows });
+      // AC8 affected query only when timing changed
+      const timingChanged = fullLock.setup_time_minutes !== input.setupTimeMinutes
+        || fullLock.turnaround_time_minutes !== input.turnaroundTimeMinutes;
+      if (timingChanged) {
+        txQuery.mockResolvedValueOnce({ rows: affectedRows });
+      }
       // AC9 capacity query only when capacity differs from lockRow
-      if (lockRow && lockRow.capacity !== venueInput.capacity) {
+      if (fullLock.capacity !== input.capacity) {
         txQuery.mockResolvedValueOnce({ rows: capacityRows });
       }
       // SELECT updated venue
@@ -2898,21 +2907,12 @@ describe('SPM-121 repository.update', () => {
       end_at: new Date('2030-03-02T10:00:00.000Z'),
       status: 'pending' as const,
     };
-    const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: 120 }; // different from input.capacity=80
-    const txQuery = vi.fn();
-    txQuery.mockResolvedValueOnce({ rows: [lockRow] }); // lock
-    for (let i = 0; i < 7; i++) txQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE + 6 DELETE/INSERT + image DELETE
-    txQuery.mockResolvedValueOnce({ rows: [] }); // AC8 affected
-    txQuery.mockResolvedValueOnce({ rows: [capacityBookingRow] }); // AC9 capacity
-    txQuery.mockResolvedValueOnce({ rows: [venueRow] }); // SELECT updated
-    const poolQuery = vi.fn()
-      .mockResolvedValueOnce({ rows: [] }) // withSchedules: periods
-      .mockResolvedValueOnce({ rows: [] }); // withSchedules: bookings
-    const transaction = vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }));
-    const repository = new VenuesRepository(
-      { transaction, query: poolQuery } as unknown as DatabaseService,
-      { now: () => new Date('2030-01-10T12:00:00.000Z') },
-    );
+    const lockRow = {
+      id: venueId, owner_user_id: ownerUserId, capacity: 120,
+      setup_time_minutes: venueInput.setupTimeMinutes,
+      turnaround_time_minutes: venueInput.turnaroundTimeMinutes,
+    };
+    const { repository } = createUpdateRepository(lockRow, { capacityRows: [capacityBookingRow] });
     const result = await repository.update(ownerUserId, venueId, venueInput);
     expect(result.kind).toBe('updated');
     if (result.kind === 'updated') {
@@ -2935,21 +2935,11 @@ describe('SPM-121 repository.update', () => {
       end_at: new Date('2030-04-01T11:00:00.000Z'),
       status: 'approved' as const,
     };
-    const lockRow = { id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity };
-    const txQuery = vi.fn();
-    txQuery.mockResolvedValueOnce({ rows: [lockRow] }); // lock
-    for (let i = 0; i < 7; i++) txQuery.mockResolvedValueOnce({ rows: [] }); // UPDATE + 6 DELETE/INSERT + image DELETE
-    txQuery.mockResolvedValueOnce({ rows: [conflictRow] }); // AC8 affected
-    // no AC9 query (capacity unchanged)
-    txQuery.mockResolvedValueOnce({ rows: [venueRow] }); // SELECT updated
-    const poolQuery = vi.fn()
-      .mockResolvedValueOnce({ rows: [] }) // withSchedules: periods
-      .mockResolvedValueOnce({ rows: [] }); // withSchedules: bookings
-    const transaction = vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery }));
-    const repository = new VenuesRepository(
-      { transaction, query: poolQuery } as unknown as DatabaseService,
-      { now: () => new Date('2030-01-10T12:00:00.000Z') },
-    );
+    const lockRow = {
+      id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity,
+      setup_time_minutes: 0, turnaround_time_minutes: 0,
+    };
+    const { repository } = createUpdateRepository(lockRow, { affectedRows: [conflictRow] });
     const result = await repository.update(ownerUserId, venueId, venueInput);
     expect(result.kind).toBe('updated');
     if (result.kind === 'updated') {
@@ -2962,5 +2952,36 @@ describe('SPM-121 repository.update', () => {
       }]);
       expect(result.capacityBookings).toEqual([]);
     }
+  });
+
+  /** VEN-UPD-05-A-SUP: when timing is unchanged, no AC8 query is executed. */
+  it('VEN-UPD-05-A-SUP skips the AC8 query when setup and turnaround are unchanged', async () => {
+    const lockRow = {
+      id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity,
+      setup_time_minutes: venueInput.setupTimeMinutes,
+      turnaround_time_minutes: venueInput.turnaroundTimeMinutes,
+    };
+    const { repository, txQuery } = createUpdateRepository(lockRow);
+    const result = await repository.update(ownerUserId, venueId, venueInput);
+    expect(result.kind).toBe('updated');
+    if (result.kind === 'updated') {
+      expect(result.affectedBookings).toEqual([]);
+    }
+    const sqlCalls = txQuery.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(sqlCalls.some((s: string) => s.includes('venue_booking_requests'))).toBe(false);
+  });
+
+  /** VEN-UPD-08-C: when only setup changes, timing is treated as changed. */
+  it('VEN-UPD-08-C runs the AC8 query when only setup time changes', async () => {
+    const lockRow = {
+      id: venueId, owner_user_id: ownerUserId, capacity: venueInput.capacity,
+      setup_time_minutes: 0,
+      turnaround_time_minutes: venueInput.turnaroundTimeMinutes,
+    };
+    const { repository, txQuery } = createUpdateRepository(lockRow, { affectedRows: [] });
+    const result = await repository.update(ownerUserId, venueId, venueInput);
+    expect(result.kind).toBe('updated');
+    const sqlCalls = txQuery.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(sqlCalls.some((s: string) => s.includes('venue_booking_requests'))).toBe(true);
   });
 });

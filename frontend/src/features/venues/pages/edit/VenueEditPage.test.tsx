@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { VenueEditPage } from "./VenueEditPage";
-import { api } from "@/utils/api";
+import { api, ApiError } from "@/utils/api";
 import { useAppStore } from "@/store/useAppStore";
 import type { Venue, AffectedBooking } from "@/types";
 
@@ -140,5 +140,68 @@ describe("SPM-121 VenueEditPage", () => {
     await user.click(await screen.findByRole("button", { name: /Save changes/i }));
 
     await waitFor(() => expect(screen.getByText("Tech Conference")).toBeInTheDocument());
+  });
+
+  /** VEN-UPD-07-UI-B: AC7 — navigating directly to another staff member's edit URL shows a forbidden message instead of the form. */
+  it("VEN-UPD-07-UI-B blocks non-owner from accessing the edit form by URL", async () => {
+    const otherVenue = { ...venue, ownerId: "other-staff-99" };
+    apiMock.mockResolvedValueOnce(otherVenue as unknown as ReturnType<typeof api>);
+    renderEdit();
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/only edit venues you created/i),
+    );
+    expect(screen.queryByLabelText(/Venue name/i)).toBeNull();
+  });
+
+  /** VEN-UPD-04-UI-A: AC4 — duplicate venue name returns 409 and shows the "already exists" message. */
+  it("VEN-UPD-04-UI-A shows the duplicate-name error message on 409", async () => {
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>) // GET
+      .mockRejectedValueOnce(
+        new ApiError(
+          "A venue with this name and location already exists.",
+          { name: "Use a different venue name or location.", location: "Use a different venue name or location." },
+          undefined,
+          409,
+        ),
+      );
+
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(await screen.findByRole("button", { name: /Save changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/already exists/i)).toBeInTheDocument(),
+    );
+  });
+
+  /** VEN-UPD-08-UI-A: AC8 — affected bookings list is shown when timing changes. */
+  it("VEN-UPD-08-UI-A shows affected bookings when timing change causes new overlaps", async () => {
+    const booking: AffectedBooking = {
+      bookingId: "bk-overlap",
+      eventName: "Design Summit",
+      start: "2030-05-01T09:00:00.000Z",
+      end: "2030-05-01T11:00:00.000Z",
+      status: "approved",
+    };
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>) // GET
+      .mockResolvedValueOnce({
+        venue,
+        message: "Venue updated successfully.",
+        affectedBookings: [booking],
+        capacityBookings: [],
+      } as unknown as ReturnType<typeof api>); // PATCH
+
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(await screen.findByRole("button", { name: /Save changes/i }));
+
+    await waitFor(() => expect(screen.getByText("Design Summit")).toBeInTheDocument());
+    expect(screen.getByText(/affected by the changed setup or turnaround/i)).toBeInTheDocument();
   });
 });
