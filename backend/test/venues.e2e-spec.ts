@@ -1149,6 +1149,57 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.capacity).toBe(55);
     });
 
+    /** SPM-121 AC6: after a location update, the venue list returns the new location. */
+    it('VEN-UPD-06-E2E-B: venue list reflects updated location and not the old one', async () => {
+      const staff = await authenticate(staffEmail);
+      const oldLocation = 'Old Wing Level 99';
+      const newLocation = 'East Wing Level 5';
+      const name = uniqueVenueName('SPM-121 AC6-B Location');
+      const created = await staff.post('/api/venues').send({ ...venueInput, name, location: oldLocation }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name, location: newLocation }).expect(200);
+
+      const list = await staff.get('/api/venues').expect(200);
+      const found = list.body.find((v: { id: string }) => v.id === id);
+      expect(found.location).toBe(newLocation);
+    });
+
+    /** SPM-121 AC6: a Coordinator reading the venue after a timing update sees the new setup/turnaround. */
+    it('VEN-UPD-06-E2E-C: Coordinator sees updated setup and turnaround times after Staff edits', async () => {
+      const staff = await authenticate(staffEmail);
+      const name = uniqueVenueName('SPM-121 AC6-C Timing');
+      const created = await staff.post('/api/venues').send({ ...venueInput, name, setupTimeMinutes: 30, turnaroundTimeMinutes: 45 }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name, setupTimeMinutes: 45, turnaroundTimeMinutes: 60 }).expect(200);
+
+      const coord = await authenticate(coordinatorEmail);
+      const get = await coord.get(`/api/venues/${id}`).expect(200);
+      expect(get.body.setupTimeMinutes).toBe(45);
+      expect(get.body.turnaroundTimeMinutes).toBe(60);
+    });
+
+    /** SPM-121 AC6: a Coordinator does not see obsolete venue details after a successful update. */
+    it('VEN-UPD-06-E2E-D: Coordinator does not see stale location or timing after update', async () => {
+      const staff = await authenticate(staffEmail);
+      const name = uniqueVenueName('SPM-121 AC6-D Stale');
+      const created = await staff.post('/api/venues').send({ ...venueInput, name, location: 'Stale Wing', setupTimeMinutes: 10 }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name, location: 'Fresh Wing', setupTimeMinutes: 40 }).expect(200);
+
+      const coord = await authenticate(coordinatorEmail);
+      const get = await coord.get(`/api/venues/${id}`).expect(200);
+      expect(get.body.location).not.toBe('Stale Wing');
+      expect(get.body.location).toBe('Fresh Wing');
+      expect(get.body.setupTimeMinutes).not.toBe(10);
+      expect(get.body.setupTimeMinutes).toBe(40);
+    });
+
     /** SPM-121 AC8: changing setup/turnaround time returns affected bookings in affectedBookings. */
     it('VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes', async () => {
       const staff = await authenticate(staffEmail);
