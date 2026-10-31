@@ -246,8 +246,17 @@ export interface EventComment {
   createdAt: string;
 }
 
+export interface AffectedBooking {
+  bookingId: string;
+  eventName: string;
+  start: string;
+  end: string;
+  status: 'pending' | 'approved';
+}
+
 export interface Venue {
   id: string;
+  ownerId?: string;
   name: string;
   location: string;
   capacity: number;
@@ -270,7 +279,7 @@ export interface VenueImage {
 /** Venue details supplied by staff before the backend generates its UUID. */
 export type VenueCreateInput = Omit<
   Venue,
-  "id"
+  "id" | "ownerId"
 >;
 
 export type BookingStatus = "pending" | "approved" | "rejected";

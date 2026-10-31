@@ -28,6 +28,7 @@ import { EquipmentCreatePage } from "@/features/equipment/pages/create/Equipment
 import { EquipmentEditPage } from "@/features/equipment/pages/edit/EquipmentEditPage";
 import { SettingsPage } from "@/features/account/pages/settings/SettingsPage";
 import { VenueCreatePage } from "@/features/venues/pages/create/VenueCreatePage";
+import { VenueEditPage } from "@/features/venues/pages/edit/VenueEditPage";
 import { AssignmentQueuePage } from "@/features/lead/pages/assignment-queue/AssignmentQueuePage";
 import { ReassignmentPage } from "@/features/lead/pages/reassignment/ReassignmentPage";
 import { SafetyEventsPage } from "@/features/safety/pages/SafetyEventsPage";
@@ -92,6 +93,7 @@ export default function App() {
         </Route>
         <Route element={<RequireRole allowedRoles={["venue_staff"]} />}>
           <Route path="/venues/create" element={<VenueCreatePage />} />
+          <Route path="/venue-records/:id/edit" element={<VenueEditPage />} />
         </Route>
 
         <Route element={<RequireRole allowedRoles={["tech_support"]} />}>
