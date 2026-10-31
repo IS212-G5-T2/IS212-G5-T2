@@ -634,16 +634,20 @@ describe('SPM-121 venue service update', () => {
     expect(updateFn).not.toHaveBeenCalled();
   });
 
-  /** VEN-UPD-03-B: AC3 — capacity outside the valid range returns 400 before the repository is called. */
-  it('VEN-UPD-03-B returns 400 when capacity is zero', async () => {
+  /** VEN-UPD-03-B: AC3 — empty capacity, setup or turnaround is rejected, not silently stored. */
+  it.each([
+    { field: 'capacity', value: undefined },
+    { field: 'setupTimeMinutes', value: undefined },
+    { field: 'turnaroundTimeMinutes', value: undefined },
+  ])('VEN-UPD-03-B rejects empty $field', async ({ field, value }) => {
     await expect(
-      service.update(staff, venueId, { ...validBody, capacity: 0 }),
+      service.update(staff, venueId, { ...validBody, [field]: value }),
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(updateFn).not.toHaveBeenCalled();
   });
 
   /** VEN-UPD-03-C-SVC: AC3 — nonempty invalid capacity values are rejected. */
-  it.each([-1, 1_000_001, 2.5])('VEN-UPD-03-C-SVC rejects capacity %s', async (capacity) => {
+  it.each([0, -1, 1_000_001, 2.5])('VEN-UPD-03-C-SVC rejects capacity %s', async (capacity) => {
     await expect(
       service.update(staff, venueId, { ...validBody, capacity }),
     ).rejects.toBeInstanceOf(BadRequestException);
