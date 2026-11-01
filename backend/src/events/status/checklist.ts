@@ -33,6 +33,7 @@ export interface VenueRequestItem {
   /** SPM-159: an approved tentative hold is shown as "Hold" or "Hold expired", never as confirmed. */
   holdState?: 'Hold' | 'Hold expired';
   requestedDate?: string;
+  safetyReviewStatus?: 'Pending review';
 }
 
 export interface EquipmentRequestItem {
@@ -41,6 +42,7 @@ export interface EquipmentRequestItem {
   quantity: number;
   status: RequestStatus;
   requestedDate?: string;
+  safetyReviewStatus?: 'Pending review';
 }
 
 /** Each request has its own status; a section is confirmed only when every request is. */
@@ -109,6 +111,8 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
   const activeBookings = snapshot.venueBookings.filter(
     (b) => b.status !== 'released' && b.status !== 'cancelled',
   );
+  const reviewVenueIds = new Set((safety.feedback ?? []).flatMap((item) => item.reviewArrangements?.venueIds ?? []));
+  const reviewEquipmentIds = new Set((safety.feedback ?? []).flatMap((item) => item.reviewArrangements?.equipmentIds ?? []));
   const bookings = activeBookings.filter(
     (booking) => !(booking.status === 'rejected' && hasApprovedReplacementForRejectedBooking(booking, activeBookings)),
   );
@@ -118,6 +122,7 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
       id: b.id,
       venueName: b.venueName,
       status: venueRequestStatus(b, input.now),
+      ...(reviewVenueIds.has(b.id) ? { safetyReviewStatus: 'Pending review' as const } : {}),
       ...(hold ? { holdState: hold === 'expired' ? ('Hold expired' as const) : ('Hold' as const) } : {}),
       ...(b.requestedAt ? { requestedDate: b.requestedAt } : {}),
     };
@@ -134,6 +139,7 @@ export function buildChecklist(input: ChecklistInput): PlanningChecklist {
     name: l.name,
     quantity: l.quantity,
     status: equipmentRequestStatus(l),
+    ...(reviewEquipmentIds.has(l.id) ? { safetyReviewStatus: 'Pending review' as const } : {}),
     ...(l.requestedAt ? { requestedDate: l.requestedAt } : {}),
   }));
   const equipmentStatus: RequestStatus =

@@ -11,7 +11,7 @@ import { AppModule } from '../src/app.module.js';
 /*
  * SAFETY-FEEDBACK: when the Safety Officer requests changes, each feedback item is resolved by the
  * coordinator, and re-requesting needs every item resolved. Real PostgreSQL, real AppModule.
- * Needs TEST_DATABASE_URL (or DATABASE_URL) with database/postgresql/init 001 to 015 applied.
+ * Needs TEST_DATABASE_URL (or DATABASE_URL) with database/postgresql/init 001 to 029 applied.
  */
 
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
@@ -28,6 +28,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
   let createdEventIds: string[];
   let createdVenueIds: string[];
   let createdUserIds: string[];
+  let createdEquipmentIds: string[];
 
   beforeAll(() => {
     pool = new pg.Pool({ connectionString: database });
@@ -40,6 +41,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     createdEventIds = [];
     createdVenueIds = [];
     createdUserIds = [];
+    createdEquipmentIds = [];
     const moduleFixture = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = moduleFixture.createNestApplication();
     await app.init();
@@ -52,6 +54,8 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
       await pool.query('DELETE FROM events WHERE id = ANY($1::uuid[])', [createdEventIds]);
     if (createdVenueIds.length)
       await pool.query('DELETE FROM venues WHERE id = ANY($1::uuid[])', [createdVenueIds]);
+    if (createdEquipmentIds.length)
+      await pool.query('DELETE FROM equipment WHERE id = ANY($1::uuid[])', [createdEquipmentIds]);
     if (createdUserIds.length) {
       await pool.query('DELETE FROM users WHERE id = ANY($1::uuid[])', [createdUserIds]);
     }
@@ -88,6 +92,14 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
       [id, coordinator.uid, randomUUID()],
     );
     createdEventIds.push(id);
+    const equipmentName = `Safety Feedback Projector ${id}`;
+    await pool.query(
+      `INSERT INTO equipment (id, equipment_name, equipment_type, quantity, maintenance_status,
+         active_quantity, under_maintenance_quantity, retired_quantity, location)
+       VALUES ($1, $2, 'Visual', 5, 'Active', 5, 0, 0, 'E2E Store')`,
+      [id, equipmentName],
+    );
+    createdEquipmentIds.push(id);
     const venue = await pool.query<{ id: string }>(
       `INSERT INTO venues (owner_user_id, name, location, capacity, operating_information,
          setup_time_minutes, turnaround_time_minutes)
@@ -100,16 +112,26 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
       `INSERT INTO venue_bookings (event_id, venue_id, start_at, end_at, status) VALUES ($1, $2, $3, $4, 'approved')`,
       [id, venue.rows[0].id, SLOT_START, SLOT_END],
     );
+    const equipmentRequestId = (await pool.query<{ id: string }>(
+      `INSERT INTO equipment_requests (event_id, requested_by, status) VALUES ($1, $2, 'Reserved') RETURNING id`,
+      [id, coordinator.uid],
+    )).rows[0].id;
+    const itemId = (await pool.query<{ id: string }>(
+      `INSERT INTO equipment_request_items (request_id, equipment_name, equipment_type, quantity)
+       VALUES ($1, $2, 'Visual', 1) RETURNING id`,
+      [equipmentRequestId, equipmentName],
+    )).rows[0].id;
     await pool.query(
-      `INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status) VALUES ($1, 'Projector', 1, 'Reserved')`,
-      [id],
+      `INSERT INTO equipment_reservations (event_id, equipment_name, quantity, status, equipment_request_item_id)
+       VALUES ($1, $2, 1, 'Reserved', $3)`,
+      [id, equipmentName, itemId],
     );
     await pool.query(
       `INSERT INTO event_safety_checks (event_id, status, requested_at, requested_by, approver_name, decided_at)
        VALUES ($1, 'approved', now(), $2, 'Safety Officer 1', now())`,
       [id, coordinator.uid],
     );
-    return { id, venueId: venue.rows[0].id };
+    return { id, venueId: venue.rows[0].id, equipmentRequestId, equipmentName };
   }
 
   /** The safety record, or undefined once it has been reset to "not requested". */
@@ -119,7 +141,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
   }
 
   async function seedChangesNeededEvent() {
-    const { id } = await seedApprovedEvent();
+    const { id, equipmentRequestId, equipmentName } = await seedApprovedEvent();
     await pool.query(
       "UPDATE event_safety_checks SET status = 'changes_needed', approver_name = 'Safety Officer 1', decided_at = now() WHERE event_id = $1",
       [id],
@@ -130,7 +152,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
        VALUES ($1, $3, 'Add a fire exit plan.', now()), ($2, $3, 'Confirm occupancy.', now())`,
       [itemIds[0], itemIds[1], id],
     );
-    return { id, itemIds };
+    return { id, itemIds, equipmentRequestId, equipmentName };
   }
 
   /** Resolving a safety feedback item marks it as handled, and unresolving it clears that mark. */
@@ -155,10 +177,12 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(status.body.checklist.safetyCheck.feedback.every((item: { resolvedByCoordinatorAt?: string }) => !item.resolvedByCoordinatorAt)).toBe(true);
   });
 
-  /** Re-requesting the safety check is refused while any feedback item is unresolved and allowed once all are resolved. */
-  it('SAFETY-FEEDBACK-02: re-requesting is refused while any item is unresolved, and allowed once all are resolved', async () => {
+  /** SAFETY-OUTCOME-06: revise equipment after feedback, restore its reservation, and re-request safety review. */
+  it('SAFETY-OUTCOME-06 SAFETY-FEEDBACK-02: re-requests safety review after revising equipment and restoring readiness', async () => {
     // Arrange
-    const { id, itemIds } = await seedChangesNeededEvent();
+    const { id, itemIds, equipmentRequestId, equipmentName } = await seedChangesNeededEvent();
+    const support = await createSession('TECH_SUPPORT', 'Technical Support 1');
+    const officer = await createSession('SAFETY_OFFICER', 'Safety Officer 1');
     await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[0]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
 
     // Act + Assert: one item still open
@@ -166,14 +190,34 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     expect(blocked.body.code).toBe('SAFETY_FEEDBACK_UNRESOLVED');
     expect(await pool.query('SELECT status FROM event_safety_checks WHERE event_id = $1', [id]).then((r) => r.rows[0].status)).toBe('changes_needed');
 
-    // Act: resolve the rest and re-request
+    // Coordinator resolves the remaining feedback before updating the plan.
     await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[1]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+
+    // Revise the actual equipment arrangement through the Coordinator flow.
+    await http().put(`/api/equipment/requests/${equipmentRequestId}`).set('Cookie', coordinator.cookie)
+      .send({ eventId: id, items: [{ equipmentName, equipmentType: 'Visual', quantity: 2 }] }).expect(200);
+    expect(await safetyOf(id)).toBeUndefined();
+    expect((await pool.query('SELECT id FROM safety_check_feedback_items WHERE event_id = $1', [id])).rows).toEqual([]);
+    expect((await pool.query('SELECT status, quantity FROM equipment_reservations WHERE event_id = $1', [id])).rows)
+      .toEqual([{ status: 'Requested', quantity: 2 }]);
+
+    // Technical Support approves the revised quantity before re-request.
+    await http().patch(`/api/equipment/requests/${equipmentRequestId}/reserve`).set('Cookie', support.cookie).expect(200);
+    expect((await pool.query('SELECT status, quantity FROM equipment_reservations WHERE event_id = $1', [id])).rows)
+      .toEqual([{ status: 'Reserved', quantity: 2 }]);
     const ok = await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
 
     // Assert: pending again, and the old items are cleared
     expect(ok.body.status).toBe('pending');
     const left = await pool.query('SELECT count(*)::int AS n FROM safety_check_feedback_items WHERE event_id = $1', [id]);
     expect(left.rows[0].n).toBe(0);
+    const readiness = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(readiness.body.ready).toBe(false);
+    expect(readiness.body.outstanding).toEqual([
+      { type: 'safety', label: 'Safety Officer approval', detail: 'Awaiting check', state: 'Awaiting Check' },
+    ]);
+    const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
+    expect(queue.body.map((event: { id: string }) => event.id)).toContain(id);
   });
 
   /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: rejected feedback remains durable and blocks re-request until coordinator resolution. */

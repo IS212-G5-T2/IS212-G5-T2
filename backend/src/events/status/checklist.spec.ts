@@ -63,6 +63,47 @@ describe('buildChecklist', () => {
     expect(result.blocking).toEqual([]);
   });
 
+  /** SAFETY-OUTCOME-04: selected arrangement review markers are visible without changing booking or reservation readiness. */
+  it('SAFETY-OUTCOME-04 exposes Pending review only for selected arrangements', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking(), booking({ id: 'b2', venueId: 'venue-2', venueName: 'Side Hall' })], equipment: [line(), line({ id: 'e2', name: 'Microphone' })] },
+      equipmentNeeds: 'Projector and microphone',
+      equipmentConfirmedAt: null,
+      safety: { status: 'changes_needed', feedback: [{
+        id: 'f1', text: 'Check the route.', requestedAt: now.toISOString(),
+        reviewArrangements: { venueIds: ['b1'], equipmentIds: ['e2'] },
+      }] },
+      now,
+    });
+    expect(result.venue.items).toEqual([
+      expect.objectContaining({ id: 'b1', status: 'confirmed', safetyReviewStatus: 'Pending review' }),
+      expect.objectContaining({ id: 'b2', status: 'confirmed' }),
+    ]);
+    expect(result.equipment.items).toEqual([
+      expect.objectContaining({ id: 'e1', status: 'confirmed' }),
+      expect.objectContaining({ id: 'e2', status: 'confirmed', safetyReviewStatus: 'Pending review' }),
+    ]);
+    expect(result.canRequestSafetyCheck).toBe(true);
+  });
+
+  /** Legacy or partially migrated feedback without review metadata remains visible as text without marking an arrangement. */
+  it('ignores absent safety review metadata on a feedback item', () => {
+    const result = buildChecklist({
+      snapshot: { venueBookings: [booking()], equipment: [line()] },
+      equipmentNeeds: 'Projector',
+      equipmentConfirmedAt: null,
+      safety: { status: 'rejected', feedback: [{
+        id: 'f1', text: 'Review the plan.', requestedAt: now.toISOString(),
+        reviewArrangements: undefined as never,
+      }] },
+      now,
+    });
+    expect(result.venue.items[0]).toMatchObject({ status: 'confirmed' });
+    expect(result.venue.items[0]).not.toHaveProperty('safetyReviewStatus');
+    expect(result.equipment.items[0]).toMatchObject({ status: 'confirmed' });
+    expect(result.equipment.items[0]).not.toHaveProperty('safetyReviewStatus');
+  });
+
   // SAFETY-RESET-01 (rule level): while venue or equipment is pending, the safety check is not
   // requested, even if a stale safety record is passed in. Kills: a page showing an approval
   // that no longer covers the pending arrangements.

@@ -160,12 +160,14 @@ function RequestList({
     id: string;
     label: string;
     status: RequestStatus;
+    safetyReviewStatus?: "Pending review";
     requestedDate?: string;
   }>;
   renderAction?: (item: {
     id: string;
     label: string;
     status: RequestStatus;
+    safetyReviewStatus?: "Pending review";
   }) => ReactNode;
 }) {
   return (
@@ -185,6 +187,9 @@ function RequestList({
           >
             {BADGE[item.status].label}
           </span>
+          {item.safetyReviewStatus && <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
+            {item.safetyReviewStatus} by Safety Officer
+          </span>}
           {item.requestedDate && (
             <span className={muted}>Requested {date(item.requestedDate)}</span>
           )}
@@ -294,6 +299,7 @@ function VenueStatusCard({
           id: item.id,
           label: item.venueName,
           status: item.status,
+          safetyReviewStatus: item.safetyReviewStatus,
           requestedDate: item.requestedDate,
         }))}
         renderAction={(item) =>
@@ -399,6 +405,7 @@ function EquipmentStatusCard({
           id: item.id,
           label: `${item.name} x${item.quantity}`,
           status: item.status,
+          safetyReviewStatus: item.safetyReviewStatus,
           requestedDate: item.requestedDate,
         }))}
         renderAction={(item) =>
@@ -454,6 +461,7 @@ export function PlanningInformationPage({
   const [notice, setNotice] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const actionPendingRef = useRef(false);
   // Keeps the confirm panel (and its success message) mounted after the status flips.
   const [confirmedHere, setConfirmedHere] = useState(false);
   const eventId = view.event.id;
@@ -493,7 +501,8 @@ export function PlanningInformationPage({
   }, [load, view.lastUpdatedAt]);
 
   const act = async (run: () => Promise<unknown>, failure: string) => {
-    if (pending) return;
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
     setPending(true);
     setActionError("");
     setNotice("");
@@ -507,6 +516,7 @@ export function PlanningInformationPage({
           : failure,
       );
     } finally {
+      actionPendingRef.current = false;
       if (aliveRef.current) setPending(false);
     }
   };
@@ -756,7 +766,7 @@ export function PlanningInformationPage({
                   pending={pending}
                   onError={setActionError}
                 />
-              ) : safety.status === "changes_needed" ? (
+              ) : (
                 <div className="space-y-2">
                   <p className="flex items-center gap-2 text-sm">
                     <span className="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-800 dark:bg-danger-900/30 dark:text-danger-300">
@@ -776,7 +786,7 @@ export function PlanningInformationPage({
                     Re-Request Safety Check
                   </Button>
                 </div>
-              ) : null)}
+              ))}
             {/* SPM-48 AC7: a rejected arrangement can be revised and requested again (SPM-131 AC6). */}
             {safety.status === "rejected" && (!Array.isArray(safety.feedback) || safety.feedback.length === 0) && (
               <Button

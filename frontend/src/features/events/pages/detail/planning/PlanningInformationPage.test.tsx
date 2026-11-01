@@ -121,6 +121,95 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("PlanningInformationPage", () => {
+  /** SAFETY-OUTCOME-04/05: the coordinator sees safety-specific review markers beside selected arrangements without operational statuses changing. */
+  it("shows Pending review by Safety Officer for selected venue and equipment arrangements", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed", safetyReviewStatus: "Pending review" }] },
+      equipment: { required: true, status: "confirmed", items: [{ id: "e1", name: "Microphone", quantity: 1, status: "confirmed", safetyReviewStatus: "Pending review" }], confirmedByCoordinator: false },
+      safetyCheck: { status: "rejected", feedback: [{
+        id: "f1", text: "Review all arrangements.", requestedAt: "2026-10-13T09:00:00.000Z",
+        reviewArrangements: { venueIds: ["b1"], equipmentIds: ["e1"] },
+      }] },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+    const venuesTab = await screen.findByRole("tab", { name: /Venues/ });
+    await userEvent.setup().click(venuesTab);
+    expect(await screen.findAllByText("Pending review by Safety Officer")).toHaveLength(2);
+    const equipmentTab = screen.getByRole("tab", { name: /Equipment/ });
+    await userEvent.setup().click(equipmentTab);
+    expect(screen.getAllByText("Pending review by Safety Officer")).toHaveLength(2);
+  });
+
+  /** Confirmed-page secondary tabs and coordinator people content remain visible when supplied by their owning page. */
+  it("shows confirmed requirements and optional registration and people content", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "approved", approverName: "Safety Officer" },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    render(
+      <MemoryRouter>
+        <PlanningInformationPage
+          view={view}
+          status="confirmed"
+          onConfirmed={() => undefined}
+          people={<div>Assigned coordinator details</div>}
+          registration={<div>Registration dates</div>}
+          registrationPeriodSet
+        />
+      </MemoryRouter>,
+    );
+    expect(await screen.findByRole("tab", { name: /Requirements/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Event Information" })).toBeInTheDocument();
+    expect(screen.getByText("Assigned coordinator details")).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("tab", { name: /Registration/ }));
+    expect(screen.getByText("Registration dates")).toBeInTheDocument();
+  });
+
+  /** A changes-needed status with no feedback rows still exposes its explicit re-request action. */
+  it("shows the re-request action for a changes-needed outcome with no feedback rows", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      safetyCheck: { status: "changes_needed", feedback: [] },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    renderPage();
+    expect(await screen.findByText("Changes needed")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeEnabled();
+  });
+
+  /** Repeated direct activation while a planning action is pending is ignored. */
+  it("ignores a second safety-check activation while the first request is pending", async () => {
+    current = checklist({
+      venue: { status: "confirmed", items: [{ id: "b1", venueName: "Main Hall", status: "confirmed" }] },
+      equipment: { required: false, status: "not_requested", items: [], confirmedByCoordinator: true },
+      canRequestSafetyCheck: true,
+      blocking: [],
+    });
+    const request = deferred<unknown>();
+    apiMock.mockImplementation(((path: string, init?: RequestInit) => {
+      if (init?.method === "POST" && path.endsWith("/safety-check/request")) return request.promise;
+      if (path.endsWith("/arrangements-status"))
+        return Promise.resolve({ eventId: EVENT_ID, ready: true, outstanding: [], checklist: current });
+      return Promise.resolve({});
+    }) as typeof api);
+    renderPage();
+    const button = await screen.findByRole("button", { name: "Request For Safety Check" });
+    act(() => {
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await waitFor(() => expect(button).toBeDisabled());
+    expect(postCalls()).toHaveLength(1);
+    await act(async () => { request.resolve({ eventId: EVENT_ID, status: "pending" }); });
+  });
+
   /** The Venues and Equipment tabs show the warning icon and the safety check stays disabled with its blocking reason while nothing is confirmed. */
   it("shows warning icons on Venues and Equipment and a disabled safety check with the blocking reason", async () => {
     renderPage();

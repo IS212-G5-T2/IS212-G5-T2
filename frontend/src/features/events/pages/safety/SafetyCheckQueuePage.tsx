@@ -18,7 +18,7 @@ interface SafetyDetails extends QueueEvent {
   equipment: Array<{ id: string; name: string; quantity: number }>;
 }
 type FeedbackDecision = "rejected" | "changes_needed";
-interface ChangeRow { id: number; text: string }
+interface ChangeRow { id: number; text: string; venueIds: string[]; equipmentIds: string[] }
 type SafetyModal =
   | { type: "feedback"; decision: FeedbackDecision }
   | { type: "confirmation"; message: string }
@@ -68,7 +68,7 @@ export function SafetyCheckQueuePage() {
   function openFeedbackModal(decision: FeedbackDecision) {
     setError(null);
     setReason("");
-    setChangeRows(decision === "changes_needed" ? [{ id: nextChangeId.current++, text: "" }] : []);
+    setChangeRows(decision === "changes_needed" ? [{ id: nextChangeId.current++, text: "", venueIds: [], equipmentIds: [] }] : []);
     setModal({ type: "feedback", decision });
   }
 
@@ -92,13 +92,18 @@ export function SafetyCheckQueuePage() {
       setError(`Change ${blankChangeIndex + 1} cannot be blank. Enter a description of the change.`);
       return;
     }
+    const unassignedReviewIndex = changeRows.findIndex((row) => row.venueIds.length + row.equipmentIds.length === 0);
+    if (decision === "changes_needed" && unassignedReviewIndex !== -1) {
+      setError(`Change ${unassignedReviewIndex + 1} must select at least one arrangement for review.`);
+      return;
+    }
     submittingRef.current = true;
     setSubmitting(true);
     setError(null);
     try {
       const payload = decision === "approved" ? { decision }
         : decision === "rejected" ? { decision, reason: feedback }
-          : { decision, changes: changeRows.map((row) => row.text) };
+          : { decision, changes: changeRows.map(({ text, venueIds, equipmentIds }) => ({ text, venueIds, equipmentIds })) };
       await api(`/safety-officer/queue/${selected!.id}/decision`, { method: "POST", body: JSON.stringify(payload) });
       setReason("");
       setChangeRows([]);
@@ -189,7 +194,7 @@ export function SafetyCheckQueuePage() {
           disabled={submitting}
         />
       </label> : <div className="space-y-3">
-        {changeRows.map((row, index) => <div key={row.id}>
+        {changeRows.map((row, index) => <div key={row.id} className="space-y-2 rounded border p-3">
           <label htmlFor={`safety-decision-change-${row.id}`} className="font-medium">Change {index + 1}</label>
           <div className="mt-1 flex items-center gap-2">
             <textarea
@@ -210,9 +215,26 @@ export function SafetyCheckQueuePage() {
               setError(null);
             }}>Remove</Button>
           </div>
+          <fieldset disabled={submitting} className="space-y-1">
+            <legend className="text-sm font-medium">Arrangements to mark Pending review</legend>
+            {selected?.venues.map((venue) => <label key={venue.id} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={row.venueIds.includes(venue.id)} onChange={(event) => setChangeRows((rows) => rows.map((item) => item.id === row.id ? {
+                ...item,
+                venueIds: event.target.checked ? [...item.venueIds, venue.id] : item.venueIds.filter((id) => id !== venue.id),
+              } : item))} />
+              {venue.name} (venue)
+            </label>)}
+            {selected?.equipment.map((equipment) => <label key={equipment.id} className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={row.equipmentIds.includes(equipment.id)} onChange={(event) => setChangeRows((rows) => rows.map((item) => item.id === row.id ? {
+                ...item,
+                equipmentIds: event.target.checked ? [...item.equipmentIds, equipment.id] : item.equipmentIds.filter((id) => id !== equipment.id),
+              } : item))} />
+              {equipment.name} (technical)
+            </label>)}
+          </fieldset>
         </div>)}
         <Button variant="secondary" disabled={submitting} onClick={() => {
-          setChangeRows((rows) => [...rows, { id: nextChangeId.current++, text: "" }]);
+          setChangeRows((rows) => [...rows, { id: nextChangeId.current++, text: "", venueIds: [], equipmentIds: [] }]);
           setError(null);
         }} aria-label="Add change" title="Add change">+</Button>
       </div>}
