@@ -5,7 +5,8 @@
  * Test cases: WITHDRAW-EVENT-REG-05-C (frontend), 05-E (UI), CAP-01 (frontend), 07-B (frontend).
  * Note: test IDs follow the six-AC matrix (docs/specs/SPM-120-test-results.md, "Test ID map", lists the former Confluence IDs); AC numbers are Jira.
  *
- * HTTP is mocked at the boundary; the store and router are real. Oracles are
+ * Fixture endpoints are mocked at the API boundary; the withdrawal 401 case
+ * uses the real shared API client and a fetch stub. The store and router are real. Oracles are
  * literals from the AC text and the Confluence pages. Only Date is faked
  * (suite clock T0 = 2026-10-04 12:00 SGT). The event-list badge and dashboard
  * card named in CAP-01 do not exist in this app, so they are not asserted (D19).
@@ -52,7 +53,10 @@ beforeEach(() => {
   apiMock.mockReset();
   useAppStore.setState({ authLoading: false, isAuthenticated: true, currentUser: ATT_01, events: [], registrations: [] });
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 describe("SPM-120 AC5: the withdrawn status survives a reload", () => {
   // WITHDRAW-EVENT-REG-05-C, WITHDRAW-EVENT-REG-05-E
@@ -128,18 +132,25 @@ describe("SPM-120 (story goal): the freed spot shows on the event page", () => {
 
 describe("SPM-120 cross-cutting: an unauthenticated withdraw attempt", () => {
   // WITHDRAW-EVENT-REG-07-B
-  // Oracle (Added 07-B frontend, 401 sign-out narrowed to this call): a 401 from the withdraw call clears the
-  // session so the route guard redirects to /login, and no success banner appears.
-  // Kills: M13 withdraw bypassing the 401 handling; success shown after a 401.
+  // Oracle: a shared-API 401 clears the session so the route guard redirects to /login.
+  // Kills: ignoring the shared 401; success shown after a 401.
+  /** WITHDRAW-EVENT-REG-07-B: verifies the shared API 401 path reaches the protected route guard. */
   it("WITHDRAW-EVENT-REG-07-B (frontend): a 401 signs the user out and redirects to login", async () => {
     // Arrange
     const registered = buildRegistration();
+    const { api: realApi } = await vi.importActual<typeof import("@/utils/api")>("@/utils/api");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ message: "Missing session" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    ));
     apiMock.mockImplementation((path: string, init?: RequestInit) => {
       if (path === "/events/EVT-101") return Promise.resolve(buildEvent());
       if (path.endsWith("/comments")) return Promise.resolve([]);
       if (path.endsWith("/registrations/me")) return Promise.resolve({ registration: registered });
       if (path.endsWith("/withdraw") && init?.method === "POST")
-        return Promise.reject(new ApiError("Missing session", undefined, undefined, 401));
+        return realApi(path, init);
       return Promise.reject(new Error(`unexpected ${path}`));
     });
     renderPage("EVT-101");

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { AuthError, login, logout, restoreSession } from "@/lib/auth";
 import { ApiError, api } from "@/utils/api";
+import { advanceAuthSessionRevision, getAuthSessionRevision, onAuthSessionExpired } from "@/lib/authSessionRevision";
 import type { RegistrationDetails } from "@/features/events/lib/registration";
 import type {
   Booking,
@@ -17,7 +18,6 @@ import type {
 } from "@/types";
 
 let idCounter = 1000;
-let authRevision = 0;
 
 /** The event list's starting filters (upcoming events, All statuses); restored for every new session. */
 const DEFAULT_EVENT_LIST_FILTERS = { attendee: "upcoming", status: null } as const;
@@ -46,6 +46,22 @@ const PLACEHOLDER_USER: User = {
   email: "",
   role: "attendee",
 };
+
+function clearSessionState() {
+  return {
+    isAuthenticated: false,
+    authLoading: false,
+    currentUser: PLACEHOLDER_USER,
+    events: [] as EventRecord[],
+    eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },
+    venues: [] as Venue[],
+    bookings: [] as Booking[],
+    equipment: [] as EquipmentItem[],
+    equipmentRequests: [] as EquipmentRequest[],
+    registrations: [] as Registration[],
+    notifications: [] as Notification[],
+  };
+}
 
 interface AppState {
   currentUser: User;
@@ -90,8 +106,8 @@ interface AppState {
   /**
    * SPM-120: POSTs the withdrawal for one of the attendee's own registrations and
    * stores the server's updated record. Rejects with the server's ApiError. A 401
-   * from this call (and only this call) clears the client session, so the route
-   * guards send the user to /login.
+   * from any shared API call clears the client session, so route guards send
+   * the user to /login.
    */
   submitWithdrawal: (registrationId: string) => Promise<Registration>;
   /** SPM-138: joins the waitlist of a full event; refreshes the attendee's own entry and returns the server's answer. */
@@ -439,30 +455,21 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   submitWithdrawal: async (registrationId) => {
-    try {
-      // The response is the updated registration plus a server message; the UI builds its own
-      // banner text (D9), so only the registration fields are kept.
-      const { message, ...registration } = await api<Registration & { message: string }>(
-        `/registrations/${registrationId}/withdraw`,
-        { method: "POST" },
-      );
-      void message;
-      set((s) => ({
-        registrations: [registration, ...s.registrations.filter((r) => r.id !== registration.id)],
-      }));
-      return registration;
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        // The session is already invalid on the server; drop it here too.
-        authRevision += 1;
-        set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
-      }
-      throw error;
-    }
+    // The response is the updated registration plus a server message; the UI builds its own
+    // banner text (D9), so only the registration fields are kept.
+    const { message, ...registration } = await api<Registration & { message: string }>(
+      `/registrations/${registrationId}/withdraw`,
+      { method: "POST" },
+    );
+    void message;
+    set((s) => ({
+      registrations: [registration, ...s.registrations.filter((r) => r.id !== registration.id)],
+    }));
+    return registration;
   },
 
   login: async (email, password) => {
-    authRevision += 1;
+    advanceAuthSessionRevision();
     try {
       const user = await login(email.trim(), password);
       // A new session never inherits the previous user's event list filters (SPM-48 review).
@@ -477,35 +484,33 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   logout: async () => {
-    authRevision += 1;
+    advanceAuthSessionRevision();
     try {
       await logout();
     } finally {
       // SPM-94 AC4 / 04-B C: nothing from the previous session survives logout.
-      set({
-        isAuthenticated: false,
-        authLoading: false,
-        currentUser: PLACEHOLDER_USER,
-        events: [],
-        eventListFilters: { ...DEFAULT_EVENT_LIST_FILTERS },
-      });
+      set(clearSessionState());
     }
   },
 
   restoreAuthSession: async () => {
-    const revision = ++authRevision;
+    const revision = advanceAuthSessionRevision();
     set({ authLoading: true });
     try {
       const user = await restoreSession();
-      if (revision !== authRevision) return;
+      if (revision !== getAuthSessionRevision()) return;
+      if (!user) {
+        set(clearSessionState());
+        return;
+      }
       set({
-        isAuthenticated: Boolean(user),
+        isAuthenticated: true,
         authLoading: false,
-        currentUser: user ?? PLACEHOLDER_USER,
+        currentUser: user,
       });
     } catch {
-      if (revision !== authRevision) return;
-      set({ isAuthenticated: false, authLoading: false, currentUser: PLACEHOLDER_USER });
+      if (revision !== getAuthSessionRevision()) return;
+      set(clearSessionState());
     }
   },
 
@@ -534,3 +539,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((s) => ({ notifications: [record, ...s.notifications] }));
   },
 }));
+
+// Keep API handling independent from the store module to avoid an API→store cycle.
+onAuthSessionExpired((requestRevision) => {
+  if (requestRevision !== getAuthSessionRevision()) return;
+  const state = useAppStore.getState();
+  if (!state.isAuthenticated || state.authLoading) return;
+  advanceAuthSessionRevision();
+  useAppStore.setState(clearSessionState());
+});
