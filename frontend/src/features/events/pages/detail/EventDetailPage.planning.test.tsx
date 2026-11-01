@@ -832,10 +832,11 @@ describe("EventDetailPage planning information (coordinator)", () => {
       expect(
         screen.queryByRole("form", { name: /update event information/i }),
       ).not.toBeInTheDocument();
-      // The only button allowed here is the read-only registrations report (offered once the event is confirmed).
+      // Allowed buttons: the read-only registrations report, and SPM-153's Mark as Completed (an action, not an
+      // edit control; shown only to the assigned coordinator once the event has ended).
       const editControls = within(region)
         .queryAllByRole("button")
-        .filter((b) => b.textContent !== "View Registrations");
+        .filter((b) => !["View Registrations", "Mark as Completed"].includes(b.textContent ?? ""));
       expect(editControls).toHaveLength(0);
     },
   );

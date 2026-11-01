@@ -422,7 +422,16 @@ describe('ChangeRequestReviewService.approve (AC4, AC6-AC10)', () => {
     },
   );
 
-  it.each(['Completed', 'Rejected'])(
+  // SPM-153 AC6 (COMPLETE-EVENT-06-E): a pending change request of a Completed event cannot be applied.
+  it('SPM-153 06-E refuses to apply a change to a Completed event with 409 EVENT_COMPLETED', async () => {
+    await expect(
+      setup({ event: eventRow({ status: 'Completed' }) }).svc.approve(coordinator, EVENT_ID, REQUEST_ID, {}),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({ code: 'EVENT_COMPLETED' }),
+    });
+  });
+
+  it.each(['Rejected'])(
     'refuses to apply a change to a %s event',
     async (status) => {
       await expect(

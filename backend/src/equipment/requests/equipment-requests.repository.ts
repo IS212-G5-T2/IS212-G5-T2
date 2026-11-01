@@ -109,6 +109,8 @@ export class EquipmentRequestsRepository {
       const row = existing.rows[0];
       if (!row) return { kind: 'request-not-found' as const };
       if (row.event_id !== input.eventId) return { kind: 'event-not-open' as const };
+      // SPM-153 BR9: a Completed event's equipment requests cannot be changed.
+      if (row.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (row.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (!['Approved', 'Planning'].includes(row.event_status)) return { kind: 'event-not-open' as const };
 
@@ -206,6 +208,8 @@ export class EquipmentRequestsRepository {
       );
       const request = found.rows[0];
       if (!request) return { kind: 'request-not-found' as const };
+      // SPM-153 BR9: a Completed event's equipment reservations cannot be reserved, changed or released.
+      if (request.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (request.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
 
@@ -295,6 +299,8 @@ export class EquipmentRequestsRepository {
       );
       const request = found.rows[0];
       if (!request) return { kind: 'request-not-found' as const };
+      // SPM-153 BR9: a Completed event's equipment reservations cannot be reserved, changed or released.
+      if (request.event_status === 'Completed') return { kind: 'event-completed' as const };
       if (request.event_status === 'Confirmed') return { kind: 'event-confirmed' as const };
       if (request.status !== 'Pending Review') return { kind: 'not-pending' as const };
 

@@ -2219,7 +2219,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     expect(calls[3][1]).toEqual([
@@ -2595,7 +2595,7 @@ describe('SPM-55 venue booking review repository', () => {
     );
     expect(calls[1][1]).toEqual([venue.id]);
     expect(normalizeSql(calls[2][0])).toBe(
-      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
+      'SELECT b.id, b.event_id, b.venue_id, b.status, b.start_at, b.end_at, b.rejection_reason, b.request_kind, b.reassessment_required, e.start_date_time AS event_start, e.status AS event_status FROM venue_bookings b LEFT JOIN events e ON e.id = b.event_id WHERE b.id = $1::uuid FOR UPDATE OF b',
     );
     expect(calls[2][1]).toEqual([bookingId]);
     // The rejection UPDATE sets exactly the rejected status and the reason, on exactly the one booking id.

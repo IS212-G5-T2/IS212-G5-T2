@@ -16,7 +16,7 @@
  *
  * Routes and the history contract are documented in backend/README.md.
  */
-import { assertEventNotCancelled } from '../cancelled-guard.js';
+import { assertArrangementsEditable } from '../cancelled-guard.js';
 import {
   BadRequestException,
   ConflictException,
@@ -604,7 +604,7 @@ export class EventPlanningService {
     const access = await this.access(identity, eventId);
     if (!access.isCoordinator) throw new NotFoundException('Event not found.');
     // SPM-136 AC7: a cancelled event's arrangements cannot change (MSG-CN-04).
-    assertEventNotCancelled(access.event.status);
+    assertArrangementsEditable(access.event.status);
     if (!EDITABLE_STATUSES.has(access.event.status.toLowerCase()))
       throw new ConflictException(
         'Event information can only be changed after approval and before confirmation.',

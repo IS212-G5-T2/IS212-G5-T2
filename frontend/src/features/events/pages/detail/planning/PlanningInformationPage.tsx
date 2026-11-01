@@ -32,6 +32,8 @@ import {
 } from "@/utils/arrangements";
 import { EventInformationList } from "@/features/events/pages/detail/planning/PlanningInformationPanel";
 import { ConfirmEventPanel } from "@/features/events/pages/detail/planning/ConfirmEventPanel";
+import { CompleteEventPanel } from "@/features/events/pages/detail/planning/CompleteEventPanel";
+import { CompletionRecordForm } from "@/features/events/pages/detail/planning/CompletionRecordForm";
 import { SafetyCheckChangesNeeded } from "@/features/events/pages/detail/planning/SafetyCheckChangesNeeded";
 import { shouldShowSafetyFeedback } from "@/features/events/pages/detail/planning/safetyFeedbackVisibility";
 import { activeVenueRequests } from "@/features/events/pages/detail/planning/activeVenueRequests";
@@ -816,6 +818,18 @@ export function PlanningInformationPage({
           }}
         />
       )}
+
+      {status === "confirmed" && (
+        <CompleteEventPanel
+          eventId={eventId}
+          status={status}
+          endDateTime={view.event.endDateTime}
+          isAssignedCoordinator
+          onCompleted={onConfirmed}
+        />
+      )}
+
+      <CompletionRecordForm eventId={eventId} status={status} isAssignedCoordinator />
     </section>
   );
 }

@@ -222,8 +222,20 @@ describe('ChangeRequestsService.create', () => {
     expect(lookup.params).toEqual([EVENT_ID]);
   });
 
+  /** SPM-153 AC6 (COMPLETE-EVENT-06-E): a Completed event refuses change requests with MSG-CP-06. */
+  it('SPM-153 06-E refuses a request on a Completed event with 409 EVENT_COMPLETED', async () => {
+    const { svc } = service({ event: eventRow({ status: 'Completed' }) });
+    await expect(svc.create(organiser, EVENT_ID, { changes: { description: 'New' } })).rejects.toMatchObject({
+      status: 409,
+      response: {
+        code: 'EVENT_COMPLETED',
+        message: 'The date, time, venue and equipment of a Completed event cannot be changed.',
+      },
+    });
+  });
+
   /** REQ-CHANGE-01-F: closed events refuse change requests. */
-  it.each(['Rejected', 'Cancelled', 'Completed'])(
+  it.each(['Rejected', 'Cancelled'])(
     'REQ-CHANGE-01-F refuses a request on a %s event',
     async (status) => {
       const { svc } = service({ event: eventRow({ status }) });
