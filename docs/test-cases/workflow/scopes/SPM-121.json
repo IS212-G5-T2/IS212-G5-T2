@@ -8,6 +8,7 @@
   "tests": {
     "frontend": [
       { "glob": "frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx", "titleMatch": "VEN-UPD-" },
+      { "glob": "frontend/src/features/venues/pages/records/detail/VenueRecordDetailPage.test.tsx", "titleMatch": "VEN-UPD-" },
       { "glob": "frontend/src/store/useAppStore.venues.test.ts", "titleMatch": "VEN-UPD-" }
     ],
     "backend-unit": [

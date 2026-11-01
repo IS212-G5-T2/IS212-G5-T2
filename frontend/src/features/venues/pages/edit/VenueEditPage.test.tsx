@@ -153,30 +153,6 @@ describe("SPM-121 VenueEditPage", () => {
     expect(screen.queryByLabelText(/Venue name/i)).toBeNull();
   });
 
-  /** VEN-UPD-07-A: AC7 — owner sees the editable form; non-owner is denied. */
-  it("VEN-UPD-07-A owner can edit own venue but non-owner is blocked", async () => {
-    // Owner: form fields are rendered
-    renderEdit();
-    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
-    expect(screen.getByLabelText(/Venue name/i)).toBeInTheDocument();
-    cleanup();
-
-    // Non-owner: forbidden message, no form
-    vi.resetAllMocks();
-    useAppStore.setState({
-      authLoading: false,
-      isAuthenticated: true,
-      currentUser: { id: "other-staff-99", name: "Venue Staff 2", email: "staff2@example.test", role: "venue_staff" },
-      venues: [],
-    });
-    apiMock.mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>);
-    renderEdit();
-    await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/only edit venues you created/i),
-    );
-    expect(screen.queryByLabelText(/Venue name/i)).toBeNull();
-  });
-
   /** VEN-UPD-04-UI-A: AC4 — duplicate venue name returns 409 and shows the "already exists" message. */
   it("VEN-UPD-04-UI-A shows the duplicate-name error message on 409", async () => {
     apiMock

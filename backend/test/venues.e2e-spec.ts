@@ -1218,12 +1218,14 @@ describe.skipIf(!databaseUrl)(
       const slot2Start = new Date(slot1End.getTime());                      // starts exactly at slot1 end
       const slot2End   = new Date(slot2Start.getTime() + 60 * 60 * 1000);
 
-      await pool.query(
+      const bookingInsert = await pool.query<{ id: string }>(
         `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
          VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending'),
-                (gen_random_uuid(), $1, $5, $6, $7, 'pending')`,
+                (gen_random_uuid(), $1, $5, $6, $7, 'pending')
+         RETURNING id`,
         [id, event1Id, slot1Start, slot1End, event2Id, slot2Start, slot2End],
       );
+      const [bk1Id, bk2Id] = bookingInsert.rows.map((r) => r.id);
       await pool.query(
         `INSERT INTO venue_booking_requests (event_id, venue_id)
          VALUES ($1, $2), ($3, $2)
@@ -1238,15 +1240,21 @@ describe.skipIf(!databaseUrl)(
         .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8 Timing Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 90 })
         .expect(200);
 
-      expect(response.body.affectedBookings.length).toBeGreaterThan(0);
-      const ids = response.body.affectedBookings.map((b: { bookingId: string }) => b.bookingId);
-      expect(ids.length).toBeGreaterThanOrEqual(1);
+      const returnedIds = response.body.affectedBookings.map((b: { bookingId: string }) => b.bookingId);
+      expect(returnedIds).toContain(bk1Id);
+      expect(returnedIds).toContain(bk2Id);
       for (const b of response.body.affectedBookings) {
         expect(b).toHaveProperty('eventName');
         expect(b).toHaveProperty('start');
         expect(b).toHaveProperty('end');
         expect(b).toHaveProperty('status');
       }
+      const persisted = await pool.query(
+        'SELECT status FROM venue_bookings WHERE id IN ($1::uuid, $2::uuid) ORDER BY id',
+        [bk1Id, bk2Id],
+      );
+      expect(persisted.rows).toHaveLength(2);
+      expect(persisted.rows.every((r: { status: string }) => r.status === 'pending')).toBe(true);
     });
 
     /** SPM-121 AC8 VEN-UPD-08-B: increasing turnaround time displays newly affected bookings without removing them. */
@@ -1629,6 +1637,12 @@ describe.skipIf(!databaseUrl)(
         createScheduleEvent('AC9-BND1 below'), createScheduleEvent('AC9-BND1 equal'), createScheduleEvent('AC9-BND1 above'),
       ]);
       eventIds.push(evBelow, evEqual, evAbove);
+      await pool.query(
+        `UPDATE events SET expected_attendance = CASE id
+           WHEN $1::uuid THEN 99 WHEN $2::uuid THEN 100 WHEN $3::uuid THEN 101 END
+         WHERE id IN ($1::uuid, $2::uuid, $3::uuid)`,
+        [evBelow, evEqual, evAbove],
+      );
       const at = (day: number) => new Date(Date.UTC(2030, 7, day, 10));
       await pool.query(
         `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
