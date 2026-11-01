@@ -41,6 +41,8 @@ export function NotificationRow({
   const headlineId = useId();
   const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
+  // SPM-47 AC8: an unassignment has no link, the event now belongs to another coordinator.
+  const hasLink = n.type !== "coordinator_unassignment";
   const decisionDate = formatDecisionDate(n.createdAt);
   return (
     <li className="flex gap-3 px-4 py-3">
@@ -61,18 +63,20 @@ export function NotificationRow({
           </div>
         )}
         <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
-          <Link
-            aria-describedby={headlineId}
-            className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
-            to={isChangeRequest ? `/events/${n.relatedEventId}/change-requests` : `/events/${n.relatedEventId}`}
-            // SPM-88 A3: opening a decision marks it read; navigation does not wait for the call.
-            onClick={() => {
-              if (!isChangeRequest) onMarkRead(n.id);
-              onOpen();
-            }}
-          >
-            {isChangeRequest ? "View Change Request" : "View Request"}
-          </Link>
+          {hasLink && (
+            <Link
+              aria-describedby={headlineId}
+              className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
+              to={isChangeRequest ? `/events/${n.relatedEventId}/change-requests` : `/events/${n.relatedEventId}`}
+              // SPM-88 A3: opening a decision marks it read; navigation does not wait for the call.
+              onClick={() => {
+                if (!isChangeRequest) onMarkRead(n.id);
+                onOpen();
+              }}
+            >
+              {isChangeRequest ? "View Change Request" : "View Request"}
+            </Link>
+          )}
           <button
             type="button"
             aria-describedby={headlineId}

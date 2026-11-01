@@ -2,21 +2,34 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useNotificationFeed } from "@/components/notifications/useNotificationFeed";
 import { NotificationRow } from "@/components/notifications/NotificationRow";
 import { useAppStore } from "@/store/useAppStore";
+import { hasRole, type Notification } from "@/types";
 import { Button } from "@/components/ui/Button";
 
 const BADGE_CAP = 9;
 
+// SPM-77 (SC-SPM77-02): a Coordinator's bell lists only these assignment notices. Change request notices stay in
+// the Pending Change Requests section of the events page. Module-level so the feed hook sees a stable filter.
+const COORDINATOR_TYPES: Notification["type"][] = [
+  "coordinator_assignment",
+  "coordinator_reassignment",
+  "coordinator_unassignment",
+];
+const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
+
 /**
- * Top-bar notification bell (SPM-88, SC-SPM88-10). Organisers only for now: it lists their unread request
- * decisions in a dropdown; other roles get nothing until later tickets add their notification types.
+ * Top-bar notification bell (SPM-88, SC-SPM88-10; SPM-77, SC-SPM77-03). Organisers see their unread request
+ * decisions and anyone holding the Coordinator role sees their assignment notices in a dropdown; other roles get
+ * nothing until later tickets add their notification types.
  */
 export function NotificationBell() {
   const user = useAppStore((s) => s.currentUser);
   const isOrganiser = user.role === "organiser";
+  const isCoordinator = !isOrganiser && hasRole(user, "coordinator");
   const { notifications, error, markRead, retry } = useNotificationFeed({
-    enabled: isOrganiser,
+    enabled: isOrganiser || isCoordinator,
     userId: user.id,
-    loadError: "Could not load request decisions.",
+    loadError: isCoordinator ? "Could not load your assignment notifications." : "Could not load request decisions.",
+    filter: isCoordinator ? isCoordinatorNotice : undefined,
   });
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -43,7 +56,7 @@ export function NotificationBell() {
     };
   }, [open]);
 
-  if (!isOrganiser) return null;
+  if (!isOrganiser && !isCoordinator) return null;
   // Only unread notifications are listed, newest first.
   const unread = notifications
     .filter((n) => !n.read)

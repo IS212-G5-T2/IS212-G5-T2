@@ -4,6 +4,8 @@
 // notified), AC11 (Lead only).
 // Test cases: LEAD-ASN-02-A, 03-A, 04-A, 05-A, 05-D, 05-E, 05-G, 06-A, 06-E,
 // 09-A, 09-B, 11-SEC-1, 11-SEC-2, 11-SEC-6.
+// SPM-77 (assignment notification, bell): ASSIGN-NOTIFY-01-A, 02-A, 02-BND-1,
+// 05-A, 05-B, 05-C.
 import {
   BadRequestException,
   ConflictException,
@@ -284,12 +286,8 @@ describe('AC9: the coordinator is notified', () => {
     const inserts = txStatements().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
     expect(inserts).toHaveLength(1);
     expect(inserts[0].sql).toContain("'coordinator_assignment'");
-    expect(inserts[0].params).toEqual([
-      expect.any(String),
-      COORDINATOR_ID,
-      'New event request "Welcome Evening" is awaiting your review.',
-      EVENT_ID,
-    ]);
+    // SPM-77 AC2 moved the wording and the proposed date to ASSIGN-NOTIFY-02-A; this test keeps recipient and event.
+    expect(inserts[0].params).toEqual([expect.any(String), COORDINATOR_ID, expect.stringContaining('Welcome Evening'), EVENT_ID]);
   });
 
   // If the notification can't be saved, the assignment must not stick.
@@ -797,5 +795,134 @@ describe('SPM-64 AC3: pending change requests follow assignment', () => {
     const markRead = txStatements().find((s) => s.sql.startsWith('UPDATE notifications'))!;
     expect(markRead.sql).toContain("'coordinator_change_request'");
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
+  });
+});
+
+// SPM-77: the assigned coordinator's top-bar bell notification. Expected wording is DECIDED (SC-SPM77-01, user, 31 Oct 2026):
+// "<name>" on <D Mon YYYY> has been assigned to you.
+// The date is the event's proposed start date, as the Singapore calendar day (unpadded day, no time).
+describe('SPM-77: the assigned coordinator is notified for a saved assignment only', () => {
+  const insertsOf = () => txStatements().filter((s) => s.sql.startsWith('INSERT INTO notifications'));
+  const writesOf = () => txStatements().filter((s) => /^(UPDATE|INSERT)/.test(s.sql));
+
+  /**
+   * ASSIGN-NOTIFY-01-A (SPM-77 AC1): a saved assignment writes exactly one coordinator_assignment notification,
+   * addressed to the assignee only, with the event id for the link (AC3 data).
+   * Kills: a notification also sent to the Lead or to other coordinators; two notifications; wrong type.
+   */
+  it('ASSIGN-NOTIFY-01-A writes exactly one coordinator_assignment notification, for the assignee only', async () => {
+    // Arrange: a normal assignment by the Lead.
+    wireAssign({});
+
+    // Act: assign.
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+
+    // Assert: one insert, typed coordinator_assignment, recipient is the assignee, not the Lead, linked to the event.
+    const inserts = insertsOf();
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0].sql).toContain("'coordinator_assignment'");
+    expect(inserts[0].params![1]).toBe(COORDINATOR_ID);
+    expect(inserts[0].params![1]).not.toBe(lead.uid);
+    expect(inserts[0].params![3]).toBe(EVENT_ID);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-02-A (SPM-77 AC2): the message names the event, says it was assigned to the coordinator and
+   * gives the event's proposed date (start, Singapore calendar day). 2027-01-10T10:00Z is 10 Jan in Singapore.
+   * Kills: the old "awaiting your review" wording; a message without the date; the date shown in UTC.
+   */
+  it('ASSIGN-NOTIFY-02-A the message gives the event name, the assignment and the proposed date', async () => {
+    // Arrange: an event starting 2027-01-10 10:00 UTC (10 Jan in Singapore).
+    wireAssign({});
+
+    // Act: assign.
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+
+    // Assert: the stored message.
+    expect(insertsOf()[0].params![2]).toBe(
+      '"Welcome Evening" on 10 Jan 2027 has been assigned to you.',
+    );
+  });
+
+  /**
+   * ASSIGN-NOTIFY-02-BND-1 (SPM-77 AC2): the date is the Singapore calendar day, not the UTC day. 2027-03-05T16:30Z
+   * is 00:30 on 6 Mar in Singapore (single-digit day, midnight boundary).
+   * Kills: formatting in UTC (would say 5 Mar) or in the server's timezone.
+   */
+  it('ASSIGN-NOTIFY-02-BND-1 writes the Singapore date when the UTC date differs', async () => {
+    // Arrange: an event that starts just after midnight in Singapore.
+    wireAssign({ event: eventRow({ start_date_time: new Date('2027-03-05T16:30:00.000Z') }) });
+
+    // Act: assign.
+    await service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID });
+
+    // Assert: the Singapore day.
+    expect(insertsOf()[0].params![2]).toBe(
+      '"Welcome Evening" on 6 Mar 2027 has been assigned to you.',
+    );
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-A (SPM-77 AC5): every refused assignment writes nothing, so no notification exists.
+   * Kills: a notification inserted before the availability, ownership or status checks.
+   */
+  it.each([
+    ['an unavailable coordinator', { coordinator: coordinatorRow({ is_available: false }) }],
+    ['an already-assigned request', { event: eventRow({ coordinator_id: 'someone-else', coordinator_name: 'Coordinator 9' }) }],
+    ['a request that is no longer Submitted', { event: eventRow({ status: 'Cancelled' }) }],
+    ['an account that is not an active coordinator', { coordinator: null }],
+    ['an unknown request', { event: null }],
+  ])('ASSIGN-NOTIFY-05-A refuses %s without writing a notification or changing the event', async (_label, wiring) => {
+    // Arrange: the refusing state.
+    wireAssign(wiring);
+
+    // Act: assign (refused).
+    await expect(service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID })).rejects.toThrow();
+
+    // Assert: no notification and no event update were sent.
+    expect(insertsOf()).toHaveLength(0);
+    expect(writesOf()).toHaveLength(0);
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-B (SPM-77 AC5): a caller who is not the Lead never reaches the database, so nobody is notified.
+   * Kills: the notification being written before or without the Lead check.
+   */
+  it.each([
+    ['a Coordinator', userWithRole('COORDINATOR')],
+    ['an Organiser', userWithRole('ORGANISER')],
+    ['a caller with no session', undefined],
+    ['an account holding both Lead and Coordinator roles', { ...lead, roles: ['COORDINATOR_LEAD', 'COORDINATOR'] as AuthenticatedUser['roles'] }],
+  ])('ASSIGN-NOTIFY-05-B refuses %s before opening a transaction', async (_label, caller) => {
+    // Arrange: a normal assignment state.
+    wireAssign({});
+
+    // Act: assign (refused).
+    await expect(service.assign(caller, EVENT_ID, { coordinatorId: COORDINATOR_ID })).rejects.toThrow();
+
+    // Assert: nothing ran.
+    expect(database.transaction).not.toHaveBeenCalled();
+    expect(client.query).not.toHaveBeenCalled();
+  });
+
+  /**
+   * ASSIGN-NOTIFY-05-C (SPM-77 AC5): when saving the assignment itself fails, no notification is attempted and the
+   * error reaches the caller (the transaction rolls back).
+   * Kills: the notification written before the event update, so a failed save would still notify.
+   */
+  it('ASSIGN-NOTIFY-05-C writes no notification when saving the assignment fails', async () => {
+    // Arrange: the event update fails.
+    wireAssign({});
+    const base = client.query.getMockImplementation()!;
+    client.query.mockImplementation((sql: string, ...rest: unknown[]) => {
+      if (String(sql).replace(/\s+/g, ' ').trim().startsWith('UPDATE events')) throw new Error('update failed');
+      return base(sql, ...rest);
+    });
+
+    // Act + Assert: the failure propagates.
+    await expect(service.assign(lead, EVENT_ID, { coordinatorId: COORDINATOR_ID })).rejects.toThrow('update failed');
+
+    // Assert: no notification insert was attempted.
+    expect(insertsOf()).toHaveLength(0);
   });
 });
