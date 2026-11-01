@@ -22,7 +22,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['unit', 'e2e'],
     testMappings: [
-      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-07-A returns forbidden when the caller is not the venue owner' },
+      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-07-A-REPO returns forbidden when the caller is not the venue owner' },
       { suite: 'e2e', file: E2E, title: 'VEN-UPD-07-E2E-A: returns 403 when a second Venue Staff tries to PATCH a venue they do not own' },
     ],
     edits: [[
@@ -36,7 +36,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['unit'],
     testMappings: [
-      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-07-B returns not-found when the venue does not exist' },
+      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-07-B-REPO returns not-found when the venue does not exist' },
     ],
     edits: [[
       '      if (!lock.rows[0]) return { kind: \'not-found\' as const };',
@@ -49,7 +49,7 @@ export const MUTANTS = [
     file: REPOSITORY,
     suites: ['unit', 'e2e'],
     testMappings: [
-      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-09-A runs the capacity booking query when capacity changes' },
+      { suite: 'unit', file: UNIT_REPO, title: 'VEN-UPD-09-A-REPO runs the capacity booking query when capacity changes' },
       { suite: 'e2e', file: E2E, title: 'VEN-UPD-09-E2E-A: lists pending and approved bookings when capacity changes and leaves them intact' },
     ],
     edits: [[
@@ -67,8 +67,8 @@ export const MUTANTS = [
       { suite: 'e2e', file: E2E, title: 'VEN-UPD-08-E2E-A: returns affected bookings in affectedBookings when setup/turnaround time changes' },
     ],
     edits: [[
-      '        [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes],',
-      '        [venueId, 0, 0],',
+      '            [venueId, input.setupTimeMinutes, input.turnaroundTimeMinutes,\n             oldSetup, oldTurnaround, now],',
+      '            [venueId, 0, 0,\n             oldSetup, oldTurnaround, now],',
     ]],
   },
   {
@@ -109,6 +109,46 @@ export const MUTANTS = [
     edits: [[
       '      result = await this.repository.update(staff.uid, id, input);\n    } catch (error) {\n      if (isDuplicateVenue(error))\n        throw new ConflictException({\n          message: \'A venue with this name and location already exists.\',\n          errors: {\n            name: \'Use a different venue name or location.\',\n            location: \'Use a different venue name or location.\',\n          },\n        });\n      throw error;\n    }',
       '      result = await this.repository.update(staff.uid, id, input);\n    } catch (error) {\n      throw error;\n    }',
+    ]],
+  },
+  {
+    id: 'BE-121-08',
+    name: 'image replacement ignored — an existing image is kept when a new one is saved',
+    file: REPOSITORY,
+    suites: ['e2e'],
+    testMappings: [
+      { suite: 'e2e', file: E2E, title: 'VEN-UPD-02-C-E2E: replacing image A with image B persists B and leaves other fields unchanged' },
+    ],
+    edits: [[
+      "      await client.query('DELETE FROM venue_images WHERE venue_id=$1::uuid', [venueId]);\n      if (input.image) await this.insertImage(client, venueId, input.image);",
+      "      const hadImage = await client.query('SELECT 1 FROM venue_images WHERE venue_id=$1::uuid', [venueId]);\n      if (input.image && !hadImage.rowCount) await this.insertImage(client, venueId, input.image);",
+    ]],
+  },
+  {
+    id: 'BE-121-09',
+    name: 'capacity list includes rejected bookings — AC9 lists more than pending and approved',
+    file: REPOSITORY,
+    suites: ['e2e'],
+    testMappings: [
+      { suite: 'e2e', file: E2E, title: 'VEN-UPD-09-E2E-C: capacityBookings excludes rejected, blocked and other-venue bookings' },
+      { suite: 'e2e', file: E2E, title: 'VEN-UPD-09-E2E-A: lists pending and approved bookings when capacity changes and leaves them intact' },
+    ],
+    edits: [[
+      "                AND b.status IN ('pending', 'approved')\n              ORDER BY b.start_at, b.id`,",
+      "                AND b.status IN ('pending', 'approved', 'rejected')\n              ORDER BY b.start_at, b.id`,",
+    ]],
+  },
+  {
+    id: 'BE-121-10',
+    name: 'occupied window ignores the turnaround buffer — a booking occupies only until its end',
+    file: REPOSITORY,
+    suites: ['e2e'],
+    testMappings: [
+      { suite: 'e2e', file: E2E, title: 'VEN-UPD-06-C-AVAIL-E2E: updated setup and turnaround move the occupied interval to 09:15-13:00' },
+    ],
+    edits: [[
+      '                  b.end_at + make_interval(mins => $5::int) AS occupied_end,',
+      '                  b.end_at AS occupied_end,',
     ]],
   },
 ];

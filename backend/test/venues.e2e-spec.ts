@@ -82,6 +82,105 @@ describe.skipIf(!databaseUrl)(
       return id;
     }
 
+    /** One venue_bookings row a test inserted, with the values written (the oracle for later reads). */
+    interface BookingFixture {
+      id: string;
+      venueId: string;
+      eventId: string;
+      eventName: string;
+      status: string;
+      startAt: Date;
+      endAt: Date;
+    }
+
+    /** Inserts one booking for a new linked event and returns its generated id with the values written. */
+    async function insertBooking(
+      venueId: string,
+      eventName: string,
+      status: 'pending' | 'approved' | 'rejected',
+      startAt: Date,
+      endAt: Date,
+    ): Promise<BookingFixture> {
+      const eventId = await createScheduleEvent(eventName);
+      const result = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [venueId, eventId, startAt, endAt, status],
+      );
+      return { id: result.rows[0].id, venueId, eventId, eventName, status, startAt, endAt };
+    }
+
+    /** Records the booking request link that makes a pending booking count as an active blocker. */
+    async function linkBookingRequests(fixtures: BookingFixture[]) {
+      for (const fixture of fixtures)
+        await pool.query(
+          `INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`,
+          [fixture.eventId, fixture.venueId],
+        );
+    }
+
+    /** The listing the API must return for these bookings, built from the values written, not from the response. */
+    const expectedListing = (fixtures: BookingFixture[]) =>
+      fixtures
+        .map((f) => ({
+          bookingId: f.id,
+          eventName: f.eventName,
+          start: f.startAt.toISOString(),
+          end: f.endAt.toISOString(),
+          status: f.status,
+        }))
+        .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+
+    /** Reduces a response list to the five listed fields, ordered by booking id, so the exact set can be compared. */
+    const actualListing = (list: Array<Record<string, unknown>>) =>
+      list
+        .map((b) => ({
+          bookingId: b.bookingId as string,
+          eventName: b.eventName,
+          start: b.start,
+          end: b.end,
+          status: b.status,
+        }))
+        .sort((a, b) => a.bookingId.localeCompare(b.bookingId));
+
+    /** Re-selects every fixture row and asserts id, venue, event link, status and times are exactly as inserted. */
+    async function expectBookingsUnchanged(fixtures: BookingFixture[]) {
+      const rows = await pool.query(
+        `SELECT id, venue_id, event_id, status, start_at, end_at
+           FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY id`,
+        [fixtures.map((f) => f.id)],
+      );
+      expect(rows.rows).toEqual(
+        [...fixtures]
+          .sort((a, b) => a.id.localeCompare(b.id))
+          .map((f) => ({
+            id: f.id,
+            venue_id: f.venueId,
+            event_id: f.eventId,
+            status: f.status,
+            start_at: f.startAt,
+            end_at: f.endAt,
+          })),
+      );
+    }
+
+    /** Creates a Planning event assigned to a Coordinator so the Coordinator can submit a booking request for it. */
+    async function createCoordinatorEvent(coordinatorId: string, name: string, startAt: Date, endAt: Date) {
+      const result = await pool.query<{ id: string }>(
+        `INSERT INTO events
+          (id, organiser_id, organiser_name, organiser_email, event_name, purpose,
+           start_date_time, end_date_time, expected_attendance, coordinator_id,
+           coordinator_name, submission_key, status)
+         VALUES (gen_random_uuid(), 'spm-121-test-owner', 'SPM-121 Test Owner', 'spm-121-test-owner@example.test', $1,
+           'SPM-121 availability fixture', $2, $3, 10, $4, 'SPM-121 Coordinator', gen_random_uuid(), 'Planning')
+         RETURNING id`,
+        [name, startAt, endAt, coordinatorId],
+      );
+      const id = result.rows[0].id;
+      eventIds.push(id);
+      return id;
+    }
+
     beforeAll(async () => {
       pool = new pg.Pool({ connectionString: databaseUrl });
       await pool.query(
@@ -1008,11 +1107,11 @@ describe.skipIf(!databaseUrl)(
     });
 
     /**
-     * SPM-121 AC9 VEN-UPD-09-A: changing venue capacity returns all pending/approved bookings in capacityBookings;
-     * the bookings remain recorded and are not removed.
+     * SPM-121 AC9 VEN-UPD-09-A: changing venue capacity returns exactly the pending and approved bookings in
+     * capacityBookings (by booking id); every booking stays recorded and unchanged.
      */
     it('VEN-UPD-09-E2E-A: lists pending and approved bookings when capacity changes and leaves them intact', async () => {
-      // Arrange: one venue with one pending and one approved booking, plus one cancelled that must be excluded.
+      // Arrange: one venue with one pending and one approved booking, plus one rejected that must be excluded.
       const staff = await authenticate(staffEmail);
       const created = await staff
         .post('/api/venues')
@@ -1020,18 +1119,10 @@ describe.skipIf(!databaseUrl)(
         .expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
-      const pendingEventId = await createScheduleEvent('SPM-121 AC9 pending event');
-      const approvedEventId = await createScheduleEvent('SPM-121 AC9 approved event');
-      const rejectedEventId = await createScheduleEvent('SPM-121 AC9 rejected event');
       const at = (day: number) => new Date(Date.UTC(2030, 2, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $5, $6, 'pending'),
-                ($1, $3, $7, $8, 'approved'),
-                ($1, $4, $9, $10, 'rejected')`,
-        [id, pendingEventId, approvedEventId, rejectedEventId,
-          at(1), at(2), at(3), at(4), at(5), at(6)],
-      );
+      const pending = await insertBooking(id, 'SPM-121 AC9 pending event', 'pending', at(1), at(2));
+      const approved = await insertBooking(id, 'SPM-121 AC9 approved event', 'approved', at(3), at(4));
+      const rejected = await insertBooking(id, 'SPM-121 AC9 rejected event', 'rejected', at(5), at(6));
 
       // Act: reduce capacity so it changes.
       const response = await staff
@@ -1039,30 +1130,15 @@ describe.skipIf(!databaseUrl)(
         .send({ ...venueInput, capacity: 30, name: uniqueVenueName('SPM-121 AC9 Capacity Venue') })
         .expect(200);
 
-      // Assert: capacityBookings contains exactly the pending and approved rows (not cancelled).
-      const bookingIds = response.body.capacityBookings.map((b: { bookingId: string }) => b.bookingId);
-      expect(bookingIds).toHaveLength(2);
+      // Assert: capacityBookings is exactly the pending and approved rows (same ids, names, times, statuses).
+      expect(actualListing(response.body.capacityBookings)).toEqual(expectedListing([pending, approved]));
+      expect(response.body.capacityBookings.map((b: { bookingId: string }) => b.bookingId)).not.toContain(rejected.id);
 
-      const pendingRow = response.body.capacityBookings.find(
-        (b: { bookingId: string; status: string }) => b.status === 'pending',
-      );
-      const approvedRow = response.body.capacityBookings.find(
-        (b: { bookingId: string; status: string }) => b.status === 'approved',
-      );
-      expect(pendingRow).toBeDefined();
-      expect(approvedRow).toBeDefined();
-
-      // Bookings must still exist in the database unchanged.
-      const persisted = await pool.query(
-        'SELECT id, status FROM venue_bookings WHERE venue_id = $1 ORDER BY created_at',
-        [id],
-      );
-      expect(persisted.rows).toHaveLength(3);
-      expect(persisted.rows.map((r: { status: string }) => r.status).sort()).toEqual(
-        ['approved', 'pending', 'rejected'],
-      );
+      // All three bookings are still in the database, unchanged.
+      await expectBookingsUnchanged([pending, approved, rejected]);
     });
 
+    /** SPM-121 AC9 VEN-UPD-09-D: an update that leaves capacity unchanged returns no capacity booking list. */
     it('VEN-UPD-09-E2E-B: capacityBookings is empty when capacity is unchanged', async () => {
       // Arrange: one venue with a booking.
       const staff = await authenticate(staffEmail);
@@ -1072,13 +1148,8 @@ describe.skipIf(!databaseUrl)(
         .expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
-      const eventId = await createScheduleEvent('SPM-121 AC9 no-change event');
       const at = (day: number) => new Date(Date.UTC(2030, 3, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'approved')`,
-        [id, eventId, at(1), at(2)],
-      );
+      const booking = await insertBooking(id, 'SPM-121 AC9 no-change event', 'approved', at(1), at(2));
 
       // Act: update name only — capacity stays at 80.
       const response = await staff
@@ -1087,6 +1158,7 @@ describe.skipIf(!databaseUrl)(
         .expect(200);
 
       expect(response.body.capacityBookings).toEqual([]);
+      await expectBookingsUnchanged([booking]);
     });
 
     /** SPM-121 AC7 VEN-UPD-07-SEC-1: a non-owner Venue Staff member cannot edit another staff member's venue. */
@@ -1182,6 +1254,66 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.turnaroundTimeMinutes).toBe(60);
     });
 
+    /**
+     * SPM-121 AC6 VEN-UPD-06-C: after Venue Staff raise setup to 45 and turnaround to 60, a 10:00-12:00 booking
+     * (Asia/Singapore) occupies exactly 09:15-13:00, not the original 09:30-12:45, for availability and conflict
+     * calculations. The approval conflict list is the only API that exposes the occupied interval; the Coordinator's
+     * booking-request availability check uses the same widened window.
+     */
+    it('VEN-UPD-06-C-AVAIL-E2E: updated setup and turnaround move the occupied interval to 09:15-13:00', async () => {
+      // Arrange: venue with the original 30/45 buffers, a 10:00-12:00 SGT approved booking, and the seeded Coordinator.
+      const staff = await authenticate(staffEmail);
+      const coordinator = await authenticate(coordinatorEmail);
+      const coordinatorId = (await pool.query<{ id: string }>('SELECT id FROM users WHERE email = $1', [coordinatorEmail])).rows[0].id;
+      const name = uniqueVenueName('SPM-121 AC6-C Availability');
+      const created = await staff.post('/api/venues').send({ ...venueInput, name, setupTimeMinutes: 30, turnaroundTimeMinutes: 45 }).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      // Asia/Singapore is UTC+8 with no daylight saving: 10:00 SGT on 2030-05-20 is 02:00Z.
+      const sgt = (hour: number, minute = 0) => new Date(Date.UTC(2030, 4, 20, hour - 8, minute));
+      const booked = await insertBooking(id, 'SPM-121 AC6-C booked', 'approved', sgt(10), sgt(12));
+
+      // Act: Venue Staff change the buffers to 45 and 60.
+      await staff.patch(`/api/venues/${id}`).send({ ...venueInput, name, setupTimeMinutes: 45, turnaroundTimeMinutes: 60 }).expect(200);
+
+      // Assert 1: the Coordinator reads the latest buffers and the unchanged 10:00-12:00 booking.
+      const detail = await coordinator.get(`/api/venues/${id}`).expect(200);
+      expect(detail.body).toMatchObject({ setupTimeMinutes: 45, turnaroundTimeMinutes: 60 });
+      expect(detail.body.reservations).toEqual([
+        expect.objectContaining({ eventName: 'SPM-121 AC6-C booked', start: sgt(10).toISOString(), end: sgt(12).toISOString() }),
+      ]);
+
+      // Assert 2: the Coordinator's availability check uses the new window. An event at 13:30-14:30 SGT is refused:
+      // under the original 30/45 buffers it would clear 12:45 and be accepted. One at 13:45-14:45 sits exactly on the
+      // new boundary (12:00 + 60 + 45) and is accepted (touching intervals do not conflict).
+      const blockedEvent = await createCoordinatorEvent(coordinatorId, 'SPM-121 AC6-C blocked probe', sgt(13, 30), sgt(14, 30));
+      const refused = await coordinator
+        .post(`/api/venues/${id}/booking-requests`)
+        .send({ eventId: blockedEvent, start: sgt(13, 30).toISOString(), end: sgt(14, 30).toISOString() })
+        .expect(409);
+      expect(refused.body.message).toContain('SPM-121 AC6-C booked');
+      const edgeEvent = await createCoordinatorEvent(coordinatorId, 'SPM-121 AC6-C edge probe', sgt(13, 45), sgt(14, 45));
+      await coordinator
+        .post(`/api/venues/${id}/booking-requests`)
+        .send({ eventId: edgeEvent, start: sgt(13, 45).toISOString(), end: sgt(14, 45).toISOString() })
+        .expect(201);
+
+      // Assert 3: the occupied interval of the 10:00-12:00 booking is exactly 09:15-13:00 SGT.
+      const challenger = await insertBooking(id, 'SPM-121 AC6-C challenger', 'pending', sgt(12, 30), sgt(13, 30));
+      const approval = await staff.post(`/api/venues/bookings/${challenger.id}/approve`).expect(409);
+      const window = approval.body.conflicts.find((c: { id: string }) => c.id === booked.id);
+      expect(window).toMatchObject({
+        id: booked.id,
+        kind: 'booking',
+        start: sgt(10).toISOString(),
+        end: sgt(12).toISOString(),
+        occupiedStart: sgt(9, 15).toISOString(),
+        occupiedEnd: sgt(13).toISOString(),
+      });
+      // The refused approval changed nothing: the challenger is still pending and the booked row is untouched.
+      await expectBookingsUnchanged([booked, challenger]);
+    });
+
     /** SPM-121 AC6 VEN-UPD-06-D: a Coordinator does not see obsolete venue details after a successful update. */
     it('VEN-UPD-06-E2E-D: Coordinator does not see stale location or timing after update', async () => {
       const staff = await authenticate(staffEmail);
@@ -1210,51 +1342,24 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      // Insert two consecutive bookings with no gap (they don't conflict with 0/0 timing)
-      const event1Id = await createScheduleEvent('SPM-121 AC8 event 1');
-      const event2Id = await createScheduleEvent('SPM-121 AC8 event 2');
+      // Two consecutive one-hour bookings with no gap (they do not conflict with 0/0 timing).
       const slot1Start = new Date(fixedNow.getTime() + 2 * 24 * 60 * 60 * 1000);
-      const slot1End   = new Date(slot1Start.getTime() + 60 * 60 * 1000);
-      const slot2Start = new Date(slot1End.getTime());                      // starts exactly at slot1 end
-      const slot2End   = new Date(slot2Start.getTime() + 60 * 60 * 1000);
+      const slot1End = new Date(slot1Start.getTime() + 60 * 60 * 1000);
+      const slot2End = new Date(slot1End.getTime() + 60 * 60 * 1000);
+      const first = await insertBooking(id, 'SPM-121 AC8 event 1', 'pending', slot1Start, slot1End);
+      const second = await insertBooking(id, 'SPM-121 AC8 event 2', 'pending', slot1End, slot2End);
+      await linkBookingRequests([first, second]);
 
-      const bookingInsert = await pool.query<{ id: string }>(
-        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'pending'),
-                (gen_random_uuid(), $1, $5, $6, $7, 'pending')
-         RETURNING id`,
-        [id, event1Id, slot1Start, slot1End, event2Id, slot2Start, slot2End],
-      );
-      const [bk1Id, bk2Id] = bookingInsert.rows.map((r) => r.id);
-      await pool.query(
-        `INSERT INTO venue_booking_requests (event_id, venue_id)
-         VALUES ($1, $2), ($3, $2)
-         ON CONFLICT DO NOTHING`,
-        [event1Id, id, event2Id],
-      );
-      eventIds.push(event1Id, event2Id);
-
-      // Increasing turnaround to 90 minutes causes the widened windows to overlap
+      // Increasing turnaround to 90 minutes makes the widened windows overlap.
       const response = await staff
         .patch(`/api/venues/${id}`)
         .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8 Timing Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 90 })
         .expect(200);
 
-      const returnedIds = response.body.affectedBookings.map((b: { bookingId: string }) => b.bookingId);
-      expect(returnedIds).toContain(bk1Id);
-      expect(returnedIds).toContain(bk2Id);
-      for (const b of response.body.affectedBookings) {
-        expect(b).toHaveProperty('eventName');
-        expect(b).toHaveProperty('start');
-        expect(b).toHaveProperty('end');
-        expect(b).toHaveProperty('status');
-      }
-      const persisted = await pool.query(
-        'SELECT status FROM venue_bookings WHERE id IN ($1::uuid, $2::uuid) ORDER BY id',
-        [bk1Id, bk2Id],
-      );
-      expect(persisted.rows).toHaveLength(2);
-      expect(persisted.rows.every((r: { status: string }) => r.status === 'pending')).toBe(true);
+      // Exactly the two overlapping bookings are listed, with their linked event names and times.
+      expect(actualListing(response.body.affectedBookings)).toEqual(expectedListing([first, second]));
+      // Both stay recorded with the same event link, status and times.
+      await expectBookingsUnchanged([first, second]);
     });
 
     /** SPM-121 AC8 VEN-UPD-08-B: increasing turnaround time displays newly affected bookings without removing them. */
@@ -1267,34 +1372,12 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      const event1Id = await createScheduleEvent('SPM-121 AC8-B event A');
-      const event2Id = await createScheduleEvent('SPM-121 AC8-B event B');
-
       // A=10:00–12:00, B=12:35–14:00 (future day); with turnaround=30m A occupies 10:00–12:30, gap to B at 12:35
-      const dayOffset = 3 * 24 * 60 * 60 * 1000;
-      const slotAStart = new Date(fixedNow.getTime() + dayOffset);
-      slotAStart.setUTCHours(10, 0, 0, 0);
-      const slotAEnd = new Date(slotAStart.getTime());
-      slotAEnd.setUTCHours(12, 0, 0, 0);
-      const slotBStart = new Date(slotAStart.getTime());
-      slotBStart.setUTCHours(12, 35, 0, 0);
-      const slotBEnd = new Date(slotAStart.getTime());
-      slotBEnd.setUTCHours(14, 0, 0, 0);
-
-      const insertResult = await pool.query(
-        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'approved'),
-                (gen_random_uuid(), $1, $5, $6, $7, 'approved')
-         RETURNING id`,
-        [id, event1Id, slotAStart, slotAEnd, event2Id, slotBStart, slotBEnd],
-      );
-      await pool.query(
-        `INSERT INTO venue_booking_requests (event_id, venue_id)
-         VALUES ($1, $2), ($3, $2)
-         ON CONFLICT DO NOTHING`,
-        [event1Id, id, event2Id],
-      );
-      eventIds.push(event1Id, event2Id);
+      const day = new Date(fixedNow.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const at = (h: number, m = 0) => new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m));
+      const bookingA = await insertBooking(id, 'SPM-121 AC8-B event A', 'approved', at(10), at(12));
+      const bookingB = await insertBooking(id, 'SPM-121 AC8-B event B', 'approved', at(12, 35), at(14));
+      await linkBookingRequests([bookingA, bookingB]);
 
       // Increase turnaround from 30m to 40m: A now occupies 10:00–12:40, overlapping B at 12:35
       const response = await staff
@@ -1302,25 +1385,9 @@ describe.skipIf(!databaseUrl)(
         .send({ ...venueInput, name: uniqueVenueName('SPM-121 AC8-B Turnaround Venue'), setupTimeMinutes: 0, turnaroundTimeMinutes: 40 })
         .expect(200);
 
-      expect(response.body.affectedBookings.length).toBeGreaterThan(0);
-      for (const b of response.body.affectedBookings) {
-        expect(b).toHaveProperty('bookingId');
-        expect(b).toHaveProperty('eventName');
-        expect(b).toHaveProperty('start');
-        expect(b).toHaveProperty('end');
-        expect(b).toHaveProperty('status');
-      }
-
-      // Verify both bookings remain in the database
-      const bookingIds = insertResult.rows.map((r: { id: string }) => r.id);
-      const persisted = await pool.query(
-        `SELECT id, status FROM venue_bookings WHERE id = ANY($1)`,
-        [bookingIds],
-      );
-      expect(persisted.rows).toHaveLength(2);
-      for (const row of persisted.rows) {
-        expect(row.status).toBe('approved');
-      }
+      // Both parties of the new overlap are listed by id, and both rows are preserved unchanged.
+      expect(actualListing(response.body.affectedBookings)).toEqual(expectedListing([bookingA, bookingB]));
+      await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
     /** SPM-121 AC8 VEN-UPD-08-C: changing timing without creating new conflicts does not falsely list bookings. */
@@ -1334,31 +1401,11 @@ describe.skipIf(!databaseUrl)(
       venueIds.push(id);
 
       // A=10:00–12:00, B=16:00–17:00 on a future day; wide gap so timing changes won't cause overlap
-      const event1Id = await createScheduleEvent('SPM-121 AC8-C event A');
-      const event2Id = await createScheduleEvent('SPM-121 AC8-C event B');
-      const dayOffset = 3 * 24 * 60 * 60 * 1000;
-      const slotAStart = new Date(fixedNow.getTime() + dayOffset);
-      slotAStart.setUTCHours(10, 0, 0, 0);
-      const slotAEnd = new Date(slotAStart.getTime());
-      slotAEnd.setUTCHours(12, 0, 0, 0);
-      const slotBStart = new Date(slotAStart.getTime());
-      slotBStart.setUTCHours(16, 0, 0, 0);
-      const slotBEnd = new Date(slotAStart.getTime());
-      slotBEnd.setUTCHours(17, 0, 0, 0);
-
-      await pool.query(
-        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'approved'),
-                (gen_random_uuid(), $1, $5, $6, $7, 'approved')`,
-        [id, event1Id, slotAStart, slotAEnd, event2Id, slotBStart, slotBEnd],
-      );
-      await pool.query(
-        `INSERT INTO venue_booking_requests (event_id, venue_id)
-         VALUES ($1, $2), ($3, $2)
-         ON CONFLICT DO NOTHING`,
-        [event1Id, id, event2Id],
-      );
-      eventIds.push(event1Id, event2Id);
+      const day = new Date(fixedNow.getTime() + 3 * 24 * 60 * 60 * 1000);
+      const at = (h: number, m = 0) => new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), h, m));
+      const bookingA = await insertBooking(id, 'SPM-121 AC8-C event A', 'approved', at(10), at(12));
+      const bookingB = await insertBooking(id, 'SPM-121 AC8-C event B', 'approved', at(16), at(17));
+      await linkBookingRequests([bookingA, bookingB]);
 
       // Increase setup 30→45 and turnaround 45→60; A occupies 09:15–13:00, B occupies 15:15–18:00 — no overlap
       const response = await staff
@@ -1367,16 +1414,8 @@ describe.skipIf(!databaseUrl)(
         .expect(200);
 
       expect(response.body.affectedBookings).toEqual([]);
-
-      // Verify both bookings remain unchanged
-      const persisted = await pool.query(
-        `SELECT status FROM venue_bookings WHERE venue_id = $1 ORDER BY start_at`,
-        [id],
-      );
-      expect(persisted.rows).toHaveLength(2);
-      for (const row of persisted.rows) {
-        expect(row.status).toBe('approved');
-      }
+      // Both bookings remain exactly as inserted (event link, status and times).
+      await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
     /** SPM-121 AC4 VEN-UPD-04-B: same name at a different location is NOT a duplicate. */
@@ -1437,18 +1476,18 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
       const other = await staff.post('/api/venues').send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-C Other Venue') }).expect(201);
-      venueIds.push(other.body.venue.id as string);
+      const otherId = other.body.venue.id as string;
+      venueIds.push(otherId);
 
-      const ev1 = await createScheduleEvent('SPM-121 AC9-C pending');
-      const ev2 = await createScheduleEvent('SPM-121 AC9-C rejected');
-      const ev3 = await createScheduleEvent('SPM-121 AC9-C other venue');
       const at = (day: number) => new Date(Date.UTC(2030, 4, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $5, $6, 'pending'),
-                ($1, $3, $7, $8, 'rejected'),
-                ($4, $9, $10, $11, 'approved')`,
-        [id, ev1, ev2, other.body.venue.id, at(1), at(2), at(3), at(4), ev3, at(5), at(6)],
+      const pending = await insertBooking(id, 'SPM-121 AC9-C pending', 'pending', at(1), at(2));
+      const rejected = await insertBooking(id, 'SPM-121 AC9-C rejected', 'rejected', at(3), at(4));
+      const otherVenue = await insertBooking(otherId, 'SPM-121 AC9-C other venue', 'approved', at(5), at(6));
+      // A blocked (unavailable) period at the edited venue is not a booking and must not be listed either.
+      const blocked = await pool.query<{ id: string }>(
+        `INSERT INTO venue_bookings (venue_id, start_at, end_at, status, reason)
+         VALUES ($1, $2, $3, 'blocked', 'SPM-121 AC9-C maintenance') RETURNING id`,
+        [id, at(7), at(8)],
       );
 
       const response = await staff
@@ -1456,8 +1495,13 @@ describe.skipIf(!databaseUrl)(
         .send({ ...venueInput, capacity: 50, name: uniqueVenueName('SPM-121 AC9-C Filter Venue') })
         .expect(200);
 
-      expect(response.body.capacityBookings).toHaveLength(1);
-      expect(response.body.capacityBookings[0].status).toBe('pending');
+      // Exactly the pending booking of this venue is listed; the rejected, blocked and other-venue rows are not.
+      expect(actualListing(response.body.capacityBookings)).toEqual(expectedListing([pending]));
+      const listedIds = response.body.capacityBookings.map((b: { bookingId: string }) => b.bookingId);
+      expect(listedIds).not.toContain(rejected.id);
+      expect(listedIds).not.toContain(otherVenue.id);
+      expect(listedIds).not.toContain(blocked.rows[0].id);
+      await expectBookingsUnchanged([pending, rejected, otherVenue]);
     });
 
     /** SPM-121 AC9 VEN-UPD-09-D: capacity change on a venue with no eligible bookings returns an empty list. */
@@ -1481,22 +1525,19 @@ describe.skipIf(!databaseUrl)(
       const created = await staff.post('/api/venues').send({ ...venueInput, capacity: 120, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(201);
       const id = created.body.venue.id as string;
       venueIds.push(id);
-      const ev = await createScheduleEvent('SPM-121 AC9-VAR event');
       const at = (day: number) => new Date(Date.UTC(2030, 5, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'approved')`,
-        [id, ev, at(1), at(2)],
-      );
+      const booking = await insertBooking(id, 'SPM-121 AC9-VAR event', 'approved', at(1), at(2));
 
+      // Each capacity change lists the same single booking by id, and never adds a copy.
       const r1 = await staff.patch(`/api/venues/${id}`).send({ ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(200);
-      expect(r1.body.capacityBookings).toHaveLength(1);
+      expect(actualListing(r1.body.capacityBookings)).toEqual(expectedListing([booking]));
 
       const r2 = await staff.patch(`/api/venues/${id}`).send({ ...venueInput, capacity: 90, name: uniqueVenueName('SPM-121 AC9-VAR Repeat Venue') }).expect(200);
-      expect(r2.body.capacityBookings).toHaveLength(1);
+      expect(actualListing(r2.body.capacityBookings)).toEqual(expectedListing([booking]));
 
       const count = await pool.query('SELECT count(*) FROM venue_bookings WHERE venue_id = $1', [id]);
       expect(Number(count.rows[0].count)).toBe(1);
+      await expectBookingsUnchanged([booking]);
     });
 
     /** SPM-121 AC2 VEN-UPD-02-B: changing one field preserves all other fields. */
@@ -1523,6 +1564,47 @@ describe.skipIf(!databaseUrl)(
       expect(get.body.name).toBe(name);
     });
 
+    /**
+     * SPM-121 AC2 VEN-UPD-02-C: uploading image A, replacing it with a distinct image B and reloading shows image B,
+     * and every other venue field keeps its value.
+     */
+    it('VEN-UPD-02-C-E2E: replacing image A with image B persists B and leaves other fields unchanged', async () => {
+      const staff = await authenticate(staffEmail);
+      const name = uniqueVenueName('SPM-121 AC2-C Image Replace');
+      const withoutImage = { ...venueInput, name, image: undefined };
+      const created = await staff.post('/api/venues').send(withoutImage).expect(201);
+      const id = created.body.venue.id as string;
+      venueIds.push(id);
+      const imageA = { name: 'image-a.png', type: 'image/png', size: 7, dataUrl: 'data:image/png;base64,aW1hZ2UtYQ==' };
+      const imageB = { name: 'image-b.png', type: 'image/png', size: 7, dataUrl: 'data:image/png;base64,aW1hZ2UtYg==' };
+      // The two data URLs decode to "image-a" and "image-b": distinct payloads of the declared size.
+      expect(Buffer.from(imageA.dataUrl.split(',')[1], 'base64').toString()).toBe('image-a');
+      expect(Buffer.from(imageB.dataUrl.split(',')[1], 'base64').toString()).toBe('image-b');
+
+      // Upload image A, then reload.
+      await staff.patch(`/api/venues/${id}`).send({ ...withoutImage, image: imageA }).expect(200);
+      const afterA = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(afterA.body.image).toEqual(imageA);
+
+      // Replace it with image B, then reload: B is stored, A is gone, and all other fields are as originally saved.
+      await staff.patch(`/api/venues/${id}`).send({ ...withoutImage, image: imageB }).expect(200);
+      const afterB = await staff.get(`/api/venues/${id}`).expect(200);
+      expect(afterB.body.image).toEqual(imageB);
+      expect(afterB.body.image.dataUrl).not.toBe(imageA.dataUrl);
+      expect(afterB.body).toMatchObject({
+        id,
+        name,
+        location: venueInput.location,
+        capacity: venueInput.capacity,
+        facilities: venueInput.facilities,
+        accessibility: venueInput.accessibility,
+        layouts: venueInput.layouts,
+        operatingInformation: venueInput.operatingInformation,
+        setupTimeMinutes: venueInput.setupTimeMinutes,
+        turnaroundTimeMinutes: venueInput.turnaroundTimeMinutes,
+      });
+    });
+
     /** SPM-121 AC8 VEN-UPD-08-D: multiple bookings affected while unrelated one is excluded. */
     it('VEN-UPD-08-D-E2E: lists A, B, C as affected but excludes unrelated D', async () => {
       const staff = await authenticate(staffEmail);
@@ -1532,33 +1614,21 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      const [evA, evB, evC, evD] = await Promise.all([
-        createScheduleEvent('AC8-D A'), createScheduleEvent('AC8-D B'),
-        createScheduleEvent('AC8-D C'), createScheduleEvent('AC8-D D'),
-      ]);
-      eventIds.push(evA, evB, evC, evD);
       const d = (h: number, m = 0) => new Date(Date.UTC(2030, 5, 15, h, m));
-      await pool.query(
-        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
-         VALUES (gen_random_uuid(), $1, $2, $5, $6, 'approved'),
-                (gen_random_uuid(), $1, $3, $7, $8, 'approved'),
-                (gen_random_uuid(), $1, $4, $9, $10, 'approved'),
-                (gen_random_uuid(), $1, $11, $12, $13, 'approved')`,
-        [id, evA, evB, evC, d(8, 0), d(9, 0), d(9, 20), d(10, 0), d(10, 20), d(11, 0), evD, d(15, 0), d(16, 0)],
-      );
-      for (const e of [evA, evB, evC, evD]) {
-        await pool.query(`INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [e, id]);
-      }
+      const bookingA = await insertBooking(id, 'AC8-D A', 'approved', d(8, 0), d(9, 0));
+      const bookingB = await insertBooking(id, 'AC8-D B', 'approved', d(9, 20), d(10, 0));
+      const bookingC = await insertBooking(id, 'AC8-D C', 'approved', d(10, 20), d(11, 0));
+      const bookingD = await insertBooking(id, 'AC8-D D', 'approved', d(15, 0), d(16, 0));
+      await linkBookingRequests([bookingA, bookingB, bookingC, bookingD]);
 
+      // Setup 0→30: B (from 08:50) overlaps A's end at 09:00, and C (from 09:50) overlaps B's end at 10:00; D is far away.
       const response = await staff.patch(`/api/venues/${id}`).send({
         ...venueInput, name: uniqueVenueName('SPM-121 AC8-D Multi'), setupTimeMinutes: 30, turnaroundTimeMinutes: 0,
       }).expect(200);
 
-      const names = response.body.affectedBookings.map((b: { eventName: string }) => b.eventName);
-      expect(names).toContain('AC8-D A');
-      expect(names).toContain('AC8-D B');
-      expect(names).toContain('AC8-D C');
-      expect(names).not.toContain('AC8-D D');
+      // Exactly A, B and C are listed (by id); D is excluded; all four rows are preserved.
+      expect(actualListing(response.body.affectedBookings)).toEqual(expectedListing([bookingA, bookingB, bookingC]));
+      await expectBookingsUnchanged([bookingA, bookingB, bookingC, bookingD]);
     });
 
     /** SPM-121 AC8 VEN-UPD-08-BND-1: endpoint-contact bookings are not listed as affected (half-open intervals). */
@@ -1570,21 +1640,11 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      const [evA, evB] = await Promise.all([
-        createScheduleEvent('AC8-BND1 A'), createScheduleEvent('AC8-BND1 B'),
-      ]);
-      eventIds.push(evA, evB);
       const d = (h: number, m = 0) => new Date(Date.UTC(2030, 5, 20, h, m));
       // A=09:00-10:00, B=10:30-11:30; with setup=15m they don't overlap (gap 15m)
-      await pool.query(
-        `INSERT INTO venue_bookings (id, venue_id, event_id, start_at, end_at, status)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, 'approved'),
-                (gen_random_uuid(), $1, $5, $6, $7, 'approved')`,
-        [id, evA, d(9, 0), d(10, 0), evB, d(10, 30), d(11, 30)],
-      );
-      for (const e of [evA, evB]) {
-        await pool.query(`INSERT INTO venue_booking_requests (event_id, venue_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [e, id]);
-      }
+      const bookingA = await insertBooking(id, 'AC8-BND1 A', 'approved', d(9, 0), d(10, 0));
+      const bookingB = await insertBooking(id, 'AC8-BND1 B', 'approved', d(10, 30), d(11, 30));
+      await linkBookingRequests([bookingA, bookingB]);
 
       // Increase setup to 30m: A occupied=08:30-10:00, B occupied=10:00-11:30 — they touch at 10:00 only
       const response = await staff.patch(`/api/venues/${id}`).send({
@@ -1592,6 +1652,7 @@ describe.skipIf(!databaseUrl)(
       }).expect(200);
 
       expect(response.body.affectedBookings).toEqual([]);
+      await expectBookingsUnchanged([bookingA, bookingB]);
     });
 
     /** SPM-121 AC9 VEN-UPD-09-B: capacity increase also lists pending and approved bookings. */
@@ -1603,25 +1664,17 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      const [evP, evA] = await Promise.all([
-        createScheduleEvent('AC9-B pending'), createScheduleEvent('AC9-B approved'),
-      ]);
-      eventIds.push(evP, evA);
       const at = (day: number) => new Date(Date.UTC(2030, 6, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'pending'),
-                ($1, $5, $6, $7, 'approved')`,
-        [id, evP, at(1), at(2), evA, at(3), at(4)],
-      );
+      const pending = await insertBooking(id, 'AC9-B pending', 'pending', at(1), at(2));
+      const approved = await insertBooking(id, 'AC9-B approved', 'approved', at(3), at(4));
 
       const response = await staff.patch(`/api/venues/${id}`).send({
         ...venueInput, capacity: 160, name: uniqueVenueName('SPM-121 AC9-B Increase'),
       }).expect(200);
 
-      expect(response.body.capacityBookings).toHaveLength(2);
-      const statuses = response.body.capacityBookings.map((b: { status: string }) => b.status).sort();
-      expect(statuses).toEqual(['approved', 'pending']);
+      // Exactly the two bookings are listed, identified by id, and both are unchanged afterwards.
+      expect(actualListing(response.body.capacityBookings)).toEqual(expectedListing([pending, approved]));
+      await expectBookingsUnchanged([pending, approved]);
     });
 
     /** SPM-121 AC9 VEN-UPD-09-BND-1: bookings listed regardless of attendance relative to capacity. */
@@ -1633,32 +1686,24 @@ describe.skipIf(!databaseUrl)(
       const id = created.body.venue.id as string;
       venueIds.push(id);
 
-      const [evBelow, evEqual, evAbove] = await Promise.all([
-        createScheduleEvent('AC9-BND1 below'), createScheduleEvent('AC9-BND1 equal'), createScheduleEvent('AC9-BND1 above'),
-      ]);
-      eventIds.push(evBelow, evEqual, evAbove);
+      const at = (day: number) => new Date(Date.UTC(2030, 7, day, 10));
+      const below = await insertBooking(id, 'AC9-BND1 below', 'pending', at(1), at(2));
+      const equal = await insertBooking(id, 'AC9-BND1 equal', 'approved', at(3), at(4));
+      const above = await insertBooking(id, 'AC9-BND1 above', 'approved', at(5), at(6));
       await pool.query(
         `UPDATE events SET expected_attendance = CASE id
            WHEN $1::uuid THEN 99 WHEN $2::uuid THEN 100 WHEN $3::uuid THEN 101 END
          WHERE id IN ($1::uuid, $2::uuid, $3::uuid)`,
-        [evBelow, evEqual, evAbove],
-      );
-      const at = (day: number) => new Date(Date.UTC(2030, 7, day, 10));
-      await pool.query(
-        `INSERT INTO venue_bookings (venue_id, event_id, start_at, end_at, status)
-         VALUES ($1, $2, $3, $4, 'pending'),
-                ($1, $5, $6, $7, 'approved'),
-                ($1, $8, $9, $10, 'approved')`,
-        [id, evBelow, at(1), at(2), evEqual, at(3), at(4), evAbove, at(5), at(6)],
+        [below.eventId, equal.eventId, above.eventId],
       );
 
       const response = await staff.patch(`/api/venues/${id}`).send({
         ...venueInput, capacity: 100, name: uniqueVenueName('SPM-121 AC9-BND1'),
       }).expect(200);
 
-      expect(response.body.capacityBookings).toHaveLength(3);
-      const persisted = await pool.query('SELECT count(*) FROM venue_bookings WHERE venue_id = $1', [id]);
-      expect(Number(persisted.rows[0].count)).toBe(3);
+      // All three bookings are listed (attendance 99, 100, 101 against capacity 100) and none is changed.
+      expect(actualListing(response.body.capacityBookings)).toEqual(expectedListing([below, equal, above]));
+      await expectBookingsUnchanged([below, equal, above]);
     });
   },
 );

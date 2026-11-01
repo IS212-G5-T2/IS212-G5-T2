@@ -799,34 +799,6 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-REV-12-A | SUPPORTING | SPM-55 | AC1 | Proposed SPM-55 review group (review list uses the stored booking slot after the event schedule changes (PR #78 review SPM55-REVIEW-002)); Confluence matrix 34537876; case page 39190534 (added 2026-10-31) | backend/test/venues-booking-requests.e2e-spec.ts | pending (proposed 2026-10-23) | Active |
 | VEN-REV-12-B | SUPPORTING | SPM-55 | AC1 | Proposed SPM-55 review group (each booking attempt keeps its own special request after reject and resubmit (PR #78 review SPM55-REVIEW-003)); Confluence matrix 34537876; case page 39190534 (added 2026-10-31) | backend/test/venues-booking-requests.e2e-spec.ts | pending (proposed 2026-10-23) | Active |
 | VEN-REV-12-C | SUPPORTING | SPM-55 | AC1 | Proposed SPM-55 review group (an attempt without a special request stays empty after a resubmit with a note; Test Review 1 of the PR #78 follow-up); Confluence matrix 34537876; case page 39190534 (added 2026-10-31) | backend/test/venues-booking-requests.e2e-spec.ts | pending (proposed 2026-10-23) | Active |
-| VEN-UPD-07-A | SUPPORTING | SPM-121 | AC7 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/repository/venues.repository.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-07-B | SUPPORTING | SPM-121 | AC7 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/repository/venues.repository.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-05-A | SUPPORTING | SPM-121 | AC5 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/repository/venues.repository.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-09-A | SUPPORTING | SPM-121 | AC9 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/repository/venues.repository.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-08-A | SUPPORTING | SPM-121 | AC8 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/repository/venues.repository.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-03-A | SUPPORTING | SPM-121 | AC3 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-03-B | SUPPORTING | SPM-121 | AC3 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-03-UI-A | SUPPORTING | SPM-121 | AC3 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
-| VEN-UPD-05-SVC-A | SUPPORTING | SPM-121 | AC2 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-05-SVC-B | SUPPORTING | SPM-121 | AC2 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-03-SVC-A | SUPPORTING | SPM-121 | AC3 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-04-SVC-A | SUPPORTING | SPM-121 | AC4 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-07-SVC-A | SUPPORTING | SPM-121 | AC7 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-03-SVC-B | SUPPORTING | SPM-121 | AC3 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-07-SVC-B | SUPPORTING | SPM-121 | AC2 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-05-SVC-C | SUPPORTING | SPM-121 | AC5 | SPM-121 update group; Confluence matrix page 28770883 | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
-| VEN-UPD-01-UI-A | SUPPORTING | SPM-121 | AC1 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
-| VEN-UPD-01-UI-B | SUPPORTING | SPM-121 | AC1 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
-| VEN-UPD-05-UI-A | SUPPORTING | SPM-121 | AC5 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
-| VEN-UPD-09-UI-A | SUPPORTING | SPM-121 | AC9 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
-| VEN-UPD-05-STORE-A | SUPPORTING | SPM-121 | AC5 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/store/useAppStore.venues.test.ts | created 2026-10-30 | Active |
-| VEN-UPD-09-STORE-A | SUPPORTING | SPM-121 | AC9 | SPM-121 update group; Confluence matrix page 28770883 | frontend/src/store/useAppStore.venues.test.ts | created 2026-10-30 | Active |
-| VEN-UPD-04-E2E-A | SUPPORTING | SPM-121 | AC4 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
-| VEN-UPD-06-E2E-A | SUPPORTING | SPM-121 | AC6 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
-| VEN-UPD-07-E2E-A | SUPPORTING | SPM-121 | AC7 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
-| VEN-UPD-08-E2E-A | SUPPORTING | SPM-121 | AC8 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
-| VEN-UPD-09-E2E-A | SUPPORTING | SPM-121 | AC9 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
-| VEN-UPD-09-E2E-B | SUPPORTING | SPM-121 | AC9 | SPM-121 E2E group; Confluence matrix page 28770883 | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-01-A | PRIMARY | SPM-121 | AC1 | Confluence matrix 28770883; case page 28869426 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-31 | Active |
 | VEN-UPD-01-B | PRIMARY | SPM-121 | AC1 | Confluence matrix 28770883; case page 28869426 | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-31 | Active |
 | VEN-UPD-02-A | PRIMARY | SPM-121 | AC2 | Confluence matrix 28770883; case page 29655094 | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
@@ -872,9 +844,11 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-UPD-02-BND-2-SVC | SUPPORTING | SPM-121 | AC2 | Layer impl of VEN-UPD-02-BND-2 (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-02-C-UI | SUPPORTING | SPM-121 | AC2 | Layer impl of VEN-UPD-02-C (frontend) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-31 | Active |
 | VEN-UPD-02-E2E-B | SUPPORTING | SPM-121 | AC2 | Layer impl of VEN-UPD-02-B (e2e) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
+| VEN-UPD-02-C-E2E | SUPPORTING | SPM-121 | AC2 | Layer impl of VEN-UPD-02-C (e2e, image A replaced by image B, other fields unchanged) | backend/test/venues.e2e-spec.ts | created 2026-11-01 | Active |
 | VEN-UPD-03-SVC-A | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-A (service, non-UUID id) | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
 | VEN-UPD-03-SVC-B | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-A (service, not-found) | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
 | VEN-UPD-03-UI-A | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-A (frontend) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
+| VEN-UPD-03-UI-C | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-C and VEN-UPD-03-D (frontend, out-of-range capacity and invalid duration refused on Continue) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-11-01 | Active |
 | VEN-UPD-03-C-SVC | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-C (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-03-D-SVC | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-D (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-03-BND-1-SVC | SUPPORTING | SPM-121 | AC3 | Layer impl of VEN-UPD-03-BND-1 (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
@@ -890,12 +864,15 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-UPD-05-SVC-C | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-A (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
 | VEN-UPD-05-UI-A | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-A (frontend) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-30 | Active |
 | VEN-UPD-05-UI-B | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-B (frontend) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-10-31 | Active |
+| VEN-UPD-05-UI-C | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-A (frontend, every edited field and selection is sent in the PATCH body) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-11-01 | Active |
+| VEN-UPD-05-UI-D | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-A (frontend, Cancel, Back, Back to venues and Continue editing controls) | frontend/src/features/venues/pages/edit/VenueEditPage.test.tsx | created 2026-11-01 | Active |
 | VEN-UPD-05-B-SVC | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-B (service) | backend/src/venues/venues.service.spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-05-STORE-A | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-A (store) | frontend/src/store/useAppStore.venues.test.ts | created 2026-10-30 | Active |
 | VEN-UPD-05-E2E-B | SUPPORTING | SPM-121 | AC5 | Layer impl of VEN-UPD-05-C (e2e, repeated save) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-06-E2E-A | SUPPORTING | SPM-121 | AC6 | Layer impl of VEN-UPD-06-A (e2e) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-06-E2E-B | SUPPORTING | SPM-121 | AC6 | Layer impl of VEN-UPD-06-B (e2e) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-06-E2E-C | SUPPORTING | SPM-121 | AC6 | Layer impl of VEN-UPD-06-C (e2e) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
+| VEN-UPD-06-C-AVAIL-E2E | SUPPORTING | SPM-121 | AC6 | Layer impl of VEN-UPD-06-C (e2e, occupied interval 09:15-13:00 after buffers 45/60) | backend/test/venues.e2e-spec.ts | created 2026-11-01 | Active |
 | VEN-UPD-06-E2E-D | SUPPORTING | SPM-121 | AC6 | Layer impl of VEN-UPD-06-D (e2e) | backend/test/venues.e2e-spec.ts | created 2026-10-31 | Active |
 | VEN-UPD-07-SVC-A | SUPPORTING | SPM-121 | AC7 | Layer impl of VEN-UPD-07-A (service, forbidden) | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
 | VEN-UPD-07-SVC-B | SUPPORTING | SPM-121 | AC7 | Layer impl of VEN-UPD-07-A (service, non-venue-staff role) | backend/src/venues/venues.service.spec.ts | created 2026-10-30 | Active |
