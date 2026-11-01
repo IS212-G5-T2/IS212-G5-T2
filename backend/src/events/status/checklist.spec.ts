@@ -130,6 +130,24 @@ describe('buildChecklist', () => {
     expect(result.safetyCheck.status).toBe('changes_needed');
   });
 
+  /** SAFETY-OUTCOME-04: safety review markers are scoped to selected rows even when unselected rows are also pending. */
+  it('SAFETY-OUTCOME-04 tags only selected pending venue and equipment rows', () => {
+    const result = buildChecklist({
+      snapshot: {
+        venueBookings: [booking({ status: 'pending' }), booking({ id: 'b2', venueId: 'venue-2', venueName: 'Side Hall', status: 'pending' })],
+        equipment: [line({ status: 'Requested' }), line({ id: 'e2', name: 'Microphone', status: 'Requested' })],
+      },
+      equipmentNeeds: 'Projector and microphone', equipmentConfirmedAt: null,
+      registration: { enabled: false, opensAt: null, closesAt: null },
+      safety: { status: 'changes_needed', feedback: [{ id: 'f1', text: 'Update selected items.', requestedAt: now.toISOString(), reviewArrangements: { venueIds: ['b1'], equipmentIds: ['e1'] } }] },
+      now,
+    });
+    expect(result.venue.items.find((item) => item.id === 'b1')).toHaveProperty('safetyReviewStatus', 'Pending review');
+    expect(result.venue.items.find((item) => item.id === 'b2')).not.toHaveProperty('safetyReviewStatus');
+    expect(result.equipment.items.find((item) => item.id === 'e1')).toHaveProperty('safetyReviewStatus', 'Pending review');
+    expect(result.equipment.items.find((item) => item.id === 'e2')).not.toHaveProperty('safetyReviewStatus');
+  });
+
   /** SAFETY-OUTCOME-04: resolving feedback clears only its overlay and permits re-request when actual arrangements are ready. */
   it('SAFETY-OUTCOME-04 clears resolved overlays without changing approved or reserved resource states', () => {
     const result = buildChecklist({

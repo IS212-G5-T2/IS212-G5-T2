@@ -27,6 +27,99 @@ function setup(status = 'Approved', updateRows = 1) {
 beforeEach(() => setup());
 
 describe('SPM-57 equipment request persistence', () => {
+  /** SAFETY-OUTCOME-06: coordinator revisions preserve item and reservation IDs, and return only selected equipment to Technical Support. */
+  it('SAFETY-OUTCOME-06 revises only safety-selected equipment and retains unselected reservation rows', async () => {
+    const selected = { item_id: 'selected-item', reservation_id: 'selected-reservation', equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, status: 'Requested' };
+    const retained = { item_id: 'retained-item', reservation_id: 'retained-reservation', equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 2, status: 'Reserved' };
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e'))
+        return { rows: [{ id: requestId, event_id: eventId, event_status: 'Planning', request_status: 'Pending Review' }], rowCount: 1 };
+      if (sql.includes('SELECT DISTINCT item.id AS item_id')) return { rows: [selected], rowCount: 1 };
+      if (sql.includes('SELECT item.id AS item_id, reservation.id AS reservation_id')) return { rows: [selected, retained], rowCount: 2 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await repository.update(coordinatorId, requestId, { eventId, items: [
+      { id: 'selected-item', equipmentName: 'Replacement projector', equipmentType: 'Visual', quantity: 2 },
+      { id: 'retained-item', equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 2 },
+    ] });
+
+    expect(result).toEqual({ kind: 'updated', id: requestId });
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('UPDATE equipment_request_items'), ['selected-item', 'Replacement projector', 'Visual', 2]);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("SET equipment_name = $2, quantity = $3, status = 'Requested'"), [
+      'selected-reservation', 'Replacement projector', 2, new Date('2030-01-10T12:00:00Z'), 'selected-item',
+    ]);
+    expect(query.mock.calls.some(([sql, params]) => sql.includes('UPDATE equipment_request_items') && params?.[0] === 'retained-item')).toBe(false);
+    expect(query.mock.calls.some(([sql, params]) => sql.includes('UPDATE equipment_reservations') && params?.[0] === 'retained-reservation')).toBe(false);
+    expect(query.mock.calls.some(([sql]) => sql.includes('DELETE FROM equipment_request_items') || sql.includes('INSERT INTO equipment_request_items'))).toBe(false);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining("UPDATE equipment_requests SET status = 'Pending Review'"), [requestId, new Date('2030-01-10T12:00:00Z')]);
+  });
+
+  /** SAFETY-OUTCOME-06: an unselected retained reservation cannot be changed while safety feedback is open. */
+  it('SAFETY-OUTCOME-06 refuses edits to unselected equipment without writing rows', async () => {
+    const selected = { item_id: 'selected-item', reservation_id: 'selected-reservation', equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, status: 'Requested' };
+    const retained = { item_id: 'retained-item', reservation_id: 'retained-reservation', equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 2, status: 'Reserved' };
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e'))
+        return { rows: [{ id: requestId, event_id: eventId, event_status: 'Planning', request_status: 'Pending Review' }], rowCount: 1 };
+      if (sql.includes('SELECT DISTINCT item.id AS item_id')) return { rows: [selected], rowCount: 1 };
+      if (sql.includes('SELECT item.id AS item_id, reservation.id AS reservation_id')) return { rows: [selected, retained], rowCount: 2 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await repository.update(coordinatorId, requestId, { eventId, items: [
+      { id: 'selected-item', equipmentName: 'Projector', equipmentType: 'Visual', quantity: 1 },
+      { id: 'retained-item', equipmentName: 'Changed microphone', equipmentType: 'Audio', quantity: 2 },
+    ] });
+
+    expect(result).toEqual({ kind: 'invalid-safety-review-update' });
+    expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE ') || sql.startsWith('DELETE ') || sql.startsWith('INSERT '))).toBe(false);
+  });
+
+  /** SAFETY-OUTCOME-06: every existing request item must be submitted exactly once by its stable ID during safety revision. */
+  it.each([
+    ['missing item identifier', [{ equipmentName: 'Projector', equipmentType: 'Visual' as const, quantity: 1 }, { id: 'retained-item', equipmentName: 'Microphone', equipmentType: 'Audio' as const, quantity: 2 }]],
+    ['unknown item identifier', [{ id: 'unknown-item', equipmentName: 'Projector', equipmentType: 'Visual' as const, quantity: 1 }, { id: 'retained-item', equipmentName: 'Microphone', equipmentType: 'Audio' as const, quantity: 2 }]],
+  ])('SAFETY-OUTCOME-06 refuses a safety revision with a %s', async (_label, items) => {
+    const selected = { item_id: 'selected-item', reservation_id: 'selected-reservation', equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, status: 'Requested' };
+    const retained = { item_id: 'retained-item', reservation_id: 'retained-reservation', equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 2, status: 'Reserved' };
+    query.mockImplementation(async (sql: string) => {
+      if (sql.includes('FROM equipment_requests r JOIN events e'))
+        return { rows: [{ id: requestId, event_id: eventId, event_status: 'Planning', request_status: 'Pending Review' }], rowCount: 1 };
+      if (sql.includes('SELECT DISTINCT item.id AS item_id')) return { rows: [selected], rowCount: 1 };
+      if (sql.includes('SELECT item.id AS item_id, reservation.id AS reservation_id')) return { rows: [selected, retained], rowCount: 2 };
+      return { rows: [], rowCount: 1 };
+    });
+
+    const result = await repository.update(coordinatorId, requestId, { eventId, items });
+
+    expect(result).toEqual({ kind: 'invalid-safety-review-update' });
+    expect(query.mock.calls.some(([sql]) => sql.startsWith('UPDATE ') || sql.startsWith('DELETE ') || sql.startsWith('INSERT '))).toBe(false);
+  });
+
+  /** SAFETY-OUTCOME-06: absent linked reservations omit optional reservation fields from coordinator projections. */
+  it('SAFETY-OUTCOME-06 omits reservation fields when an item has no linked reservation', async () => {
+    query.mockImplementation(async (sql: string) => sql.includes('SELECT r.id, r.event_id, e.event_name')
+      ? { rows: [
+        { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time,
+        expected_attendance: 20, event_status: 'Planning', status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator',
+        created_at: event.start_date_time, item_id: 'item-1', reservation_id: null, reservation_status: null,
+        equipment_name: 'Microphone', equipment_type: 'Audio', quantity: 1, available_quantity: 1, safety_review_selected: false },
+        { id: requestId, event_id: eventId, event_name: 'Workshop', start_date_time: event.start_date_time, end_date_time: event.end_date_time,
+          expected_attendance: 20, event_status: 'Planning', status: 'Pending Review', requested_by: coordinatorId, coordinator_name: 'Coordinator',
+          created_at: event.start_date_time, item_id: 'item-2', reservation_id: 'reservation-2', reservation_status: 'Reserved',
+          equipment_name: 'Projector', equipment_type: 'Visual', quantity: 1, available_quantity: 1, safety_review_selected: false },
+      ], rowCount: 2 }
+      : { rows: [], rowCount: 1 });
+    const result = await repository.listMine(coordinatorId);
+    expect(result[0]?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({ equipmentName: 'Microphone' }),
+      expect.objectContaining({ equipmentName: 'Projector', reservationId: 'reservation-2', reservationStatus: 'Reserved' }),
+    ]));
+    expect(result[0]?.items.find((item) => item.equipmentName === 'Microphone')).not.toHaveProperty('reservationId');
+    expect(result[0]?.items.find((item) => item.equipmentName === 'Microphone')).not.toHaveProperty('reservationStatus');
+  });
+
   /** approving a request without placeholders creates a linked Reserved row per item. */
   it('creates reservations from request items when placeholders are missing', async () => {
     query.mockImplementation(async (sql: string) => {

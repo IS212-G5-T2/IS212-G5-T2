@@ -2,7 +2,7 @@ const FILE = 'src/components/notifications/NotificationItem.tsx';
 const TEST = 'src/components/notifications/NotificationItem.test.tsx';
 
 export const SUITES = {
-  unit: { args: ['run', TEST, 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx', 'src/components/notifications/NotificationBell.test.tsx'] },
+  unit: { args: ['run', TEST, 'src/features/events/pages/detail/EventDetailPage.test.tsx', 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', 'src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx', 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx', 'src/components/notifications/NotificationBell.test.tsx'] },
 };
 
 export const MUTANTS = [
@@ -27,8 +27,8 @@ export const MUTANTS = [
     name: 'the coordinator planning page hides safety review markers (SAFETY-OUTCOME-04/05)',
     file: 'src/features/events/pages/detail/planning/PlanningInformationPage.tsx',
     suites: ['unit'],
-    edits: [['by Safety Officer', 'by coordinator']],
-    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', title: 'shows Pending review by Safety Officer for selected venue and equipment arrangements' }],
+    edits: [['label: item.venueName,\n          status: item.status,\n          safetyReviewStatus: item.safetyReviewStatus,', 'label: item.venueName,\n          status: item.status,']],
+    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', title: 'shows selected safety changes as pending while retaining feedback' }],
   },
   {
     id: 'S131-FE-03',
@@ -37,5 +37,32 @@ export const MUTANTS = [
     suites: ['unit'],
     edits: [['event.target.checked ? [...item.equipmentIds, equipment.id] : item.equipmentIds.filter((id) => id !== equipment.id)', '[]']],
     testMappings: [{ suite: 'unit', file: 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx', title: 'SAFETY-OUTCOME-04 submits selected affected arrangements with each change description' }],
+  },
+  {
+    id: 'S131-FE-05',
+    name: 'the planning page enables safety requests while registration has unsaved changes (SAFETY-OUTCOME-06)',
+    file: 'src/features/events/pages/detail/planning/PlanningInformationPage.tsx',
+    suites: ['unit'],
+    edits: [['const safetyCanRequest = !!checklist?.canRequestSafetyCheck && !registrationDraftPending;', 'const safetyCanRequest = !!checklist?.canRequestSafetyCheck;']],
+    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', title: 'blocks on an unsaved registration draft and enables safety only after valid settings save' }],
+  },
+  {
+    id: 'S131-FE-06',
+    name: 'coordinator safety feedback omits the selected venue and equipment labels (SAFETY-OUTCOME-04/05)',
+    file: 'src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx',
+    suites: ['unit'],
+    edits: [
+      ['`Venue: ${venue.venueName}`', '`Venue: Venue`'],
+      ['`Equipment: ${entry.name}`', '`Equipment: Equipment`'],
+    ],
+    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx', title: 'shows the selected venue and equipment names beside their own feedback and omits unknown IDs' }],
+  },
+  {
+    id: 'S131-FE-07',
+    name: 'event detail never passes unsaved registration changes to the safety request gate (SAFETY-OUTCOME-06)',
+    file: 'src/features/events/pages/detail/EventDetailPage.tsx',
+    suites: ['unit'],
+    edits: [['onDraftStateChange={reportRegistrationDraft}', 'onDraftStateChange={() => {}}']],
+    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/EventDetailPage.test.tsx', title: 'SAFETY-OUTCOME-06 connects registration drafts to the event safety request gate' }],
   },
 ];

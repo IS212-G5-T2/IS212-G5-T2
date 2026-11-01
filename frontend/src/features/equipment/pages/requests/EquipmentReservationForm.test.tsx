@@ -14,6 +14,32 @@ const event: EventRecord = {
 };
 
 describe('SPM-57 equipment request form', () => {
+  /** SAFETY-OUTCOME-06: the form cannot submit while a request update is already in flight. */
+  it('SAFETY-OUTCOME-06 disables submission while updating', () => {
+    render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Submitting…' })).toBeDisabled();
+  });
+
+  /** SAFETY-OUTCOME-06: an in-flight edit shows its update state and cannot send a duplicate request. */
+  it('SAFETY-OUTCOME-06 keeps an equipment re-review submission disabled while updating', () => {
+    const onSubmit = vi.fn();
+    render(<EquipmentReservationForm events={[event]} initialEventId={event.id} submitting onSubmit={onSubmit} isEditing />);
+    expect(screen.getByRole('button', { name: 'Updating…' })).toBeDisabled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-OUTCOME-06: edit mode without the selected event cannot submit. */
+  it('SAFETY-OUTCOME-06 disables submission when an edited event is unavailable', () => {
+    render(<EquipmentReservationForm events={[]} initialEventId={event.id} submitting={false} onSubmit={vi.fn()} isEditing />);
+    expect(screen.getByRole('button', { name: 'Update Event' })).toBeDisabled();
+  });
+
+  /** SAFETY-OUTCOME-06: a new request cannot be submitted while the eligible event picker has no events. */
+  it('SAFETY-OUTCOME-06 disables new-request submission when no eligible event is available', () => {
+    render(<EquipmentReservationForm events={[]} initialEventId="" submitting={false} onSubmit={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Submit Request' })).toBeDisabled();
+  });
+
   /** SAFETY-OUTCOME-04: coordinator revisions keep unselected reservations intact and submit stable item identifiers. */
   it('edits only selected safety-review equipment and retains all item IDs', async () => {
     const user = userEvent.setup();

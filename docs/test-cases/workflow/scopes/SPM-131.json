@@ -54,6 +54,22 @@
       {
         "glob": "backend/src/event-drafts/drafts.service.spec.ts",
         "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/equipment-requests.repository.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/equipment-requests.service.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/equipment/requests/dto/equipment-request-input.spec.ts"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "backend/src/events/status/status.safety-registration.spec.ts"
       }
     ],
     "backend-e2e": [
@@ -90,6 +106,18 @@
       {
         "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
         "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/EventDetailPage.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.test.tsx"
+      },
+      {
+        "titleMatch": "SAFETY-OUTCOME",
+        "glob": "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx"
       }
     ]
   },
@@ -100,16 +128,22 @@
       "backend/src/events/coordinator-notification-types.ts",
       "backend/src/events/status/checklist.ts",
       "backend/src/events/status/status.service.ts",
-      "backend/src/events/status/safety-check.source.ts"
+      "backend/src/events/status/safety-check.source.ts",
+      "backend/src/equipment/requests/dto/equipment-request-input.ts",
+      "backend/src/equipment/requests/equipment-requests.repository.ts",
+      "backend/src/equipment/requests/equipment-requests.service.ts"
     ],
     "frontend": [
       "frontend/src/components/notifications/NotificationItem.tsx",
+      "frontend/src/components/notifications/NotificationBell.tsx",
       "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
-      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
       "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx",
       "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.tsx",
-      "frontend/src/utils/arrangements.ts",
-      "frontend/src/components/notifications/NotificationBell.tsx"
+      "frontend/src/features/equipment/api/equipment-requests-api.ts",
+      "frontend/src/features/equipment/pages/requests/EquipmentReservationForm.tsx",
+      "frontend/src/utils/arrangements.ts"
     ]
   },
   "suites": [
@@ -167,5 +201,6 @@
       "export": "MUTANTS",
       "env": []
     }
-  ]
+  ],
+  "linesFrom": "changed-lines"
 }

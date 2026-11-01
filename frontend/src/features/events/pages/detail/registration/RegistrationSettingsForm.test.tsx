@@ -493,3 +493,34 @@ describe("settings form: report unsaved registration drafts", () => {
     await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(true));
   });
 });
+
+describe("SAFETY-OUTCOME-06 stale settings loads", () => {
+  /** SAFETY-OUTCOME-06: a late response for the prior event cannot replace the current event's saved settings. */
+  it("ignores a stale successful settings response after the event changes", async () => {
+    let resolveFirst!: (value: RegistrationSettings) => void;
+    let resolveSecond!: (value: RegistrationSettings) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    const view = render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status="planning" />);
+    view.rerender(<RegistrationSettingsForm eventId="event-second" startDateTime={START} status="planning" />);
+    resolveSecond(settings({ eventId: "event-second", registrationEnabled: true, registrationOpensAt: "2026-10-19T01:00:00.000Z", registrationClosesAt: "2026-10-28T15:59:00.000Z", capacity: 50 }));
+    expect(await screen.findByLabelText("Registration enabled")).toBeChecked();
+    resolveFirst(settings({ registrationEnabled: false }));
+    await waitFor(() => expect(screen.getByLabelText("Registration enabled")).toBeChecked());
+  });
+
+  /** SAFETY-OUTCOME-06: a stale failure for the prior event cannot replace the current event's loaded form. */
+  it("ignores a stale failed settings response after the event changes", async () => {
+    let rejectFirst!: (reason: Error) => void;
+    let resolveSecond!: (value: RegistrationSettings) => void;
+    fetchMock.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSecond = resolve; }));
+    const view = render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status="planning" />);
+    view.rerender(<RegistrationSettingsForm eventId="event-second" startDateTime={START} status="planning" />);
+    resolveSecond(settings({ eventId: "event-second" }));
+    await screen.findByLabelText("Registration enabled");
+    rejectFirst(new Error("stale failure"));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(screen.getByLabelText("Registration enabled")).not.toBeChecked();
+  });
+});
