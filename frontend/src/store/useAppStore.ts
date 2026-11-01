@@ -4,6 +4,7 @@ import { ApiError, api } from "@/utils/api";
 import { advanceAuthSessionRevision, getAuthSessionRevision, onAuthSessionExpired } from "@/lib/authSessionRevision";
 import type { RegistrationDetails } from "@/features/events/lib/registration";
 import type {
+  AffectedBooking,
   Booking,
   EquipmentItem,
   EquipmentRequest,
@@ -79,6 +80,8 @@ interface AppState {
   venues: Venue[];
   /** Creates a venue and returns the server confirmation message. */
   createVenue: (venue: VenueCreateInput) => Promise<string>;
+  /** SPM-121: updates a venue and returns the confirmation message and any affected bookings. */
+  updateVenue: (id: string, venue: VenueCreateInput) => Promise<{ message: string; affectedBookings: AffectedBooking[]; capacityBookings: AffectedBooking[] }>;
   bookings: Booking[];
   equipment: EquipmentItem[];
   equipmentRequests: EquipmentRequest[];
@@ -137,6 +140,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       body: JSON.stringify(venue),
     });
     return result.message;
+  },
+  updateVenue: async (id, venue) => {
+    const result = await api<{ venue: Venue; message: string; affectedBookings: AffectedBooking[]; capacityBookings: AffectedBooking[] }>(`/venues/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(venue),
+    });
+    return { message: result.message, affectedBookings: result.affectedBookings, capacityBookings: result.capacityBookings };
   },
   bookings: [],
   equipment: [],
