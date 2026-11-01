@@ -43,6 +43,19 @@ export function formatSgtDate(value: Date): string {
   return SGT_DATE_FORMAT.format(value);
 }
 
+/**
+ * SPM-137 AC2: the Coordinator's venue booking decision notification, exactly
+ * `Your booking of <venue name> for "<event name>" has been approved.` (or rejected). The booking reference and
+ * the rejection reason are not part of it; they are on the booking the notification links to.
+ */
+export function venueBookingDecisionMessage(
+  venueName: string,
+  eventName: string,
+  decision: 'approved' | 'rejected',
+): string {
+  return `Your booking of ${venueName} for "${eventName}" has been ${decision}.`;
+}
+
 /** Formats an instant in Singapore time for user-facing messages. */
 export function formatSgt(value: Date): string {
   return `${SGT_FORMAT.format(value)} SGT`;

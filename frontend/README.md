@@ -170,8 +170,19 @@ own display wording. Authentication and API calls use the same API origin helper
 The role-specific notification panels use the shared polling and mark-as-read
 hook in `src/components/notifications/`. The top-bar notification bell
 (`NotificationBell.tsx`) lists Organisers' request decisions (SPM-88) and
-Coordinators' assignment, reassignment and unassignment notices (SPM-77);
-unassignment notices have no link. Assignment and reassignment pages
+Coordinators' assignment, reassignment and unassignment notices (SPM-77) and
+venue booking decision notices (`venue_booking_approved` / `venue_booking_rejected`,
+SPM-137); unassignment notices have no link. A booking decision notice links to
+`/bookings?booking=<id>` (plain `/bookings` when it has no `relatedBookingId`) and
+marks itself read when followed. On that route the Coordinator's Bookings page
+(`BookingsPage.tsx`) opens a read-only `CoordinatorBookingDialog` for that booking
+(current status and, if rejected, the rejection reason), shows the notice "That booking is no longer
+available to you. Its event may have been reassigned to another Coordinator." when the id is not in their list once it has loaded
+(a reassignment marks the previous Coordinator's unread decision notices for that event read),
+and removes `?booking` from the address when the dialog or notice is closed.
+The page reads the query string, so it needs a router (render it inside
+`MemoryRouter` in tests). Fault-injection check:
+`node scripts/testing/mutation/run.mjs --mutants spm137.mutants.mjs`. Assignment and reassignment pages
 share the coordinator picker in `src/features/lead/components/`.
 
 Lead workflow pages and their colocated tests live in

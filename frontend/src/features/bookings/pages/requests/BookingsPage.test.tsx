@@ -1,9 +1,11 @@
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { Link, MemoryRouter, RouterProvider, createMemoryRouter, useLocation } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BookingsPage } from "./BookingsPage";
 import { useAppStore } from "@/store/useAppStore";
 import { ApiError, api } from "@/utils/api";
+import { deferred } from "@/test/deferred";
 
 vi.mock("@/utils/api", async (original) => ({
   ...(await original<typeof import("@/utils/api")>()),
@@ -23,6 +25,26 @@ const booking = {
   createdAt: "2030-01-01T00:00:00.000Z",
   affected: false,
 };
+
+// Reports the router location, so a test can read the query string the page leaves behind (SPM-137).
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname + location.search}</span>;
+}
+
+/**
+ * Renders the page inside a router (it reads ?booking=<id>, SPM-137) at the given address. A link to another
+ * booking is rendered beside it to stand for the notification bell.
+ */
+function renderPage(entry = "/bookings") {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <BookingsPage />
+      <LocationProbe />
+      <Link to="/bookings?booking=booking-2">Go to booking 2</Link>
+    </MemoryRouter>,
+  );
+}
 
 beforeEach(() => {
   useAppStore.setState({
@@ -84,7 +106,7 @@ describe("Coordinator venue bookings", () => {
         { ...booking, id: "local-other", requestedBy: "Another Coordinator" },
       ],
     });
-    render(<BookingsPage />);
+    renderPage();
     expect(await screen.findAllByRole("heading", { name: "Gala" })).toHaveLength(2);
     const bookingCard = screen.getByRole("article");
     expect(within(bookingCard).getByRole("heading", { name: "Gala" })).toBeInTheDocument();
@@ -125,7 +147,7 @@ describe("Coordinator venue bookings", () => {
         holdExpired: true,
       },
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Tentative hold request pending Venue Staff approval. The hold is not active.")).toBeInTheDocument();
     expect(screen.getByText("Active tentative hold until 24 Jan 2030, 20:00 SGT.")).toBeInTheDocument();
@@ -163,7 +185,7 @@ describe("Coordinator venue bookings", () => {
         holdExpired: false,
       },
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await screen.findAllByText("Rejected Hold Event");
     for (const eventName of ["Rejected Hold Event", "Cancelled Hold Event", "No Expiry Hold Event"]) {
@@ -192,7 +214,7 @@ describe("Coordinator venue bookings", () => {
         affected: false,
       },
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Microphones")).toBeInTheDocument();
     expect(
@@ -216,7 +238,7 @@ describe("Coordinator venue bookings", () => {
         status: "cancelled",
       },
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
     await screen.findAllByText("Gala");
 
     await user.selectOptions(
@@ -249,7 +271,7 @@ describe("Coordinator venue bookings", () => {
       if (path === "/venues/bookings/booking-1/approve") return { id: "booking-1", status: "approved" };
       throw new Error(`unexpected request ${path}`);
     }) as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -268,7 +290,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-BKG-08-A: a failed booking-history request is reported without rendering phantom rows. */
   it("VEN-BKG-04-B VEN-BKG-08-A SPM-54 reports a booking list load failure", async () => {
     apiMock.mockRejectedValueOnce(new Error("Connection failed"));
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Unable to load your venue bookings.",
@@ -286,7 +308,7 @@ describe("Coordinator venue bookings", () => {
       pendingRequest({ id: "older", eventName: "Older Event", status: "pending" }),
       pendingRequest({ id: "newer", eventName: "Newer Event", eventStart: "2030-01-20T04:00:00.000Z", eventEnd: "2030-01-20T05:00:00.000Z", status: "pending" }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Older Event")).toBeInTheDocument();
     expect(screen.getByText("Newer Event")).toBeInTheDocument();
@@ -304,7 +326,7 @@ describe("Coordinator venue bookings", () => {
     apiMock.mockResolvedValueOnce([
       pendingRequest({ specialRequest: "Wheelchair access" }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByRole("heading", { name: "Gala" })).toBeInTheDocument();
     expect(screen.getByText("Venue: Main Hall")).toBeInTheDocument();
@@ -323,7 +345,7 @@ describe("Coordinator venue bookings", () => {
     apiMock.mockResolvedValueOnce([
       pendingRequest({ reassessmentRequired: true }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(
       await screen.findByText("Venue setup changed. Reassess the occupied period before approval."),
@@ -341,7 +363,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest({ requestKind: "tentative_hold" })] as never)
       .mockResolvedValueOnce({ holdExpiresAt: "2030-01-24T12:00:00.000Z" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Tentative hold request")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Review Details" }));
@@ -371,7 +393,7 @@ describe("Coordinator venue bookings", () => {
         holdExpired: true,
       }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await userEvent.setup().selectOptions(screen.getByLabelText("Status filter"), "approved");
     expect(await screen.findByText("Expired tentative hold until 24 Jan 2030, 20:00 SGT")).toBeInTheDocument();
@@ -383,7 +405,7 @@ describe("Coordinator venue bookings", () => {
   it("SPM-55 AC1 shows the empty state when no pending requests are assigned", async () => {
     setVenueStaff();
     apiMock.mockResolvedValueOnce([] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("No bookings match this filter.")).toBeInTheDocument();
   });
@@ -392,7 +414,7 @@ describe("Coordinator venue bookings", () => {
   it("SPM-55 AC1 reports a pending-list load failure for Venue Staff", async () => {
     setVenueStaff();
     apiMock.mockRejectedValueOnce(new Error("Connection failed"));
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load pending booking requests.");
   });
@@ -402,7 +424,7 @@ describe("Coordinator venue bookings", () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest({ specialRequest: "Microphones" })] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("Special request");
@@ -413,7 +435,7 @@ describe("Coordinator venue bookings", () => {
   it("SPM-55 AC1 defaults to Pending filter and exposes Pending / Approved / Rejected options for Venue Staff", async () => {
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest({ eventName: "Filtered Event" })] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Filtered Event")).toBeInTheDocument();
     const select = screen.getByLabelText("Status filter");
@@ -433,7 +455,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
       .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     // The review dialog shows the stored booking slot in Singapore time, not the current event window (eventStart/eventEnd).
@@ -458,7 +480,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
       .mockReturnValueOnce(new Promise(() => {}) as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -479,7 +501,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
       .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Reject — provide reason/));
@@ -509,7 +531,7 @@ describe("Coordinator venue bookings", () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest()] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Reject — provide reason/));
@@ -529,7 +551,7 @@ describe("Coordinator venue bookings", () => {
       .mockRejectedValueOnce(
         new ApiError("This booking request is already cancelled and can no longer be approved or rejected.", undefined, "BOOKING_ALREADY_DECIDED", 409),
       );
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -573,7 +595,7 @@ describe("Coordinator venue bookings", () => {
           },
         ],
       ));
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -602,7 +624,7 @@ describe("Coordinator venue bookings", () => {
         "BOOKING_SLOT_CONFLICT",
         409,
       ));
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -627,7 +649,7 @@ describe("Coordinator venue bookings", () => {
         409,
       ))
       .mockResolvedValueOnce({ holdExpiresAt: undefined } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -652,7 +674,7 @@ describe("Coordinator venue bookings", () => {
       .mockRejectedValueOnce(
         new ApiError("This booking request is already rejected and can no longer be approved or rejected.", undefined, "BOOKING_ALREADY_DECIDED", 409),
       );
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click((await screen.findAllByRole("button", { name: "Review Details" }))[0]);
     await user.click(screen.getByLabelText(/Reject — provide reason/));
@@ -677,7 +699,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
       .mockRejectedValueOnce("offline");
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -691,7 +713,7 @@ describe("Coordinator venue bookings", () => {
     apiMock.mockResolvedValueOnce([
       { ...booking, status: "rejected", rejectionReason: "Clashes with maintenance" },
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
   });
@@ -699,7 +721,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-REV-04-A: a rejected booking with no stored reason says so rather than showing a blank reason. */
   it("SPM-55 AC4 notes when a rejected booking has no stored reason", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected" }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Rejection reason: Not provided")).toBeInTheDocument();
   });
@@ -707,7 +729,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-REV-04-A: the coordinator card names the Venue Staff member who manages the venue, when one is returned. */
   it("SPM-55 AC1 shows the managing Venue Staff name on a coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, venueStaffName: "Venue Staff One" }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Managed by Venue Staff One")).toBeInTheDocument();
   });
@@ -715,7 +737,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-REV-04-B: an approved coordinator booking shows its status without a rejection reason. */
   it("SPM-55 AC4 omits the rejection reason for an approved coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await screen.findByText("Venue: Main Hall");
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
@@ -724,7 +746,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-REV-04-B: a pending coordinator booking never shows a rejection reason, even when a stale reason is stored. */
   it("SPM-55 AC4 hides the rejection reason on a pending coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "pending", rejectionReason: "Stale reason" }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await screen.findByText("Venue: Main Hall");
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
@@ -733,7 +755,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-REV-04-B: a cancelled coordinator booking never shows a rejection reason, even when a stale reason is stored. */
   it("SPM-55 AC4 hides the rejection reason on a cancelled coordinator booking", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, status: "cancelled", rejectionReason: "Stale reason" }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await screen.findByText("Venue: Main Hall");
     expect(screen.queryByText(/Rejection reason/)).not.toBeInTheDocument();
@@ -745,7 +767,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([booking] as never)
       .mockRejectedValueOnce(new Error("Cancellation failed"));
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(
       await screen.findByRole("button", { name: "Cancel booking" }),
@@ -776,7 +798,7 @@ describe("Coordinator venue bookings", () => {
         },
       ] as never)
       .mockResolvedValueOnce({ id: booking.id, status: "cancelled" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(
       (await screen.findAllByRole("button", { name: "Cancel booking" }))[0],
@@ -797,7 +819,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([booking] as never)
       .mockRejectedValueOnce("offline");
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(
       await screen.findByRole("button", { name: "Cancel booking" }),
@@ -825,7 +847,7 @@ describe("Coordinator venue bookings", () => {
           409,
         ),
       );
-    render(<BookingsPage />);
+    renderPage();
     await user.click(
       await screen.findByRole("button", { name: "Cancel booking" }),
     );
@@ -856,7 +878,7 @@ describe("Coordinator venue bookings", () => {
         ),
       )
       .mockResolvedValueOnce({ id: booking.id, status: "cancelled" } as never);
-    render(<BookingsPage />);
+    renderPage();
     await user.click(
       await screen.findByRole("button", { name: "Cancel booking" }),
     );
@@ -886,7 +908,7 @@ describe("Coordinator venue bookings", () => {
       .mockRejectedValueOnce(
         new ApiError("Confirm cancellation", undefined, "LAST_ACTIVE_VENUE_BOOKING", 409),
       );
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Cancel booking" }));
     await user.click(await screen.findByRole("button", { name: "Confirm cancellation" }));
@@ -898,7 +920,7 @@ describe("Coordinator venue bookings", () => {
   /** VEN-BKG-06-B: leaving the replacement search unopened does not issue a new booking request or remove original history. */
   it("VEN-BKG-06-B SPM-54 preserves the affected booking when replacement search is abandoned", async () => {
     apiMock.mockResolvedValueOnce([{ ...booking, affected: true }] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Venue: Main Hall")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Find a replacement venue" })).toHaveAttribute("href", "/venues?eventId=event-1");
@@ -914,7 +936,7 @@ describe("Coordinator venue bookings", () => {
       pendingRequest({ id: "booking-a", eventName: "Approved Event", status: "approved" }),
       pendingRequest({ id: "booking-r", eventName: "Rejected Event", status: "rejected", rejectionReason: "Clashes with maintenance" }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     // The default filter is Pending, so only the pending request is listed.
     expect(await screen.findByText("Pending Event")).toBeInTheDocument();
@@ -951,7 +973,7 @@ describe("Coordinator venue bookings", () => {
         pendingRequest({ id: "booking-2", eventName: "Workshop" }),
       ] as never)
       .mockResolvedValueOnce({ id: "booking-1", status: "approved" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click((await screen.findAllByRole("button", { name: "Review Details" }))[0]);
     await user.click(screen.getByLabelText(/Approve — accept booking/));
@@ -976,7 +998,7 @@ describe("Coordinator venue bookings", () => {
     apiMock
       .mockResolvedValueOnce([pendingRequest()] as never)
       .mockResolvedValueOnce({ id: "booking-1", status: "rejected" } as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.click(await screen.findByRole("button", { name: "Review Details" }));
     await user.click(screen.getByLabelText(/Reject — provide reason/));
@@ -995,7 +1017,7 @@ describe("Coordinator venue bookings", () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest({ status: "rejected" })] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Rejected");
     expect(await screen.findByText("Rejection reason: Not provided")).toBeInTheDocument();
@@ -1006,7 +1028,7 @@ describe("Coordinator venue bookings", () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest({ status: "approved", eventName: "Approved Gala" })] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Approved");
     await user.click(await screen.findByRole("button", { name: "View Details" }));
@@ -1027,7 +1049,7 @@ describe("Coordinator venue bookings", () => {
     apiMock.mockResolvedValueOnce([
       pendingRequest({ status: "rejected", eventName: "Rejected Gala", rejectionReason: "Clashes with maintenance" }),
     ] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Rejected");
     await user.click(await screen.findByRole("button", { name: "View Details" }));
@@ -1045,7 +1067,7 @@ describe("Coordinator venue bookings", () => {
     const user = userEvent.setup();
     setVenueStaff();
     apiMock.mockResolvedValueOnce([pendingRequest({ status: "rejected", eventName: "Unexplained Gala" })] as never);
-    render(<BookingsPage />);
+    renderPage();
 
     await user.selectOptions(screen.getByLabelText("Status filter"), "Rejected");
     await user.click(await screen.findByRole("button", { name: "View Details" }));
@@ -1075,7 +1097,7 @@ describe("Coordinator venue bookings", () => {
         return [{ ...booking, id: "mine-1", eventName: "Coordinator Event", venueName: "Garden Hall", status: "approved" }];
       throw new Error(`Unexpected request ${path}`);
     }) as never);
-    render(<BookingsPage />);
+    renderPage();
 
     // Staff review section: the card shows the coordinator and the Review Details action.
     expect(await screen.findByText("Coordinator: Coordinator Two")).toBeInTheDocument();
@@ -1109,7 +1131,7 @@ describe("Coordinator venue bookings", () => {
       if (path === "/venues/bookings/pending") return pendingResponse;
       throw new Error(`Unexpected request ${path}`);
     }) as never);
-    render(<BookingsPage />);
+    renderPage();
 
     expect(await screen.findByText("Unable to load your venue bookings.")).toBeInTheDocument();
     resolvePending([pendingRequest({ id: "review-2", eventName: "Review Event", coordinatorName: "Coordinator Three" })]);
@@ -1119,5 +1141,187 @@ describe("Coordinator venue bookings", () => {
     expect(screen.getByText("Unable to load your venue bookings.")).toBeInTheDocument();
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending");
     expect(apiMock).toHaveBeenCalledWith("/venues/bookings/mine");
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-137 AC3: the notification bell links to /bookings?booking=<id>. The Coordinator's Bookings page opens a
+// read-only details dialog for that booking (status and, if rejected, the rejection reason; SPM-55 AC4), handles an
+// unknown or not-visible id without breaking the page, and removes the link from the address when the dialog closes.
+// Unit tests of the page with the API stubbed; the signed-in user is set directly in the store (a fixture).
+// ---------------------------------------------------------------------------------------------------------
+describe("Coordinator booking opened from a notification (SPM-137 AC3)", () => {
+  const second = { ...booking, id: "booking-2", eventId: "event-2", eventName: "Dinner", venueName: "Orchid Hall", bookingReference: "VB-BOOKING2" };
+  const detailsDialog = () => screen.findByRole("dialog", { name: /Booking details/ });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-D (SPM-137 AC3): /bookings?booking=booking-1 opens that booking's details: event, venue,
+   * slot (Singapore time), reference and its current status (approved), with no decision controls.
+   * Kills: no dialog for the linked id, the wrong booking opened, decision controls shown to a Coordinator.
+   */
+  it("VENUE-BOOK-NOTIF-03-D opens the linked booking's details with its status and no decision controls", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "approved", specialRequest: "Two microphones" }, second] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    const dialog = await detailsDialog();
+    expect(dialog).toHaveTextContent("Gala");
+    expect(within(dialog).getByText("Two microphones")).toBeInTheDocument();
+    expect(within(dialog).getByText("Main Hall")).toBeInTheDocument();
+    expect(within(dialog).getByText("12 Jan 2030, 12:00 – 12 Jan 2030, 13:00 SGT")).toBeInTheDocument();
+    expect(within(dialog).getByText("VB-BOOKING1")).toBeInTheDocument();
+    expect(within(dialog).getByText("approved")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Rejection reason/)).toBeNull();
+    expect(within(dialog).queryByRole("button", { name: /Submit Decision|Approve|Reject/ })).toBeNull();
+    // The other booking's details are not shown in the dialog.
+    expect(within(dialog).queryByText("VB-BOOKING2")).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking's details show its status and the rejection reason.
+   * Kills: dropping the rejection reason from the details.
+   */
+  it("VENUE-BOOK-NOTIF-03-G shows the rejection reason in the details of a rejected booking", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected", rejectionReason: "Clashes with maintenance" }] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("rejected")).toBeInTheDocument();
+    expect(within(dialog).getByText("Rejection reason: Clashes with maintenance")).toBeInTheDocument();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-G (SPM-137 AC3, SPM-55 AC4): a rejected booking with no stored reason says "Not provided"
+   * rather than leaving the reason blank.
+   * Kills: a blank or "undefined" reason in the details.
+   */
+  it("VENUE-BOOK-NOTIF-03-G says Not provided when a rejected booking has no stored reason", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "rejected" }] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    expect(within(await detailsDialog()).getByText("Rejection reason: Not provided")).toBeInTheDocument();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-H (SPM-137 AC3, robustness): an id that is not in the Coordinator's bookings (unknown, deleted
+   * or the event was reassigned away) opens no dialog, shows a clear notice and leaves the bookings list working.
+   * The same notice shows when the Coordinator has no bookings at all (an empty list loaded).
+   * Kills: a crash, a blank dialog, or a silent page with no explanation for an unknown id; hiding the notice when
+   * the loaded list is empty.
+   */
+  it("VENUE-BOOK-NOTIF-03-H shows a notice and the normal list when the linked booking is not visible", async () => {
+    apiMock.mockResolvedValueOnce([booking] as never);
+
+    renderPage("/bookings?booking=booking-gone");
+
+    // SC-SPM137-02: the exact wording confirmed by the story owner.
+    expect(
+      await screen.findByText("That booking is no longer available to you. Its event may have been reassigned to another Coordinator."),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("Venue: Main Hall")).toBeInTheDocument();
+
+    // Dismissing the notice takes the unknown id out of the address.
+    await userEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/no longer available to you/i)).toBeNull();
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/bookings$/);
+
+    // A Coordinator with no bookings at all gets the same notice for the link.
+    cleanup();
+    apiMock.mockResolvedValueOnce([] as never);
+    renderPage("/bookings?booking=booking-gone");
+    expect(await screen.findByText(/no longer available to you/i)).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-I (SPM-137 AC3, robustness): while the bookings are still loading, nothing is claimed about the
+   * linked booking; when the load fails the usual error shows and no "not available" notice is added.
+   * Kills: flashing the not-available notice before the list arrives, or saying the booking is gone when it was never loaded.
+   */
+  it("VENUE-BOOK-NOTIF-03-I makes no not-available claim while loading or when the load fails", async () => {
+    const pending = deferred<unknown>();
+    apiMock.mockReturnValueOnce(pending.promise as never);
+
+    renderPage("/bookings?booking=booking-1");
+    expect(screen.queryByText(/no longer available to you/i)).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    pending.reject(new Error("network down"));
+    expect(await screen.findByText("Unable to load your venue bookings.")).toBeInTheDocument();
+    expect(screen.queryByText(/no longer available to you/i)).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-J (SPM-137 AC3): closing the details removes ?booking from the address, so a reload does not
+   * reopen it, and the dialog is gone. The address is replaced, not added to the history, so the back button does not
+   * step back to the ?booking address either (checked as a REPLACE navigation on a memory router).
+   * Kills: the dialog closing but the query string staying, the dialog not closing, or closing adding a history entry.
+   */
+  it("VENUE-BOOK-NOTIF-03-J closing the details clears the booking from the address", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }] as never);
+    const router = createMemoryRouter([{ path: "/bookings", element: <BookingsPage /> }], {
+      initialEntries: ["/bookings?booking=booking-1"],
+    });
+    render(<RouterProvider router={router} />);
+    await detailsDialog();
+    expect(router.state.location.search).toBe("?booking=booking-1");
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Close" })[0]);
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(router.state.location.search).toBe("");
+    expect(router.state.historyAction).toBe("REPLACE");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-K (SPM-137 AC3): with the page already open, following a notification for another booking
+   * switches the details to that booking.
+   * Kills: reading the address only once on mount, so a second notification click is ignored.
+   */
+  it("VENUE-BOOK-NOTIF-03-K switches to another booking when the address changes while the page is open", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "approved" }, { ...second, status: "rejected", rejectionReason: "Too small" }] as never);
+    renderPage("/bookings?booking=booking-1");
+    expect(await detailsDialog()).toHaveTextContent("VB-BOOKING1");
+
+    await userEvent.click(screen.getByRole("link", { name: "Go to booking 2" }));
+
+    await waitFor(() => expect(screen.getByRole("dialog")).toHaveTextContent("VB-BOOKING2"));
+    expect(screen.getByRole("dialog")).toHaveTextContent("Rejection reason: Too small");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-L (SPM-137 AC3): a booking the Coordinator cancelled since the decision still opens, showing
+   * its current status (cancelled) and no rejection reason.
+   * Kills: showing the status from the notification time instead of the current status.
+   */
+  it("VENUE-BOOK-NOTIF-03-L shows the current status of a booking cancelled after the decision", async () => {
+    apiMock.mockResolvedValueOnce([{ ...booking, status: "cancelled", rejectionReason: "Stale reason" }] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    const dialog = await detailsDialog();
+    expect(within(dialog).getByText("cancelled")).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Rejection reason/)).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-M (SPM-137 AC3, permission): a Venue Staff member who is not a Coordinator never loads the
+   * Coordinator bookings, so a ?booking link opens no details and shows no notice.
+   * Kills: opening Coordinator details (or the not-available notice) for a staff-only user.
+   */
+  it("VENUE-BOOK-NOTIF-03-M ignores the booking link for a Venue Staff user who is not a Coordinator", async () => {
+    setVenueStaff();
+    apiMock.mockResolvedValue([] as never);
+
+    renderPage("/bookings?booking=booking-1");
+
+    await waitFor(() => expect(apiMock).toHaveBeenCalledWith("/venues/bookings/pending"));
+    expect(apiMock).not.toHaveBeenCalledWith("/venues/bookings/mine");
+    expect(screen.queryByText(/no longer available to you/i)).toBeNull();
+    expect(screen.queryByRole("dialog", { name: /Booking details/ })).toBeNull();
   });
 });

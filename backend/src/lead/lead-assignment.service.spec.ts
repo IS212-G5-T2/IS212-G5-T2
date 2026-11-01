@@ -650,6 +650,9 @@ describe('SPM-47 AC8: both coordinators are notified', () => {
     expect(markRead.sql).toContain('read = true');
     expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain("'coordinator_assignment'");
     expect(`${markRead.sql} ${JSON.stringify(markRead.params)}`).toContain("'coordinator_reassignment'");
+    // SPM-137 (SC-SPM137-04): the same update also covers that coordinator's venue booking decision notices.
+    expect(markRead.sql).toContain("'venue_booking_approved'");
+    expect(markRead.sql).toContain("'venue_booking_rejected'");
     expect(markRead.params).toEqual(expect.arrayContaining([COORDINATOR_ID, EVENT_ID]));
   });
 

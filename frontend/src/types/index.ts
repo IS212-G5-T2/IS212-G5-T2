@@ -449,6 +449,9 @@ export type NotificationType =
   | "change_request_approved"
   | "change_request_denied"
   | "venue_booking"
+  /** SPM-137: Venue Staff approved or rejected a venue booking for the coordinator's event. */
+  | "venue_booking_approved"
+  | "venue_booking_rejected"
   | "event_change"
   | "registration"
   | "confirmation"
@@ -467,6 +470,8 @@ export interface Notification {
   relatedEventId?: string;
   /** The related event's current name (SPM-88); null or absent when there is no event. */
   relatedEventName?: string | null;
+  /** SPM-137: the booking a venue booking decision notice is about (the bell links to it); null or absent otherwise. */
+  relatedBookingId?: string | null;
   read: boolean;
   createdAt: string;
 }
