@@ -39,6 +39,8 @@ import {
 } from "@/utils/planning";
 import { canCancelEvent } from "@/features/events/lib/cancellation";
 import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
+import { CancellationDecisionPanel } from "@/features/events/pages/detail/cancellation-request/CancellationDecisionPanel";
+import { CancellationRequestPanel } from "@/features/events/pages/detail/cancellation-request/CancellationRequestPanel";
 import { EventPeople } from "@/features/events/pages/detail/planning/EventPeople";
 import { AttendeeEventView } from "@/features/events/pages/detail/AttendeeEventView";
 import { RegistrationSection } from "@/features/events/pages/detail/registration/RegistrationSection";
@@ -66,6 +68,22 @@ const STATUS_FLOW = [
 // A rejection is terminal for this request, so it leaves the normal approval
 // path and clearly shows the decision that was reached.
 const REJECTED_FLOW = ["draft", "submitted", "rejected"] as const;
+
+/**
+ * The timeline shows only the stages an event has reached. A cancelled event shows the stages up to the one it was
+ * cancelled from (the status history records it), then "cancelled"; it does not show stages it never reached.
+ */
+function timelineStages(status: string, cancelledFrom: string | null): readonly string[] {
+  const flow = STATUS_FLOW as readonly string[];
+  if (status === "cancelled") {
+    const reached = flow.indexOf(cancelledFrom ?? "");
+    // A history row that says "cancelled" as the origin must not add a second Cancelled step.
+    const cancelledAt = flow.indexOf("cancelled");
+    return reached >= 0 ? [...flow.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
+  }
+  const current = flow.indexOf(status);
+  return current >= 0 ? flow.slice(0, current + 1) : flow;
+}
 
 // Chrome and Firefox block top-level navigation of a link to a data: URL
 // (a phishing-hardening measure), so `target="_blank"` on an `<a
@@ -237,6 +255,28 @@ export function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
 
+  // The stage a cancelled event was in before it was cancelled, read from its status history (empty until it loads).
+  const [cancelledFrom, setCancelledFrom] = useState<string | null>(null);
+  const eventId = event?.id;
+  const eventStatus = event?.status;
+  useEffect(() => {
+    // A previous event's origin is never shown: it is cleared whenever the event or its status changes.
+    setCancelledFrom(null);
+    if (!eventId || eventStatus !== "cancelled") return;
+    let active = true;
+    api<{ fromStatus: string; toStatus: string }[]>(`/events/${encodeURIComponent(eventId)}/status-history`)
+      .then((entries) => {
+        // A reply that is not a list is read as no history (as StatusHistory does).
+        const cancellation = Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined;
+        if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);
+      })
+      // The origin was cleared above, so an unreadable history leaves only the Cancelled step.
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, [eventId, eventStatus]);
+
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back To My Events</Link></div>;
 
@@ -316,7 +356,7 @@ export function EventDetailPage() {
   };
 
   const isRejected = event.status === "rejected";
-  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : STATUS_FLOW;
+  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : timelineStages(event.status, cancelledFrom);
   const currentStepIndex = statusFlow.indexOf(event.status);
 
   return (
@@ -786,6 +826,22 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
+
+      {/* SPM-155: the owning organiser requests cancellation and follows the request (AC1, AC2). Shown below the
+          amendments and clarifications; the panel shows itself only to the owner, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationRequestPanel event={event} currentUser={currentUser} />
+      )}
+
+      {/* SPM-155: the assigned coordinator decides a cancellation request (AC3 to AC5). Shown last on the page; the
+          panel shows itself only to that coordinator, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationDecisionPanel
+          event={event}
+          currentUser={currentUser}
+          onAccepted={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
 
       {registrationsOpen && (
         <RegistrationsModal

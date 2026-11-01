@@ -1,6 +1,8 @@
 import { api } from "@/utils/api";
 import { fetchMyChangeRequests, fetchNewChangeRequestEventIds } from "@/features/events/api/change-requests-api";
 import { fetchCoordinatorQueue } from "@/features/events/api/coordinator-queue-api";
+import { fetchMyCancellationRequests } from "@/features/events/api/cancellation-requests-api";
+import type { CancellationDisplayStatus } from "@/features/events/types/cancellationRequest";
 import { PendingChangeRequests } from "@/features/events/pages/list/PendingChangeRequests";
 import type { ChangeRequest, EventRecord } from "@/types";
 import { useEffect, useMemo, useState } from "react";
@@ -112,6 +114,26 @@ export function EventListPage() {
       active = false;
     };
   }, [tracksChangeRequests, retry]);
+  // SPM-155 AC2 (D13b): an organiser's list marks events that have a cancellation request. The indicator is auxiliary:
+  // if it cannot load, the events still show without it.
+  const [cancellationByEvent, setCancellationByEvent] = useState<ReadonlyMap<string, CancellationDisplayStatus>>(new Map());
+  useEffect(() => {
+    if (currentUser.role !== "organiser" && currentUser.role !== "coordinator") return;
+    let active = true;
+    (async () => {
+      try {
+        const requests = await fetchMyCancellationRequests();
+        // The Coordinator sees only the requests waiting for a decision; a declined or closed one needs no action.
+        const visible = (Array.isArray(requests) ? requests : []).filter((r) => currentUser.role === "organiser" || r.displayStatus === "pending");
+        if (active) setCancellationByEvent(new Map(visible.map((r) => [r.eventId, r.displayStatus])));
+      } catch {
+        if (active) setCancellationByEvent(new Map());
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [currentUser.role, retry]);
   // SPM-48 AC1: a coordinator lands on every assigned event (All statuses, decided 23 Oct 2026); Submitted and
   // each other status stay one choice away in the filter.
   const eventListFilters = useAppStore((s) => s.eventListFilters);
@@ -263,6 +285,7 @@ export function EventListPage() {
               attendeeView={isAttendee}
               registrationStatus={isAttendee ? cardRegistrationStatus(e.myRegistrationStatus) : undefined}
               changeRequestPending={pendingChangeEvents.has(e.id)}
+              cancellationRequest={cancellationByEvent.get(e.id)}
             />
           ))}
         </div>

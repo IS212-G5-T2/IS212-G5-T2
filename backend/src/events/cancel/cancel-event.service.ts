@@ -60,6 +60,16 @@ export class CancelEventService {
     return this.database.transaction((client) => this.cancelInside(client, user, eventId, now));
   }
 
+  /**
+   * The cancellation steps on the caller's transaction (SPM-155 D2/D13a): the Organiser's request flow runs this
+   * inside its own transaction so the request update and the cancellation commit or roll back together. It opens
+   * no transaction, takes the acting user and the instant from the caller, and re-checks on the locked row that the
+   * actor is the assigned Coordinator. POST status-change reaches the same steps through cancel().
+   */
+  cancelInTransaction(client: pg.PoolClient, user: AuthenticatedUser, eventId: string, now: Date) {
+    return this.cancelInside(client, user, eventId, now);
+  }
+
   private async cancelInside(client: pg.PoolClient, user: AuthenticatedUser, eventId: string, now: Date) {
     const locked = await client.query<CancelEventRow>(
       'SELECT id, status, event_name, organiser_id, coordinator_id FROM events WHERE id = $1 FOR UPDATE',
