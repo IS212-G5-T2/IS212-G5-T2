@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -483,6 +483,107 @@ describe("SPM-121 VenueEditPage", () => {
     await user.click(screen.getByRole("button", { name: /Save changes/i }));
     await user.click(await screen.findByRole("button", { name: /Back to venues/i }));
     expect(await screen.findByText("Venue records list")).toBeInTheDocument();
+  });
+
+  /** VEN-UPD-01-UI-SUP: branch — component rendered without a route :id param sets loadError immediately (covers the !id guard in the load useEffect). */
+  it("VEN-UPD-01-UI-SUP shows load error when rendered without a venue id in the route", async () => {
+    render(
+      <MemoryRouter initialEntries={["/venue-records/edit"]}>
+        <Routes>
+          <Route path="/venue-records/edit" element={<VenueEditPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/not found|could not be loaded/i),
+    );
+    expect(apiMock).not.toHaveBeenCalled();
+  });
+
+  /** VEN-UPD-02-C-UI-SUP: branch — file picker dismissed with no file selected; selectImage returns early without error (covers the !file guard). */
+  it("VEN-UPD-02-C-UI-SUP shows no error when the file picker is cancelled without a file", async () => {
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+    fireEvent.change(screen.getByLabelText(/Venue image/i), { target: { files: [] } });
+    // No image error should appear
+    expect(screen.queryByText(/Choose an image file/i)).toBeNull();
+    expect(screen.queryByText(/Image must be/i)).toBeNull();
+  });
+
+  /** VEN-UPD-05-UI-SUP: branch — a second submit fired while the first PATCH is still pending is discarded (covers the busy guard). */
+  it("VEN-UPD-05-UI-SUP ignores a second submit while the first request is still pending", async () => {
+    let resolvePatch!: (v: unknown) => void;
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>)
+      .mockReturnValueOnce(new Promise((res) => { resolvePatch = res; }) as unknown as ReturnType<typeof api>);
+
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+    // First click starts the PATCH and sets busy=true
+    await user.click(await screen.findByRole("button", { name: /Save Changes/i }));
+    // While busy, fire submit again via the form element (button is disabled)
+    fireEvent.submit(document.querySelector("form")!);
+    // Only GET + one PATCH — no duplicate
+    expect(apiMock).toHaveBeenCalledTimes(2);
+
+    resolvePatch({ venue, message: "Venue updated successfully.", affectedBookings: [], capacityBookings: [] });
+  });
+
+  /** VEN-UPD-03-UI-D: AC3 — submitting step 2 with no facility selected shows the "choose a facility" error and does not call the API. */
+  it("VEN-UPD-03-UI-D shows a facilities error when no facility is selected before Save", async () => {
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+    // Deselect the only pre-filled facility
+    await user.click(screen.getByLabelText("AV System"));
+    await user.click(screen.getByRole("button", { name: /Save Changes/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Choose at least one facility.");
+    expect(apiMock).toHaveBeenCalledTimes(1); // only the initial GET
+  });
+
+  /** VEN-UPD-03-UI-E: AC3 — submitting step 2 with no room layout selected shows the "choose a layout" error and does not call the API. */
+  it("VEN-UPD-03-UI-E shows a layouts error when no room layout is selected before Save", async () => {
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+
+    // Deselect the only pre-filled layout
+    await user.click(screen.getByLabelText("Theatre"));
+    await user.click(screen.getByRole("button", { name: /Save Changes/i }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Choose at least one room layout.");
+    expect(apiMock).toHaveBeenCalledTimes(1); // only the initial GET
+  });
+
+  /** VEN-UPD-05-UI-E: AC5 — ApiError with no per-field errors shows a form-level message and leaves the user on step 2 (no navigation to step 1). */
+  it("VEN-UPD-05-UI-E shows a form-level error and stays on step 2 when the server returns no field details", async () => {
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>)
+      .mockRejectedValueOnce(new ApiError("Internal server error.", undefined, undefined, 500));
+
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(await screen.findByRole("button", { name: /Save Changes/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Internal server error."),
+    );
+    // No navigation to step 1 — the Save Changes button is still visible
+    expect(screen.getByRole("button", { name: /Save Changes/i })).toBeInTheDocument();
   });
 
   /** VEN-UPD-02-C VEN-UPD-02-C-UI: AC2 — removing the image sends no image, and an unreadable file shows a message without changing the image. */
