@@ -34,6 +34,7 @@ import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
 import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
+import { COORDINATOR_NOTIFICATION_TYPES } from './coordinator-notification-types.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
   isRegistrationOpen,
@@ -469,12 +470,7 @@ export class EventsService {
         : []),
       ...(user.roles.includes('COORDINATOR')
         ? [
-            'coordinator_assignment',
-            'coordinator_reassignment',
-            'coordinator_unassignment',
-            'EventCancelled',
-            // SPM-64 AC3: an organiser asked to change an event assigned to them.
-            'coordinator_change_request',
+            ...COORDINATOR_NOTIFICATION_TYPES,
             // SPM-137: Venue Staff approved or rejected a booking for an event assigned to them.
             BOOKING_APPROVED_NOTICE,
             BOOKING_REJECTED_NOTICE,
