@@ -1,5 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { axe } from "vitest-axe";
 import * as apiModule from "@/utils/api";
 import { SafetyCheckQueuePage } from "./SafetyCheckQueuePage";
 
@@ -12,7 +14,7 @@ function response(value: unknown, status = 200) {
 
 describe("SPM-129 SafetyCheckQueuePage", () => {
   beforeEach(() => vi.stubGlobal("fetch", vi.fn()));
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
   /** SAFETY-QUEUE-01, SAFETY-QUEUE-02, SAFETY-QUEUE-03, SAFETY-QUEUE-04: an eligible event is visible and all required event, venue, and technical details can be inspected. */
   it("SAFETY-QUEUE-01 lists an eligible event and opens its details", async () => {
@@ -34,8 +36,8 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledWith("http://localhost:8080/api/safety-officer/queue/e1", expect.anything());
   });
 
-  /** SAFETY-QUEUE-05: recording a response refreshes the queue and removes the event. */
-  it("SAFETY-QUEUE-05 records an approval and refreshes the queue", async () => {
+  /** SAFETY-DECISION-01: approving succeeds and shows confirmation before returning to the refreshed queue. */
+  it("SAFETY-DECISION-01 approves an arrangement and confirms the decision", async () => {
     vi.mocked(fetch)
       .mockImplementationOnce(() => response([event]))
       .mockImplementationOnce(() => response(details))
@@ -43,39 +45,328 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
       .mockImplementationOnce(() => response([]));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Reason for rejection")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Change 1")).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Approve arrangement" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toContainElement(screen.getByRole("status"));
+    expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+    expect(screen.getByRole("button", { name: "Approve arrangement" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Return to queue" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:8080/api/safety-officer/queue/e1/decision",
-      expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "approved", reason: "" }) }),
+      expect.objectContaining({ method: "POST", body: JSON.stringify({ decision: "approved" }) }),
     );
   });
 
-  /** SAFETY-QUEUE-05: rejection needs a nonblank reason and posts that reason. */
-  it("requires a reason before rejecting an arrangement", async () => {
+  /** SAFETY-DECISION-02: rejection opens its required-feedback modal without submitting a decision. */
+  it("SAFETY-DECISION-02 opens rejection feedback only after the reject action", async () => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
-    const reject = await screen.findByRole("button", { name: "Reject arrangement" });
-    expect(reject).toBeDisabled();
-    fireEvent.change(screen.getByLabelText("Reason for rejection or requested changes"), { target: { value: "Add an accessible route." } });
-    await waitFor(() => expect(reject).toBeEnabled());
+    expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Reason for rejection")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject arrangement" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject arrangement" });
+    expect(within(dialog).getByLabelText("Reason for rejection")).toBeRequired();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  /** SAFETY-QUEUE-05: a response submission error is shown and restores the decision controls. */
-  it("shows a response error and allows a retry", async () => {
-    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
-      .mockImplementationOnce(() => response(details))
-      .mockImplementationOnce(() => response({ message: "Decision unavailable" }, 503));
+  /** SAFETY-DECISION-03: request-changes opens its own required-description modal without submitting. */
+  it("SAFETY-DECISION-03 opens the change-description modal only after its action", async () => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Approve arrangement" }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
-    expect(screen.getByRole("button", { name: "Approve arrangement" })).toBeEnabled();
+    expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    expect(within(dialog).getByLabelText("Change 1")).toBeRequired();
+    expect(within(dialog).queryByLabelText("Reason for rejection")).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  async function expectAccessibleFeedbackModal(action: string, label: string) {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: action }));
+    const dialog = await screen.findByRole("dialog", { name: action });
+    expect(within(dialog).getByLabelText(label)).toBeRequired();
+    if (action === "Request changes") {
+      const addButton = within(dialog).getByRole("button", { name: "Add change" });
+      expect(addButton).toHaveTextContent("+");
+      expect(addButton).toBeEnabled();
+    }
+    const results = await axe(dialog, { rules: { "color-contrast": { enabled: false } } });
+    expect(results.violations).toEqual([]);
+  }
+
+  /** SAFETY-DECISION-02: the rejection reason control is accessible inside its modal. */
+  it("SAFETY-DECISION-02 has an accessible rejection modal", async () => {
+    await expectAccessibleFeedbackModal("Reject arrangement", "Reason for rejection");
+  });
+
+  /** SAFETY-DECISION-03: the change description control is accessible inside its modal. */
+  it("SAFETY-DECISION-03 has an accessible request-changes modal", async () => {
+    await expectAccessibleFeedbackModal("Request changes", "Change 1");
+  });
+
+  /** SAFETY-DECISION-03: adding and removing change rows works, and cancelling discards added rows. */
+  it("SAFETY-DECISION-03 starts with one row and discards added rows on cancel", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(1);
+    expect(within(dialog).getByRole("button", { name: "Remove change 1" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(3);
+
+    await user.type(within(dialog).getByLabelText("Change 1"), "Remove the first row.");
+    await user.type(within(dialog).getByLabelText("Change 2"), "Keep this row.");
+    await user.type(within(dialog).getByLabelText("Change 3"), "Discard this draft.");
+    await user.click(within(dialog).getByRole("button", { name: "Remove change 1" }));
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
+    expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Keep this row.");
+    expect(within(dialog).getByLabelText("Change 2")).toHaveValue("Discard this draft.");
+    await user.click(within(dialog).getByRole("button", { name: "Remove change 1" }));
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(1);
+    expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Discard this draft.");
+    expect(within(dialog).getByRole("button", { name: "Remove change 1" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const reopened = await screen.findByRole("dialog", { name: "Request changes" });
+    expect(within(reopened).getAllByRole("textbox")).toHaveLength(1);
+    expect(within(reopened).getByLabelText("Change 1")).toHaveValue("");
+    expect(within(reopened).getByRole("button", { name: "Remove change 1" })).toBeDisabled();
+  });
+
+  /** SAFETY-DECISION-03: removing the last row preserves the earlier rows, with Remove beside its textarea, and submits only the survivors. */
+  it("SAFETY-DECISION-03 removes the last change row and submits the remaining rows", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.type(within(dialog).getByLabelText("Change 2"), "Confirm occupancy.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.type(within(dialog).getByLabelText("Change 3"), "Label emergency lighting.");
+
+    const lastRowField = within(dialog).getByLabelText("Change 3");
+    expect(lastRowField.parentElement).toContainElement(within(dialog).getByRole("button", { name: "Remove change 3" }));
+    await user.click(within(dialog).getByRole("button", { name: "Remove change 3" }));
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
+    expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Add a fire exit plan.");
+    expect(within(dialog).getByLabelText("Change 2")).toHaveValue("Confirm occupancy.");
+
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
+      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+    }));
+  });
+
+  /** SAFETY-DECISION-04: every change row must be nonblank, and validation does not submit a partial decision. */
+  it("SAFETY-DECISION-04 validates every change row before submitting any", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 2");
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    await user.type(within(dialog).getByLabelText("Change 2"), "Confirm occupancy.");
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
+      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+    }));
+  });
+
+  /** SAFETY-DECISION-03: each remaining row after removal is submitted as an independent item. */
+  it("SAFETY-DECISION-03 submits every remaining change row separately", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    const second = within(dialog).getByLabelText("Change 2");
+    await user.type(second, "Confirm occupancy.");
+    expect(second).toHaveFocus();
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.type(within(dialog).getByLabelText("Change 3"), "Temporary third item.");
+    await user.click(within(dialog).getByRole("button", { name: "Remove change 2" }));
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
+      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Temporary third item."] }),
+    }));
+  });
+
+  /** SAFETY-DECISION-03: pending submission disables row actions, and recoverable errors retain all row text for retry. */
+  it("SAFETY-DECISION-03 retains multiple rows through pending submission and a recoverable error", async () => {
+    const user = userEvent.setup();
+    let rejectDecision!: (value: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { rejectDecision = resolve; }))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    await user.type(within(dialog).getByLabelText("Change 1"), "Add a fire exit plan.");
+    await user.click(within(dialog).getByRole("button", { name: "Add change" }));
+    await user.type(within(dialog).getByLabelText("Change 2"), "Confirm occupancy.");
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+
+    expect(within(dialog).getByRole("button", { name: "Add change" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Remove change 2" })).toBeDisabled();
+    expect(within(dialog).getByLabelText("Change 1")).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    rejectDecision(new Response(JSON.stringify({ message: "Decision unavailable" }), { status: 503, headers: { "Content-Type": "application/json" } }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
+    expect(within(dialog).getByLabelText("Change 1")).toHaveValue("Add a fire exit plan.");
+    expect(within(dialog).getByLabelText("Change 2")).toHaveValue("Confirm occupancy.");
+    await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({
+      body: JSON.stringify({ decision: "changes_needed", changes: ["Add a fire exit plan.", "Confirm occupancy."] }),
+    }));
+  });
+
+  /** SAFETY-DECISION-02: cancel and close discard an abandoned rejection draft before approval. */
+  it.each(["Cancel", "Close dialog"] as const)("SAFETY-DECISION-02 discards a rejection draft on %s before direct approval", async (closeAction) => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "approved" }))
+      .mockImplementationOnce(() => response([]));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Reject arrangement" }));
+    fireEvent.change(await screen.findByLabelText("Reason for rejection"), { target: { value: "Stale draft reason" } });
+    fireEvent.click(screen.getByRole("button", { name: closeAction }));
+    expect(screen.queryByRole("dialog", { name: "Reject arrangement" })).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject arrangement" }));
+    expect(await screen.findByLabelText("Reason for rejection")).toHaveValue("");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve arrangement" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    const decisionCall = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith("/decision"));
+    expect(decisionCall?.[1]).toEqual(expect.objectContaining({ body: JSON.stringify({ decision: "approved" }) }));
+    expect(decisionCall?.[1]?.body).not.toContain("Stale draft reason");
+  });
+
+  /** SAFETY-DECISION-04: action-specific modals reject missing and whitespace-only feedback without POST. */
+  it.each([
+    ["rejected", "Reject arrangement", "Reason for rejection", "Submit rejection", "Enter a reason for rejection."],
+    ["changes_needed", "Request changes", "Change 1", "Submit change request", "Change 1 cannot be blank."],
+  ] as const)("SAFETY-DECISION-04 blocks blank feedback for %s", async (_decision, action, label, submit, expectedError) => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event])).mockImplementationOnce(() => response(details));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(await screen.findByRole("button", { name: action }));
+    const dialog = await screen.findByRole("dialog", { name: action });
+    fireEvent.click(within(dialog).getByRole("button", { name: submit }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(expectedError);
+    expect(within(dialog).getByLabelText(label)).toHaveAttribute("aria-describedby", "safety-decision-error");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    fireEvent.change(within(dialog).getByLabelText(label), { target: { value: "   " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: submit }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(expectedError);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  /** SAFETY-DECISION-02: a recoverable rejection error retains the draft and permits retry. */
+  it("SAFETY-DECISION-02 retains rejection feedback and allows a retry after a recoverable error", async () => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ message: "Decision unavailable" }, 503))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: "rejected" }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Reject arrangement" }));
+    const dialog = await screen.findByRole("dialog", { name: "Reject arrangement" });
+    fireEvent.change(within(dialog).getByLabelText("Reason for rejection"), { target: { value: "Add the missing safety plan." } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Submit rejection" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("The service is temporarily unavailable.");
+    expect(screen.getByRole("dialog", { name: "Reject arrangement" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Reason for rejection")).toHaveValue("Add the missing safety plan.");
+    fireEvent.click(screen.getByRole("button", { name: "Submit rejection" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "rejected", reason: "Add the missing safety plan." }) }));
+  });
+
+  /** SAFETY-DECISION-03: only one request can be pending and its feedback modal cannot be dismissed. */
+  it("SAFETY-DECISION-03 disables duplicate submission and pending dismissal", async () => {
+    let resolveDecision!: (value: Response) => void;
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveDecision = resolve; }));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const dialog = await screen.findByRole("dialog", { name: "Request changes" });
+    fireEvent.change(within(dialog).getByLabelText("Change 1"), { target: { value: "Provide a second exit." } });
+    const submit = within(dialog).getByRole("button", { name: "Submit change request" });
+    act(() => {
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      submit.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(within(dialog).getByRole("button", { name: "Submitting…" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close dialog" }));
+    expect(screen.getByRole("dialog", { name: "Request changes" })).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(3);
+
+    resolveDecision(new Response(JSON.stringify({ eventId: "e1", status: "changes_needed" }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
   });
 
   /** SAFETY-QUEUE-05: stale decisions refresh the queue and close invalidated details after 404 or 409. */
-  it.each([404, 409])("refreshes and closes stale details after a %s response refusal", async (status) => {
+  it.each([404, 409])("SAFETY-DECISION-03 closes stale feedback after a %s response refusal", async (status) => {
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
       .mockImplementationOnce(() => response(details))
       .mockImplementationOnce(() => response({ message: "This event is no longer awaiting a safety check." }, status))
@@ -83,7 +374,9 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
     expect(await screen.findByText("Expected attendance: 80")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Approve arrangement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    fireEvent.change(await screen.findByLabelText("Change 1"), { target: { value: "Refresh the current safety plan." } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent("This event is no longer awaiting a safety check.");
     expect(screen.queryByText("Expected attendance: 80")).not.toBeInTheDocument();
@@ -134,32 +427,81 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(fetch).toHaveBeenCalledTimes(3);
   });
 
-  /** SAFETY-QUEUE-05: rejection with a reason is recorded and the event leaves the queue. */
-  it("SAFETY-QUEUE-05 records a rejection with its reason", async () => {
+  /** SAFETY-DECISION-02: rejection with a reason is recorded and confirmed. */
+  it("SAFETY-DECISION-02 rejects with its reason and confirms the decision", async () => {
+    const user = userEvent.setup();
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
       .mockImplementationOnce(() => response(details))
       .mockImplementationOnce(() => response({ eventId: "e1", status: "rejected" }))
       .mockImplementationOnce(() => response([]));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
-    fireEvent.change(await screen.findByLabelText("Reason for rejection or requested changes"), { target: { value: "Please add an accessible route." } });
-    fireEvent.click(screen.getByRole("button", { name: "Reject arrangement" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(await screen.findByRole("button", { name: "Reject arrangement" }));
+    const input = await screen.findByLabelText("Reason for rejection");
+    await user.click(input);
+    await user.type(input, "Please add an accessible route.");
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("Please add an accessible route.");
+    fireEvent.click(screen.getByRole("button", { name: "Submit rejection" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toContainElement(screen.getByRole("status"));
+    expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole("button", { name: "Return to queue" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "rejected", reason: "Please add an accessible route." }) }));
   });
 
-  /** SAFETY-QUEUE-05: requesting changes with a reason records the response and removes the event from this queue. */
-  it("SAFETY-QUEUE-05 records a changes-needed response", async () => {
+  /** SAFETY-DECISION-03: a described change request is recorded and confirmed. */
+  it("SAFETY-DECISION-03 requests changes with a description and confirms the decision", async () => {
+    const user = userEvent.setup();
     vi.mocked(fetch).mockImplementationOnce(() => response([event]))
       .mockImplementationOnce(() => response(details))
       .mockImplementationOnce(() => response({ eventId: "e1", status: "changes_needed" }))
       .mockImplementationOnce(() => response([]));
     render(<SafetyCheckQueuePage />);
     fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
-    fireEvent.change(await screen.findByLabelText("Reason for rejection or requested changes"), { target: { value: "Confirm a backup microphone." } });
+    await screen.findByText("Expected attendance: 80");
     fireEvent.click(screen.getByRole("button", { name: "Request changes" }));
+    const input = await screen.findByLabelText("Change 1");
+    await user.click(input);
+    await user.type(input, "Confirm a backup microphone.");
+    expect(input).toHaveFocus();
+    expect(input).toHaveValue("Confirm a backup microphone.");
+    fireEvent.click(screen.getByRole("button", { name: "Submit change request" }));
+    expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toContainElement(screen.getByRole("status"));
+    expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole("button", { name: "Return to queue" }));
     expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
-    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "changes_needed", reason: "Confirm a backup microphone." }) }));
+    expect(fetch).toHaveBeenCalledWith(expect.stringContaining("/decision"), expect.objectContaining({ body: JSON.stringify({ decision: "changes_needed", changes: ["Confirm a backup microphone."] }) }));
+  });
+
+  /** SAFETY-DECISION-05: every successful decision displays a confirmation modal before returning to the refreshed queue. */
+  it.each([
+    ["approved", "Approve arrangement", "", true],
+    ["rejected", "Reject arrangement", "Please add a fire exit plan.", false],
+    ["changes_needed", "Request changes", "Confirm a backup microphone.", false],
+  ] as const)("SAFETY-DECISION-05 confirms the %s decision", async (decision, action, reason, closeWithHeader) => {
+    vi.mocked(fetch).mockImplementationOnce(() => response([event]))
+      .mockImplementationOnce(() => response(details))
+      .mockImplementationOnce(() => response({ eventId: "e1", status: decision }))
+      .mockImplementationOnce(() => response([]));
+    render(<SafetyCheckQueuePage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review arrangements" }));
+    await screen.findByText("Expected attendance: 80");
+    fireEvent.click(screen.getByRole("button", { name: action }));
+    if (decision !== "approved") {
+      const label = decision === "rejected" ? "Reason for rejection" : "Change 1";
+      const submit = decision === "rejected" ? "Submit rejection" : "Submit change request";
+      fireEvent.change(await screen.findByLabelText(label), { target: { value: reason } });
+      fireEvent.click(screen.getByRole("button", { name: submit }));
+    }
+
+    const dialog = await screen.findByRole("dialog", { name: "Decision submitted" });
+    expect(dialog).toContainElement(screen.getByRole("status"));
+    expect(screen.getByRole("status")).not.toBeEmptyDOMElement();
+    expect(screen.getByText("Welcome Evening")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: closeWithHeader ? "Close dialog" : "Return to queue" }));
+    expect(await screen.findByText("No events are awaiting a safety check.")).toBeInTheDocument();
   });
 
   /** SAFETY-QUEUE-01: if arrangements become unavailable before detail opens, the queue refreshes. */

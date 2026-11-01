@@ -988,6 +988,16 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | SAFETY-QUEUE-06-SUP-HISTORY | SUPPORTING | SPM-129 | AC6 | User supplied PR #92 review finding 1/2 and SC-SPM129-03: rejected venue history is resolved only by an approved booking covering the full slot at the same venue; SQL-to-fact identity and interval mapping must preserve this boundary. Not a Confluence matrix row. | backend/src/events/status/checklist.spec.ts, backend/src/events/status/readiness.spec.ts, backend/src/events/status/arrangements.reader.spec.ts, backend/test/safety-officer.e2e-spec.ts | User approved 2026-10-31 | Active |
 | SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION | SUPPORTING | SPM-129 | AC5 | User supplied PR #92 review finding 3: a rejected Safety Officer outcome must retain its reason and require coordinator feedback resolution before re-request. Not a Confluence matrix row. | backend/src/events/status/safety-feedback-resolution.spec.ts, backend/test/events-safety-feedback.e2e-spec.ts, frontend/src/features/events/pages/detail/planning/safetyFeedbackVisibility.test.ts, frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx, frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx | User approved 2026-10-31 | Active |
 
+## SPM-130
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| SAFETY-DECISION-01 | PRIMARY | SPM-130 | AC1 | Confluence matrix 36798526; case page 36733008 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
+| SAFETY-DECISION-02 | PRIMARY | SPM-130 | AC2 | Confluence matrix 36798526; case page 36831261 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx, frontend/src/components/ui/Modal.test.tsx | User approved 2026-10-28 | Active |
+| SAFETY-DECISION-03 | PRIMARY | SPM-130 | AC3 | Confluence matrix 36798526; case page 36700287 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx, frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx | User approved 2026-10-28 | Active |
+| SAFETY-DECISION-04 | PRIMARY | SPM-130 | AC4 | Confluence matrix 36798526; case page 36733026 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
+| SAFETY-DECISION-05 | PRIMARY | SPM-130 | AC5 | Confluence matrix 36798526; case page 36831279 | frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
+
 ## Notes
 
 - `CONFIRM-EVENT-03-D` is used by a confirm panel test but has no Confluence case, so it is registered as SUPPORTING. Its name reads like a matrix row; renaming it to a supporting id is a follow-up.

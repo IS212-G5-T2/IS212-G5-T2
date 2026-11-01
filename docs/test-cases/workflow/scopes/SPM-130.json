@@ -1,0 +1,33 @@
+{
+  "story": "SPM-130",
+  "title": "Approve or reject and request changes to safety arrangement (Safety Officer)",
+  "note": "Jira SPM-130 AC1-AC5 and approved Confluence matrix 36798526 / case pages 36733008, 36831261, 36700287, 36733026, 36831279 are authoritative. The 2026-11-01 user clarification requires Request changes to collect multiple rows, one independent feedback item per nonblank row; Confluence case 03 says description but does not specify row count. The UI sends changes:string[] and never splits free text; the API continues accepting legacy reason:string as one item. Approval stores approved, rejection stores rejected and a required reason, and request changes stores changes_needed. Rejection and request-changes feedback are collected in separate action-specific modals; opening, cancelling or closing a modal submits no decision and discards its draft. Approval stays direct and omits feedback. Successful decisions show a confirmation modal; exact confirmation wording is unspecified, so tests assert a modal with nonempty confirmation content.",
+  "tz": ["UTC", "Asia/Singapore", "America/Los_Angeles"],
+  "coverageFloor": {"statements": 100, "branches": 100, "functions": 100, "lines": 100},
+  "tests": {
+    "backend-unit": [{"glob": "backend/src/events/safety-officer/safety-officer.service.spec.ts", "titleMatch": "SAFETY-DECISION"}],
+    "backend-e2e": [{"glob": "backend/test/safety-officer.e2e-spec.ts", "titleMatch": "SAFETY-DECISION"}],
+    "frontend": [
+      {"glob": "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx", "titleMatch": "SAFETY-DECISION"},
+      {"glob": "frontend/src/components/ui/Modal.test.tsx", "titleMatch": "SAFETY-DECISION"},
+      {"glob": "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.test.tsx", "titleMatch": "SAFETY-DECISION-03"}
+    ]
+  },
+  "sources": {
+    "backend": ["backend/src/events/safety-officer/safety-officer.service.ts"],
+    "frontend": [
+      "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
+      "frontend/src/components/ui/Modal.tsx",
+      "frontend/src/features/events/pages/detail/planning/SafetyCheckChangesNeeded.tsx"
+    ]
+  },
+  "suites": [
+    {"id": "backend-unit", "cwd": "backend", "tests": "backend-unit", "config": null, "coverage": "backend", "env": []},
+    {"id": "backend-e2e", "cwd": "backend", "tests": "backend-e2e", "config": "vitest.config.e2e.ts", "coverage": "backend-e2e", "env": ["TEST_DATABASE_URL"]},
+    {"id": "frontend", "cwd": "frontend", "tests": "frontend", "config": null, "coverage": "frontend", "env": []}
+  ],
+  "mutation": [
+    {"id": "spm130-backend-decisions", "cwd": "backend", "command": ["node", "scripts/mutation/run.mjs", "--mutants", "spm130.mutants.mjs"], "mutantsFile": "backend/scripts/mutation/spm130.mutants.mjs", "export": "MUTANTS", "env": []},
+    {"id": "spm130-frontend-decisions", "cwd": "frontend", "command": ["node", "scripts/testing/mutation/run.mjs", "--mutants", "spm130.mutants.mjs"], "mutantsFile": "frontend/scripts/testing/mutation/spm130.mutants.mjs", "export": "MUTANTS", "env": []}
+  ]
+}

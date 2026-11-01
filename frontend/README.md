@@ -201,6 +201,8 @@ provider.
 
 The Safety Officer role and local account are provisioned by SPM-128 (migration `028_spm128_safety_officer_role.sql`). SPM-129 uses that role on `/safety/events`, where the page reads the protected queue and event arrangement details before showing response controls.
 
+For a request to change arrangements, the Safety Officer can add one description per row; the page sends those rows separately so the coordinator can resolve each item from the planning checklist. The **+** button adds another change row. The Remove button sits beside its textarea; any row can be removed while at least one required row remains. The decision API also accepts a legacy single `reason` string as one feedback item; it does not split text into rows.
+
 Coordinator assignment is managed through the Lead's assignment queue;
 submitting an event leaves it unassigned until the Lead assigns it.
 

@@ -1,4 +1,5 @@
 import type { VenueBookingConflict } from "@/types";
+import { getAuthSessionRevision, reportAuthSessionExpired } from "@/lib/authSessionRevision";
 
 export class ApiError extends Error {
   constructor(
@@ -16,6 +17,7 @@ export class ApiError extends Error {
 export const apiBaseUrl = (): string => import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080";
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const requestRevision = getAuthSessionRevision();
   let response: Response;
   try {
     const headers = Object.fromEntries(
@@ -45,7 +47,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     // Non-JSON error bodies (e.g. a 413 from the body-size limit) fall through
     // to the status-based messages below.
   }
-  if (!response.ok)
+  if (!response.ok) {
+    if (response.status === 401) reportAuthSessionExpired(requestRevision);
     throw new ApiError(
       response.status === 413
         ? "The files you attached are too large. Please attach smaller files and try again."
@@ -57,5 +60,6 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       response.status,
       data.conflicts,
     );
+  }
   return data as T;
 }

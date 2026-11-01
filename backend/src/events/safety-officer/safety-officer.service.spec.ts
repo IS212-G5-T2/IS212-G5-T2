@@ -123,10 +123,11 @@ describe('SPM-129 SafetyOfficerService', () => {
     await expect(service.details(OFFICER, 'event-1')).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  /** SAFETY-QUEUE-05: a valid approval is recorded against the still-pending event. */
-  it('records an approval and leaves the response in a non-pending state', async () => {
+  /** SAFETY-DECISION-01: an authenticated Safety Officer can approve the pending arrangement. */
+  it('SAFETY-DECISION-01 records an approval against the still-pending event', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
     await expect(service.respond(OFFICER, 'event-1', { decision: 'approved' })).resolves.toEqual({ eventId: 'event-1', status: 'approved' });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'approved', 'Safety Officer', null]);
     expect(clientQuery).toHaveBeenCalledTimes(3);
   });
 
@@ -157,18 +158,73 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'approved', 'Safety Officer', null]);
   });
 
-  /** SAFETY-QUEUE-05: a non-approval response records its reason as feedback for the coordinator. */
-  it.each(['rejected', 'changes_needed'] as const)('records %s and its feedback reason', async (decision) => {
+  /** SAFETY-DECISION-02: a rejection retains the submitted explanation as coordinator feedback. */
+  it('SAFETY-DECISION-02 records rejection and its feedback reason', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
-    await service.respond(OFFICER, 'event-1', { decision, reason: 'Please add an accessible route.' });
+    await service.respond(OFFICER, 'event-1', { decision: 'rejected', reason: 'Please add an accessible route.' });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'rejected', 'Safety Officer', 'Please add an accessible route.']);
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Please add an accessible route.']);
   });
 
-  /** SAFETY-QUEUE-05: invalid decisions and missing or blank required reasons are refused before a response write. */
-  it('refuses unsupported decisions and decisions without a reason', async () => {
+  /** SAFETY-DECISION-03: a requested change retains its description as coordinator feedback. */
+  it('SAFETY-DECISION-03 records requested changes and its description', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await service.respond(OFFICER, 'event-1', { decision: 'changes_needed', reason: 'Confirm a backup microphone.' });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'changes_needed', 'Safety Officer', 'Confirm a backup microphone.']);
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Confirm a backup microphone.']);
+  });
+
+  /** SAFETY-DECISION-03: legacy reason strings remain one feedback item even when they contain line breaks. */
+  it('SAFETY-DECISION-03 keeps a legacy multiline reason as one item', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    const legacyReason = 'Add a fire exit plan.\nConfirm occupancy.';
+    await service.respond(OFFICER, 'event-1', { decision: 'changes_needed', reason: legacyReason });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', legacyReason]);
+    expect(clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toHaveLength(1);
+  });
+
+  /** SAFETY-DECISION-03: each explicit change row is persisted separately and keeps its own text. */
+  it('SAFETY-DECISION-03 persists each submitted change row independently', async () => {
+    const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
+    await service.respond(OFFICER, 'event-1', {
+      decision: 'changes_needed',
+      changes: ['Add a fire exit plan.', 'Confirm occupancy.', 'Label the emergency lighting.'],
+    });
+    expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE event_safety_checks'), ['event-1', 'changes_needed', 'Safety Officer', 'Add a fire exit plan.']);
+    expect(clientQuery.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO safety_check_feedback_items'))).toEqual([
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Add a fire exit plan.']],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Confirm occupancy.']],
+      [expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Label the emergency lighting.']],
+    ]);
+  });
+
+  /** SAFETY-DECISION-04: malformed change-row payloads are refused before starting a response transaction. */
+  it.each([
+    ['string instead of an array', { changes: 'Add a fire exit plan.' }],
+    ['an empty array', { changes: [] }],
+    ['a blank row', { changes: ['Add a fire exit plan.', '  '] }],
+    ['a non-string row', { changes: ['Add a fire exit plan.', 3] }],
+    ['both legacy and row payloads', { reason: 'Legacy text.', changes: ['Add a fire exit plan.'] }],
+  ])('SAFETY-DECISION-04 refuses %s without writing a decision', async (_description, payload) => {
     const { service, transaction } = setup();
-    await expect(service.respond(OFFICER, 'event-1', { decision: 'later' })).rejects.toBeInstanceOf(BadRequestException);
-    await expect(service.respond(OFFICER, 'event-1', { decision: 'rejected', reason: '   ' })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'changes_needed', ...payload })).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-DECISION-04: non-object and unsupported decision bodies are refused before opening a transaction. */
+  it('SAFETY-DECISION-04 refuses a malformed or unsupported decision body', async () => {
+    const { service, transaction } = setup();
+    await expect(service.respond(OFFICER, 'event-1', null)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.respond(OFFICER, 'event-1', [])).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.respond(OFFICER, 'event-1', { decision: 'deferred' })).rejects.toBeInstanceOf(BadRequestException);
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  /** SAFETY-DECISION-04: reject and request-changes require nonblank text and write nothing when it is absent or whitespace. */
+  it.each(['rejected', 'changes_needed'] as const)('refuses %s without a nonblank reason before starting a response transaction', async (decision) => {
+    const { service, transaction } = setup();
+    await expect(service.respond(OFFICER, 'event-1', { decision })).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.respond(OFFICER, 'event-1', { decision, reason: '   ' })).rejects.toBeInstanceOf(BadRequestException);
     expect(transaction).not.toHaveBeenCalled();
   });
 

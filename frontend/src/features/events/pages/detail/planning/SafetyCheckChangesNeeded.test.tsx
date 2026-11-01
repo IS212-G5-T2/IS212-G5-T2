@@ -86,6 +86,25 @@ describe("SafetyCheckChangesNeeded", () => {
     expect(onRefresh).toHaveBeenCalledOnce();
   });
 
+  /** SAFETY-DECISION-03: separate submitted rows appear as separate checkboxes and contribute individually to the coordinator count. */
+  it("SAFETY-DECISION-03 counts three change rows and resolves the selected item", async () => {
+    const user = userEvent.setup();
+    const threeItems = [
+      { id: "feedback-1", text: "Add a fire exit plan.", requestedAt: "2026-10-01T00:00:00Z", resolvedByCoordinatorAt: "2026-10-02T00:00:00Z" },
+      { id: "feedback-2", text: "Confirm occupancy.", requestedAt: "2026-10-01T00:00:00Z" },
+      { id: "feedback-3", text: "Label emergency lighting.", requestedAt: "2026-10-01T00:00:00Z" },
+    ];
+    const { onRefresh } = renderFeedback({ status: "changes_needed", feedback: threeItems });
+    expect(screen.getAllByRole("checkbox")).toHaveLength(3);
+    expect(screen.getByText("1 of 3 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-Request Safety Check" })).toBeDisabled();
+
+    await user.click(screen.getAllByRole("checkbox")[1]);
+    await waitFor(() => expect(resolveFeedbackItem).toHaveBeenCalledWith("event-1", "feedback-2"));
+    expect(onRefresh).toHaveBeenCalledOnce();
+    expect(screen.getByText("1 of 3 items resolved. Complete all before re-requesting.")).toBeInTheDocument();
+  });
+
   /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: API refusals retain feedback and report the server message. */
   it("reports API failures while resolving feedback", async () => {
     const user = userEvent.setup();

@@ -107,13 +107,40 @@ export class SafetyOfficerService {
 
   async respond(identity: AuthenticatedUser | undefined, eventId: string, body: unknown) {
     const user = this.requireSafetyOfficer(identity);
-    const input = body as { decision?: unknown; reason?: unknown } | null;
+    const input = body && typeof body === 'object' && !Array.isArray(body)
+      ? body as { decision?: unknown; reason?: unknown; changes?: unknown }
+      : null;
     const decision = input?.decision;
     if (decision !== 'approved' && decision !== 'rejected' && decision !== 'changes_needed')
       throw new BadRequestException('Decision must be approved, rejected, or changes_needed.');
-    const reason = typeof input?.reason === 'string' ? input.reason.trim() : '';
-    if (decision !== 'approved' && reason.length === 0)
-      throw new BadRequestException('A reason is required for this decision.');
+
+    let feedbackItems: string[] = [];
+    if (decision === 'rejected') {
+      const reason = typeof input?.reason === 'string' ? input.reason.trim() : '';
+      if (!reason) throw new BadRequestException('A reason is required for rejection.');
+      feedbackItems = [reason];
+    } else if (decision === 'changes_needed') {
+      const hasChanges = !!input && Object.prototype.hasOwnProperty.call(input, 'changes');
+      const hasReason = !!input && Object.prototype.hasOwnProperty.call(input, 'reason');
+      if (hasChanges && hasReason)
+        throw new BadRequestException('Send changes as rows or a legacy reason, not both.');
+
+      if (hasChanges) {
+        if (!Array.isArray(input?.changes))
+          throw new BadRequestException('Changes must be a non-empty array of descriptions.');
+        if (input.changes.length === 0)
+          throw new BadRequestException('Add at least one change.');
+        feedbackItems = input.changes.map((change, index) => {
+          if (typeof change !== 'string' || !change.trim())
+            throw new BadRequestException(`Change ${index + 1} must include a nonblank description.`);
+          return change;
+        });
+      } else {
+        const legacyReason = typeof input?.reason === 'string' ? input.reason.trim() : '';
+        if (!legacyReason) throw new BadRequestException('A reason or at least one change is required.');
+        feedbackItems = [legacyReason];
+      }
+    }
 
     return this.database.transaction(async (client) => {
       // Match requestSafetyCheck's event -> arrangement rows -> safety-check lock order.
@@ -131,16 +158,16 @@ export class SafetyOfficerService {
       if (!pending.rows[0]) throw new ConflictException('This event is no longer awaiting a safety check.');
 
       const name = user.name?.trim() || user.email?.trim() || 'Safety Officer';
-      // A non-approval reason is validated above; approved decisions intentionally clear prior feedback.
-      const feedback = decision === 'approved' ? null : reason;
+      // Keep the legacy summary column populated with the first item; coordinators resolve each child row separately.
+      const feedback = feedbackItems[0] ?? null;
       await client.query(
         `UPDATE event_safety_checks SET status = $2, approver_name = $3, feedback = $4, decided_at = now() WHERE event_id = $1`,
         [eventId, decision, name, feedback],
       );
-      if (decision !== 'approved') {
+      for (const feedbackItem of feedbackItems) {
         await client.query(
           `INSERT INTO safety_check_feedback_items (event_id, feedback_text) VALUES ($1, $2)`,
-          [eventId, reason],
+          [eventId, feedbackItem],
         );
       }
       return { eventId, status: decision };

@@ -13,6 +13,11 @@ vi.mock("@/features/equipment/api/equipment-requests-api", () => ({
 
 afterEach(() => vi.unstubAllGlobals());
 
+// Avoid live-backend requests from protected AppShell notifications in route-only tests.
+beforeEach(() => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Unexpected App test network request.")));
+});
+
 describe("App venue creation route", () => {
   beforeEach(() => {
     useAppStore.setState({
