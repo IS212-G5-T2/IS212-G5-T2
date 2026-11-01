@@ -79,6 +79,7 @@ function routeApi(event: EventRecord) {
             confirmedByCoordinator: false,
           },
           safetyCheck: { status: "approved", approverName: "Safety Officer 1" },
+          registration: { enabled: false, status: "confirmed" },
           canRequestSafetyCheck: true,
           blocking: [],
         },
