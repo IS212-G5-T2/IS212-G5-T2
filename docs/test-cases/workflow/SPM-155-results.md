@@ -6,9 +6,9 @@ Implementation record for cycle-01 (cycle folder `ai/runtime/test-cycles/SPM-155
 
 | Check | Command | Result | Evidence file |
 |---|---|---|---|
-| Backend unit | `cd backend && npx vitest run` | 94 files, 2,116 passed (baseline 91 files / 1,987) | `backend-unit-run.log` |
-| Frontend unit | `cd frontend && npx vitest run` | 141 files, 2,110 passed, 1 skipped, 1 todo (baseline 132 files / 2,011) | `frontend-unit-run-final.log` |
-| Scope suites incl. e2e in UTC, Asia/Singapore, America/Los_Angeles | `run-cycle.mjs --steps run` | 322 passed, 0 failed, 0 skipped (G7 PASS) | `test-run.log`, `tz-runs/`, `run-cycle-stdout-5.log` |
+| Backend unit | `cd backend && npx vitest run` | 97 files, 2,192 passed (baseline 91 files / 1,987; the dev merges added files) | `backend-unit-run.log` |
+| Frontend unit | `cd frontend && npx vitest run` | 151 files, 2,276 passed, 1 skipped, 1 todo (baseline 132 files / 2,011) | `frontend-unit-run-final.log` |
+| Scope suites incl. e2e in UTC, Asia/Singapore, America/Los_Angeles | `run-cycle.mjs --steps run` | 384 passed, 0 failed, 0 skipped (G7 PASS) | `test-run.log`, `tz-runs/`, `run-cycle-stdout-7.log` |
 | Backend e2e, new flow | `npx vitest run --config ./vitest.config.e2e.ts test/cancellation-requests.e2e-spec.ts` | 74 passed, 0 failed | `e2e-spm155-final.log` |
 | Concurrency 01-F and 03-E, 20 runs in a row | the two tests selected with `-t`, 20 consecutive runs, with the race gate (`fireTogether`) | 20 of 20 runs passed (2 tests each, 40 test passes, 0 failures) | `e2e-concurrency-20x.log` |
 | Finished stories (SPM-136 cancel and guard, change requests, change-request review, waitlist) | `vitest run --config ./vitest.config.e2e.ts` on those 5 files | 5 files, 167 passed, 1 skipped (existing skip), 0 failed | `e2e-finished-stories.log` |
@@ -18,7 +18,7 @@ Implementation record for cycle-01 (cycle folder `ai/runtime/test-cycles/SPM-155
 | Backend and frontend build | `npm run build` | both pass | `frontend-build.log` |
 | Frontend lint | `cd frontend && npm run lint` | 0 errors, 13 warnings, none in changed files | `frontend-lint.log` |
 | Changed-code coverage | `run-cycle.mjs --steps coverage` (unit and e2e runs merged) | 100% statements, branches, functions and lines over the 10 scope source files; the controller's 6 route lines are covered by the e2e run (COVERED-BY-E2E). Shared edited files (`cancel-event.service.ts`, `CancelEventDialog.tsx`, `EventCard.tsx`, `EventListPage.tsx`) are 100% in the full unit runs | `gates/G5.json`, `backend-cov.log`, `frontend-cov.log` |
-| Workflow gates | `run-cycle.mjs` | G1 PASS (Confluence matrix 35848252: 30 ids, all in the registry; 37 registry ids, 0 invented, 0 orphans, 0 pending approvals); G2 PASS (9 conflicts decided); G3 PASS (174 records, 174 passed, 0 failed, 174 with kill links); G4 PASS; G5 PASS; G6 PASS (138 of 138 mutants killed); G7 PASS. Overall GREEN | `gates/`, `metrics.md`, `gap-list.md` |
+| Workflow gates | `run-cycle.mjs` | G1 PASS (Confluence matrix 35848252: 30 ids, all in the registry; 41 registry ids, 0 invented, 0 orphans, 4 pending approvals); G2 PASS (10 conflicts decided); G3 PASS (197 records, 197 passed, 0 failed, 197 with kill links); G4 PASS; G5 PASS (100% on the 11 scope source files); G6 PASS (178 killed, 1 equivalent argued, 0 survived, of 179); G7 PASS. Overall AMBER only because the four supporting ids added with the UI commit await approval | `gates/`, `metrics.md`, `gap-list.md` |
 
 ## Results table (30 matrix cases)
 
@@ -57,7 +57,7 @@ Result is Pass when every automated test of the case passed on the final tree (u
 | CANCEL-REQUEST-05-C | AC5 | backend e2e | Pass | None |
 | CANCEL-REQUEST-05-D | AC5 | backend e2e | Pass | None |
 
-Fail: 0. Blocked: 0. Not Automated: no whole case; the partial gaps are in the last column. Supporting ids (not matrix rows, approved by the user 31 Oct 2026): 01-SUP-BODY, 01-SUP-ORDER, 02-SUP-CLOSED, 03-SUP-INPUT, 03-SUP-ORDER, 04-SUP-ENTRY, 04-SUP-DIALOG.
+Fail: 0. Blocked: 0. Not Automated: no whole case; the partial gaps are in the last column. Supporting ids (not matrix rows). Approved by the user 31 Oct 2026: 01-SUP-BODY, 01-SUP-ORDER, 02-SUP-CLOSED, 03-SUP-INPUT, 03-SUP-ORDER, 04-SUP-ENTRY, 04-SUP-DIALOG. Added with the UI commit 02e56aa3 and awaiting approval: 02-SUP-LAYOUT, 03-SUP-LAYOUT, 04-SUP-TIMELINE, 04-SUP-DOTS (oracle DERIVED from the commit message; SC-155-010).
 
 ## Gap list
 
@@ -88,9 +88,9 @@ Runner: `node scripts/mutation/run.mjs --mutants spm155.mutants.mjs` (backend, w
 | Component | Defined | Killed | Survived | Misapplied | Not run | Evidence |
 |---|---|---|---|---|---|---|
 | Backend (unit and e2e) | 81 | 81 | 0 | 0 | 0 | `mutation/backend-cancellation-requests.log` |
-| Frontend | 57 | 57 | 0 | 0 | 0 | `mutation/frontend-cancellation-requests.log` |
+| Frontend | 98 | 97 | 0 | 0 | 0 (1 equivalent, FM95) | `mutation/frontend-cancellation-requests.log` |
 
-G6 reconciliation: 138 of 138 killed, score 100, 0 equivalent. Per-test kills are measured, not assumed: `--measure-kills` ran every test of both suites against every mutant (`mutation/*.kills.json`), every mutant's `testMappings` names only tests observed failing under it, every one of the 174 tests has at least one measured killer, and the `// Kills:` comment above each test lists exactly the mutants that failed it.
+G6 reconciliation: 178 killed, 1 equivalent (FM95), 0 survived, score 100, score 100, 0 equivalent. Per-test kills are measured, not assumed: `--measure-kills` ran every test of both suites against every mutant (`mutation/*.kills.json`), every mutant's `testMappings` names only tests observed failing under it, every one of the 196 tests has at least one measured killer, and the `// Kills:` comment above each test lists exactly the mutants that failed it.
 
 Concurrency guards (correction round 1). Several layers guard each race, so a mutant that removes one layer leaves the race test green and is killed elsewhere:
 
@@ -118,3 +118,20 @@ cd frontend && npx vitest run src/features/events
 cd frontend && node scripts/testing/mutation/run.mjs --mutants spm155.mutants.mjs
 node ai/scripts/test-workflow/run-cycle.mjs --scope docs/test-cases/workflow/scopes/SPM-155.json --cycle ai/runtime/test-cycles/SPM-155/cycle-01
 ```
+
+## Refresh for commit 02e56aa3 (UI layout, timeline, Coordinator list label, dots)
+
+- The commit changed the event page layout and panels, the Coordinator list label, the status timeline rule (only the stages reached; a cancelled event shows the stages up to the one it was cancelled from, read from its status history, then Cancelled) and added colour dots to the confirmed arrangements. Dev was merged twice before it.
+- New SPM-155 tests (all DERIVED from the commit message, SC-155-010): `EventDetailPage.cancellationLayout.test.tsx` (timeline reached-only and cancelled-from rules, the history row choice, a failed history read, a read only for cancelled events, the timeline after accepting, the panels' place at the end of the page), `CancellationPanels.layout.test.tsx` (red bottom-right button, box only when there is something to show, collapsed Earlier Requests dropdown, Reason label in both panels) and `ConfirmedArrangementsPanel.dots.test.tsx` (the dot tone of Venue, Equipment and Safety Officer Approval). The two Coordinator list cases the commit added to `EventListPage.cancellationRequest.test.tsx` (02-A and 02-B) are registered with kill links.
+- Three tests of other stories were edited by the commit to the new timeline rule (SPM-94 TRACK-EVENT-STATUS-01-B in `EventDetailPage.status.test.tsx`, SPM-135 CONFIRM-EVENT-04-A in `EventDetailPage.confirm.test.tsx`, SPM-136 CANCEL-EVENT-03-C timeline in `EventDetailPage.cancel.test.tsx`). Their ids belong to those stories' registries, so they cannot be SPM-155 records; each now carries a `// Kills (SPM-155 mutants ...)` line from the measurement (FM56 and FM57 for the first two, FM59 and FM63 for the third, FM55 for the last two), and the new SPM-155 timeline tests cover the same rule with their own ids.
+- 37 new frontend mutants (FM56 to FM93: timeline stages and cancelled-from path, history row choice and refresh, Coordinator list label and filter, Reason label, button colour, alignment and place, empty box, dropdown, titles, panel positions, dot tones, worst-of rule, trim and case, titles, aria-hidden). Four older mutants (FM18, FM18b, FM35, FM40, FM42, FM44) were re-aimed because the commit moved or reshaped their code; FM33 and FM35 now replace the element with `null` (an empty expression is a syntax error).
+- Measured: 94 of 94 frontend mutants killed (`mutation/frontend-cancellation-requests.kills.json`), no survivors; every new test has a measured killer; every mapping was proven failing. Backend 81 of 81 killed on a fresh disposable database; SPM-155 e2e 74 passed; 01-F and 03-E 20 of 20; finished-story e2e 167 passed (1 existing skip).
+- Scope: `ConfirmedArrangementsPanel.tsx` joined the scope sources (with its SPM-135 test file in the scope so its loading and error branches are measured); `EventDetailPage.tsx` stays out because the whole file belongs to many stories, so the `timelineStages` and status-history lines are covered by the new tests and measured by the mutants, not by the G5 percentage.
+
+### Correction round after the three re-reviews
+
+- Equipment dots: `requested` and `checking` are now yellow (with `reserved`, `pending`, `awaiting check`, `changes requested`); `released` and `unavailable` stay red. Dots tests gained Requested, Checking, mixed and Unavailable cases; new mutants FM96 (requested red), FM97 (checking red), FM98 (unavailable yellow), and FM87 re-aimed.
+- Timeline origin: `cancelledFrom` is cleared at the top of the effect, so a previous event's origin never shows while the next event's history loads or when it cannot be read. New test "moving to another cancelled event shows only cancelled until its own history arrives"; new mutant FM94 (no reset). FM65 (the catch handler setting null) was retired: with the reset at the top it is redundant, and the catch is now a plain no-op.
+- History reply guard: `Array.isArray(entries)` before `entries.find`. A reply that is not a list is a new case in the no-usable-history test and falls back to the bare Cancelled step. Mutant FM95 (guard removed) is argued equivalent: without the guard the TypeError is raised inside the `then`, the `catch` swallows it and the origin stays at the value cleared at the top, so no screen or request differs. It is the only equivalent mutant; it has no killing test (measured), and G6 accepts it as equivalent.
+- Left as they are, as instructed: the timeline shows only "Cancelled" while the history loads or for a user who cannot read it (a deliberate consequence of the reached-only rule); a Completed event keeps the pre-existing Cancelled stage handling; the status history is fetched twice when the planning history panel is also shown; the status badge shows `reserved` in green while the dots show it yellow (the user's request).
+- Measured again after the fixes: 98 frontend mutants, 97 killed, 1 equivalent, 0 survived, 0 misapplied, 0 suite errors (measuring run and verdict run; two verdict rows, FM78 and FM95, first reported "no test selected" under load and were rerun alone: FM78 killed, FM95 equivalent). Backend 81 of 81 killed; SPM-155 e2e 74 passed; 01-F and 03-E 20 of 20; finished-story e2e 167 passed (1 existing skip); backend unit 97 files and 2,192 passed.

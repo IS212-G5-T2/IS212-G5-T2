@@ -164,6 +164,7 @@ describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (p
 
 describe("SPM-135 AC4: the status is Confirmed after a successful confirm, without a reload (page level)", () => {
   // CONFIRM-EVENT-04-A (FE page): the timeline shows confirmed as the current step from the response, with no event refetch.
+  // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM55, FM56, FM57.
   it("CONFIRM-EVENT-04-A (page): after Confirm Event the status shows confirmed as the current step and the event is not refetched", async () => {
     // Arrange: COO-01 on a ready Planning event; the server keeps returning the event as Planning
     renderAs({ id: "coordinator-1", role: "coordinator", roles: ["coordinator"] }, eventRecord());

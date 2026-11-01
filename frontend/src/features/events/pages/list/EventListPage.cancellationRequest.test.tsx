@@ -180,7 +180,7 @@ describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
     expect(screen.queryByText("Cancellation accepted")).not.toBeInTheDocument();
   });
 
-  // Kills: FM37, FM39, FM40, FM47, FM51
+  // Kills: FM37, FM38, FM39, FM47, FM67, FM69
   /** CANCEL-REQUEST-02-A (coordinator list): a pending request on an assigned event asks the Coordinator to act. */
   it("CANCEL-REQUEST-02-A: a Coordinator's pending request shows Cancellation requested on the card", async () => {
     // Arrange
@@ -194,6 +194,7 @@ describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
     expect(within(await cardOf("Career Fair")).queryByText(/Cancellation/)).not.toBeInTheDocument();
   });
 
+  // Kills: FM38, FM68
   /** CANCEL-REQUEST-02-B (coordinator list): a declined or accepted request needs no action, so no label. */
   it("CANCEL-REQUEST-02-B: a Coordinator's decided request shows no label on the card", async () => {
     // Arrange

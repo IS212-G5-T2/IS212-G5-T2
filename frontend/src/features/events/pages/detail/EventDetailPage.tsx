@@ -258,16 +258,18 @@ export function EventDetailPage() {
   const eventId = event?.id;
   const eventStatus = event?.status;
   useEffect(() => {
+    // A previous event's origin is never shown: it is cleared whenever the event or its status changes.
+    setCancelledFrom(null);
     if (!eventId || eventStatus !== "cancelled") return;
     let active = true;
     api<{ fromStatus: string; toStatus: string }[]>(`/events/${encodeURIComponent(eventId)}/status-history`)
       .then((entries) => {
-        const cancellation = entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled");
+        // A reply that is not a list is read as no history (as StatusHistory does).
+        const cancellation = Array.isArray(entries) ? entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled") : undefined;
         if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);
       })
-      .catch(() => {
-        if (active) setCancelledFrom(null);
-      });
+      // The origin was cleared above, so an unreadable history leaves only the Cancelled step.
+      .catch(() => undefined);
     return () => {
       active = false;
     };

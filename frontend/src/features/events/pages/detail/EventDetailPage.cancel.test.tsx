@@ -165,6 +165,7 @@ describe("SPM-136 AC1: Cancel Event is offered to the assigned coordinator only"
 
 describe("SPM-136 status timeline: a cancelled event ends at Cancelled", () => {
   // Kills: the timeline ending at completed instead of cancelled (status flow step removed or renamed)
+  // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM55, FM59, FM63.
   it("CANCEL-EVENT-03-C (timeline): the coordinator sees Confirmed then Cancelled, with Cancelled as the current step", async () => {
     // Arrange
     renderAs(COORDINATOR, eventRecord({ status: "cancelled" }));

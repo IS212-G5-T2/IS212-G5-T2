@@ -14,7 +14,7 @@ function formatSgtSlot(start: string, end: string): string {
   return `${from.date} ${from.time} to ${to.time} SGT`;
 }
 
-/** Yellow: reserved or pending. Green: confirmed. Red: not requested, or refused and not in effect. */
+/** Yellow: requested, checking, reserved or pending. Green: confirmed. Red: not requested, or refused or unavailable and not in effect. */
 type Tone = "green" | "yellow" | "red";
 const DOT_CLASS: Record<Tone, string> = { green: "bg-success-500", yellow: "bg-warning-500", red: "bg-danger-500" };
 const TONE_LABEL: Record<Tone, string> = { green: "Confirmed", yellow: "Reserved or pending", red: "Not requested" };
@@ -23,7 +23,7 @@ const TONE_RANK: Record<Tone, number> = { green: 0, yellow: 1, red: 2 };
 function toneOfState(state: string): Tone {
   const s = state.trim().toLowerCase();
   if (s === "approved" || s === "confirmed") return "green";
-  if (["pending", "reserved", "awaiting check", "changes requested"].includes(s)) return "yellow";
+  if (["pending", "reserved", "requested", "checking", "awaiting check", "changes requested"].includes(s)) return "yellow";
   return "red";
 }
 

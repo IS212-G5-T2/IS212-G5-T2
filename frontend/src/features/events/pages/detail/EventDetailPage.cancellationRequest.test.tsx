@@ -129,7 +129,7 @@ describe("SPM-155 EventDetailPage wiring", () => {
     expect(requestCalls()).toHaveLength(0);
   });
 
-  // Kills: FM35, FM41, FM46
+  // Kills: FM29, FM35, FM38, FM42, FM50, FM6b, FM67
   /** CANCEL-REQUEST-03-A (page): the assigned Coordinator sees the pending request with its reason and the decision controls. */
   it("CANCEL-REQUEST-03-A (page): the assigned coordinator sees the pending request, Accept and Decline", async () => {
     // Arrange / Act

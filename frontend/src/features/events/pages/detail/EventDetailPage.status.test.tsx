@@ -139,6 +139,7 @@ describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy"
 describe("SPM-94 AC1: the planning page marks the exact current step", () => {
   // Oracle: the timeline shows only the stages reached: the current step is shaded and no later stage is shown.
   // Kills: a timeline one step ahead or behind (the step after the current one would be shown).
+  // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM56, FM57.
   it.each([
     ["submitted", "submitted", "approved"],
     ["approved", "approved", "planning"],
