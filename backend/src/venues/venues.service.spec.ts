@@ -781,9 +781,11 @@ describe('SPM-121 venue service update', () => {
 describe('SPM-125 venue history service', () => {
   const listUnavailabilityHistory = vi.fn();
   const listBookingHistory = vi.fn();
+  const markUnavailable = vi.fn();
+  const endUnavailable = vi.fn();
   const hasPermission = vi.fn();
   const service = new VenuesService(
-    { listUnavailabilityHistory, listBookingHistory } as unknown as VenuesRepository,
+    { listUnavailabilityHistory, listBookingHistory, markUnavailable, endUnavailable } as unknown as VenuesRepository,
     { hasPermission } as unknown as RbacRepository,
   );
 
@@ -826,5 +828,25 @@ describe('SPM-125 venue history service', () => {
     await expect(service.bookingHistory(staff, venue.id)).rejects.toBeInstanceOf(NotFoundException);
     expect(listUnavailabilityHistory).toHaveBeenCalledOnce();
     expect(listBookingHistory).toHaveBeenCalledOnce();
+  });
+
+  /**
+   * VEN-IMPACT-01-BND-1 (AC1): a malformed venue or period id answers 404 before the repository is reached, so no
+   * history entry can be written for it; a period that cannot be ended early (unknown, or not active) answers 404
+   * after the repository wrote nothing.
+   * Kills: dropping the id checks that guard the history writes.
+   */
+  it('VEN-IMPACT-01-BND-1 writes no history for a malformed venue or period, or a period that cannot be ended', async () => {
+    const periodId = '00000000-0000-4000-8000-0000000000aa';
+    endUnavailable.mockResolvedValue(undefined);
+
+    await expect(service.markUnavailable(staff, 'not-a-uuid', {})).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.endUnavailable(staff, 'not-a-uuid', periodId)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.endUnavailable(staff, venue.id, 'not-a-uuid')).rejects.toBeInstanceOf(NotFoundException);
+    expect(markUnavailable).not.toHaveBeenCalled();
+    expect(endUnavailable).not.toHaveBeenCalled();
+
+    await expect(service.endUnavailable(staff, venue.id, periodId)).rejects.toThrow('Unavailable period not found.');
+    expect(endUnavailable).toHaveBeenCalledWith(venue.id, periodId, staff.uid);
   });
 });

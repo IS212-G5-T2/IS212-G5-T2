@@ -403,7 +403,12 @@ person, for every existing period). The notices link to their booking through SP
   `coordinatorNotified: true` when its Coordinator was notified; an event with no Coordinator is skipped.
 - `PATCH /api/venues/:id` (SPM-121) does the same for its AC8 list (`venue_timing_impact`) and AC9 list
   (`venue_capacity_impact`, with the old and new capacity), for bookings that have not ended; `affectedBookings` and
-  `capacityBookings` items carry `coordinatorNotified: true` likewise.
+  `capacityBookings` items carry `coordinatorNotified: true` likewise. The AC9 list includes every pending or
+  approved row, but only rows that still hold the venue (the AC8 rule: not an expired tentative hold, and a pending
+  row only when it is an active hold or a booking request) are notified.
+- When the Lead reassigns an event (SPM-47), the previous Coordinator's unread venue-change notices for that event
+  are marked read with their other notices for it (as SPM-137 does for booking decisions), so none is left whose
+  View Booking link opens a booking that is no longer theirs.
 - `GET /api/notifications` returns these notices to Coordinators with `relatedBookingId`. The Venue Staff member who
   made the change gets no notice (they already see the result, marked `coordinatorNotified`), and Venue Staff still
   have no notification feed (403).
@@ -412,8 +417,8 @@ person, for every existing period). The notices link to their booking through SP
   and time, latest slot first, with `affectedByUnavailablePeriod`) are for Venue Staff only (401 without a session,
   403 for other roles, 404 for an unknown venue).
 - The notice wording and the one place that writes these notices is `src/venues/notifications/venue-impact-notifications.ts`.
-  Integration tests: `test/venue-impact.e2e-spec.ts` (needs `DATABASE_URL` with init 001 to 029; it re-applies 019
-  and 029 itself).
+  Integration tests: `test/venue-impact.e2e-spec.ts` (needs `DATABASE_URL` with init 001 to 030; it re-applies 019,
+  029 and 030 itself).
 
 ## Venue availability and booking requests (SPM-51)
 

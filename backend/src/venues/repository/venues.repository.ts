@@ -245,12 +245,20 @@ interface ListedBookingRow {
   status: 'pending' | 'approved';
   event_id: string;
   coordinator_id: string | null;
+  /**
+   * SPM-125 AC9: false when the listed row no longer holds the venue (an expired tentative hold, or a pending row
+   * that is neither an active hold nor a booking request). The AC8 query lists only rows that do, so it omits this.
+   */
+  holds_venue?: boolean;
 }
 
-/** SPM-125 AC8/AC9: only bookings that have not ended can still be rearranged, so only they are notified. */
+/**
+ * SPM-125 AC8/AC9: only bookings that have not ended can still be rearranged, and only rows that still hold the
+ * venue are bookings to rearrange, so only they are notified.
+ */
 function upcomingImpacted(rows: ListedBookingRow[], now: Date): ImpactedBooking[] {
   return rows
-    .filter((row) => row.end_at.getTime() > now.getTime())
+    .filter((row) => row.end_at.getTime() > now.getTime() && row.holds_venue !== false)
     .map((row) => ({
       bookingId: row.id,
       eventId: row.event_id,
@@ -465,13 +473,15 @@ export class VenuesRepository {
       const capacityRows = capacityChanged
         ? await client.query<ListedBookingRow>(
             `SELECT b.id, e.event_name, b.start_at, b.end_at, b.status,
-                    b.event_id, e.coordinator_id
+                    b.event_id, e.coordinator_id,
+                    -- SPM-125 AC9: whether the row still holds the venue (the AC8 eligibility rule), for notifying.
+                    ${eligibleBooking.replaceAll('$6', '$2')} AS holds_venue
                FROM venue_bookings b
                JOIN events e ON e.id = b.event_id
               WHERE b.venue_id = $1::uuid
                 AND b.status IN ('pending', 'approved')
               ORDER BY b.start_at, b.id`,
-            [venueId],
+            [venueId, now],
           )
         : { rows: [] as ListedBookingRow[] };
 

@@ -3784,8 +3784,8 @@ describe('SPM-125 venue update notifications', () => {
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('FOR UPDATE'))
         return { rows: [{ id: venueId, owner_user_id: ownerUserId, capacity: lock.capacity, setup_time_minutes: lock.setup, turnaround_time_minutes: lock.turnaround }] };
-      if (sql.includes('venue_booking_requests')) return { rows: rows.timing ?? [] };
       if (sql.includes("b.status IN ('pending', 'approved')")) return { rows: rows.capacity ?? [] };
+      if (sql.includes('venue_booking_requests')) return { rows: rows.timing ?? [] };
       if (sql.includes('FROM venues v LEFT JOIN venue_images'))
         return { rows: [{ id: venueId, owner_user_id: ownerUserId, name: input.name, location: input.location, capacity: input.capacity, facilities: [], accessibility: [], layouts: [], operating_information: input.operatingInformation, setup_time_minutes: input.setupTimeMinutes, turnaround_time_minutes: input.turnaroundTimeMinutes }] };
       return { rows: [] };
@@ -3801,7 +3801,10 @@ describe('SPM-125 venue update notifications', () => {
     const notices = query.mock.calls
       .filter(([sql]) => sql.includes('INSERT INTO notifications'))
       .map((call) => (call as unknown as [string, unknown[]])[1]);
-    return { result, notices };
+    const capacityQuery = query.mock.calls.find(([sql]) => sql.includes("b.status IN ('pending', 'approved')")) as
+      | [string, unknown[]]
+      | undefined;
+    return { result, notices, capacityQuery };
   }
 
   /**
@@ -3817,6 +3820,31 @@ describe('SPM-125 venue update notifications', () => {
     expect(result.kind === 'updated' && result.affectedBookings).toEqual([
       expect.objectContaining({ bookingId: 'upcoming', coordinatorNotified: true }),
     ]);
+  });
+
+  /**
+   * VEN-IMPACT-09-BND-3 (AC9): a listed row that no longer holds the venue (here an approved tentative hold that has
+   * expired) is still listed but its Coordinator is not notified; the capacity query decides this with the AC8
+   * eligibility rule at the server time.
+   * Kills: notifying every pending or approved row, including expired holds.
+   */
+  it('VEN-IMPACT-09-BND-3 lists but does not notify an expired hold after a capacity change', async () => {
+    const expiredHold = { ...upcoming, id: 'expired-hold', event_name: 'Held Fair', coordinator_id: 'coordinator-3', holds_venue: false };
+    const { result, notices, capacityQuery } = await updateWith(
+      { capacity: 120, setup: input.setupTimeMinutes, turnaround: input.turnaroundTimeMinutes },
+      { capacity: [{ ...upcoming, holds_venue: true }, expiredHold] },
+    );
+
+    expect(notices.map((p) => [p[1], p[5]])).toEqual([['coordinator-1', 'upcoming']]);
+    if (result.kind !== 'updated') throw new Error('expected an update');
+    expect(result.capacityBookings.map((b) => [b.bookingId, b.coordinatorNotified ?? false])).toEqual([
+      ['upcoming', true],
+      ['expired-hold', false],
+    ]);
+    const sql = capacityQuery![0].replace(/\s+/g, ' ');
+    expect(sql).toContain("b.hold_expires_at IS NULL OR b.hold_expires_at > $2::timestamptz");
+    expect(sql).toContain('AS holds_venue');
+    expect(capacityQuery![1]).toEqual([venueId, now]);
   });
 
   /**

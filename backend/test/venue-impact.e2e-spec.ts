@@ -666,8 +666,25 @@ describe.skipIf(!databaseUrl)(
     /**
      * VEN-IMPACT-09-C (AC9): lowering the capacity notifies the Coordinators of the upcoming pending and approved
      * bookings with the old and new capacity; the past booking is still listed but not notified.
+     * VEN-IMPACT-09-BND-3 (AC9): an approved tentative hold that expired yesterday is listed but not notified.
      */
-    it('VEN-IMPACT-09-C notifies upcoming bookings of a capacity change and leaves the past booking un-notified', async () => {
+    it('VEN-IMPACT-09-C VEN-IMPACT-09-BND-3 notifies upcoming bookings of a capacity change and leaves the past booking and an expired hold un-notified', async () => {
+      await insertBooking(
+        'expiredHold',
+        await createEvent(
+          'Lapsed Hold',
+          users.coordinator2,
+          '2030-01-14T02:00:00Z',
+          '2030-01-14T03:00:00Z',
+        ),
+        '2030-01-14T02:00:00Z',
+        '2030-01-14T03:00:00Z',
+        'approved',
+        {
+          requestKind: 'tentative_hold',
+          holdExpiresAt: '2030-01-09T12:00:00Z',
+        },
+      );
       const updated = await agents.staff
         .patch(`/api/venues/${venueId}`)
         .send({ ...venueBody, setupTimeMinutes: 150, capacity: 80 })
@@ -685,6 +702,10 @@ describe.skipIf(!databaseUrl)(
       expect(listed.get(bookings.confirmed)).toMatchObject({
         coordinatorNotified: true,
       });
+      expect(listed.get(bookings.expiredHold)).toBeDefined();
+      expect(listed.get(bookings.expiredHold)).not.toHaveProperty(
+        'coordinatorNotified',
+      );
       expect(updated.body.affectedBookings).toEqual([]);
       const capacity = (await venueNotices('coordinator1')).filter(
         (n) => n.type === 'venue_capacity_impact',

@@ -516,12 +516,10 @@ export class EventsService {
       type: row.type,
       message: row.message,
       relatedEventId: row.related_event_id,
-      // SPM-137: the booking a venue booking decision notice is about (null for every other type), the bell's link target.
+      // SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (null for every other type), the bell's link target.
       relatedBookingId: row.related_booking_id ?? null,
       // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
       relatedEventName: row.event_name,
-      // SPM-125 AC7: the affected booking a venue notice opens on the Bookings page.
-      ...(row.related_booking_id ? { relatedBookingId: row.related_booking_id } : {}),
       read: row.read,
       createdAt: row.created_at.toISOString(),
     }));
