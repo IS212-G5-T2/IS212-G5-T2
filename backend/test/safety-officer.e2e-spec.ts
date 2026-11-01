@@ -8,7 +8,7 @@ import type { Server } from 'node:http';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { AppModule } from '../src/app.module.js';
 
-/* SPM-129's queue and response contract through the real Nest HTTP pipeline and PostgreSQL. */
+/* SPM-129's queue and SPM-130's safety decisions through the real Nest HTTP pipeline and PostgreSQL. */
 const database = process.env.TEST_DATABASE_URL ?? process.env.DATABASE_URL;
 if (!database && process.env.CI)
   throw new Error('SPM-129 tests require TEST_DATABASE_URL or DATABASE_URL.');
@@ -77,6 +77,22 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
   });
 
   const http = () => request(app.getHttpServer());
+
+  async function expectSafetyDecisionUnchanged(eventId: string) {
+    expect((await pool.query(
+      'SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eventId],
+    )).rows).toEqual([{ status: 'pending', approver_name: null, feedback: null, decided_at: null }]);
+    expect((await pool.query(
+      'SELECT feedback_text FROM safety_check_feedback_items WHERE event_id = $1 ORDER BY feedback_text', [eventId],
+    )).rows).toEqual([]);
+  }
+
+  async function expectUnauthorizedSafetyDecision(body: { decision: string; reason?: string; changes?: string[] }) {
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).send(body).expect(401);
+    await expectSafetyDecisionUnchanged(eligible.eventId);
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', coordinator.cookie).send(body).expect(403);
+    await expectSafetyDecisionUnchanged(eligible.eventId);
+  }
 
   async function createSession(role: string, name: string): Promise<Session> {
     const email = `spm129-${role.toLowerCase()}-${randomUUID()}@example.test`;
@@ -279,6 +295,113 @@ describe.skipIf(!database)('SPM-129 Safety Officer queue and decision (PostgreSQ
     expect(result.body.map((row: { id: string }) => row.id)).toContain(eligible.eventId);
     expect(result.body.map((row: { id: string }) => row.id)).not.toContain(mixedVenueBookings.eventId);
     await http().get(`/api/safety-officer/queue/${mixedVenueBookings.eventId}`).set('Cookie', officer.cookie).expect(404);
+  });
+
+  /** SAFETY-DECISION-01: an authenticated Safety Officer can approve an arrangement that is still pending. */
+  it('SAFETY-DECISION-01 persists approval and removes the event from the decision queue', async () => {
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie).send({ decision: 'approved' }).expect(201);
+    expect((await pool.query('SELECT status, feedback FROM event_safety_checks WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual([{ status: 'approved', feedback: null }]);
+    expect((await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200)).body.map((row: { id: string }) => row.id))
+      .not.toContain(eligible.eventId);
+  });
+
+  /** SAFETY-DECISION-02: a nonblank rejection reason is persisted with the rejected outcome. */
+  it('SAFETY-DECISION-02 persists rejection with its required reason', async () => {
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'rejected', reason: 'Add a fire exit plan.' }).expect(201);
+    expect((await pool.query('SELECT status, feedback FROM event_safety_checks WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual([{ status: 'rejected', feedback: 'Add a fire exit plan.' }]);
+    expect((await pool.query('SELECT feedback_text FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual([{ feedback_text: 'Add a fire exit plan.' }]);
+  });
+
+  /** SAFETY-DECISION-03: a nonblank change description is persisted with the changes-needed outcome. */
+  it('SAFETY-DECISION-03 persists requested changes with their description', async () => {
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'changes_needed', reason: 'Confirm a backup microphone.' }).expect(201);
+    expect((await pool.query('SELECT status, feedback FROM event_safety_checks WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual([{ status: 'changes_needed', feedback: 'Confirm a backup microphone.' }]);
+    expect((await pool.query('SELECT feedback_text FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual([{ feedback_text: 'Confirm a backup microphone.' }]);
+  });
+
+  /** SAFETY-DECISION-03: three submitted change rows become independent coordinator items that must all be resolved before re-request. */
+  it('SAFETY-DECISION-03 persists and independently resolves multiple requested changes', async () => {
+    await pool.query('UPDATE events SET coordinator_id = $2 WHERE id = $1', [eligible.eventId, coordinator.uid]);
+    await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'changes_needed', changes: ['Add a fire exit plan.', 'Confirm occupancy.', 'Label the emergency lighting.'] }).expect(201);
+
+    const feedback = await pool.query<{ id: string; feedback_text: string; resolved_by_coordinator_at: Date | null }>(
+      'SELECT id, feedback_text, resolved_by_coordinator_at FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId],
+    );
+    expect(feedback.rows.map((row) => row.feedback_text).sort()).toEqual([
+      'Add a fire exit plan.', 'Confirm occupancy.', 'Label the emergency lighting.',
+    ].sort());
+    expect(feedback.rows).toHaveLength(3);
+    const checklist = await http().get(`/api/events/${eligible.eventId}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(checklist.body.checklist.safetyCheck.feedback).toHaveLength(3);
+    expect(checklist.body.checklist.safetyCheck.feedback.every((item: { resolvedByCoordinatorAt?: string }) => !item.resolvedByCoordinatorAt)).toBe(true);
+
+    await http().post(`/api/events/${eligible.eventId}/safety-check/feedback/${feedback.rows[0].id}/resolve`)
+      .set('Cookie', coordinator.cookie).expect(200);
+    const blocked = await http().post(`/api/events/${eligible.eventId}/safety-check/request`)
+      .set('Cookie', coordinator.cookie).expect(422);
+    expect(blocked.body.code).toBe('SAFETY_FEEDBACK_UNRESOLVED');
+    expect(await pool.query('SELECT status FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]).then((result) => result.rows[0].status))
+      .toBe('changes_needed');
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1 AND resolved_by_coordinator_at IS NULL', [eligible.eventId]).then((result) => result.rows[0].count))
+      .toBe(2);
+
+    await Promise.all(feedback.rows.slice(1).map((item) => http()
+      .post(`/api/events/${eligible.eventId}/safety-check/feedback/${item.id}/resolve`).set('Cookie', coordinator.cookie).expect(200)));
+    await http().post(`/api/events/${eligible.eventId}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
+    expect(await pool.query('SELECT status FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]).then((result) => result.rows[0].status))
+      .toBe('pending');
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId]).then((result) => result.rows[0].count))
+      .toBe(0);
+  });
+
+  /** SAFETY-DECISION-04: a blank row rejects the complete changes decision without persisting any subset. */
+  it('SAFETY-DECISION-04 refuses a changes array containing a blank row atomically', async () => {
+    const before = await pool.query('SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]);
+    const response = await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision: 'changes_needed', changes: ['Add a fire exit plan.', '  '] });
+    expect(response.status).toBe(400);
+    expect(response.body.message).toContain('Change 2');
+    expect((await pool.query('SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual(before.rows);
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId]).then((result) => result.rows[0].count))
+      .toBe(0);
+  });
+
+  /** SAFETY-DECISION-04: rejected and changes-needed decisions with absent or whitespace-only reasons are refused without a database change. */
+  it.each([
+    ['rejected', undefined], ['rejected', '   '], ['changes_needed', undefined], ['changes_needed', '\t '],
+  ] as const)('SAFETY-DECISION-04 refuses %s with missing or blank feedback', async (decision, reason) => {
+    const storedBefore = await pool.query('SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId]);
+    const response = await http().post(`/api/safety-officer/queue/${eligible.eventId}/decision`).set('Cookie', officer.cookie)
+      .send({ decision, ...(reason === undefined ? {} : { reason }) });
+    expect(response.status).toBe(400);
+    expect((await pool.query('SELECT status, approver_name, feedback, decided_at FROM event_safety_checks WHERE event_id = $1', [eligible.eventId])).rows)
+      .toEqual(storedBefore.rows);
+    expect(await pool.query('SELECT count(*)::int AS count FROM safety_check_feedback_items WHERE event_id = $1', [eligible.eventId]).then((result) => result.rows[0].count))
+      .toBe(0);
+  });
+
+  /** SAFETY-DECISION-01: approval with a valid payload rejects missing and non-officer sessions without changing the pending row. */
+  it('SAFETY-DECISION-01 refuses unauthorized approval attempts and preserves the pending decision', async () => {
+    await expectUnauthorizedSafetyDecision({ decision: 'approved' });
+  });
+
+  /** SAFETY-DECISION-02: rejection with a valid reason rejects missing and non-officer sessions without changing decision or feedback. */
+  it('SAFETY-DECISION-02 refuses unauthorized rejection attempts and preserves the pending decision', async () => {
+    await expectUnauthorizedSafetyDecision({ decision: 'rejected', reason: 'Add a fire exit plan.' });
+  });
+
+  /** SAFETY-DECISION-03: request changes with a valid row rejects missing and non-officer sessions without changing decision or feedback. */
+  it('SAFETY-DECISION-03 refuses unauthorized change-request attempts and preserves the pending decision', async () => {
+    await expectUnauthorizedSafetyDecision({ decision: 'changes_needed', changes: ['Confirm occupancy.'] });
   });
 
   /** SAFETY-QUEUE-05: only a Safety Officer may respond; the response, feedback, queue removal, and repeat refusal persist in PostgreSQL. */
