@@ -166,15 +166,18 @@ describe('SPM-129 SafetyOfficerService', () => {
     expect(clientQuery).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO safety_check_feedback_items'), ['event-1', 'Please add an accessible route.', JSON.stringify({ venueIds: ['booking-1'], equipmentIds: ['equipment-1'] })]);
   });
 
-  /** SAFETY-OUTCOME-05: rejecting a safety outcome does not cancel or release confirmed venue/equipment arrangements. */
-  it('SAFETY-OUTCOME-05 does not change venue or equipment arrangement state', async () => {
+  /** SAFETY-OUTCOME-05: rejection routes selected active arrangements to staff review without releasing their rows. */
+  it('SAFETY-OUTCOME-05 returns selected venue and equipment rows to review', async () => {
     const { service, clientQuery } = setup([], [{ event_id: 'event-1' }]);
     await service.respond(OFFICER, 'event-1', { decision: 'rejected', reason: 'Please add an accessible route.' });
 
     const arrangementWrites = clientQuery.mock.calls
       .map(([sql]) => String(sql))
       .filter((sql) => /\b(?:UPDATE|DELETE)\s+(?:venue_bookings|equipment_reservations)\b/i.test(sql));
-    expect(arrangementWrites).toEqual([]);
+    expect(arrangementWrites).toEqual(expect.arrayContaining([
+      expect.stringContaining("UPDATE venue_bookings SET status = 'pending'"),
+      expect.stringContaining("UPDATE equipment_reservations SET status = 'Requested'"),
+    ]));
   });
 
   /** SAFETY-OUTCOME-04: legacy reason-only requests cannot persist feedback without an arrangement review marker. */

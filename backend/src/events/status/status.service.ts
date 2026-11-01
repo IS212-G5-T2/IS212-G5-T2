@@ -52,6 +52,9 @@ interface EventRow {
 interface PlanningEventRow extends EventRow {
   equipment_needs: string;
   equipment_confirmed_at: Date | null;
+  registration_enabled: boolean;
+  registration_opens_at: Date | null;
+  registration_closes_at: Date | null;
 }
 
 interface StatusChangeContext {
@@ -161,7 +164,8 @@ export class StatusService {
     return this.database.transaction(async (client) => {
       const row = (
         await client.query<PlanningEventRow>(
-          `SELECT id, status, event_name, organiser_id, coordinator_id, equipment_needs, equipment_confirmed_at
+          `SELECT id, status, event_name, organiser_id, coordinator_id, equipment_needs, equipment_confirmed_at,
+                  registration_enabled, registration_opens_at, registration_closes_at
              FROM events WHERE id = $1 FOR UPDATE`,
           [event.id],
         )
@@ -175,6 +179,11 @@ export class StatusService {
         snapshot,
         equipmentNeeds: row.equipment_needs,
         equipmentConfirmedAt: row.equipment_confirmed_at,
+        registration: {
+          enabled: row.registration_enabled,
+          opensAt: row.registration_opens_at,
+          closesAt: row.registration_closes_at,
+        },
         safety: { status: 'not_requested' },
         now,
       });
@@ -203,7 +212,8 @@ export class StatusService {
     return this.database.transaction(async (client) => {
       const row = (
         await client.query<PlanningEventRow>(
-          `SELECT id, status, event_name, organiser_id, coordinator_id, equipment_needs, equipment_confirmed_at
+          `SELECT id, status, event_name, organiser_id, coordinator_id, equipment_needs, equipment_confirmed_at,
+                  registration_enabled, registration_opens_at, registration_closes_at
              FROM events WHERE id = $1 FOR UPDATE`,
           [event.id],
         )
@@ -218,6 +228,11 @@ export class StatusService {
         snapshot,
         equipmentNeeds: row.equipment_needs,
         equipmentConfirmedAt: row.equipment_confirmed_at,
+        registration: {
+          enabled: row.registration_enabled,
+          opensAt: row.registration_opens_at,
+          closesAt: row.registration_closes_at,
+        },
         safety: { status: 'not_requested' },
         now,
       });
@@ -384,8 +399,16 @@ export class StatusService {
   private async checklistFor(eventId: string, now: Date) {
     const [snapshot, meta, safety] = await Promise.all([
       this.reader.read(this.database, eventId, { lock: false }),
-      this.database.query<{ equipment_needs: string; equipment_confirmed_at: Date | null }>(
-        'SELECT equipment_needs, equipment_confirmed_at FROM events WHERE id = $1',
+      this.database.query<{
+        equipment_needs: string;
+        equipment_confirmed_at: Date | null;
+        registration_enabled: boolean;
+        registration_opens_at: Date | null;
+        registration_closes_at: Date | null;
+      }>(
+        `SELECT equipment_needs, equipment_confirmed_at, registration_enabled,
+                registration_opens_at, registration_closes_at
+           FROM events WHERE id = $1`,
         [eventId],
       ),
       this.safetyChecks.view(eventId),
@@ -394,6 +417,11 @@ export class StatusService {
       snapshot,
       equipmentNeeds: meta.rows[0]?.equipment_needs ?? '',
       equipmentConfirmedAt: meta.rows[0]?.equipment_confirmed_at ?? null,
+      registration: {
+        enabled: meta.rows[0]?.registration_enabled ?? false,
+        opensAt: meta.rows[0]?.registration_opens_at ?? null,
+        closesAt: meta.rows[0]?.registration_closes_at ?? null,
+      },
       safety,
       now,
     });

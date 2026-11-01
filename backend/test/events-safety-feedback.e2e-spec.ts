@@ -31,6 +31,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
   let createdEquipmentIds: string[];
 
   beforeAll(() => {
+    process.env.DATABASE_URL = database;
     pool = new pg.Pool({ connectionString: database });
   });
   afterAll(async () => {
@@ -73,7 +74,8 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     const uid = created.rows[0].id;
     createdUserIds.push(uid);
     await pool.query('INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE name = $2', [uid, role]);
-    const response = await http().post('/api/auth/login').send({ email, password: 'password123' }).expect(201);
+    const response = await http().post('/api/auth/login').send({ email, password: 'password123' });
+    if (response.status !== 201) throw new Error(`Coordinator login failed (${response.status}): ${response.text}`);
     const cookie = response.headers['set-cookie']?.find((value: string) => value.startsWith('connectsphere_session='));
     if (!cookie) throw new Error('Expected a session cookie');
     return { uid, cookie: cookie.split(';', 1)[0] };
@@ -158,7 +160,7 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
   /** Resolving a safety feedback item marks it as handled, and unresolving it clears that mark. */
   it('SAFETY-FEEDBACK-01: resolving an item marks it, and unresolving clears it', async () => {
     // Arrange
-    const { id, itemIds } = await seedChangesNeededEvent();
+    const { id, itemIds, equipmentRequestId } = await seedChangesNeededEvent();
 
     // Act: resolve the first item
     await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[0]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
@@ -218,6 +220,82 @@ describe.skipIf(!database)('SAFETY-FEEDBACK: coordinator resolves Safety Officer
     ]);
     const queue = await http().get('/api/safety-officer/queue').set('Cookie', officer.cookie).expect(200);
     expect(queue.body.map((event: { id: string }) => event.id)).toContain(id);
+  });
+
+  /** SAFETY-OUTCOME-06: resource readiness is independent of feedback acknowledgement and blocks re-request until re-approved. */
+  it('SAFETY-OUTCOME-06 keeps selected resources pending after feedback acknowledgement', async () => {
+    const { id, itemIds, equipmentRequestId } = await seedChangesNeededEvent();
+    const venueId = (await pool.query<{ id: string }>(
+      'SELECT id FROM venue_bookings WHERE event_id = $1', [id],
+    )).rows[0].id;
+    const equipmentId = (await pool.query<{ id: string }>(
+      'SELECT id FROM equipment_reservations WHERE event_id = $1', [id],
+    )).rows[0].id;
+    await pool.query(
+      `UPDATE safety_check_feedback_items
+          SET reapproval_started_at = now(), review_arrangements = CASE id
+            WHEN $1 THEN jsonb_build_object('venueIds', jsonb_build_array($3::text), 'equipmentIds', '[]'::jsonb)
+            ELSE jsonb_build_object('venueIds', '[]'::jsonb, 'equipmentIds', jsonb_build_array($4::text))
+          END
+        WHERE event_id = $2`,
+      [itemIds[0], id, venueId, equipmentId],
+    );
+    await pool.query("UPDATE venue_bookings SET status = 'pending' WHERE id = $1", [venueId]);
+    await pool.query("UPDATE equipment_reservations SET status = 'Requested' WHERE id = $1", [equipmentId]);
+    await pool.query("UPDATE equipment_requests SET status = 'Pending Review' WHERE event_id = $1", [id]);
+
+    const initial = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(initial.body.checklist.venue.status).toBe('pending');
+    expect(initial.body.checklist.equipment.status).toBe('pending');
+    expect(initial.body.checklist.safetyCheck.status).toBe('changes_needed');
+    expect(initial.body.checklist.venue.items[0]).toMatchObject({ id: venueId, safetyReviewStatus: 'Pending review' });
+    expect(initial.body.checklist.equipment.items[0]).toMatchObject({ id: equipmentId, safetyReviewStatus: 'Pending review' });
+
+    const blocked = await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(422);
+    expect(blocked.body.code).toBe('SAFETY_PREREQUISITES_NOT_MET');
+
+    await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[0]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+    const partial = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(partial.body.checklist.venue.status).toBe('pending');
+    expect(partial.body.checklist.equipment.status).toBe('pending');
+
+    await http().delete(`/api/events/${id}/safety-check/feedback/${itemIds[0]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+    const restored = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(restored.body.checklist.venue.status).toBe('pending');
+
+    await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[0]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+    await http().post(`/api/events/${id}/safety-check/feedback/${itemIds[1]}/resolve`).set('Cookie', coordinator.cookie).expect(200);
+    const ready = await http().get(`/api/events/${id}/arrangements-status`).set('Cookie', coordinator.cookie).expect(200);
+    expect(ready.body.checklist.venue.status).toBe('pending');
+    expect(ready.body.checklist.equipment.status).toBe('pending');
+
+    await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(422);
+    expect((await pool.query('SELECT status FROM venue_bookings WHERE event_id = $1', [id])).rows).toEqual([{ status: 'pending' }]);
+    expect((await pool.query('SELECT status FROM equipment_reservations WHERE event_id = $1', [id])).rows).toEqual([{ status: 'Requested' }]);
+
+    const venueStaff = await createSession('VENUE_STAFF', 'Venue Staff Reapprover');
+    const bookingVenueId = (await pool.query<{ venue_id: string }>(
+      'SELECT venue_id FROM venue_bookings WHERE id = $1', [venueId],
+    )).rows[0].venue_id;
+    await pool.query('UPDATE venues SET owner_user_id = $2 WHERE id = $1', [bookingVenueId, venueStaff.uid]);
+    await pool.query(
+      `INSERT INTO venue_booking_requests (event_id, venue_id)
+       SELECT event_id, venue_id FROM venue_bookings WHERE id = $1
+       ON CONFLICT (event_id, venue_id) DO NOTHING`, [venueId],
+    );
+    const support = await createSession('TECH_SUPPORT', 'Technical Support Reapprover');
+    const reservationIds = await pool.query<{ id: string }>(
+      'SELECT id FROM equipment_reservations WHERE event_id = $1 ORDER BY id', [id],
+    );
+    await http().post(`/api/venues/bookings/${venueId}/approve`).set('Cookie', venueStaff.cookie).expect(201);
+    await http().patch(`/api/equipment/requests/${equipmentRequestId}/reserve`).set('Cookie', support.cookie).expect(200);
+    expect((await pool.query('SELECT id, status FROM venue_bookings WHERE id = $1', [venueId])).rows)
+      .toEqual([{ id: venueId, status: 'approved' }]);
+    expect((await pool.query('SELECT id, status FROM equipment_reservations WHERE event_id = $1 ORDER BY id', [id])).rows)
+      .toEqual(reservationIds.rows.map((row) => ({ ...row, status: 'Reserved' })));
+    expect((await pool.query('SELECT count(*)::int AS n FROM safety_check_feedback_items WHERE event_id = $1', [id])).rows[0].n)
+      .toBe(2);
+    await http().post(`/api/events/${id}/safety-check/request`).set('Cookie', coordinator.cookie).expect(200);
   });
 
   /** SAFETY-QUEUE-05-SUP-REJECT-RESOLUTION: rejected feedback remains durable and blocks re-request until coordinator resolution. */

@@ -122,14 +122,14 @@ describe("SPM-129 SafetyCheckQueuePage", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 1 must select at least one arrangement for review.");
     expect(fetch).toHaveBeenCalledTimes(2);
 
-    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (technical)" }));
-    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (technical)" }));
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(fetch).toHaveBeenCalledTimes(2);
-    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (technical)" }));
+    await user.click(within(firstChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Change 2 must select at least one arrangement for review.");
-    await user.click(within(secondChange).getByRole("checkbox", { name: "Microphone (technical)" }));
+    await user.click(within(secondChange).getByRole("checkbox", { name: "Microphone (equipment)" }));
     await user.click(within(dialog).getByRole("button", { name: "Submit change request" }));
     expect(await screen.findByRole("dialog", { name: "Decision submitted" })).toBeInTheDocument();
     expect(fetch).toHaveBeenLastCalledWith(expect.stringContaining("/decision"), expect.objectContaining({

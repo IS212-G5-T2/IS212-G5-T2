@@ -196,8 +196,50 @@ export class SafetyOfficerService {
       for (const feedbackItem of feedbackItems) {
         const reviewArrangements = decision === 'rejected' ? selectedArrangements : feedbackItem.reviewArrangements;
         await client.query(
-          `INSERT INTO safety_check_feedback_items (event_id, feedback_text, review_arrangements) VALUES ($1, $2, $3::jsonb)`,
+          `INSERT INTO safety_check_feedback_items (event_id, feedback_text, review_arrangements, reapproval_started_at, reapproval_backfilled_at)
+           VALUES ($1, $2, $3::jsonb, now(), now())`,
           [eventId, feedbackItem.text, JSON.stringify(reviewArrangements)],
+        );
+      }
+      // A Safety Officer response sends only the flagged, already-approved rows back through their original staff
+      // workflows. Keep row IDs/history intact; the resolution checkbox does not substitute for fresh staff approval.
+      const venueIdsToReview = [...new Set(feedbackItems.flatMap((item) =>
+        (decision === 'rejected' ? selectedArrangements : item.reviewArrangements).venueIds,
+      ))];
+      const equipmentIdsToReview = [...new Set(feedbackItems.flatMap((item) =>
+        (decision === 'rejected' ? selectedArrangements : item.reviewArrangements).equipmentIds,
+      ))];
+      if (venueIdsToReview.length) {
+        await client.query(
+          `UPDATE venue_bookings SET status = 'pending'
+            WHERE event_id = $1 AND id = ANY($2::uuid[]) AND status = 'approved'`,
+          [eventId, venueIdsToReview],
+        );
+        await client.query(
+          `INSERT INTO venue_booking_requests (event_id, venue_id, special_request)
+           SELECT DISTINCT ON (event_id, venue_id) event_id, venue_id, special_request FROM venue_bookings
+            WHERE event_id = $1 AND id = ANY($2::uuid[])
+            ORDER BY event_id, venue_id, created_at DESC
+           ON CONFLICT (event_id, venue_id) DO UPDATE SET special_request = EXCLUDED.special_request`,
+          [eventId, venueIdsToReview],
+        );
+      }
+      if (equipmentIdsToReview.length) {
+        await client.query(
+          `UPDATE equipment_reservations SET status = 'Requested', updated_at = now()
+            WHERE event_id = $1 AND id = ANY($2::uuid[]) AND status = 'Reserved'`,
+          [eventId, equipmentIdsToReview],
+        );
+        await client.query(
+          `UPDATE equipment_requests request
+              SET status = 'Pending Review', decision_reason = NULL, updated_at = now()
+            WHERE request.event_id = $1
+              AND EXISTS (
+                SELECT 1 FROM equipment_request_items item
+                JOIN equipment_reservations reservation ON reservation.equipment_request_item_id = item.id
+                WHERE item.request_id = request.id AND reservation.id = ANY($2::uuid[])
+              )`,
+          [eventId, equipmentIdsToReview],
         );
       }
       if (event.rows[0].coordinator_id) {

@@ -33,7 +33,7 @@ describe('SPM-57 equipment request persistence', () => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
         return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
       }
-      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY item.equipment_name')) {
         return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 2 }], rowCount: 1 };
       }
       if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
@@ -57,7 +57,7 @@ describe('SPM-57 equipment request persistence', () => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
         return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
       }
-      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY item.equipment_name')) {
         return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 2 }], rowCount: 1 };
       }
       if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
@@ -79,7 +79,7 @@ describe('SPM-57 equipment request persistence', () => {
       if (sql.includes('FROM equipment_requests r JOIN events e')) {
         return { rows: [{ id: requestId, status: 'Pending Review', event_id: eventId, start_date_time: event.start_date_time, end_date_time: event.end_date_time }], rowCount: 1 };
       }
-      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY equipment_name')) {
+      if (sql.includes('FROM equipment_request_items') && sql.includes('GROUP BY item.equipment_name')) {
         return { rows: [{ equipment_name: 'Conference microphone', requested_quantity: 1 }], rowCount: 1 };
       }
       if (sql.includes('FROM equipment\n          WHERE equipment_name')) {
@@ -119,7 +119,7 @@ describe('SPM-57 equipment request persistence', () => {
     await expect(repository.markCannotProvide(requestId, 'Only 8 available; 10 requested.')).resolves.toEqual({ kind: 'cannot-provided', id: requestId });
     const update = query.mock.calls.find(([sql]) => sql.includes("status = 'Cannot Provide'") && sql.includes('decision_reason = $2'));
     expect(update?.[1]).toEqual([requestId, 'Only 8 available; 10 requested.', new Date('2030-01-10T12:00:00Z')]);
-    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'Unavailable'") && sql.includes("reservation.status IN ('Requested', 'Reserved')"))).toBe(true);
+    expect(query.mock.calls.some(([sql]) => sql.includes("SET status = 'Unavailable'") && sql.includes("reservation.status = 'Requested'"))).toBe(true);
   });
 
   /** F1/CQ-1 regression: a Pending Review request reached via an in-window reschedule
@@ -135,7 +135,8 @@ describe('SPM-57 equipment request persistence', () => {
     });
     await expect(repository.markCannotProvide(requestId, 'Equipment no longer available.')).resolves.toEqual({ kind: 'cannot-provided', id: requestId });
     const retire = query.mock.calls.find(([sql]) => sql.includes("SET status = 'Unavailable'"));
-    expect(retire?.[0]).toContain("reservation.status IN ('Requested', 'Reserved')");
+    expect(retire?.[0]).toContain("reservation.status = 'Requested'");
+    expect(retire?.[0]).toContain("reservation.status = 'Reserved'");
   });
 
   /** Cannot Provide only applies to a Pending Review request on a non-Confirmed event. */

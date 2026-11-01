@@ -78,9 +78,10 @@ export interface PlanningChecklist {
     resetReason?: string;
     resetDate?: string;
   };
+  registration: { enabled: boolean; status: 'confirmed' | 'pending' };
   canRequestSafetyCheck: boolean;
   /** Prerequisites still blocking a safety check request. */
-  blocking: ("venue" | "equipment")[];
+  blocking: ("venue" | "equipment" | "registration")[];
 }
 
 export interface ArrangementsStatus {

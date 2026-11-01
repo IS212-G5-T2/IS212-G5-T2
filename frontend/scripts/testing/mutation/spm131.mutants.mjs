@@ -2,10 +2,18 @@ const FILE = 'src/components/notifications/NotificationItem.tsx';
 const TEST = 'src/components/notifications/NotificationItem.test.tsx';
 
 export const SUITES = {
-  unit: { args: ['run', TEST, 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx'] },
+  unit: { args: ['run', TEST, 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', 'src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx', 'src/components/notifications/NotificationBell.test.tsx'] },
 };
 
 export const MUTANTS = [
+  {
+    id: 'S131-FE-04',
+    name: 'the coordinator notification bell filters out safety outcome notifications (SAFETY-OUTCOME-01)',
+    file: 'src/components/notifications/NotificationBell.tsx',
+    suites: ['unit'],
+    edits: [['  "coordinator_safety_response",\n', '']],
+    testMappings: [{ suite: 'unit', file: 'src/components/notifications/NotificationBell.test.tsx', title: 'SAFETY-OUTCOME-01 shows the safety response in the coordinator notification bell' }],
+  },
   {
     id: 'S131-FE-01',
     name: 'the safety-response notification uses an unrelated icon (SAFETY-OUTCOME-01)',
@@ -20,7 +28,7 @@ export const MUTANTS = [
     file: 'src/features/events/pages/detail/planning/PlanningInformationPage.tsx',
     suites: ['unit'],
     edits: [['by Safety Officer', 'by coordinator']],
-    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', title: 'SAFETY-OUTCOME-04/05: the coordinator sees safety-specific review markers beside selected arrangements without operational statuses changing' }],
+    testMappings: [{ suite: 'unit', file: 'src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx', title: 'shows Pending review by Safety Officer for selected venue and equipment arrangements' }],
   },
   {
     id: 'S131-FE-03',

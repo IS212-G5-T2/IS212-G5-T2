@@ -53,8 +53,8 @@ interface Props {
   people?: ReactNode;
   /** SPM-139: the Registration tab's content. Passed only for approved, planning and confirmed events, so the tab exists only then. */
   registration?: ReactNode;
-  /** Whether both registration dates are set; drives the Registration tab's status icon. */
-  registrationPeriodSet?: boolean;
+  /** Temporary UI gate while the Registration form differs from its last saved server settings. */
+  registrationDraftPending?: boolean;
 }
 
 const ALERT =
@@ -188,7 +188,7 @@ function RequestList({
             {BADGE[item.status].label}
           </span>
           {item.safetyReviewStatus && <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
-            {item.safetyReviewStatus} by Safety Officer
+            Safety re-approval required
           </span>}
           {item.requestedDate && (
             <span className={muted}>Requested {date(item.requestedDate)}</span>
@@ -451,7 +451,7 @@ export function PlanningInformationPage({
   refreshError,
   people,
   registration,
-  registrationPeriodSet,
+  registrationDraftPending = false,
 }: Props) {
   const tabsId = useId();
   const [tab, setTab] = useState<TabKey>("event");
@@ -526,6 +526,13 @@ export function PlanningInformationPage({
     checklist?.equipment.status === "confirmed" ||
     (!!checklist && checklist.equipment.confirmedByCoordinator);
   const safety = checklist?.safetyCheck;
+  const registrationConfirmed = !!checklist && !registrationDraftPending && checklist.registration.status === "confirmed";
+  const safetyCanRequest = !!checklist?.canRequestSafetyCheck && !registrationDraftPending;
+  const safetyBlocking = checklist
+    ? registrationDraftPending && !checklist.blocking.includes("registration")
+      ? [...checklist.blocking, "registration" as const]
+      : checklist.blocking
+    : [];
 
   const tabs: Array<{
     key: TabKey;
@@ -545,7 +552,7 @@ export function PlanningInformationPage({
       unavailable: checklist?.equipment.status === "unavailable",
     },
     ...(registration
-      ? [{ key: "registration" as const, label: "Registration", done: !!registrationPeriodSet, unavailable: false }]
+      ? [{ key: "registration" as const, label: "Registration", done: registrationConfirmed, unavailable: false }]
       : []),
   ];
 
@@ -710,6 +717,7 @@ export function PlanningInformationPage({
                 done={checklist.venue.status === "confirmed"}
               />
               <Prerequisite label="Equipment" done={!!equipmentDone} />
+              <Prerequisite label="Registration" done={registrationConfirmed} />
             </ul>
 
             {safety.status === "not_requested" && (
@@ -732,22 +740,30 @@ export function PlanningInformationPage({
                       "Could not request the safety check.",
                     )
                   }
-                  disabled={!checklist.canRequestSafetyCheck || pending}
+                  disabled={!safetyCanRequest || pending}
                   aria-busy={pending}
                 >
                   {safety.resetReason
                     ? "Re-Request For Safety Check"
                     : "Request For Safety Check"}
                 </Button>
-                {!checklist.canRequestSafetyCheck && (
+                {!safetyCanRequest && (
                   <p className={muted}>
-                    Pending {checklist.blocking.join(" and ")} confirmation to
+                    Pending {safetyBlocking.join(" and ")} confirmation to
                     proceed
+                  </p>
+                )}
+                {(checklist.registration.status === "pending" || registrationDraftPending) && (
+                  <p className={muted}>
+                    {registrationDraftPending
+                      ? "Save or restore the Registration settings before requesting the safety check."
+                      : "Enable registration and save both the opening and closing dates before requesting the safety check."}
                   </p>
                 )}
               </div>
             )}
-            <p className="mb-2">
+            <p className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-800 dark:text-gray-200">Safety check:</span>
               <StateLabel {...safetyLabel(safety.status)} />
             </p>
             {safety.status === "pending" && (
@@ -761,7 +777,10 @@ export function PlanningInformationPage({
                   eventId={eventId}
                   status={safety.status}
                   feedback={safety.feedback}
-                  canRequestSafetyCheck={checklist.canRequestSafetyCheck}
+                  venues={checklist.venue.items}
+                  equipment={checklist.equipment.items}
+                  canRequestSafetyCheck={safetyCanRequest}
+                  blocking={safetyBlocking}
                   onRefresh={load}
                   pending={pending}
                   onError={setActionError}
@@ -780,7 +799,7 @@ export function PlanningInformationPage({
                         "Could not request the safety check.",
                       )
                     }
-                    disabled={!checklist.canRequestSafetyCheck || pending}
+                    disabled={!safetyCanRequest || pending}
                     aria-busy={pending}
                   >
                     Re-Request Safety Check
@@ -796,7 +815,7 @@ export function PlanningInformationPage({
                     "Could not request the safety check.",
                   )
                 }
-                disabled={!checklist.canRequestSafetyCheck || pending}
+                disabled={!safetyCanRequest || pending}
                 aria-busy={pending}
               >
                 Re-Request Safety Check

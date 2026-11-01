@@ -1,7 +1,7 @@
 {
   "story": "SPM-131",
   "title": "Respond to safety outcome (Event Coordinator)",
-  "note": "Jira SPM-131 AC1-AC6 and Confluence matrix 36798544 / case pages 36831297, 36896834, 36831315, 36700305, 36798580, 36896852 are authoritative. User clarification (2026-11-01): Pending review is safety-specific metadata keyed to arrangement IDs; request-changes marks only selected venue/technical arrangements, rejection marks all active venue/equipment arrangements, and the Coordinator sees the markers while operational approval statuses stay intact. A Safety Officer response leaves the queue; after edits and resubmission, the event returns to that queue. SPM-135 provides confirmation readiness, feedback resolution and re-request. AC1 adds a durable coordinator notice. Rejection leaves event Planning and does not cancel it or release bookings. AC4 request-changes payloads must identify at least one affected arrangement on every row; legacy reason-only or changes:string[] requests are refused because they cannot implement the selected-only marker contract.",
+  "note": "Jira SPM-131 AC1-AC6 and Confluence matrix 36798544 / case pages 36831297, 36896834, 36831315, 36700305, 36798580, 36896852 are authoritative. User clarification (2026-11-02): preserve existing arrangement rows and IDs; selected venue/equipment rows transition to pending in their normal staff review workflows, while unselected arrangements remain unchanged. Staff must approve/reserve selected arrangements again, and the Coordinator must independently resolve all safety feedback before re-request. Enabled registration must have saved opening and closing dates; disabled registration is an intentional no-registration configuration and satisfies the safety prerequisite. Use persisted event settings for the server gate and displayed status. Checkboxes never substitute for staff approval. Request-changes selects only affected arrangement IDs; rejection selects all active approved venues and Reserved equipment. Keep feedback visible during those staff transitions. Rejection leaves the event Planning and does not delete or release arrangement rows. AC4 requires at least one selected arrangement per change row; legacy reason-only or changes:string[] requests are refused.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -82,6 +82,14 @@
       {
         "glob": "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.test.tsx",
         "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
+      },
+      {
+        "glob": "frontend/src/components/notifications/NotificationBell.test.tsx",
+        "titleMatch": "SAFETY-OUTCOME"
       }
     ]
   },
@@ -91,12 +99,17 @@
       "backend/src/events/safety-officer/safety-officer.service.ts",
       "backend/src/events/coordinator-notification-types.ts",
       "backend/src/events/status/checklist.ts",
+      "backend/src/events/status/status.service.ts",
       "backend/src/events/status/safety-check.source.ts"
     ],
     "frontend": [
       "frontend/src/components/notifications/NotificationItem.tsx",
       "frontend/src/features/events/pages/safety/SafetyCheckQueuePage.tsx",
-      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx"
+      "frontend/src/features/events/pages/detail/planning/PlanningInformationPage.tsx",
+      "frontend/src/features/events/pages/detail/EventDetailPage.tsx",
+      "frontend/src/features/events/pages/detail/registration/RegistrationSettingsForm.tsx",
+      "frontend/src/utils/arrangements.ts",
+      "frontend/src/components/notifications/NotificationBell.tsx"
     ]
   },
   "suites": [

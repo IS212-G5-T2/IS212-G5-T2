@@ -36,10 +36,10 @@ function settings(overrides: Partial<RegistrationSettings> = {}): RegistrationSe
   };
 }
 
-function renderForm(status = "planning", initial = settings(), onSaved = vi.fn()) {
+function renderForm(status = "planning", initial = settings(), onSaved = vi.fn(), onDraftStateChange = vi.fn()) {
   fetchMock.mockResolvedValue(initial);
-  render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status={status} onSaved={onSaved} />);
-  return { onSaved };
+  render(<RegistrationSettingsForm eventId={EVENT_ID} startDateTime={START} status={status} onSaved={onSaved} onDraftStateChange={onDraftStateChange} />);
+  return { onSaved, onDraftStateChange };
 }
 
 async function fillSetOk(user: ReturnType<typeof userEvent.setup>) {
@@ -469,5 +469,27 @@ describe("settings form: a server error on the enabled switch", () => {
     await fillSetOk(user);
     await user.click(screen.getByRole("button", { name: "Save registration settings" }));
     expect(await screen.findByText("Registration enabled must be true or false.")).toBeInTheDocument();
+  });
+});
+
+describe("settings form: report unsaved registration drafts", () => {
+  it("SAFETY-OUTCOME-06 reports pending for changed values, restores saved state when reverted, and stays pending after a failed save", async () => {
+    const user = userEvent.setup();
+    const onDraftStateChange = vi.fn();
+    renderForm("planning", settings(), vi.fn(), onDraftStateChange);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(false));
+
+    const enabled = await screen.findByLabelText("Registration enabled");
+    await user.click(enabled);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(true));
+    await user.click(enabled);
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(false));
+
+    await user.clear(screen.getByLabelText("Registration capacity"));
+    await user.type(screen.getByLabelText("Registration capacity"), "2");
+    saveMock.mockRejectedValue(new Error("network down"));
+    await user.click(screen.getByRole("button", { name: "Save registration settings" }));
+    expect(await screen.findByText("Registration settings could not be saved.")).toBeInTheDocument();
+    await waitFor(() => expect(onDraftStateChange).toHaveBeenLastCalledWith(true));
   });
 });

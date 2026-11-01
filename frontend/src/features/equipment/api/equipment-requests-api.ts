@@ -2,6 +2,7 @@ import { api } from '@/utils/api';
 import type { EquipmentRecord, EventRecord } from '@/types';
 
 export interface EquipmentRequestItemInput {
+  id?: string;
   equipmentName: string;
   equipmentType: EquipmentRecord['type'];
   quantity: number;
@@ -14,7 +15,7 @@ export interface EquipmentRequestRecord {
   status: 'Pending Review' | 'Reserved' | 'Unavailable' | 'Cannot Provide' | 'Cancelled';
   requestedBy: string; coordinatorName: string | null; createdAt: string;
   decisionReason?: string | null;
-  items: (EquipmentRequestItemInput & { id: string; availableQuantity?: number; sufficient?: boolean })[];
+  items: (EquipmentRequestItemInput & { id: string; availableQuantity?: number; sufficient?: boolean; reservationId?: string; reservationStatus?: string; safetyReviewSelected?: boolean })[];
 }
 export interface EquipmentRequestSubmission {
   kind: 'created'; id: string; requestReference: string;

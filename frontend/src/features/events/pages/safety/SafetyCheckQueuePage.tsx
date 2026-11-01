@@ -229,7 +229,7 @@ export function SafetyCheckQueuePage() {
                 ...item,
                 equipmentIds: event.target.checked ? [...item.equipmentIds, equipment.id] : item.equipmentIds.filter((id) => id !== equipment.id),
               } : item))} />
-              {equipment.name} (technical)
+              {equipment.name} (equipment)
             </label>)}
           </fieldset>
         </div>)}
