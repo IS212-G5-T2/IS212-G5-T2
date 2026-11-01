@@ -1,23 +1,25 @@
 import { Link } from "react-router-dom";
 import { Card, CardBody } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 import { formatDateTimeRange } from "@/utils/format";
 import type { VenueRecord } from "../venue-records";
 
 /** SPM-50 style venue card enriched with the SPM-124 schedule summary. */
-export function VenueRecordCard({ venue }: { venue: VenueRecord }) {
+export function VenueRecordCard({ venue, currentUserId }: { venue: VenueRecord; currentUserId?: string }) {
   const bookings = venue.reservations.filter(
     (reservation) => reservation.status === "booked",
   ).length;
   const holds = venue.reservations.length - bookings;
+  const isOwner = Boolean(currentUserId && venue.ownerId === currentUserId);
 
   return (
     <div role="listitem" className="h-full">
-      <Link
-        to={`/venue-records/${venue.id}`}
-        aria-label={venue.name}
-        className="block h-full rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
-      >
-        <Card className="h-full transition-shadow hover:shadow-md">
+      <Card className="flex h-full flex-col transition-shadow hover:shadow-md">
+        <Link
+          to={`/venue-records/${venue.id}`}
+          aria-label={venue.name}
+          className="block flex-1 rounded-t-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600"
+        >
           <CardBody>
             {venue.image ? (
               <img
@@ -78,8 +80,20 @@ export function VenueRecordCard({ venue }: { venue: VenueRecord }) {
               </p>
             ))}
           </CardBody>
-        </Card>
-      </Link>
+        </Link>
+        {isOwner && (
+          <div className="flex justify-end border-t border-gray-100 px-5 py-3 dark:border-gray-700">
+            <Link
+              to={`/venue-records/${venue.id}/edit`}
+              aria-label={`Edit ${venue.name}`}
+            >
+              <Button size="sm" variant="secondary">
+                Edit
+              </Button>
+            </Link>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
