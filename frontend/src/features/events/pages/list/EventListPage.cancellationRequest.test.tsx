@@ -53,7 +53,7 @@ const request = (eventId: string, over: Partial<CancellationRequest>): Cancellat
 
 function serve(requests: CancellationRequest[] | Error | null) {
   apiMock.mockImplementation(((path: string) => {
-    if (path === "/events") return Promise.resolve([eventOf("evt-a", "Hack Night"), eventOf("evt-b", "Career Fair")]);
+    if (path === "/events" || path === "/coordinator/queue") return Promise.resolve([eventOf("evt-a", "Hack Night"), eventOf("evt-b", "Career Fair")]);
     if (path === "/requests") return Promise.resolve([]);
     if (path === "/cancellation-requests") return requests instanceof Error ? Promise.reject(requests) : Promise.resolve(requests);
     return Promise.resolve([]);
@@ -178,5 +178,31 @@ describe("SPM-155 Organiser event list indicator: out-of-order replies", () => {
     // Assert: still the newer reply
     expect(within(await cardOf("Hack Night")).getByText("Cancellation requested")).toBeInTheDocument();
     expect(screen.queryByText("Cancellation accepted")).not.toBeInTheDocument();
+  });
+
+  // Kills: FM37, FM39, FM40, FM47, FM51
+  /** CANCEL-REQUEST-02-A (coordinator list): a pending request on an assigned event asks the Coordinator to act. */
+  it("CANCEL-REQUEST-02-A: a Coordinator's pending request shows Cancellation requested on the card", async () => {
+    // Arrange
+    serve([request("evt-a", {})]);
+
+    // Act
+    renderList("coordinator");
+
+    // Assert
+    expect(within(await cardOf("Hack Night")).getByText("Cancellation requested")).toBeInTheDocument();
+    expect(within(await cardOf("Career Fair")).queryByText(/Cancellation/)).not.toBeInTheDocument();
+  });
+
+  /** CANCEL-REQUEST-02-B (coordinator list): a declined or accepted request needs no action, so no label. */
+  it("CANCEL-REQUEST-02-B: a Coordinator's decided request shows no label on the card", async () => {
+    // Arrange
+    serve([request("evt-a", { status: "declined", displayStatus: "declined" })]);
+
+    // Act
+    renderList("coordinator");
+
+    // Assert
+    expect(within(await cardOf("Hack Night")).queryByText(/Cancellation/)).not.toBeInTheDocument();
   });
 });

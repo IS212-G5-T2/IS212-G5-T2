@@ -30,7 +30,11 @@ function RequestDetails({ request }: { request: CancellationRequest }) {
       {request.decidedAt && request.decidedBy && (
         <p className="text-sm text-gray-700 dark:text-gray-300">{`Decided by ${request.decidedBy} on ${formatSingaporeDateTime(request.decidedAt)}`}</p>
       )}
-      {request.reason && <p className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100">{request.reason}</p>}
+      {request.reason && (
+        <p className="text-sm text-gray-900 dark:text-gray-100">
+          <span className="font-medium">Reason:</span> <span className="whitespace-pre-wrap">{request.reason}</span>
+        </p>
+      )}
     </>
   );
 }
@@ -71,10 +75,11 @@ export function CancellationRequestPanel({ event, currentUser }: Props) {
   };
 
   return (
-    <section aria-label="Cancellation request" className="mb-6">
+    <section aria-label="Cancellation request" className="mt-6 mb-6">
+      {(formOpen || current || error || message) && (
       <Card>
         <CardBody>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancellation request</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancellation Request</h2>
           {error && (
             <p role="alert" className="mt-2 text-sm text-danger-900 dark:text-danger-300">
               {error}
@@ -92,9 +97,9 @@ export function CancellationRequestPanel({ event, currentUser }: Props) {
             </div>
           )}
           {earlier.length > 0 && (
-            <div className="mt-3">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Earlier requests</h3>
-              <ul aria-label="Earlier requests" className="mt-1 space-y-2">
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm font-semibold text-gray-700 dark:text-gray-300">Earlier Requests</summary>
+              <ul aria-label="Earlier requests" className="mt-2 space-y-2">
                 {earlier.map((request) => (
                   <li key={request.id} className="rounded-md border border-gray-200 p-2 dark:border-gray-700">
                     <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{statusLabelFor(request.displayStatus)}</p>
@@ -102,14 +107,7 @@ export function CancellationRequestPanel({ event, currentUser }: Props) {
                   </li>
                 ))}
               </ul>
-            </div>
-          )}
-          {canRequest && !formOpen && (
-            <div className="mt-3">
-              <Button variant="secondary" onClick={() => setFormOpen(true)}>
-                Request Cancellation
-              </Button>
-            </div>
+            </details>
           )}
           {canRequest && formOpen && (
             <form
@@ -138,6 +136,14 @@ export function CancellationRequestPanel({ event, currentUser }: Props) {
           )}
         </CardBody>
       </Card>
+      )}
+      {canRequest && !formOpen && (
+        <div className="mt-3 flex justify-end">
+          <Button variant="danger" onClick={() => setFormOpen(true)}>
+            Request Cancellation
+          </Button>
+        </div>
+      )}
     </section>
   );
 }

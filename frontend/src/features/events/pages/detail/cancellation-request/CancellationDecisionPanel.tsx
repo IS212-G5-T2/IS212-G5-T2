@@ -56,10 +56,10 @@ export function CancellationDecisionPanel({ event, currentUser, onAccepted }: Pr
   };
 
   return (
-    <section aria-label="Cancellation request" className="mb-6">
+    <section aria-label="Cancellation request" className="mt-6 mb-6">
       <Card>
         <CardBody>
-          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancellation request</h2>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Cancellation Request</h2>
           {error && (
             <p role="alert" className="mt-2 text-sm text-danger-900 dark:text-danger-300">
               {error}
@@ -83,7 +83,11 @@ export function CancellationDecisionPanel({ event, currentUser, onAccepted }: Pr
               {current.decidedAt && current.decidedBy && (
                 <p className="text-sm text-gray-700 dark:text-gray-300">{`Decided by ${current.decidedBy} on ${formatSingaporeDateTime(current.decidedAt)}`}</p>
               )}
-              {current.reason && <p className="whitespace-pre-wrap text-sm text-gray-900 dark:text-gray-100">{current.reason}</p>}
+              {current.reason && (
+                <p className="text-sm text-gray-900 dark:text-gray-100">
+                  <span className="font-medium">Reason:</span> <span className="whitespace-pre-wrap">{current.reason}</span>
+                </p>
+              )}
             </div>
           )}
           {current?.displayStatus === "pending" && (

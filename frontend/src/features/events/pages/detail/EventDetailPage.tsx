@@ -69,6 +69,20 @@ const STATUS_FLOW = [
 // path and clearly shows the decision that was reached.
 const REJECTED_FLOW = ["draft", "submitted", "rejected"] as const;
 
+/**
+ * The timeline shows only the stages an event has reached. A cancelled event shows the stages up to the one it was
+ * cancelled from (the status history records it), then "cancelled"; it does not show stages it never reached.
+ */
+function timelineStages(status: string, cancelledFrom: string | null): readonly string[] {
+  const flow = STATUS_FLOW as readonly string[];
+  if (status === "cancelled") {
+    const reached = flow.indexOf(cancelledFrom ?? "");
+    return reached >= 0 ? [...flow.slice(0, reached + 1), "cancelled"] : ["cancelled"];
+  }
+  const current = flow.indexOf(status);
+  return current >= 0 ? flow.slice(0, current + 1) : flow;
+}
+
 // Chrome and Firefox block top-level navigation of a link to a data: URL
 // (a phishing-hardening measure), so `target="_blank"` on an `<a
 // href="data:...">` silently fails to open a new tab in real browsers even
@@ -239,6 +253,26 @@ export function EventDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, loadError, event?.coordinatorId, currentUser.role, currentUser.id]);
 
+  // The stage a cancelled event was in before it was cancelled, read from its status history (empty until it loads).
+  const [cancelledFrom, setCancelledFrom] = useState<string | null>(null);
+  const eventId = event?.id;
+  const eventStatus = event?.status;
+  useEffect(() => {
+    if (!eventId || eventStatus !== "cancelled") return;
+    let active = true;
+    api<{ fromStatus: string; toStatus: string }[]>(`/events/${encodeURIComponent(eventId)}/status-history`)
+      .then((entries) => {
+        const cancellation = entries.find((entry) => entry.toStatus.toLowerCase() === "cancelled");
+        if (active) setCancelledFrom(cancellation ? cancellation.fromStatus.toLowerCase() : null);
+      })
+      .catch(() => {
+        if (active) setCancelledFrom(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [eventId, eventStatus]);
+
   if (loading) return <p role="status">Loading event…</p>;
   if (loadError) return <div role="alert">{loadError} <Link to="/events">Back To My Events</Link></div>;
 
@@ -318,7 +352,7 @@ export function EventDetailPage() {
   };
 
   const isRejected = event.status === "rejected";
-  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : STATUS_FLOW;
+  const statusFlow: readonly string[] = isRejected ? REJECTED_FLOW : timelineStages(event.status, cancelledFrom);
   const currentStepIndex = statusFlow.indexOf(event.status);
 
   return (
@@ -380,19 +414,6 @@ export function EventDetailPage() {
           returnFocus={() => cancelledBannerRef.current ?? cancelTriggerRef.current}
           onCancelled={() => setEventStatus(event.id, "cancelled")}
         />
-      )}
-
-      {/* SPM-155: the owning organiser requests cancellation and follows the request (AC1, AC2); the assigned
-          coordinator decides it (AC3 to AC5). Each panel shows itself only to its own role; drafts have no requests. */}
-      {event.status !== "draft" && (
-        <>
-          <CancellationRequestPanel event={event} currentUser={currentUser} />
-          <CancellationDecisionPanel
-            event={event}
-            currentUser={currentUser}
-            onAccepted={() => setEventStatus(event.id, "cancelled")}
-          />
-        </>
       )}
 
       {/* SPM-64 AC5: the owner sees the status of their latest change request.
@@ -801,6 +822,22 @@ export function EventDetailPage() {
           </div>
         )}
       </div>
+
+      {/* SPM-155: the owning organiser requests cancellation and follows the request (AC1, AC2). Shown below the
+          amendments and clarifications; the panel shows itself only to the owner, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationRequestPanel event={event} currentUser={currentUser} />
+      )}
+
+      {/* SPM-155: the assigned coordinator decides a cancellation request (AC3 to AC5). Shown last on the page; the
+          panel shows itself only to that coordinator, and drafts have no requests. */}
+      {event.status !== "draft" && (
+        <CancellationDecisionPanel
+          event={event}
+          currentUser={currentUser}
+          onAccepted={() => setEventStatus(event.id, "cancelled")}
+        />
+      )}
 
       {registrationsOpen && (
         <RegistrationsModal

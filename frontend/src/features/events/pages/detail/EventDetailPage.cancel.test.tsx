@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -70,6 +70,10 @@ function routeApi(event: EventRecord, comments: EventComment[] = []) {
     if (path.endsWith("/planning")) return Promise.resolve(planningView(event));
     if (path.includes("/comments")) return Promise.resolve(comments);
     if (path.endsWith("/confirmed-arrangements")) return Promise.reject(new Error("not confirmed"));
+    // The cancellation's history: the event was cancelled from Confirmed (the timeline stops there).
+    if (path.endsWith("/status-history")) {
+      return Promise.resolve([{ fromStatus: "Confirmed", toStatus: "Cancelled", changedAt: "2026-10-27T04:00:00.000Z", changedBy: { id: "u", name: "C" } }]);
+    }
     return Promise.resolve(event);
   }) as typeof api);
 }
@@ -168,9 +172,10 @@ describe("SPM-136 status timeline: a cancelled event ends at Cancelled", () => {
     // Act: the timeline is shown for the assigned coordinator
     const timeline = await screen.findByRole("list", { name: "Event status timeline" });
 
-    // Assert: Cancelled is the last step and is highlighted; Completed is no longer a step
+    // Assert: the timeline runs through every stage up to Confirmed (Planning included), then Cancelled as the last step
     expect(within(timeline).getByText("cancelled")).toHaveClass("text-primary-800");
-    expect(within(timeline).getByText("confirmed")).toHaveClass("text-primary-800");
+    await waitFor(() => expect(within(timeline).getByText("confirmed")).toHaveClass("text-primary-800"));
+    expect(within(timeline).getByText("planning")).toBeInTheDocument();
     expect(within(timeline).queryByText("completed")).not.toBeInTheDocument();
   });
 });

@@ -14,6 +14,35 @@ function formatSgtSlot(start: string, end: string): string {
   return `${from.date} ${from.time} to ${to.time} SGT`;
 }
 
+/** Yellow: reserved or pending. Green: confirmed. Red: not requested, or refused and not in effect. */
+type Tone = "green" | "yellow" | "red";
+const DOT_CLASS: Record<Tone, string> = { green: "bg-success-500", yellow: "bg-warning-500", red: "bg-danger-500" };
+const TONE_LABEL: Record<Tone, string> = { green: "Confirmed", yellow: "Reserved or pending", red: "Not requested" };
+const TONE_RANK: Record<Tone, number> = { green: 0, yellow: 1, red: 2 };
+
+function toneOfState(state: string): Tone {
+  const s = state.trim().toLowerCase();
+  if (s === "approved" || s === "confirmed") return "green";
+  if (["pending", "reserved", "awaiting check", "changes requested"].includes(s)) return "yellow";
+  return "red";
+}
+
+/** A group shows the worst state of its items; a group with no items is not requested. */
+function worstTone(tones: Tone[]): Tone {
+  if (tones.length === 0) return "red";
+  return tones.reduce((worst, tone) => (TONE_RANK[tone] > TONE_RANK[worst] ? tone : worst));
+}
+
+function ApprovalDot({ tone }: { tone: Tone }) {
+  return (
+    <span
+      aria-hidden="true"
+      title={TONE_LABEL[tone]}
+      className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${DOT_CLASS[tone]}`}
+    />
+  );
+}
+
 export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
   const [view, setView] = useState<ConfirmedArrangements | null>(null);
   const [error, setError] = useState("");
@@ -40,6 +69,9 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
     );
   }
   if (!view) return null;
+  const venueTone = worstTone(view.venueBookings.map((booking) => toneOfState(booking.status)));
+  const equipmentTone = worstTone(view.equipment.map((line) => toneOfState(line.status)));
+  const safetyTone = toneOfState(view.safety.state);
 
   return (
     <Card className="mb-6">
@@ -48,7 +80,7 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
       </CardHeader>
       <CardBody className="space-y-3 text-sm text-gray-800 dark:text-gray-200">
         <div>
-          <h3 className="font-medium">Venue</h3>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={venueTone} />Venue</h3>
           <ul className="list-disc pl-5">
             {view.venueBookings.map((booking) => (
               <li key={`${booking.venueName}-${booking.start}`}>
@@ -58,7 +90,7 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
           </ul>
         </div>
         <div>
-          <h3 className="font-medium">Equipment</h3>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={equipmentTone} />Equipment</h3>
           <ul className="list-disc pl-5">
             {view.equipment.map((line) => (
               <li key={line.name}>
@@ -67,9 +99,10 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
             ))}
           </ul>
         </div>
-        <p>
-          <span className="font-medium">Safety Officer approval:</span> {view.safety.state}
-        </p>
+        <div>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={safetyTone} />Safety Officer Approval</h3>
+          <p>{view.safety.state}</p>
+        </div>
       </CardBody>
     </Card>
   );

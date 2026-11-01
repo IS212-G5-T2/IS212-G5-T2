@@ -118,12 +118,14 @@ export function EventListPage() {
   // if it cannot load, the events still show without it.
   const [cancellationByEvent, setCancellationByEvent] = useState<ReadonlyMap<string, CancellationDisplayStatus>>(new Map());
   useEffect(() => {
-    if (currentUser.role !== "organiser") return;
+    if (currentUser.role !== "organiser" && currentUser.role !== "coordinator") return;
     let active = true;
     (async () => {
       try {
         const requests = await fetchMyCancellationRequests();
-        if (active) setCancellationByEvent(new Map((Array.isArray(requests) ? requests : []).map((r) => [r.eventId, r.displayStatus])));
+        // The Coordinator sees only the requests waiting for a decision; a declined or closed one needs no action.
+        const visible = (Array.isArray(requests) ? requests : []).filter((r) => currentUser.role === "organiser" || r.displayStatus === "pending");
+        if (active) setCancellationByEvent(new Map(visible.map((r) => [r.eventId, r.displayStatus])));
       } catch {
         if (active) setCancellationByEvent(new Map());
       }
@@ -283,7 +285,7 @@ export function EventListPage() {
               attendeeView={isAttendee}
               registrationStatus={isAttendee ? cardRegistrationStatus(e.myRegistrationStatus) : undefined}
               changeRequestPending={pendingChangeEvents.has(e.id)}
-              cancellationRequest={isOrganiser ? cancellationByEvent.get(e.id) : undefined}
+              cancellationRequest={cancellationByEvent.get(e.id)}
             />
           ))}
         </div>
