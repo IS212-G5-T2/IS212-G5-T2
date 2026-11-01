@@ -7,6 +7,8 @@ import { SafetyIndicator } from "@/features/events/components/StatusIndicators";
 import { StateLabel, cardArrangementLabels, type StateLabelInfo } from "@/features/events/components/StatusLabels";
 import { NeedsActionMarker, QueueSafetyLabel, QueueVenueNotes } from "@/features/events/components/QueueIndicators";
 import { attendeeRegistrationLabel } from "@/features/events/lib/attendeeEventView";
+import { listLabelFor } from "@/features/events/lib/cancellationRequests";
+import type { CancellationDisplayStatus } from "@/features/events/types/cancellationRequest";
 
 /** The attendee's own registration for this event; a badge is shown only when there is one (Confirmed, Waitlisted, Withdrawn). */
 export type CardRegistrationStatus = "registered" | "waitlisted" | "withdrawn";
@@ -22,6 +24,8 @@ interface EventCardProps {
   registrationStatus?: CardRegistrationStatus;
   /** SPM-64 AC5: the organiser has a change request awaiting the coordinator's review. */
   changeRequestPending?: boolean;
+  /** SPM-155 AC2: the organiser's latest cancellation request for this event, as it should be shown. */
+  cancellationRequest?: CancellationDisplayStatus;
 }
 
 /**
@@ -58,7 +62,7 @@ function Chip({ label, className }: { label: string; className: string }) {
   );
 }
 
-export function EventCard({ event, attendeeView = false, registrationStatus, changeRequestPending = false }: EventCardProps) {
+export function EventCard({ event, attendeeView = false, registrationStatus, changeRequestPending = false, cancellationRequest }: EventCardProps) {
   // For an attendee, an approved event is internal workflow and carries no badge. A confirmed event shows only its
   // registration label, Registration open or Registration closed (never the event's own status).
   const showEventBadge = !(attendeeView && event.status === "approved");
@@ -102,6 +106,11 @@ export function EventCard({ event, attendeeView = false, registrationStatus, cha
               {changeRequestPending && (
                 <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
                   Change requested: Pending
+                </span>
+              )}
+              {cancellationRequest && (
+                <span className="rounded-full bg-warning-100 px-2 py-0.5 text-xs font-medium text-warning-800 dark:bg-warning-900/30 dark:text-warning-300">
+                  {listLabelFor(cancellationRequest)}
                 </span>
               )}
               {event.reassignedFrom && (

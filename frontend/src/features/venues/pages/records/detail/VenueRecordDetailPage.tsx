@@ -598,19 +598,26 @@ export function VenueRecordDetailPage() {
         title={venue.name}
         description={venue.location}
         actions={
-          <Link
-            to={
-              requestedEventId
-                ? `/venues?eventId=${encodeURIComponent(requestedEventId)}`
-                : "/venue-records"
-            }
-          >
-            <Button variant="secondary">
-              {requestedEventId
-                ? "Back to Search Venues"
-                : "Back To Venue Records"}
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to={
+                requestedEventId
+                  ? `/venues?eventId=${encodeURIComponent(requestedEventId)}`
+                  : "/venue-records"
+              }
+            >
+              <Button variant="secondary">
+                {requestedEventId
+                  ? "Back to Search Venues"
+                  : "Back To Venue Records"}
+              </Button>
+            </Link>
+            {hasRole(user, "venue_staff") && venue.ownerId === user?.id && (
+              <Link to={`/venue-records/${venue.id}/edit`}>
+                <Button variant="primary">Edit Venue</Button>
+              </Link>
+            )}
+          </div>
         }
       />
       {user && (

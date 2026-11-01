@@ -164,6 +164,7 @@ describe("SPM-135 AC1: only the assigned coordinator is offered Confirm Event (p
 
 describe("SPM-135 AC4: the status is Confirmed after a successful confirm, without a reload (page level)", () => {
   // CONFIRM-EVENT-04-A (FE page): the timeline shows confirmed as the current step from the response, with no event refetch.
+  // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM55, FM56, FM57.
   it("CONFIRM-EVENT-04-A (page): after Confirm Event the status shows confirmed as the current step and the event is not refetched", async () => {
     // Arrange: COO-01 on a ready Planning event; the server keeps returning the event as Planning
     renderAs({ id: "coordinator-1", role: "coordinator", roles: ["coordinator"] }, eventRecord());
@@ -177,10 +178,10 @@ describe("SPM-135 AC4: the status is Confirmed after a successful confirm, witho
     await user.click(button);
     expect(await screen.findByRole("status")).toHaveTextContent(`${EVENT_NAME} has been confirmed.`);
 
-    // Assert: the status timeline now marks confirmed as current and cancelled as not yet reached
+    // Assert: the status timeline now marks confirmed as current and shows no stage after it
     const timeline = screen.getByRole("list", { name: "Event status timeline" });
     expect(within(timeline).getByText("confirmed")).toHaveClass("text-primary-800");
-    expect(within(timeline).getByText("cancelled")).toHaveClass("text-gray-400");
+    expect(within(timeline).queryByText("cancelled")).not.toBeInTheDocument();
     // The event is not refetched by the confirm: the count is the same as before the click
     expect(eventFetchCalls()).toBe(fetchesBeforeClick);
     expect(screen.queryByRole("button", { name: "Confirm Event" })).not.toBeInTheDocument();

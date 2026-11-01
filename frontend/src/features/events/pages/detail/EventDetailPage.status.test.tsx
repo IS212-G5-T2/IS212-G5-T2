@@ -137,19 +137,20 @@ describe("SPM-94 AC4: a revisit shows the server's status, not the store's copy"
 });
 
 describe("SPM-94 AC1: the planning page marks the exact current step", () => {
-  // Oracle: the status flow submitted -> approved -> planning -> confirmed; a reached step is shaded, the next one is not.
-  // Kills: a timeline one step ahead or behind (the step after the current one would be shaded).
+  // Oracle: the timeline shows only the stages reached: the current step is shaded and no later stage is shown.
+  // Kills: a timeline one step ahead or behind (the step after the current one would be shown).
+  // Kills (SPM-155 mutants, frontend/scripts/testing/mutation/spm155.mutants.mjs): FM56, FM57.
   it.each([
     ["submitted", "submitted", "approved"],
     ["approved", "approved", "planning"],
     ["planning", "planning", "confirmed"],
     ["confirmed", "confirmed", "cancelled"],
-  ] as const)("TRACK-EVENT-STATUS-01-B: %s marks %s reached and %s not yet reached", async (status, reached, next) => {
+  ] as const)("TRACK-EVENT-STATUS-01-B: %s marks %s reached and does not show %s", async (status, reached, next) => {
     current = eventRecord({ status });
     renderPage();
     const timeline = await screen.findByLabelText("Event status timeline");
     await waitFor(() => expect(within(timeline).getByText(reached)).toHaveClass("bg-primary-100"));
-    expect(within(timeline).getByText(next)).toHaveClass("text-gray-400");
+    expect(within(timeline).queryByText(next)).not.toBeInTheDocument();
   });
 
   // Oracle: a rejected event shows the rejected step in the danger colour, after the submitted step.

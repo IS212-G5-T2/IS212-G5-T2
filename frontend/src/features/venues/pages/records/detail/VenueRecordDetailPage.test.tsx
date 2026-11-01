@@ -2750,4 +2750,38 @@ describe("VenueRecordDetailPage (SPM-124)", () => {
       ).getByRole("button", { name: "Submit booking request" }),
     ).toBeDisabled();
   });
+
+  /** VEN-UPD-07-A: AC7 — owner sees the Edit Venue button; a different Venue Staff member does not. */
+  it("VEN-UPD-07-A Edit Venue button is visible to the owner and hidden from another Venue Staff", async () => {
+    // Owner: Edit Venue link present
+    useAppStore.setState({
+      currentUser: {
+        id: "staff",
+        name: "Venue Staff Owner",
+        email: "staff@example.test",
+        role: "venue_staff",
+        roles: ["venue_staff"],
+      },
+    });
+    mockVenueApi({ ...venue, ownerId: "staff" });
+    renderPage(`/venue-records/${id}`);
+    expect(await screen.findByRole("link", { name: /Edit Venue/i })).toBeInTheDocument();
+    cleanup();
+
+    // Non-owner Venue Staff: Edit Venue link absent
+    vi.resetAllMocks();
+    useAppStore.setState({
+      currentUser: {
+        id: "other-staff",
+        name: "Venue Staff Other",
+        email: "other@example.test",
+        role: "venue_staff",
+        roles: ["venue_staff"],
+      },
+    });
+    mockVenueApi({ ...venue, ownerId: "staff" });
+    renderPage(`/venue-records/${id}`);
+    await screen.findByText("Conference Room");
+    expect(screen.queryByRole("link", { name: /Edit Venue/i })).not.toBeInTheDocument();
+  });
 });
