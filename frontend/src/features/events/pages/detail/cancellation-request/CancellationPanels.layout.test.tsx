@@ -140,6 +140,34 @@ describe("SPM-155 Organiser request panel layout", () => {
   });
 });
 
+describe("SPM-155 vertical spacing of the cancellation panels", () => {
+  // Kills: FM102, FM103
+  /** CANCEL-REQUEST-02-SUP-LAYOUT (DERIVED): the Organiser panel keeps a gap above and below, so it does not touch the content around it. */
+  it("CANCEL-REQUEST-02-SUP-LAYOUT: the Organiser request panel has a gap above (mt-6) and below (mb-6)", async () => {
+    // Arrange / Act
+    fetchMock.mockResolvedValue([req()]);
+    render(<CancellationRequestPanel event={event("confirmed")} currentUser={org1} />);
+    const section = await screen.findByRole("region", { name: "Cancellation request" });
+
+    // Assert
+    expect(section).toHaveClass("mt-6");
+    expect(section).toHaveClass("mb-6");
+  });
+
+  // Kills: FM104, FM105
+  /** CANCEL-REQUEST-03-SUP-LAYOUT (DERIVED): the Coordinator panel keeps a gap above and below. */
+  it("CANCEL-REQUEST-03-SUP-LAYOUT: the Coordinator decision panel has a gap above (mt-6) and below (mb-6)", async () => {
+    // Arrange / Act
+    fetchMock.mockResolvedValue([req()]);
+    render(<CancellationDecisionPanel event={event("confirmed")} currentUser={coo1} onAccepted={vi.fn()} />);
+    const section = await screen.findByRole("region", { name: "Cancellation request" });
+
+    // Assert
+    expect(section).toHaveClass("mt-6");
+    expect(section).toHaveClass("mb-6");
+  });
+});
+
 describe("SPM-155 Coordinator decision panel layout", () => {
   // Kills: FM72, FM80
   /** CANCEL-REQUEST-03-SUP-LAYOUT (DERIVED): the decision panel is titled Cancellation Request and labels the reason. */

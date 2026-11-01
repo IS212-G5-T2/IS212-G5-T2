@@ -77,7 +77,9 @@ function timelineStages(status: string, cancelledFrom: string | null): readonly 
   const flow = STATUS_FLOW as readonly string[];
   if (status === "cancelled") {
     const reached = flow.indexOf(cancelledFrom ?? "");
-    return reached >= 0 ? [...flow.slice(0, reached + 1), "cancelled"] : ["cancelled"];
+    // A history row that says "cancelled" as the origin must not add a second Cancelled step.
+    const cancelledAt = flow.indexOf("cancelled");
+    return reached >= 0 ? [...flow.slice(0, Math.min(reached + 1, cancelledAt)), "cancelled"] : ["cancelled"];
   }
   const current = flow.indexOf(status);
   return current >= 0 ? flow.slice(0, current + 1) : flow;

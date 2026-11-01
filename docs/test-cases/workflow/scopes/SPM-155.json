@@ -1,7 +1,7 @@
 {
   "story": "SPM-155",
   "title": "Request Cancellation of My Event (Event Organiser)",
-  "note": "Test cases follow docs/specs/SPM-155-test-cases.md v1.0 (27 Oct 2026, 30 cases CANCEL-REQUEST-01-A to 05-D). G1 PRIMARY coverage was checked against the Confluence matrix (page 35848252, 30 ids; saved in cycle-01/confluence-matrix-ids.txt): PASS. Supporting ids (CANCEL-REQUEST-nn-SUP-*) name their parent AC and were approved by the user on 31 Oct 2026. Deviations from the document are in spec-conflicts.md (SC-155-001 to SC-155-007, approved by the user on 31 Oct 2026). Shared files edited by SPM-155 (cancel-event.service.ts, CancelEventDialog.tsx, EventCard.tsx, EventListPage.tsx) are not in `sources`: the scope measures only the story's own files, and a whole-file figure would count lines owned by SPM-136, SPM-61 and SPM-48. Their whole-file coverage in the full unit runs is 100% statements, branches, functions and lines (npm run test:cov in cycle-01 backend-cov.log and frontend-cov.log), including the SPM-155 edits. ConfirmedArrangementsPanel.test.tsx (SPM-135 ids) is in the scope only so the panel's loading and error branches, edited by the dots change, are measured with its other tests.",
+  "note": "Test cases follow docs/specs/SPM-155-test-cases.md v1.0 (27 Oct 2026, 30 cases CANCEL-REQUEST-01-A to 05-D). G1 PRIMARY coverage was checked against the Confluence matrix (page 35848252, 30 ids; saved in cycle-01/confluence-matrix-ids.txt): PASS. Supporting ids (CANCEL-REQUEST-nn-SUP-*) name their parent AC and were approved by the user on 31 Oct 2026. Deviations from the document are in spec-conflicts.md (SC-155-001 to SC-155-007, approved by the user on 31 Oct 2026). Shared files edited by SPM-155 (cancel-event.service.ts, CancelEventDialog.tsx, EventCard.tsx, EventListPage.tsx) are not in `sources`: the scope measures only the story's own files, and a whole-file figure would count lines owned by SPM-136, SPM-61 and SPM-48. Their whole-file coverage in the full unit runs is 100% statements, branches, functions and lines (npm run test:cov in cycle-01 backend-cov.log and frontend-cov.log), including the SPM-155 edits. The confirmed-arrangements dots (ConfirmedArrangementsPanel.tsx and its dots test file) are a UI-only edit in the SPM-135 area, not an SPM-155 acceptance criterion, so they are outside this scope, its records and its mutants (user decision of 1 Nov 2026); the dots test file still runs in the full frontend suite.",
   "tz": [
     "UTC",
     "Asia/Singapore",
@@ -67,12 +67,6 @@
       },
       {
         "glob": "frontend/src/features/events/pages/detail/cancellation-request/CancellationPanels.layout.test.tsx"
-      },
-      {
-        "glob": "frontend/src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.dots.test.tsx"
-      },
-      {
-        "glob": "frontend/src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.test.tsx"
       }
     ]
   },
@@ -89,8 +83,8 @@
       "frontend/src/features/events/lib/cancellationRequests.ts",
       "frontend/src/features/events/pages/detail/cancellation-request/CancellationRequestPanel.tsx",
       "frontend/src/features/events/pages/detail/cancellation-request/CancellationDecisionPanel.tsx",
-      "frontend/src/features/events/pages/detail/cancellation-request/useCancellationRequests.ts",
-      "frontend/src/features/events/pages/detail/planning/ConfirmedArrangementsPanel.tsx"
+      "frontend/src/features/events/pages/detail/cancellation-request/CancellationRequestDetails.tsx",
+      "frontend/src/features/events/pages/detail/cancellation-request/useCancellationRequests.ts"
     ]
   },
   "suites": [

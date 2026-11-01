@@ -10,9 +10,9 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { decideCancellationRequest } from "@/features/events/api/cancellation-requests-api";
 import { canDecideCancellation, statusLabelFor } from "@/features/events/lib/cancellationRequests";
 import { CancelEventDialog } from "@/features/events/pages/detail/cancel/CancelEventDialog";
+import { CancellationRequestDetails } from "@/features/events/pages/detail/cancellation-request/CancellationRequestDetails";
 import { useCancellationRequests } from "@/features/events/pages/detail/cancellation-request/useCancellationRequests";
 import type { EventRecord } from "@/types";
-import { formatSingaporeDateTime } from "@/utils/format";
 
 interface Props {
   event: EventRecord;
@@ -78,16 +78,7 @@ export function CancellationDecisionPanel({ event, currentUser, onAccepted }: Pr
           {current && (
             <div className="mt-2 space-y-1">
               <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{`Status: ${statusLabelFor(current.displayStatus)}`}</p>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{`Requested by ${current.requestedBy} on ${formatSingaporeDateTime(current.requestedAt)}`}</p>
-              {current.closedNote && <p className="text-sm text-gray-700 dark:text-gray-300">{current.closedNote}</p>}
-              {current.decidedAt && current.decidedBy && (
-                <p className="text-sm text-gray-700 dark:text-gray-300">{`Decided by ${current.decidedBy} on ${formatSingaporeDateTime(current.decidedAt)}`}</p>
-              )}
-              {current.reason && (
-                <p className="text-sm text-gray-900 dark:text-gray-100">
-                  <span className="font-medium">Reason:</span> <span className="whitespace-pre-wrap">{current.reason}</span>
-                </p>
-              )}
+              <CancellationRequestDetails request={current} showRequester />
             </div>
           )}
           {current?.displayStatus === "pending" && (

@@ -178,6 +178,18 @@ describe("SPM-155 status timeline: only the stages reached (commit 02e56aa3)", (
     expect(stagesOf(timeline)).toEqual(["cancelled"]);
   });
 
+  // Kills: FM106
+  /** CANCEL-REQUEST-04-SUP-TIMELINE (DERIVED): a history row that names Cancelled as the origin does not add a second Cancelled step. */
+  it("CANCEL-REQUEST-04-SUP-TIMELINE: a cancellation row whose origin is Cancelled shows Cancelled once", async () => {
+    // Arrange
+    renderAs(COO1, eventRecord({ status: "cancelled" }), { history: [{ fromStatus: "Cancelled", toStatus: "Cancelled" }] });
+    const timeline = await screen.findByRole("list", { name: "Event status timeline" });
+    await waitFor(() => expect(historyCalls().length).toBeGreaterThan(0));
+
+    // Assert: the flow up to, and not past, its single Cancelled step
+    await waitFor(() => expect(stagesOf(timeline)).toEqual(["draft", "submitted", "approved", "planning", "confirmed", "cancelled"]));
+  });
+
   // Kills: FM64
   /** CANCEL-REQUEST-04-SUP-TIMELINE (DERIVED): the history is read only for a cancelled event. */
   it("CANCEL-REQUEST-04-SUP-TIMELINE: an event that is not cancelled does not read its status history for the timeline", async () => {

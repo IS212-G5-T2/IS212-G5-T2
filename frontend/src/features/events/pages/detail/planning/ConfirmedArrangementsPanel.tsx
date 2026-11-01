@@ -14,10 +14,15 @@ function formatSgtSlot(start: string, end: string): string {
   return `${from.date} ${from.time} to ${to.time} SGT`;
 }
 
-/** Yellow: requested, checking, reserved or pending. Green: confirmed. Red: not requested, or refused or unavailable and not in effect. */
+/**
+ * Yellow: requested, checking, reserved or pending. Green: confirmed. Red: not requested, or refused or unavailable and
+ * not in effect. The red title is the item's own status with its first letter capitalised and the rest as the server
+ * wrote it (for example Released or Rejected); a group with nothing in it, or a blank state, reads "None requested".
+ */
 type Tone = "green" | "yellow" | "red";
 const DOT_CLASS: Record<Tone, string> = { green: "bg-success-500", yellow: "bg-warning-500", red: "bg-danger-500" };
-const TONE_LABEL: Record<Tone, string> = { green: "Confirmed", yellow: "Reserved or pending", red: "Not requested" };
+const TONE_LABEL: Record<"green" | "yellow", string> = { green: "Confirmed", yellow: "Reserved or pending" };
+const NONE_REQUESTED = "None requested";
 const TONE_RANK: Record<Tone, number> = { green: 0, yellow: 1, red: 2 };
 
 function toneOfState(state: string): Tone {
@@ -27,18 +32,30 @@ function toneOfState(state: string): Tone {
   return "red";
 }
 
-/** A group shows the worst state of its items; a group with no items is not requested. */
-function worstTone(tones: Tone[]): Tone {
-  if (tones.length === 0) return "red";
-  return tones.reduce((worst, tone) => (TONE_RANK[tone] > TONE_RANK[worst] ? tone : worst));
+/** The first letter in capitals, the rest unchanged ("released" gives "Released", "Not Available" stays as written). */
+function capitalised(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function ApprovalDot({ tone }: { tone: Tone }) {
+interface Dot {
+  tone: Tone;
+  title: string;
+}
+
+/** A group shows the worst state of its items; a group with no items is not requested. */
+function dotFor(states: string[]): Dot {
+  if (states.length === 0) return { tone: "red", title: NONE_REQUESTED };
+  const items = states.map((state) => ({ state: state.trim(), tone: toneOfState(state) }));
+  const worst = items.reduce((w, item) => (TONE_RANK[item.tone] > TONE_RANK[w.tone] ? item : w));
+  return { tone: worst.tone, title: worst.tone === "red" ? capitalised(worst.state) || NONE_REQUESTED : TONE_LABEL[worst.tone] };
+}
+
+function ApprovalDot({ dot }: { dot: Dot }) {
   return (
     <span
       aria-hidden="true"
-      title={TONE_LABEL[tone]}
-      className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${DOT_CLASS[tone]}`}
+      title={dot.title}
+      className={`mr-2 inline-block h-3 w-3 rounded-full align-middle ${DOT_CLASS[dot.tone]}`}
     />
   );
 }
@@ -69,9 +86,9 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
     );
   }
   if (!view) return null;
-  const venueTone = worstTone(view.venueBookings.map((booking) => toneOfState(booking.status)));
-  const equipmentTone = worstTone(view.equipment.map((line) => toneOfState(line.status)));
-  const safetyTone = toneOfState(view.safety.state);
+  const venueDot = dotFor(view.venueBookings.map((booking) => booking.status));
+  const equipmentDot = dotFor(view.equipment.map((line) => line.status));
+  const safetyDot = dotFor([view.safety.state]);
 
   return (
     <Card className="mb-6">
@@ -80,27 +97,35 @@ export function ConfirmedArrangementsPanel({ eventId }: { eventId: string }) {
       </CardHeader>
       <CardBody className="space-y-3 text-sm text-gray-800 dark:text-gray-200">
         <div>
-          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={venueTone} />Venue</h3>
-          <ul className="list-disc pl-5">
-            {view.venueBookings.map((booking) => (
-              <li key={`${booking.venueName}-${booking.start}`}>
-                {booking.venueName}: {formatSgtSlot(booking.start, booking.end)} ({booking.status})
-              </li>
-            ))}
-          </ul>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot dot={venueDot} />Venue</h3>
+          {view.venueBookings.length === 0 ? (
+            <p>{NONE_REQUESTED}</p>
+          ) : (
+            <ul className="list-disc pl-5">
+              {view.venueBookings.map((booking) => (
+                <li key={`${booking.venueName}-${booking.start}`}>
+                  {booking.venueName}: {formatSgtSlot(booking.start, booking.end)} ({booking.status})
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div>
-          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={equipmentTone} />Equipment</h3>
-          <ul className="list-disc pl-5">
-            {view.equipment.map((line) => (
-              <li key={line.name}>
-                {line.name} x{line.quantity} ({line.status})
-              </li>
-            ))}
-          </ul>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot dot={equipmentDot} />Equipment</h3>
+          {view.equipment.length === 0 ? (
+            <p>{NONE_REQUESTED}</p>
+          ) : (
+            <ul className="list-disc pl-5">
+              {view.equipment.map((line) => (
+                <li key={line.name}>
+                  {line.name} x{line.quantity} ({line.status})
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
         <div>
-          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot tone={safetyTone} />Safety Officer Approval</h3>
+          <h3 className="mb-2 border-b border-gray-200 pb-1 text-base font-semibold text-gray-900 dark:border-gray-700 dark:text-gray-100"><ApprovalDot dot={safetyDot} />Safety Officer Approval</h3>
           <p>{view.safety.state}</p>
         </div>
       </CardBody>
