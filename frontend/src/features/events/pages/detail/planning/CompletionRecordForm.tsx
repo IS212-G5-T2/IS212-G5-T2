@@ -117,7 +117,11 @@ export function CompletionRecordForm({ eventId, status, isAssignedCoordinator }:
                 }
                 className="flex-1"
               />
-              <Button variant="secondary" onClick={() => setIssues(issues.filter((_, position) => position !== index))}>
+              <Button
+                variant="secondary"
+                aria-label={`Remove issue ${index + 1}`}
+                onClick={() => setIssues(issues.filter((_, position) => position !== index))}
+              >
                 Remove
               </Button>
             </div>

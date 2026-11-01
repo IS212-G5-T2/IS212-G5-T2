@@ -53,7 +53,8 @@ import {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** "Once the event has entered the planning process" (SPM-97 AC1). */
-const VIEWABLE_STATUSES = new Set(['approved', 'planning', 'confirmed']);
+// SPM-153: a Completed event's planning information stays readable (its arrangements are locked).
+const VIEWABLE_STATUSES = new Set(['approved', 'planning', 'confirmed', 'completed']);
 /** "After event approval ... pre-confirmation" (SPM-49, SPM-85). */
 const EDITABLE_STATUSES = new Set(['approved', 'planning']);
 /** Booking/arrangement states that no longer hold anything for the event. */

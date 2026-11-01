@@ -303,8 +303,12 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
 
     const outcomes = [complete.status, cancel.status].sort();
     expect(outcomes).toEqual([200, 409]);
-    expect(await historyRows(eventId)).toHaveLength(1);
-    expect(['Completed', 'Cancelled']).toContain(await statusOf(eventId));
+    // The request that got 200 decides the final status, and that status is the only history row written.
+    const winner = complete.status === 200 ? 'Completed' : 'Cancelled';
+    expect(await statusOf(eventId)).toBe(winner);
+    const rows = await historyRows(eventId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ from_status: 'Confirmed', to_status: winner });
   });
 
   // COMPLETE-EVENT-02-F: Completed is terminal (BR5).
@@ -461,14 +465,89 @@ describe.skipIf(!database)('SPM-153 Event Status Changes from Confirmed to Compl
     expect(booking.rows[0].status).toBe('pending');
   });
 
+  // COMPLETE-EVENT-06-C (reject, cancel): a venue booking of a Completed event cannot be rejected or cancelled.
+  it('COMPLETE-EVENT-06-C: venue staff cannot reject a pending booking, and the coordinator cannot cancel an approved one, of a Completed event', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    const pending = await seedVenueBooking(eventId, 'pending');
+    const approved = await seedVenueBooking(eventId, 'approved');
+
+    const rejected = await as(pending.staff)(http().post(`/api/venues/bookings/${pending.bookingId}/reject`))
+      .send({ reason: 'Venue clash' })
+      .expect(409);
+    expect(rejected.body.code).toBe('EVENT_COMPLETED');
+
+    const cancelled = await as(coordinator)(http().post(`/api/venues/bookings/${approved.bookingId}/cancel`))
+      .send({ confirmed: true })
+      .expect(409);
+    expect(cancelled.body.code).toBe('EVENT_COMPLETED');
+
+    const bookings = await pool.query<{ id: string; status: string }>(
+      'SELECT id, status FROM venue_bookings WHERE id = ANY($1::uuid[]) ORDER BY id',
+      [[pending.bookingId, approved.bookingId]],
+    );
+    const byId = Object.fromEntries(bookings.rows.map((row) => [row.id, row.status]));
+    expect(byId[pending.bookingId]).toBe('pending');
+    expect(byId[approved.bookingId]).toBe('approved');
+  });
+
+  // COMPLETE-EVENT-06-D: the equipment requests of a Completed event cannot be changed, reserved or cannot-provided.
+  it('COMPLETE-EVENT-06-D: a Completed event refuses equipment update, reserve and cannot-provide with 409 EVENT_COMPLETED and changes nothing', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+    const requestId = randomUUID();
+    await pool.query(
+      `INSERT INTO equipment_requests (id, event_id, requested_by, status, created_at, updated_at)
+       VALUES ($1, $2, $3, 'Pending Review', now(), now())`,
+      [requestId, eventId, coordinator.uid],
+    );
+    await pool.query(
+      `INSERT INTO equipment_request_items (request_id, equipment_name, equipment_type, quantity, created_at, item_order)
+       VALUES ($1, 'Projector', 'Visual', 1, now(), 1)`,
+      [requestId],
+    );
+    const techSupport = await createSession('TECH_SUPPORT');
+
+    const update = await as(coordinator)(http().put(`/api/equipment/requests/${requestId}`))
+      .send({ eventId, items: [{ equipmentName: 'Microphone', equipmentType: 'Audio', quantity: 2 }] })
+      .expect(409);
+    expect(update.body.code).toBe('EVENT_COMPLETED');
+
+    const reserve = await as(techSupport)(http().patch(`/api/equipment/requests/${requestId}/reserve`)).expect(409);
+    expect(reserve.body.code).toBe('EVENT_COMPLETED');
+
+    const cannot = await as(techSupport)(http().patch(`/api/equipment/requests/${requestId}/cannot-provide`))
+      .send({ reason: 'Out for repair' })
+      .expect(409);
+    expect(cannot.body.code).toBe('EVENT_COMPLETED');
+
+    const request = await pool.query<{ status: string }>('SELECT status FROM equipment_requests WHERE id = $1', [requestId]);
+    expect(request.rows[0].status).toBe('Pending Review');
+    const items = await pool.query<{ equipment_name: string; quantity: number }>(
+      'SELECT equipment_name, quantity FROM equipment_request_items WHERE request_id = $1',
+      [requestId],
+    );
+    expect(items.rows).toEqual([{ equipment_name: 'Projector', quantity: 1 }]);
+  });
+
+  // COMPLETE-EVENT-06-A (read): a Completed event's planning information stays readable for the coordinator.
+  it('COMPLETE-EVENT-06-A: the planning view of a Completed event is readable (200) and shows status Completed', async () => {
+    const eventId = await seedEvent({ status: 'Completed', start: ENDED_START, end: ENDED_END });
+
+    const response = await as(coordinator)(http().get(`/api/events/${eventId}/planning`)).expect(200);
+
+    expect(response.body.event.status).toBe('completed');
+    expect(response.body.readOnly).toBe(true);
+  });
+
   // COMPLETE-EVENT-04-A: the Coordinator's Completed filter lists the event.
-  it('COMPLETE-EVENT-04-A: the coordinator queue filtered by Completed lists the event', async () => {
+  it('COMPLETE-EVENT-04-A: the coordinator queue filtered by Completed lists the event and no other', async () => {
     const eventId = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END });
+    const otherConfirmed = await seedEvent({ status: 'Confirmed', start: ENDED_START, end: ENDED_END, name: 'Still Confirmed' });
     await statusChange(coordinator, eventId, 'Completed').expect(200);
 
     const response = await as(coordinator)(http().get('/api/coordinator/queue?status=Completed')).expect(200);
 
     const ids = (response.body as { id: string }[]).map((row) => row.id);
     expect(ids).toContain(eventId);
+    expect(ids).not.toContain(otherConfirmed);
   });
 });

@@ -1,6 +1,6 @@
 # SPM-153 Test Results
 
-Status: implementation and automated tests in progress on `feature/SPM-153-Event-Status-Changes-from-Confirmed-to-Completed`. Not committed, not pushed. Test-case source: `SPM-153-test-cases.md` (33 cases; the cases are not in this repo's `docs/specs/`).
+Status: implemented and tested on `feature/SPM-153-Event-Status-Changes-from-Confirmed-to-Completed`. Test, code-quality and requirement gates have run (see section 8). Test-case source: `SPM-153-test-cases.md` (33 cases; the cases are not in this repo's `docs/specs/`).
 
 ## 1. Decisions applied (Decision Register)
 
@@ -16,11 +16,11 @@ Status: implementation and automated tests in progress on `feature/SPM-153-Event
 
 | Check | Command (in `backend/`, env `DATABASE_URL` set to the `spm_test` database) | Result |
 |---|---|---|
-| Completion e2e (new) | `npx vitest run --config ./vitest.config.e2e.ts test/events-completion.e2e-spec.ts` | 40/40 pass |
-| Confirm e2e (existing, one assertion updated, see section 6) | `test/events-confirm.e2e-spec.ts` with the completion suite | 82/82 pass together (Confirm 42 and completion 40) in isolation |
+| Completion e2e (new) | `npx vitest run --config ./vitest.config.e2e.ts test/events-completion.e2e-spec.ts` | 43/43 pass (three repeated runs; one earlier run showed a single transient 404 on login that did not recur) |
+| Confirm e2e (existing, one assertion updated, see section 6) | `test/events-confirm.e2e-spec.ts` with the completion suite | 85/85 pass together (Confirm 42 and completion 43) in isolation |
 | Status tracking, cancel (existing) | `test/events-status-tracking.e2e-spec.ts`, `test/events-cancel.e2e-spec.ts` | 12/12, 35/35 in isolation |
 | Backend unit (full) | `npx vitest run` | 98 files, 2276/2276 pass |
-| Frontend unit (full) | `npx vitest run` in `frontend/` | 158/158 files pass; 2364 tests pass, 1 skipped, 1 todo (one existing assertion updated, see section 6) |
+| Frontend unit (full) | `npx vitest run` in `frontend/` | 158/158 files pass; 2364 tests pass, 1 skipped, 1 todo (one existing assertion updated, see section 6). Last full run was before the final frontend edits; the detail-page folder (46 files, 762 tests) was re-run after them |
 | Backend lint | `npx oxlint` on changed backend files | clean |
 | Backend build | `npx nest build` | pass |
 | Frontend lint | `npx eslint` on changed frontend files | clean |
@@ -37,8 +37,10 @@ Full backend e2e suite: **flaky on the baseline too.** A clean worktree of HEAD 
 | M7 | History row not written on completion | Killed by 03-A and the history-equality checks (4 failures) |
 | M19 | Planning arrangements guard removed | Killed by COMPLETE-EVENT-06-B |
 | M20 | Venue approval guard removed | Killed by COMPLETE-EVENT-06-C |
+| M-EQ | Equipment update, reserve and cannot-provide guards removed | Killed by COMPLETE-EVENT-06-D |
+| M-VEN2 | Venue reject and coordinator cancel guards removed | Killed by COMPLETE-EVENT-06-C (reject and cancel) |
 
-Not run in this pass (no result claimed): M1, M3, M5, M6, M8 to M18, M21 to M26. Mutants M3 and M5 are equivalent under the row lock and the locked re-check, so their kill needs a concurrency or unit design rather than an e2e flip.
+Not run in this pass (no result claimed): M1, M3, M5, M6, M8 to M18, M21 to M26. The change-request guards (M21) have unit tests only. Mutants M3 and M5 are equivalent under the row lock and the locked re-check, so their kill needs a concurrency or unit design rather than an e2e flip.
 
 ## 4. Changed and added code
 
@@ -53,12 +55,13 @@ Backend
 
 Frontend
 - `utils/completion.ts`: API helpers and the client end-instant check.
-- `pages/detail/planning/CompleteEventPanel.tsx`: Mark as Completed, disabled with the reason until the end instant, enabled by a timer; a server refusal keeps it disabled until reload.
+- `pages/detail/planning/CompleteEventPanel.tsx`: the Mark as Completed button, rendered at the bottom right of the event page by `EventDetailPage.tsx`. Disabled with the reason until the end instant, enabled by a timer; a server refusal keeps it disabled until reload. Once completed, a line states that the event has been marked as completed, for every viewer. The earlier card form was removed.
 - `pages/detail/planning/CompletionRecordForm.tsx`: record form on Completed events, assigned Coordinator only; entered values kept on error.
-- `PlanningInformationPage.tsx`: renders both.
+- `PlanningInformationPage.tsx`: renders the completion record form only (the action moved to the event page).
+- `EventDetailPage.tsx`: the bottom-right action; the Clarification & Amendments section is hidden on Completed events; `completed` is a status-timeline stage, and a cancelled event's timeline leaves it out.
 
 Tests
-- `test/events-completion.e2e-spec.ts` (new, 40 cases, real PostgreSQL).
+- `test/events-completion.e2e-spec.ts` (new, 43 cases, real PostgreSQL), including venue reject and cancel refusals (06-C) and equipment update, reserve and cannot-provide refusals with unchanged rows (06-D).
 - `events/completion/completion.rules.spec.ts` (new, pure).
 - `CompleteEventPanel.test.tsx`, `CompletionRecordForm.test.tsx` (new).
 
@@ -67,17 +70,19 @@ Tests
 | Case | Status | Reason |
 |---|---|---|
 | 06-F | **Not done, accepted by product owner.** A Completed event may still be flagged when a venue is marked unavailable. | Owner decision: no change needed, since the event has completed. |
-| 06-D | Code added (equipment repository and service guard); **no test** | Needs an equipment request fixture. |
-| 06-E | Unit tests only (mocked); no e2e | Change-request e2e fixture not written. |
-| 06-C | Approve, reject and cancel guarded and tested; create, update, delete, release and replace not inventoried | No route for some of these in the repo; the others need the same treatment as approve. |
+| 06-D | Covered by e2e: update, reserve and cannot-provide refused (409 `EVENT_COMPLETED`) with the request and items unchanged | — |
+| 06-C | Approve, reject and coordinator cancel guarded and tested by e2e; create, update, delete, release and replace not inventoried | No route for some of these in the repo; the others need the same treatment as approve. |
 | 06-G | Name-only edit on a Completed event is refused, not allowed (D4 recommendation) | See section 6. |
-| 06-A | Not done | Read-only display of arrangements on a Completed event not changed; no test. |
+| 06-A | Partly covered: the planning view of a Completed event is readable and read-only (e2e). The display of arrangements in the UI is not tested. | The UI display of arrangements was not changed in this story. |
 | 01-F, M24 | Not tested | No scheduled job check. |
 | 03-B, 03-C, 03-D | Partly covered (refused attempts leave no row; UTC instant asserted). Not tested: SGT display across the boundary, three time zones, strict body (400 for `changedBy`), history PUT and DELETE (405) | Status change ignores unknown body keys (F6 expects 400). |
 | 04-B, 04-C | Not tested | Queue before and after completion, empty state, other Coordinators' events. |
 | 05-E | Boundaries tested in pure rules; not through HTTP | Validation logic covered; HTTP mapping of maxima not asserted. |
 | 05-G | Not tested | Plain-text rendering of script and SQL text not asserted. |
 | 02-A, 02-B (queue) | Partly covered (panel shown only for Confirmed) | Queue-level action absence not asserted. |
+| 06-E | Unit tests (mocked) only | No e2e for change-request submit or review on a Completed event. |
+| Clarification hiding, bottom-right placement and the completed timeline stage on `EventDetailPage` | No automated test | Checked by hand only. Recorded because the requirement review found no test for these owner decisions. |
+| Backend clarifications (`clarifications.service.ts:61, 111, 170`) still accept comments on a Completed event | Not in the ACs | The UI hides the section; the API does not refuse. Decide whether to refuse. |
 
 ## 6. Deviations and changes to existing tests
 
@@ -91,4 +96,13 @@ Tests
 
 - Two existing migration-rollback e2e tests fail on the baseline (not introduced here).
 - The full e2e suite is flaky (section 2).
-- No commit, push, PR or Jira transition has been made.
+- Jira transition and PR creation have not been made. Commits and pushes are listed in `git log` for the branch.
+
+## 8. Review gates
+
+| Gate | Reviewer | Result |
+|---|---|---|
+| Test Code Review | test-code-reviewer (two rounds) | First round FAIL (equipment, venue reject and cancel, race and queue assertions); fixed and re-run: PASS. Residual: change-request guards have unit tests only (6-E). |
+| Code Quality Review | code-quality-reviewer | PASS. Medium items fixed: remove-issue button now has an accessible name; the too-early refusal is no longer repeated as an alert. Low items not changed: a shared arrangements-locked exception helper, the conditional guard call in change-requests.service.ts, the cancelled-guard file name, and the planning guard in the status service that still reports the generic error for Completed events. |
+| Requirement Review | requirement-reviewer | PASS. Documentation corrections above applied; the coverage gap above recorded. |
+| G1 to G7 test-workflow cycle (ai/scripts/test-workflow) | not run | Needs a scope file and registry records for SPM-153, which do not exist yet. |
