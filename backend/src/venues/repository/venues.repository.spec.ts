@@ -2205,7 +2205,8 @@ describe('SPM-55 venue booking review repository', () => {
     // Every statement of the approval runs on the transaction client; the pool spy must see none of them.
     expect(poolQuery).not.toHaveBeenCalled();
     const calls = clientQuery.mock.calls as Array<[string, unknown[]]>;
-    expect(calls).toHaveLength(6);
+    // Six statements of the SPM-55 approval, then the SPM-137 notification lookup (no row in this fixture, so no insert; VENUE-BOOK-NOTIF-01-A has the insert).
+    expect(calls).toHaveLength(7);
     // Ownership lookup: the booking id comes first, then the staff id, and the lookup is scoped to the owner.
     expect(calls[0][0]).toContain('v.owner_user_id::text = $2::text');
     // The whole ownership lookup, so its JOIN and WHERE clauses cannot change independently.
@@ -2476,7 +2477,8 @@ describe('SPM-55 venue booking review repository', () => {
     );
 
     await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
-    expect(query).toHaveBeenCalledTimes(6);
+    // The six SPM-55 statements plus the SPM-137 notification lookup (it finds no row here, so no insert follows).
+    expect(query).toHaveBeenCalledTimes(7);
   });
 
   /** VEN-HOLD-13-B: a reassessed hold with no persisted event start fails closed and stays Pending. */
@@ -2582,7 +2584,8 @@ describe('SPM-55 venue booking review repository', () => {
     // Every statement of the rejection runs on the transaction client; the pool spy must see none of them.
     expect(poolQuery).not.toHaveBeenCalled();
     const calls = clientQuery.mock.calls as Array<[string, unknown[]]>;
-    expect(calls).toHaveLength(5);
+    // Five statements of the SPM-55 rejection, then the SPM-137 notification lookup (no row in this fixture, so no insert).
+    expect(calls).toHaveLength(6);
     // Ownership lookup: the booking id comes first, then the staff id, and the lookup is scoped to the owner.
     // The whole ownership lookup, so its JOIN and WHERE clauses cannot change independently.
     expect(normalizeSql(calls[0][0]).trim()).toBe(
@@ -2784,6 +2787,307 @@ describe('SPM-55 venue booking review repository', () => {
       rejectionReason: 'Clashes with maintenance',
     });
     expect(bookings[1].rejectionReason).toBeUndefined();
+  });
+
+  // ---------------------------------------------------------------------------------------------------------------
+  // SPM-137 (venue booking decision notification, Coordinator): VENUE-BOOK-NOTIF-01-A, 01-B, 01-E, 02-A, 02-B, 02-C,
+  // 02-BND-1, 05-A, 06-A, 06-D, 07-A, 07-B, 07-C, 07-D. The repository is tested in isolation: the transaction client
+  // answers from a fixed sequence of fixture rows, so these cases show which statements run, in what order and with
+  // which values. They do not exercise PostgreSQL (the e2e suite does).
+  // ---------------------------------------------------------------------------------------------------------------
+
+  // The row the notification context lookup returns: the event's current Coordinator, the event and the venue names.
+  const noticeContext = (overrides: Record<string, unknown> = {}) => ({
+    rows: [{ coordinator_id: 'coord-assigned', event_id: 'event-1', event_name: 'Gala Night', venue_name: 'Orchid Hall', ...overrides }],
+  });
+  const decidedAt = new Date('2030-01-10T12:00:00.000Z');
+  const isNoticeInsert = (sql: unknown) => String(sql).includes('INSERT INTO notifications');
+  const isNoticeLookup = (sql: unknown) => normalizeSql(String(sql)).includes('FROM venue_bookings b JOIN events e ON e.id = b.event_id JOIN venues v ON v.id = b.venue_id');
+
+  /** Fixture sequence of an approval that saves: lookups, no conflict, status UPDATE, audit insert, then the notice rows. */
+  const approveSequence = (context = noticeContext(), kind = 'booking') => [
+    ownedRow,
+    venueLockRow,
+    { rows: [{ ...pendingRow, request_kind: kind, event_start: new Date('2031-01-01T00:00:00.000Z') }] },
+    noConflict,
+    { rows: [{ ...pendingRow, status: 'approved', request_kind: kind }] },
+    { rows: [] },
+    context,
+    { rows: [] },
+  ];
+  /** Fixture sequence of a rejection that saves. */
+  const rejectSequence = (context = noticeContext(), kind = 'booking') => [
+    ownedRow,
+    venueLockRow,
+    { rows: [{ ...pendingRow, request_kind: kind }] },
+    { rows: [{ ...pendingRow, status: 'rejected', request_kind: kind, rejection_reason: 'Clash' }] },
+    { rows: [] },
+    context,
+    { rows: [] },
+  ];
+
+  /**
+   * VENUE-BOOK-NOTIF-01-A (SPM-137 AC1): approving a booking writes exactly one notification, addressed to the
+   * Coordinator the event has now, typed venue_booking_approved and linked to the event and to that booking.
+   * Kills: no notification, a second notification, wrong recipient column, wrong type, a missing booking link.
+   */
+  it('VENUE-BOOK-NOTIF-01-A approving a booking writes one approved notification for the assigned Coordinator', async () => {
+    // Arrange: an approval that will save, for an event assigned to coord-assigned.
+    const { repository, clientQuery } = createSplitReviewRepository(...approveSequence());
+
+    // Act: Venue Staff approve.
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    // Assert: one insert, with the recipient, type, event and booking.
+    const inserts = (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => isNoticeInsert(sql));
+    expect(inserts).toHaveLength(1);
+    const [id, recipient, type, , eventId, relatedBooking] = inserts[0][1];
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'venue_booking_approved', 'event-1', bookingId]);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-01-B (SPM-137 AC1): rejecting a booking writes exactly one venue_booking_rejected notification
+   * for the event's Coordinator.
+   * Kills: the rejection path writing nothing, using the approved type, or notifying someone else.
+   */
+  it('VENUE-BOOK-NOTIF-01-B rejecting a booking writes one rejected notification for the assigned Coordinator', async () => {
+    // Arrange: a rejection that will save.
+    const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
+
+    // Act: Venue Staff reject with a reason.
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    // Assert: one insert for the Coordinator, rejected type, linked to the booking.
+    const inserts = (clientQuery.mock.calls as Array<[string, unknown[]]>).filter(([sql]) => isNoticeInsert(sql));
+    expect(inserts).toHaveLength(1);
+    const [, recipient, type, , eventId, relatedBooking] = inserts[0][1];
+    expect([recipient, type, eventId, relatedBooking]).toEqual(['coord-assigned', 'venue_booking_rejected', 'event-1', bookingId]);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-01-E (SPM-137 AC1, out of scope SPM-165): deciding a tentative hold request writes no booking
+   * decision notification and does not even look up a recipient.
+   * Kills: notifying for holds (the decision branch ignoring request_kind).
+   */
+  it.each([
+    ['approving', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence(noticeContext(), 'tentative_hold')],
+    ['rejecting', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence(noticeContext(), 'tentative_hold')],
+  ])('VENUE-BOOK-NOTIF-01-E %s a tentative hold request writes no notification', async (_label, decide, sequence) => {
+    // Arrange: a hold request (the approval is far enough from the event start to save).
+    const { repository, clientQuery } = createSplitReviewRepository(...sequence);
+
+    // Act + Assert: the decision is saved, and no notice lookup or insert runs.
+    await expect(decide(repository)).resolves.toMatchObject({ kind: 'decided' });
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
+    expect(sqls.some(isNoticeInsert)).toBe(false);
+    expect(sqls.some(isNoticeLookup)).toBe(false);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-A (SPM-137 AC2): the approved text is exactly `Your booking of <venue name> for "<event name>"
+   * has been approved.`, with no reference and no reason.
+   * Kills: any wording change, a swapped venue and event name, the booking reference or a reason added.
+   */
+  it('VENUE-BOOK-NOTIF-02-A the approved message is exactly the agreed sentence', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...approveSequence());
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    const insert = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(insert[1][3]).toBe('Your booking of Orchid Hall for "Gala Night" has been approved.');
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-B (SPM-137 AC2): the rejected text is exactly `... has been rejected.`; the rejection reason
+   * the staff member typed and the booking reference are not in it.
+   * Kills: the reason appended to the message, the approved wording on a rejection, the reference in the text.
+   */
+  it('VENUE-BOOK-NOTIF-02-B the rejected message is exactly the agreed sentence and carries no reason or reference', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clashes with maintenance');
+
+    const insert = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(insert[1][3]).toBe('Your booking of Orchid Hall for "Gala Night" has been rejected.');
+    expect(String(insert[1][3])).not.toMatch(/maintenance|VB-/);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-C (SPM-137 AC2): the notification's timestamp is the decision time taken from the injected
+   * clock (2030-01-10T12:00Z), not the transaction start or the database default.
+   * Kills: omitting created_at (database now()), or using a different time source.
+   */
+  it('VENUE-BOOK-NOTIF-02-C stamps the notification with the decision time from the clock', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(...rejectSequence());
+
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    const insert = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(normalizeSql(insert[0])).toContain('created_at');
+    expect(insert[1][6]).toEqual(decidedAt);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-BND-1 (SPM-137 AC2, boundary): venue and event names containing quotes and punctuation appear
+   * in the message unchanged (no escaping, trimming or truncation).
+   * Kills: escaping or stripping quotes, truncating long names.
+   */
+  it('VENUE-BOOK-NOTIF-02-BND-1 keeps quotes and punctuation in the venue and event names', async () => {
+    const venueName = 'Hall "A" & B (Level 2)';
+    const eventName = `"Annual" Gala: ${'x'.repeat(200)}`;
+    const { repository, clientQuery } = createSplitReviewRepository(...approveSequence(noticeContext({ venue_name: venueName, event_name: eventName })));
+
+    await repository.approveVenueBooking(staffId, bookingId);
+
+    const insert = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(insert[1][3]).toBe(`Your booking of ${venueName} for "${eventName}" has been approved.`);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-05-A (SPM-137 AC5): each decision writes its own notification linked to its own booking, with a
+   * new id every time, so an event with several bookings gets one notice per decision.
+   * Kills: a fixed or reused notification id, deduplicating per event, linking every notice to the first booking.
+   */
+  it('VENUE-BOOK-NOTIF-05-A writes a separate notification, with its own id and booking link, for each decision', async () => {
+    // Arrange: two bookings of one event decided one after the other.
+    const otherBooking = '0b7d2a5e-1c3f-4e8a-9a6b-2f4c8d1e7a90';
+    const first = createSplitReviewRepository(...approveSequence());
+    const second = createSplitReviewRepository(...rejectSequence());
+
+    // Act: approve one, reject the other.
+    await first.repository.approveVenueBooking(staffId, bookingId);
+    await second.repository.rejectVenueBooking(staffId, otherBooking, 'Clash');
+
+    // Assert: two inserts, two distinct ids, each pointing at the booking it was decided for.
+    const a = (first.clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    const b = (second.clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(a[1][0]).not.toBe(b[1][0]);
+    expect([a[1][5], b[1][2]]).toEqual([bookingId, 'venue_booking_rejected']);
+    // The lookup the second decision ran was for the booking it decided.
+    const lookup = (second.clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeLookup(sql))!;
+    expect(lookup[1]).toEqual([otherBooking]);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-06-A (SPM-137 AC6): the recipient is the event's Coordinator as read inside the decision's own
+   * transaction, after the status change, so a reassignment before the decision sends it to the new Coordinator.
+   * Kills: a Coordinator remembered from an earlier read, a lookup outside the transaction, a lookup before the save.
+   */
+  it('VENUE-BOOK-NOTIF-06-A addresses the Coordinator read inside the decision transaction', async () => {
+    // Arrange: the event now belongs to coord-new.
+    const { repository, clientQuery, poolQuery } = createSplitReviewRepository(...rejectSequence(noticeContext({ coordinator_id: 'coord-new' })));
+
+    // Act.
+    await repository.rejectVenueBooking(staffId, bookingId, 'Clash');
+
+    // Assert: the lookup and the insert ran on the transaction client, after the audit insert, in that order.
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    const audit = sqls.findIndex((sql) => sql.includes('INSERT INTO booking_review_log'));
+    expect(isNoticeLookup(sqls[audit + 1])).toBe(true);
+    expect(isNoticeInsert(sqls[audit + 2])).toBe(true);
+    const insert = (clientQuery.mock.calls as Array<[string, unknown[]]>).find(([sql]) => isNoticeInsert(sql))!;
+    expect(insert[1][1]).toBe('coord-new');
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-06-D (SPM-137 AC6, defensive): if the event has no Coordinator or no event row is found, the
+   * decision still saves and no notification is written.
+   * Kills: inserting a notification with a null recipient, or failing the decision because there is no recipient.
+   */
+  it.each([
+    ['no row', { rows: [] }],
+    ['an unassigned event', noticeContext({ coordinator_id: null })],
+  ])('VENUE-BOOK-NOTIF-06-D saves the decision and writes no notification for %s', async (_label, context) => {
+    const { repository, clientQuery } = createSplitReviewRepository(...approveSequence(context as ReturnType<typeof noticeContext>));
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'decided' });
+    expect((clientQuery.mock.calls as Array<[string]>).some(([sql]) => isNoticeInsert(sql))).toBe(false);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-07-A (SPM-137 AC7): a booking the staff member cannot act on (not theirs or not found) or that is
+   * no longer pending is refused with no notification statement at all.
+   * Kills: notifying before the ownership and pending checks.
+   */
+  it.each([
+    ['approve a booking that is not theirs', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), [{ rows: [] }], { kind: 'not-found' }],
+    ['reject a booking that is not theirs', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), [{ rows: [] }], { kind: 'not-found' }],
+    ...(['approved', 'rejected', 'cancelled', 'released'] as const).flatMap((status) => [
+      [`approve a ${status} booking`, (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), [ownedRow, venueLockRow, { rows: [{ ...pendingRow, status }] }], { kind: 'already-decided', status }],
+      [`reject a ${status} booking`, (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), [ownedRow, venueLockRow, { rows: [{ ...pendingRow, status }] }], { kind: 'already-decided', status }],
+    ]),
+  ] as Array<[string, (r: VenuesRepository) => Promise<unknown>, Array<{ rows: unknown[] }>, object]>)(
+    'VENUE-BOOK-NOTIF-07-A refuses to %s without any notification statement',
+    async (_label, decide, sequence, expected) => {
+      const { repository, clientQuery } = createSplitReviewRepository(...sequence);
+
+      await expect(decide(repository)).resolves.toEqual(expected);
+      const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
+      expect(sqls.some(isNoticeInsert) || sqls.some(isNoticeLookup)).toBe(false);
+    },
+  );
+
+  /**
+   * VENUE-BOOK-NOTIF-07-B (SPM-137 AC7): an approval refused for a slot conflict writes no notification and no status
+   * change.
+   * Kills: notifying after the conflict check returns, or before it.
+   */
+  it('VENUE-BOOK-NOTIF-07-B writes no notification when the approval conflicts with another booking', async () => {
+    const { repository, clientQuery } = createSplitReviewRepository(
+      ownedRow,
+      venueLockRow,
+      { rows: [{ ...pendingRow, request_kind: 'booking' }] },
+      {
+        rows: [{
+          id: 'other', reason: 'Other event', kind: 'booking',
+          start_at: pendingRow.start_at, end_at: pendingRow.end_at,
+          occupied_start: pendingRow.start_at, occupied_end: pendingRow.end_at,
+          status: 'approved', request_kind: 'booking', hold_expires_at: null,
+        }],
+      },
+    );
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).resolves.toMatchObject({ kind: 'conflict' });
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => sql);
+    expect(sqls.some(isNoticeInsert) || sqls.some(isNoticeLookup)).toBe(false);
+    expect(sqls.some((sql) => normalizeSql(sql).includes("SET status = 'approved'"))).toBe(false);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-07-C (SPM-137 AC7): if saving the notification fails, the whole decision rolls back (ROLLBACK, no
+   * COMMIT) and the call rejects, so a decision is never saved without its notification.
+   * Kills: swallowing the notification error, or writing the notification outside the decision transaction.
+   */
+  it.each([
+    ['approval', (r: VenuesRepository) => r.approveVenueBooking(staffId, bookingId), approveSequence()],
+    ['rejection', (r: VenuesRepository) => r.rejectVenueBooking(staffId, bookingId, 'Clash'), rejectSequence()],
+  ])('VENUE-BOOK-NOTIF-07-C rolls the %s back when the notification insert fails', async (_label, decide, sequence) => {
+    // Arrange: the last fixture (the notification insert) throws.
+    const steps = [...sequence.slice(0, -1), new Error('notification insert failed')];
+    const { repository, clientQuery, poolQuery } = createRollbackReviewRepository(...steps);
+
+    // Act + Assert: the decision rejects, and the transaction ends with ROLLBACK.
+    await expect(decide(repository)).rejects.toThrow('notification insert failed');
+    expect(poolQuery).not.toHaveBeenCalled();
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-07-D (SPM-137 AC7): when the notification lookup itself fails the decision also rolls back.
+   * Kills: a try/catch around the lookup that lets the decision commit without its notification.
+   */
+  it('VENUE-BOOK-NOTIF-07-D rolls the decision back when the notification lookup fails', async () => {
+    const steps = [...approveSequence().slice(0, -2), new Error('lookup failed')];
+    const { repository, clientQuery } = createRollbackReviewRepository(...steps);
+
+    await expect(repository.approveVenueBooking(staffId, bookingId)).rejects.toThrow('lookup failed');
+    const sqls = (clientQuery.mock.calls as Array<[string]>).map(([sql]) => normalizeSql(String(sql)));
+    expect(sqls.at(-1)).toBe('ROLLBACK');
+    expect(sqls).not.toContain('COMMIT');
   });
 });
 

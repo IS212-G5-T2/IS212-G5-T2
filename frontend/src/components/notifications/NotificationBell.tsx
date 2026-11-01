@@ -8,18 +8,21 @@ import { Button } from "@/components/ui/Button";
 const BADGE_CAP = 9;
 
 // SPM-77 (SC-SPM77-02): a Coordinator's bell lists only these assignment notices. Change request notices stay in
-// the Pending Change Requests section of the events page. Module-level so the feed hook sees a stable filter.
+// the Pending Change Requests section of the events page. SPM-137 adds the venue booking decision notices.
+// Module-level so the feed hook sees a stable filter.
 const COORDINATOR_TYPES: Notification["type"][] = [
   "coordinator_assignment",
   "coordinator_reassignment",
   "coordinator_unassignment",
+  "venue_booking_approved",
+  "venue_booking_rejected",
 ];
 const isCoordinatorNotice = (notification: Notification) => COORDINATOR_TYPES.includes(notification.type);
 
 /**
- * Top-bar notification bell (SPM-88, SC-SPM88-10; SPM-77, SC-SPM77-03). Organisers see their unread request
- * decisions and anyone holding the Coordinator role sees their assignment notices in a dropdown; other roles get
- * nothing until later tickets add their notification types.
+ * Top-bar notification bell (SPM-88, SC-SPM88-10; SPM-77, SC-SPM77-03; SPM-137). Organisers see their unread request
+ * decisions and anyone holding the Coordinator role sees their assignment and venue booking decision notices in a
+ * dropdown; other roles get nothing until later tickets add their notification types.
  */
 export function NotificationBell() {
   const user = useAppStore((s) => s.currentUser);

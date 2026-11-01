@@ -22,6 +22,8 @@ function headlineOf(message: string, type: Notification["type"], eventName?: str
 }
 
 const CHANGE_REQUEST_DECISIONS = new Set<Notification["type"]>(["change_request_approved", "change_request_denied"]);
+// SPM-137: a venue booking decision opens the Coordinator's Bookings page for that booking, not an event page.
+const BOOKING_DECISIONS = new Set<Notification["type"]>(["venue_booking_approved", "venue_booking_rejected"]);
 
 /**
  * One unread notification inside the top-bar bell dropdown (SPM-88, SC-SPM88-10). Every type uses the same
@@ -41,6 +43,16 @@ export function NotificationRow({
   const headlineId = useId();
   const headline = headlineOf(n.message, n.type, n.relatedEventName);
   const isChangeRequest = CHANGE_REQUEST_DECISIONS.has(n.type);
+  const isBooking = BOOKING_DECISIONS.has(n.type);
+  // A notice with no booking id (older data) still opens the Bookings page, just without a booking selected.
+  const linkTarget = isBooking
+    ? n.relatedBookingId
+      ? `/bookings?booking=${encodeURIComponent(n.relatedBookingId)}`
+      : "/bookings"
+    : isChangeRequest
+      ? `/events/${n.relatedEventId}/change-requests`
+      : `/events/${n.relatedEventId}`;
+  const linkLabel = isBooking ? "View Booking" : isChangeRequest ? "View Change Request" : "View Request";
   // SPM-47 AC8: an unassignment has no link, the event now belongs to another coordinator.
   const hasLink = n.type !== "coordinator_unassignment";
   const decisionDate = formatDecisionDate(n.createdAt);
@@ -67,14 +79,14 @@ export function NotificationRow({
             <Link
               aria-describedby={headlineId}
               className="font-medium text-primary-700 underline-offset-2 hover:underline dark:text-primary-300"
-              to={isChangeRequest ? `/events/${n.relatedEventId}/change-requests` : `/events/${n.relatedEventId}`}
+              to={linkTarget}
               // SPM-88 A3: opening a decision marks it read; navigation does not wait for the call.
               onClick={() => {
                 if (!isChangeRequest) onMarkRead(n.id);
                 onOpen();
               }}
             >
-              {isChangeRequest ? "View Change Request" : "View Request"}
+              {linkLabel}
             </Link>
           )}
           <button

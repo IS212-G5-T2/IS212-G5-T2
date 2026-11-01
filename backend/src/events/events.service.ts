@@ -33,6 +33,7 @@ const EQUIPMENT_STATUSES = `(SELECT COALESCE(array_agg(r.status ORDER BY r.creat
 import { settleIfDue } from '../registrations/waitlist/settle.js';
 import { runRegistrationCloseJob } from '../registrations/waitlist/close-job.js';
 import { CLOCK, systemClock, type Clock } from '../common/clock.js';
+import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
 import {
   ATTENDEE_VISIBLE_STATUSES,
   isRegistrationOpen,
@@ -80,6 +81,8 @@ function audienceRoleFor(row: AudienceRow) {
   }
   if (row.type === 'coordinator_unavailable') return 'coordinator_lead';
   if (row.type.startsWith('coordinator_')) return 'coordinator';
+  // SPM-137: the venue booking decision notices are the assigned coordinator's.
+  if (row.type === BOOKING_APPROVED_NOTICE || row.type === BOOKING_REJECTED_NOTICE) return 'coordinator';
   return 'organiser';
 }
 
@@ -472,6 +475,9 @@ export class EventsService {
             'EventCancelled',
             // SPM-64 AC3: an organiser asked to change an event assigned to them.
             'coordinator_change_request',
+            // SPM-137: Venue Staff approved or rejected a booking for an event assigned to them.
+            BOOKING_APPROVED_NOTICE,
+            BOOKING_REJECTED_NOTICE,
           ]
         : []),
       ...(user.roles.includes('COORDINATOR_LEAD') ? ['coordinator_unavailable'] : []),
@@ -505,6 +511,8 @@ export class EventsService {
       type: row.type,
       message: row.message,
       relatedEventId: row.related_event_id,
+      // SPM-137: the booking a venue booking decision notice is about (null for every other type), the bell's link target.
+      relatedBookingId: row.related_booking_id ?? null,
       // SPM-88: the event's current name (null when the notice has no event), so the bell can tell a denial's name from its reason.
       relatedEventName: row.event_name,
       read: row.read,

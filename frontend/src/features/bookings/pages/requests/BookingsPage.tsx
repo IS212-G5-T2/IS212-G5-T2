@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAppStore } from "@/store/useAppStore";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Select } from "@/components/ui/FormControls";
 import { BookingCard } from "@/features/bookings/pages/requests/BookingCard";
 import { formatSingaporeDateTime, formatSingaporeRange } from "@/utils/format";
 import { BookingDetailModal } from "@/features/bookings/pages/requests/BookingDetailModal";
+import { CoordinatorBookingDialog } from "@/features/bookings/pages/requests/CoordinatorBookingDialog";
 import type { Booking, PendingBookingRequest, VenueBookingConflict } from "@/types";
 
 import { api, ApiError } from "@/utils/api";
@@ -59,13 +61,40 @@ export function BookingsPage() {
   const [lastActiveConfirmation, setLastActiveConfirmation] = useState(false);
   const [conflictAlert, setConflictAlert] = useState<{ message: string; conflicts?: VenueBookingConflict[] } | null>(null);
   const coordinator = hasRole(currentUser, "coordinator");
+  // SPM-137 AC3: a venue booking decision notification links to /bookings?booking=<id>.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [coordLoaded, setCoordLoaded] = useState(false);
 
   useEffect(() => {
     if (!coordinator) return;
     api<CoordinatorBooking[]>("/venues/bookings/mine")
-      .then(setCoordinatorBookings)
+      .then((rows) => {
+        setCoordinatorBookings(rows);
+        setCoordLoaded(true);
+      })
       .catch(() => setCoordError("Unable to load your venue bookings."));
   }, [coordinator]);
+
+  // A linked booking opens only from the Coordinator's own list (a Venue Staff user who is not a Coordinator never
+  // loads it, so the link does nothing for them). Nothing is said about the link until that list has loaded, so a
+  // slow or failed load never reads as "booking not found".
+  const linkedId = searchParams.get("booking");
+  const linkedBooking = linkedId ? coordinatorBookings.find((b) => b.id === linkedId) : undefined;
+  const linkedUnavailable = !!linkedId && coordLoaded && !linkedBooking;
+  // Closing the details (or dismissing the notice) takes the link out of the address, so a reload does not reopen it.
+  // Memoised so the dialog's onClose keeps one identity across re-renders (Modal re-subscribes its Escape listener on an onClose change).
+  const clearLinkedBooking = useCallback(
+    () =>
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          next.delete("booking");
+          return next;
+        },
+        { replace: true },
+      ),
+    [setSearchParams],
+  );
 
   /** SPM-55 AC1: loads all pending/approved/rejected requests for the venues this Venue Staff member owns. */
   const loadPendingRequests = useCallback(() => {
@@ -176,6 +205,19 @@ export function BookingsPage() {
             type="button"
             className="mt-3 rounded-md border border-red-300 px-3 py-1 text-sm font-medium text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300 dark:hover:bg-red-900/40"
             onClick={() => setConflictAlert(null)}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {linkedUnavailable && (
+        <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-200">
+          <p>That booking is no longer available to you. Its event may have been reassigned to another Coordinator.</p>
+          <button
+            type="button"
+            className="rounded-md border border-amber-400 px-3 py-1 font-medium hover:bg-amber-100 dark:border-amber-600 dark:hover:bg-amber-900/40"
+            onClick={clearLinkedBooking}
           >
             Dismiss
           </button>
@@ -346,6 +388,7 @@ export function BookingsPage() {
         </>
       )}
 
+      {linkedBooking && <CoordinatorBookingDialog booking={linkedBooking} onClose={clearLinkedBooking} />}
       <BookingDetailModal
         key={selected?.id ?? "none"}
         booking={selected}

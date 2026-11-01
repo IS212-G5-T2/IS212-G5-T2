@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter, Outlet, Route, Routes, useParams } from "react-router-dom";
+import { MemoryRouter, Outlet, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAppStore } from "@/store/useAppStore";
 import { api } from "@/utils/api";
@@ -1264,5 +1264,256 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
       "/events/event-1",
       "/events/event-2",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// SPM-137: the Coordinator's bell lists the venue booking decision notices (approved / rejected) and links each one
+// to the Bookings page for that booking (/bookings?booking=<id>). The backend builds the message and decides who
+// gets the notice; these are frontend unit tests of the bell with the notifications API stubbed and the signed-in
+// user set directly in the store (a fixture, not a live login).
+// ---------------------------------------------------------------------------------------------------------
+describe("NotificationBell (SPM-137: venue booking decision notices)", () => {
+  beforeEach(decisionClock);
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const APPROVED_MESSAGE = 'Your booking of Orchid Hall for "Welcome Evening" has been approved.';
+  const REJECTED_MESSAGE = 'Your booking of Main Hall for "Welcome Evening" has been rejected.';
+
+  function setCoordinator() {
+    useAppStore.setState({
+      currentUser: { id: "coordinator-1", name: "Coord", email: "c@example.test", role: "coordinator", roles: ["coordinator"] },
+    });
+  }
+
+  function bookingNotice(overrides: Partial<Notification> = {}): Notification {
+    return {
+      id: "notif-booking-1",
+      audienceRole: "coordinator",
+      audienceUserId: "coordinator-1",
+      type: "venue_booking_approved",
+      message: APPROVED_MESSAGE,
+      relatedEventId: "event-1",
+      relatedBookingId: "booking-1",
+      read: false,
+      createdAt: DECISION_CREATED_AT,
+      ...overrides,
+    };
+  }
+
+  // Shows where a followed link landed, so the test can read the path and the booking id in the query string.
+  function BookingsMarker() {
+    const location = useLocation();
+    return <p>Bookings page at {location.pathname + location.search}</p>;
+  }
+
+  // Keeps the bell mounted while the child route changes, as the app shell does, and opens the dropdown first.
+  function renderBellWithBookingsRoute() {
+    const view = render(
+      <MemoryRouter initialEntries={["/"]}>
+        <Routes>
+          <Route
+            path="/"
+            element={
+              <>
+                <NotificationBell />
+                <Outlet />
+              </>
+            }
+          >
+            <Route path="bookings" element={<BookingsMarker />} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(bellButton());
+    return view;
+  }
+
+  /**
+   * VENUE-BOOK-NOTIF-01-G (SPM-137 AC1): a Coordinator's bell lists approved and rejected booking decision notices
+   * with the unread count 2.
+   * Kills: the venue booking types missing from the Coordinator's bell filter.
+   */
+  it("VENUE-BOOK-NOTIF-01-G shows a Coordinator both an approved and a rejected booking notice with an unread count of 2", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice(),
+      bookingNotice({ id: "notif-booking-2", type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.getByText(REJECTED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-02-F (SPM-137 AC2): the row shows the whole message exactly as stored, with the notification's own
+   * timestamp as a <time> element, and no booking reference or rejection reason.
+   * Kills: a row that rewrites the message, hides the decision time, or adds a reference or reason.
+   */
+  it("VENUE-BOOK-NOTIF-02-F shows the full message and the decision time, with no reference or reason", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE })]);
+
+    renderBell();
+
+    const row = (await screen.findByText(REJECTED_MESSAGE)).closest("li")!;
+    expect(row.querySelector("p")).toHaveTextContent(REJECTED_MESSAGE);
+    expect(row.querySelector(`time[datetime="${DECISION_CREATED_AT}"]`)).not.toBeNull();
+    expect(row).not.toHaveTextContent(/VB-|Reason/);
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-A (SPM-137 AC3 and AC4): the link on an approved notice goes to /bookings?booking=booking-1,
+   * marks the notification read once, lands on the Bookings page and closes the dropdown.
+   * Kills: a link to the event page, a link without the booking id, opening without marking read.
+   */
+  it("VENUE-BOOK-NOTIF-03-A View Booking opens /bookings for that booking and marks the notice read", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBellWithBookingsRoute();
+    const link = await screen.findByRole("link", { name: "View Booking" });
+    expect(link).toHaveAttribute("href", "/bookings?booking=booking-1");
+    fireEvent.click(link);
+
+    expect(await screen.findByText("Bookings page at /bookings?booking=booking-1")).toBeTruthy();
+    expect(postReadCalls("notif-booking-1")).toHaveLength(1);
+    expect(screen.queryByRole("dialog", { name: "Notifications" })).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-B (SPM-137 AC3): a rejected notice links to its own booking too (not the first one listed).
+   * Kills: every row linking to the same booking id.
+   */
+  it("VENUE-BOOK-NOTIF-03-B links a rejected notice to its own booking", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice({ type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2", id: "notif-booking-2" }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings?booking=booking-2");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-03-C (SPM-137 AC3, robustness): a notice that has no booking id (older data) still links to the
+   * Bookings page, without a query string or the text "undefined".
+   * Kills: a link ending in ?booking=undefined or null.
+   */
+  it.each([null, undefined])("VENUE-BOOK-NOTIF-03-C links a notice with booking id %s to plain /bookings", async (missing) => {
+    setCoordinator();
+    apiMock.mockResolvedValue([bookingNotice({ relatedBookingId: missing })]);
+
+    renderBell();
+
+    expect(await screen.findByRole("link", { name: "View Booking" })).toHaveAttribute("href", "/bookings");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-G (SPM-137 AC4): the badge counts booking notices with the other Coordinator notices, and a
+   * notice the server already holds as read is neither listed nor counted.
+   * Kills: booking notices left out of the count; read notices shown.
+   */
+  it("VENUE-BOOK-NOTIF-04-G counts unread booking notices with assignment notices and leaves out a read one", async () => {
+    setCoordinator();
+    apiMock.mockResolvedValue([
+      bookingNotice(),
+      bookingNotice({ id: "notif-booking-read", message: REJECTED_MESSAGE, type: "venue_booking_rejected", read: true }),
+      bookingNotice({ id: "notif-assign", type: "coordinator_assignment", message: '"Welcome Evening" on 10 Jan 2027 has been assigned to you.', relatedBookingId: null }),
+    ]);
+
+    renderBell();
+
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(screen.queryByText(REJECTED_MESSAGE)).toBeNull();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 2 unread");
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-H (SPM-137 AC4): Mark As Read on a booking notice posts the read call, drops the row and lowers
+   * the count without opening the Bookings page.
+   * Kills: Mark As Read not posting for this type, or leaving the notice counted.
+   */
+  it("VENUE-BOOK-NOTIF-04-H Mark As Read marks a booking notice read and lowers the unread count", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBellWithBookingsRoute();
+    await screen.findByText(APPROVED_MESSAGE);
+    fireEvent.click(screen.getByRole("button", { name: /Mark As Read/i }));
+
+    await waitFor(() => expect(postReadCalls("notif-booking-1")).toHaveLength(1));
+    expect(await screen.findByText("You're all caught up")).toBeTruthy();
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications");
+    expect(screen.queryByText(/Bookings page at/)).toBeNull();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-04-I (SPM-137 AC4, SUPPORTING): opening and closing the bell does not mark a booking decision
+   * notice read; only Mark As Read does, so the notice stays unread and the count stays 1.
+   * Kills: marking the booking notices read (a fire-and-forget POST to /notifications/<id>/read) when the dropdown opens.
+   */
+  it("VENUE-BOOK-NOTIF-04-I leaves a booking decision notice unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) => Promise.resolve(path.endsWith("/read") ? undefined : [bookingNotice()]));
+
+    renderBell();
+    expect(await screen.findByText(APPROVED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(postReadCalls("notif-booking-1")).toHaveLength(0);
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(screen.getByText(APPROVED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
+   * VENUE-BOOK-NOTIF-05-C (SPM-137 AC5): an event with several booking decisions shows one row per decision, each with
+   * its own link, and following one marks only that notice read.
+   * Kills: grouping notices per event, or one link or read call serving all rows.
+   */
+  it("VENUE-BOOK-NOTIF-05-C lists a separate row and link for each booking of the same event", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(
+        path.endsWith("/read")
+          ? undefined
+          : [
+              bookingNotice({ id: "n1", relatedBookingId: "booking-1" }),
+              bookingNotice({ id: "n2", type: "venue_booking_rejected", message: REJECTED_MESSAGE, relatedBookingId: "booking-2" }),
+              bookingNotice({ id: "n3", relatedBookingId: "booking-3" }),
+            ],
+      ),
+    );
+
+    renderBellWithBookingsRoute();
+    const links = await screen.findAllByRole("link", { name: "View Booking" });
+    expect(links.map((l) => l.getAttribute("href")).sort()).toEqual([
+      "/bookings?booking=booking-1",
+      "/bookings?booking=booking-2",
+      "/bookings?booking=booking-3",
+    ]);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 3 unread");
+
+    fireEvent.click(links.find((l) => l.getAttribute("href")?.endsWith("booking-2"))!);
+
+    await waitFor(() => expect(postReadCalls("n2")).toHaveLength(1));
+    expect(postReadCalls("n1")).toHaveLength(0);
+    expect(postReadCalls("n3")).toHaveLength(0);
   });
 });

@@ -336,6 +336,23 @@ describe('SPM-55 venue booking review service', () => {
     expect(rejectBooking).not.toHaveBeenCalled();
   });
 
+  /**
+   * VENUE-BOOK-NOTIF-07-E (SPM-137 AC7): a decision the service refuses before saving (malformed id, blank rejection
+   * reason, caller who is not Venue Staff) never reaches the repository, which is the only place a notification is
+   * written, so nothing can be notified.
+   * Kills: validating after calling the repository, or notifying from the service layer.
+   */
+  it.each([
+    ['a malformed booking id', () => service.rejectVenueBooking(staff, 'not-a-uuid', { reason: 'Clash' })],
+    ['a blank rejection reason', () => service.rejectVenueBooking(staff, bookingId, { reason: '   ' })],
+    ['a missing rejection reason', () => service.rejectVenueBooking(staff, bookingId, {})],
+    ['a caller who is not Venue Staff', () => service.rejectVenueBooking(coordinator, bookingId, { reason: 'Clash' })],
+  ])('VENUE-BOOK-NOTIF-07-E refuses %s before the repository is reached', async (_label, decide) => {
+    await expect(decide()).rejects.toBeInstanceOf(Error);
+    expect(rejectBooking).not.toHaveBeenCalled();
+    expect(approveBooking).not.toHaveBeenCalled();
+  });
+
   /** VEN-REV-06-A: a cancelled, approved or rejected request returns a clear 409 and is not changed. */
   it.each(['cancelled', 'approved', 'rejected', 'released'])('SPM-55 AC6 returns BOOKING_ALREADY_DECIDED when approving a %s request', async (status) => {
       approveBooking.mockResolvedValue({ kind: 'already-decided', status });
