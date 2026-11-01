@@ -305,3 +305,30 @@ describe("VenueScheduleCalendar interactions", () => {
     vi.restoreAllMocks();
   });
 });
+
+/*
+ * SPM-125 AC2: an unavailable period is shown in the venue availability calendar with its reason. Unit test of the
+ * calendar's entry builder; no user or API.
+ */
+describe("SPM-125 unavailable periods in the availability calendar", () => {
+  /** VEN-IMPACT-02-A (AC2): the period is an "Unavailable" calendar entry at its exact times, carrying its reason. */
+  it("VEN-IMPACT-02-A shows an unavailable period at its times with its reason", () => {
+    const period = {
+      id: "period-1",
+      start: sgtLocalDateTimeToDate("2030-01-07T11:00").toISOString(),
+      end: sgtLocalDateTimeToDate("2030-01-07T13:00").toISOString(),
+      reason: "Audio system maintenance",
+    };
+    const [from, to] = range("2030-01-07T00:00", "2030-01-08T00:00");
+
+    const entries = getVenueScheduleEntries({ ...venue, unavailablePeriods: [period] }, from, to);
+
+    const entry = entries.find((item) => item.id === "period-1");
+    expect(entry).toMatchObject({
+      title: "Unavailable",
+      start: period.start,
+      end: period.end,
+      extendedProps: { detail: "Audio system maintenance", category: "unavailable" },
+    });
+  });
+});

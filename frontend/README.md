@@ -273,6 +273,17 @@ roles can read the venue but cannot use these controls. The backend enforces
 authorization; frontend tests live beside the venue-record pages.
 If a save fails, the form keeps its values, shows the server error, and lets
 staff correct the fields and review again.
+
+SPM-125: the save result marks each affected booking **Coordinator notified** (or says it had no Coordinator) and
+says how many Coordinators were notified; the venue edit result does the same for the SPM-121 AC8 and AC9 lists.
+Venue Staff also see **Unavailability History** (who created or ended each period early, and when) and **Booking
+History** (every booking and hold, past and future, any status) cards on the venue record page; each loads when
+opened (`VenueUnavailabilityHistory.tsx`, `VenueBookingHistory.tsx`). The Coordinator's top-bar bell
+(`src/components/notifications/NotificationBell.tsx`) also lists their `venue_unavailable_impact`,
+`venue_timing_impact` and `venue_capacity_impact` notices (**View Booking**), which open `/bookings?booking=<id>`
+like SPM-137's booking decisions; the booking's details dialog (`CoordinatorBookingDialog.tsx`) says when a venue
+change affects it and offers **Find a replacement venue**, as the booking's card does. Venue Staff get no bell: the
+save result is where they see who was notified.
 The end time must still be in the future; a period already in progress is
 allowed while its end remains ahead.
 Periods display as separate cards with Active now or Scheduled labels. The form

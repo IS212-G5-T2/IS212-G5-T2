@@ -27,6 +27,8 @@ describe('SPM-50 venue route wiring', () => {
     rejectVenueBooking: vi.fn(),
     markUnavailable: vi.fn(),
     endUnavailable: vi.fn(),
+    unavailabilityHistory: vi.fn(),
+    bookingHistory: vi.fn(),
   };
   const controller = new VenuesController(service as unknown as VenuesService);
 
@@ -231,5 +233,24 @@ describe('SPM-50 venue route wiring', () => {
       venueId,
       periodId,
     );
+  });
+
+  /**
+   * VEN-IMPACT-01-C, VEN-IMPACT-05-A (SPM-125 AC1, AC5): GET /api/venues/:id/unavailability-history and
+   * /booking-history pass the venue id and the verified caller to the service and return its result.
+   */
+  it('VEN-IMPACT-01-C VEN-IMPACT-05-A routes the two history reads with the verified caller', () => {
+    service.unavailabilityHistory.mockReturnValue('history');
+    service.bookingHistory.mockReturnValue('bookings');
+
+    expect(controller.unavailabilityHistory(request as never, 'venue-1')).toBe('history');
+    expect(controller.bookingHistory(request as never, 'venue-1')).toBe('bookings');
+    expect(service.unavailabilityHistory).toHaveBeenCalledWith(identity, 'venue-1');
+    expect(service.bookingHistory).toHaveBeenCalledWith(identity, 'venue-1');
+    const proto = VenuesController.prototype;
+    expect(Reflect.getMetadata(PATH_METADATA, proto.unavailabilityHistory)).toBe(':id/unavailability-history');
+    expect(Reflect.getMetadata(PATH_METADATA, proto.bookingHistory)).toBe(':id/booking-history');
+    expect(Reflect.getMetadata(METHOD_METADATA, proto.unavailabilityHistory)).toBe(RequestMethod.GET);
+    expect(Reflect.getMetadata(METHOD_METADATA, proto.bookingHistory)).toBe(RequestMethod.GET);
   });
 });

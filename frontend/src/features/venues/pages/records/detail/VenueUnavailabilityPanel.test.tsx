@@ -317,3 +317,65 @@ describe("SPM-122 venue unavailable period controls", () => {
     expect(screen.queryByRole("button", { name: "End Early" })).not.toBeInTheDocument();
   });
 });
+
+/*
+ * SPM-125 AC6: after saving, Venue Staff see which affected bookings' Event Coordinators were notified. Frontend unit
+ * test of the panel with the API stubbed; no live login.
+ */
+describe("SPM-125 notified Coordinators after saving an unavailable period", () => {
+  async function saveWith(affectedBookings: unknown[]) {
+    const user = userEvent.setup();
+    apiMock.mockResolvedValueOnce({
+      period: { id: "p1", start: "2030-01-12T04:15:00.000Z", end: "2030-01-12T04:45:00.000Z", reason: "Maintenance" },
+      affectedBookings,
+    });
+    renderPanel();
+    await user.click(screen.getByRole("button", { name: "Mark Unavailable" }));
+    await user.type(screen.getByLabelText(/Unavailable start/), "2030-01-12T12:15");
+    await user.type(screen.getByLabelText(/Unavailable end/), "2030-01-12T12:45");
+    await user.type(screen.getByLabelText(/Reason/), "Maintenance");
+    await user.click(screen.getByRole("button", { name: "Review unavailability" }));
+    await user.click(screen.getByRole("button", { name: "Confirm unavailability" }));
+    return screen.findByRole("region", { name: "Affected bookings" });
+  }
+  const affected = (id: string, eventName: string, coordinatorNotified?: boolean) => ({
+    id, eventName, start: "2030-01-12T04:20:00.000Z", end: "2030-01-12T04:40:00.000Z",
+    status: "booked", affectedByUnavailablePeriod: true, ...(coordinatorNotified ? { coordinatorNotified } : {}),
+  });
+
+  /**
+   * VEN-IMPACT-06-C (AC6): the result says how many Coordinators were notified and marks each affected booking
+   * "Coordinator notified", or says when a booking had no assigned Coordinator to notify.
+   * Kills: the result hiding whether Coordinators were notified.
+   */
+  it("VEN-IMPACT-06-C shows which affected bookings' Coordinators were notified", async () => {
+    const region = await saveWith([affected("b1", "Welcome Event", true), affected("b2", "Spring Gala", true), affected("b3", "Unassigned Talk")]);
+
+    expect(within(region).getByRole("status")).toHaveTextContent(
+      "The Event Coordinators of 2 affected bookings have been notified in-app that alternative arrangements are required.",
+    );
+    const items = within(region).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Welcome Event");
+    expect(items[0]).toHaveTextContent("Coordinator notified");
+    expect(items[1]).toHaveTextContent("Coordinator notified");
+    expect(items[2]).toHaveTextContent("No assigned Coordinator to notify");
+  });
+
+  /** VEN-IMPACT-06-BND-2 (AC6): one notified Coordinator is worded in the singular. */
+  it("VEN-IMPACT-06-BND-2 words one notified Coordinator in the singular", async () => {
+    const region = await saveWith([affected("b1", "Welcome Event", true)]);
+
+    expect(within(region).getByRole("status")).toHaveTextContent(
+      "The Event Coordinator of 1 affected booking has been notified in-app that alternative arrangements are required.",
+    );
+  });
+
+  /** VEN-IMPACT-06-BND-3 (AC6): when no affected booking has a Coordinator, the result says nobody was notified. */
+  it("VEN-IMPACT-06-BND-3 says no Coordinator was notified when no affected booking has one", async () => {
+    const region = await saveWith([affected("b1", "Unassigned Talk")]);
+
+    expect(within(region).getByRole("status")).toHaveTextContent(
+      "No Event Coordinator was notified because no affected booking has an assigned Coordinator.",
+    );
+  });
+});

@@ -184,11 +184,12 @@ describe('SPM-122 venue unavailable periods', () => {
     await expect(service.markUnavailable(staff, venueId, input)).resolves.toBe(
       result,
     );
+    // SPM-125 AC1: the saving Venue Staff member is passed on for the history entry and the summary notice.
     expect(markUnavailable).toHaveBeenCalledWith(venueId, {
       start: new Date(input.start),
       end: new Date(input.end),
       reason: input.reason,
-    });
+    }, staff.uid);
   });
 
   // VEN-UNAVAIL-05-A/B: early ending targets one period under the selected venue.
@@ -204,7 +205,8 @@ describe('SPM-122 venue unavailable periods', () => {
     await expect(
       service.endUnavailable(staff, venueId, periodId),
     ).resolves.toEqual({ period });
-    expect(endUnavailable).toHaveBeenCalledWith(venueId, periodId);
+    // SPM-125 AC1: the Venue Staff member who ends the period is passed on for the history entry.
+    expect(endUnavailable).toHaveBeenCalledWith(venueId, periodId, staff.uid);
   });
 
   // VEN-UNAVAIL-05-A: a missing period cannot be reported as reactivated.

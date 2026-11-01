@@ -252,6 +252,8 @@ export interface AffectedBooking {
   start: string;
   end: string;
   status: 'pending' | 'approved';
+  /** SPM-125 AC8/AC9: true when the booking's Event Coordinator was notified of the change. */
+  coordinatorNotified?: boolean;
 }
 
 export interface Venue {
@@ -459,7 +461,13 @@ export type NotificationType =
   /** SPM-138 AC9: an attendee was promoted from the waitlist to a place (MSG-WL-05). */
   | "WaitlistPromoted"
   /** SPM-138 AC12: a waiting entry was cancelled with its event (MSG-WL-06). */
-  | "EventCancelled";
+  | "EventCancelled"
+  /** SPM-125 AC6/AC7: a venue the Coordinator booked is unavailable during the booking. */
+  | "venue_unavailable_impact"
+  /** SPM-125 AC8: a venue setup or turnaround change makes the Coordinator's booking conflict. */
+  | "venue_timing_impact"
+  /** SPM-125 AC9: a venue capacity change affects the Coordinator's pending or approved booking. */
+  | "venue_capacity_impact";
 
 export interface Notification {
   id: string;
@@ -470,7 +478,7 @@ export interface Notification {
   relatedEventId?: string;
   /** The related event's current name (SPM-88); null or absent when there is no event. */
   relatedEventName?: string | null;
-  /** SPM-137: the booking a venue booking decision notice is about (the bell links to it); null or absent otherwise. */
+  /** SPM-137 and SPM-125 AC7: the booking a venue booking notice is about (the bell links to it); null or absent otherwise. */
   relatedBookingId?: string | null;
   read: boolean;
   createdAt: string;

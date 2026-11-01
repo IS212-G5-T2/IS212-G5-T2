@@ -373,3 +373,42 @@ describe("venue search criteria (SPM-52)", () => {
     expect(toSgtDateTimeLocal("2026-10-27T16:05:00.000Z")).toBe("2026-10-28T00:05");
   });
 });
+
+/*
+ * SPM-125 AC3 and AC4: a venue that is unavailable stays in the Coordinator's search results, is left out only for a
+ * time that overlaps the unavailable period (with setup and turnaround), and is offered again for a time whose
+ * occupied period starts exactly when the period ends. Pure unit tests of the search rules; no user or API.
+ */
+describe("SPM-125 venue search during an unavailable period", () => {
+  // 8 Oct 2026, 11:00 to 13:00 SGT, while the venue is currently unavailable.
+  const unavailableOrchid: VenueRecord = {
+    ...orchid,
+    availabilityStatus: "unavailable",
+    unavailablePeriods: [
+      { id: "period-1", start: "2026-10-08T11:00:00+08:00", end: "2026-10-08T13:00:00+08:00", reason: "Maintenance", current: true },
+    ],
+  };
+  const search = (start: string, end: string) =>
+    applyVenueSearch([unavailableOrchid], { ...EMPTY_VENUE_SEARCH, query: "orchid", start, end }, NOW).map((v) => v.id);
+
+  /** VEN-IMPACT-03-B (AC3): without a time, or for a time outside the period, the unavailable venue is still found. */
+  it("VEN-IMPACT-03-B keeps an unavailable venue searchable without a time and outside the period", () => {
+    expect(search("", "")).toEqual(["venue-orchid"]);
+    expect(search("2026-10-08T15:00", "2026-10-08T16:00")).toEqual(["venue-orchid"]);
+  });
+
+  /** VEN-IMPACT-03-C (AC3): a time overlapping the period, here only through the 30-minute setup, is not offered. */
+  it("VEN-IMPACT-03-C leaves the venue out for a time whose occupied period overlaps the unavailable period", () => {
+    expect(search("2026-10-08T12:00", "2026-10-08T14:00")).toEqual([]);
+    expect(search("2026-10-08T13:20", "2026-10-08T14:00")).toEqual([]);
+  });
+
+  /**
+   * VEN-IMPACT-04-B (AC4): a booking whose occupied period (start minus 30 minutes' setup) starts exactly at 13:00,
+   * when the period ends, is outside it; one minute earlier overlaps.
+   */
+  it("VEN-IMPACT-04-B offers the venue when the occupied period starts exactly as the unavailable period ends", () => {
+    expect(search("2026-10-08T13:30", "2026-10-08T14:30")).toEqual(["venue-orchid"]);
+    expect(search("2026-10-08T13:29", "2026-10-08T14:30")).toEqual([]);
+  });
+});

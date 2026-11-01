@@ -620,3 +620,64 @@ describe("SPM-121 VenueEditPage", () => {
     expect(JSON.parse((patch?.[1] as { body: string }).body)).not.toHaveProperty("image");
   });
 });
+
+/*
+ * SPM-125 AC8 and AC9: after a venue edit, Venue Staff see which listed bookings' Event Coordinators were notified.
+ * Frontend unit tests with the API stubbed; the Venue Staff member is a fixture, not a live login.
+ */
+describe("SPM-125 notified Coordinators after a venue edit", () => {
+  const listed = (bookingId: string, eventName: string, coordinatorNotified?: boolean): AffectedBooking => ({
+    bookingId,
+    eventName,
+    start: "2030-03-01T10:00:00.000Z",
+    end: "2030-03-01T12:00:00.000Z",
+    status: "approved",
+    ...(coordinatorNotified ? { coordinatorNotified } : {}),
+  });
+
+  async function saveWith(affectedBookings: AffectedBooking[], capacityBookings: AffectedBooking[]) {
+    apiMock
+      .mockResolvedValueOnce(venue as unknown as ReturnType<typeof api>)
+      .mockResolvedValueOnce({ venue, message: "Venue updated successfully.", affectedBookings, capacityBookings } as unknown as ReturnType<typeof api>);
+    const user = userEvent.setup();
+    renderEdit();
+    await waitFor(() => expect(screen.queryByText(/Loading venue/i)).toBeNull());
+    await user.click(screen.getByRole("button", { name: /Continue/i }));
+    await user.click(await screen.findByRole("button", { name: /Save changes/i }));
+    await screen.findByText("Venue updated successfully.");
+  }
+
+  /**
+   * VEN-IMPACT-08-E (AC8): a booking made to conflict by the setup or turnaround change is marked "Coordinator
+   * notified", and the list says how many Coordinators were notified.
+   * Kills: the edit result hiding that Coordinators were notified.
+   */
+  it("VEN-IMPACT-08-E marks the conflicting bookings whose Coordinators were notified", async () => {
+    await saveWith([listed("bk-1", "Workshop", true), listed("bk-2", "Seminar", true)], []);
+
+    expect(screen.getByText("Workshop").closest("li")).toHaveTextContent("Coordinator notified");
+    expect(screen.getByText("The Event Coordinators of 2 bookings have been notified in-app.")).toBeInTheDocument();
+  });
+
+  /**
+   * VEN-IMPACT-09-E (AC9): after a capacity change, a notified booking is marked and the count is singular for one;
+   * a booking that was not notified (ended, or no Coordinator) is not marked.
+   * Kills: marking every listed booking as notified.
+   */
+  it("VEN-IMPACT-09-E marks only the capacity bookings whose Coordinators were notified", async () => {
+    await saveWith([], [listed("bk-1", "Tech Conference", true), listed("bk-2", "Past Seminar")]);
+
+    expect(screen.getByText("Tech Conference").closest("li")).toHaveTextContent("Coordinator notified");
+    expect(screen.getByText("Past Seminar").closest("li")).not.toHaveTextContent("Coordinator notified");
+    expect(screen.getByText("The Event Coordinator of 1 booking has been notified in-app.")).toBeInTheDocument();
+  });
+
+  /** VEN-IMPACT-09-BND-2 (AC9): when no listed booking was notified, the result says why. */
+  it("VEN-IMPACT-09-BND-2 says no Coordinator was notified when no listed booking could be", async () => {
+    await saveWith([], [listed("bk-2", "Past Seminar")]);
+
+    expect(
+      screen.getByText("No Event Coordinator was notified: these bookings have ended or have no assigned Coordinator."),
+    ).toBeInTheDocument();
+  });
+});

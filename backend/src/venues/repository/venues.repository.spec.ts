@@ -1653,7 +1653,7 @@ describe('SPM-124 venue reads', () => {
         start: new Date('2030-01-12T04:00:00Z'),
         end: new Date('2030-01-12T05:00:00Z'),
         reason: 'Maintenance',
-      }),
+      }, '00000000-0000-4000-8000-0000000000aa'),
     ).resolves.toBeUndefined();
     expect(query).toHaveBeenCalledOnce();
     expect(query.mock.calls[0][0]).toContain('FOR UPDATE');
@@ -1730,7 +1730,7 @@ describe('SPM-124 venue reads', () => {
       start: new Date('2030-01-12T04:00:00Z'),
       end: new Date('2030-01-12T05:00:00Z'),
       reason: 'Maintenance',
-    });
+    }, '00000000-0000-4000-8000-0000000000aa');
 
     expect(result).toMatchObject({
       period: { id: 'blockout-1', reason: 'Maintenance' },
@@ -1806,7 +1806,7 @@ describe('SPM-124 venue reads', () => {
       start: new Date('2030-01-12T04:00:00Z'),
       end: new Date('2030-01-12T05:00:00Z'),
       reason: 'Maintenance',
-    });
+    }, '00000000-0000-4000-8000-0000000000aa');
 
     expect(result?.affectedBookings.map((b) => [b.id, b.status])).toEqual([
       ['standard', 'booked'],
@@ -1833,17 +1833,18 @@ describe('SPM-124 venue reads', () => {
       { now: () => now },
     );
 
-    await expect(repository.endUnavailable(venue.id, row.id)).resolves.toEqual({
+    await expect(repository.endUnavailable(venue.id, row.id, ownerUserId)).resolves.toEqual({
       id: row.id,
       start: row.start_at.toISOString(),
       end: now.toISOString(),
       reason: 'Maintenance',
     });
     await expect(
-      repository.endUnavailable(venue.id, 'missing'),
+      repository.endUnavailable(venue.id, 'missing', ownerUserId),
     ).resolves.toBeUndefined();
-    expect(query.mock.calls[0][1]).toEqual([venue.id, row.id, now]);
-    expect(query.mock.calls[1][1]).toEqual([venue.id, 'missing', now]);
+    // Changed by SPM-125 AC1: the same statement records the early end with the Venue Staff member.
+    expect(query.mock.calls[0][1]).toEqual([venue.id, row.id, now, ownerUserId]);
+    expect(query.mock.calls[1][1]).toEqual([venue.id, 'missing', now, ownerUserId]);
   });
 
   // SPM-148 R1/R4 (PLAN-STATUS-01-A/B, 02-A). Unit-level evidence for the transition: the
@@ -3543,5 +3544,316 @@ describe('SPM-121 repository.update', () => {
       const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, { ...holdInput, specialRequest: 'Quiet setup please' });
       expect(result).toEqual({ kind: 'created', id: bookingId, start: safeStart.toISOString(), end: safeEnd.toISOString(), specialRequest: 'Quiet setup please' });
     });
+  });
+});
+
+/*
+ * SPM-125 Manage Venue Unavailability Impact, History and Notifications. Unit tests of the repository in isolation:
+ * the database is a fixture that records each statement, and the Venue Staff member is a fixture id, not a login.
+ */
+describe('SPM-125 venue unavailability history and notifications', () => {
+  const now = new Date('2030-01-01T00:00:00Z');
+  const actorId = '8ff4073d-8baa-4d32-984e-b93a46cbe49d';
+  const period = {
+    start: new Date('2030-01-12T04:00:00Z'),
+    end: new Date('2030-01-12T05:00:00Z'),
+    reason: 'Maintenance',
+  };
+  const affectedRow = (overrides: Record<string, unknown>) => ({
+    venue_id: venue.id,
+    start_at: new Date('2030-01-12T04:10:00Z'),
+    end_at: new Date('2030-01-12T04:50:00Z'),
+    status: 'approved',
+    request_kind: 'booking',
+    hold_expires_at: null,
+    ...overrides,
+  });
+
+  /** Runs markUnavailable against a recording client returning the given affected rows. */
+  async function markWith(rows: unknown[]) {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id, name: 'Orchid Hall' }] })
+      .mockResolvedValueOnce({
+        rows: [{ id: 'period-1', start_at: period.start, end_at: period.end, reason: period.reason }],
+      })
+      .mockResolvedValueOnce({ rows })
+      .mockResolvedValue({ rows: [] });
+    const repository = new VenuesRepository(
+      { transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }) } as unknown as DatabaseService,
+      { now: () => now },
+    );
+    const result = await repository.markUnavailable(venue.id, period, actorId);
+    const notices = query.mock.calls
+      .filter(([sql]) => String(sql).includes('INSERT INTO notifications'))
+      .map(([, params]) => params as unknown[]);
+    return { result, query, notices };
+  }
+
+  /**
+   * VEN-IMPACT-01-A (AC1): the period and its 'created' history entry, naming the Venue Staff member, are written by
+   * one statement, so a saved period always has its history entry.
+   */
+  it('VEN-IMPACT-01-A records the created period and its history entry with the Venue Staff member in one statement', async () => {
+    const { query } = await markWith([]);
+
+    const [sql, params] = query.mock.calls[1];
+    expect(String(sql)).toContain('INSERT INTO venue_bookings');
+    expect(String(sql)).toContain('INSERT INTO venue_unavailability_history');
+    expect(String(sql).replace(/\s+/g, ' ')).toContain("SELECT venue_id, id, 'created', start_at, end_at, reason, $5::uuid FROM saved");
+    expect(params).toEqual([venue.id, period.start, period.end, period.reason, actorId]);
+  });
+
+  /**
+   * VEN-IMPACT-06-B (AC6): the Coordinators of exactly the bookings SPM-122 AC7 lists (a confirmed booking and an
+   * active hold) are notified; a pending booking request without a hold is neither listed nor notified; each listed
+   * booking says whether its Coordinator was notified; the Venue Staff member gets no notice (SC-SPM125-01).
+   */
+  it('VEN-IMPACT-06-B notifies the Coordinators of the listed affected bookings only and marks them notified', async () => {
+    const { result, notices } = await markWith([
+      affectedRow({ id: 'confirmed', event_id: 'event-1', event_name: 'Confirmed event', coordinator_id: 'coordinator-1' }),
+      affectedRow({
+        id: 'active-hold', event_id: 'event-2', event_name: 'Active hold', coordinator_id: 'coordinator-2',
+        request_kind: 'tentative_hold', hold_expires_at: new Date('2030-01-05T00:00:00Z'),
+      }),
+      affectedRow({
+        id: 'pending-request', event_id: 'event-3', event_name: 'Pending request', coordinator_id: 'coordinator-3',
+        status: 'pending', hold_expires_at: null,
+      }),
+      affectedRow({ id: 'no-coordinator', event_id: 'event-4', event_name: 'Unassigned', coordinator_id: null }),
+    ]);
+
+    // Each notice links its booking (6th value); none goes to the Venue Staff member who saved the period.
+    expect(notices.map((p) => [p[1], p[2], p[5]])).toEqual([
+      ['coordinator-1', 'venue_unavailable_impact', 'confirmed'],
+      ['coordinator-2', 'venue_unavailable_impact', 'active-hold'],
+    ]);
+    expect(notices[0][3]).toBe(
+      'Orchid Hall is unavailable from 12 Jan 2030, 12:00 pm – 1:00 pm (reason: Maintenance). ' +
+        'Alternative arrangements are required for your booking for "Confirmed event" (12 Jan 2030, 12:10 pm – 12:50 pm).',
+    );
+    expect(result?.affectedBookings.map((b) => [b.id, b.coordinatorNotified])).toEqual([
+      ['confirmed', true],
+      ['active-hold', true],
+      ['no-coordinator', undefined],
+    ]);
+  });
+
+  /**
+   * VEN-IMPACT-01-B (AC1): ending a period early updates it and writes its 'ended_early' entry (new end, the end it
+   * replaced and the Venue Staff member) in one statement at the server time.
+   */
+  it('VEN-IMPACT-01-B records an early end with the previous end and the Venue Staff member in the same statement', async () => {
+    const endedAt = new Date('2030-01-12T04:30:00Z');
+    const query = vi.fn().mockResolvedValueOnce({
+      rows: [{ id: 'period-1', start_at: period.start, end_at: endedAt, reason: period.reason }],
+    });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService, { now: () => endedAt });
+
+    await expect(repository.endUnavailable(venue.id, 'period-1', actorId)).resolves.toEqual({
+      id: 'period-1',
+      start: period.start.toISOString(),
+      end: endedAt.toISOString(),
+      reason: period.reason,
+    });
+    const sql = String(query.mock.calls[0][0]).replace(/\s+/g, ' ');
+    expect(sql).toContain('end_at AS previous_end_at');
+    expect(sql).toContain("SELECT venue_id, id, 'ended_early', start_at, end_at, previous_end_at, reason, $4::uuid, $3::timestamptz FROM ended");
+    expect(query.mock.calls[0][1]).toEqual([venue.id, 'period-1', endedAt, actorId]);
+  });
+
+  /**
+   * VEN-IMPACT-01-C (AC1): the history lists each entry newest first with its period, reason, who made the change
+   * and when; an early end also gives the end it replaced; a backfilled entry has no person ("Not recorded").
+   */
+  it('VEN-IMPACT-01-C lists history entries with the period, reason, person and time, newest first', async () => {
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 'h-2', period_id: 'period-1', action: 'ended_early', start_at: period.start,
+            end_at: new Date('2030-01-12T04:30:00Z'), previous_end_at: period.end, reason: 'Maintenance',
+            changed_by: 'Venue Staff 2', created_at: new Date('2030-01-12T04:30:00Z'),
+          },
+          {
+            id: 'h-1', period_id: 'period-1', action: 'created', start_at: period.start, end_at: period.end,
+            previous_end_at: null, reason: 'Maintenance', changed_by: null, created_at: new Date('2030-01-01T00:00:00Z'),
+          },
+        ],
+      });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService);
+
+    await expect(repository.listUnavailabilityHistory(venue.id)).resolves.toEqual([
+      {
+        id: 'h-2', periodId: 'period-1', action: 'ended_early', start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T04:30:00.000Z', previousEnd: '2030-01-12T05:00:00.000Z', reason: 'Maintenance',
+        changedBy: 'Venue Staff 2', changedAt: '2030-01-12T04:30:00.000Z',
+      },
+      {
+        id: 'h-1', periodId: 'period-1', action: 'created', start: '2030-01-12T04:00:00.000Z',
+        end: '2030-01-12T05:00:00.000Z', reason: 'Maintenance', changedBy: null, changedAt: '2030-01-01T00:00:00.000Z',
+      },
+    ]);
+    const sql = String(query.mock.calls[1][0]).replace(/\s+/g, ' ');
+    expect(sql).toContain('ORDER BY h.created_at DESC, h.id');
+    expect(sql).toContain('LEFT JOIN users u ON u.id = h.actor_user_id');
+    expect(query.mock.calls[1][1]).toEqual([venue.id]);
+  });
+
+  /** VEN-IMPACT-01-BND-1, VEN-IMPACT-05-BND-1 (AC1, AC5): an unknown venue has no history and nothing more is read. */
+  it('VEN-IMPACT-01-BND-1 VEN-IMPACT-05-BND-1 returns undefined for an unknown venue without reading history', async () => {
+    const query = vi.fn().mockResolvedValue({ rows: [] });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService);
+
+    await expect(repository.listUnavailabilityHistory(venue.id)).resolves.toBeUndefined();
+    await expect(repository.listBookingHistory(venue.id)).resolves.toBeUndefined();
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * VEN-IMPACT-05-A (AC5): the booking history lists every booking and hold at the venue whatever its status or
+   * time (only unavailable periods are left out), latest slot first, with its reference, Coordinator, hold expiry and
+   * whether it overlaps an unavailable period.
+   */
+  it('VEN-IMPACT-05-A lists every booking and hold of the venue with its status and unavailable-period overlap', async () => {
+    const base = { event_id: 'event-1', event_name: 'Gala', created_at: new Date('2029-12-01T00:00:00Z') };
+    const query = vi
+      .fn()
+      .mockResolvedValueOnce({ rows: [{ id: venue.id }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            ...base, id: 'hold', booking_reference: 'VB-HOLD0001', coordinator_name: 'Coordinator 1',
+            start_at: period.start, end_at: period.end, status: 'approved', request_kind: 'tentative_hold',
+            hold_expires_at: new Date('2030-01-05T00:00:00Z'), affected: true,
+          },
+          {
+            ...base, id: 'past', booking_reference: 'VB-PAST0001', coordinator_name: null,
+            start_at: new Date('2029-06-01T00:00:00Z'), end_at: new Date('2029-06-01T02:00:00Z'), status: 'cancelled',
+            request_kind: 'booking', hold_expires_at: null, affected: false,
+          },
+        ],
+      });
+    const repository = new VenuesRepository({ query } as unknown as DatabaseService);
+
+    await expect(repository.listBookingHistory(venue.id)).resolves.toEqual([
+      {
+        id: 'hold', bookingReference: 'VB-HOLD0001', eventId: 'event-1', eventName: 'Gala',
+        coordinatorName: 'Coordinator 1', start: '2030-01-12T04:00:00.000Z', end: '2030-01-12T05:00:00.000Z',
+        status: 'approved', requestKind: 'tentative_hold', holdExpiresAt: '2030-01-05T00:00:00.000Z',
+        affectedByUnavailablePeriod: true, requestedAt: '2029-12-01T00:00:00.000Z',
+      },
+      {
+        id: 'past', bookingReference: 'VB-PAST0001', eventId: 'event-1', eventName: 'Gala', coordinatorName: null,
+        start: '2029-06-01T00:00:00.000Z', end: '2029-06-01T02:00:00.000Z', status: 'cancelled',
+        requestKind: 'booking', affectedByUnavailablePeriod: false, requestedAt: '2029-12-01T00:00:00.000Z',
+      },
+    ]);
+    const sql = String(query.mock.calls[1][0]).replace(/\s+/g, ' ');
+    expect(sql).toContain("WHERE b.venue_id = $1::uuid AND b.status <> 'blocked'");
+    expect(sql).toContain('ORDER BY b.start_at DESC, b.id');
+    expect(sql).not.toMatch(/end_at\s*>\s*\$2/);
+  });
+});
+
+/*
+ * SPM-125 AC8 and AC9: venue edits (SPM-121) notify the Coordinators of the bookings SPM-121 AC8 and AC9 list.
+ * Unit tests of repository.update in isolation; the database is a recording fixture.
+ */
+describe('SPM-125 venue update notifications', () => {
+  const venueId = '00000000-0000-4000-8000-000000000125';
+  const ownerUserId = '8ff4073d-8baa-4d32-984e-b93a46cbe49d';
+  const now = new Date('2030-01-10T12:00:00.000Z');
+  const input = {
+    name: 'Updated Hall', location: 'Block B', capacity: 80, facilities: [], accessibility: [], layouts: [],
+    operatingInformation: 'Open daily', setupTimeMinutes: 60, turnaroundTimeMinutes: 45,
+  };
+  const upcoming = {
+    id: 'upcoming', event_id: 'event-1', event_name: 'Workshop', coordinator_id: 'coordinator-1', status: 'approved',
+    start_at: new Date('2030-04-01T09:00:00.000Z'), end_at: new Date('2030-04-01T11:00:00.000Z'),
+  };
+  const ended = {
+    id: 'ended', event_id: 'event-2', event_name: 'Old Workshop', coordinator_id: 'coordinator-2', status: 'approved',
+    start_at: new Date('2030-01-09T09:00:00.000Z'), end_at: now,
+  };
+
+  /** Runs update() routing each statement by its SQL; returns the notification inserts. */
+  async function updateWith(lock: { capacity: number; setup: number; turnaround: number }, rows: { timing?: unknown[]; capacity?: unknown[] }) {
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('FOR UPDATE'))
+        return { rows: [{ id: venueId, owner_user_id: ownerUserId, capacity: lock.capacity, setup_time_minutes: lock.setup, turnaround_time_minutes: lock.turnaround }] };
+      if (sql.includes('venue_booking_requests')) return { rows: rows.timing ?? [] };
+      if (sql.includes("b.status IN ('pending', 'approved')")) return { rows: rows.capacity ?? [] };
+      if (sql.includes('FROM venues v LEFT JOIN venue_images'))
+        return { rows: [{ id: venueId, owner_user_id: ownerUserId, name: input.name, location: input.location, capacity: input.capacity, facilities: [], accessibility: [], layouts: [], operating_information: input.operatingInformation, setup_time_minutes: input.setupTimeMinutes, turnaround_time_minutes: input.turnaroundTimeMinutes }] };
+      return { rows: [] };
+    });
+    const repository = new VenuesRepository(
+      {
+        transaction: (work: (client: unknown) => Promise<unknown>) => work({ query }),
+        query: vi.fn().mockResolvedValue({ rows: [] }),
+      } as unknown as DatabaseService,
+      { now: () => now },
+    );
+    const result = await repository.update(ownerUserId, venueId, input);
+    const notices = query.mock.calls
+      .filter(([sql]) => sql.includes('INSERT INTO notifications'))
+      .map((call) => (call as unknown as [string, unknown[]])[1]);
+    return { result, notices };
+  }
+
+  /**
+   * VEN-IMPACT-08-B (AC8): after a setup change, the Coordinator of each booking SPM-121 AC8 lists that has not ended
+   * gets a `venue_timing_impact` notice for that booking, and nobody else; the listing marks it notified.
+   */
+  it('VEN-IMPACT-08-B notifies the Coordinators of upcoming bookings that now conflict after a setup change', async () => {
+    const { result, notices } = await updateWith({ capacity: input.capacity, setup: 30, turnaround: 45 }, { timing: [upcoming] });
+
+    expect(notices.map((p) => [p[1], p[2], p[4], p[5]])).toEqual([
+      ['coordinator-1', 'venue_timing_impact', 'event-1', 'upcoming'],
+    ]);
+    expect(result.kind === 'updated' && result.affectedBookings).toEqual([
+      expect.objectContaining({ bookingId: 'upcoming', coordinatorNotified: true }),
+    ]);
+  });
+
+  /**
+   * VEN-IMPACT-08-BND-1, VEN-IMPACT-09-BND-1 (AC8, AC9): a listed booking that has already ended (end equals now) is
+   * still listed but its Coordinator is not notified.
+   */
+  it('VEN-IMPACT-08-BND-1 VEN-IMPACT-09-BND-1 lists but does not notify a booking that has ended', async () => {
+    const { result, notices } = await updateWith({ capacity: 120, setup: 30, turnaround: 45 }, { timing: [ended], capacity: [ended] });
+
+    expect(notices).toEqual([]);
+    if (result.kind !== 'updated') throw new Error('expected an update');
+    expect(result.affectedBookings).toEqual([expect.objectContaining({ bookingId: 'ended' })]);
+    expect(result.affectedBookings[0]).not.toHaveProperty('coordinatorNotified');
+    expect(result.capacityBookings[0]).not.toHaveProperty('coordinatorNotified');
+  });
+
+  /**
+   * VEN-IMPACT-09-B (AC9): after a capacity change, the Coordinator of each upcoming pending or approved booking gets
+   * a `venue_capacity_impact` notice giving the old and new capacity, and nobody else is notified.
+   */
+  it('VEN-IMPACT-09-B notifies the Coordinators of upcoming bookings of a capacity change with old and new values', async () => {
+    const { result, notices } = await updateWith(
+      { capacity: 120, setup: input.setupTimeMinutes, turnaround: input.turnaroundTimeMinutes },
+      { capacity: [upcoming, ended] },
+    );
+
+    expect(notices.map((p) => [p[1], p[2]])).toEqual([
+      ['coordinator-1', 'venue_capacity_impact'],
+    ]);
+    expect(notices[0][3]).toBe(
+      'The capacity of Updated Hall changed from 120 to 80. Check that your booking for "Workshop" ' +
+        '(1 Apr 2030, 5:00 pm – 7:00 pm) still suits your expected attendance.',
+    );
+    if (result.kind !== 'updated') throw new Error('expected an update');
+    expect(result.capacityBookings.map((b) => [b.bookingId, b.coordinatorNotified])).toEqual([
+      ['upcoming', true],
+      ['ended', undefined],
+    ]);
   });
 });

@@ -55,5 +55,6 @@ Historical AI-assisted work is grouped by Jira ticket. Each file retains the ori
 - [SPM-88](SPM-88.md)
 - [SPM-77](SPM-77.md)
 - [SPM-137](SPM-137.md)
+- [SPM-125](SPM-125.md)
 - [SPM-95](SPM-95.md)
 - [SPM-156](SPM-156.md)
