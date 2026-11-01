@@ -171,4 +171,12 @@ export const MUTANTS = [
     testMappings: bell('04-F'),
     edits: [['"Could not load your assignment notifications."', '"Could not load request decisions."']],
   },
+  {
+    id: 'SPM77-FE-19',
+    name: 'opening the bell marks the notices read',
+    file: BELL,
+    suites: ['notifications'],
+    testMappings: bell('04-G'),
+    edits: [['onClick={() => setOpen((v) => !v)}', 'onClick={() => {\n          notifications.forEach((n) => void markRead(n.id));\n          setOpen((v) => !v);\n        }}']],
+  },
 ];

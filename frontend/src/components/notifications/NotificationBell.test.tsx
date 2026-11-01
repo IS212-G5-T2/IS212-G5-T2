@@ -1182,6 +1182,34 @@ describe("NotificationBell (SPM-77: Coordinator assignment notices)", () => {
   });
 
   /**
+   * ASSIGN-NOTIFY-04-G (SPM-77 AC4, SUPPORTING): opening and closing the bell does not mark an assignment notice
+   * read; only Mark As Read does, so the notice stays unread and the count stays 1.
+   * Kills: marking the notices read (a fire-and-forget POST to /notifications/<id>/read) when the dropdown opens.
+   */
+  it("ASSIGN-NOTIFY-04-G leaves the assignment unread after the bell is opened and closed", async () => {
+    setCoordinator();
+    apiMock.mockImplementation((path: string) =>
+      Promise.resolve(path.endsWith("/read") ? undefined : [coordinatorNotice()]),
+    );
+
+    renderBell();
+    expect(await screen.findByText(ASSIGNED_MESSAGE)).toBeTruthy();
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(bellButton());
+    expect(bellButton().getAttribute("aria-expanded")).toBe("true");
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(postReadCalls("notif-assign-1")).toHaveLength(0);
+    expect(apiMock.mock.calls.filter(([path]) => String(path).endsWith("/read"))).toHaveLength(0);
+    expect(bellButton().getAttribute("aria-label")).toBe("Notifications, 1 unread");
+    expect(screen.getByText(ASSIGNED_MESSAGE)).toBeTruthy();
+  });
+
+  /**
    * ASSIGN-NOTIFY-04-F (SPM-77 AC4, SUPPORTING): when the Coordinator's feed fails to load, the bell shows the
    * assignment-specific load error and Retry brings the notice back.
    * Kills: the Coordinator seeing the organiser's error text, or Retry not re-fetching the feed.
