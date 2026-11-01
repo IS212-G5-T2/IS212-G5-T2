@@ -89,6 +89,16 @@ describe.skipIf(!database)('SPM-155 Request Cancellation of My Event over HTTP (
     pool = new pg.Pool({ connectionString: database });
     // Drafts live in event_drafts, a backend-owned migration the Compose stack mounts as 004 (idempotent).
     await pool.query(await readFile(new URL('../migrations/001_event_drafts.sql', import.meta.url), 'utf8'));
+    // The venues suites re-apply older venue_bookings migrations (009) to this shared database, which removes the
+    // 'released' status this suite relies on. Re-apply the current chain (idempotent) so this suite does not depend
+    // on the order of the other suites.
+    for (const migration of [
+      '019_spm54_venue_booking_lifecycle.sql',
+      '021_spm55_booking_review.sql',
+      '024_spm159_tentative_hold_requests.sql',
+      '025_spm159_approved_hold_expiry.sql',
+    ])
+      await pool.query(await readFile(new URL(`../migrations/${migration}`, import.meta.url), 'utf8'));
     // Mutation runs (SPM155_REAPPLY_MIGRATION=1) rebuild the table from the migration file under test, so a mutated
     // migration is what the database holds. A normal run never drops anything.
     if (process.env.SPM155_REAPPLY_MIGRATION === '1') {
