@@ -3114,4 +3114,130 @@ describe('SPM-121 repository.update', () => {
     const result = await repository.update(ownerUserId, venueId, venueInput);
     expect(result).toEqual({ kind: 'not-found' });
   });
+
+  describe('submitTentativeHoldRequest', () => {
+    const holdVenueId = 'c1d2e3f4-1234-5678-abcd-000000000001';
+    const holdCoordinatorId = 'coord000-0000-0000-0000-000000000001';
+    const holdInput = { eventId: 'eeeeeeee-0000-0000-0000-000000000001' };
+    const holdNow = new Date('2030-01-01T00:00:00.000Z');
+    const safeStart = new Date('2030-01-20T00:00:00.000Z');
+    const safeEnd = new Date('2030-01-20T01:00:00.000Z');
+    const holdVenueRow = { id: holdVenueId, setup_time_minutes: 30, turnaround_time_minutes: 45 };
+    const holdEventRow = { id: holdInput.eventId, status: 'Planning', start_date_time: safeStart, end_date_time: safeEnd };
+
+    function makeHoldRepo(queries: { rows: unknown[] }[], now = holdNow) {
+      const txQuery = vi.fn();
+      queries.forEach((q) => txQuery.mockResolvedValueOnce(q));
+      return {
+        txQuery,
+        repository: new VenuesRepository(
+          { transaction: vi.fn(async (work: (c: { query: typeof txQuery }) => Promise<unknown>) => work({ query: txQuery })) } as unknown as DatabaseService,
+          { now: () => now },
+        ),
+      };
+    }
+
+    /** VEN-UPD-08-A-REPO-SUP2: venue row absent → venue-not-found (covers line 995 TRUE branch). */
+    it('VEN-UPD-08-A-REPO-SUP2 returns venue-not-found when the venue row is absent', async () => {
+      const { repository } = makeHoldRepo([{ rows: [] }]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'venue-not-found' });
+    });
+
+    /** VEN-UPD-08-B-REPO-SUP2: setup_time_minutes is null → configuration-unavailable (covers line 996 TRUE / short-circuit). */
+    it('VEN-UPD-08-B-REPO-SUP2 returns configuration-unavailable when setup_time_minutes is null', async () => {
+      const { repository } = makeHoldRepo([{ rows: [{ ...holdVenueRow, setup_time_minutes: null }] }]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'configuration-unavailable' });
+    });
+
+    /** VEN-UPD-08-B-REPO-SUP3: turnaround_time_minutes is null → configuration-unavailable (covers line 997 TRUE branch). */
+    it('VEN-UPD-08-B-REPO-SUP3 returns configuration-unavailable when turnaround_time_minutes is null', async () => {
+      const { repository } = makeHoldRepo([{ rows: [{ ...holdVenueRow, turnaround_time_minutes: null }] }]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'configuration-unavailable' });
+    });
+
+    /** VEN-UPD-08-C-REPO-SUP2: event query returns empty → event-not-assigned (covers line 1013 TRUE branch). */
+    it('VEN-UPD-08-C-REPO-SUP2 returns event-not-assigned when the event is not assigned to the coordinator', async () => {
+      const { repository } = makeHoldRepo([{ rows: [holdVenueRow] }, { rows: [] }]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'event-not-assigned' });
+    });
+
+    /** VEN-UPD-08-D-REPO-SUP: event status not bookable → event-not-open (covers line 1014 TRUE branch). */
+    it('VEN-UPD-08-D-REPO-SUP returns event-not-open when the event status is not in the bookable set', async () => {
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [{ ...holdEventRow, status: 'Pending' }] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'event-not-open', status: 'Pending' });
+    });
+
+    /** VEN-UPD-08-E-REPO-SUP: event starts within 336 h → lead-time (covers line 1020 TRUE branch). */
+    it('VEN-UPD-08-E-REPO-SUP returns lead-time when the event starts within the 336-hour lead window', async () => {
+      // now=2030-01-01T00:00Z, start=2030-01-12T04:00Z → occupiedStart=2030-01-12T03:30Z → diff=267.5h < 336h
+      const nearStart = new Date('2030-01-12T04:00:00.000Z');
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [{ ...holdEventRow, start_date_time: nearStart, end_date_time: new Date('2030-01-12T05:00:00.000Z') }] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'lead-time' });
+    });
+
+    /** VEN-UPD-08-F-REPO-SUP: active booking request present → already-requested (covers line 1033 TRUE branch). */
+    it('VEN-UPD-08-F-REPO-SUP returns already-requested when an active booking request already exists', async () => {
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [holdEventRow] },
+        { rows: [{ status: 'pending' }] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'already-requested', status: 'pending' });
+    });
+
+    /** VEN-UPD-08-G-REPO-SUP: conflict query returns a row → conflict (covers line 1069 TRUE branch). */
+    it('VEN-UPD-08-G-REPO-SUP returns conflict when a scheduling conflict is found', async () => {
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [holdEventRow] },
+        { rows: [] },
+        { rows: [{ reason: 'Existing booking' }] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'conflict', reason: 'Existing booking' });
+    });
+
+    /** VEN-UPD-08-H-REPO-SUP: success without specialRequest → created (covers line 1082 undefined ?? null branch). */
+    it('VEN-UPD-08-H-REPO-SUP returns created when all checks pass and no special request is given', async () => {
+      const bookingId = 'b00k1d00-0000-0000-0000-000000000001';
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [holdEventRow] },
+        { rows: [] },
+        { rows: [] },
+        { rows: [{ id: bookingId, start_at: safeStart, end_at: safeEnd }] },
+        { rows: [] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, holdInput);
+      expect(result).toEqual({ kind: 'created', id: bookingId, start: safeStart.toISOString(), end: safeEnd.toISOString(), specialRequest: undefined });
+    });
+
+    /** VEN-UPD-08-H-REPO-SUP2: success with specialRequest → created (covers line 1082 string ?? null branch). */
+    it('VEN-UPD-08-H-REPO-SUP2 returns created and includes the specialRequest when one is provided', async () => {
+      const bookingId = 'b00k1d00-0000-0000-0000-000000000002';
+      const { repository } = makeHoldRepo([
+        { rows: [holdVenueRow] },
+        { rows: [holdEventRow] },
+        { rows: [] },
+        { rows: [] },
+        { rows: [{ id: bookingId, start_at: safeStart, end_at: safeEnd }] },
+        { rows: [] },
+      ]);
+      const result = await repository.submitTentativeHoldRequest(holdVenueId, holdCoordinatorId, { ...holdInput, specialRequest: 'Quiet setup please' });
+      expect(result).toEqual({ kind: 'created', id: bookingId, start: safeStart.toISOString(), end: safeEnd.toISOString(), specialRequest: 'Quiet setup please' });
+    });
+  });
 });
