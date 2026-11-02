@@ -715,6 +715,7 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | DECISION-NOTIFY-04-C | PRIMARY | SPM-88 | AC4 | Confluence matrix 37322836 | frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx | chaw678 2026-10-29 | Active |
 | DECISION-NOTIFY-04-D | PRIMARY | SPM-88 | AC4 | Confluence matrix 37322836 | frontend/src/features/events/pages/detail/EventDetailPage.decision.test.tsx | chaw678 2026-10-29 | Active |
 | DECISION-NOTIFY-04-E | PRIMARY | SPM-88 | AC4 | Confluence matrix 37322836 | frontend/src/components/layout/AppShell.decisions.test.tsx | chaw678 2026-10-29 | Active |
+| DECISION-NOTIFY-04-F | SUPPORTING | SPM-88 | AC4 | Proposed: SUPPORTING under SPM-88 AC4 (Organiser bell still lists approval and rejection with links); test lives in the SPM-77 work | frontend/src/components/notifications/NotificationBell.test.tsx | pending (PO approval, proposed 2026-10-31) | Active |
 | DECISION-NOTIFY-05-A | PRIMARY | SPM-88 | AC5 | Confluence matrix 37322836 | frontend/src/components/notifications/NotificationBell.test.tsx | chaw678 2026-10-29 | Active |
 | DECISION-NOTIFY-05-B | PRIMARY | SPM-88 | AC5 | Confluence matrix 37322836 | frontend/src/components/notifications/NotificationBell.test.tsx | chaw678 2026-10-29 | Active |
 | DECISION-NOTIFY-05-C | PRIMARY | SPM-88 | AC5 | Confluence matrix 37322836 | frontend/src/components/notifications/NotificationBell.test.tsx | chaw678 2026-10-29 | Active |
@@ -1101,6 +1102,35 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | VEN-CONF-06-C | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: full occupied interval (with setup/turnaround) is returned | backend/src/venues/repository/venues.repository.spec.ts, frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
 | VEN-CONF-06-D | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: multiple blocker intervals are all shown | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | pending (story owner) | Active |
 | VEN-CONF-06-E | PRIMARY | SPM-56 | AC6 | Confluence matrix SPM-56; case: unavailable interval is returned raw for a different-venue non-conflict | backend/test/venues-booking-requests.e2e-spec.ts | pending (story owner) | Active |
+| ASSIGN-NOTIFY-01-A | PRIMARY | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-01-B | PRIMARY | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-01-C | PRIMARY | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-01-D | PRIMARY | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-01-E | PRIMARY | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-02-A | PRIMARY | SPM-77 | AC2 | Confluence matrix 39190702; case page 39223477 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-02-B | PRIMARY | SPM-77 | AC2 | Confluence matrix 39190702; case page 39223477 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-02-C | PRIMARY | SPM-77 | AC2 | Confluence matrix 39190702; case page 39223477 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-02-BND-1 | PRIMARY | SPM-77 | AC2 | Confluence matrix 39190702; case page 39223477 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-03-A | PRIMARY | SPM-77 | AC3 | Confluence matrix 39190702; case page 39125162 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-03-C | PRIMARY | SPM-77 | AC3, AC4 | Confluence matrix 39190702; case page 39125162 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-A | PRIMARY | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-B | PRIMARY | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-C | PRIMARY | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-D | PRIMARY | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-E | PRIMARY | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-F | SUPPORTING | SPM-77 | AC4 | Confluence matrix 39190702; case page 39125178 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-04-G | SUPPORTING | SPM-77 | AC4 | Derived: opening and closing the bell must not mark a notice read (PR #93 review J-F2; 2026-11-01); Confluence matrix 39190702; case page 39125178 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-A | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-B | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-C | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/src/lead/lead-assignment.service.spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-D | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-E | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-F | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-05-G | PRIMARY | SPM-77 | AC5 | Confluence matrix 39190702; case page 39157880 | backend/test/lead-assignment.e2e-spec.ts | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-06-A | PRIMARY | SPM-77 | AC6 (Note: SPM-47 reassignment notice moves to the bell; links to its event) | Confluence matrix 39190702; case page 39125194 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-06-B | PRIMARY | SPM-77 | AC6 (Note: unassignment notice has no link) | Confluence matrix 39190702; case page 39125194 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-06-C | PRIMARY | SPM-77 | AC6 (Note: bell lists only assignment notices; DECIDED SC-SPM77-02) | Confluence matrix 39190702; case page 39125194 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
+| ASSIGN-NOTIFY-01-F | SUPPORTING | SPM-77 | AC1 | Confluence matrix 39190702; case page 39125145 | frontend/src/features/events/pages/list/EventListPage.test.tsx | approved by PO, 1 Nov 2026 (reported by chaw678) | Active |
 
 ## SPM-129
 
@@ -1125,6 +1155,61 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 | SAFETY-DECISION-04 | PRIMARY | SPM-130 | AC4 | Confluence matrix 36798526; case page 36733026 | backend/src/events/safety-officer/safety-officer.service.spec.ts, backend/test/safety-officer.e2e-spec.ts, frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
 | SAFETY-DECISION-05 | PRIMARY | SPM-130 | AC5 | Confluence matrix 36798526; case page 36831279 | frontend/src/features/events/pages/safety/SafetyCheckQueuePage.test.tsx | User approved 2026-10-28 | Active |
 
+## SPM-137
+
+| ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
+|---|---|---|---|---|---|---|---|
+| VENUE-BOOK-NOTIF-01-A | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-B | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-C | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-D | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-E | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-F | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/src/events/venue-booking-notifications.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-G | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-H | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-01-SEC-1 | PRIMARY | SPM-137 | AC1 | Confluence matrix 39158102; case page 39190861 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-A | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-B | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-C | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-BND-1 | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-D | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-E | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-02-F | PRIMARY | SPM-137 | AC2 | Confluence matrix 39158102; case page 39125290 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-A | PRIMARY | SPM-137 | AC3, AC4 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-B | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-C | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-D | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-E | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-F | SUPPORTING | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-G | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-H | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-I | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-J | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-K | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-L | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-M | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | frontend/src/features/bookings/pages/requests/BookingsPage.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-03-N | PRIMARY | SPM-137 | AC3 | Confluence matrix 39158102; case page 39125306 (written 1 Nov 2026, proposed IDs) | backend/src/events/venue-booking-notifications.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-D | PRIMARY | SPM-137 | AC4 | Confluence matrix 39158102; case page 39158060 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-E | PRIMARY | SPM-137 | AC4 | Confluence matrix 39158102; case page 39158060 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-F | PRIMARY | SPM-137 | AC4 | Confluence matrix 39158102; case page 39158060 (written 1 Nov 2026, proposed IDs) | backend/src/events/venue-booking-notifications.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-G | PRIMARY | SPM-137 | AC4 | Confluence matrix 39158102; case page 39158060 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-H | PRIMARY | SPM-137 | AC4 | Confluence matrix 39158102; case page 39158060 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-04-I | SUPPORTING | SPM-137 | AC4 | Derived: opening and closing the bell must not mark a notice read (same gap as SPM-77 PR #93 review J-F2; 2026-11-01); Confluence matrix 39158102; case page 39158060 | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-05-A | PRIMARY | SPM-137 | AC5 | Confluence matrix 39158102; case page 39190877 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-05-B | PRIMARY | SPM-137 | AC5 | Confluence matrix 39158102; case page 39190877 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-05-C | PRIMARY | SPM-137 | AC5 | Confluence matrix 39158102; case page 39190877 (written 1 Nov 2026, proposed IDs) | frontend/src/components/notifications/NotificationBell.test.tsx | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-06-A | PRIMARY | SPM-137 | AC6 | Confluence matrix 39158102; case page 39158076 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-06-B | PRIMARY | SPM-137 | AC6 | Confluence matrix 39158102; case page 39158076 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-06-C | PRIMARY | SPM-137 | AC6 | Confluence matrix 39158102; case page 39158076 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-06-D | SUPPORTING | SPM-137 | AC6 | Confluence matrix 39158102; case page 39158076 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-A | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-B | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-C | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-D | SUPPORTING | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/src/venues/repository/venues.repository.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-E | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/src/venues/venues.service.spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-F | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-G | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
+| VENUE-BOOK-NOTIF-07-H | PRIMARY | SPM-137 | AC7 | Confluence matrix 39158102; case page 39223542 (written 1 Nov 2026, proposed IDs) | backend/test/venue-booking-decision-notifications.e2e-spec.ts | approved by story owner (chaw678), 2 Nov 2026 | Active |
 ## SPM-153
 
 | ID | Type | Story | Parent AC | Source | Owning test file | Approved | Status |
@@ -1170,6 +1255,7 @@ Every test id used by a story's tests is listed here. `PRIMARY` ids are rows of 
 - SPM-48 (Monitor Workspace Queue & Status): the 23 MONITOR-QUEUE ids are PRIMARY rows of matrix 23691437 (revised 22 and 23 Oct 2026); `MONITOR-QUEUE-01-SUP-FILTER` groups the status-filter tests and is SUPPORTING under AC1 and AC2.
 - Supporting-id AC mappings are proposed by the workflow author and stay `pending` until the story owner approves them.
 - SPM-52 (Search and Filter Venues): the Confluence matrix 28868679 was created on 2026-10-17; its VEN-SRCH ids are PRIMARY, each with its AC case page (01 to 08). Earlier they were SUPPORTING while no matrix existed.
+- SPM-137 (Venue Booking Decision Notification, Coordinator): the 50 VENUE-BOOK-NOTIF ids are proposed on 1 Nov 2026 with the story's tests (RED pass first). VENUE-BOOK-NOTIF-03-F (migration is repeatable and the link optional), 06-D (event with no Coordinator, defensive) and 07-D (a failing notice lookup rolls the decision back) are SUPPORTING under their parent AC and stay `pending` until the story owner approves them. The Confluence SPM-137 matrix and its case pages VENUE-BOOK-NOTIF-01 to 07 are written from these ids.
 
 ## Non-test tokens
 
@@ -1185,6 +1271,8 @@ Id-shaped text in the tests that is not a test id (fixture labels, message codes
 | MSG-CF | Message catalogue codes |
 | MSG-CR | SPM-155 message catalogue keys (MSG-CR-01 to MSG-CR-06) |
 | SPM | Jira keys |
+| SC-SPM77 | Spec-conflict register ids (SC-SPM77-01 to 03) cited in test comments; they are listed in spec-conflicts.md, not here |
+| SC-SPM137 | Spec-conflict register ids (SC-SPM137-01 to 04) cited in test comments; they are listed in spec-conflicts.md, not here |
 | SC-SPM150 | Spec-conflict register ids (SC-SPM150-01 to 06) cited in test comments; they are listed in spec-conflicts.md, not here |
 | SC-SPM94 | Spec-conflict register ids (SC-SPM94-01 to 07) cited in test comments; they are listed in spec-conflicts.md, not here |
 | TR | Test Code Review finding labels |
@@ -1196,6 +1284,7 @@ Id-shaped text in the tests that is not a test id (fixture labels, message codes
 | MSG-WL | Waiting-list message catalogue codes (SPM-138) |
 | SAF | Fixture label for a Safety Officer login in specs (SPM-94) |
 | DX     | Determinism exception row ids (determinism-exceptions.md), not test ids |
+| DX-SPM137 | Determinism exception row ids of SPM-137 (determinism-exceptions.md), not test ids |
 | VS     | Venue Staff login labels in specs (SPM-48 VS-01)             |
 | H1     | Fixture hold label in specs (SPM-48 MONITOR-QUEUE-08-B)      |
 | SC-SPM48 | Spec-conflict register ids for SPM-48, named in test comments |

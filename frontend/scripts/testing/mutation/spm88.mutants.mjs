@@ -241,8 +241,8 @@ export const MUTANTS = [
     name: 'bell rendered for non-organisers',
     file: RN,
     suites: ['notifications'],
-    testMappings: [{ suite: 'notifications', file: NOTIFICATIONS, title: 'renders no bell for a non-organiser' }],
-    edits: [['  if (!isOrganiser) return null;\n', '']],
+    testMappings: [{ suite: 'notifications', file: NOTIFICATIONS, title: 'EVENT-REJECT-SUP-03 renders no bell for a user who is neither an organiser nor a coordinator' }],
+    edits: [['  if (!isOrganiser && !isCoordinator) return null;\n', '']],
   },
   {
     id: 'SPM88-FE-36',
@@ -371,8 +371,8 @@ export const MUTANTS = [
     suites: ['notifications'],
     testMappings: [{ suite: 'notifications', file: SHELL_TEST, title: 'DECISION-NOTIFY-04-E: ' }],
     edits: [
-      ['import { AssignmentNotifications }', 'import { NotificationBell } from "@/components/notifications/NotificationBell";\nimport { AssignmentNotifications }'],
-      ['<AssignmentNotifications />', '<AssignmentNotifications />\n      <section aria-label="Request decision notifications"><NotificationBell /></section>'],
+      ['import { PendingChangeRequests }', 'import { NotificationBell } from "@/components/notifications/NotificationBell";\nimport { PendingChangeRequests }'],
+      ['      <PageHeader\n        title={isPlanning', '      <section aria-label="Request decision notifications"><NotificationBell /></section>\n      <PageHeader\n        title={isPlanning'],
     ],
   },
   {
@@ -414,5 +414,13 @@ export const MUTANTS = [
     suites: ['notifications'],
     testMappings: map('03-INT-2'),
     edits: [['prefix.slice(0, -2)', 'prefix']],
+  },
+  {
+    id: 'SPM88-FE-55',
+    name: 'Organiser bell filtered to the Coordinator assignment types (decisions hidden; SPM-77 regression guard)',
+    file: RN,
+    suites: ['notifications'],
+    testMappings: [{ suite: 'notifications', file: NOTIFICATIONS, title: 'DECISION-NOTIFY-04-F ' }],
+    edits: [['filter: isCoordinator ? isCoordinatorNotice : undefined,', 'filter: isCoordinatorNotice,']],
   },
 ];

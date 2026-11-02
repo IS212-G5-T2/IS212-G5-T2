@@ -12,7 +12,9 @@ import type { AuthenticatedUser } from '../auth/types/auth.models.js';
 import { DatabaseService } from '../database/database.service.js';
 import { UUID_PATTERN as UUID } from '../common/uuid.js';
 import { ACTIVE_WORKLOAD_STATUSES } from '../events/types/event-status.js';
+import { formatSgtDate } from '../registrations/helpers/messages.js';
 import { CHANGE_REQUEST_NOTICE, notifyPendingChangeRequest } from '../events/change-requests/change-request-notice.js';
+import { BOOKING_APPROVED_NOTICE, BOOKING_REJECTED_NOTICE } from '../venues/review/booking-decision-notice.js';
 
 // SPM-123: the Event Coordinator Lead assigns each unassigned request to one
 // available coordinator; SPM-47: the Lead reassigns an assigned event to another.
@@ -139,7 +141,7 @@ export class LeadAssignmentService {
 
     return this.database.transaction(async (client) => {
       const selected = await client.query(
-        'SELECT id, event_name, status, coordinator_id FROM events WHERE id = $1 FOR UPDATE',
+        'SELECT id, event_name, status, coordinator_id, start_date_time FROM events WHERE id = $1 FOR UPDATE',
         [eventId],
       );
       const event = selected.rows[0];
@@ -163,7 +165,7 @@ export class LeadAssignmentService {
         [
           randomUUID(),
           coordinator.id,
-          `New event request "${event.event_name}" is awaiting your review.`,
+          `"${event.event_name}" on ${formatSgtDate(new Date(event.start_date_time))} has been assigned to you.`,
           eventId,
         ],
       );
@@ -258,10 +260,12 @@ export class LeadAssignmentService {
       );
       // The original coordinator's unread notices saying the event is theirs
       // (first assignment, or an earlier reassignment to them) no longer apply.
+      // SPM-137 (SC-SPM137-04): their unread venue booking decisions for this event go with it.
       await client.query(
         `UPDATE notifications SET read = true
           WHERE recipient_id = $1 AND related_event_id = $2
-            AND type IN ('coordinator_assignment', 'coordinator_reassignment', '${CHANGE_REQUEST_NOTICE}') AND read = false`,
+            AND type IN ('coordinator_assignment', 'coordinator_reassignment', '${CHANGE_REQUEST_NOTICE}',
+                         '${BOOKING_APPROVED_NOTICE}', '${BOOKING_REJECTED_NOTICE}') AND read = false`,
         [event.coordinator_id, eventId],
       );
       await client.query(

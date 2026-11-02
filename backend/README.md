@@ -408,6 +408,38 @@ Accordingly, VEN-AVL-02-C's automated schedule assertion checks that pending
 requests are tentative and rejected requests are absent, without claiming a
 cancelled status exists.
 
+### Booking decision notification (SPM-137)
+
+When Venue Staff approve (`POST /api/venues/bookings/:id/approve`) or reject (`.../reject`) a venue booking request, the
+event's Coordinator gets one in-app notification in the top-bar bell. `src/venues/review/booking-decision-notice.ts`
+(`notifyBookingDecision`) is the one place that writes it, and `VenuesRepository.approveVenueBooking` /
+`rejectVenueBooking` call it inside the decision's own transaction, after the status update and the audit row, so a
+decision and its notification are saved together or not at all (a refused, conflicting or lost-race decision writes
+nothing, and a failing notification rolls the decision back).
+
+- Types: `venue_booking_approved` and `venue_booking_rejected`. Only a Coordinator's `GET /api/notifications` returns
+  them and only a Coordinator can mark them read (`POST /api/notifications/:id/read`); the Organiser's list does not
+  include them.
+- Recipient: `events.coordinator_id` as read in the decision transaction (the Coordinator assigned at decision time). A
+  Coordinator the event was reassigned away from gets nothing for a later decision, and their unread decision notices
+  for that event are marked read when the Lead reassigns it (`LeadAssignmentService.reassign` adds the two types to the
+  same update that clears the SPM-47 assignment notices; their notices for other events are untouched, SC-SPM137-04).
+  The new Coordinator gets nothing for earlier decisions. An event with no Coordinator writes no notification and the decision stands.
+- Not notified: tentative hold requests (`request_kind = 'tentative_hold'`, SPM-165), the Organiser, email.
+- Message (`venueBookingDecisionMessage` in `src/registrations/helpers/messages.ts`): `Your booking of <venue name> for
+  "<event name>" has been approved.` or `... has been rejected.` The booking reference and rejection reason are not in
+  it; `created_at` is the decision time from the injected `CLOCK`.
+- Link: the notification row carries `related_event_id` and the new nullable `related_booking_id`, and the feed returns it
+  as `relatedBookingId` (null for every other type). Existing databases apply
+  `backend/migrations/029_spm137_booking_decision_notification.sql` once (idempotent; the same file is
+  `database/postgresql/init/029_spm137_booking_decision_notification.sql` for fresh volumes). Deleting a booking removes
+  its notification.
+- Tests: `src/venues/repository/venues.repository.spec.ts`, `src/venues/venues.service.spec.ts` and
+  `src/events/venue-booking-notifications.spec.ts` (`VENUE-BOOK-NOTIF-*`), and `test/venue-booking-decision-notifications.e2e-spec.ts`
+  (needs `DATABASE_URL`; it applies the venue migrations and 029 itself, signs in through the real login route and holds the
+  venue row lock from a second connection for the race case). Fault-injection check:
+  `node scripts/mutation/run.mjs --mutants spm137.mutants.mjs` (scratch copy; needs `DATABASE_URL`).
+
 ### Tentative hold requests (SPM-159)
 
 The same `POST /api/venues/:id/booking-requests` endpoint accepts the optional

@@ -6,6 +6,7 @@ Where this fits:
 
 - [`ai/docs/sub-agents.md`](sub-agents.md) is the shared contract (assignments, reports, findings). This file adds the test-specific gates and metrics to it.
 - [`test-generation`](../../.agents/skills/test-generation/SKILL.md) is how tests are written; [`test-review`](../../.agents/skills/test-review/SKILL.md) is how they are reviewed. This file is what both must satisfy and record.
+- [`confluence-test-docs.md`](confluence-test-docs.md) is how each story's Confluence matrix and test-case pages are written; G1 reads that matrix.
 - [`ai/agents/test-code-reviewer.md`](../agents/test-code-reviewer.md) runs the cycle as the independent gate; [`ai/agents/implementation.md`](../agents/implementation.md) maintains the records while writing tests.
 
 Tooling lives in `ai/scripts/test-workflow/` (dependency-free Node). Durable records live in `docs/test-cases/workflow/`. Cycle evidence goes to the ignored `ai/runtime/test-cycles/<story>/cycle-NN/`.
